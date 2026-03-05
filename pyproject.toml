@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "umpah"
+version = "0.1.0"
+description = "An automation service that orchestrates coding agents to execute project work sourced from issue trackers"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "watchfiles>=1.0",
+    "python-liquid>=1.12",
+]
+
+[project.scripts]
+umpah = "umpah.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["umpah"]
