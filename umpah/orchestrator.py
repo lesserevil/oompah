@@ -11,6 +11,7 @@ from typing import Any
 from umpah.agent import AgentError, AgentEvent, AgentSession
 from umpah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
 from umpah.models import (
+    AgentProfile,
     AgentTotals,
     Issue,
     LiveSession,
@@ -204,6 +205,13 @@ class Orchestrator:
             for blocker in issue.blocked_by:
                 if blocker.state and blocker.state.strip().lower() not in terminal_norms:
                     return False
+        # Budget circuit breaker
+        if not self._check_budget():
+            if not self.state.budget_exceeded:
+                self.state.budget_exceeded = True
+                logger.warning("Budget limit exceeded (%.2f/%.2f), halting dispatch",
+                             self.state.agent_totals.estimated_cost, self.config.budget_limit)
+            return False
         return True
 
     def _sort_for_dispatch(self, issues: list[Issue]) -> list[Issue]:
@@ -213,13 +221,101 @@ class Orchestrator:
             return (pri, created, issue.identifier)
         return sorted(issues, key=sort_key)
 
+    def _match_agent_profile(self, issue: Issue) -> AgentProfile | None:
+        """Select the best agent profile for an issue based on matching rules.
+
+        Matching priority:
+        1. Issue type match (e.g., bug -> specific profile)
+        2. Keyword match in title/description
+        3. Priority range match
+        4. First profile with no constraints (default fallback)
+        """
+        profiles = self.config.agent_profiles
+        if not profiles:
+            return None
+
+        title_lower = (issue.title or "").lower()
+        desc_lower = (issue.description or "").lower()
+        text = f"{title_lower} {desc_lower}"
+
+        best = None
+        best_score = -1
+
+        for profile in profiles:
+            score = 0
+
+            # Issue type match
+            if profile.issue_types:
+                if issue.issue_type in profile.issue_types:
+                    score += 10
+                else:
+                    continue  # type specified but doesn't match — skip
+
+            # Keyword match
+            if profile.keywords:
+                matched = sum(1 for kw in profile.keywords if kw.lower() in text)
+                if matched > 0:
+                    score += matched * 5
+                else:
+                    if not profile.issue_types:
+                        continue  # keywords specified but none matched and no type match
+
+            # Priority range
+            if profile.min_priority is not None or profile.max_priority is not None:
+                pri = issue.priority if issue.priority is not None else 2
+                if profile.min_priority is not None and pri < profile.min_priority:
+                    continue
+                if profile.max_priority is not None and pri > profile.max_priority:
+                    continue
+                score += 3
+
+            # Default fallback (no constraints)
+            if not profile.issue_types and not profile.keywords and profile.min_priority is None and profile.max_priority is None:
+                score = 0  # lowest priority, but valid
+
+            if score > best_score:
+                best_score = score
+                best = profile
+
+        return best
+
+    def _get_profile_by_name(self, name: str) -> AgentProfile | None:
+        """Look up an agent profile by name."""
+        for p in self.config.agent_profiles:
+            if p.name == name:
+                return p
+        return None
+
+    def _estimate_cost(self, profile: AgentProfile, input_tokens: int, output_tokens: int) -> float:
+        """Estimate cost for a session based on the agent profile rates."""
+        return (input_tokens / 1000.0) * profile.cost_per_1k_input + \
+               (output_tokens / 1000.0) * profile.cost_per_1k_output
+
+    def _check_budget(self) -> bool:
+        """Return True if within budget, False if budget exceeded."""
+        if self.config.budget_limit <= 0:
+            return True  # no budget limit set
+        return self.state.agent_totals.estimated_cost < self.config.budget_limit
+
+    def _post_comment(self, identifier: str, text: str, author: str = "umpah") -> None:
+        """Post a comment on an issue (best-effort, non-blocking)."""
+        try:
+            self.tracker.add_comment(identifier, text, author=author)
+        except Exception as exc:
+            logger.debug("Failed to post comment on %s: %s", identifier, exc)
+
     async def _dispatch(self, issue: Issue, attempt: int | None) -> None:
         """Dispatch a worker for an issue."""
+        # Select agent profile
+        profile = self._match_agent_profile(issue)
+        profile_name = profile.name if profile else "default"
+
         logger.info(
-            "Dispatching issue_id=%s issue_identifier=%s attempt=%s",
+            "Dispatching issue_id=%s issue_identifier=%s attempt=%s agent_profile=%s",
             issue.id,
             issue.identifier,
             attempt,
+            profile_name,
         )
         self.state.claimed.add(issue.id)
         # Remove from retry if present
@@ -229,7 +325,7 @@ class Orchestrator:
 
         now = datetime.now(timezone.utc)
         worker_task = asyncio.create_task(
-            self._run_worker(issue, attempt),
+            self._run_worker(issue, attempt, profile),
             name=f"worker-{issue.identifier}",
         )
 
@@ -240,12 +336,20 @@ class Orchestrator:
             session=None,
             retry_attempt=attempt or 0,
             started_at=now,
+            agent_profile_name=profile_name,
         )
 
-    async def _run_worker(self, issue: Issue, attempt: int | None) -> None:
+        if attempt and attempt > 1:
+            self._post_comment(issue.identifier, f"Retrying (attempt #{attempt}, agent: {profile_name})")
+        else:
+            self._post_comment(issue.identifier, f"Agent dispatched (profile: {profile_name})")
+
+    async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
         """Worker: create workspace, build prompt, run agent turns."""
         exit_reason = "normal"
         error_msg = None
+        agent_command = profile.command if profile else self.config.agent_command
+        max_turns = profile.max_turns if profile and profile.max_turns else self.config.max_turns
 
         try:
             # Create/reuse workspace
@@ -256,7 +360,7 @@ class Orchestrator:
 
             # Start agent session
             session = AgentSession(
-                command=self.config.agent_command,
+                command=agent_command,
                 workspace_path=workspace.path,
                 read_timeout_ms=self.config.read_timeout_ms,
                 turn_timeout_ms=self.config.turn_timeout_ms,
@@ -286,7 +390,6 @@ class Orchestrator:
                         turn_count=0,
                     )
 
-                max_turns = self.config.max_turns
                 current_issue = issue
 
                 for turn_number in range(1, max_turns + 1):
@@ -415,14 +518,34 @@ class Orchestrator:
         elapsed = (datetime.now(timezone.utc) - entry.started_at).total_seconds()
         self.state.agent_totals.seconds_running += elapsed
 
-        # Add token totals
+        # Add token totals and estimate cost
         if entry.session:
             self.state.agent_totals.input_tokens += entry.session.input_tokens
             self.state.agent_totals.output_tokens += entry.session.output_tokens
             self.state.agent_totals.total_tokens += entry.session.total_tokens
 
+            # Estimate cost from agent profile
+            profile = self._get_profile_by_name(entry.agent_profile_name)
+            if profile:
+                cost = self._estimate_cost(profile, entry.session.input_tokens, entry.session.output_tokens)
+                self.state.agent_totals.estimated_cost += cost
+                self.state.cost_by_profile[entry.agent_profile_name] = \
+                    self.state.cost_by_profile.get(entry.agent_profile_name, 0.0) + cost
+
+                # Reset circuit breaker if we're back under budget
+                if self.state.budget_exceeded and self._check_budget():
+                    self.state.budget_exceeded = False
+
+        tokens_str = ""
+        if entry.session and entry.session.total_tokens > 0:
+            tokens_str = f" ({entry.session.total_tokens} tokens)"
+
         if reason == "normal":
             self.state.completed.add(issue_id)
+            self._post_comment(
+                entry.identifier,
+                f"Agent completed successfully in {elapsed:.0f}s{tokens_str}",
+            )
             # Schedule short continuation retry
             self._schedule_retry(
                 issue_id,
@@ -439,6 +562,10 @@ class Orchestrator:
         else:
             next_attempt = (entry.retry_attempt or 0) + 1
             delay = self._backoff_delay(next_attempt)
+            self._post_comment(
+                entry.identifier,
+                f"Agent failed: {error or 'unknown error'}. Retrying in {delay // 1000}s (attempt #{next_attempt})",
+            )
             self._schedule_retry(
                 issue_id,
                 attempt=next_attempt,
@@ -657,6 +784,7 @@ class Orchestrator:
                 "issue_identifier": entry.identifier,
                 "state": entry.issue.state,
                 "started_at": entry.started_at.isoformat(),
+                "agent_profile": entry.agent_profile_name,
                 "turn_count": 0,
                 "session_id": None,
                 "last_event": None,
@@ -710,7 +838,18 @@ class Orchestrator:
                 "output_tokens": totals.output_tokens,
                 "total_tokens": totals.total_tokens,
                 "seconds_running": totals.seconds_running + live_seconds,
+                "estimated_cost": totals.estimated_cost,
             },
+            "cost_by_profile": dict(self.state.cost_by_profile),
+            "budget": {
+                "limit": self.config.budget_limit,
+                "spent": totals.estimated_cost,
+                "exceeded": self.state.budget_exceeded,
+            },
+            "agent_profiles": [
+                {"name": p.name, "command": p.command}
+                for p in self.config.agent_profiles
+            ],
             "rate_limits": self.state.rate_limits,
         }
 

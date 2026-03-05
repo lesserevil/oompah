@@ -12,3 +12,6 @@ dist/
 build/
 .venv/
 *.egg
+
+# Umpah local config
+.umpah/

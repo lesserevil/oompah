@@ -1,17 +1,17 @@
 VENV := .venv
 PYTHON := $(VENV)/bin/python
-PIP := $(VENV)/bin/pip
 PID_FILE := .umpah.pid
 LOG_FILE := umpah.log
 PORT := 8080
 
 .PHONY: setup start stop restart status logs clean
 
-setup: $(VENV)/bin/activate
+setup: $(VENV)/.uv-setup
 
-$(VENV)/bin/activate:
-	python3 -m venv $(VENV)
-	$(PIP) install -e .
+$(VENV)/.uv-setup: pyproject.toml
+	uv venv $(VENV)
+	uv pip install -e .
+	@touch $@
 	@echo "Setup complete. Run 'make start' to launch umpah."
 
 start: setup

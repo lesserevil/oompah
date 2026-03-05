@@ -99,6 +99,70 @@ class RetryEntry:
 
 
 @dataclass
+class ModelProvider:
+    """An API endpoint for model inference (OpenAI-compatible)."""
+
+    id: str
+    name: str
+    base_url: str
+    api_key: str = ""
+    models: list[str] = field(default_factory=list)
+    default_model: str | None = None
+    provider_type: str = "openai"  # openai | anthropic | custom
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "base_url": self.base_url,
+            "api_key": self.api_key,
+            "models": self.models,
+            "default_model": self.default_model,
+            "provider_type": self.provider_type,
+        }
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        """Return dict with masked API key for display."""
+        d = self.to_dict()
+        if d["api_key"]:
+            k = d["api_key"]
+            d["api_key_masked"] = k[:8] + "..." + k[-4:] if len(k) > 12 else "***"
+        else:
+            d["api_key_masked"] = ""
+        del d["api_key"]
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> ModelProvider:
+        return cls(
+            id=str(d.get("id", "")),
+            name=str(d.get("name", "")),
+            base_url=str(d.get("base_url", "")),
+            api_key=str(d.get("api_key", "")),
+            models=d.get("models", []),
+            default_model=d.get("default_model"),
+            provider_type=str(d.get("provider_type", "openai")),
+        )
+
+
+@dataclass
+class AgentProfile:
+    """Defines an agent tier with its command and cost characteristics."""
+
+    name: str
+    command: str
+    provider_id: str | None = None
+    model: str | None = None
+    cost_per_1k_input: float = 0.0
+    cost_per_1k_output: float = 0.0
+    max_turns: int | None = None
+    keywords: list[str] = field(default_factory=list)
+    issue_types: list[str] = field(default_factory=list)
+    min_priority: int | None = None
+    max_priority: int | None = None
+
+
+@dataclass
 class AgentTotals:
     """Aggregate token counts and runtime."""
 
@@ -106,6 +170,7 @@ class AgentTotals:
     output_tokens: int = 0
     total_tokens: int = 0
     seconds_running: float = 0.0
+    estimated_cost: float = 0.0
 
 
 @dataclass
@@ -118,6 +183,7 @@ class RunningEntry:
     session: LiveSession | None
     retry_attempt: int
     started_at: datetime
+    agent_profile_name: str = "default"
 
 
 @dataclass
@@ -131,4 +197,6 @@ class OrchestratorState:
     retry_attempts: dict[str, RetryEntry] = field(default_factory=dict)
     completed: set[str] = field(default_factory=set)
     agent_totals: AgentTotals = field(default_factory=AgentTotals)
+    cost_by_profile: dict[str, float] = field(default_factory=dict)
+    budget_exceeded: bool = False
     rate_limits: dict | None = None

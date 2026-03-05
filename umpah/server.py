@@ -10,12 +10,17 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from umpah.providers import ProviderStore
+
 if TYPE_CHECKING:
     from umpah.orchestrator import Orchestrator
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="umpah", version="0.1.0")
+
+# Global provider store
+_provider_store = ProviderStore()
 
 # Global reference to orchestrator, set during startup
 _orchestrator: Orchestrator | None = None
@@ -179,6 +184,44 @@ async def api_update_issue(identifier: str, request: Request):
         )
 
 
+@app.get("/api/v1/issues/{identifier}/comments")
+async def api_get_comments(identifier: str):
+    """Return comments for an issue."""
+    try:
+        orch = _get_orchestrator()
+        comments = orch.tracker.fetch_comments(identifier)
+        return JSONResponse(comments)
+    except Exception as exc:
+        logger.error("Comments API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.post("/api/v1/issues/{identifier}/comments")
+async def api_add_comment(identifier: str, request: Request):
+    """Add a comment to an issue."""
+    try:
+        orch = _get_orchestrator()
+        body = await request.json()
+        text = body.get("text", "").strip()
+        if not text:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "Comment text is required"}},
+                status_code=400,
+            )
+        author = body.get("author", "user")
+        result = orch.tracker.add_comment(identifier, text, author=author)
+        return JSONResponse(result, status_code=201)
+    except Exception as exc:
+        logger.error("Add comment API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "comment_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
 @app.get("/api/v1/issues/{identifier}/detail")
 async def api_issue_full_detail(identifier: str):
     """Return full issue detail for the slide-out panel."""
@@ -216,9 +259,138 @@ async def api_issue_full_detail(identifier: str):
                 }
                 for c in children
             ]
+        # Always include comments
+        result["comments"] = orch.tracker.fetch_comments(issue.identifier)
         return JSONResponse(result)
     except Exception as exc:
         logger.error("Issue detail API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.get("/api/v1/providers")
+async def api_list_providers():
+    """List all configured model providers."""
+    providers = _provider_store.list_all()
+    return JSONResponse([p.to_safe_dict() for p in providers])
+
+
+@app.post("/api/v1/providers")
+async def api_create_provider(request: Request):
+    """Create a new model provider."""
+    try:
+        body = await request.json()
+        name = body.get("name", "").strip()
+        base_url = body.get("base_url", "").strip()
+        if not name or not base_url:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "Name and base_url are required"}},
+                status_code=400,
+            )
+        provider = _provider_store.create(
+            name=name,
+            base_url=base_url,
+            api_key=body.get("api_key", ""),
+            models=body.get("models", []),
+            default_model=body.get("default_model"),
+            provider_type=body.get("provider_type", "openai"),
+        )
+        return JSONResponse(provider.to_safe_dict(), status_code=201)
+    except Exception as exc:
+        logger.error("Create provider error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "create_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.patch("/api/v1/providers/{provider_id}")
+async def api_update_provider(provider_id: str, request: Request):
+    """Update a model provider."""
+    try:
+        body = await request.json()
+        fields = {}
+        for key in ("name", "base_url", "api_key", "models", "default_model", "provider_type"):
+            if key in body:
+                fields[key] = body[key]
+        provider = _provider_store.update(provider_id, **fields)
+        if not provider:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+                status_code=404,
+            )
+        return JSONResponse(provider.to_safe_dict())
+    except Exception as exc:
+        logger.error("Update provider error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "update_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.delete("/api/v1/providers/{provider_id}")
+async def api_delete_provider(provider_id: str):
+    """Delete a model provider."""
+    if _provider_store.delete(provider_id):
+        return JSONResponse({"ok": True})
+    return JSONResponse(
+        {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+        status_code=404,
+    )
+
+
+@app.post("/api/v1/providers/fetch-models")
+async def api_fetch_models(req: Request):
+    """Proxy to fetch models from a provider's /models endpoint."""
+    import asyncio, urllib.request, ssl
+    data = await req.json()
+    base_url = (data.get("base_url") or "").rstrip("/")
+    api_key = data.get("api_key", "")
+    provider_id = data.get("provider_id", "")
+    if not api_key and provider_id:
+        existing = _provider_store.get(provider_id)
+        if existing:
+            api_key = existing.api_key or ""
+    if not base_url:
+        return JSONResponse({"error": "base_url required"}, status_code=400)
+
+    def _fetch():
+        url = f"{base_url}/models"
+        rq = urllib.request.Request(url)
+        rq.add_header("User-Agent", "umpah/0.1")
+        if api_key:
+            rq.add_header("Authorization", f"Bearer {api_key}")
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(rq, timeout=10, context=ctx) as resp:
+            return json.loads(resp.read().decode())
+
+    try:
+        body = await asyncio.to_thread(_fetch)
+        models = []
+        if isinstance(body, dict) and "data" in body:
+            models = sorted([m["id"] for m in body["data"] if "id" in m])
+        elif isinstance(body, list):
+            models = sorted([m["id"] if isinstance(m, dict) else str(m) for m in body])
+        return JSONResponse({"models": models})
+    except Exception as e:
+        return JSONResponse({"error": str(e), "models": []}, status_code=502)
+
+
+@app.get("/api/v1/budget")
+async def api_budget():
+    """Return current budget and cost tracking info."""
+    try:
+        orch = _get_orchestrator()
+        snapshot = orch.get_snapshot()
+        return JSONResponse({
+            "budget": snapshot["budget"],
+            "cost_by_profile": snapshot["cost_by_profile"],
+            "agent_profiles": snapshot["agent_profiles"],
+        })
+    except Exception as exc:
+        logger.error("Budget API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "unavailable", "message": str(exc)}},
             status_code=503,
@@ -729,6 +901,54 @@ DASHBOARD_HTML = """\
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
 
+    /* Comments */
+    .comments-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 0.5rem;
+    }
+    .comment {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    }
+    .comment:last-child { border-bottom: none; }
+    .comment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.15rem;
+    }
+    .comment-author {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .comment-time {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .comment-text {
+      font-size: 0.75rem;
+      color: var(--text);
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .comment-input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.75rem;
+      font-family: inherit;
+      outline: none;
+      resize: vertical;
+      min-height: 50px;
+    }
+    .comment-input:focus { border-color: var(--accent); }
+
     /* Create dialog */
     .dialog-overlay {
       display: none;
@@ -816,6 +1036,7 @@ DASHBOARD_HTML = """\
         <button id="btn-swimlane" onclick="setViewMode('swimlane')">Swimlanes</button>
       </div>
       <button onclick="openCreateDialog()">+ Create</button>
+      <button onclick="window.location='/providers'">Providers</button>
       <button onclick="refreshBoard()">Refresh</button>
     </div>
   </div>
@@ -1267,7 +1488,48 @@ async function openDetailPanel(identifier) {
     `;
   }
 
+  // Comments section
+  const comments = detail.comments || [];
+  html += `
+    <div class="detail-field" style="margin-top:1rem; border-top:1px solid var(--border); padding-top:1rem;">
+      <div class="detail-field-label">Comments (${comments.length})</div>
+      <div class="comments-list" id="comments-list">
+        ${comments.length === 0 ? '<div style="color:var(--text-muted);font-size:0.75rem;padding:0.3rem 0;">No comments yet</div>' : ''}
+        ${comments.map(c => `
+          <div class="comment">
+            <div class="comment-header">
+              <span class="comment-author">${esc(c.author || 'unknown')}</span>
+              <span class="comment-time">${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</span>
+            </div>
+            <div class="comment-text">${esc(c.text)}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="comment-input-area">
+        <textarea id="comment-input" class="comment-input" placeholder="Add a comment..." rows="2"></textarea>
+        <button onclick="submitComment('${esc(detail.identifier)}')" style="margin-top:0.3rem;width:100%;">Post Comment</button>
+      </div>
+    </div>
+  `;
+
   body.innerHTML = html;
+  // Scroll comments to bottom
+  const commentsList = document.getElementById('comments-list');
+  if (commentsList) commentsList.scrollTop = commentsList.scrollHeight;
+}
+
+async function submitComment(identifier) {
+  const input = document.getElementById('comment-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/comments`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text, author: 'user'}),
+  });
+  // Reload detail panel to show new comment
+  openDetailPanel(identifier);
 }
 
 function closeDetailPanel() {
@@ -1402,6 +1664,542 @@ setInterval(refreshBoard, 10000);
 async def dashboard():
     """Serve the kanban dashboard."""
     return DASHBOARD_HTML
+
+
+PROVIDERS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>umpah - Providers</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #7d8590;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .toolbar h1 {
+      font-size: 1.25rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    button {
+      background: var(--surface);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #79bbff; }
+    .btn-danger {
+      color: var(--red);
+      border-color: rgba(248, 81, 73, 0.3);
+    }
+    .btn-danger:hover { background: rgba(248, 81, 73, 0.1); }
+
+    .content {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+    .content h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .provider-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+    .provider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .provider-name {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .provider-type {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .provider-detail {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+    .provider-detail code {
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.75rem;
+    }
+    .provider-models {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.4rem;
+    }
+    .model-tag {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .model-tag.default {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* Tag input for models */
+    .tag-input-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+      min-height: 38px;
+      cursor: text;
+    }
+    .tag-input-wrap:focus-within { border-color: var(--accent); }
+    .tag-input-wrap .tag {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.4rem;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: var(--text);
+    }
+    .tag-input-wrap .tag .tag-remove {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      line-height: 1;
+      margin-left: 0.15rem;
+    }
+    .tag-input-wrap .tag .tag-remove:hover { color: var(--red); }
+    .tag-input-wrap input {
+      border: none;
+      background: none;
+      outline: none;
+      color: var(--text);
+      font-size: 0.8rem;
+      flex: 1;
+      min-width: 100px;
+      padding: 0.15rem 0;
+    }
+    .provider-actions {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Form dialog */
+    .dialog-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .dialog-overlay.open { display: flex; }
+    .dialog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 520px;
+      max-width: 90vw;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .dialog h2 {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .dialog label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+      margin-top: 0.75rem;
+    }
+    .dialog label:first-of-type { margin-top: 0; }
+    .dialog input, .dialog select, .dialog textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .dialog input:focus, .dialog select:focus { border-color: var(--accent); }
+    .dialog .hint {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+    .dialog-actions button {
+      padding: 0.4rem 1rem;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">umpah</a> <span>/ providers</span></h1>
+    <div style="display: flex; gap: 0.5rem;">
+      <button onclick="window.location='/'">Back to Board</button>
+    </div>
+  </div>
+  <div class="content">
+    <h2>
+      Model Providers
+      <button class="btn-primary" onclick="openProviderDialog()">+ Add Provider</button>
+    </h2>
+    <div id="providers-list"></div>
+  </div>
+
+<script>
+let providers = [];
+let editingId = null;
+
+async function loadProviders() {
+  const res = await fetch('/api/v1/providers');
+  if (!res.ok) return;
+  providers = await res.json();
+  renderProviders();
+}
+
+function renderProviders() {
+  const container = document.getElementById('providers-list');
+  if (providers.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        No providers configured yet.<br>
+        Add an OpenAI-compatible API endpoint to get started.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = providers.map(p => `
+    <div class="provider-card">
+      <div class="provider-header">
+        <span class="provider-name">${esc(p.name)}</span>
+        <span class="provider-type">${esc(p.provider_type)}</span>
+      </div>
+      <div class="provider-detail">URL: <code>${esc(p.base_url)}</code></div>
+      <div class="provider-detail">API Key: <code>${esc(p.api_key_masked || 'not set')}</code></div>
+      ${p.models && p.models.length > 0 ? `
+        <div class="provider-models">
+          ${p.models.map(m => `
+            <span class="model-tag ${m === p.default_model ? 'default' : ''}">${esc(m)}${m === p.default_model ? ' *' : ''}</span>
+          `).join('')}
+        </div>
+      ` : '<div class="provider-detail" style="margin-top:0.3rem;">No models configured</div>'}
+      <div class="provider-actions">
+        <button onclick="editProvider('${esc(p.id)}')">Edit</button>
+        <button class="btn-danger" onclick="deleteProvider('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+let dialogModels = [];
+
+function openProviderDialog(provider) {
+  editingId = provider ? provider.id : null;
+  document.getElementById('dialog-title').textContent = provider ? 'Edit Provider' : 'Add Provider';
+  document.getElementById('prov-name').value = provider ? provider.name : '';
+  document.getElementById('prov-type').value = provider ? provider.provider_type : 'openai';
+  document.getElementById('prov-url').value = provider ? provider.base_url : '';
+  document.getElementById('prov-key').value = '';
+  document.getElementById('prov-key').placeholder = provider ? 'Leave blank to keep current key' : 'sk-...';
+  dialogModels = provider && provider.models ? [...provider.models] : [];
+  renderModelTags();
+  syncDefaultModelSelect(provider ? (provider.default_model || '') : '');
+  document.getElementById('prov-models-input').value = '';
+  document.getElementById('provider-dialog').classList.add('open');
+  setTimeout(() => document.getElementById('prov-name').focus(), 50);
+}
+
+function addModel(name) {
+  name = name.trim();
+  if (!name || dialogModels.includes(name)) return;
+  dialogModels.push(name);
+  renderModelTags();
+  const sel = document.getElementById('prov-default-model');
+  syncDefaultModelSelect(sel.value);
+}
+
+function removeModel(name) {
+  dialogModels = dialogModels.filter(m => m !== name);
+  renderModelTags();
+  const sel = document.getElementById('prov-default-model');
+  syncDefaultModelSelect(sel.value === name ? '' : sel.value);
+}
+
+function renderModelTags() {
+  const wrap = document.getElementById('prov-models-wrap');
+  const input = document.getElementById('prov-models-input');
+  wrap.querySelectorAll('.tag').forEach(t => t.remove());
+  dialogModels.forEach(m => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = m;
+    const rm = document.createElement('span');
+    rm.className = 'tag-remove';
+    rm.textContent = '\u00d7';
+    rm.addEventListener('click', () => removeModel(m));
+    tag.appendChild(rm);
+    wrap.insertBefore(tag, input);
+  });
+}
+
+function syncDefaultModelSelect(currentVal) {
+  const sel = document.getElementById('prov-default-model');
+  sel.innerHTML = '<option value="">— none —</option>';
+  dialogModels.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  if (currentVal && dialogModels.includes(currentVal)) {
+    sel.value = currentVal;
+  }
+}
+
+async function fetchModelsFromProvider() {
+  const base_url = document.getElementById('prov-url').value.trim();
+  const api_key = document.getElementById('prov-key').value.trim();
+  if (!base_url) { alert('Enter a Base URL first.'); return; }
+  const btn = document.getElementById('fetch-models-btn');
+  btn.textContent = 'Fetching...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/v1/providers/fetch-models', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({base_url, api_key, provider_id: editingId || undefined}),
+    });
+    const data = await res.json();
+    if (data.models && data.models.length > 0) {
+      const prevDefault = document.getElementById('prov-default-model').value;
+      data.models.forEach(m => addModel(m));
+      syncDefaultModelSelect(prevDefault);
+    } else {
+      alert(data.error ? 'Error: ' + data.error : 'No models found at this endpoint.');
+    }
+  } catch (e) {
+    alert('Failed to fetch models: ' + e.message);
+  } finally {
+    btn.textContent = 'Fetch Models';
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('prov-models-input').addEventListener('keydown', e => {
+    const input = e.target;
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addModel(input.value.replace(',', ''));
+      input.value = '';
+    }
+    if (e.key === 'Backspace' && !input.value && dialogModels.length) {
+      removeModel(dialogModels[dialogModels.length - 1]);
+    }
+  });
+
+  document.getElementById('prov-models-input').addEventListener('blur', e => {
+    const val = e.target.value.trim();
+    if (val) {
+      addModel(val);
+      e.target.value = '';
+    }
+  });
+
+  loadProviders();
+});
+
+function closeProviderDialog() {
+  document.getElementById('provider-dialog').classList.remove('open');
+  editingId = null;
+}
+
+function editProvider(id) {
+  const p = providers.find(x => x.id === id);
+  if (p) openProviderDialog(p);
+}
+
+async function deleteProvider(id, name) {
+  if (!confirm(`Delete provider "${name}"?`)) return;
+  await fetch(`/api/v1/providers/${id}`, {method: 'DELETE'});
+  await loadProviders();
+}
+
+async function submitProvider() {
+  const name = document.getElementById('prov-name').value.trim();
+  const base_url = document.getElementById('prov-url').value.trim();
+  if (!name || !base_url) return;
+
+  const body = {
+    name,
+    base_url,
+    provider_type: document.getElementById('prov-type').value,
+    models: [...dialogModels],
+    default_model: document.getElementById('prov-default-model').value.trim() || undefined,
+  };
+
+  const apiKey = document.getElementById('prov-key').value.trim();
+  if (apiKey) body.api_key = apiKey;
+
+  if (editingId) {
+    await fetch(`/api/v1/providers/${editingId}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  } else {
+    body.api_key = apiKey;
+    await fetch('/api/v1/providers', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  }
+
+  closeProviderDialog();
+  await loadProviders();
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeProviderDialog();
+});
+
+</script>
+
+<div class="dialog-overlay" id="provider-dialog" onclick="if(event.target===this)closeProviderDialog()">
+  <div class="dialog">
+    <h2 id="dialog-title">Add Provider</h2>
+    <label for="prov-name">Name</label>
+    <input type="text" id="prov-name" placeholder="e.g., OpenAI, Anthropic, Ollama">
+    <label for="prov-type">Provider Type</label>
+    <select id="prov-type">
+      <option value="openai">OpenAI Compatible</option>
+      <option value="anthropic">Anthropic</option>
+      <option value="custom">Custom</option>
+    </select>
+    <label for="prov-url">Base URL</label>
+    <input type="text" id="prov-url" placeholder="https://api.openai.com/v1">
+    <div class="hint">The API base URL. For local models, use http://localhost:PORT/v1</div>
+    <label for="prov-key">API Key</label>
+    <input type="password" id="prov-key" placeholder="sk-...">
+    <label style="display:flex;justify-content:space-between;align-items:center;">
+      Models
+      <button type="button" id="fetch-models-btn" onclick="fetchModelsFromProvider()" style="font-size:0.65rem;padding:0.15rem 0.5rem;">Fetch Models</button>
+    </label>
+    <div class="tag-input-wrap" id="prov-models-wrap" onclick="document.getElementById('prov-models-input').focus()">
+      <input type="text" id="prov-models-input" placeholder="Type model name and press Enter">
+    </div>
+    <div class="hint">Press Enter or comma to add a model, or click Fetch Models to auto-discover</div>
+    <label for="prov-default-model">Default Model</label>
+    <select id="prov-default-model">
+      <option value="">— none —</option>
+    </select>
+    <div class="hint">Model to use when no specific model is requested</div>
+    <div class="dialog-actions">
+      <button onclick="closeProviderDialog()">Cancel</button>
+      <button class="btn-primary" onclick="submitProvider()">Save</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+"""
+
+
+@app.get("/providers", response_class=HTMLResponse)
+async def providers_page():
+    """Serve the providers management page."""
+    return PROVIDERS_HTML
 
 
 # Keep the old dashboard content endpoint for backward compat

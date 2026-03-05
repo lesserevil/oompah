@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from umpah.models import WorkflowDefinition
+from umpah.models import AgentProfile, WorkflowDefinition
 
 
 class WorkflowError(Exception):
@@ -145,6 +145,8 @@ class ServiceConfig:
     read_timeout_ms: int = 5000
     stall_timeout_ms: int = 300_000
     server_port: int | None = None
+    agent_profiles: list[AgentProfile] = field(default_factory=list)
+    budget_limit: float = 0.0
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -183,6 +185,26 @@ class ServiceConfig:
         else:
             ws_root = os.path.join(tempfile.gettempdir(), "umpah_workspaces")
 
+        # Parse agent profiles
+        raw_profiles = agent.get("profiles", []) or []
+        profiles: list[AgentProfile] = []
+        for p in raw_profiles:
+            if not isinstance(p, dict):
+                continue
+            profiles.append(AgentProfile(
+                name=str(p.get("name", "default")),
+                command=str(p.get("command", "claude --dangerously-skip-permissions")),
+                cost_per_1k_input=float(p.get("cost_per_1k_input", 0)),
+                cost_per_1k_output=float(p.get("cost_per_1k_output", 0)),
+                max_turns=_coerce_int(p.get("max_turns"), None) if p.get("max_turns") is not None else None,
+                keywords=[str(k) for k in (p.get("keywords", []) or [])],
+                issue_types=[str(t) for t in (p.get("issue_types", []) or [])],
+                min_priority=_coerce_int(p.get("min_priority"), None) if p.get("min_priority") is not None else None,
+                max_priority=_coerce_int(p.get("max_priority"), None) if p.get("max_priority") is not None else None,
+            ))
+
+        budget_limit = float(agent.get("budget_limit", 0) or 0)
+
         return cls(
             tracker_kind=str(tracker.get("kind", "beads")),
             tracker_active_states=_parse_state_list(
@@ -213,6 +235,8 @@ class ServiceConfig:
             read_timeout_ms=_coerce_int(codex.get("read_timeout_ms"), 5000),
             stall_timeout_ms=_coerce_int(codex.get("stall_timeout_ms"), 300_000),
             server_port=_coerce_int(server.get("port"), None) if server.get("port") is not None else None,
+            agent_profiles=profiles,
+            budget_limit=budget_limit,
         )
 
 

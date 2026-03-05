@@ -101,6 +101,26 @@ class BeadsTracker:
             return self._normalize_issue(raw)
         raise TrackerError("Unexpected response from bd create")
 
+    def add_comment(self, identifier: str, text: str, author: str = "umpah") -> dict:
+        """Add a comment to an issue."""
+        raw = self._run_bd([
+            "comments", "add", identifier, text,
+            f"--author={author}", "--json",
+        ])
+        if isinstance(raw, dict):
+            return raw
+        return {}
+
+    def fetch_comments(self, identifier: str) -> list[dict]:
+        """Fetch all comments for an issue."""
+        try:
+            raw = self._run_bd(["comments", identifier, "--json"])
+            if isinstance(raw, list):
+                return raw
+        except TrackerError:
+            pass
+        return []
+
     def add_parent_child(self, child_id: str, parent_id: str) -> None:
         """Link a child issue to a parent epic."""
         self._run_bd(["dep", "add", child_id, parent_id, "--type", "parent-child"])

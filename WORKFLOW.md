@@ -17,6 +17,35 @@ agent:
   max_concurrent_agents: 5
   max_turns: 10
   max_retry_backoff_ms: 300000
+  budget_limit: 50.00
+  profiles:
+    - name: quick
+      command: "claude --dangerously-skip-permissions --model claude-haiku-4-5-20251001"
+      cost_per_1k_input: 0.001
+      cost_per_1k_output: 0.005
+      max_turns: 5
+      issue_types: [chore]
+      keywords: [typo, rename, cleanup, lint, format]
+      max_priority: 4
+    - name: standard
+      command: "claude --dangerously-skip-permissions --model claude-sonnet-4-6"
+      cost_per_1k_input: 0.003
+      cost_per_1k_output: 0.015
+      max_turns: 10
+      issue_types: [task, feature]
+    - name: deep
+      command: "claude --dangerously-skip-permissions --model claude-opus-4-6"
+      cost_per_1k_input: 0.015
+      cost_per_1k_output: 0.075
+      max_turns: 20
+      issue_types: [bug, epic]
+      keywords: [security, architecture, refactor, critical]
+      min_priority: 0
+      max_priority: 1
+    - name: default
+      command: "claude --dangerously-skip-permissions"
+      cost_per_1k_input: 0.003
+      cost_per_1k_output: 0.015
 
 codex:
   command: "claude --dangerously-skip-permissions"
