@@ -59,6 +59,7 @@ def main() -> None:
 async def _run(workflow_path: str, cli_port: int | None) -> None:
     from umpah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from umpah.orchestrator import Orchestrator
+    from umpah.providers import ProviderStore
     from umpah.server import app, set_orchestrator
 
     # Load initial workflow
@@ -80,8 +81,9 @@ async def _run(workflow_path: str, cli_port: int | None) -> None:
     # Determine port
     port = cli_port or config.server_port
 
-    # Create orchestrator
-    orchestrator = Orchestrator(config, workflow_path)
+    # Create orchestrator with shared provider store
+    provider_store = ProviderStore()
+    orchestrator = Orchestrator(config, workflow_path, provider_store=provider_store)
     orchestrator.set_prompt_template(workflow.prompt_template)
     set_orchestrator(orchestrator)
 

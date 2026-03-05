@@ -194,6 +194,8 @@ class ServiceConfig:
             profiles.append(AgentProfile(
                 name=str(p.get("name", "default")),
                 command=str(p.get("command", "claude --dangerously-skip-permissions")),
+                provider_id=p.get("provider_id"),
+                model=p.get("model"),
                 cost_per_1k_input=float(p.get("cost_per_1k_input", 0)),
                 cost_per_1k_output=float(p.get("cost_per_1k_output", 0)),
                 max_turns=_coerce_int(p.get("max_turns"), None) if p.get("max_turns") is not None else None,

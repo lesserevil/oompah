@@ -270,6 +270,43 @@ async def api_issue_full_detail(identifier: str):
         )
 
 
+@app.post("/api/v1/orchestrator/pause")
+async def api_orchestrator_pause():
+    """Pause the orchestrator (stop dispatching new agents)."""
+    try:
+        orch = _get_orchestrator()
+        orch.pause()
+        return JSONResponse({"ok": True, "paused": True})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/v1/orchestrator/resume")
+async def api_orchestrator_resume():
+    """Resume the orchestrator."""
+    try:
+        orch = _get_orchestrator()
+        orch.unpause()
+        return JSONResponse({"ok": True, "paused": False})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/v1/orchestrator/dispatch/{identifier}")
+async def api_orchestrator_dispatch(identifier: str):
+    """Manually dispatch a specific issue to an agent."""
+    try:
+        orch = _get_orchestrator()
+        issues = orch.tracker.fetch_candidate_issues()
+        issue = next((i for i in issues if i.identifier == identifier), None)
+        if not issue:
+            return JSONResponse({"error": f"Issue {identifier} not found or not dispatchable"}, status_code=404)
+        await orch._dispatch(issue, attempt=None)
+        return JSONResponse({"ok": True, "dispatched": identifier})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.get("/api/v1/providers")
 async def api_list_providers():
     """List all configured model providers."""
@@ -949,6 +986,63 @@ DASHBOARD_HTML = """\
     }
     .comment-input:focus { border-color: var(--accent); }
 
+    /* Agent status bar */
+    .agent-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.4rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.72rem;
+      flex-shrink: 0;
+    }
+    .agent-bar .agent-stat {
+      color: var(--text-muted);
+    }
+    .agent-bar .agent-stat strong {
+      color: var(--text);
+    }
+    .agent-bar .paused-badge {
+      background: rgba(210, 153, 34, 0.2);
+      color: var(--yellow);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .running-agents {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .running-agent-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(63, 185, 80, 0.1);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.65rem;
+      color: var(--green);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .running-agent-chip .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .btn-paused {
+      color: var(--yellow) !important;
+      border-color: var(--yellow) !important;
+    }
+
     /* Create dialog */
     .dialog-overlay {
       display: none;
@@ -1037,8 +1131,16 @@ DASHBOARD_HTML = """\
       </div>
       <button onclick="openCreateDialog()">+ Create</button>
       <button onclick="window.location='/providers'">Providers</button>
+      <button id="btn-pause" onclick="togglePause()">Pause</button>
       <button onclick="refreshBoard()">Refresh</button>
     </div>
+  </div>
+  <div class="agent-bar" id="agent-bar">
+    <span class="agent-stat">Agents: <strong id="agent-count">0</strong></span>
+    <span class="agent-stat">Tokens: <strong id="agent-tokens">0</strong></span>
+    <span class="agent-stat">Cost: <strong id="agent-cost">$0.00</strong></span>
+    <span class="agent-stat">Budget: <strong id="agent-budget">-</strong></span>
+    <div class="running-agents" id="running-agents"></div>
   </div>
   <div class="main-area">
     <div class="board" id="board"></div>
@@ -1060,6 +1162,64 @@ let allIssuesFlat = [];
 let dragState = null;
 let viewMode = 'flat';
 let collapsedSwimlanes = {};
+let orchPaused = false;
+
+// --- Orchestrator state polling ---
+async function fetchOrchestratorState() {
+  try {
+    const res = await fetch('/api/v1/state');
+    if (!res.ok) return;
+    const state = await res.json();
+
+    // Update pause state
+    orchPaused = state.paused || false;
+    const pauseBtn = document.getElementById('btn-pause');
+    if (orchPaused) {
+      pauseBtn.textContent = 'Resume';
+      pauseBtn.classList.add('btn-paused');
+    } else {
+      pauseBtn.textContent = 'Pause';
+      pauseBtn.classList.remove('btn-paused');
+    }
+
+    // Update agent stats
+    document.getElementById('agent-count').textContent = state.counts.running;
+    const totals = state.agent_totals || {};
+    document.getElementById('agent-tokens').textContent = (totals.total_tokens || 0).toLocaleString();
+    document.getElementById('agent-cost').textContent = '$' + (totals.estimated_cost || 0).toFixed(2);
+    const budget = state.budget || {};
+    if (budget.limit > 0) {
+      document.getElementById('agent-budget').textContent =
+        '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2);
+    }
+
+    // Render running agent chips
+    const container = document.getElementById('running-agents');
+    const running = state.running || [];
+    if (running.length === 0) {
+      container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
+    } else {
+      container.innerHTML = running.map(r =>
+        '<span class="running-agent-chip">' +
+          '<span class="dot"></span>' +
+          esc(r.issue_identifier) +
+          (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
+        '</span>'
+      ).join('');
+      if (orchPaused) {
+        container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
+      }
+    }
+  } catch (e) {
+    // ignore fetch errors
+  }
+}
+
+async function togglePause() {
+  const endpoint = orchPaused ? '/api/v1/orchestrator/resume' : '/api/v1/orchestrator/pause';
+  await fetch(endpoint, {method: 'POST'});
+  await fetchOrchestratorState();
+}
 
 async function fetchIssues() {
   const res = await fetch('/api/v1/issues');
@@ -1395,6 +1555,7 @@ async function refreshBoard() {
   document.getElementById('status-text').textContent = 'Refreshing...';
   const data = await fetchIssues();
   if (data) renderBoard(data);
+  fetchOrchestratorState();
 }
 
 // --- Detail panel ---
@@ -1620,9 +1781,10 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Initial load + auto-refresh every 10s
+// Initial load + auto-refresh
 refreshBoard();
 setInterval(refreshBoard, 10000);
+setInterval(fetchOrchestratorState, 5000);
 </script>
 
 <div class="dialog-overlay" id="create-dialog" onclick="if(event.target===this)closeCreateDialog()">

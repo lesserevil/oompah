@@ -42,6 +42,14 @@ agent:
       keywords: [security, architecture, refactor, critical]
       min_priority: 0
       max_priority: 1
+    - name: api-standard
+      provider_id: prov-efa393f7
+      model: google/gemini-2.5-flash
+      cost_per_1k_input: 0.001
+      cost_per_1k_output: 0.004
+      max_turns: 15
+      issue_types: [task, feature]
+      keywords: [api, endpoint, model, provider]
     - name: default
       command: "claude --dangerously-skip-permissions"
       cost_per_1k_input: 0.003

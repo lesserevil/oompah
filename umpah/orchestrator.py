@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from umpah.agent import AgentError, AgentEvent, AgentSession
+from umpah.api_agent import ApiAgentSession
 from umpah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
 from umpah.models import (
     AgentProfile,
@@ -20,6 +21,7 @@ from umpah.models import (
     RunningEntry,
 )
 from umpah.prompt import PromptError, build_continuation_prompt, render_prompt
+from umpah.providers import ProviderStore
 from umpah.tracker import BeadsTracker, TrackerError
 from umpah.workspace import WorkspaceError, WorkspaceManager
 
@@ -29,9 +31,10 @@ logger = logging.getLogger(__name__)
 class Orchestrator:
     """Owns the poll tick, dispatch decisions, and in-memory runtime state."""
 
-    def __init__(self, config: ServiceConfig, workflow_path: str):
+    def __init__(self, config: ServiceConfig, workflow_path: str, provider_store: ProviderStore | None = None):
         self.config = config
         self.workflow_path = workflow_path
+        self.provider_store = provider_store or ProviderStore()
         self.state = OrchestratorState(
             poll_interval_ms=config.poll_interval_ms,
             max_concurrent_agents=config.max_concurrent_agents,
@@ -53,6 +56,7 @@ class Orchestrator:
         self._prompt_template: str = ""
         self._tick_task: asyncio.Task | None = None
         self._stopping = False
+        self._paused = False
         self._observers: list[Any] = []
         self._refresh_requested = asyncio.Event()
 
@@ -81,6 +85,21 @@ class Orchestrator:
 
     def set_prompt_template(self, template: str) -> None:
         self._prompt_template = template
+
+    def pause(self) -> None:
+        """Pause dispatching new agents (running agents continue)."""
+        self._paused = True
+        logger.info("Orchestrator paused")
+
+    def unpause(self) -> None:
+        """Resume dispatching."""
+        self._paused = False
+        logger.info("Orchestrator unpaused")
+        self._refresh_requested.set()
+
+    @property
+    def is_paused(self) -> bool:
+        return self._paused
 
     def request_refresh(self) -> None:
         """Request an immediate poll+reconciliation cycle."""
@@ -184,6 +203,8 @@ class Orchestrator:
         return count < limit
 
     def _should_dispatch(self, issue: Issue) -> bool:
+        if self._paused:
+            return False
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
         state_norm = issue.state.strip().lower()
@@ -346,6 +367,86 @@ class Orchestrator:
 
     async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
         """Worker: create workspace, build prompt, run agent turns."""
+        # Route to API agent if profile has a provider_id
+        if profile and profile.provider_id:
+            provider = self.provider_store.get(profile.provider_id)
+            if provider:
+                await self._run_api_worker(issue, attempt, profile, provider)
+                return
+            else:
+                logger.warning("Provider %s not found for profile %s, falling back to CLI",
+                             profile.provider_id, profile.name)
+
+        await self._run_cli_worker(issue, attempt, profile)
+
+    async def _run_api_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile, provider) -> None:
+        """Worker using the OpenAI-compatible API agent."""
+        exit_reason = "normal"
+        error_msg = None
+        max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+        model = profile.model or provider.default_model or (provider.models[0] if provider.models else "")
+
+        try:
+            workspace = self.workspace_mgr.create_for_issue(issue.identifier)
+            self.workspace_mgr.run_before_run(workspace.path)
+
+            # Build prompt
+            prompt = render_prompt(self._prompt_template, issue, attempt)
+
+            session = ApiAgentSession(
+                base_url=provider.base_url,
+                api_key=provider.api_key,
+                model=model,
+                workspace_path=workspace.path,
+                max_turns=max_turns,
+                system_prompt="You are an autonomous coding agent. Use the provided tools to complete the task.",
+            )
+
+            # Update running entry with minimal session info
+            if issue.id in self.state.running:
+                self.state.running[issue.id].session = LiveSession(
+                    session_id=f"api-{provider.name}-{model}",
+                    thread_id="api",
+                    turn_id="0",
+                    agent_pid=None,
+                    last_event="api_started",
+                    last_timestamp=datetime.now(timezone.utc),
+                    last_message=f"Using {provider.name}/{model}",
+                )
+
+            result = await session.run_task(prompt)
+
+            # Update session with final token counts
+            if issue.id in self.state.running and self.state.running[issue.id].session:
+                s = self.state.running[issue.id].session
+                s.input_tokens = result.input_tokens
+                s.output_tokens = result.output_tokens
+                s.total_tokens = result.total_tokens
+                s.turn_count = result.turns
+                s.last_message = result.last_message[:200]
+                s.last_event = f"api_{result.status}"
+
+            if result.status == "failed":
+                exit_reason = "abnormal"
+                error_msg = result.error or "API agent failed"
+            elif result.status == "max_turns":
+                exit_reason = "normal"  # treat max_turns as normal completion
+                logger.info("API agent reached max turns for %s", issue.identifier)
+
+        except Exception as exc:
+            exit_reason = "abnormal"
+            error_msg = str(exc)
+            logger.exception("API worker failed issue_id=%s", issue.id)
+        finally:
+            try:
+                workspace_path = self.workspace_mgr.workspace_path_for(issue.identifier)
+                self.workspace_mgr.run_after_run(workspace_path)
+            except Exception:
+                pass
+            await self._on_worker_exit(issue.id, exit_reason, error_msg)
+
+    async def _run_cli_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
+        """Worker using CLI subprocess (original behavior)."""
         exit_reason = "normal"
         error_msg = None
         agent_command = profile.command if profile else self.config.agent_command
@@ -827,6 +928,7 @@ class Orchestrator:
         totals = self.state.agent_totals
         return {
             "generated_at": now.isoformat(),
+            "paused": self._paused,
             "counts": {
                 "running": len(running_rows),
                 "retrying": len(retry_rows),
@@ -847,7 +949,12 @@ class Orchestrator:
                 "exceeded": self.state.budget_exceeded,
             },
             "agent_profiles": [
-                {"name": p.name, "command": p.command}
+                {
+                    "name": p.name,
+                    "command": p.command,
+                    "provider_id": p.provider_id,
+                    "model": p.model,
+                }
                 for p in self.config.agent_profiles
             ],
             "rate_limits": self.state.rate_limits,
