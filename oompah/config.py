@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import tempfile
@@ -12,6 +13,8 @@ import yaml
 
 from oompah.models import AgentProfile, WorkflowDefinition
 
+logger = logging.getLogger(__name__)
+
 
 class WorkflowError(Exception):
     """Raised on workflow file or config errors."""
@@ -19,6 +22,102 @@ class WorkflowError(Exception):
     def __init__(self, message: str, error_class: str = "workflow_parse_error"):
         super().__init__(message)
         self.error_class = error_class
+
+
+def load_dotenv(path: str = ".env", override: bool = False) -> int:
+    """Load environment variables from a .env file.
+
+    Parses a .env file and sets variables in os.environ. This is a
+    zero-dependency implementation that handles the common .env format:
+
+    - Lines starting with # are comments
+    - Blank lines are ignored
+    - KEY=value (with optional surrounding whitespace)
+    - Quoted values: KEY="value with spaces" or KEY='value'
+    - Inline comments are NOT stripped (values are taken as-is after the =)
+    - $VAR references in values are NOT expanded (values are literal)
+
+    Args:
+        path: Path to the .env file. Defaults to ".env" in the current dir.
+        override: If True, override existing environment variables.
+                  If False (default), skip variables already set.
+
+    Returns:
+        Number of variables loaded.
+    """
+    if not os.path.exists(path):
+        return 0
+
+    count = 0
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for lineno, line in enumerate(f, start=1):
+                line = line.rstrip("\n").rstrip("\r")
+
+                # Skip blank lines and comments
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+
+                # Optional export keyword
+                if stripped.startswith("export "):
+                    stripped = stripped[7:].lstrip()
+
+                # Split on first =
+                if "=" not in stripped:
+                    continue
+
+                key, _, raw_value = stripped.partition("=")
+                key = key.strip()
+
+                if not key or not _is_valid_env_key(key):
+                    logger.debug(".env line %d: skipping invalid key %r", lineno, key)
+                    continue
+
+                value = _parse_env_value(raw_value)
+
+                if override or key not in os.environ:
+                    os.environ[key] = value
+                    count += 1
+
+    except OSError as exc:
+        logger.warning("Failed to read .env file %s: %s", path, exc)
+
+    return count
+
+
+def _is_valid_env_key(key: str) -> bool:
+    """Return True if key is a valid environment variable name."""
+    return bool(re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', key))
+
+
+def _parse_env_value(raw: str) -> str:
+    """Parse the value portion of a KEY=value .env line.
+
+    Handles:
+    - Double-quoted strings: "value" -> value (with escape sequences)
+    - Single-quoted strings: 'value' -> value (literal, no escapes)
+    - Unquoted values: value (stripped of leading/trailing whitespace)
+    """
+    raw = raw.strip()
+
+    # Double-quoted value
+    if raw.startswith('"') and raw.endswith('"') and len(raw) >= 2:
+        inner = raw[1:-1]
+        # Process basic escape sequences
+        inner = inner.replace('\\"', '"')
+        inner = inner.replace('\\n', '\n')
+        inner = inner.replace('\\r', '\r')
+        inner = inner.replace('\\t', '\t')
+        inner = inner.replace('\\\\', '\\')
+        return inner
+
+    # Single-quoted value (literal, no escapes)
+    if raw.startswith("'") and raw.endswith("'") and len(raw) >= 2:
+        return raw[1:-1]
+
+    # Unquoted: strip whitespace
+    return raw.strip()
 
 
 def load_workflow(path: str) -> WorkflowDefinition:

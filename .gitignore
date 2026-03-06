@@ -15,3 +15,6 @@ build/
 
 # Oompah local config
 .oompah/
+
+# Environment variables — never commit secrets
+.env

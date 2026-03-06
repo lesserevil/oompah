@@ -30,7 +30,23 @@ def main() -> None:
         default=None,
         help="HTTP server port (overrides server.port in WORKFLOW.md)",
     )
+    parser.add_argument(
+        "--env-file",
+        default=".env",
+        metavar="PATH",
+        help="Path to .env file to load (default: .env)",
+    )
     args = parser.parse_args()
+
+    # Load .env file before anything else so $VAR references in WORKFLOW.md resolve.
+    # Import here to avoid circular imports at module load time.
+    from oompah.config import load_dotenv
+
+    env_path = os.path.abspath(args.env_file)
+    n = load_dotenv(env_path)
+    if n > 0:
+        # Use basic print here — logging not yet configured
+        print(f"Loaded {n} variable(s) from {env_path}", file=sys.stderr)
 
     # Configure logging
     logging.basicConfig(

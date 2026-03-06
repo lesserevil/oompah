@@ -11,6 +11,7 @@ from oompah.config import (
     _coerce_int,
     _parse_state_list,
     _resolve_env,
+    load_dotenv,
     load_workflow,
     validate_dispatch_config,
 )
@@ -140,3 +141,134 @@ class TestValidateDispatchConfig:
         cfg = ServiceConfig(agent_command="")
         errors = validate_dispatch_config(cfg)
         assert any("agent_command" in e for e in errors)
+
+
+class TestLoadDotenv:
+    """Tests for the load_dotenv function."""
+
+    def _make_env(self, tmp_path, content: str) -> str:
+        f = tmp_path / ".env"
+        f.write_text(content)
+        return str(f)
+
+    def test_missing_file_returns_zero(self, tmp_path):
+        count = load_dotenv(str(tmp_path / "nonexistent.env"))
+        assert count == 0
+
+    def test_basic_key_value(self, tmp_path):
+        path = self._make_env(tmp_path, "OOMPAH_TEST_BASIC=hello\n")
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+            assert os.environ["OOMPAH_TEST_BASIC"] == "hello"
+        finally:
+            os.environ.pop("OOMPAH_TEST_BASIC", None)
+
+    def test_double_quoted_value(self, tmp_path):
+        path = self._make_env(tmp_path, 'OOMPAH_TEST_DQ="hello world"\n')
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+            assert os.environ["OOMPAH_TEST_DQ"] == "hello world"
+        finally:
+            os.environ.pop("OOMPAH_TEST_DQ", None)
+
+    def test_single_quoted_value(self, tmp_path):
+        path = self._make_env(tmp_path, "OOMPAH_TEST_SQ='hello world'\n")
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+            assert os.environ["OOMPAH_TEST_SQ"] == "hello world"
+        finally:
+            os.environ.pop("OOMPAH_TEST_SQ", None)
+
+    def test_comments_ignored(self, tmp_path):
+        content = "# this is a comment\nOOMPAH_TEST_CMT=val\n# another comment\n"
+        path = self._make_env(tmp_path, content)
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+            assert os.environ["OOMPAH_TEST_CMT"] == "val"
+        finally:
+            os.environ.pop("OOMPAH_TEST_CMT", None)
+
+    def test_blank_lines_ignored(self, tmp_path):
+        content = "\n\nOOMPAH_TEST_BL=val\n\n"
+        path = self._make_env(tmp_path, content)
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+        finally:
+            os.environ.pop("OOMPAH_TEST_BL", None)
+
+    def test_export_prefix(self, tmp_path):
+        path = self._make_env(tmp_path, "export OOMPAH_TEST_EXP=exported\n")
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+            assert os.environ["OOMPAH_TEST_EXP"] == "exported"
+        finally:
+            os.environ.pop("OOMPAH_TEST_EXP", None)
+
+    def test_no_override_by_default(self, tmp_path):
+        os.environ["OOMPAH_TEST_NOOV"] = "original"
+        path = self._make_env(tmp_path, "OOMPAH_TEST_NOOV=changed\n")
+        try:
+            count = load_dotenv(path)  # override=False by default
+            # Variable was NOT loaded (already set)
+            assert count == 0
+            assert os.environ["OOMPAH_TEST_NOOV"] == "original"
+        finally:
+            os.environ.pop("OOMPAH_TEST_NOOV", None)
+
+    def test_override_flag(self, tmp_path):
+        os.environ["OOMPAH_TEST_OV"] = "original"
+        path = self._make_env(tmp_path, "OOMPAH_TEST_OV=changed\n")
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+            assert os.environ["OOMPAH_TEST_OV"] == "changed"
+        finally:
+            os.environ.pop("OOMPAH_TEST_OV", None)
+
+    def test_escape_sequences_in_double_quotes(self, tmp_path):
+        path = self._make_env(tmp_path, r'OOMPAH_TEST_ESC="line1\nline2"' + "\n")
+        try:
+            load_dotenv(path, override=True)
+            assert os.environ["OOMPAH_TEST_ESC"] == "line1\nline2"
+        finally:
+            os.environ.pop("OOMPAH_TEST_ESC", None)
+
+    def test_multiple_vars(self, tmp_path):
+        content = "OOMPAH_TEST_A=aaa\nOOMPAH_TEST_B=bbb\nOOMPAH_TEST_C=ccc\n"
+        path = self._make_env(tmp_path, content)
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 3
+            assert os.environ["OOMPAH_TEST_A"] == "aaa"
+            assert os.environ["OOMPAH_TEST_B"] == "bbb"
+            assert os.environ["OOMPAH_TEST_C"] == "ccc"
+        finally:
+            for k in ("OOMPAH_TEST_A", "OOMPAH_TEST_B", "OOMPAH_TEST_C"):
+                os.environ.pop(k, None)
+
+    def test_env_var_available_in_resolve_env(self, tmp_path):
+        """Verify that vars loaded from .env are resolved via _resolve_env."""
+        path = self._make_env(tmp_path, "OOMPAH_TEST_RESOLVE=resolved_value\n")
+        try:
+            load_dotenv(path, override=True)
+            result = _resolve_env("$OOMPAH_TEST_RESOLVE")
+            assert result == "resolved_value"
+        finally:
+            os.environ.pop("OOMPAH_TEST_RESOLVE", None)
+
+    def test_invalid_key_skipped(self, tmp_path):
+        content = "123INVALID=val\nOOMPAH_TEST_VALID=ok\n"
+        path = self._make_env(tmp_path, content)
+        try:
+            count = load_dotenv(path, override=True)
+            assert count == 1
+            assert os.environ.get("OOMPAH_TEST_VALID") == "ok"
+            assert "123INVALID" not in os.environ
+        finally:
+            os.environ.pop("OOMPAH_TEST_VALID", None)
