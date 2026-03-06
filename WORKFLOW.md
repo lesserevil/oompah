@@ -21,7 +21,7 @@ agent:
   profiles:
     - name: quick
       provider_id: prov-efa393f7
-      model: google/gemini-2.5-flash
+      model_role: fast
       cost_per_1k_input: 0.001
       cost_per_1k_output: 0.004
       max_turns: 5
@@ -30,14 +30,14 @@ agent:
       max_priority: 4
     - name: standard
       provider_id: prov-efa393f7
-      model: google/gemini-2.5-flash
+      model_role: standard
       cost_per_1k_input: 0.001
       cost_per_1k_output: 0.004
       max_turns: 10
       issue_types: [task, feature]
     - name: deep
       provider_id: prov-efa393f7
-      model: deepseek/deepseek-r1
+      model_role: deep
       cost_per_1k_input: 0.002
       cost_per_1k_output: 0.008
       max_turns: 20
@@ -47,7 +47,7 @@ agent:
       max_priority: 1
     - name: default
       provider_id: prov-efa393f7
-      model: google/gemini-2.5-flash
+      model_role: fast
       cost_per_1k_input: 0.001
       cost_per_1k_output: 0.004
 

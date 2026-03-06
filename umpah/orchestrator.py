@@ -391,7 +391,20 @@ class Orchestrator:
         exit_reason = "normal"
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
-        model = profile.model or provider.default_model or (provider.models[0] if provider.models else "")
+        # Resolve model: role lookup → explicit model → provider default
+        model = None
+        if profile.model_role and provider.model_roles:
+            model = provider.model_roles.get(profile.model_role)
+            if not model:
+                logger.error("Model role %r not defined in provider %s (available roles: %s)",
+                             profile.model_role, provider.name, ", ".join(provider.model_roles))
+                raise ValueError(f"Model role {profile.model_role!r} not defined in provider {provider.name}")
+        if not model:
+            model = profile.model or provider.default_model or (provider.models[0] if provider.models else "")
+        if provider.models and model not in provider.models:
+            logger.error("Model %s not available in provider %s (available: %s)",
+                         model, provider.name, ", ".join(provider.models))
+            raise ValueError(f"Model {model} not available in provider {provider.name}")
 
         try:
             workspace = self.workspace_mgr.create_for_issue(issue.identifier)
@@ -968,6 +981,7 @@ class Orchestrator:
                     "command": p.command,
                     "provider_id": p.provider_id,
                     "model": p.model,
+                    "model_role": p.model_role,
                 }
                 for p in self.config.agent_profiles
             ],

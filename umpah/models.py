@@ -109,9 +109,10 @@ class ModelProvider:
     models: list[str] = field(default_factory=list)
     default_model: str | None = None
     provider_type: str = "openai"  # openai | anthropic | custom
+    model_roles: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "id": self.id,
             "name": self.name,
             "base_url": self.base_url,
@@ -120,6 +121,9 @@ class ModelProvider:
             "default_model": self.default_model,
             "provider_type": self.provider_type,
         }
+        if self.model_roles:
+            d["model_roles"] = self.model_roles
+        return d
 
     def to_safe_dict(self) -> dict[str, Any]:
         """Return dict with masked API key for display."""
@@ -142,6 +146,7 @@ class ModelProvider:
             models=d.get("models", []),
             default_model=d.get("default_model"),
             provider_type=str(d.get("provider_type", "openai")),
+            model_roles=d.get("model_roles", {}),
         )
 
 
@@ -153,6 +158,7 @@ class AgentProfile:
     command: str
     provider_id: str | None = None
     model: str | None = None
+    model_role: str | None = None
     cost_per_1k_input: float = 0.0
     cost_per_1k_output: float = 0.0
     max_turns: int | None = None
