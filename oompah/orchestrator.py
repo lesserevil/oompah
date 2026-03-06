@@ -307,10 +307,30 @@ class Orchestrator:
                 return p
         return None
 
+    def _resolve_model(self, profile: AgentProfile, provider) -> str | None:
+        """Resolve the model name from a profile and provider."""
+        model = None
+        if profile.model_role and provider.model_roles:
+            model = provider.model_roles.get(profile.model_role)
+        if not model:
+            model = profile.model or provider.default_model or (provider.models[0] if provider.models else None)
+        return model
+
     def _estimate_cost(self, profile: AgentProfile, input_tokens: int, output_tokens: int) -> float:
-        """Estimate cost for a session based on the agent profile rates."""
-        return (input_tokens / 1000.0) * profile.cost_per_1k_input + \
-               (output_tokens / 1000.0) * profile.cost_per_1k_output
+        """Estimate cost for a session based on provider model costs, falling back to profile rates."""
+        cost_in = profile.cost_per_1k_input
+        cost_out = profile.cost_per_1k_output
+        # Resolve costs from provider if available
+        if profile.provider_id:
+            provider = self.provider_store.get(profile.provider_id)
+            if provider and provider.model_costs:
+                model = self._resolve_model(profile, provider)
+                if model:
+                    pc_in, pc_out = provider.get_model_costs(model)
+                    if pc_in or pc_out:
+                        cost_in, cost_out = pc_in, pc_out
+        return (input_tokens / 1000.0) * cost_in + \
+               (output_tokens / 1000.0) * cost_out
 
     def _check_budget(self) -> bool:
         """Return True if within budget, False if budget exceeded."""
@@ -392,15 +412,13 @@ class Orchestrator:
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
         # Resolve model: role lookup → explicit model → provider default
-        model = None
-        if profile.model_role and provider.model_roles:
-            model = provider.model_roles.get(profile.model_role)
-            if not model:
-                logger.error("Model role %r not defined in provider %s (available roles: %s)",
-                             profile.model_role, provider.name, ", ".join(provider.model_roles))
-                raise ValueError(f"Model role {profile.model_role!r} not defined in provider {provider.name}")
+        model = self._resolve_model(profile, provider)
         if not model:
-            model = profile.model or provider.default_model or (provider.models[0] if provider.models else "")
+            raise ValueError(f"No model resolved for profile {profile.name!r} with provider {provider.name}")
+        if profile.model_role and provider.model_roles and profile.model_role not in provider.model_roles:
+            logger.error("Model role %r not defined in provider %s (available roles: %s)",
+                         profile.model_role, provider.name, ", ".join(provider.model_roles))
+            raise ValueError(f"Model role {profile.model_role!r} not defined in provider {provider.name}")
         if provider.models and model not in provider.models:
             logger.error("Model %s not available in provider %s (available: %s)",
                          model, provider.name, ", ".join(provider.models))

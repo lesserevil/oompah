@@ -197,8 +197,8 @@ class ServiceConfig:
                 provider_id=p.get("provider_id"),
                 model=p.get("model"),
                 model_role=p.get("model_role"),
-                cost_per_1k_input=float(p.get("cost_per_1k_input", 0)),
-                cost_per_1k_output=float(p.get("cost_per_1k_output", 0)),
+                cost_per_1k_input=float(p.get("cost_per_1k_input", 0)),  # optional; prefer provider model_costs
+                cost_per_1k_output=float(p.get("cost_per_1k_output", 0)),  # optional; prefer provider model_costs
                 max_turns=_coerce_int(p.get("max_turns"), None) if p.get("max_turns") is not None else None,
                 keywords=[str(k) for k in (p.get("keywords", []) or [])],
                 issue_types=[str(t) for t in (p.get("issue_types", []) or [])],

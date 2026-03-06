@@ -367,7 +367,7 @@ async def api_update_provider(provider_id: str, request: Request):
     try:
         body = await request.json()
         fields = {}
-        for key in ("name", "base_url", "api_key", "models", "default_model", "provider_type"):
+        for key in ("name", "base_url", "api_key", "models", "default_model", "provider_type", "model_roles", "model_costs"):
             if key in body:
                 fields[key] = body[key]
         provider = _provider_store.update(provider_id, **fields)

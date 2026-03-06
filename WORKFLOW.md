@@ -22,8 +22,6 @@ agent:
     - name: quick
       provider_id: prov-efa393f7
       model_role: fast
-      cost_per_1k_input: 0.001
-      cost_per_1k_output: 0.004
       max_turns: 5
       issue_types: [chore]
       keywords: [typo, rename, cleanup, lint, format]
@@ -31,15 +29,11 @@ agent:
     - name: standard
       provider_id: prov-efa393f7
       model_role: standard
-      cost_per_1k_input: 0.001
-      cost_per_1k_output: 0.004
       max_turns: 10
       issue_types: [task, feature]
     - name: deep
       provider_id: prov-efa393f7
       model_role: deep
-      cost_per_1k_input: 0.002
-      cost_per_1k_output: 0.008
       max_turns: 20
       issue_types: [bug, epic]
       keywords: [security, architecture, refactor, critical]
@@ -48,8 +42,6 @@ agent:
     - name: default
       provider_id: prov-efa393f7
       model_role: fast
-      cost_per_1k_input: 0.001
-      cost_per_1k_output: 0.004
 
 server:
   port: 8080

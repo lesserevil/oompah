@@ -110,6 +110,12 @@ class ModelProvider:
     default_model: str | None = None
     provider_type: str = "openai"  # openai | anthropic | custom
     model_roles: dict[str, str] = field(default_factory=dict)
+    model_costs: dict[str, dict[str, float]] = field(default_factory=dict)
+
+    def get_model_costs(self, model: str) -> tuple[float, float]:
+        """Return (cost_per_1k_input, cost_per_1k_output) for a model, or (0, 0) if unknown."""
+        costs = self.model_costs.get(model, {})
+        return (costs.get("cost_per_1k_input", 0.0), costs.get("cost_per_1k_output", 0.0))
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -123,6 +129,8 @@ class ModelProvider:
         }
         if self.model_roles:
             d["model_roles"] = self.model_roles
+        if self.model_costs:
+            d["model_costs"] = self.model_costs
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -147,6 +155,7 @@ class ModelProvider:
             default_model=d.get("default_model"),
             provider_type=str(d.get("provider_type", "openai")),
             model_roles=d.get("model_roles", {}),
+            model_costs=d.get("model_costs", {}),
         )
 
 
