@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "last_dolt_commit": "ovgpj6e921dsja2abb9br73t4nab6b6g",
   "last_event_id": 0,
   "timestamp": "2026-03-06T20:31:54.042248Z",
@@ -6,6 +7,15 @@
     "issues": 23,
     "events": 654,
     "comments": 1656,
+=======
+  "last_dolt_commit": "0737vqgfstb0u7iq6iit5f65ekmfkh0h",
+  "last_event_id": 0,
+  "timestamp": "2026-03-06T19:39:07.495991Z",
+  "counts": {
+    "issues": 23,
+    "events": 615,
+    "comments": 1589,
+>>>>>>> c27762b
     "dependencies": 1,
     "labels": 1,
     "config": 11
