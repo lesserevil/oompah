@@ -47,7 +47,7 @@ class AgentActivity:
 
 @dataclass
 class ApiAgentResult:
-    status: str  # "succeeded" | "failed" | "max_turns"
+    status: str  # "succeeded" | "failed" | "max_turns" | "stalled"
     input_tokens: int
     output_tokens: int
     total_tokens: int
@@ -55,6 +55,10 @@ class ApiAgentResult:
     last_message: str
     error: str | None = None
     activity: list[AgentActivity] = field(default_factory=list)
+
+
+# Tools that indicate the agent is making progress (not just reading/exploring)
+_PRODUCTIVE_TOOLS = {"write_file", "run_command"}
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +278,8 @@ class ApiAgentSession:
         api_key: str,
         model: str,
         workspace_path: str,
-        max_turns: int = 10,
+        max_turns: int = 200,
+        stall_turns: int = 5,
         system_prompt: str = "",
         command_timeout: int = 60,
     ):
@@ -284,6 +289,7 @@ class ApiAgentSession:
         self.model = model
         self.workspace = Path(workspace_path).resolve()
         self.max_turns = max_turns
+        self.stall_turns = stall_turns
         self.system_prompt = system_prompt
         self.command_timeout = command_timeout
 
@@ -296,6 +302,7 @@ class ApiAgentSession:
         self,
         prompt: str,
         on_activity: Callable[[AgentActivity], None] | None = None,
+        is_cancelled: Callable[[], bool] | None = None,
     ) -> ApiAgentResult:
         """Run the agent on a task prompt. Returns result with token counts."""
         messages: list[dict[str, Any]] = []
@@ -320,6 +327,7 @@ class ApiAgentSession:
         total_tokens = 0
         last_message = ""
         turns = 0
+        turns_since_productive = 0  # stall detection
 
         try:
             for turn in range(1, self.max_turns + 1):
@@ -369,6 +377,7 @@ class ApiAgentSession:
                         activity=activity,
                     )
 
+                turn_had_productive = False
                 for tc in tool_calls:
                     fn = tc.get("function", {})
                     tool_name = fn.get("name", "")
@@ -393,6 +402,42 @@ class ApiAgentSession:
                         "tool_call_id": tc.get("id", ""),
                         "content": result_str,
                     })
+
+                    if tool_name in _PRODUCTIVE_TOOLS:
+                        turn_had_productive = True
+
+                # Stall detection
+                if turn_had_productive:
+                    turns_since_productive = 0
+                else:
+                    turns_since_productive += 1
+
+                # Check if the task was cancelled (e.g. issue closed externally)
+                if is_cancelled and is_cancelled():
+                    _emit(turn, "message", "Task cancelled (issue no longer active)")
+                    return ApiAgentResult(
+                        status="succeeded",
+                        input_tokens=total_input,
+                        output_tokens=total_output,
+                        total_tokens=total_tokens,
+                        turns=turns,
+                        last_message="Task cancelled",
+                        activity=activity,
+                    )
+
+                if turns_since_productive >= self.stall_turns:
+                    _emit(turn, "message",
+                          f"Agent stalled: {turns_since_productive} turns with no writes or commands")
+                    return ApiAgentResult(
+                        status="stalled",
+                        input_tokens=total_input,
+                        output_tokens=total_output,
+                        total_tokens=total_tokens,
+                        turns=turns,
+                        last_message=last_message,
+                        error=f"Stalled after {turns_since_productive} turns without productive action",
+                        activity=activity,
+                    )
 
             _emit(turns, "message", f"Reached max turns ({self.max_turns})")
             return ApiAgentResult(

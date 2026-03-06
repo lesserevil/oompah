@@ -186,6 +186,15 @@ class BeadsTracker:
         """Reopen a closed issue by setting status to open."""
         self._run_bd(["update", identifier, "--status=open"])
 
+    def archive_issue(self, identifier: str) -> None:
+        """Mark an issue as archived via set-state dimension."""
+        self._run_bd(["set-state", identifier, "archive=yes",
+                       "--reason", "Auto-archived after 7 days closed"])
+
+    def is_archived(self, issue: Issue) -> bool:
+        """Check if an issue has the archive:yes label."""
+        return "archive:yes" in issue.labels
+
     def fetch_issues_by_states(self, state_names: list[str]) -> list[Issue]:
         """Fetch issues in specified states (used for terminal cleanup)."""
         if not state_names:
@@ -299,6 +308,7 @@ class BeadsTracker:
         # Timestamps
         created_at = _parse_timestamp(raw.get("created_at"))
         updated_at = _parse_timestamp(raw.get("updated_at"))
+        closed_at = _parse_timestamp(raw.get("closed_at"))
 
         issue_type = str(raw.get("issue_type", raw.get("type", "task")))
         parent_id = raw.get("parent")
@@ -318,6 +328,7 @@ class BeadsTracker:
             blocked_by=blocked_by,
             created_at=created_at,
             updated_at=updated_at,
+            closed_at=closed_at,
         )
 
 

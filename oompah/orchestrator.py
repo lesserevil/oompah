@@ -20,6 +20,7 @@ from oompah.models import (
     RetryEntry,
     RunningEntry,
 )
+from oompah.focus import analyze_completed_issue, save_suggestion, select_focus
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
@@ -65,6 +66,7 @@ class Orchestrator:
         self._stopping = False
         self._paused = False
         self._observers: list[Any] = []
+        self._activity_observers: list[Any] = []
         self._refresh_requested = asyncio.Event()
 
     def reload_config(self, config: ServiceConfig, prompt_template: str) -> None:
@@ -101,17 +103,20 @@ class Orchestrator:
         # Terminate all running agents (keep workspaces for resume)
         asyncio.ensure_future(self._terminate_all_running())
         logger.info("Orchestrator paused — all agents stopped")
+        self._notify_observers()
 
     async def _terminate_all_running(self) -> None:
         """Terminate all running agents without cleaning workspaces."""
         for issue_id in list(self.state.running.keys()):
             await self._terminate_running(issue_id, cleanup_workspace=False)
+        self._notify_observers()
 
     def unpause(self) -> None:
         """Resume dispatching — agents will be re-dispatched on next tick."""
         self._paused = False
         logger.info("Orchestrator unpaused")
         self._refresh_requested.set()
+        self._notify_observers()
 
     def _tracker_for_project(self, project_id: str) -> BeadsTracker:
         """Get or create a BeadsTracker for a project."""
@@ -230,6 +235,9 @@ class Orchestrator:
                 break
             if self._should_dispatch(issue):
                 await self._dispatch(issue, attempt=None)
+
+        # Part 5: Auto-archive closed issues older than 7 days
+        self._auto_archive()
 
         self._notify_observers()
 
@@ -376,6 +384,33 @@ class Orchestrator:
                 return p
         return None
 
+    # Profile hierarchy for escalation (weakest to strongest).
+    # Profiles not listed here won't be escalated to.
+    _PROFILE_HIERARCHY = ["default", "quick", "standard", "deep"]
+
+    def _escalate_profile(self, current_profile: AgentProfile | None,
+                          issue: Issue) -> AgentProfile | None:
+        """Return the next higher profile for an issue that keeps stalling.
+
+        Escalation follows _PROFILE_HIERARCHY. Returns None if already at the
+        top or if no higher profile exists in the config.
+        """
+        if not current_profile:
+            return None
+
+        hierarchy = self._PROFILE_HIERARCHY
+        try:
+            idx = hierarchy.index(current_profile.name)
+        except ValueError:
+            return None  # profile not in hierarchy, no escalation
+
+        # Walk up the hierarchy looking for the next configured profile
+        for higher_name in hierarchy[idx + 1:]:
+            higher = self._get_profile_by_name(higher_name)
+            if higher:
+                return higher
+        return None
+
     def _resolve_model(self, profile: AgentProfile, provider) -> str | None:
         """Resolve the model name from a profile and provider."""
         model = None
@@ -416,10 +451,16 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
-    async def _dispatch(self, issue: Issue, attempt: int | None) -> None:
+    async def _dispatch(self, issue: Issue, attempt: int | None,
+                        override_profile: str | None = None) -> None:
         """Dispatch a worker for an issue."""
-        # Select agent profile
-        profile = self._match_agent_profile(issue)
+        # Use escalated profile if provided, otherwise match normally
+        if override_profile:
+            profile = self._get_profile_by_name(override_profile)
+            if not profile:
+                profile = self._match_agent_profile(issue)
+        else:
+            profile = self._match_agent_profile(issue)
         profile_name = profile.name if profile else "default"
 
         logger.info(
@@ -466,6 +507,8 @@ class Orchestrator:
             self._post_comment(issue.identifier, f"Agent dispatched (profile: {profile_name})",
                                project_id=issue.project_id)
 
+        self._notify_observers()
+
     async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
         """Worker: create workspace, build prompt, run agent turns."""
         # Route to API agent if profile has a provider_id
@@ -508,8 +551,24 @@ class Orchestrator:
                 workspace_path = workspace.path
                 self.workspace_mgr.run_before_run(workspace_path)
 
+            # Select focus tailored to this issue
+            focus = select_focus(issue)
+            logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role)
+            self._post_comment(issue.identifier, f"Focus: {focus.role}",
+                               project_id=issue.project_id)
+
+            # Fetch existing comments to kick-start agent context
+            try:
+                tracker = self._tracker_for_issue(issue)
+                comments = tracker.fetch_comments(issue.identifier)
+            except Exception:
+                comments = []
+
             # Build prompt
-            prompt = render_prompt(self._prompt_template, issue, attempt)
+            prompt = render_prompt(
+                self._prompt_template, issue, attempt,
+                comments=comments, focus_text=focus.render(),
+            )
 
             session = ApiAgentSession(
                 base_url=provider.base_url,
@@ -517,6 +576,7 @@ class Orchestrator:
                 model=model,
                 workspace_path=workspace_path,
                 max_turns=max_turns,
+                stall_turns=self.config.stall_turns,
                 system_prompt="You are an autonomous coding agent. Use the provided tools to complete the task.",
             )
 
@@ -532,14 +592,35 @@ class Orchestrator:
                     last_message=f"Using {provider.name}/{model}",
                 )
 
-            def _on_activity(entry: AgentActivity) -> None:
+            def _on_activity(activity_entry: AgentActivity) -> None:
                 if issue.id in self.state.running:
-                    self.state.running[issue.id].activity_log.append(entry)
+                    self.state.running[issue.id].activity_log.append(activity_entry)
                     if self.state.running[issue.id].session:
-                        self.state.running[issue.id].session.last_message = entry.summary[:200]
-                        self.state.running[issue.id].session.last_event = entry.kind
+                        self.state.running[issue.id].session.last_message = activity_entry.summary[:200]
+                        self.state.running[issue.id].session.last_event = activity_entry.kind
+                        self.state.running[issue.id].session.last_timestamp = datetime.now(timezone.utc)
+                    # Broadcast activity entry to WS clients
+                    self._notify_activity(issue.identifier, activity_entry)
+                    self._notify_observers()
 
-            result = await session.run_task(prompt, on_activity=_on_activity)
+            def _is_cancelled() -> bool:
+                """Check if this issue has been closed or removed from running."""
+                if issue.id not in self.state.running:
+                    return True
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    refreshed = tracker.fetch_issue_states_by_ids([issue.id])
+                    if refreshed:
+                        state = refreshed[0].state.strip().lower()
+                        terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
+                        if state in terminal:
+                            return True
+                except Exception:
+                    pass
+                return False
+
+            result = await session.run_task(prompt, on_activity=_on_activity,
+                                            is_cancelled=_is_cancelled)
 
             # Update session with final token counts
             if issue.id in self.state.running and self.state.running[issue.id].session:
@@ -555,8 +636,12 @@ class Orchestrator:
                 exit_reason = "abnormal"
                 error_msg = result.error or "API agent failed"
             elif result.status == "max_turns":
-                exit_reason = "normal"  # treat max_turns as normal completion
+                exit_reason = "max_turns"
                 logger.info("API agent reached max turns for %s", issue.identifier)
+            elif result.status == "stalled":
+                exit_reason = "stalled"
+                error_msg = result.error
+                logger.info("API agent stalled on %s: %s", issue.identifier, error_msg)
 
         except Exception as exc:
             exit_reason = "abnormal"
@@ -622,11 +707,25 @@ class Orchestrator:
 
                 current_issue = issue
 
+                # Select focus tailored to this issue
+                cli_focus = select_focus(issue)
+                logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, cli_focus.name, cli_focus.role)
+                self._post_comment(issue.identifier, f"Focus: {cli_focus.role}",
+                                   project_id=issue.project_id)
+
+                # Fetch existing comments to kick-start agent context
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    cli_comments = tracker.fetch_comments(issue.identifier)
+                except Exception:
+                    cli_comments = []
+
                 for turn_number in range(1, max_turns + 1):
                     # Build prompt
                     if turn_number == 1:
                         prompt = render_prompt(
-                            self._prompt_template, current_issue, attempt
+                            self._prompt_template, current_issue, attempt,
+                            comments=cli_comments, focus_text=cli_focus.render(),
                         )
                     else:
                         prompt = build_continuation_prompt(
@@ -668,6 +767,12 @@ class Orchestrator:
                     active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
                     if current_issue.state.strip().lower() not in active_norms:
                         break
+                else:
+                    # Loop completed without break — all turns used up
+                    active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
+                    if current_issue.state.strip().lower() in active_norms:
+                        exit_reason = "max_turns"
+                        logger.info("CLI agent reached max turns for %s", issue.identifier)
 
             finally:
                 await session.stop()
@@ -776,23 +881,61 @@ class Orchestrator:
 
         if reason == "normal":
             self.state.completed.add(issue_id)
+            self.state.claimed.discard(issue_id)
+            self.state.stall_counts.pop(issue_id, None)
             self._post_comment(
                 entry.identifier,
                 f"Agent completed successfully in {elapsed:.0f}s{tokens_str}",
                 project_id=project_id,
             )
-            # Schedule short continuation retry
-            self._schedule_retry(
-                issue_id,
-                attempt=1,
-                identifier=entry.identifier,
-                delay_ms=1000,
-                error=None,
-            )
             logger.info(
                 "Worker completed normally issue_id=%s issue_identifier=%s",
                 issue_id,
                 entry.identifier,
+            )
+            # Analyze completed work against foci library
+            self._analyze_focus_fit(entry.issue, project_id)
+        elif reason in ("max_turns", "stalled"):
+            next_attempt = (entry.retry_attempt or 0) + 1
+            delay = self._backoff_delay(next_attempt)
+
+            # Track stall count for escalation
+            escalated = None
+            if reason == "stalled":
+                self.state.stall_counts[issue_id] = self.state.stall_counts.get(issue_id, 0) + 1
+                stall_count = self.state.stall_counts[issue_id]
+                # Check if we should escalate to a higher profile
+                current_profile = self._get_profile_by_name(entry.agent_profile_name)
+                escalated = self._escalate_profile(current_profile, entry.issue)
+                if escalated:
+                    msg = (f"Agent stalled {stall_count} time(s) ({elapsed:.0f}s{tokens_str}). "
+                           f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
+                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                    logger.info("Escalating issue %s from profile %s to %s (stall_count=%d)",
+                                entry.identifier, entry.agent_profile_name, escalated.name, stall_count)
+                else:
+                    msg = (f"Agent stalled — no productive actions (writes/commands) "
+                           f"for {self.config.stall_turns} consecutive turns "
+                           f"({elapsed:.0f}s{tokens_str}). "
+                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+            else:
+                msg = (f"Agent hit safety turn limit ({elapsed:.0f}s{tokens_str}). "
+                       f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+            self._post_comment(entry.identifier, msg, project_id=project_id)
+            self._schedule_retry(
+                issue_id,
+                attempt=next_attempt,
+                identifier=entry.identifier,
+                delay_ms=delay,
+                error=error or reason,
+                escalated_profile=escalated.name if reason == "stalled" and escalated else None,
+            )
+            logger.info(
+                "Worker %s issue_id=%s issue_identifier=%s retrying_in_ms=%d",
+                reason,
+                issue_id,
+                entry.identifier,
+                delay,
             )
         else:
             next_attempt = (entry.retry_attempt or 0) + 1
@@ -831,6 +974,7 @@ class Orchestrator:
         identifier: str,
         delay_ms: int,
         error: str | None,
+        escalated_profile: str | None = None,
     ) -> None:
         """Schedule a retry timer for an issue."""
         # Cancel existing retry
@@ -853,6 +997,7 @@ class Orchestrator:
             due_at_ms=due_at_ms,
             timer_handle=timer,
             error=error,
+            escalated_profile=escalated_profile,
         )
 
     async def _on_retry_timer(self, issue_id: str) -> None:
@@ -891,7 +1036,8 @@ class Orchestrator:
             )
             return
 
-        await self._dispatch(issue, attempt=retry.attempt)
+        await self._dispatch(issue, attempt=retry.attempt,
+                             override_profile=retry.escalated_profile)
 
     async def _reconcile(self) -> None:
         """Reconcile running issues: stall detection + tracker state refresh."""
@@ -971,6 +1117,58 @@ class Orchestrator:
                     issue.state,
                 )
                 await self._terminate_running(issue_id, cleanup_workspace=False)
+
+    _ARCHIVE_DAYS = 7
+
+    def _analyze_focus_fit(self, issue: Issue, project_id: str | None) -> None:
+        """Analyze a completed issue's work against existing foci.
+
+        If no focus covers the work well, saves a suggestion for a new one.
+        """
+        try:
+            tracker = self._tracker_for_issue(issue)
+            comments = tracker.fetch_comments(issue.identifier)
+        except Exception:
+            return
+
+        suggestion = analyze_completed_issue(issue, comments)
+        if suggestion:
+            save_suggestion(suggestion)
+            logger.info(
+                "Focus suggestion created for %s: '%s' (%s)",
+                issue.identifier, suggestion.suggested_name, suggestion.suggested_role,
+            )
+
+    def _auto_archive(self) -> None:
+        """Archive closed issues older than _ARCHIVE_DAYS days."""
+        now = datetime.now(timezone.utc)
+        projects = self.project_store.list_all()
+
+        trackers: list[tuple[str | None, BeadsTracker]] = []
+        if projects:
+            for project in projects:
+                try:
+                    trackers.append((project.id, self._tracker_for_project(project.id)))
+                except (ProjectError, TrackerError):
+                    pass
+        else:
+            trackers.append((None, self.tracker))
+
+        for pid, tracker in trackers:
+            try:
+                closed = tracker.fetch_issues_by_states(self.config.tracker_terminal_states)
+                for issue in closed:
+                    if tracker.is_archived(issue):
+                        continue
+                    if issue.closed_at and (now - issue.closed_at).days >= self._ARCHIVE_DAYS:
+                        try:
+                            tracker.archive_issue(issue.identifier)
+                            logger.info("Auto-archived issue %s (closed %d days ago)",
+                                        issue.identifier, (now - issue.closed_at).days)
+                        except TrackerError as exc:
+                            logger.debug("Failed to archive %s: %s", issue.identifier, exc)
+            except (TrackerError, ProjectError) as exc:
+                logger.debug("Auto-archive fetch failed for project %s: %s", pid, exc)
 
     async def _terminate_running(
         self, issue_id: str, cleanup_workspace: bool
@@ -1175,5 +1373,13 @@ class Orchestrator:
         for observer in self._observers:
             try:
                 observer(self.get_snapshot())
+            except Exception:
+                pass
+
+    def _notify_activity(self, identifier: str, entry: Any) -> None:
+        """Notify observers of a specific agent activity entry."""
+        for observer in self._activity_observers:
+            try:
+                observer(identifier, entry)
             except Exception:
                 pass

@@ -35,6 +35,7 @@ class Issue:
     blocked_by: list[BlockerRef] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    closed_at: datetime | None = None
 
 
 @dataclass
@@ -97,6 +98,7 @@ class RetryEntry:
     due_at_ms: float
     timer_handle: Any = None
     error: str | None = None
+    escalated_profile: str | None = None
 
 
 @dataclass
@@ -108,15 +110,22 @@ class Project:
     repo_url: str
     repo_path: str  # local clone path (derived)
     branch: str = "main"
+    git_user_name: str | None = None
+    git_user_email: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "id": self.id,
             "name": self.name,
             "repo_url": self.repo_url,
             "repo_path": self.repo_path,
             "branch": self.branch,
         }
+        if self.git_user_name:
+            d["git_user_name"] = self.git_user_name
+        if self.git_user_email:
+            d["git_user_email"] = self.git_user_email
+        return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Project:
@@ -126,6 +135,8 @@ class Project:
             repo_url=str(d.get("repo_url", "")),
             repo_path=str(d.get("repo_path", "")),
             branch=str(d.get("branch", "main")),
+            git_user_name=d.get("git_user_name"),
+            git_user_email=d.get("git_user_email"),
         )
 
 
@@ -243,6 +254,7 @@ class OrchestratorState:
     claimed: set[str] = field(default_factory=set)
     retry_attempts: dict[str, RetryEntry] = field(default_factory=dict)
     completed: set[str] = field(default_factory=set)
+    stall_counts: dict[str, int] = field(default_factory=dict)  # issue_id → stall count
     agent_totals: AgentTotals = field(default_factory=AgentTotals)
     cost_by_profile: dict[str, float] = field(default_factory=dict)
     budget_exceeded: bool = False

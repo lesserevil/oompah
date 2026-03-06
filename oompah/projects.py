@@ -88,7 +88,9 @@ class ProjectStore:
         return self._projects.get(project_id)
 
     def create(self, repo_url: str, name: str | None = None,
-               branch: str = "main") -> Project:
+               branch: str = "main",
+               git_user_name: str | None = None,
+               git_user_email: str | None = None) -> Project:
         """Register a project by cloning its git repo.
 
         Args:
@@ -135,6 +137,46 @@ class ProjectStore:
                 f"Run 'bd init' in {repo_path} to set up beads issue tracking."
             )
 
+        # If git_user_name / git_user_email not provided, read global git config
+        if not git_user_name:
+            try:
+                r = subprocess.run(
+                    ["git", "config", "--global", "user.name"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                git_user_name = r.stdout.strip() or None
+            except Exception:
+                pass
+        if not git_user_email:
+            try:
+                r = subprocess.run(
+                    ["git", "config", "--global", "user.email"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                git_user_email = r.stdout.strip() or None
+            except Exception:
+                pass
+
+        if not git_user_name or not git_user_email:
+            missing = []
+            if not git_user_name:
+                missing.append("git_user_name")
+            if not git_user_email:
+                missing.append("git_user_email")
+            raise ProjectError(
+                f"No global git config found. {', '.join(missing)} must be provided."
+            )
+
+        # Set git identity on the cloned repo
+        for key, val in [("user.name", git_user_name), ("user.email", git_user_email)]:
+            try:
+                subprocess.run(
+                    ["git", "config", key, val],
+                    cwd=repo_path, capture_output=True, text=True, timeout=5,
+                )
+            except Exception:
+                pass
+
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
             id=project_id,
@@ -142,6 +184,8 @@ class ProjectStore:
             repo_url=repo_url,
             repo_path=repo_path,
             branch=branch,
+            git_user_name=git_user_name,
+            git_user_email=git_user_email,
         )
         self._projects[project_id] = project
         self._save()
@@ -180,15 +224,29 @@ class ProjectStore:
             raise ProjectError(f"Unknown project: {project_id}")
 
         wt_path = self.worktree_path_for(project_id, issue_identifier)
+        branch_name = _sanitize_identifier(issue_identifier)
+
         if os.path.isdir(wt_path):
             logger.info("Worktree already exists path=%s", wt_path)
             return wt_path
 
         os.makedirs(os.path.dirname(wt_path), exist_ok=True)
 
+        # Fetch latest from remote before creating worktree
         try:
             subprocess.run(
-                ["git", "worktree", "add", wt_path, "--detach"],
+                ["git", "fetch", "origin"],
+                cwd=project.repo_path,
+                capture_output=True, text=True, timeout=60,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass  # best-effort
+
+        # Create worktree on a new branch based on the project's main branch
+        base = f"origin/{project.branch}"
+        try:
+            subprocess.run(
+                ["git", "worktree", "add", "-b", branch_name, wt_path, base],
                 cwd=project.repo_path,
                 capture_output=True,
                 text=True,
@@ -197,11 +255,41 @@ class ProjectStore:
             )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
-            raise ProjectError(f"git worktree add failed: {stderr}")
+            # Branch may already exist from a previous run — try reusing it
+            if "already exists" in stderr:
+                try:
+                    subprocess.run(
+                        ["git", "worktree", "add", wt_path, branch_name],
+                        cwd=project.repo_path,
+                        capture_output=True, text=True, check=True, timeout=30,
+                    )
+                except subprocess.CalledProcessError as exc2:
+                    stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
+                    raise ProjectError(f"git worktree add failed: {stderr2}")
+            else:
+                raise ProjectError(f"git worktree add failed: {stderr}")
         except subprocess.TimeoutExpired:
             raise ProjectError("git worktree add timed out")
 
-        logger.info("Worktree created path=%s", wt_path)
+        # Set git identity on the worktree from project config
+        if project.git_user_name:
+            try:
+                subprocess.run(
+                    ["git", "config", "user.name", project.git_user_name],
+                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                )
+            except Exception:
+                pass
+        if project.git_user_email:
+            try:
+                subprocess.run(
+                    ["git", "config", "user.email", project.git_user_email],
+                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                )
+            except Exception:
+                pass
+
+        logger.info("Worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
 
     def remove_worktree(self, project_id: str, issue_identifier: str) -> None:

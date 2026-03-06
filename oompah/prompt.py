@@ -51,6 +51,8 @@ def render_prompt(
     template_source: str,
     issue: Issue,
     attempt: int | None = None,
+    comments: list[dict] | None = None,
+    focus_text: str | None = None,
 ) -> str:
     """Render a Liquid prompt template with issue and attempt variables.
 
@@ -70,6 +72,8 @@ def render_prompt(
     variables: dict[str, Any] = {
         "issue": _issue_to_template_vars(issue),
         "attempt": attempt,
+        "comments": comments or [],
+        "focus": focus_text or "",
     }
 
     try:

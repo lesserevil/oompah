@@ -144,6 +144,7 @@ class ServiceConfig:
     turn_timeout_ms: int = 3_600_000
     read_timeout_ms: int = 5000
     stall_timeout_ms: int = 300_000
+    stall_turns: int = 5
     server_port: int | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     budget_limit: float = 0.0
@@ -226,7 +227,7 @@ class ServiceConfig:
             max_concurrent_agents=_coerce_int(
                 agent.get("max_concurrent_agents"), 10
             ),
-            max_turns=_coerce_int(agent.get("max_turns"), 20),
+            max_turns=_coerce_int(agent.get("max_turns"), 200),
             max_retry_backoff_ms=_coerce_int(
                 agent.get("max_retry_backoff_ms"), 300000
             ),
@@ -237,6 +238,7 @@ class ServiceConfig:
             turn_timeout_ms=_coerce_int(codex.get("turn_timeout_ms"), 3_600_000),
             read_timeout_ms=_coerce_int(codex.get("read_timeout_ms"), 5000),
             stall_timeout_ms=_coerce_int(codex.get("stall_timeout_ms"), 300_000),
+            stall_turns=_coerce_int(agent.get("stall_turns"), 5),
             server_port=_coerce_int(server.get("port"), None) if server.get("port") is not None else None,
             agent_profiles=profiles,
             budget_limit=budget_limit,

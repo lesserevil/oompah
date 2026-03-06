@@ -1,15 +1,22 @@
-"""FastAPI server with htmx kanban dashboard and JSON REST API."""
+"""FastAPI server with htmx kanban dashboard, JSON REST API, and WebSocket push."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oompah.scm import detect_provider, extract_repo_slug, get_all_open_reviews
+from oompah.focus import (
+    BUILTIN_FOCI, DEFAULT_FOCUS, Focus, FocusSuggestion,
+    load_foci, load_suggestions, save_foci, score_focus,
+    update_suggestion_status,
+)
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 
@@ -26,16 +33,156 @@ _provider_store = ProviderStore()
 # Global reference to orchestrator, set during startup
 _orchestrator: Orchestrator | None = None
 
+# Connected WebSocket clients
+_ws_clients: set[WebSocket] = set()
+
 
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator
     _orchestrator = orch
+    # Register as observer so we push on every state change
+    orch._observers.append(_on_orchestrator_change)
+    orch._activity_observers.append(_on_agent_activity)
 
 
 def _get_orchestrator() -> Orchestrator:
     if _orchestrator is None:
         raise RuntimeError("Orchestrator not initialized")
     return _orchestrator
+
+
+_last_state_broadcast = 0.0
+_STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
+
+def _on_orchestrator_change(snapshot: dict) -> None:
+    """Called by the orchestrator whenever state changes. Enqueue WS broadcast."""
+    import time
+    global _last_state_broadcast
+    if not _ws_clients:
+        return
+    now = time.monotonic() * 1000
+    if now - _last_state_broadcast < _STATE_THROTTLE_MS:
+        return
+    _last_state_broadcast = now
+    # Schedule broadcast in the running event loop
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(_broadcast({"type": "state", "data": snapshot}))
+    except RuntimeError:
+        pass
+
+
+def _on_agent_activity(identifier: str, entry) -> None:
+    """Called by orchestrator on each agent activity entry. Push to WS clients."""
+    if not _ws_clients:
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(_broadcast({
+                "type": "activity",
+                "identifier": identifier,
+                "entry": entry.to_dict() if hasattr(entry, 'to_dict') else str(entry),
+            }))
+    except RuntimeError:
+        pass
+
+
+async def broadcast_issues() -> None:
+    """Fetch current issues and broadcast to all WS clients."""
+    if not _ws_clients:
+        return
+    try:
+        orch = _get_orchestrator()
+        all_issues = _fetch_all_issues(orch, None)
+        result: dict[str, list] = {}
+        for issue in all_issues:
+            if "archive:yes" in issue.labels:
+                continue
+            state = issue.state.strip().lower()
+            if state not in result:
+                result[state] = []
+            result[state].append({
+                "id": issue.id,
+                "identifier": issue.identifier,
+                "title": issue.title,
+                "description": issue.description,
+                "priority": issue.priority,
+                "state": issue.state,
+                "labels": issue.labels,
+                "issue_type": issue.issue_type,
+                "parent_id": issue.parent_id,
+                "project_id": issue.project_id,
+            })
+        await _broadcast({"type": "issues", "data": result})
+    except Exception as exc:
+        logger.debug("broadcast_issues failed: %s", exc)
+
+
+async def _broadcast(msg: dict) -> None:
+    """Send a JSON message to all connected WebSocket clients."""
+    if not _ws_clients:
+        return
+    text = json.dumps(msg, default=str)
+    dead: list[WebSocket] = []
+    for ws in _ws_clients:
+        try:
+            await ws.send_text(text)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        _ws_clients.discard(ws)
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    """WebSocket endpoint for real-time UI updates."""
+    await ws.accept()
+    _ws_clients.add(ws)
+    logger.info("WebSocket client connected (%d total)", len(_ws_clients))
+    try:
+        # Send initial state + issues immediately
+        orch = _get_orchestrator()
+        await ws.send_text(json.dumps(
+            {"type": "state", "data": orch.get_snapshot()}, default=str))
+        # Send initial issues
+        all_issues = _fetch_all_issues(orch, None)
+        result: dict[str, list] = {}
+        for issue in all_issues:
+            if "archive:yes" in issue.labels:
+                continue
+            state = issue.state.strip().lower()
+            if state not in result:
+                result[state] = []
+            result[state].append({
+                "id": issue.id, "identifier": issue.identifier,
+                "title": issue.title, "description": issue.description,
+                "priority": issue.priority, "state": issue.state,
+                "labels": issue.labels, "issue_type": issue.issue_type,
+                "parent_id": issue.parent_id, "project_id": issue.project_id,
+            })
+        await ws.send_text(json.dumps({"type": "issues", "data": result}, default=str))
+
+        # Keep connection alive, handle client messages
+        while True:
+            data = await ws.receive_text()
+            # Client can send "ping" to keep alive or "refresh" to request data
+            try:
+                msg = json.loads(data)
+                if msg.get("action") == "refresh":
+                    await ws.send_text(json.dumps(
+                        {"type": "state", "data": orch.get_snapshot()}, default=str))
+                    await broadcast_issues()
+            except json.JSONDecodeError:
+                pass
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        _ws_clients.discard(ws)
+        logger.info("WebSocket client disconnected (%d remaining)", len(_ws_clients))
 
 
 # --- JSON REST API ---
@@ -84,6 +231,9 @@ async def api_issues(request: Request):
 
         result: dict[str, list] = {}
         for issue in all_issues:
+            # Hide archived issues
+            if "archive:yes" in issue.labels:
+                continue
             state = issue.state.strip().lower()
             if state not in result:
                 result[state] = []
@@ -175,6 +325,7 @@ async def api_create_issue(request: Request):
         if parent_id:
             tracker.add_parent_child(issue.id, parent_id)
 
+        await broadcast_issues()
         return JSONResponse({
             "ok": True,
             "issue": {
@@ -220,6 +371,7 @@ async def api_update_issue(identifier: str, request: Request):
         if new_description is not None:
             tracker.update_issue(identifier, description=new_description)
 
+        await broadcast_issues()
         return JSONResponse({"ok": True})
     except Exception as exc:
         logger.error("Update issue API error: %s", exc)
@@ -509,7 +661,12 @@ async def api_create_project(request: Request):
             )
         name = body.get("name", "").strip() or None  # None = auto from URL
         branch = body.get("branch", "main").strip()
-        project = orch.project_store.create(repo_url=repo_url, name=name, branch=branch)
+        git_user_name = body.get("git_user_name", "").strip() or None
+        git_user_email = body.get("git_user_email", "").strip() or None
+        project = orch.project_store.create(
+            repo_url=repo_url, name=name, branch=branch,
+            git_user_name=git_user_name, git_user_email=git_user_email,
+        )
         return JSONResponse(project.to_dict(), status_code=201)
     except ProjectError as exc:
         return JSONResponse(
@@ -531,7 +688,7 @@ async def api_update_project(project_id: str, request: Request):
         orch = _get_orchestrator()
         body = await request.json()
         fields = {}
-        for key in ("name", "repo_path", "branch"):
+        for key in ("name", "repo_path", "branch", "git_user_name", "git_user_email"):
             if key in body:
                 fields[key] = body[key]
         project = orch.project_store.update(project_id, **fields)
@@ -575,6 +732,159 @@ async def api_list_worktrees(project_id: str):
         )
 
 
+@app.get("/api/v1/foci")
+async def api_list_foci():
+    """List all foci (user + builtins)."""
+    foci = load_foci()
+    return JSONResponse([f.to_dict() for f in foci])
+
+
+@app.post("/api/v1/foci")
+async def api_create_focus(request: Request):
+    """Add or update a user focus."""
+    try:
+        body = await request.json()
+        new_focus = Focus.from_dict(body)
+        if not new_focus.name:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "name is required"}},
+                status_code=400,
+            )
+        # Load existing user foci, replace if same name exists
+        foci = load_foci()
+        user_foci = [f for f in foci if f.name not in {b.name for b in BUILTIN_FOCI} or f.name == new_focus.name]
+        # Actually, just load the user file directly
+        import os, json as _json
+        user_path = ".oompah/foci.json"
+        existing_user: list[Focus] = []
+        if os.path.exists(user_path):
+            try:
+                with open(user_path, "r") as fp:
+                    existing_user = [Focus.from_dict(d) for d in _json.load(fp)]
+            except Exception:
+                pass
+        existing_user = [f for f in existing_user if f.name != new_focus.name]
+        existing_user.append(new_focus)
+        save_foci(existing_user)
+        return JSONResponse(new_focus.to_dict(), status_code=201)
+    except Exception as exc:
+        logger.error("Create focus error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "create_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.delete("/api/v1/foci/{name}")
+async def api_delete_focus(name: str):
+    """Delete a user focus by name. Cannot delete builtins."""
+    import os, json as _json
+    user_path = ".oompah/foci.json"
+    if not os.path.exists(user_path):
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": f"Focus '{name}' not found in user foci"}},
+            status_code=404,
+        )
+    try:
+        with open(user_path, "r") as fp:
+            existing = [Focus.from_dict(d) for d in _json.load(fp)]
+    except Exception:
+        existing = []
+    new_list = [f for f in existing if f.name != name]
+    if len(new_list) == len(existing):
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": f"Focus '{name}' not found in user foci"}},
+            status_code=404,
+        )
+    save_foci(new_list)
+    return JSONResponse({"deleted": name})
+
+
+@app.patch("/api/v1/foci/{name}")
+async def api_update_focus(name: str, request: Request):
+    """Update a focus (status, fields). For builtins, creates a user override."""
+    import os, json as _json
+    user_path = ".oompah/foci.json"
+    body = await request.json()
+    new_status = body.get("status")
+    if new_status and new_status not in ("active", "inactive", "proposed"):
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "status must be active, inactive, or proposed"}},
+            status_code=400,
+        )
+
+    # Load user foci
+    existing: list[Focus] = []
+    if os.path.exists(user_path):
+        try:
+            with open(user_path, "r") as fp:
+                existing = [Focus.from_dict(d) for d in _json.load(fp)]
+        except Exception:
+            pass
+
+    # Find in user foci first
+    found = None
+    for f in existing:
+        if f.name == name:
+            found = f
+            break
+
+    if not found:
+        # Check builtins — create a user override
+        for b in BUILTIN_FOCI:
+            if b.name == name:
+                found = Focus.from_dict(b.to_dict())
+                existing.append(found)
+                break
+
+    if not found:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": f"Focus '{name}' not found"}},
+            status_code=404,
+        )
+
+    # Apply updates
+    for key in ("status", "role", "description"):
+        if key in body:
+            setattr(found, key, body[key])
+    for key in ("must_do", "must_not_do", "keywords", "issue_types", "labels"):
+        if key in body:
+            setattr(found, key, body[key])
+    if "priority" in body:
+        try:
+            found.priority = int(body["priority"])
+        except (ValueError, TypeError):
+            pass
+
+    save_foci(existing, user_path)
+    return JSONResponse(found.to_dict())
+
+
+@app.get("/api/v1/foci/suggestions")
+async def api_list_focus_suggestions():
+    """List focus suggestions generated by the analyzer."""
+    suggestions = load_suggestions()
+    return JSONResponse([s.to_dict() for s in suggestions])
+
+
+@app.patch("/api/v1/foci/suggestions/{name}")
+async def api_update_focus_suggestion(name: str, request: Request):
+    """Update a suggestion's status (accepted, dismissed)."""
+    body = await request.json()
+    status = body.get("status", "")
+    if status not in ("accepted", "dismissed"):
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "status must be 'accepted' or 'dismissed'"}},
+            status_code=400,
+        )
+    if update_suggestion_status(name, status):
+        return JSONResponse({"name": name, "status": status})
+    return JSONResponse(
+        {"error": {"code": "not_found", "message": f"Suggestion '{name}' not found"}},
+        status_code=404,
+    )
+
+
 @app.get("/api/v1/budget")
 async def api_budget():
     """Return current budget and cost tracking info."""
@@ -592,6 +902,132 @@ async def api_budget():
             {"error": {"code": "unavailable", "message": str(exc)}},
             status_code=503,
         )
+
+
+@app.get("/api/v1/reviews")
+async def api_list_reviews():
+    """List all open PRs/MRs across all projects."""
+    try:
+        orch = _get_orchestrator()
+        projects = orch.project_store.list_all()
+        reviews = get_all_open_reviews(projects)
+        return JSONResponse(reviews)
+    except Exception as exc:
+        logger.error("Reviews API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "fetch_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.post("/api/v1/reviews/{project_id}/{review_id}/rebase")
+async def api_rebase_review(project_id: str, review_id: str):
+    """Trigger a rebase for a PR/MR.
+
+    If the rebase fails due to merge conflicts, automatically finds the
+    original bead (by matching the PR source branch to bead identifiers),
+    posts a comment about the conflict, and reopens the bead so the
+    agent can resolve it on its own branch.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+        provider = detect_provider(project.repo_url)
+        if not provider:
+            return JSONResponse(
+                {"error": {"code": "unsupported", "message": "No SCM provider detected for this project"}},
+                status_code=400,
+            )
+        slug = extract_repo_slug(project.repo_url)
+        success, message = provider.rebase_review(slug, review_id)
+
+        notified_issue = None
+        if not success and "conflict" in message.lower():
+            # Try to find and notify the original bead
+            notified_issue = _notify_conflict_on_bead(
+                orch, project_id, provider, slug, review_id,
+            )
+
+        status_code = 200 if success else 409
+        resp = {"success": success, "message": message}
+        if notified_issue:
+            resp["notified_issue"] = notified_issue
+        return JSONResponse(resp, status_code=status_code)
+    except Exception as exc:
+        logger.error("Rebase API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "rebase_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+def _notify_conflict_on_bead(
+    orch, project_id: str, provider, slug: str, review_id: str,
+) -> str | None:
+    """Find the bead that owns a PR's source branch, comment, and reopen.
+
+    Returns the bead identifier if found and notified, else None.
+    """
+    try:
+        # Get the PR/MR details to find the source branch
+        review = provider.get_review(slug, review_id)
+        if not review:
+            logger.warning("Could not fetch review %s to find source branch", review_id)
+            return None
+
+        source_branch = review.source_branch
+        target_branch = review.target_branch
+        if not source_branch:
+            return None
+
+        # The branch name is the sanitized bead identifier.
+        # Look up the bead by trying the branch name as an identifier.
+        tracker = orch._tracker_for_project(project_id)
+        issue = tracker.fetch_issue_detail(source_branch)
+        if not issue:
+            logger.info(
+                "No bead found matching branch '%s' for PR #%s",
+                source_branch, review_id,
+            )
+            return None
+
+        # Post a comment about the conflict
+        comment_text = (
+            f"Merge conflict detected: PR/MR #{review_id} cannot be automatically rebased "
+            f"onto {target_branch}.\n\n"
+            f"Please resolve the conflicts on this branch ({source_branch}):\n"
+            f"1. Run: git fetch origin && git rebase origin/{target_branch}\n"
+            f"2. Resolve all conflicts, keeping the intent of both sides\n"
+            f"3. Run tests to verify nothing is broken\n"
+            f"4. Force-push: git push --force-with-lease\n"
+            f"5. Verify the PR/MR is clean and CI passes"
+        )
+        tracker.add_comment(issue.identifier, comment_text, author="oompah")
+
+        # Reopen the bead if it's in a terminal state
+        state_lower = issue.state.strip().lower()
+        if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
+            tracker.reopen_issue(issue.identifier)
+            logger.info(
+                "Reopened bead %s for merge conflict resolution (PR #%s)",
+                issue.identifier, review_id,
+            )
+        else:
+            logger.info(
+                "Commented on bead %s about merge conflict (PR #%s), already in state '%s'",
+                issue.identifier, review_id, issue.state,
+            )
+
+        return issue.identifier
+
+    except Exception as exc:
+        logger.warning("Failed to notify bead about conflict for PR #%s: %s", review_id, exc)
+        return None
 
 
 @app.get("/api/v1/{issue_identifier}")
@@ -667,6 +1103,7 @@ DASHBOARD_HTML = """\
       --orange: #d18616;
       --purple: #bc8cff;
     }
+    html { font-size: 125%; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -1369,6 +1806,8 @@ DASHBOARD_HTML = """\
       <button onclick="openCreateDialog()">+ Create</button>
       <button onclick="window.location='/projects-manage'">Projects</button>
       <button onclick="window.location='/providers'">Providers</button>
+      <button onclick="window.location='/foci'">Foci</button>
+      <button onclick="window.location='/reviews'">Reviews</button>
       <button id="btn-pause" onclick="togglePause()">Pause</button>
       <button onclick="refreshBoard()">Refresh</button>
     </div>
@@ -1378,6 +1817,9 @@ DASHBOARD_HTML = """\
     <span class="agent-stat">Tokens: <strong id="agent-tokens">0</strong></span>
     <span class="agent-stat">Cost: <strong id="agent-cost">$0.00</strong></span>
     <span class="agent-stat">Budget: <strong id="agent-budget">-</strong></span>
+    <span class="agent-stat" id="proposed-foci-stat" style="display:none;cursor:pointer;" onclick="window.location='/foci'">
+      <strong id="proposed-foci-count" style="color:var(--yellow,#e2b340);">0</strong> proposed foci
+    </span>
     <div class="running-agents" id="running-agents"></div>
   </div>
   <div class="main-area">
@@ -1402,74 +1844,143 @@ let viewMode = 'flat';
 let collapsedSwimlanes = {};
 let orchPaused = false;
 
-// --- Orchestrator state polling ---
+// --- WebSocket connection ---
+let ws = null;
+let wsReconnectTimer = null;
+
+function connectWebSocket() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+  ws.onopen = () => {
+    document.getElementById('status-text').textContent = 'Connected';
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'state') {
+        handleStateUpdate(msg.data);
+      } else if (msg.type === 'issues') {
+        renderBoard(msg.data);
+      } else if (msg.type === 'activity') {
+        handleActivityPush(msg.identifier, msg.entry);
+      }
+    } catch (e) { /* ignore parse errors */ }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('status-text').textContent = 'Reconnecting...';
+    ws = null;
+    wsReconnectTimer = setTimeout(connectWebSocket, 2000);
+  };
+
+  ws.onerror = () => {
+    if (ws) ws.close();
+  };
+}
+
+function handleStateUpdate(state) {
+  // Update pause state
+  orchPaused = state.paused || false;
+  const pauseBtn = document.getElementById('btn-pause');
+  if (orchPaused) {
+    pauseBtn.textContent = 'Resume';
+    pauseBtn.classList.add('btn-paused');
+  } else {
+    pauseBtn.textContent = 'Pause';
+    pauseBtn.classList.remove('btn-paused');
+  }
+
+  // Update agent stats
+  document.getElementById('agent-count').textContent = state.counts.running;
+  const totals = state.agent_totals || {};
+  document.getElementById('agent-tokens').textContent = (totals.total_tokens || 0).toLocaleString();
+  document.getElementById('agent-cost').textContent = '$' + (totals.estimated_cost || 0).toFixed(2);
+  const budget = state.budget || {};
+  if (budget.limit > 0) {
+    document.getElementById('agent-budget').textContent =
+      '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2);
+  }
+
+  // Check for proposed foci
+  fetchProposedFociCount();
+
+  // Render running agent chips
+  const container = document.getElementById('running-agents');
+  const running = state.running || [];
+  if (running.length === 0) {
+    container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
+  } else {
+    container.innerHTML = running.map(r => {
+      const id = esc(r.issue_identifier);
+      return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
+        '<span class="dot"></span>' +
+        id +
+        (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
+      '</span>';
+    }).join('');
+    if (orchPaused) {
+      container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
+    }
+  }
+
+  // Update project filter dropdown
+  const projects = state.projects || [];
+  const sel = document.getElementById('project-filter');
+  if (sel && projects.length > 0) {
+    const curVal = sel.value;
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + esc(p.id) + '"' +
+        (p.id === curVal ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } else if (sel && projects.length === 0) {
+    sel.style.display = 'none';
+  }
+
+  // Update activity panel if open
+  const activityOverlay = document.getElementById('activity-overlay');
+  if (activityOverlay && activityOverlay.classList.contains('open')) {
+    const title = document.getElementById('activity-title').textContent.replace('Agent: ', '');
+    const agent = running.find(r => r.issue_identifier === title);
+    if (agent) {
+      // Live update from state — no need to poll
+    }
+  }
+}
+
+// --- Orchestrator state (legacy fallback, replaced by WebSocket) ---
 async function fetchOrchestratorState() {
   try {
     const res = await fetch('/api/v1/state');
     if (!res.ok) return;
     const state = await res.json();
-
-    // Update pause state
-    orchPaused = state.paused || false;
-    const pauseBtn = document.getElementById('btn-pause');
-    if (orchPaused) {
-      pauseBtn.textContent = 'Resume';
-      pauseBtn.classList.add('btn-paused');
-    } else {
-      pauseBtn.textContent = 'Pause';
-      pauseBtn.classList.remove('btn-paused');
-    }
-
-    // Update agent stats
-    document.getElementById('agent-count').textContent = state.counts.running;
-    const totals = state.agent_totals || {};
-    document.getElementById('agent-tokens').textContent = (totals.total_tokens || 0).toLocaleString();
-    document.getElementById('agent-cost').textContent = '$' + (totals.estimated_cost || 0).toFixed(2);
-    const budget = state.budget || {};
-    if (budget.limit > 0) {
-      document.getElementById('agent-budget').textContent =
-        '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2);
-    }
-
-    // Render running agent chips
-    const container = document.getElementById('running-agents');
-    const running = state.running || [];
-    if (running.length === 0) {
-      container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
-    } else {
-      container.innerHTML = running.map(r => {
-        const id = esc(r.issue_identifier);
-        return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
-          '<span class="dot"></span>' +
-          id +
-          (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
-        '</span>';
-      }).join('');
-      if (orchPaused) {
-        container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
-      }
-    }
-    // Update project filter dropdown
-    const projects = state.projects || [];
-    const sel = document.getElementById('project-filter');
-    if (sel && projects.length > 0) {
-      const curVal = sel.value;
-      sel.innerHTML = '<option value="">All Projects</option>' +
-        projects.map(p => '<option value="' + esc(p.id) + '"' +
-          (p.id === curVal ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
-      sel.style.display = '';
-    } else if (sel && projects.length === 0) {
-      sel.style.display = 'none';
-    }
-  } catch (e) {
-    // ignore fetch errors
-  }
+    handleStateUpdate(state);
+  } catch (e) { /* ignore */ }
 }
 
 async function togglePause() {
   const endpoint = orchPaused ? '/api/v1/orchestrator/resume' : '/api/v1/orchestrator/pause';
   await fetch(endpoint, {method: 'POST'});
   await fetchOrchestratorState();
+}
+
+async function fetchProposedFociCount() {
+  try {
+    const res = await fetch('/api/v1/foci');
+    if (!res.ok) return;
+    const foci = await res.json();
+    const proposed = foci.filter(f => f.status === 'proposed');
+    const el = document.getElementById('proposed-foci-stat');
+    const countEl = document.getElementById('proposed-foci-count');
+    if (proposed.length > 0) {
+      countEl.textContent = proposed.length;
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  } catch(e) {}
 }
 
 async function fetchIssues() {
@@ -1479,6 +1990,21 @@ async function fetchIssues() {
   const res = await fetch(url);
   if (!res.ok) return null;
   return await res.json();
+}
+
+function moveIssueInBoard(identifier, newState) {
+  // Move an issue between columns in the local boardData
+  if (!boardData) return;
+  for (const [state, issues] of Object.entries(boardData)) {
+    const idx = issues.findIndex(i => i.identifier === identifier);
+    if (idx !== -1) {
+      const [issue] = issues.splice(idx, 1);
+      issue.state = newState;
+      if (!boardData[newState]) boardData[newState] = [];
+      boardData[newState].push(issue);
+      return;
+    }
+  }
 }
 
 async function updateIssue(identifier, fields) {
@@ -1781,15 +2307,14 @@ function setupDropZone(body) {
 
     const targetState = body.dataset.state;
     const identifier = dragState.identifier;
-    const updates = {};
-    if (targetState !== dragState.sourceState) {
-      updates.status = targetState;
-    }
-    if (Object.keys(updates).length > 0) {
-      await updateIssue(identifier, updates);
-    }
-    const data = await fetchIssues();
-    if (data) renderBoard(data);
+    if (targetState === dragState.sourceState) return;
+
+    // Optimistic update: move card in boardData immediately
+    moveIssueInBoard(identifier, targetState);
+    renderBoard(boardData);
+
+    // Fire API call in background — WebSocket will confirm or correct
+    updateIssue(identifier, {status: targetState});
   });
 }
 
@@ -1806,6 +2331,12 @@ function esc(s) {
 }
 
 async function refreshBoard() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Ask server to push fresh data via WebSocket
+    ws.send(JSON.stringify({action: 'refresh'}));
+    return;
+  }
+  // Fallback to REST
   document.getElementById('status-text').textContent = 'Refreshing...';
   const data = await fetchIssues();
   if (data) renderBoard(data);
@@ -1819,13 +2350,33 @@ async function openActivityPanel(identifier) {
   document.getElementById('activity-title').textContent = 'Agent: ' + identifier;
   document.getElementById('activity-overlay').classList.add('open');
   await refreshActivity(identifier);
-  activityPollTimer = setInterval(() => refreshActivity(identifier), 2000);
+  // Only poll if WebSocket is not connected
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    activityPollTimer = setInterval(() => refreshActivity(identifier), 2000);
+  }
 }
 
 function closeActivityPanel() {
   const el = document.getElementById('activity-overlay');
   if (el) el.classList.remove('open');
   if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
+}
+
+function handleActivityPush(identifier, entry) {
+  // Only update if the activity panel is open for this agent
+  const overlay = document.getElementById('activity-overlay');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  const title = document.getElementById('activity-title').textContent;
+  if (title !== 'Agent: ' + identifier) return;
+  const body = document.getElementById('activity-body');
+  const div = document.createElement('div');
+  div.className = 'activity-entry';
+  div.innerHTML =
+    '<span class="activity-turn">' + (entry.turn || '') + '</span>' +
+    '<span class="activity-kind ' + esc(entry.kind || '') + '">' + esc(entry.kind || '') + '</span>' +
+    '<span class="activity-summary">' + esc(entry.summary || '') + '</span>';
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
 }
 
 async function refreshActivity(identifier) {
@@ -2073,10 +2624,8 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Initial load + auto-refresh
-refreshBoard();
-setInterval(refreshBoard, 10000);
-setInterval(fetchOrchestratorState, 5000);
+// Initial load via WebSocket (falls back to REST if WS fails)
+connectWebSocket();
 </script>
 
 <div class="dialog-overlay" id="create-dialog" onclick="if(event.target===this)closeCreateDialog()">
@@ -2150,6 +2699,7 @@ PROVIDERS_HTML = """\
       --green: #3fb950;
       --red: #f85149;
     }
+    html { font-size: 125%; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -2681,6 +3231,7 @@ PROJECTS_HTML = """\
       --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
       --green: #3fb950; --red: #f85149;
     }
+    html { font-size: 125%; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
     .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
@@ -2736,6 +3287,14 @@ PROJECTS_HTML = """\
         <label>Branch</label>
         <input type="text" id="add-branch" placeholder="main" value="main">
       </div>
+      <div class="form-group">
+        <label>Git User Name (defaults to global git config)</label>
+        <input type="text" id="add-git-user-name" placeholder="">
+      </div>
+      <div class="form-group">
+        <label>Git User Email (defaults to global git config)</label>
+        <input type="text" id="add-git-user-email" placeholder="">
+      </div>
       <div id="add-error" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
       <div class="form-actions">
         <button onclick="toggleAddForm()">Cancel</button>
@@ -2773,6 +3332,10 @@ async function loadProjects() {
         <span class="field-label">Branch:</span>
         <span class="field-value">${esc(p.branch)}</span>
       </div>
+      ${p.git_user_name ? `<div class="field-row">
+        <span class="field-label">Git User:</span>
+        <span class="field-value">${esc(p.git_user_name)} &lt;${esc(p.git_user_email || '')}&gt;</span>
+      </div>` : ''}
       <div class="field-row" style="margin-top:0.75rem;">
         <button onclick="showWorktrees('${esc(p.id)}')">Worktrees</button>
         <button class="btn-danger" onclick="deleteProject('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
@@ -2798,6 +3361,8 @@ async function addProject() {
   const repo = document.getElementById('add-repo').value.trim();
   const name = document.getElementById('add-name').value.trim() || undefined;
   const branch = document.getElementById('add-branch').value.trim() || 'main';
+  const gitUserName = document.getElementById('add-git-user-name').value.trim() || undefined;
+  const gitUserEmail = document.getElementById('add-git-user-email').value.trim() || undefined;
   const errEl = document.getElementById('add-error');
   if (!repo) {
     errEl.textContent = 'Repository URL is required';
@@ -2807,13 +3372,15 @@ async function addProject() {
   const res = await fetch('/api/v1/projects', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({repo_url: repo, name, branch}),
+    body: JSON.stringify({repo_url: repo, name, branch, git_user_name: gitUserName, git_user_email: gitUserEmail}),
   });
   if (res.ok) {
     toggleAddForm();
     document.getElementById('add-name').value = '';
     document.getElementById('add-repo').value = '';
     document.getElementById('add-branch').value = 'main';
+    document.getElementById('add-git-user-name').value = '';
+    document.getElementById('add-git-user-email').value = '';
     loadProjects();
   } else {
     const data = await res.json();
@@ -2963,6 +3530,595 @@ async def dashboard_content():
 
     html += f'<p class="updated">Last updated: {fmt_time(snapshot.get("generated_at"))}</p>'
     return HTMLResponse(html)
+
+
+FOCI_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah - Foci</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --yellow: #e2b340;
+    }
+    html { font-size: 125%; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .toolbar h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    button { background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 0.3rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn-primary:hover { background: #79bbff; }
+    .btn-danger { color: var(--red); border-color: rgba(248, 81, 73, 0.3); }
+    .btn-danger:hover { background: rgba(248, 81, 73, 0.1); }
+    .btn-sm { font-size: 0.7rem; padding: 0.2rem 0.5rem; }
+    .content { max-width: 900px; margin: 1.5rem auto; padding: 0 1.5rem; }
+    .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text); }
+    .focus-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+    .focus-card.proposed { border-color: var(--yellow); }
+    .focus-card.inactive { opacity: 0.6; }
+    .focus-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .focus-name { font-weight: 700; font-size: 0.95rem; }
+    .focus-role { color: var(--text-muted); font-size: 0.8rem; }
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 10px; text-transform: uppercase; margin-left: 0.5rem; }
+    .badge-active { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+    .badge-inactive { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
+    .badge-proposed { background: rgba(226, 179, 64, 0.15); color: var(--yellow); }
+    .focus-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.4; }
+    .focus-keywords { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .focus-keywords span { display: inline-block; background: rgba(88, 166, 255, 0.1); color: var(--accent); padding: 0.1rem 0.4rem; border-radius: 4px; margin: 0.1rem 0.15rem; font-size: 0.7rem; }
+    .focus-rules { font-size: 0.75rem; margin-bottom: 0.5rem; }
+    .focus-rules strong { color: var(--text); }
+    .focus-rules ul { margin: 0.2rem 0 0 1.2rem; color: var(--text-muted); }
+    .focus-rules li { margin-bottom: 0.15rem; }
+    .focus-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .suggestion-reason { font-size: 0.75rem; color: var(--yellow); margin-bottom: 0.5rem; font-style: italic; }
+    .edit-form { margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+    .edit-form .form-row { margin-bottom: 0.5rem; }
+    .edit-form label { display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.15rem; font-weight: 600; }
+    .edit-form input, .edit-form textarea { width: 100%; padding: 0.35rem 0.5rem; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.8rem; font-family: inherit; }
+    .edit-form textarea { resize: vertical; min-height: 3rem; }
+    .edit-form .help { font-size: 0.65rem; color: var(--text-muted); margin-top: 0.1rem; }
+    .edit-form .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">oompah</a> <span>/ Foci</span></h1>
+    <div>
+      <button onclick="window.location='/'">Dashboard</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="proposed-section"></div>
+    <div id="active-section"></div>
+    <div id="inactive-section"></div>
+  </div>
+
+<script>
+let _fociData = [];
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escAttr(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadFoci() {
+  const res = await fetch('/api/v1/foci');
+  _fociData = await res.json();
+
+  const proposed = _fociData.filter(f => f.status === 'proposed');
+  const active = _fociData.filter(f => f.status === 'active');
+  const inactive = _fociData.filter(f => f.status === 'inactive');
+
+  renderSection('proposed-section', 'Proposed Foci', proposed, 'proposed');
+  renderSection('active-section', 'Active Foci', active, 'active');
+  renderSection('inactive-section', 'Inactive Foci', inactive, 'inactive');
+}
+
+function renderSection(containerId, title, foci, sectionType) {
+  const el = document.getElementById(containerId);
+  if (foci.length === 0 && sectionType !== 'active') {
+    el.innerHTML = '';
+    return;
+  }
+  let html = '<h2 class="section-title">' + esc(title) + ' (' + foci.length + ')</h2>';
+  if (foci.length === 0) {
+    html += '<div class="empty-state">No ' + sectionType + ' foci.</div>';
+  } else {
+    html += foci.map(f => renderFocusCard(f)).join('');
+  }
+  el.innerHTML = html;
+}
+
+function renderFocusCard(f) {
+  const badgeClass = 'badge-' + f.status;
+  let statusActions = '';
+
+  if (f.status === 'proposed') {
+    statusActions = `
+      <button class="btn-primary btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'active')">Activate</button>
+      <button class="btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'inactive')">Dismiss</button>
+    `;
+  } else if (f.status === 'active') {
+    statusActions = `<button class="btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'inactive')">Deactivate</button>`;
+  } else {
+    statusActions = `<button class="btn-primary btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'active')">Activate</button>`;
+  }
+
+  let keywords = '';
+  if (f.keywords && f.keywords.length > 0) {
+    keywords = '<div class="focus-keywords">Keywords: ' +
+      f.keywords.map(k => '<span>' + esc(k) + '</span>').join('') + '</div>';
+  }
+
+  let issueTypes = '';
+  if (f.issue_types && f.issue_types.length > 0) {
+    issueTypes = '<div class="focus-keywords">Issue types: ' +
+      f.issue_types.map(t => '<span>' + esc(t) + '</span>').join('') + '</div>';
+  }
+
+  let labels = '';
+  if (f.labels && f.labels.length > 0) {
+    labels = '<div class="focus-keywords">Labels: ' +
+      f.labels.map(l => '<span>' + esc(l) + '</span>').join('') + '</div>';
+  }
+
+  let mustDo = '';
+  if (f.must_do && f.must_do.length > 0) {
+    mustDo = '<div class="focus-rules"><strong>Must do:</strong><ul>' +
+      f.must_do.map(m => '<li>' + esc(m) + '</li>').join('') + '</ul></div>';
+  }
+
+  let mustNotDo = '';
+  if (f.must_not_do && f.must_not_do.length > 0) {
+    mustNotDo = '<div class="focus-rules"><strong>Must NOT do:</strong><ul>' +
+      f.must_not_do.map(m => '<li>' + esc(m) + '</li>').join('') + '</ul></div>';
+  }
+
+  const cardId = 'focus-' + f.name.replace(/[^a-zA-Z0-9]/g, '_');
+
+  return `
+    <div class="focus-card ${f.status}" id="${cardId}">
+      <div class="focus-header">
+        <div>
+          <span class="focus-name">${esc(f.name)}</span>
+          <span class="badge ${badgeClass}">${esc(f.status)}</span>
+        </div>
+        <span class="focus-role">${esc(f.role)}</span>
+      </div>
+      <div class="focus-desc">${esc(f.description)}</div>
+      ${keywords}
+      ${issueTypes}
+      ${labels}
+      ${mustDo}
+      ${mustNotDo}
+      <div class="focus-actions">
+        ${statusActions}
+        <button class="btn-sm" onclick="toggleEdit('${escAttr(f.name)}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="deleteFocus('${escAttr(f.name)}')">Delete</button>
+      </div>
+      <div id="edit-${cardId}" style="display:none;"></div>
+    </div>
+  `;
+}
+
+function toggleEdit(name) {
+  const f = _fociData.find(x => x.name === name);
+  if (!f) return;
+  const cardId = 'focus-' + name.replace(/[^a-zA-Z0-9]/g, '_');
+  const editEl = document.getElementById('edit-' + cardId);
+  if (!editEl) return;
+
+  if (editEl.style.display !== 'none') {
+    editEl.style.display = 'none';
+    editEl.innerHTML = '';
+    return;
+  }
+
+  editEl.style.display = 'block';
+  editEl.innerHTML = renderEditForm(f);
+}
+
+function renderEditForm(f) {
+  const n = escAttr(f.name);
+  return `
+    <div class="edit-form">
+      <div class="form-row">
+        <label>Role</label>
+        <input type="text" id="ef-role-${n}" value="${escAttr(f.role)}">
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <textarea id="ef-desc-${n}" rows="3">${esc(f.description)}</textarea>
+      </div>
+      <div class="form-row">
+        <label>Keywords</label>
+        <input type="text" id="ef-kw-${n}" value="${escAttr((f.keywords || []).join(', '))}">
+        <div class="help">Comma-separated</div>
+      </div>
+      <div class="form-row">
+        <label>Issue Types</label>
+        <input type="text" id="ef-types-${n}" value="${escAttr((f.issue_types || []).join(', '))}">
+        <div class="help">Comma-separated (e.g. bug, task, feature)</div>
+      </div>
+      <div class="form-row">
+        <label>Labels</label>
+        <input type="text" id="ef-labels-${n}" value="${escAttr((f.labels || []).join(', '))}">
+        <div class="help">Comma-separated</div>
+      </div>
+      <div class="form-row">
+        <label>Priority (tiebreaker, higher = preferred)</label>
+        <input type="number" id="ef-pri-${n}" value="${f.priority || 0}" style="width:5rem;">
+      </div>
+      <div class="form-row">
+        <label>Must Do (one per line)</label>
+        <textarea id="ef-must-${n}" rows="3">${esc((f.must_do || []).join('\\n'))}</textarea>
+      </div>
+      <div class="form-row">
+        <label>Must NOT Do (one per line)</label>
+        <textarea id="ef-mustnot-${n}" rows="3">${esc((f.must_not_do || []).join('\\n'))}</textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary btn-sm" onclick="saveEdit('${n}')">Save</button>
+        <button class="btn-sm" onclick="toggleEdit('${n}')">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
+function splitCSV(s) {
+  return s.split(',').map(x => x.trim()).filter(x => x);
+}
+
+function splitLines(s) {
+  return s.split('\\n').map(x => x.trim()).filter(x => x);
+}
+
+async function saveEdit(name) {
+  const n = name;
+  const body = {
+    role: document.getElementById('ef-role-' + n).value,
+    description: document.getElementById('ef-desc-' + n).value,
+    keywords: splitCSV(document.getElementById('ef-kw-' + n).value),
+    issue_types: splitCSV(document.getElementById('ef-types-' + n).value),
+    labels: splitCSV(document.getElementById('ef-labels-' + n).value),
+    priority: parseInt(document.getElementById('ef-pri-' + n).value) || 0,
+    must_do: splitLines(document.getElementById('ef-must-' + n).value),
+    must_not_do: splitLines(document.getElementById('ef-mustnot-' + n).value),
+  };
+  const res = await fetch('/api/v1/foci/' + encodeURIComponent(name), {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    loadFoci();
+  } else {
+    const err = await res.json();
+    alert('Save failed: ' + ((err.error && err.error.message) || 'unknown error'));
+  }
+}
+
+async function setFocusStatus(name, status) {
+  await fetch('/api/v1/foci/' + encodeURIComponent(name), {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status}),
+  });
+  loadFoci();
+}
+
+async function deleteFocus(name) {
+  if (!confirm('Delete focus "' + name + '"? This cannot be undone.')) return;
+  const res = await fetch('/api/v1/foci/' + encodeURIComponent(name), {
+    method: 'DELETE',
+  });
+  if (res.ok) {
+    loadFoci();
+  } else {
+    const err = await res.json();
+    alert('Delete failed: ' + ((err.error && err.error.message) || 'unknown error'));
+  }
+}
+
+loadFoci();
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/foci", response_class=HTMLResponse)
+async def foci_page():
+    """Serve the foci management page."""
+    return FOCI_HTML
+
+
+REVIEWS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah - Reviews</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --yellow: #e2b340; --purple: #bc8cff;
+    }
+    html { font-size: 125%; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .toolbar h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    button { background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 0.3rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    .content { max-width: 1000px; margin: 1.5rem auto; padding: 0 1.5rem; }
+    .summary-bar { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-muted); }
+    .summary-bar strong { color: var(--text); }
+    .project-section { margin-bottom: 2rem; }
+    .project-header { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .provider-badge { font-size: 0.6rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 10px; text-transform: uppercase; }
+    .provider-github { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .provider-gitlab { background: rgba(226, 131, 64, 0.15); color: #e8833f; }
+    .review-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 0.5rem; }
+    .review-card:hover { border-color: var(--accent); }
+    .review-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem; }
+    .review-title { font-weight: 600; font-size: 0.9rem; }
+    .review-title a { color: var(--text); text-decoration: none; }
+    .review-title a:hover { color: var(--accent); text-decoration: underline; }
+    .review-id { color: var(--text-muted); font-size: 0.75rem; font-weight: 400; }
+    .review-meta { display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap; align-items: center; }
+    .review-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; line-height: 1.4; max-height: 3.6em; overflow: hidden; }
+    .draft-badge { background: rgba(125, 133, 144, 0.2); color: var(--text-muted); font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 8px; font-weight: 600; }
+    .ci-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.2rem; vertical-align: middle; }
+    .ci-passed { background: var(--green); }
+    .ci-failed { background: var(--red); }
+    .ci-pending { background: var(--yellow); }
+    .branch-info { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.7rem; background: rgba(88, 166, 255, 0.08); padding: 0.1rem 0.35rem; border-radius: 4px; }
+    .label-tag { display: inline-block; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 4px; background: rgba(188, 140, 255, 0.15); color: var(--purple); margin-left: 0.25rem; }
+    .diff-stat { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.7rem; }
+    .diff-add { color: var(--green); }
+    .diff-del { color: var(--red); }
+    .review-card.needs-rebase { border-color: var(--yellow); }
+    .rebase-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(226, 179, 64, 0.15); color: var(--yellow); text-transform: uppercase; }
+    .btn-rebase { background: rgba(226, 179, 64, 0.15); color: var(--yellow); border-color: rgba(226, 179, 64, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
+    .btn-rebase:hover { background: rgba(226, 179, 64, 0.25); }
+    .btn-rebase:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-rebase.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
+    .btn-rebase.failed { background: rgba(248, 81, 73, 0.15); color: var(--red); border-color: rgba(248, 81, 73, 0.3); }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .loading { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .error-msg { text-align: center; padding: 2rem; color: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">oompah</a> <span>/ Reviews</span></h1>
+    <div>
+      <button onclick="loadReviews()">Refresh</button>
+      <button onclick="window.location='/'">Dashboard</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="summary-bar" id="summary-bar"></div>
+    <div id="reviews-container"><div class="loading">Loading reviews...</div></div>
+  </div>
+
+<script>
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  const days = Math.floor(hours / 24);
+  return days + 'd ago';
+}
+
+async function loadReviews() {
+  const container = document.getElementById('reviews-container');
+  container.innerHTML = '<div class="loading">Loading reviews...</div>';
+
+  try {
+    const res = await fetch('/api/v1/reviews');
+    if (!res.ok) {
+      const err = await res.json();
+      container.innerHTML = '<div class="error-msg">Failed to load reviews: ' +
+        esc((err.error && err.error.message) || 'unknown error') + '</div>';
+      return;
+    }
+    const data = await res.json();
+    renderReviews(data);
+  } catch(e) {
+    container.innerHTML = '<div class="error-msg">Failed to load reviews: ' + esc(e.message) + '</div>';
+  }
+}
+
+function renderReviews(data) {
+  const container = document.getElementById('reviews-container');
+  const summaryBar = document.getElementById('summary-bar');
+
+  if (data.length === 0) {
+    container.innerHTML = '<div class="empty-state">No open pull requests or merge requests.</div>';
+    summaryBar.innerHTML = '';
+    return;
+  }
+
+  // Group by project
+  const byProject = {};
+  for (const item of data) {
+    const key = item.project_name;
+    if (!byProject[key]) byProject[key] = { provider: item.provider, project_id: item.project_id, reviews: [] };
+    byProject[key].reviews.push(item.review);
+  }
+
+  // Summary
+  const totalReviews = data.length;
+  const drafts = data.filter(d => d.review.draft).length;
+  const projectCount = Object.keys(byProject).length;
+  let summaryHtml = '<span>Open: <strong>' + totalReviews + '</strong></span>';
+  if (drafts > 0) summaryHtml += '<span>Drafts: <strong>' + drafts + '</strong></span>';
+  summaryHtml += '<span>Projects: <strong>' + projectCount + '</strong></span>';
+  summaryBar.innerHTML = summaryHtml;
+
+  // Render by project
+  let html = '';
+  for (const [projectName, group] of Object.entries(byProject)) {
+    const providerClass = 'provider-' + group.provider;
+    const providerLabel = group.provider === 'github' ? 'GitHub' : 'GitLab';
+    const reviewLabel = group.provider === 'github' ? 'PRs' : 'MRs';
+
+    html += '<div class="project-section">';
+    html += '<div class="project-header">' + esc(projectName) +
+      ' <span class="provider-badge ' + providerClass + '">' + providerLabel + '</span>' +
+      ' <span style="color:var(--text-muted);font-size:0.8rem;font-weight:400;">' +
+      group.reviews.length + ' open ' + reviewLabel + '</span></div>';
+
+    for (const r of group.reviews) {
+      html += renderReviewCard(r, group.provider, group.project_id);
+    }
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function renderReviewCard(r, provider, projectId) {
+  const idPrefix = provider === 'github' ? '#' : '!';
+
+  let ciHtml = '';
+  if (r.ci_status) {
+    ciHtml = '<span><span class="ci-dot ci-' + r.ci_status + '"></span>' + r.ci_status + '</span>';
+  }
+
+  let draftHtml = r.draft ? ' <span class="draft-badge">Draft</span>' : '';
+
+  let rebaseHtml = '';
+  if (r.needs_rebase) {
+    rebaseHtml = ' <span class="rebase-badge">Needs Rebase</span>' +
+      ' <button class="btn-rebase" ' +
+      'onclick="triggerRebase(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Rebase</button>';
+  }
+
+  let labelsHtml = '';
+  if (r.labels && r.labels.length > 0) {
+    labelsHtml = r.labels.map(l => '<span class="label-tag">' + esc(l) + '</span>').join('');
+  }
+
+  let diffHtml = '';
+  if (r.additions > 0 || r.deletions > 0) {
+    diffHtml = '<span class="diff-stat"><span class="diff-add">+' + r.additions + '</span> ' +
+      '<span class="diff-del">-' + r.deletions + '</span></span>';
+  }
+
+  let descHtml = '';
+  if (r.description) {
+    descHtml = '<div class="review-desc">' + esc(r.description) + '</div>';
+  }
+
+  let reviewersHtml = '';
+  if (r.reviewers && r.reviewers.length > 0) {
+    reviewersHtml = '<span>Reviewers: ' + r.reviewers.map(v => esc(v)).join(', ') + '</span>';
+  }
+
+  return `
+    <div class="review-card ${r.needs_rebase ? 'needs-rebase' : ''}">
+      <div class="review-header">
+        <div class="review-title">
+          <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+          ${draftHtml}${rebaseHtml}${labelsHtml}
+          <span class="review-id">${idPrefix}${esc(r.id)}</span>
+        </div>
+        ${diffHtml}
+      </div>
+      <div class="review-meta">
+        <span>${esc(r.author)}</span>
+        <span class="branch-info">${esc(r.source_branch)} &rarr; ${esc(r.target_branch)}</span>
+        ${ciHtml}
+        <span>${timeAgo(r.created_at)}</span>
+        ${reviewersHtml}
+      </div>
+      ${descHtml}
+    </div>
+  `;
+}
+
+async function triggerRebase(projectId, reviewId, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Rebasing...';
+  try {
+    const res = await fetch('/api/v1/reviews/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(reviewId) + '/rebase', {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Done';
+      btn.className = 'btn-rebase success';
+      setTimeout(() => loadReviews(), 2000);
+    } else {
+      btn.className = 'btn-rebase failed';
+      btn.disabled = false;
+      const msg = (data.message || '').toLowerCase();
+      if (msg.includes('conflict') && data.notified_issue) {
+        btn.textContent = 'Conflicts — notified ' + data.notified_issue;
+        btn.className = 'btn-rebase success';
+        btn.disabled = true;
+      } else if (msg.includes('conflict')) {
+        btn.textContent = 'Conflicts — no matching bead found';
+      } else {
+        btn.textContent = 'Failed';
+      }
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
+    btn.className = 'btn-rebase failed';
+    btn.disabled = false;
+  }
+}
+
+loadReviews();
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/reviews", response_class=HTMLResponse)
+async def reviews_page():
+    """Serve the reviews (PR/MR) listing page."""
+    return REVIEWS_HTML
 
 
 def _esc(s: str) -> str:
