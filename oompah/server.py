@@ -1860,6 +1860,13 @@ let collapsedSwimlanes = {};
 let orchPaused = false;
 let lastRunningAgents = [];
 
+// --- Edit-state tracking ---
+// Bug fix: Track when user is inline-editing a card field so that incoming
+// WebSocket updates do not destroy their in-progress edits by rebuilding the DOM.
+let editingState = null;      // {identifier, field} or null
+let _pendingBoardData = null; // queued board data to render after editing ends
+let _editingDetailPanel = false; // true if user is typing in comment textarea
+
 // --- WebSocket connection ---
 let ws = null;
 let wsReconnectTimer = null;
@@ -2092,8 +2099,20 @@ function getEpicById(epicId) {
 }
 
 function renderBoard(data) {
+  // Bug fix: If the user is currently editing a card field, defer the
+  // full DOM rebuild. Store the latest data and render it once the
+  // user finishes editing (on blur).
+  if (editingState) {
+    _pendingBoardData = data;
+    // Still update the in-memory data so other lookups stay current
+    boardData = data;
+    allIssuesFlat = flattenIssues(data);
+    return;
+  }
+
   boardData = data;
   allIssuesFlat = flattenIssues(data);
+  _pendingBoardData = null;
   const board = document.getElementById('board');
   board.innerHTML = '';
 
@@ -2309,13 +2328,27 @@ function createCard(issue) {
     el.addEventListener('mousedown', e => {
       if (document.activeElement === el) e.stopPropagation();
     });
-    el.addEventListener('focus', () => { card.draggable = false; });
+    el.addEventListener('focus', () => {
+      card.draggable = false;
+      // Bug fix: Track that this field is being edited so renderBoard()
+      // defers DOM rebuilds until the user finishes.
+      editingState = { identifier: el.dataset.id, field: el.dataset.field };
+    });
     el.addEventListener('blur', async () => {
       card.draggable = true;
       const field = el.dataset.field;
       const id = el.dataset.id;
       const newValue = el.textContent.trim();
+      // Bug fix: Clear editing state *before* the async save so that
+      // any queued board data can be rendered.
+      editingState = null;
       await updateIssue(id, {[field]: newValue});
+      // Flush any board data that arrived while we were editing.
+      if (_pendingBoardData) {
+        const pending = _pendingBoardData;
+        _pendingBoardData = null;
+        renderBoard(pending);
+      }
     });
     el.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
@@ -2469,10 +2502,17 @@ let _detailRefreshTimer = null;
 function refreshOpenDetailPanel() {
   if (!_openDetailIdentifier) return;
   if (!document.getElementById('detail-panel').classList.contains('open')) return;
+  // Bug fix: Skip refresh if the user is actively typing in the comment
+  // textarea, so their draft is not destroyed.
+  const commentInput = document.getElementById('comment-input');
+  if (commentInput && document.activeElement === commentInput) return;
   // Debounce: wait 500ms to batch rapid updates
   if (_detailRefreshTimer) clearTimeout(_detailRefreshTimer);
   _detailRefreshTimer = setTimeout(() => {
     _detailRefreshTimer = null;
+    // Re-check: user may have started typing during the debounce window
+    const ci = document.getElementById('comment-input');
+    if (ci && document.activeElement === ci) return;
     if (_openDetailIdentifier) openDetailPanel(_openDetailIdentifier);
   }, 500);
 }
