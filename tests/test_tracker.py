@@ -1,8 +1,9 @@
 """Tests for oompah.tracker (parsing/normalization only)."""
 
 from datetime import datetime, timezone
+from unittest.mock import patch, call
 
-from oompah.tracker import BeadsTracker, _parse_timestamp
+from oompah.tracker import BeadsTracker, DEFAULT_INITIAL_STATUS, _parse_timestamp
 
 
 class TestParseTimestamp:
@@ -96,3 +97,95 @@ class TestNormalizeIssue:
         raw = {"id": "1", "title": "t", "parent": "epic-001"}
         issue = self._tracker()._normalize_issue(raw)
         assert issue.parent_id == "epic-001"
+
+
+class TestDefaultInitialStatus:
+    """Verify the DEFAULT_INITIAL_STATUS constant is 'deferred' (backlog)."""
+
+    def test_default_initial_status_is_deferred(self):
+        assert DEFAULT_INITIAL_STATUS == "deferred"
+
+
+class TestCreateIssueInitialStatus:
+    """Tests for create_issue with the initial_status parameter."""
+
+    def _tracker(self):
+        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_defaults_to_deferred(self, mock_run_bd):
+        """Without initial_status, issue should be moved to 'deferred' (backlog)."""
+        # bd create returns an issue in 'open' state
+        mock_run_bd.side_effect = [
+            # First call: bd create ... --json
+            {"id": "test-1", "title": "Test", "status": "open", "priority": 2},
+            # Second call: bd update test-1 --status=deferred
+            {},
+        ]
+
+        tracker = self._tracker()
+        issue = tracker.create_issue(title="Test")
+
+        assert issue.state == "deferred"
+        assert mock_run_bd.call_count == 2
+
+        # Verify the update call set status to deferred
+        update_call = mock_run_bd.call_args_list[1]
+        assert update_call == call(["update", "test-1", "--status=deferred"])
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_with_explicit_open_skips_update(self, mock_run_bd):
+        """When initial_status='open', no update should be needed (bd default)."""
+        mock_run_bd.return_value = {
+            "id": "test-2", "title": "Urgent", "status": "open", "priority": 0,
+        }
+
+        tracker = self._tracker()
+        issue = tracker.create_issue(title="Urgent", initial_status="open")
+
+        assert issue.state == "open"
+        # Only the create call, no update
+        assert mock_run_bd.call_count == 1
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_with_explicit_deferred(self, mock_run_bd):
+        """Explicit initial_status='deferred' should still trigger update."""
+        mock_run_bd.side_effect = [
+            {"id": "test-3", "title": "Backlog item", "status": "open", "priority": 3},
+            {},
+        ]
+
+        tracker = self._tracker()
+        issue = tracker.create_issue(title="Backlog item", initial_status="deferred")
+
+        assert issue.state == "deferred"
+        assert mock_run_bd.call_count == 2
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_with_custom_status(self, mock_run_bd):
+        """Arbitrary initial_status values should be respected."""
+        mock_run_bd.side_effect = [
+            {"id": "test-4", "title": "Blocked", "status": "open", "priority": 2},
+            {},
+        ]
+
+        tracker = self._tracker()
+        issue = tracker.create_issue(title="Blocked", initial_status="blocked")
+
+        assert issue.state == "blocked"
+        update_call = mock_run_bd.call_args_list[1]
+        assert update_call == call(["update", "test-4", "--status=blocked"])
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_no_update_when_already_matching(self, mock_run_bd):
+        """If bd create somehow returns the desired status, no update needed."""
+        mock_run_bd.return_value = {
+            "id": "test-5", "title": "Pre-deferred", "status": "deferred", "priority": 2,
+        }
+
+        tracker = self._tracker()
+        issue = tracker.create_issue(title="Pre-deferred")
+
+        assert issue.state == "deferred"
+        # Only the create call, no update needed
+        assert mock_run_bd.call_count == 1

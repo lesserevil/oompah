@@ -11,6 +11,11 @@ from oompah.models import BlockerRef, Issue
 
 logger = logging.getLogger(__name__)
 
+# Default status for newly created issues.  Beads CLI defaults to "open",
+# but oompah wants new issues to land in the backlog ("deferred") so they
+# are triaged before the orchestrator picks them up.
+DEFAULT_INITIAL_STATUS = "deferred"
+
 
 class TrackerError(Exception):
     """Raised when tracker operations fail."""
@@ -91,8 +96,21 @@ class BeadsTracker:
         issue_type: str = "task",
         description: str | None = None,
         priority: int | None = None,
+        initial_status: str | None = None,
     ) -> Issue:
-        """Create a new issue via bd create and return the normalized Issue."""
+        """Create a new issue via bd create and return the normalized Issue.
+
+        Args:
+            title: Issue title.
+            issue_type: Issue type (task, bug, feature, etc.).
+            description: Optional description.
+            priority: Optional priority (0-4).
+            initial_status: Starting status for the issue. Defaults to
+                ``DEFAULT_INITIAL_STATUS`` ("deferred" / backlog).
+                Pass a different value (e.g. "open") to bypass the
+                backlog, which is used by workflows like merge-conflict
+                resolution that need immediate dispatch.
+        """
         args = ["create", f"--title={title}", f"--type={issue_type}", "--json"]
         if description:
             args.append(f"--description={description}")
@@ -100,7 +118,15 @@ class BeadsTracker:
             args.append(f"--priority={priority}")
         raw = self._run_bd(args)
         if isinstance(raw, dict):
-            return self._normalize_issue(raw)
+            issue = self._normalize_issue(raw)
+            # Move the issue to the desired initial status.
+            # bd create defaults to "open"; if we want something else
+            # (typically "deferred" for backlog), update it now.
+            target_status = initial_status or DEFAULT_INITIAL_STATUS
+            if issue.state.strip().lower() != target_status.strip().lower():
+                self.update_issue(issue.identifier, status=target_status)
+                issue.state = target_status
+            return issue
         raise TrackerError("Unexpected response from bd create")
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
