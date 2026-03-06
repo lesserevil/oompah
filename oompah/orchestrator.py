@@ -21,6 +21,7 @@ from oompah.models import (
     RunningEntry,
 )
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
+from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.tracker import BeadsTracker, TrackerError
 from oompah.workspace import WorkspaceError, WorkspaceManager
@@ -31,18 +32,24 @@ logger = logging.getLogger(__name__)
 class Orchestrator:
     """Owns the poll tick, dispatch decisions, and in-memory runtime state."""
 
-    def __init__(self, config: ServiceConfig, workflow_path: str, provider_store: ProviderStore | None = None):
+    def __init__(self, config: ServiceConfig, workflow_path: str,
+                 provider_store: ProviderStore | None = None,
+                 project_store: ProjectStore | None = None):
         self.config = config
         self.workflow_path = workflow_path
         self.provider_store = provider_store or ProviderStore()
+        self.project_store = project_store or ProjectStore()
         self.state = OrchestratorState(
             poll_interval_ms=config.poll_interval_ms,
             max_concurrent_agents=config.max_concurrent_agents,
         )
+        # Legacy single tracker (used when no projects configured)
         self.tracker = BeadsTracker(
             active_states=config.tracker_active_states,
             terminal_states=config.tracker_terminal_states,
         )
+        # Per-project trackers, keyed by project_id
+        self._project_trackers: dict[str, BeadsTracker] = {}
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -70,6 +77,8 @@ class Orchestrator:
             active_states=config.tracker_active_states,
             terminal_states=config.tracker_terminal_states,
         )
+        # Clear cached per-project trackers so they pick up new state config
+        self._project_trackers.clear()
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -87,15 +96,43 @@ class Orchestrator:
         self._prompt_template = template
 
     def pause(self) -> None:
-        """Pause dispatching new agents (running agents continue)."""
+        """Pause: stop all running agents and prevent new dispatches."""
         self._paused = True
-        logger.info("Orchestrator paused")
+        # Terminate all running agents (keep workspaces for resume)
+        asyncio.ensure_future(self._terminate_all_running())
+        logger.info("Orchestrator paused — all agents stopped")
+
+    async def _terminate_all_running(self) -> None:
+        """Terminate all running agents without cleaning workspaces."""
+        for issue_id in list(self.state.running.keys()):
+            await self._terminate_running(issue_id, cleanup_workspace=False)
 
     def unpause(self) -> None:
-        """Resume dispatching."""
+        """Resume dispatching — agents will be re-dispatched on next tick."""
         self._paused = False
         logger.info("Orchestrator unpaused")
         self._refresh_requested.set()
+
+    def _tracker_for_project(self, project_id: str) -> BeadsTracker:
+        """Get or create a BeadsTracker for a project."""
+        if project_id in self._project_trackers:
+            return self._project_trackers[project_id]
+        project = self.project_store.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        tracker = BeadsTracker(
+            active_states=self.config.tracker_active_states,
+            terminal_states=self.config.tracker_terminal_states,
+            cwd=project.repo_path,
+        )
+        self._project_trackers[project_id] = tracker
+        return tracker
+
+    def _tracker_for_issue(self, issue: Issue) -> BeadsTracker:
+        """Get the appropriate tracker for an issue (project-specific or legacy)."""
+        if issue.project_id:
+            return self._tracker_for_project(issue.project_id)
+        return self.tracker
 
     @property
     def is_paused(self) -> bool:
@@ -106,26 +143,40 @@ class Orchestrator:
         self._refresh_requested.set()
 
     async def startup_cleanup(self) -> None:
-        """Remove workspaces for issues in terminal states."""
-        try:
-            terminal_issues = self.tracker.fetch_issues_by_states(
-                self.config.tracker_terminal_states
-            )
-            for issue in terminal_issues:
+        """Remove workspaces/worktrees for issues in terminal states."""
+        projects = self.project_store.list_all()
+        if projects:
+            for project in projects:
                 try:
-                    self.workspace_mgr.remove_workspace(issue.identifier)
-                    logger.info(
-                        "Cleaned terminal workspace issue_identifier=%s",
-                        issue.identifier,
+                    tracker = self._tracker_for_project(project.id)
+                    terminal_issues = tracker.fetch_issues_by_states(
+                        self.config.tracker_terminal_states
                     )
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to clean workspace issue_identifier=%s error=%s",
-                        issue.identifier,
-                        exc,
-                    )
-        except TrackerError as exc:
-            logger.warning("Startup terminal cleanup failed: %s", exc)
+                    for issue in terminal_issues:
+                        try:
+                            self.project_store.remove_worktree(project.id, issue.identifier)
+                            logger.info("Cleaned terminal worktree project=%s issue=%s",
+                                        project.name, issue.identifier)
+                        except Exception as exc:
+                            logger.warning("Failed to clean worktree project=%s issue=%s error=%s",
+                                           project.name, issue.identifier, exc)
+                except (TrackerError, ProjectError) as exc:
+                    logger.warning("Startup cleanup failed for project %s: %s", project.name, exc)
+        else:
+            try:
+                terminal_issues = self.tracker.fetch_issues_by_states(
+                    self.config.tracker_terminal_states
+                )
+                for issue in terminal_issues:
+                    try:
+                        self.workspace_mgr.remove_workspace(issue.identifier)
+                        logger.info("Cleaned terminal workspace issue_identifier=%s",
+                                    issue.identifier)
+                    except Exception as exc:
+                        logger.warning("Failed to clean workspace issue_identifier=%s error=%s",
+                                       issue.identifier, exc)
+            except TrackerError as exc:
+                logger.warning("Startup terminal cleanup failed: %s", exc)
 
     async def run(self) -> None:
         """Main event loop: poll, dispatch, reconcile."""
@@ -169,13 +220,8 @@ class Orchestrator:
             self._notify_observers()
             return
 
-        # Part 3: Fetch candidates
-        try:
-            candidates = self.tracker.fetch_candidate_issues()
-        except TrackerError as exc:
-            logger.error("Tracker fetch failed: %s", exc)
-            self._notify_observers()
-            return
+        # Part 3: Fetch candidates from all projects (and legacy tracker)
+        candidates = self._fetch_all_candidates()
 
         # Part 4: Sort and dispatch
         sorted_issues = self._sort_for_dispatch(candidates)
@@ -186,6 +232,29 @@ class Orchestrator:
                 await self._dispatch(issue, attempt=None)
 
         self._notify_observers()
+
+    def _fetch_all_candidates(self) -> list[Issue]:
+        """Fetch candidate issues from all configured projects."""
+        projects = self.project_store.list_all()
+        if not projects:
+            # No projects configured — use legacy tracker
+            try:
+                return self.tracker.fetch_candidate_issues()
+            except TrackerError as exc:
+                logger.error("Tracker fetch failed: %s", exc)
+                return []
+
+        all_candidates: list[Issue] = []
+        for project in projects:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                issues = tracker.fetch_candidate_issues()
+                for issue in issues:
+                    issue.project_id = project.id
+                all_candidates.extend(issues)
+            except (TrackerError, ProjectError) as exc:
+                logger.error("Fetch failed for project %s: %s", project.name, exc)
+        return all_candidates
 
     def _available_slots(self) -> int:
         return max(self.state.max_concurrent_agents - len(self.state.running), 0)
@@ -338,10 +407,12 @@ class Orchestrator:
             return True  # no budget limit set
         return self.state.agent_totals.estimated_cost < self.config.budget_limit
 
-    def _post_comment(self, identifier: str, text: str, author: str = "oompah") -> None:
+    def _post_comment(self, identifier: str, text: str, author: str = "oompah",
+                      project_id: str | None = None) -> None:
         """Post a comment on an issue (best-effort, non-blocking)."""
         try:
-            self.tracker.add_comment(identifier, text, author=author)
+            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            tracker.add_comment(identifier, text, author=author)
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
@@ -362,7 +433,8 @@ class Orchestrator:
 
         # Move issue to in_progress
         try:
-            self.tracker.update_issue(issue.identifier, status="in_progress")
+            tracker = self._tracker_for_issue(issue)
+            tracker.update_issue(issue.identifier, status="in_progress")
         except Exception as exc:
             logger.debug("Failed to set in_progress for %s: %s", issue.identifier, exc)
 
@@ -388,9 +460,11 @@ class Orchestrator:
         )
 
         if attempt and attempt > 1:
-            self._post_comment(issue.identifier, f"Retrying (attempt #{attempt}, agent: {profile_name})")
+            self._post_comment(issue.identifier, f"Retrying (attempt #{attempt}, agent: {profile_name})",
+                               project_id=issue.project_id)
         else:
-            self._post_comment(issue.identifier, f"Agent dispatched (profile: {profile_name})")
+            self._post_comment(issue.identifier, f"Agent dispatched (profile: {profile_name})",
+                               project_id=issue.project_id)
 
     async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
         """Worker: create workspace, build prompt, run agent turns."""
@@ -425,8 +499,14 @@ class Orchestrator:
             raise ValueError(f"Model {model} not available in provider {provider.name}")
 
         try:
-            workspace = self.workspace_mgr.create_for_issue(issue.identifier)
-            self.workspace_mgr.run_before_run(workspace.path)
+            # Create workspace: use project worktree if available, else legacy
+            if issue.project_id:
+                workspace_path = self.project_store.create_worktree(
+                    issue.project_id, issue.identifier)
+            else:
+                workspace = self.workspace_mgr.create_for_issue(issue.identifier)
+                workspace_path = workspace.path
+                self.workspace_mgr.run_before_run(workspace_path)
 
             # Build prompt
             prompt = render_prompt(self._prompt_template, issue, attempt)
@@ -435,7 +515,7 @@ class Orchestrator:
                 base_url=provider.base_url,
                 api_key=provider.api_key,
                 model=model,
-                workspace_path=workspace.path,
+                workspace_path=workspace_path,
                 max_turns=max_turns,
                 system_prompt="You are an autonomous coding agent. Use the provided tools to complete the task.",
             )
@@ -483,11 +563,12 @@ class Orchestrator:
             error_msg = str(exc)
             logger.exception("API worker failed issue_id=%s", issue.id)
         finally:
-            try:
-                workspace_path = self.workspace_mgr.workspace_path_for(issue.identifier)
-                self.workspace_mgr.run_after_run(workspace_path)
-            except Exception:
-                pass
+            if not issue.project_id:
+                try:
+                    wp = self.workspace_mgr.workspace_path_for(issue.identifier)
+                    self.workspace_mgr.run_after_run(wp)
+                except Exception:
+                    pass
             await self._on_worker_exit(issue.id, exit_reason, error_msg)
 
     async def _run_cli_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
@@ -498,16 +579,19 @@ class Orchestrator:
         max_turns = profile.max_turns if profile and profile.max_turns else self.config.max_turns
 
         try:
-            # Create/reuse workspace
-            workspace = self.workspace_mgr.create_for_issue(issue.identifier)
-
-            # Run before_run hook
-            self.workspace_mgr.run_before_run(workspace.path)
+            # Create workspace: use project worktree if available, else legacy
+            if issue.project_id:
+                workspace_path = self.project_store.create_worktree(
+                    issue.project_id, issue.identifier)
+            else:
+                workspace = self.workspace_mgr.create_for_issue(issue.identifier)
+                workspace_path = workspace.path
+                self.workspace_mgr.run_before_run(workspace_path)
 
             # Start agent session
             session = AgentSession(
                 command=agent_command,
-                workspace_path=workspace.path,
+                workspace_path=workspace_path,
                 read_timeout_ms=self.config.read_timeout_ms,
                 turn_timeout_ms=self.config.turn_timeout_ms,
             )
@@ -573,9 +657,11 @@ class Orchestrator:
 
                     # Re-check issue state for continuation
                     try:
-                        refreshed = self.tracker.fetch_issue_states_by_ids([issue.id])
+                        tracker = self._tracker_for_issue(issue)
+                        refreshed = tracker.fetch_issue_states_by_ids([issue.id])
                         if refreshed:
                             current_issue = refreshed[0]
+                            current_issue.project_id = issue.project_id
                     except TrackerError:
                         break
 
@@ -604,12 +690,12 @@ class Orchestrator:
                 issue.identifier,
             )
         finally:
-            # Run after_run hook (best-effort)
-            try:
-                workspace_path = self.workspace_mgr.workspace_path_for(issue.identifier)
-                self.workspace_mgr.run_after_run(workspace_path)
-            except Exception:
-                pass
+            if not issue.project_id:
+                try:
+                    wp = self.workspace_mgr.workspace_path_for(issue.identifier)
+                    self.workspace_mgr.run_after_run(wp)
+                except Exception:
+                    pass
 
             # Report exit to orchestrator
             await self._on_worker_exit(issue.id, exit_reason, error_msg)
@@ -686,11 +772,14 @@ class Orchestrator:
         if entry.session and entry.session.total_tokens > 0:
             tokens_str = f" ({entry.session.total_tokens} tokens)"
 
+        project_id = entry.issue.project_id if entry.issue else None
+
         if reason == "normal":
             self.state.completed.add(issue_id)
             self._post_comment(
                 entry.identifier,
                 f"Agent completed successfully in {elapsed:.0f}s{tokens_str}",
+                project_id=project_id,
             )
             # Schedule short continuation retry
             self._schedule_retry(
@@ -711,6 +800,7 @@ class Orchestrator:
             self._post_comment(
                 entry.identifier,
                 f"Agent failed: {error or 'unknown error'}. Retrying in {delay // 1000}s (attempt #{next_attempt})",
+                project_id=project_id,
             )
             self._schedule_retry(
                 issue_id,
@@ -772,8 +862,8 @@ class Orchestrator:
             return
 
         try:
-            candidates = self.tracker.fetch_candidate_issues()
-        except TrackerError:
+            candidates = self._fetch_all_candidates()
+        except (TrackerError, ProjectError):
             # Requeue
             self._schedule_retry(
                 issue_id,
@@ -838,13 +928,22 @@ class Orchestrator:
         if not running_ids:
             return
 
-        try:
-            refreshed = self.tracker.fetch_issue_states_by_ids(running_ids)
-        except TrackerError:
-            logger.debug("Reconciliation state refresh failed, keeping workers running")
-            return
+        # Group running issues by project for targeted tracker queries
+        refreshed_map: dict[str, Issue] = {}
+        by_project: dict[str | None, list[str]] = {}
+        for issue_id, entry in self.state.running.items():
+            pid = entry.issue.project_id if entry.issue else None
+            by_project.setdefault(pid, []).append(issue_id)
 
-        refreshed_map = {i.id: i for i in refreshed}
+        for pid, ids in by_project.items():
+            try:
+                tracker = self._tracker_for_project(pid) if pid else self.tracker
+                refreshed = tracker.fetch_issue_states_by_ids(ids)
+                for issue in refreshed:
+                    issue.project_id = pid
+                    refreshed_map[issue.id] = issue
+            except (TrackerError, ProjectError):
+                logger.debug("Reconciliation refresh failed for project %s", pid)
         terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
         active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
 
@@ -900,8 +999,12 @@ class Orchestrator:
         self.state.claimed.discard(issue_id)
 
         if cleanup_workspace:
+            project_id = entry.issue.project_id if entry.issue else None
             try:
-                self.workspace_mgr.remove_workspace(entry.identifier)
+                if project_id:
+                    self.project_store.remove_worktree(project_id, entry.identifier)
+                else:
+                    self.workspace_mgr.remove_workspace(entry.identifier)
             except Exception as exc:
                 logger.warning(
                     "Workspace cleanup failed issue_identifier=%s error=%s",
@@ -928,6 +1031,7 @@ class Orchestrator:
             row: dict[str, Any] = {
                 "issue_id": issue_id,
                 "issue_identifier": entry.identifier,
+                "project_id": entry.issue.project_id if entry.issue else None,
                 "state": entry.issue.state,
                 "started_at": entry.started_at.isoformat(),
                 "agent_profile": entry.agent_profile_name,
@@ -1004,6 +1108,7 @@ class Orchestrator:
                 for p in self.config.agent_profiles
             ],
             "rate_limits": self.state.rate_limits,
+            "projects": [p.to_dict() for p in self.project_store.list_all()],
         }
 
     def get_issue_detail(self, issue_identifier: str) -> dict[str, Any] | None:

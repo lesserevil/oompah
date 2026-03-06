@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 
 if TYPE_CHECKING:
@@ -55,27 +56,34 @@ async def api_state():
 
 
 @app.get("/api/v1/issues")
-async def api_issues():
-    """Return all issues grouped by state for the kanban board."""
+async def api_issues(request: Request):
+    """Return all issues grouped by state for the kanban board.
+
+    Query params:
+        project_id - filter to a single project (optional)
+    """
     try:
         orch = _get_orchestrator()
-        issues = orch.tracker.fetch_all_issues_enriched()
+        filter_project = request.query_params.get("project_id")
+
+        # Fetch issues from all projects (or legacy tracker)
+        all_issues = _fetch_all_issues(orch, filter_project)
 
         # Build a map for epic child counts
         epics: dict[str, dict] = {}
-        for issue in issues:
+        for issue in all_issues:
             if issue.issue_type == "epic":
                 epics[issue.id] = {"deferred": 0, "open": 0, "in_progress": 0, "closed": 0}
 
         # Count children per epic per state
-        for issue in issues:
+        for issue in all_issues:
             if issue.parent_id and issue.parent_id in epics:
                 child_state = issue.state.strip().lower()
                 if child_state in epics[issue.parent_id]:
                     epics[issue.parent_id][child_state] += 1
 
         result: dict[str, list] = {}
-        for issue in issues:
+        for issue in all_issues:
             state = issue.state.strip().lower()
             if state not in result:
                 result[state] = []
@@ -89,6 +97,7 @@ async def api_issues():
                 "labels": issue.labels,
                 "issue_type": issue.issue_type,
                 "parent_id": issue.parent_id,
+                "project_id": issue.project_id,
             }
             if issue.issue_type == "epic" and issue.id in epics:
                 entry["children_counts"] = epics[issue.id]
@@ -105,6 +114,37 @@ async def api_issues():
         )
 
 
+def _get_tracker(orch, project_id: str | None = None):
+    """Get the appropriate tracker for a project_id, falling back to legacy."""
+    if project_id:
+        return orch._tracker_for_project(project_id)
+    return orch.tracker
+
+
+def _fetch_all_issues(orch, filter_project: str | None = None):
+    """Fetch issues from all projects or a specific one."""
+    from oompah.tracker import TrackerError
+
+    projects = orch.project_store.list_all()
+    if not projects:
+        # No projects configured — legacy mode
+        return orch.tracker.fetch_all_issues_enriched()
+
+    all_issues = []
+    for project in projects:
+        if filter_project and project.id != filter_project:
+            continue
+        try:
+            tracker = orch._tracker_for_project(project.id)
+            issues = tracker.fetch_all_issues_enriched()
+            for issue in issues:
+                issue.project_id = project.id
+            all_issues.extend(issues)
+        except (TrackerError, ProjectError) as exc:
+            logger.error("Fetch issues failed for project %s: %s", project.name, exc)
+    return all_issues
+
+
 @app.post("/api/v1/issues")
 async def api_create_issue(request: Request):
     """Create a new issue."""
@@ -119,17 +159,21 @@ async def api_create_issue(request: Request):
                 status_code=400,
             )
 
-        issue = orch.tracker.create_issue(
+        project_id = body.get("project_id")
+        tracker = _get_tracker(orch, project_id)
+
+        issue = tracker.create_issue(
             title=title,
             issue_type=body.get("type", "task"),
             description=body.get("description"),
             priority=body.get("priority"),
         )
+        issue.project_id = project_id
 
         # Link to parent epic if specified
         parent_id = body.get("parent_id")
         if parent_id:
-            orch.tracker.add_parent_child(issue.id, parent_id)
+            tracker.add_parent_child(issue.id, parent_id)
 
         return JSONResponse({
             "ok": True,
@@ -154,6 +198,8 @@ async def api_update_issue(identifier: str, request: Request):
     try:
         orch = _get_orchestrator()
         body = await request.json()
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        tracker = _get_tracker(orch, project_id)
 
         new_status = body.get("status")
         new_priority = body.get("priority")
@@ -161,19 +207,18 @@ async def api_update_issue(identifier: str, request: Request):
         new_description = body.get("description")
 
         if new_status == "closed":
-            orch.tracker.close_issue(identifier)
+            tracker.close_issue(identifier)
         elif new_status is not None:
-            # Check if currently closed — need to reopen
-            orch.tracker.update_issue(identifier, status=new_status)
+            tracker.update_issue(identifier, status=new_status)
 
         if new_priority is not None:
-            orch.tracker.update_issue(identifier, priority=str(new_priority))
+            tracker.update_issue(identifier, priority=str(new_priority))
 
         if new_title is not None:
-            orch.tracker.update_issue(identifier, title=new_title)
+            tracker.update_issue(identifier, title=new_title)
 
         if new_description is not None:
-            orch.tracker.update_issue(identifier, description=new_description)
+            tracker.update_issue(identifier, description=new_description)
 
         return JSONResponse({"ok": True})
     except Exception as exc:
@@ -185,11 +230,13 @@ async def api_update_issue(identifier: str, request: Request):
 
 
 @app.get("/api/v1/issues/{identifier}/comments")
-async def api_get_comments(identifier: str):
+async def api_get_comments(identifier: str, request: Request):
     """Return comments for an issue."""
     try:
         orch = _get_orchestrator()
-        comments = orch.tracker.fetch_comments(identifier)
+        project_id = request.query_params.get("project_id")
+        tracker = _get_tracker(orch, project_id)
+        comments = tracker.fetch_comments(identifier)
         return JSONResponse(comments)
     except Exception as exc:
         logger.error("Comments API error: %s", exc)
@@ -212,7 +259,9 @@ async def api_add_comment(identifier: str, request: Request):
                 status_code=400,
             )
         author = body.get("author", "user")
-        result = orch.tracker.add_comment(identifier, text, author=author)
+        project_id = body.get("project_id")
+        tracker = _get_tracker(orch, project_id)
+        result = tracker.add_comment(identifier, text, author=author)
         return JSONResponse(result, status_code=201)
     except Exception as exc:
         logger.error("Add comment API error: %s", exc)
@@ -223,11 +272,13 @@ async def api_add_comment(identifier: str, request: Request):
 
 
 @app.get("/api/v1/issues/{identifier}/detail")
-async def api_issue_full_detail(identifier: str):
+async def api_issue_full_detail(identifier: str, request: Request):
     """Return full issue detail for the slide-out panel."""
     try:
         orch = _get_orchestrator()
-        issue = orch.tracker.fetch_issue_detail(identifier)
+        project_id = request.query_params.get("project_id")
+        tracker = _get_tracker(orch, project_id)
+        issue = tracker.fetch_issue_detail(identifier)
         if issue is None:
             return JSONResponse(
                 {"error": {"code": "issue_not_found", "message": f"Issue {identifier} not found"}},
@@ -242,12 +293,13 @@ async def api_issue_full_detail(identifier: str):
             "state": issue.state,
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
+            "project_id": issue.project_id,
             "labels": issue.labels,
             "created_at": issue.created_at.isoformat() if issue.created_at else None,
             "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
         }
         if issue.issue_type == "epic":
-            children = orch.tracker.fetch_children(issue.id)
+            children = tracker.fetch_children(issue.id)
             result["children"] = [
                 {
                     "id": c.id,
@@ -260,7 +312,7 @@ async def api_issue_full_detail(identifier: str):
                 for c in children
             ]
         # Always include comments
-        result["comments"] = orch.tracker.fetch_comments(issue.identifier)
+        result["comments"] = tracker.fetch_comments(issue.identifier)
         return JSONResponse(result)
     except Exception as exc:
         logger.error("Issue detail API error: %s", exc)
@@ -315,8 +367,8 @@ async def api_orchestrator_dispatch(identifier: str):
     """Manually dispatch a specific issue to an agent."""
     try:
         orch = _get_orchestrator()
-        issues = orch.tracker.fetch_candidate_issues()
-        issue = next((i for i in issues if i.identifier == identifier), None)
+        candidates = orch._fetch_all_candidates()
+        issue = next((i for i in candidates if i.identifier == identifier), None)
         if not issue:
             return JSONResponse({"error": f"Issue {identifier} not found or not dispatchable"}, status_code=404)
         await orch._dispatch(issue, attempt=None)
@@ -431,6 +483,96 @@ async def api_fetch_models(req: Request):
         return JSONResponse({"models": models})
     except Exception as e:
         return JSONResponse({"error": str(e), "models": []}, status_code=502)
+
+
+# --- Project API ---
+
+
+@app.get("/api/v1/projects")
+async def api_list_projects():
+    """List all configured projects."""
+    orch = _get_orchestrator()
+    return JSONResponse([p.to_dict() for p in orch.project_store.list_all()])
+
+
+@app.post("/api/v1/projects")
+async def api_create_project(request: Request):
+    """Register a new project (git repo with beads)."""
+    try:
+        orch = _get_orchestrator()
+        body = await request.json()
+        repo_url = body.get("repo_url", "").strip()
+        if not repo_url:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "repo_url is required"}},
+                status_code=400,
+            )
+        name = body.get("name", "").strip() or None  # None = auto from URL
+        branch = body.get("branch", "main").strip()
+        project = orch.project_store.create(repo_url=repo_url, name=name, branch=branch)
+        return JSONResponse(project.to_dict(), status_code=201)
+    except ProjectError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    except Exception as exc:
+        logger.error("Create project error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "create_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.patch("/api/v1/projects/{project_id}")
+async def api_update_project(project_id: str, request: Request):
+    """Update a project."""
+    try:
+        orch = _get_orchestrator()
+        body = await request.json()
+        fields = {}
+        for key in ("name", "repo_path", "branch"):
+            if key in body:
+                fields[key] = body[key]
+        project = orch.project_store.update(project_id, **fields)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+        return JSONResponse(project.to_dict())
+    except Exception as exc:
+        logger.error("Update project error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "update_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.delete("/api/v1/projects/{project_id}")
+async def api_delete_project(project_id: str):
+    """Delete a project."""
+    orch = _get_orchestrator()
+    if orch.project_store.delete(project_id):
+        return JSONResponse({"ok": True})
+    return JSONResponse(
+        {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+        status_code=404,
+    )
+
+
+@app.get("/api/v1/projects/{project_id}/worktrees")
+async def api_list_worktrees(project_id: str):
+    """List active worktrees for a project."""
+    try:
+        orch = _get_orchestrator()
+        paths = orch.project_store.list_worktrees(project_id)
+        return JSONResponse({"project_id": project_id, "worktrees": paths})
+    except ProjectError as exc:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": str(exc)}},
+            status_code=404,
+        )
 
 
 @app.get("/api/v1/budget")
@@ -1221,7 +1363,11 @@ DASHBOARD_HTML = """\
         <button id="btn-flat" class="active" onclick="setViewMode('flat')">Flat</button>
         <button id="btn-swimlane" onclick="setViewMode('swimlane')">Swimlanes</button>
       </div>
+      <select id="project-filter" onchange="refreshBoard()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
       <button onclick="openCreateDialog()">+ Create</button>
+      <button onclick="window.location='/projects-manage'">Projects</button>
       <button onclick="window.location='/providers'">Providers</button>
       <button id="btn-pause" onclick="togglePause()">Pause</button>
       <button onclick="refreshBoard()">Refresh</button>
@@ -1303,6 +1449,18 @@ async function fetchOrchestratorState() {
         container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
       }
     }
+    // Update project filter dropdown
+    const projects = state.projects || [];
+    const sel = document.getElementById('project-filter');
+    if (sel && projects.length > 0) {
+      const curVal = sel.value;
+      sel.innerHTML = '<option value="">All Projects</option>' +
+        projects.map(p => '<option value="' + esc(p.id) + '"' +
+          (p.id === curVal ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
+      sel.style.display = '';
+    } else if (sel && projects.length === 0) {
+      sel.style.display = 'none';
+    }
   } catch (e) {
     // ignore fetch errors
   }
@@ -1315,7 +1473,10 @@ async function togglePause() {
 }
 
 async function fetchIssues() {
-  const res = await fetch('/api/v1/issues');
+  const filter = document.getElementById('project-filter');
+  const pid = filter ? filter.value : '';
+  const url = pid ? '/api/v1/issues?project_id=' + encodeURIComponent(pid) : '/api/v1/issues';
+  const res = await fetch(url);
   if (!res.ok) return null;
   return await res.json();
 }
@@ -2505,6 +2666,191 @@ document.addEventListener('keydown', e => {
 async def providers_page():
     """Serve the providers management page."""
     return PROVIDERS_HTML
+
+
+PROJECTS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah - Projects</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .toolbar h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    button { background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 0.3rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn-primary:hover { background: #79bbff; }
+    .btn-danger { color: var(--red); border-color: rgba(248, 81, 73, 0.3); }
+    .btn-danger:hover { background: rgba(248, 81, 73, 0.1); }
+    .content { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
+    .content h2 { font-size: 1.1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .project-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; }
+    .project-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .project-name { font-size: 1rem; font-weight: 600; }
+    .project-id { font-size: 0.7rem; color: var(--text-muted); font-family: 'SF Mono', 'Fira Code', monospace; }
+    .field-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.35rem; font-size: 0.8rem; color: var(--text-muted); }
+    .field-label { font-weight: 600; min-width: 80px; }
+    .field-value { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; word-break: break-all; }
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+    .form-group input { width: 100%; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85rem; }
+    .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; display: none; }
+    .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .worktree-list { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">oompah</a> <span>/ Projects</span></h1>
+    <div style="display:flex;gap:0.5rem;">
+      <button onclick="window.location='/'">Dashboard</button>
+      <button onclick="window.location='/providers'">Providers</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <h2>Projects <button class="btn-primary" onclick="toggleAddForm()">+ Add Project</button></h2>
+
+    <div class="form-card" id="add-form">
+      <div class="form-group">
+        <label>Git Repository URL</label>
+        <input type="text" id="add-repo" placeholder="https://github.com/org/repo.git">
+      </div>
+      <div class="form-group">
+        <label>Name (optional &mdash; defaults to repo name)</label>
+        <input type="text" id="add-name" placeholder="">
+      </div>
+      <div class="form-group">
+        <label>Branch</label>
+        <input type="text" id="add-branch" placeholder="main" value="main">
+      </div>
+      <div id="add-error" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
+      <div class="form-actions">
+        <button onclick="toggleAddForm()">Cancel</button>
+        <button class="btn-primary" onclick="addProject()">Add Project</button>
+      </div>
+    </div>
+
+    <div id="project-list"></div>
+  </div>
+
+<script>
+async function loadProjects() {
+  const res = await fetch('/api/v1/projects');
+  const projects = await res.json();
+  const container = document.getElementById('project-list');
+  if (projects.length === 0) {
+    container.innerHTML = '<div class="empty-state">No projects configured.<br>Add a git repo with beads to get started.</div>';
+    return;
+  }
+  container.innerHTML = projects.map(p => `
+    <div class="project-card" id="card-${esc(p.id)}">
+      <div class="project-header">
+        <span class="project-name">${esc(p.name)}</span>
+        <span class="project-id">${esc(p.id)}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Repo:</span>
+        <span class="field-value">${esc(p.repo_url)}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Local:</span>
+        <span class="field-value">${esc(p.repo_path)}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Branch:</span>
+        <span class="field-value">${esc(p.branch)}</span>
+      </div>
+      <div class="field-row" style="margin-top:0.75rem;">
+        <button onclick="showWorktrees('${esc(p.id)}')">Worktrees</button>
+        <button class="btn-danger" onclick="deleteProject('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
+      </div>
+      <div class="worktree-list" id="wt-${esc(p.id)}" style="display:none;"></div>
+    </div>
+  `).join('');
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toggleAddForm() {
+  const f = document.getElementById('add-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('add-error').style.display = 'none';
+}
+
+async function addProject() {
+  const repo = document.getElementById('add-repo').value.trim();
+  const name = document.getElementById('add-name').value.trim() || undefined;
+  const branch = document.getElementById('add-branch').value.trim() || 'main';
+  const errEl = document.getElementById('add-error');
+  if (!repo) {
+    errEl.textContent = 'Repository URL is required';
+    errEl.style.display = 'block';
+    return;
+  }
+  const res = await fetch('/api/v1/projects', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({repo_url: repo, name, branch}),
+  });
+  if (res.ok) {
+    toggleAddForm();
+    document.getElementById('add-name').value = '';
+    document.getElementById('add-repo').value = '';
+    document.getElementById('add-branch').value = 'main';
+    loadProjects();
+  } else {
+    const data = await res.json();
+    errEl.textContent = (data.error && data.error.message) || 'Failed to add project';
+    errEl.style.display = 'block';
+  }
+}
+
+async function deleteProject(id, name) {
+  if (!confirm('Delete project "' + name + '"? This does not delete the repo.')) return;
+  await fetch('/api/v1/projects/' + id, {method: 'DELETE'});
+  loadProjects();
+}
+
+async function showWorktrees(id) {
+  const el = document.getElementById('wt-' + id);
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  const res = await fetch('/api/v1/projects/' + id + '/worktrees');
+  const data = await res.json();
+  const wts = data.worktrees || [];
+  el.innerHTML = wts.length > 0
+    ? '<strong>Active worktrees:</strong><br>' + wts.map(w => esc(w)).join('<br>')
+    : '<em>No active worktrees</em>';
+  el.style.display = 'block';
+}
+
+loadProjects();
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/projects-manage", response_class=HTMLResponse)
+async def projects_page():
+    """Serve the projects management page."""
+    return PROJECTS_HTML
 
 
 # Keep the old dashboard content endpoint for backward compat

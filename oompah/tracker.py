@@ -23,9 +23,11 @@ class BeadsTracker:
         self,
         active_states: list[str],
         terminal_states: list[str],
+        cwd: str | None = None,
     ):
         self.active_states = [s.strip().lower() for s in active_states]
         self.terminal_states = [s.strip().lower() for s in terminal_states]
+        self.cwd = cwd
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Fetch issues in active states, sorted for dispatch."""
@@ -232,6 +234,7 @@ class BeadsTracker:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                cwd=self.cwd,
             )
         except FileNotFoundError:
             raise TrackerError("bd command not found. Is beads installed?")

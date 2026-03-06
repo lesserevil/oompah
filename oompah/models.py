@@ -30,6 +30,7 @@ class Issue:
     url: str | None = None
     issue_type: str = "task"
     parent_id: str | None = None
+    project_id: str | None = None
     labels: list[str] = field(default_factory=list)
     blocked_by: list[BlockerRef] = field(default_factory=list)
     created_at: datetime | None = None
@@ -96,6 +97,36 @@ class RetryEntry:
     due_at_ms: float
     timer_handle: Any = None
     error: str | None = None
+
+
+@dataclass
+class Project:
+    """A git repo with beads issue tracking."""
+
+    id: str
+    name: str
+    repo_url: str
+    repo_path: str  # local clone path (derived)
+    branch: str = "main"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "repo_url": self.repo_url,
+            "repo_path": self.repo_path,
+            "branch": self.branch,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> Project:
+        return cls(
+            id=str(d.get("id", "")),
+            name=str(d.get("name", "")),
+            repo_url=str(d.get("repo_url", "")),
+            repo_path=str(d.get("repo_path", "")),
+            branch=str(d.get("branch", "main")),
+        )
 
 
 @dataclass

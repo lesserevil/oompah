@@ -59,6 +59,7 @@ def main() -> None:
 async def _run(workflow_path: str, cli_port: int | None) -> None:
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.orchestrator import Orchestrator
+    from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
     from oompah.server import app, set_orchestrator
 
@@ -81,9 +82,12 @@ async def _run(workflow_path: str, cli_port: int | None) -> None:
     # Determine port
     port = cli_port or config.server_port
 
-    # Create orchestrator with shared provider store
+    # Create orchestrator with shared stores
     provider_store = ProviderStore()
-    orchestrator = Orchestrator(config, workflow_path, provider_store=provider_store)
+    project_store = ProjectStore()
+    orchestrator = Orchestrator(config, workflow_path,
+                                provider_store=provider_store,
+                                project_store=project_store)
     orchestrator.set_prompt_template(workflow.prompt_template)
     set_orchestrator(orchestrator)
 
