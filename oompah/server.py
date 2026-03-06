@@ -2272,6 +2272,8 @@ PROVIDERS_HTML = """\
       border-radius: 6px;
       padding: 0.35rem 0.5rem;
       min-height: 38px;
+      max-height: 160px;
+      overflow-y: auto;
       cursor: text;
     }
     .tag-input-wrap:focus-within { border-color: var(--accent); }
@@ -2335,6 +2337,8 @@ PROVIDERS_HTML = """\
       padding: 1.5rem;
       width: 520px;
       max-width: 90vw;
+      max-height: 90vh;
+      overflow-y: auto;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
     .dialog h2 {
