@@ -13,17 +13,37 @@ import logging
 import os
 import ssl
 import subprocess
+import time
 import urllib.request
 import urllib.error
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Result dataclass
 # ---------------------------------------------------------------------------
+
+@dataclass
+class AgentActivity:
+    """One activity entry in the agent's log."""
+    turn: int
+    kind: str  # "thinking" | "tool_call" | "tool_result" | "message" | "error"
+    summary: str
+    detail: str = ""
+    timestamp: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "turn": self.turn,
+            "kind": self.kind,
+            "summary": self.summary,
+            "detail": self.detail[:2000],
+            "timestamp": self.timestamp,
+        }
+
 
 @dataclass
 class ApiAgentResult:
@@ -34,6 +54,7 @@ class ApiAgentResult:
     turns: int
     last_message: str
     error: str | None = None
+    activity: list[AgentActivity] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -271,9 +292,23 @@ class ApiAgentSession:
 
     # -- public interface ---------------------------------------------------
 
-    async def run_task(self, prompt: str) -> ApiAgentResult:
+    async def run_task(
+        self,
+        prompt: str,
+        on_activity: Callable[[AgentActivity], None] | None = None,
+    ) -> ApiAgentResult:
         """Run the agent on a task prompt. Returns result with token counts."""
         messages: list[dict[str, Any]] = []
+        activity: list[AgentActivity] = []
+
+        def _emit(turn: int, kind: str, summary: str, detail: str = "") -> None:
+            entry = AgentActivity(
+                turn=turn, kind=kind, summary=summary,
+                detail=detail, timestamp=time.time(),
+            )
+            activity.append(entry)
+            if on_activity:
+                on_activity(entry)
 
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
@@ -289,6 +324,7 @@ class ApiAgentSession:
         try:
             for turn in range(1, self.max_turns + 1):
                 turns = turn
+                _emit(turn, "thinking", f"Turn {turn}: calling {self.model}...")
 
                 response = await self._call_api(messages)
 
@@ -300,6 +336,7 @@ class ApiAgentSession:
 
                 choices = response.get("choices", [])
                 if not choices:
+                    _emit(turn, "error", "Empty choices in API response")
                     return ApiAgentResult(
                         status="failed",
                         input_tokens=total_input,
@@ -308,19 +345,20 @@ class ApiAgentSession:
                         turns=turns,
                         last_message=last_message,
                         error="Empty choices in API response",
+                        activity=activity,
                     )
 
                 assistant_msg = choices[0].get("message", {})
-                # Append the full assistant message to conversation history
                 messages.append(assistant_msg)
 
                 content = assistant_msg.get("content") or ""
                 if content:
                     last_message = content
+                    _emit(turn, "message", content[:200], content)
 
                 tool_calls = assistant_msg.get("tool_calls")
                 if not tool_calls:
-                    # Model finished; no more tool calls
+                    _emit(turn, "message", "Agent finished (no more tool calls)")
                     return ApiAgentResult(
                         status="succeeded",
                         input_tokens=total_input,
@@ -328,9 +366,9 @@ class ApiAgentSession:
                         total_tokens=total_tokens,
                         turns=turns,
                         last_message=last_message,
+                        activity=activity,
                     )
 
-                # Execute each tool call and build tool-result messages
                 for tc in tool_calls:
                     fn = tc.get("function", {})
                     tool_name = fn.get("name", "")
@@ -339,16 +377,16 @@ class ApiAgentSession:
                     except json.JSONDecodeError:
                         tool_args = {}
 
-                    logger.debug(
-                        "Tool call: %s(%s) turn=%d",
-                        tool_name,
-                        ", ".join(f"{k}={v!r}" for k, v in tool_args.items())[:200],
-                        turn,
-                    )
+                    args_summary = ", ".join(
+                        f"{k}={v!r}" for k, v in tool_args.items()
+                    )[:150]
+                    _emit(turn, "tool_call", f"{tool_name}({args_summary})")
 
                     result_str = await asyncio.to_thread(
                         _execute_tool, self.workspace, tool_name, tool_args, self.command_timeout
                     )
+
+                    _emit(turn, "tool_result", f"{tool_name} → {result_str[:150]}", result_str)
 
                     messages.append({
                         "role": "tool",
@@ -356,7 +394,7 @@ class ApiAgentSession:
                         "content": result_str,
                     })
 
-            # Exhausted max_turns
+            _emit(turns, "message", f"Reached max turns ({self.max_turns})")
             return ApiAgentResult(
                 status="max_turns",
                 input_tokens=total_input,
@@ -364,9 +402,11 @@ class ApiAgentSession:
                 total_tokens=total_tokens,
                 turns=turns,
                 last_message=last_message,
+                activity=activity,
             )
 
         except Exception as exc:
+            _emit(turns, "error", str(exc))
             logger.error("ApiAgentSession.run_task failed: %s", exc)
             return ApiAgentResult(
                 status="failed",
@@ -376,6 +416,7 @@ class ApiAgentSession:
                 turns=turns,
                 last_message=last_message,
                 error=str(exc),
+                activity=activity,
             )
 
     # -- private helpers ----------------------------------------------------

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from umpah.agent import AgentError, AgentEvent, AgentSession
-from umpah.api_agent import ApiAgentSession
+from umpah.api_agent import AgentActivity, ApiAgentSession
 from umpah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
 from umpah.models import (
     AgentProfile,
@@ -339,6 +339,13 @@ class Orchestrator:
             profile_name,
         )
         self.state.claimed.add(issue.id)
+
+        # Move issue to in_progress
+        try:
+            self.tracker.update_issue(issue.identifier, status="in_progress")
+        except Exception as exc:
+            logger.debug("Failed to set in_progress for %s: %s", issue.identifier, exc)
+
         # Remove from retry if present
         retry = self.state.retry_attempts.pop(issue.id, None)
         if retry and retry.timer_handle and not retry.timer_handle.done():
@@ -414,7 +421,14 @@ class Orchestrator:
                     last_message=f"Using {provider.name}/{model}",
                 )
 
-            result = await session.run_task(prompt)
+            def _on_activity(entry: AgentActivity) -> None:
+                if issue.id in self.state.running:
+                    self.state.running[issue.id].activity_log.append(entry)
+                    if self.state.running[issue.id].session:
+                        self.state.running[issue.id].session.last_message = entry.summary[:200]
+                        self.state.running[issue.id].session.last_event = entry.kind
+
+            result = await session.run_task(prompt, on_activity=_on_activity)
 
             # Update session with final token counts
             if issue.id in self.state.running and self.state.running[issue.id].session:

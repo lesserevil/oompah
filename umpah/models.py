@@ -184,6 +184,7 @@ class RunningEntry:
     retry_attempt: int
     started_at: datetime
     agent_profile_name: str = "default"
+    activity_log: list[Any] = field(default_factory=list)
 
 
 @dataclass

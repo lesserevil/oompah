@@ -20,45 +20,36 @@ agent:
   budget_limit: 50.00
   profiles:
     - name: quick
-      command: "claude --dangerously-skip-permissions --model claude-haiku-4-5-20251001"
+      provider_id: prov-efa393f7
+      model: google/gemini-2.5-flash
       cost_per_1k_input: 0.001
-      cost_per_1k_output: 0.005
+      cost_per_1k_output: 0.004
       max_turns: 5
       issue_types: [chore]
       keywords: [typo, rename, cleanup, lint, format]
       max_priority: 4
     - name: standard
-      command: "claude --dangerously-skip-permissions --model claude-sonnet-4-6"
-      cost_per_1k_input: 0.003
-      cost_per_1k_output: 0.015
+      provider_id: prov-efa393f7
+      model: google/gemini-2.5-flash
+      cost_per_1k_input: 0.001
+      cost_per_1k_output: 0.004
       max_turns: 10
       issue_types: [task, feature]
     - name: deep
-      command: "claude --dangerously-skip-permissions --model claude-opus-4-6"
-      cost_per_1k_input: 0.015
-      cost_per_1k_output: 0.075
+      provider_id: prov-efa393f7
+      model: deepseek/deepseek-r1
+      cost_per_1k_input: 0.002
+      cost_per_1k_output: 0.008
       max_turns: 20
       issue_types: [bug, epic]
       keywords: [security, architecture, refactor, critical]
       min_priority: 0
       max_priority: 1
-    - name: api-standard
+    - name: default
       provider_id: prov-efa393f7
       model: google/gemini-2.5-flash
       cost_per_1k_input: 0.001
       cost_per_1k_output: 0.004
-      max_turns: 15
-      issue_types: [task, feature]
-      keywords: [api, endpoint, model, provider]
-    - name: default
-      command: "claude --dangerously-skip-permissions"
-      cost_per_1k_input: 0.003
-      cost_per_1k_output: 0.015
-
-codex:
-  command: "claude --dangerously-skip-permissions"
-  turn_timeout_ms: 3600000
-  stall_timeout_ms: 300000
 
 server:
   port: 8080

@@ -270,6 +270,24 @@ async def api_issue_full_detail(identifier: str):
         )
 
 
+@app.get("/api/v1/agents/{identifier}/activity")
+async def api_agent_activity(identifier: str):
+    """Return the activity log for a running agent."""
+    try:
+        orch = _get_orchestrator()
+        for entry in orch.state.running.values():
+            if entry.identifier == identifier:
+                return JSONResponse({
+                    "identifier": identifier,
+                    "profile": entry.agent_profile_name,
+                    "started_at": entry.started_at.isoformat(),
+                    "activity": [a.to_dict() for a in entry.activity_log],
+                })
+        return JSONResponse({"identifier": identifier, "activity": []})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/api/v1/orchestrator/pause")
 async def api_orchestrator_pause():
     """Pause the orchestrator (stop dispatching new agents)."""
@@ -1026,6 +1044,10 @@ DASHBOARD_HTML = """\
       font-size: 0.65rem;
       color: var(--green);
       font-family: 'SF Mono', 'Fira Code', monospace;
+      cursor: pointer;
+    }
+    .running-agent-chip:hover {
+      background: rgba(63, 185, 80, 0.2);
     }
     .running-agent-chip .dot {
       width: 6px;
@@ -1041,6 +1063,76 @@ DASHBOARD_HTML = """\
     .btn-paused {
       color: var(--yellow) !important;
       border-color: var(--yellow) !important;
+    }
+
+    /* Activity panel */
+    .activity-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+    }
+    .activity-overlay.open { display: flex; }
+    .activity-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 700px;
+      max-width: 90vw;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .activity-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .activity-header h3 {
+      font-size: 0.9rem;
+      color: var(--accent);
+    }
+    .activity-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .activity-entry {
+      padding: 0.3rem 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+    .activity-entry:last-child { border-bottom: none; }
+    .activity-turn {
+      color: var(--text-muted);
+      min-width: 2rem;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .activity-kind {
+      min-width: 5rem;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .activity-kind.thinking { color: var(--purple); }
+    .activity-kind.tool_call { color: var(--yellow); }
+    .activity-kind.tool_result { color: var(--text-muted); }
+    .activity-kind.message { color: var(--green); }
+    .activity-kind.error { color: var(--red); }
+    .activity-summary {
+      color: var(--text);
+      word-break: break-word;
+      white-space: pre-wrap;
     }
 
     /* Create dialog */
@@ -1199,13 +1291,14 @@ async function fetchOrchestratorState() {
     if (running.length === 0) {
       container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
     } else {
-      container.innerHTML = running.map(r =>
-        '<span class="running-agent-chip">' +
+      container.innerHTML = running.map(r => {
+        const id = esc(r.issue_identifier);
+        return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
           '<span class="dot"></span>' +
-          esc(r.issue_identifier) +
+          id +
           (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
-        '</span>'
-      ).join('');
+        '</span>';
+      }).join('');
       if (orchPaused) {
         container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
       }
@@ -1558,6 +1651,43 @@ async function refreshBoard() {
   fetchOrchestratorState();
 }
 
+// --- Agent activity panel ---
+let activityPollTimer = null;
+
+async function openActivityPanel(identifier) {
+  document.getElementById('activity-title').textContent = 'Agent: ' + identifier;
+  document.getElementById('activity-overlay').classList.add('open');
+  await refreshActivity(identifier);
+  activityPollTimer = setInterval(() => refreshActivity(identifier), 2000);
+}
+
+function closeActivityPanel() {
+  const el = document.getElementById('activity-overlay');
+  if (el) el.classList.remove('open');
+  if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
+}
+
+async function refreshActivity(identifier) {
+  try {
+    const res = await fetch('/api/v1/agents/' + encodeURIComponent(identifier) + '/activity');
+    const data = await res.json();
+    const body = document.getElementById('activity-body');
+    const entries = data.activity || [];
+    if (entries.length === 0) {
+      body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No activity yet...</div>';
+      return;
+    }
+    body.innerHTML = entries.map(a =>
+      '<div class="activity-entry">' +
+        '<span class="activity-turn">' + a.turn + '</span>' +
+        '<span class="activity-kind ' + esc(a.kind) + '">' + esc(a.kind) + '</span>' +
+        '<span class="activity-summary">' + esc(a.summary) + '</span>' +
+      '</div>'
+    ).join('');
+    body.scrollTop = body.scrollHeight;
+  } catch(e) {}
+}
+
 // --- Detail panel ---
 async function openDetailPanel(identifier) {
   const panel = document.getElementById('detail-panel');
@@ -1778,6 +1908,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeCreateDialog();
     closeDetailPanel();
+    closeActivityPanel();
   }
 });
 
@@ -1814,6 +1945,18 @@ setInterval(fetchOrchestratorState, 5000);
     <div class="dialog-actions">
       <button onclick="closeCreateDialog()">Cancel</button>
       <button class="btn-primary" id="create-submit" onclick="submitCreateDialog()">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="activity-overlay" id="activity-overlay" onclick="if(event.target===this)closeActivityPanel()">
+  <div class="activity-panel">
+    <div class="activity-header">
+      <h3 id="activity-title">Agent Activity</h3>
+      <button onclick="closeActivityPanel()">&times;</button>
+    </div>
+    <div class="activity-body" id="activity-body">
+      <div style="color: var(--text-muted); text-align: center; padding: 2rem;">Loading...</div>
     </div>
   </div>
 </div>
