@@ -1,4 +1,6 @@
 {
+<<<<<<< HEAD
+<<<<<<< HEAD
   "last_dolt_commit": "rs1qphi5i8ej9v69n67pvdrs0jgc1caa",
   "last_event_id": 0,
   "timestamp": "2026-03-06T20:47:03.58629Z",
@@ -6,6 +8,23 @@
     "issues": 23,
     "events": 660,
     "comments": 1667,
+=======
+  "last_dolt_commit": "0737vqgfstb0u7iq6iit5f65ekmfkh0h",
+=======
+  "last_dolt_commit": "d88l0korg2dr57hdtbr5r3af7fkri1ro",
+>>>>>>> e22bd9c (bd: backup 2026-03-06 20:16)
+  "last_event_id": 0,
+  "timestamp": "2026-03-06T20:16:42.854456Z",
+  "counts": {
+    "issues": 23,
+<<<<<<< HEAD
+    "events": 615,
+    "comments": 1589,
+>>>>>>> d8b3bb7 (bd: backup 2026-03-06 19:39)
+=======
+    "events": 630,
+    "comments": 1618,
+>>>>>>> e22bd9c (bd: backup 2026-03-06 20:16)
     "dependencies": 1,
     "labels": 1,
     "config": 11

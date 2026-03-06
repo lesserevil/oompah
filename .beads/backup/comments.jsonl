@@ -1587,6 +1587,10 @@
 {"author":"oompah","created_at":"2026-03-06T19:38:52Z","id":1587,"issue_id":"umpah-b6d","text":"Agent dispatched (profile: default)"}
 {"author":"oompah","created_at":"2026-03-06T19:38:53Z","id":1588,"issue_id":"umpah-b6d","text":"Focus: Bug Investigator \u0026 Fixer"}
 {"author":"Shawn Edwards","created_at":"2026-03-06T19:39:07Z","id":1589,"issue_id":"umpah-b6d","text":"I understand the issue: The swimlane columns should match the width of the non-swimlane columns. My plan is to investigate how the columns are currently styled and make any necessary changes."}
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e22bd9c (bd: backup 2026-03-06 20:16)
 {"author":"oompah","created_at":"2026-03-06T19:39:33Z","id":1590,"issue_id":"umpah-b6d","text":"Agent completed successfully in 40s (172864 tokens)"}
 {"author":"oompah","created_at":"2026-03-06T20:01:51Z","id":1591,"issue_id":"umpah-b6d","text":"Merge conflict detected: PR/MR #3 cannot be automatically rebased onto main.\n\nPlease resolve the conflicts on this branch (umpah-b6d):\n1. Run: git fetch origin \u0026\u0026 git rebase origin/main\n2. Resolve all conflicts, keeping the intent of both sides\n3. Run tests to verify nothing is broken\n4. Force-push: git push --force-with-lease\n5. Verify the PR/MR is clean and CI passes"}
 {"author":"oompah","created_at":"2026-03-06T20:01:57Z","id":1592,"issue_id":"umpah-b6d","text":"Merge conflict detected: PR/MR #3 cannot be automatically rebased onto main.\n\nPlease resolve the conflicts on this branch (umpah-b6d):\n1. Run: git fetch origin \u0026\u0026 git rebase origin/main\n2. Resolve all conflicts, keeping the intent of both sides\n3. Run tests to verify nothing is broken\n4. Force-push: git push --force-with-lease\n5. Verify the PR/MR is clean and CI passes"}
@@ -1616,6 +1620,7 @@
 {"author":"oompah","created_at":"2026-03-06T20:15:43Z","id":1616,"issue_id":"umpah-b6d","text":"Agent completed successfully in 10s (33263 tokens)"}
 {"author":"oompah","created_at":"2026-03-06T20:16:04Z","id":1617,"issue_id":"umpah-b6d","text":"Agent dispatched (profile: default)"}
 {"author":"oompah","created_at":"2026-03-06T20:16:04Z","id":1618,"issue_id":"umpah-b6d","text":"Focus: Bug Investigator \u0026 Fixer"}
+<<<<<<< HEAD
 {"author":"oompah","created_at":"2026-03-06T20:16:46Z","id":1619,"issue_id":"umpah-b6d","text":"Agent completed successfully in 42s (189844 tokens)"}
 {"author":"oompah","created_at":"2026-03-06T20:23:21Z","id":1620,"issue_id":"umpah-b6d","text":"Merge conflict detected: PR/MR #3 cannot be automatically rebased onto main.\n\nPlease resolve the conflicts on this branch (umpah-b6d):\n1. Run: git fetch origin \u0026\u0026 git rebase origin/main\n2. Resolve all conflicts, keeping the intent of both sides\n3. Run tests to verify nothing is broken\n4. Force-push: git push --force-with-lease\n5. Verify the PR/MR is clean and CI passes"}
 {"author":"oompah","created_at":"2026-03-06T20:23:34Z","id":1621,"issue_id":"umpah-b6d","text":"Merge conflict detected: PR/MR #3 cannot be automatically rebased onto main.\n\nPlease resolve the conflicts on this branch (umpah-b6d):\n1. Run: git fetch origin \u0026\u0026 git rebase origin/main\n2. Resolve all conflicts, keeping the intent of both sides\n3. Run tests to verify nothing is broken\n4. Force-push: git push --force-with-lease\n5. Verify the PR/MR is clean and CI passes"}
@@ -1665,3 +1670,7 @@
 {"author":"oompah","created_at":"2026-03-06T20:43:00Z","id":1665,"issue_id":"umpah-b6d","text":"Agent completed successfully in 203s (391135 tokens)"}
 {"author":"oompah","created_at":"2026-03-06T20:43:30Z","id":1666,"issue_id":"umpah-b6d","text":"Agent dispatched (profile: default)"}
 {"author":"oompah","created_at":"2026-03-06T20:43:31Z","id":1667,"issue_id":"umpah-b6d","text":"Focus: Merge Conflict Resolver"}
+=======
+>>>>>>> d8b3bb7 (bd: backup 2026-03-06 19:39)
+=======
+>>>>>>> e22bd9c (bd: backup 2026-03-06 20:16)
