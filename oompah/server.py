@@ -322,6 +322,7 @@ async def api_create_issue(request: Request):
             issue_type=body.get("type", "task"),
             description=body.get("description"),
             priority=body.get("priority"),
+            initial_status=body.get("status"),
         )
         issue.project_id = project_id
 
