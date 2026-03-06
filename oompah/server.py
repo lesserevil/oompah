@@ -2822,6 +2822,8 @@ PROVIDERS_HTML = """\
       border-radius: 6px;
       padding: 0.35rem 0.5rem;
       min-height: 38px;
+      max-height: 30vh;
+      overflow-y: auto;
       cursor: text;
     }
     .tag-input-wrap:focus-within { border-color: var(--accent); }
@@ -2875,7 +2877,9 @@ PROVIDERS_HTML = """\
       background: rgba(0, 0, 0, 0.6);
       z-index: 100;
       justify-content: center;
-      align-items: center;
+      align-items: flex-start;
+      overflow-y: auto;
+      padding: 2rem 1rem;
     }
     .dialog-overlay.open { display: flex; }
     .dialog {
@@ -2885,7 +2889,9 @@ PROVIDERS_HTML = """\
       padding: 1.5rem;
       width: 520px;
       max-width: 90vw;
+      max-height: none;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      margin: auto;
     }
     .dialog h2 {
       font-size: 1rem;
