@@ -122,6 +122,21 @@ class TestSelectFocus:
         focus = select_focus(issue, foci)
         assert focus.name == DEFAULT_FOCUS.name
 
+    def test_merge_conflict_focus_selected_by_label(self):
+        issue = _make_issue(title="Some feature work", labels=["merge-conflict"])
+        focus = select_focus(issue)
+        assert focus.name == "merge_conflict"
+
+    def test_merge_conflict_focus_high_priority(self):
+        """Merge conflict focus should win over other matches."""
+        issue = _make_issue(
+            title="Fix a bug in the login flow",
+            labels=["merge-conflict"],
+            issue_type="bug",
+        )
+        focus = select_focus(issue)
+        assert focus.name == "merge_conflict"
+
 
 class TestFocusRender:
     def test_render_contains_role(self):

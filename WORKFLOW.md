@@ -20,24 +20,20 @@ agent:
   budget_limit: 50.00
   profiles:
     - name: quick
-      provider_id: prov-efa393f7
       model_role: fast
       issue_types: [chore]
       keywords: [typo, rename, cleanup, lint, format]
       max_priority: 4
     - name: standard
-      provider_id: prov-efa393f7
       model_role: standard
       issue_types: [task, feature]
     - name: deep
-      provider_id: prov-efa393f7
       model_role: deep
       issue_types: [bug, epic]
       keywords: [security, architecture, refactor, critical]
       min_priority: 0
       max_priority: 1
     - name: default
-      provider_id: prov-efa393f7
       model_role: fast
 
 server:

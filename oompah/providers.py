@@ -49,6 +49,12 @@ class ProviderStore:
     def get(self, provider_id: str) -> ModelProvider | None:
         return self._providers.get(provider_id)
 
+    def get_default(self) -> ModelProvider | None:
+        """Return the sole provider if exactly one exists, else None."""
+        if len(self._providers) == 1:
+            return next(iter(self._providers.values()))
+        return None
+
     def create(
         self,
         name: str,

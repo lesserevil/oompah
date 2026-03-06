@@ -411,6 +411,12 @@ class Orchestrator:
                 return higher
         return None
 
+    def _resolve_provider(self, profile: AgentProfile):
+        """Resolve the provider for a profile, falling back to the default."""
+        if profile.provider_id:
+            return self.provider_store.get(profile.provider_id)
+        return self.provider_store.get_default()
+
     def _resolve_model(self, profile: AgentProfile, provider) -> str | None:
         """Resolve the model name from a profile and provider."""
         model = None
@@ -425,9 +431,9 @@ class Orchestrator:
         cost_in = profile.cost_per_1k_input
         cost_out = profile.cost_per_1k_output
         # Resolve costs from provider if available
-        if profile.provider_id:
-            provider = self.provider_store.get(profile.provider_id)
-            if provider and provider.model_costs:
+        provider = self._resolve_provider(profile)
+        if provider:
+            if provider.model_costs:
                 model = self._resolve_model(profile, provider)
                 if model:
                     pc_in, pc_out = provider.get_model_costs(model)
@@ -511,15 +517,12 @@ class Orchestrator:
 
     async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
         """Worker: create workspace, build prompt, run agent turns."""
-        # Route to API agent if profile has a provider_id
-        if profile and profile.provider_id:
-            provider = self.provider_store.get(profile.provider_id)
+        # Route to API agent if a provider can be resolved
+        if profile:
+            provider = self._resolve_provider(profile)
             if provider:
                 await self._run_api_worker(issue, attempt, profile, provider)
                 return
-            else:
-                logger.warning("Provider %s not found for profile %s, falling back to CLI",
-                             profile.provider_id, profile.name)
 
         await self._run_cli_worker(issue, attempt, profile)
 
@@ -556,6 +559,11 @@ class Orchestrator:
             logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role)
             self._post_comment(issue.identifier, f"Focus: {focus.role}",
                                project_id=issue.project_id)
+            # Store focus on running entry for dashboard display
+            running_entry = self.state.running.get(issue.id)
+            if running_entry:
+                running_entry.focus_name = focus.name
+                running_entry.focus_role = focus.role
 
             # Fetch existing comments to kick-start agent context
             try:
@@ -712,6 +720,11 @@ class Orchestrator:
                 logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, cli_focus.name, cli_focus.role)
                 self._post_comment(issue.identifier, f"Focus: {cli_focus.role}",
                                    project_id=issue.project_id)
+                # Store focus on running entry for dashboard display
+                cli_running = self.state.running.get(issue.id)
+                if cli_running:
+                    cli_running.focus_name = cli_focus.name
+                    cli_running.focus_role = cli_focus.role
 
                 # Fetch existing comments to kick-start agent context
                 try:
@@ -1233,6 +1246,8 @@ class Orchestrator:
                 "state": entry.issue.state,
                 "started_at": entry.started_at.isoformat(),
                 "agent_profile": entry.agent_profile_name,
+                "focus_name": entry.focus_name,
+                "focus_role": entry.focus_role,
                 "turn_count": 0,
                 "session_id": None,
                 "last_event": None,
@@ -1299,7 +1314,7 @@ class Orchestrator:
                 {
                     "name": p.name,
                     "command": p.command,
-                    "provider_id": p.provider_id,
+                    "provider_id": p.provider_id or (dp.id if (dp := self.provider_store.get_default()) else None),
                     "model": p.model,
                     "model_role": p.model_role,
                 }

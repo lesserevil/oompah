@@ -54,16 +54,13 @@ agent:
   budget_limit: 50.00
   profiles:
     - name: quick
-      provider_id: prov-abc123
       model_role: fast
       issue_types: [chore]
       keywords: [typo, rename, cleanup]
     - name: standard
-      provider_id: prov-abc123
       model_role: standard
       issue_types: [task, feature]
     - name: deep
-      provider_id: prov-abc123
       model_role: deep
       issue_types: [bug, epic]
 
@@ -108,13 +105,15 @@ Each profile defines a tier of agent with its own model and matching rules:
 
 ```yaml
 - name: quick           # Profile name
-  provider_id: prov-xxx # Model provider to use
   model_role: fast      # Model role (mapped in provider config)
   issue_types: [chore]  # Match issues of these types
   keywords: [typo]      # Match issues containing these words
   min_priority: 0       # Only match priorities >= this
   max_priority: 4       # Only match priorities <= this
+  provider_id: prov-xxx # Optional — overrides default provider
 ```
+
+Providers are configured at runtime via the dashboard (`/providers`) and stored in `.oompah/providers.json`. When only one provider exists, all profiles use it automatically. Use `provider_id` only to pin a profile to a specific provider in multi-provider setups.
 
 ## Focus system
 

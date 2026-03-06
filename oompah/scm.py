@@ -38,6 +38,7 @@ class ReviewRequest:
     additions: int = 0
     deletions: int = 0
     needs_rebase: bool = False
+    has_conflicts: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -58,6 +59,7 @@ class ReviewRequest:
             "additions": self.additions,
             "deletions": self.deletions,
             "needs_rebase": self.needs_rebase,
+            "has_conflicts": self.has_conflicts,
         }
 
 
@@ -173,10 +175,11 @@ class GitHubProvider(SCMProvider):
             reviewers = [r.get("login", "") for r in (pr.get("reviewRequests") or [])
                          if isinstance(r, dict)]
 
-            # Detect if rebase is needed
+            # Detect if rebase is needed or has conflicts
             merge_state = pr.get("mergeStateStatus", "").upper()
             mergeable = pr.get("mergeable", "")
-            rebase_needed = merge_state == "BEHIND" or mergeable == "CONFLICTING"
+            has_conflicts = mergeable == "CONFLICTING"
+            rebase_needed = merge_state == "BEHIND" or has_conflicts
 
             results.append(ReviewRequest(
                 id=str(pr.get("number", "")),
@@ -196,6 +199,7 @@ class GitHubProvider(SCMProvider):
                 additions=pr.get("additions", 0),
                 deletions=pr.get("deletions", 0),
                 needs_rebase=rebase_needed,
+                has_conflicts=has_conflicts,
             ))
         return results
 
@@ -370,11 +374,9 @@ class GitLabProvider(SCMProvider):
                 elif ps in ("running", "pending", "created"):
                     ci_status = "pending"
 
-            # Detect if rebase is needed
-            rebase_needed = (
-                mr.get("has_conflicts", False)
-                or (mr.get("diverged_commits_count") or 0) > 0
-            )
+            # Detect if rebase is needed or has conflicts
+            has_conflicts = mr.get("has_conflicts", False)
+            rebase_needed = has_conflicts or (mr.get("diverged_commits_count") or 0) > 0
 
             results.append(ReviewRequest(
                 id=str(mr.get("iid", mr.get("id", ""))),
@@ -394,6 +396,7 @@ class GitLabProvider(SCMProvider):
                 additions=mr.get("changes_count", 0) if isinstance(mr.get("changes_count"), int) else 0,
                 deletions=0,
                 needs_rebase=rebase_needed,
+                has_conflicts=has_conflicts,
             ))
         return results
 

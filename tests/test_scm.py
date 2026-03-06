@@ -84,11 +84,12 @@ class TestReviewRequest:
             id="42", title="Fix typo", url="https://github.com/x/y/pull/42",
             author="alice", state="open", source_branch="fix-typo",
             target_branch="main", created_at="2025-01-01", updated_at="2025-01-02",
-            needs_rebase=True, draft=True,
+            needs_rebase=True, has_conflicts=True, draft=True,
         )
         d = rr.to_dict()
         assert d["id"] == "42"
         assert d["needs_rebase"] is True
+        assert d["has_conflicts"] is True
         assert d["draft"] is True
         assert d["source_branch"] == "fix-typo"
 
@@ -102,5 +103,6 @@ class TestReviewRequest:
         assert rr.labels == []
         assert rr.draft is False
         assert rr.needs_rebase is False
+        assert rr.has_conflicts is False
         assert rr.additions == 0
         assert rr.deletions == 0

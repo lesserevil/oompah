@@ -241,6 +241,8 @@ class RunningEntry:
     retry_attempt: int
     started_at: datetime
     agent_profile_name: str = "default"
+    focus_name: str = ""
+    focus_role: str = ""
     activity_log: list[Any] = field(default_factory=list)
 
 

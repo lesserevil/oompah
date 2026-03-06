@@ -69,3 +69,21 @@ class TestProviderStore:
         path = str(tmp_path / "providers.json")
         store = ProviderStore(path=path)
         assert store.list_all() == []
+
+    def test_get_default_single_provider(self, tmp_path):
+        path = str(tmp_path / "providers.json")
+        store = ProviderStore(path=path)
+        prov = store.create(name="only", base_url="http://x")
+        assert store.get_default() is prov
+
+    def test_get_default_no_providers(self, tmp_path):
+        path = str(tmp_path / "providers.json")
+        store = ProviderStore(path=path)
+        assert store.get_default() is None
+
+    def test_get_default_multiple_providers(self, tmp_path):
+        path = str(tmp_path / "providers.json")
+        store = ProviderStore(path=path)
+        store.create(name="a", base_url="http://a")
+        store.create(name="b", base_url="http://b")
+        assert store.get_default() is None

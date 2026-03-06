@@ -69,6 +69,7 @@ def _on_orchestrator_change(snapshot: dict) -> None:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             loop.create_task(_broadcast({"type": "state", "data": snapshot}))
+            loop.create_task(broadcast_issues())
     except RuntimeError:
         pass
 
@@ -125,8 +126,12 @@ async def _broadcast(msg: dict) -> None:
     if not _ws_clients:
         return
     text = json.dumps(msg, default=str)
+    try:
+        clients = list(_ws_clients)
+    except RuntimeError:
+        return  # set changed during snapshot, skip this broadcast
     dead: list[WebSocket] = []
-    for ws in _ws_clients:
+    for ws in clients:
         try:
             await ws.send_text(text)
         except Exception:
@@ -1009,6 +1014,13 @@ def _notify_conflict_on_bead(
         )
         tracker.add_comment(issue.identifier, comment_text, author="oompah")
 
+        # Add merge-conflict label so the focus system picks the right role
+        try:
+            tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
+        except Exception as label_exc:
+            logger.warning("Failed to add merge-conflict label to %s: %s",
+                         issue.identifier, label_exc)
+
         # Reopen the bead if it's in a terminal state
         state_lower = issue.state.strip().lower()
         if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
@@ -1817,6 +1829,9 @@ DASHBOARD_HTML = """\
     <span class="agent-stat">Tokens: <strong id="agent-tokens">0</strong></span>
     <span class="agent-stat">Cost: <strong id="agent-cost">$0.00</strong></span>
     <span class="agent-stat">Budget: <strong id="agent-budget">-</strong></span>
+    <span class="agent-stat" id="reviews-stat" style="display:none;cursor:pointer;" onclick="window.location='/reviews'">
+      <strong id="reviews-count" style="color:var(--blue,#58a6ff);">0</strong> <span class="reviews-label">reviews waiting</span>
+    </span>
     <span class="agent-stat" id="proposed-foci-stat" style="display:none;cursor:pointer;" onclick="window.location='/foci'">
       <strong id="proposed-foci-count" style="color:var(--yellow,#e2b340);">0</strong> proposed foci
     </span>
@@ -1843,6 +1858,7 @@ let dragState = null;
 let viewMode = 'flat';
 let collapsedSwimlanes = {};
 let orchPaused = false;
+let lastRunningAgents = [];
 
 // --- WebSocket connection ---
 let ws = null;
@@ -1864,8 +1880,12 @@ function connectWebSocket() {
         handleStateUpdate(msg.data);
       } else if (msg.type === 'issues') {
         renderBoard(msg.data);
+        refreshOpenDetailPanel();
       } else if (msg.type === 'activity') {
         handleActivityPush(msg.identifier, msg.entry);
+        if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
+          refreshOpenDetailPanel();
+        }
       }
     } catch (e) { /* ignore parse errors */ }
   };
@@ -1904,12 +1924,14 @@ function handleStateUpdate(state) {
       '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2);
   }
 
-  // Check for proposed foci
+  // Check for proposed foci and pending reviews
   fetchProposedFociCount();
+  fetchReviewsCount();
 
   // Render running agent chips
   const container = document.getElementById('running-agents');
   const running = state.running || [];
+  lastRunningAgents = running;
   if (running.length === 0) {
     container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
   } else {
@@ -1942,10 +1964,16 @@ function handleStateUpdate(state) {
   // Update activity panel if open
   const activityOverlay = document.getElementById('activity-overlay');
   if (activityOverlay && activityOverlay.classList.contains('open')) {
-    const title = document.getElementById('activity-title').textContent.replace('Agent: ', '');
-    const agent = running.find(r => r.issue_identifier === title);
-    if (agent) {
-      // Live update from state — no need to poll
+    const activeId = document.getElementById('activity-title').dataset.identifier;
+    const agent = running.find(r => r.issue_identifier === activeId);
+    if (agent && agent.focus_role) {
+      // Update title with latest focus info
+      let title = 'Agent: ' + activeId;
+      const parts = [];
+      if (agent.focus_role) parts.push(agent.focus_role);
+      if (agent.agent_profile) parts.push(agent.agent_profile);
+      if (parts.length > 0) title += ' — ' + parts.join(' · ');
+      document.getElementById('activity-title').textContent = title;
     }
   }
 }
@@ -1964,6 +1992,30 @@ async function togglePause() {
   const endpoint = orchPaused ? '/api/v1/orchestrator/resume' : '/api/v1/orchestrator/pause';
   await fetch(endpoint, {method: 'POST'});
   await fetchOrchestratorState();
+}
+
+async function fetchReviewsCount() {
+  try {
+    const res = await fetch('/api/v1/reviews');
+    if (!res.ok) return;
+    const reviews = await res.json();
+    const el = document.getElementById('reviews-stat');
+    const countEl = document.getElementById('reviews-count');
+    const conflicts = reviews.filter(r => r.review && r.review.has_conflicts).length;
+    if (conflicts > 0) {
+      countEl.textContent = conflicts;
+      countEl.style.color = 'var(--red, #f85149)';
+      el.querySelector('.reviews-label').textContent = 'conflicts need resolution';
+      el.style.display = '';
+    } else if (reviews.length > 0) {
+      countEl.textContent = reviews.length;
+      countEl.style.color = 'var(--blue, #58a6ff)';
+      el.querySelector('.reviews-label').textContent = 'reviews waiting';
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  } catch(e) {}
 }
 
 async function fetchProposedFociCount() {
@@ -2347,7 +2399,17 @@ async function refreshBoard() {
 let activityPollTimer = null;
 
 async function openActivityPanel(identifier) {
-  document.getElementById('activity-title').textContent = 'Agent: ' + identifier;
+  const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
+  let title = 'Agent: ' + identifier;
+  if (agent) {
+    const parts = [];
+    if (agent.focus_role) parts.push(agent.focus_role);
+    if (agent.agent_profile) parts.push(agent.agent_profile);
+    if (parts.length > 0) title += ' — ' + parts.join(' · ');
+  }
+  const titleEl = document.getElementById('activity-title');
+  titleEl.textContent = title;
+  titleEl.dataset.identifier = identifier;
   document.getElementById('activity-overlay').classList.add('open');
   await refreshActivity(identifier);
   // Only poll if WebSocket is not connected
@@ -2366,8 +2428,8 @@ function handleActivityPush(identifier, entry) {
   // Only update if the activity panel is open for this agent
   const overlay = document.getElementById('activity-overlay');
   if (!overlay || !overlay.classList.contains('open')) return;
-  const title = document.getElementById('activity-title').textContent;
-  if (title !== 'Agent: ' + identifier) return;
+  const titleEl = document.getElementById('activity-title');
+  if (titleEl.dataset.identifier !== identifier) return;
   const body = document.getElementById('activity-body');
   const div = document.createElement('div');
   div.className = 'activity-entry';
@@ -2401,10 +2463,28 @@ async function refreshActivity(identifier) {
 }
 
 // --- Detail panel ---
+let _openDetailIdentifier = null;
+let _detailRefreshTimer = null;
+
+function refreshOpenDetailPanel() {
+  if (!_openDetailIdentifier) return;
+  if (!document.getElementById('detail-panel').classList.contains('open')) return;
+  // Debounce: wait 500ms to batch rapid updates
+  if (_detailRefreshTimer) clearTimeout(_detailRefreshTimer);
+  _detailRefreshTimer = setTimeout(() => {
+    _detailRefreshTimer = null;
+    if (_openDetailIdentifier) openDetailPanel(_openDetailIdentifier);
+  }, 500);
+}
+
 async function openDetailPanel(identifier) {
+  _openDetailIdentifier = identifier;
   const panel = document.getElementById('detail-panel');
   const body = document.getElementById('detail-panel-body');
-  body.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">Loading...</div>';
+  const isRefresh = panel.classList.contains('open');
+  if (!isRefresh) {
+    body.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">Loading...</div>';
+  }
   panel.classList.add('open');
 
   const res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail`);
@@ -2515,8 +2595,17 @@ async function openDetailPanel(identifier) {
     </div>
   `;
 
+  // Preserve in-progress comment text across refreshes
+  const prevInput = document.getElementById('comment-input');
+  const prevText = prevInput ? prevInput.value : '';
+
   body.innerHTML = html;
-  // Scroll comments to bottom
+
+  // Restore comment draft and scroll to bottom
+  if (prevText) {
+    const newInput = document.getElementById('comment-input');
+    if (newInput) newInput.value = prevText;
+  }
   const commentsList = document.getElementById('comments-list');
   if (commentsList) commentsList.scrollTop = commentsList.scrollHeight;
 }
@@ -2536,6 +2625,7 @@ async function submitComment(identifier) {
 }
 
 function closeDetailPanel() {
+  _openDetailIdentifier = null;
   document.getElementById('detail-panel').classList.remove('open');
 }
 
@@ -3907,12 +3997,18 @@ REVIEWS_HTML = """\
     .diff-add { color: var(--green); }
     .diff-del { color: var(--red); }
     .review-card.needs-rebase { border-color: var(--yellow); }
+    .review-card.has-conflicts { border-color: var(--red); }
     .rebase-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(226, 179, 64, 0.15); color: var(--yellow); text-transform: uppercase; }
+    .conflict-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(248, 81, 73, 0.15); color: var(--red); text-transform: uppercase; }
     .btn-rebase { background: rgba(226, 179, 64, 0.15); color: var(--yellow); border-color: rgba(226, 179, 64, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
     .btn-rebase:hover { background: rgba(226, 179, 64, 0.25); }
     .btn-rebase:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-rebase.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
     .btn-rebase.failed { background: rgba(248, 81, 73, 0.15); color: var(--red); border-color: rgba(248, 81, 73, 0.3); }
+    .btn-resolve { background: rgba(248, 81, 73, 0.15); color: var(--red); border-color: rgba(248, 81, 73, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
+    .btn-resolve:hover { background: rgba(248, 81, 73, 0.25); }
+    .btn-resolve:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-resolve.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
     .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
     .loading { text-align: center; padding: 3rem; color: var(--text-muted); }
     .error-msg { text-align: center; padding: 2rem; color: var(--red); }
@@ -3993,8 +4089,10 @@ function renderReviews(data) {
   // Summary
   const totalReviews = data.length;
   const drafts = data.filter(d => d.review.draft).length;
+  const conflicts = data.filter(d => d.review.has_conflicts).length;
   const projectCount = Object.keys(byProject).length;
   let summaryHtml = '<span>Open: <strong>' + totalReviews + '</strong></span>';
+  if (conflicts > 0) summaryHtml += '<span style="color:var(--red);">Conflicts: <strong>' + conflicts + '</strong></span>';
   if (drafts > 0) summaryHtml += '<span>Drafts: <strong>' + drafts + '</strong></span>';
   summaryHtml += '<span>Projects: <strong>' + projectCount + '</strong></span>';
   summaryBar.innerHTML = summaryHtml;
@@ -4032,7 +4130,11 @@ function renderReviewCard(r, provider, projectId) {
   let draftHtml = r.draft ? ' <span class="draft-badge">Draft</span>' : '';
 
   let rebaseHtml = '';
-  if (r.needs_rebase) {
+  if (r.has_conflicts) {
+    rebaseHtml = ' <span class="conflict-badge">Merge Conflicts</span>' +
+      ' <button class="btn-resolve" ' +
+      'onclick="resolveConflicts(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Resolve Conflicts</button>';
+  } else if (r.needs_rebase) {
     rebaseHtml = ' <span class="rebase-badge">Needs Rebase</span>' +
       ' <button class="btn-rebase" ' +
       'onclick="triggerRebase(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Rebase</button>';
@@ -4060,7 +4162,7 @@ function renderReviewCard(r, provider, projectId) {
   }
 
   return `
-    <div class="review-card ${r.needs_rebase ? 'needs-rebase' : ''}">
+    <div class="review-card ${r.has_conflicts ? 'has-conflicts' : r.needs_rebase ? 'needs-rebase' : ''}">
       <div class="review-header">
         <div class="review-title">
           <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
@@ -4110,6 +4212,33 @@ async function triggerRebase(projectId, reviewId, btn) {
   } catch(e) {
     btn.textContent = 'Error';
     btn.className = 'btn-rebase failed';
+    btn.disabled = false;
+  }
+}
+
+async function resolveConflicts(projectId, reviewId, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Notifying agent...';
+  try {
+    const res = await fetch('/api/v1/reviews/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(reviewId) + '/rebase', {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.notified_issue) {
+      btn.textContent = 'Agent notified (' + data.notified_issue + ')';
+      btn.className = 'btn-resolve success';
+    } else if (data.success) {
+      btn.textContent = 'Rebased';
+      btn.className = 'btn-resolve success';
+      setTimeout(() => loadReviews(), 2000);
+    } else {
+      btn.textContent = 'No matching bead found';
+      btn.className = 'btn-resolve';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
+    btn.className = 'btn-resolve';
     btn.disabled = false;
   }
 }

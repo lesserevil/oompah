@@ -272,6 +272,33 @@ BUILTIN_FOCI: list[Focus] = [
         priority=5,
     ),
     Focus(
+        name="merge_conflict",
+        role="Merge Conflict Resolver",
+        description=(
+            "You are resolving merge conflicts on a pull request branch. Your ONLY job is to "
+            "rebase the branch onto the target, resolve all conflicts correctly, and force-push. "
+            "Do NOT add new features, fix other bugs, or make any changes beyond conflict resolution."
+        ),
+        must_do=[
+            "Run `git fetch origin && git rebase origin/<target_branch>` to start the rebase",
+            "Resolve every conflict by understanding the intent of BOTH sides",
+            "Preserve the original work from this branch — do not drop commits",
+            "Run tests after resolving all conflicts to verify nothing is broken",
+            "Force-push with `git push --force-with-lease` after a clean rebase",
+            "Verify the PR/MR diff looks correct after force-pushing",
+        ],
+        must_not_do=[
+            "Make any code changes beyond what is needed to resolve conflicts",
+            "Drop or squash commits from the branch",
+            "Accept 'ours' or 'theirs' blindly — understand what both sides intended",
+            "Push to the main/default branch — only push to this issue's branch",
+            "Create a new branch or PR — work on the existing one",
+        ],
+        keywords=["merge conflict", "rebase", "conflict"],
+        labels=["merge-conflict"],
+        priority=100,
+    ),
+    Focus(
         name="chore",
         role="Maintenance Engineer",
         description=(

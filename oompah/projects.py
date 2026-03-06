@@ -228,6 +228,7 @@ class ProjectStore:
 
         if os.path.isdir(wt_path):
             logger.info("Worktree already exists path=%s", wt_path)
+            self._prepare_existing_worktree(wt_path, branch_name, project)
             return wt_path
 
         os.makedirs(os.path.dirname(wt_path), exist_ok=True)
@@ -289,8 +290,77 @@ class ProjectStore:
             except Exception:
                 pass
 
+        # Inherit core.hooksPath from the parent repo (e.g. beads merge hooks)
+        self._inherit_hooks_path(wt_path, project)
+
         logger.info("Worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
+
+    def _prepare_existing_worktree(
+        self, wt_path: str, branch_name: str, project: Project,
+    ) -> None:
+        """Ensure an existing worktree is on the correct branch with a clean state."""
+        def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                cmd, cwd=wt_path, capture_output=True, text=True, timeout=30, **kw,
+            )
+
+        # Fetch latest from remote
+        try:
+            _run(["git", "fetch", "origin"])
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
+
+        # Discard any uncommitted changes from previous runs
+        try:
+            _run(["git", "reset", "--hard"])
+            _run(["git", "clean", "-fd"])
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
+
+        # If HEAD is detached or on the wrong branch, check out the issue branch
+        try:
+            r = _run(["git", "symbolic-ref", "--short", "HEAD"])
+            current_branch = r.stdout.strip() if r.returncode == 0 else ""
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            current_branch = ""
+
+        if current_branch != branch_name:
+            try:
+                _run(["git", "checkout", branch_name], check=True)
+                logger.info("Checked out branch %s in worktree %s", branch_name, wt_path)
+            except subprocess.CalledProcessError as exc:
+                logger.warning(
+                    "Failed to checkout branch %s in worktree %s: %s",
+                    branch_name, wt_path, exc.stderr.strip()[:200] if exc.stderr else "",
+                )
+
+        # Ensure hooks path is set (e.g. beads merge hooks)
+        self._inherit_hooks_path(wt_path, project)
+
+    def _inherit_hooks_path(self, wt_path: str, project: Project) -> None:
+        """Copy core.hooksPath from the parent repo to a worktree."""
+        try:
+            r = subprocess.run(
+                ["git", "config", "core.hooksPath"],
+                cwd=project.repo_path,
+                capture_output=True, text=True, timeout=5,
+            )
+            hooks_path = r.stdout.strip() if r.returncode == 0 else ""
+            if not hooks_path:
+                return
+
+            # Resolve relative paths against the parent repo
+            if not os.path.isabs(hooks_path):
+                hooks_path = os.path.join(project.repo_path, hooks_path)
+
+            subprocess.run(
+                ["git", "config", "core.hooksPath", hooks_path],
+                cwd=wt_path,
+                capture_output=True, text=True, timeout=5,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
 
     def remove_worktree(self, project_id: str, issue_identifier: str) -> None:
         project = self._projects.get(project_id)
