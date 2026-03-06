@@ -1,4 +1,4 @@
-"""Prompt construction and template rendering for umpah."""
+"""Prompt construction and template rendering for oompah."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 from liquid import Environment as LiquidEnvironment
 
-from umpah.models import Issue
+from oompah.models import Issue
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-"""Workspace manager for umpah: per-issue isolated workspaces."""
+"""Workspace manager for oompah: per-issue isolated workspaces."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import re
 import shutil
 import subprocess
 
-from umpah.models import Workspace
+from oompah.models import Workspace
 
 logger = logging.getLogger(__name__)
 

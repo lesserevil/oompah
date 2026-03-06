@@ -7,11 +7,11 @@ import logging
 import os
 import uuid
 
-from umpah.models import ModelProvider
+from oompah.models import ModelProvider
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PROVIDERS_PATH = ".umpah/providers.json"
+DEFAULT_PROVIDERS_PATH = ".oompah/providers.json"
 
 
 class ProviderStore:

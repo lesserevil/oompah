@@ -10,14 +10,14 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from umpah.providers import ProviderStore
+from oompah.providers import ProviderStore
 
 if TYPE_CHECKING:
-    from umpah.orchestrator import Orchestrator
+    from oompah.orchestrator import Orchestrator
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="umpah", version="0.1.0")
+app = FastAPI(title="oompah", version="0.1.0")
 
 # Global provider store
 _provider_store = ProviderStore()
@@ -414,7 +414,7 @@ async def api_fetch_models(req: Request):
     def _fetch():
         url = f"{base_url}/models"
         rq = urllib.request.Request(url)
-        rq.add_header("User-Agent", "umpah/0.1")
+        rq.add_header("User-Agent", "oompah/0.1")
         if api_key:
             rq.add_header("Authorization", f"Bearer {api_key}")
         ctx = ssl.create_default_context()
@@ -509,7 +509,7 @@ DASHBOARD_HTML = """\
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>umpah</title>
+  <title>oompah</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -1214,7 +1214,7 @@ DASHBOARD_HTML = """\
 </head>
 <body>
   <div class="toolbar">
-    <h1>umpah</h1>
+    <h1>oompah</h1>
     <div style="display: flex; align-items: center; gap: 1rem;">
       <span class="status" id="status-text">Loading...</span>
       <div class="view-toggle">
@@ -1977,7 +1977,7 @@ PROVIDERS_HTML = """\
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>umpah - Providers</title>
+  <title>oompah - Providers</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -2220,7 +2220,7 @@ PROVIDERS_HTML = """\
 </head>
 <body>
   <div class="toolbar">
-    <h1><a href="/">umpah</a> <span>/ providers</span></h1>
+    <h1><a href="/">oompah</a> <span>/ providers</span></h1>
     <div style="display: flex; gap: 0.5rem;">
       <button onclick="window.location='/'">Back to Board</button>
     </div>

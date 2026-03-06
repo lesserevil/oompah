@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "umpah"
+name = "oompah"
 version = "0.1.0"
 description = "An automation service that orchestrates coding agents to execute project work sourced from issue trackers"
 requires-python = ">=3.11"
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-umpah = "umpah.__main__:main"
+oompah = "oompah.__main__:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["umpah"]
+packages = ["oompah"]

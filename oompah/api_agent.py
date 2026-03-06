@@ -433,7 +433,7 @@ class ApiAgentSession:
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self._api_key}",
-            "User-Agent": "umpah/0.1",
+            "User-Agent": "oompah/0.1",
         }
 
         return await asyncio.to_thread(

@@ -1,4 +1,4 @@
-"""CLI entry point for umpah."""
+"""CLI entry point for oompah."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ import sys
 
 from watchfiles import awatch
 
-logger = logging.getLogger("umpah")
+logger = logging.getLogger("oompah")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="umpah",
+        prog="oompah",
         description="Orchestrate coding agents to execute project work",
     )
     parser.add_argument(
@@ -57,10 +57,10 @@ def main() -> None:
 
 
 async def _run(workflow_path: str, cli_port: int | None) -> None:
-    from umpah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-    from umpah.orchestrator import Orchestrator
-    from umpah.providers import ProviderStore
-    from umpah.server import app, set_orchestrator
+    from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
+    from oompah.orchestrator import Orchestrator
+    from oompah.providers import ProviderStore
+    from oompah.server import app, set_orchestrator
 
     # Load initial workflow
     try:

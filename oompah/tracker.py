@@ -1,4 +1,4 @@
-"""Issue tracker client using beads (bd) for umpah."""
+"""Issue tracker client using beads (bd) for oompah."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import logging
 import subprocess
 from datetime import datetime, timezone
 
-from umpah.models import BlockerRef, Issue
+from oompah.models import BlockerRef, Issue
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class BeadsTracker:
             return self._normalize_issue(raw)
         raise TrackerError("Unexpected response from bd create")
 
-    def add_comment(self, identifier: str, text: str, author: str = "umpah") -> dict:
+    def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         """Add a comment to an issue."""
         raw = self._run_bd([
             "comments", "add", identifier, text,

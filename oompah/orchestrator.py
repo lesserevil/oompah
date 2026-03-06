@@ -8,10 +8,10 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from umpah.agent import AgentError, AgentEvent, AgentSession
-from umpah.api_agent import AgentActivity, ApiAgentSession
-from umpah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-from umpah.models import (
+from oompah.agent import AgentError, AgentEvent, AgentSession
+from oompah.api_agent import AgentActivity, ApiAgentSession
+from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
+from oompah.models import (
     AgentProfile,
     AgentTotals,
     Issue,
@@ -20,10 +20,10 @@ from umpah.models import (
     RetryEntry,
     RunningEntry,
 )
-from umpah.prompt import PromptError, build_continuation_prompt, render_prompt
-from umpah.providers import ProviderStore
-from umpah.tracker import BeadsTracker, TrackerError
-from umpah.workspace import WorkspaceError, WorkspaceManager
+from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
+from oompah.providers import ProviderStore
+from oompah.tracker import BeadsTracker, TrackerError
+from oompah.workspace import WorkspaceError, WorkspaceManager
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +318,7 @@ class Orchestrator:
             return True  # no budget limit set
         return self.state.agent_totals.estimated_cost < self.config.budget_limit
 
-    def _post_comment(self, identifier: str, text: str, author: str = "umpah") -> None:
+    def _post_comment(self, identifier: str, text: str, author: str = "oompah") -> None:
         """Post a comment on an issue (best-effort, non-blocking)."""
         try:
             self.tracker.add_comment(identifier, text, author=author)

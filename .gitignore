@@ -13,5 +13,5 @@ build/
 .venv/
 *.egg
 
-# Umpah local config
-.umpah/
+# Oompah local config
+.oompah/

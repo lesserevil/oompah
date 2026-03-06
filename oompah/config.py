@@ -1,4 +1,4 @@
-"""Workflow loader and config layer for umpah."""
+"""Workflow loader and config layer for oompah."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from umpah.models import AgentProfile, WorkflowDefinition
+from oompah.models import AgentProfile, WorkflowDefinition
 
 
 class WorkflowError(Exception):
@@ -151,7 +151,7 @@ class ServiceConfig:
     def __post_init__(self):
         if not self.workspace_root:
             self.workspace_root = os.path.join(
-                tempfile.gettempdir(), "umpah_workspaces"
+                tempfile.gettempdir(), "oompah_workspaces"
             )
 
     @classmethod
@@ -183,7 +183,7 @@ class ServiceConfig:
         if ws_root:
             ws_root = _expand_path(str(ws_root))
         else:
-            ws_root = os.path.join(tempfile.gettempdir(), "umpah_workspaces")
+            ws_root = os.path.join(tempfile.gettempdir(), "oompah_workspaces")
 
         # Parse agent profiles
         raw_profiles = agent.get("profiles", []) or []

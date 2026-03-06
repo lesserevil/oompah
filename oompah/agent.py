@@ -153,7 +153,7 @@ class AgentSession:
                 "id": init_id,
                 "method": "initialize",
                 "params": {
-                    "clientInfo": {"name": "umpah", "version": "0.1.0"},
+                    "clientInfo": {"name": "oompah", "version": "0.1.0"},
                     "capabilities": {},
                 },
             }

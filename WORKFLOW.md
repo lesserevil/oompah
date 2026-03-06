@@ -11,7 +11,7 @@ polling:
   interval_ms: 30000
 
 workspace:
-  root: /tmp/umpah_workspaces
+  root: /tmp/oompah_workspaces
 
 agent:
   max_concurrent_agents: 5

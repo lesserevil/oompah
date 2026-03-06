@@ -1,4 +1,4 @@
-"""Domain models for umpah."""
+"""Domain models for oompah."""
 
 from __future__ import annotations
 
