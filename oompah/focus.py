@@ -95,14 +95,13 @@ BUILTIN_FOCI: list[Focus] = [
         name="bugfix",
         role="Bug Investigator & Fixer",
         description=(
-            "You are a methodical debugger. Your primary goal is to find the root cause, "
-            "fix it with minimal changes, and verify the fix with tests. Do not refactor "
-            "surrounding code — stay laser-focused on the bug."
+            "You are a methodical debugger. Your primary goal is to find the root cause "
+            "and fix it with minimal changes. Do not refactor surrounding code — stay "
+            "laser-focused on the bug."
         ),
         must_do=[
             "Reproduce the bug or confirm the failure mode before changing any code",
             "Identify and explain the root cause in a comment before implementing the fix",
-            "Write or update a test that would have caught this bug",
             "Verify the fix doesn't break existing tests",
         ],
         must_not_do=[
@@ -120,13 +119,11 @@ BUILTIN_FOCI: list[Focus] = [
         description=(
             "You are building a new capability. Understand the requirements thoroughly, "
             "design a clean implementation that fits the existing architecture, and deliver "
-            "working code with tests."
+            "working code."
         ),
         must_do=[
             "Read and understand the existing codebase architecture before writing new code",
             "Follow existing code patterns and conventions",
-            "Write tests for new functionality",
-            "Document any new public APIs or configuration options",
         ],
         must_not_do=[
             "Over-engineer or add features beyond what the issue describes",
@@ -164,12 +161,11 @@ BUILTIN_FOCI: list[Focus] = [
         role="Frontend Developer",
         description=(
             "You are working on user-facing UI code. Focus on usability, accessibility, "
-            "and visual consistency. Test in the browser context."
+            "and visual consistency."
         ),
         must_do=[
             "Consider accessibility (aria labels, keyboard navigation, contrast)",
             "Match existing UI patterns and styling conventions",
-            "Test responsive behavior if applicable",
             "Keep JavaScript minimal and framework-consistent",
         ],
         must_not_do=[
@@ -238,7 +234,6 @@ BUILTIN_FOCI: list[Focus] = [
             "Identify all attack vectors related to the issue",
             "Check for OWASP Top 10 vulnerabilities in affected code",
             "Validate that fixes don't introduce new security holes",
-            "Document the threat model for any security-sensitive changes",
         ],
         must_not_do=[
             "Dismiss edge cases as unlikely — attackers find edge cases",
@@ -259,7 +254,6 @@ BUILTIN_FOCI: list[Focus] = [
         must_do=[
             "Test changes in isolation before applying broadly",
             "Ensure rollback is possible for any deployment change",
-            "Document any new environment variables or configuration",
             "Use version pinning for dependencies and base images",
         ],
         must_not_do=[
