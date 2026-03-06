@@ -1523,6 +1523,31 @@ DASHBOARD_HTML = """\
       color: var(--text);
       line-height: 1.4;
     }
+    .detail-editable {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.4;
+      cursor: text;
+      padding: 2px 4px;
+      margin: -2px -4px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      outline: none;
+      min-height: 1.3em;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .detail-editable:hover { border-color: var(--border); }
+    .detail-editable:focus {
+      border-color: var(--accent);
+      background: var(--bg);
+      cursor: text;
+    }
+    .detail-editable:empty::before {
+      content: attr(data-placeholder);
+      color: var(--border);
+      font-style: italic;
+    }
     .detail-children-list {
       list-style: none;
     }
@@ -2503,15 +2528,18 @@ let _detailRefreshTimer = null;
 function refreshOpenDetailPanel() {
   if (!_openDetailIdentifier) return;
   if (!document.getElementById('detail-panel').classList.contains('open')) return;
-  // Bug fix: Skip refresh if the user is actively typing in the comment
-  // textarea, so their draft is not destroyed.
+  // Do not overwrite while user is editing title, description, or comment.
+  const focused = document.activeElement;
+  if (focused && focused.classList.contains('detail-editable')) return;
   const commentInput = document.getElementById('comment-input');
   if (commentInput && document.activeElement === commentInput) return;
   // Debounce: wait 500ms to batch rapid updates
   if (_detailRefreshTimer) clearTimeout(_detailRefreshTimer);
   _detailRefreshTimer = setTimeout(() => {
     _detailRefreshTimer = null;
-    // Re-check: user may have started typing during the debounce window
+    // Re-check: user may have started editing during the debounce window
+    const stillFocused = document.activeElement;
+    if (stillFocused && stillFocused.classList.contains('detail-editable')) return;
     const ci = document.getElementById('comment-input');
     if (ci && document.activeElement === ci) return;
     if (_openDetailIdentifier) openDetailPanel(_openDetailIdentifier);
@@ -2540,7 +2568,9 @@ async function openDetailPanel(identifier) {
   let html = `
     <div class="detail-field">
       <div class="detail-field-label">Title</div>
-      <div class="detail-field-value">${esc(detail.title)}</div>
+      <div class="detail-editable" contenteditable="true" spellcheck="false"
+           id="detail-title-edit" data-field="title" data-placeholder="No title"
+           data-id="${esc(detail.identifier)}">${esc(detail.title)}</div>
     </div>
     <div class="detail-field">
       <div class="detail-field-label">Type</div>
@@ -2556,7 +2586,9 @@ async function openDetailPanel(identifier) {
     </div>
     <div class="detail-field">
       <div class="detail-field-label">Description</div>
-      <div class="detail-field-value">${esc(detail.description || 'No description')}</div>
+      <div class="detail-editable" contenteditable="true" spellcheck="false"
+           id="detail-desc-edit" data-field="description" data-placeholder="No description"
+           data-id="${esc(detail.identifier)}">${esc(detail.description || '')}</div>
     </div>
   `;
 
@@ -2641,6 +2673,24 @@ async function openDetailPanel(identifier) {
   const prevText = prevInput ? prevInput.value : '';
 
   body.innerHTML = html;
+
+  // Wire up editable title and description fields
+  for (const el of body.querySelectorAll('.detail-editable')) {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey && el.id === 'detail-title-edit') {
+        // Single-line feel for title: Enter saves
+        e.preventDefault();
+        el.blur();
+      }
+      if (e.key === 'Escape') el.blur();
+    });
+    el.addEventListener('blur', async () => {
+      const field = el.dataset.field;
+      const id = el.dataset.id;
+      const newValue = el.textContent.trim();
+      await updateIssue(id, {[field]: newValue});
+    });
+  }
 
   // Restore comment draft and scroll to bottom
   if (prevText) {
