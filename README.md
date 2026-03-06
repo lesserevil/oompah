@@ -22,13 +22,14 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 # Clone and install
 git clone https://github.com/lesserevil/oompah.git
 cd oompah
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv venv
+uv pip install -e .
 
 # Configure WORKFLOW.md (see below), then run
 oompah
 ```
+
+> [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 
 ## Configuration
 
@@ -173,7 +174,7 @@ curl -X POST http://localhost:8080/api/v1/projects \
 
 ```bash
 # Install with dev dependencies
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 
 # Run tests
 pytest -v
