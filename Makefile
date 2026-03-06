@@ -9,7 +9,7 @@ PORT := 8080
 setup: $(VENV)/.uv-setup
 
 $(VENV)/.uv-setup: pyproject.toml
-	uv venv $(VENV)
+	@test -d $(VENV) || uv venv $(VENV)
 	uv pip install -e .
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
