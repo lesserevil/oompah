@@ -359,6 +359,15 @@ def score_focus(focus: Focus, issue: Issue) -> int:
     """Score how well a focus matches an issue. Higher = better fit."""
     score = 0
 
+    # Handoff label: "needs:<focus_name>" is an explicit routing directive
+    # and takes highest priority (score 200)
+    if issue.labels:
+        for label in issue.labels:
+            if label.startswith("needs:"):
+                requested_focus = label[len("needs:"):]
+                if requested_focus.lower() == focus.name.lower():
+                    score += 200
+
     # Keyword matches in title and description
     search_text = f"{issue.title or ''} {issue.description or ''}"
     keyword_hits = _text_matches(search_text, focus.keywords)

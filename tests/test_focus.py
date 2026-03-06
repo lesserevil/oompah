@@ -328,6 +328,49 @@ class TestAnalyzeCompletedIssue:
         assert "review and edit" not in p.description.lower(), "Description should be meaningful, not boilerplate"
 
 
+class TestHandoffLabelScoring:
+    def test_needs_label_routes_to_correct_focus(self):
+        """A needs:frontend label should strongly prefer the frontend focus."""
+        foci = [
+            Focus(name="bugfix", role="Bug Fixer", description="", keywords=["bug", "crash"], status="active"),
+            Focus(name="frontend", role="Frontend Dev", description="", keywords=["ui", "css"], status="active"),
+        ]
+        # Issue title suggests bugfix, but label says needs:frontend
+        issue = _make_issue(title="Fix a crash in the parser", labels=["needs:frontend"])
+        focus = select_focus(issue, foci)
+        assert focus.name == "frontend"
+
+    def test_needs_label_overrides_type_match(self):
+        """needs: label should win over issue_type matching."""
+        foci = [
+            Focus(name="bugfix", role="Bug Fixer", description="", keywords=["bug"], issue_types=["bug"], priority=10, status="active"),
+            Focus(name="security", role="Security Auditor", description="", keywords=["xss"], priority=15, status="active"),
+        ]
+        issue = _make_issue(title="Fix a bug", issue_type="bug", labels=["needs:security"])
+        focus = select_focus(issue, foci)
+        assert focus.name == "security"
+
+    def test_needs_label_score_value(self):
+        """Direct test that needs: label adds 200 to score."""
+        focus = Focus(name="frontend", role="", description="", keywords=["ui"])
+        issue = _make_issue(title="unrelated title", labels=["needs:frontend"])
+        score = score_focus(focus, issue)
+        assert score >= 200
+
+    def test_needs_label_no_match(self):
+        """needs: label for a different focus should not boost score."""
+        focus = Focus(name="bugfix", role="", description="", keywords=["bug"])
+        issue = _make_issue(title="some issue", labels=["needs:frontend"])
+        score = score_focus(focus, issue)
+        assert score == 0
+
+    def test_needs_label_case_insensitive(self):
+        focus = Focus(name="Frontend", role="", description="", keywords=["ui"])
+        issue = _make_issue(title="x", labels=["needs:frontend"])
+        score = score_focus(focus, issue)
+        assert score >= 200
+
+
 class TestFocusSuggestionSerialization:
     def test_round_trip(self):
         original = FocusSuggestion(

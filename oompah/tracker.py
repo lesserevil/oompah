@@ -186,6 +186,17 @@ class BeadsTracker:
         """Reopen a closed issue by setting status to open."""
         self._run_bd(["update", identifier, "--status=open"])
 
+    def add_label(self, identifier: str, label: str) -> None:
+        """Add a label to an issue."""
+        self._run_bd(["label", "add", identifier, label])
+
+    def remove_label(self, identifier: str, label: str) -> None:
+        """Remove a label from an issue."""
+        try:
+            self._run_bd(["label", "remove", identifier, label])
+        except TrackerError:
+            pass  # label may not exist
+
     def archive_issue(self, identifier: str) -> None:
         """Mark an issue as archived via set-state dimension."""
         self._run_bd(["set-state", identifier, "archive=yes",

@@ -93,6 +93,37 @@ You are working in a git worktree on a branch named after this issue. When your 
 
 Do NOT push to the main branch. Always work on your issue branch and create a PR.
 
+## Handoff to Another Agent
+
+If you determine that this issue requires a different specialist to complete (e.g., you're a backend agent but the fix needs frontend work, or a bug investigation reveals a security issue), you can **hand off** the issue:
+
+1. **Post a detailed handoff comment** explaining what you've done, what you've found, and what the next agent needs to do:
+   ```
+   bd comments add {{ issue.identifier }} "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments."
+   ```
+
+2. **Add a `needs:<focus>` label** to route the issue to the right specialist:
+   ```
+   bd label add {{ issue.identifier }} needs:frontend
+   ```
+   Available focus names: `bugfix`, `feature`, `refactor`, `frontend`, `docs`, `test`, `security`, `devops`, `chore`
+
+3. **Set the issue back to open**:
+   ```
+   bd update {{ issue.identifier }} --status=open
+   ```
+
+**Important:** Do NOT close the issue when handing off. The orchestrator will automatically re-dispatch it to an agent with the appropriate focus. Your handoff comment is critical — it preserves your work and gives the next agent context to continue.
+
+**When to hand off:**
+- The fix requires expertise outside your focus area (e.g., CSS/UI work for a backend agent)
+- You've completed your part but another specialist needs to finish (e.g., investigation done, frontend fix needed)
+- The issue turns out to be a different type than originally categorized
+
+**When NOT to hand off:**
+- You can reasonably complete the work yourself
+- You're just stuck — try harder or leave a comment asking for help instead
+
 ## Instructions
 
 1. Read the issue carefully and understand the requirements

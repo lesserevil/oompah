@@ -457,6 +457,21 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
+    def _clear_handoff_labels(self, issue: Issue) -> None:
+        """Remove any needs:* handoff labels after focus has been selected."""
+        if not issue.labels:
+            return
+        handoff_labels = [l for l in issue.labels if l.startswith("needs:")]
+        if not handoff_labels:
+            return
+        try:
+            tracker = self._tracker_for_issue(issue)
+            for label in handoff_labels:
+                tracker.remove_label(issue.identifier, label)
+                logger.info("Cleared handoff label %s from %s", label, issue.identifier)
+        except Exception as exc:
+            logger.debug("Failed to clear handoff labels on %s: %s", issue.identifier, exc)
+
     async def _dispatch(self, issue: Issue, attempt: int | None,
                         override_profile: str | None = None) -> None:
         """Dispatch a worker for an issue."""
@@ -559,6 +574,8 @@ class Orchestrator:
             logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role)
             self._post_comment(issue.identifier, f"Focus: {focus.role}",
                                project_id=issue.project_id)
+            # Clean up handoff labels after focus selection
+            self._clear_handoff_labels(issue)
             # Store focus on running entry for dashboard display
             running_entry = self.state.running.get(issue.id)
             if running_entry:
@@ -720,6 +737,8 @@ class Orchestrator:
                 logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, cli_focus.name, cli_focus.role)
                 self._post_comment(issue.identifier, f"Focus: {cli_focus.role}",
                                    project_id=issue.project_id)
+                # Clean up handoff labels after focus selection
+                self._clear_handoff_labels(issue)
                 # Store focus on running entry for dashboard display
                 cli_running = self.state.running.get(issue.id)
                 if cli_running:
