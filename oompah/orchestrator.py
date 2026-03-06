@@ -27,7 +27,13 @@ from oompah.providers import ProviderStore
 from oompah.tracker import BeadsTracker, TrackerError
 from oompah.workspace import WorkspaceError, WorkspaceManager
 
+import json
+import os
+
 logger = logging.getLogger(__name__)
+
+DEFAULT_SERVICE_STATE_PATH = ".oompah/service_state.json"
+
 
 
 class Orchestrator:
@@ -35,11 +41,13 @@ class Orchestrator:
 
     def __init__(self, config: ServiceConfig, workflow_path: str,
                  provider_store: ProviderStore | None = None,
-                 project_store: ProjectStore | None = None):
+                 project_store: ProjectStore | None = None,
+                 state_path: str | None = None):
         self.config = config
         self.workflow_path = workflow_path
         self.provider_store = provider_store or ProviderStore()
         self.project_store = project_store or ProjectStore()
+        self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self.state = OrchestratorState(
             poll_interval_ms=config.poll_interval_ms,
             max_concurrent_agents=config.max_concurrent_agents,
@@ -64,10 +72,33 @@ class Orchestrator:
         self._prompt_template: str = ""
         self._tick_task: asyncio.Task | None = None
         self._stopping = False
-        self._paused = False
+        # Bug fix: load persisted paused state from disk so it survives
+        # service restarts. Previously _paused was always initialized to False.
+        self._paused = self._load_paused_state()
         self._observers: list[Any] = []
         self._activity_observers: list[Any] = []
         self._refresh_requested = asyncio.Event()
+
+    def _load_paused_state(self) -> bool:
+        """Load persisted paused state from disk. Returns False if not found."""
+        if not os.path.exists(self._state_path):
+            return False
+        try:
+            with open(self._state_path, "r") as f:
+                data = json.load(f)
+            return bool(data.get("paused", False))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to load service state from %s: %s", self._state_path, exc)
+            return False
+
+    def _save_paused_state(self) -> None:
+        """Persist paused state to disk."""
+        try:
+            os.makedirs(os.path.dirname(self._state_path) or ".", exist_ok=True)
+            with open(self._state_path, "w") as f:
+                json.dump({"paused": self._paused}, f, indent=2)
+        except OSError as exc:
+            logger.warning("Failed to save service state to %s: %s", self._state_path, exc)
 
     def reload_config(self, config: ServiceConfig, prompt_template: str) -> None:
         """Apply new config and prompt template from workflow reload."""
@@ -100,6 +131,7 @@ class Orchestrator:
     def pause(self) -> None:
         """Pause: stop all running agents and prevent new dispatches."""
         self._paused = True
+        self._save_paused_state()
         # Terminate all running agents (keep workspaces for resume)
         asyncio.ensure_future(self._terminate_all_running())
         logger.info("Orchestrator paused — all agents stopped")
@@ -114,6 +146,7 @@ class Orchestrator:
     def unpause(self) -> None:
         """Resume dispatching — agents will be re-dispatched on next tick."""
         self._paused = False
+        self._save_paused_state()
         logger.info("Orchestrator unpaused")
         self._refresh_requested.set()
         self._notify_observers()
