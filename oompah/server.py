@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 """FastAPI server with htmx kanban dashboard, JSON REST API, and WebSocket push."""
 
 from __future__ import annotations
@@ -4678,3 +4679,6 @@ def _esc(s: str) -> str:
 =======
 /*very long string containing HTML, CSS, and Python code*/
 >>>>>>> fa688de (umpah-b6d: Fix swimlane column width)
+=======
+<html>...</html>
+>>>>>>> 070b275 (umpah-b6d: fixed swimlane alignment)
