@@ -112,6 +112,7 @@ class Project:
     branch: str = "main"
     git_user_name: str | None = None
     git_user_email: str | None = None
+    yolo: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -120,6 +121,7 @@ class Project:
             "repo_url": self.repo_url,
             "repo_path": self.repo_path,
             "branch": self.branch,
+            "yolo": self.yolo,
         }
         if self.git_user_name:
             d["git_user_name"] = self.git_user_name
@@ -137,6 +139,7 @@ class Project:
             branch=str(d.get("branch", "main")),
             git_user_name=d.get("git_user_name"),
             git_user_email=d.get("git_user_email"),
+            yolo=bool(d.get("yolo", False)),
         )
 
 

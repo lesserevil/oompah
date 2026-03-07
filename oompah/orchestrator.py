@@ -274,7 +274,10 @@ class Orchestrator:
             if self._should_dispatch(issue):
                 await self._dispatch(issue, attempt=None)
 
-        # Part 5: Auto-archive closed issues older than 7 days
+        # Part 5: YOLO mode — auto-merge, auto-resolve, auto-retry
+        await self._yolo_review_actions()
+
+        # Part 6: Auto-archive closed issues older than 7 days
         self._auto_archive()
 
         self._notify_observers()
@@ -384,6 +387,117 @@ class Orchestrator:
             except Exception as exc:
                 logger.debug("Failed to fetch open reviews for %s: %s", project.name, exc)
         return branches
+
+    async def _yolo_review_actions(self) -> None:
+        """Auto-manage reviews for projects with YOLO enabled.
+
+        For each open PR/MR on a YOLO project:
+        - CI passed + mergeable → merge it
+        - Has merge conflicts → trigger conflict resolution
+        - CI failed → re-file ticket to fix tests
+        """
+        for project in self.project_store.list_all():
+            if not project.yolo:
+                continue
+            provider = detect_provider(project.repo_url)
+            if not provider:
+                continue
+            slug = extract_repo_slug(project.repo_url)
+            try:
+                reviews = provider.list_open_reviews(slug)
+            except Exception as exc:
+                logger.debug("YOLO: failed to fetch reviews for %s: %s", project.name, exc)
+                continue
+
+            for review in reviews:
+                if review.draft:
+                    continue
+                review_id = review.id
+
+                if review.has_conflicts:
+                    # Auto-resolve conflicts
+                    logger.info("YOLO: auto-resolving conflicts on %s MR #%s",
+                                project.name, review_id)
+                    success, msg = provider.rebase_review(slug, review_id)
+                    if not success and "conflict" in msg.lower():
+                        self._yolo_notify_conflict(project, provider, slug, review_id)
+                    continue
+
+                if review.ci_status == "failed":
+                    # Auto-retry: re-file the ticket to fix tests
+                    logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
+                                project.name, review_id)
+                    self._yolo_retry_ci(project, review)
+                    continue
+
+                if review.ci_status == "passed" and not review.needs_rebase:
+                    # Auto-merge
+                    logger.info("YOLO: auto-merging %s MR #%s",
+                                project.name, review_id)
+                    success, msg = provider.merge_review(slug, review_id)
+                    if success:
+                        logger.info("YOLO: merged %s MR #%s", project.name, review_id)
+                    else:
+                        logger.warning("YOLO: merge failed for %s MR #%s: %s",
+                                       project.name, review_id, msg)
+
+    def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
+        """Notify the bead about a merge conflict (YOLO mode)."""
+        try:
+            review = provider.get_review(slug, review_id)
+            if not review:
+                return
+            source_branch = review.source_branch
+            target_branch = review.target_branch
+            if not source_branch:
+                return
+            tracker = self._tracker_for_project(project.id)
+            issue = tracker.fetch_issue_detail(source_branch)
+            if not issue:
+                return
+            comment_text = (
+                f"YOLO: Merge conflict detected on MR #{review_id}. "
+                f"Rebase onto {target_branch} and resolve conflicts."
+            )
+            tracker.add_comment(issue.identifier, comment_text, author="oompah")
+            try:
+                tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
+            except Exception:
+                pass
+            terminal = {s.lower() for s in self.config.tracker_terminal_states}
+            if issue.state.strip().lower() in terminal:
+                tracker.reopen_issue(issue.identifier)
+                tracker.update_issue(issue.identifier, priority="0")
+                logger.info("YOLO: reopened %s as P0 for conflict resolution", issue.identifier)
+        except Exception as exc:
+            logger.warning("YOLO: conflict notification failed for MR #%s: %s", review_id, exc)
+
+    def _yolo_retry_ci(self, project, review) -> None:
+        """Re-file a ticket to fix failed CI tests (YOLO mode)."""
+        try:
+            source_branch = review.source_branch
+            if not source_branch:
+                return
+            tracker = self._tracker_for_project(project.id)
+            issue = tracker.fetch_issue_detail(source_branch)
+            if not issue:
+                return
+            # Don't re-file if already open/in_progress with ci-fix label
+            state_lower = issue.state.strip().lower()
+            if state_lower in ("open", "in_progress") and "ci-fix" in issue.labels:
+                return
+            tracker.update_issue(issue.identifier, status="open", priority="0")
+            tracker.add_label(issue.identifier, "ci-fix")
+            tracker.add_comment(
+                issue.identifier,
+                f"YOLO: CI tests failed on MR #{review.id}. "
+                "Fix the failing tests so this MR can merge. "
+                "Do NOT rewrite the feature — only fix test failures.",
+                author="oompah",
+            )
+            logger.info("YOLO: re-filed %s as P0 ci-fix", issue.identifier)
+        except Exception as exc:
+            logger.warning("YOLO: CI retry failed for branch %s: %s", review.source_branch, exc)
 
     def _resolve_blocker_state(self, blocker: BlockerRef, issue: Issue) -> str:
         """Look up a blocker's current state, using a per-tick cache."""

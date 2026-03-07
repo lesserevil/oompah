@@ -105,6 +105,15 @@ class SCMProvider(ABC):
         ...
 
     @abstractmethod
+    def merge_review(self, repo: str, review_id: str) -> tuple[bool, str]:
+        """Merge a pull/merge request.
+
+        Returns:
+            (success, message) tuple.
+        """
+        ...
+
+    @abstractmethod
     def is_available(self) -> bool:
         """Check if the CLI tool is installed and authenticated."""
         ...
@@ -294,6 +303,21 @@ class GitHubProvider(SCMProvider):
             return False, "gh CLI not found"
         except subprocess.TimeoutExpired:
             return False, "Rebase timed out"
+
+    def merge_review(self, repo: str, review_id: str) -> tuple[bool, str]:
+        try:
+            r = subprocess.run(
+                ["gh", "pr", "merge", review_id, "--repo", repo,
+                 "--squash", "--delete-branch"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if r.returncode == 0:
+                return True, "PR merged successfully"
+            return False, f"Merge failed: {r.stderr.strip()[:300]}"
+        except FileNotFoundError:
+            return False, "gh CLI not found"
+        except subprocess.TimeoutExpired:
+            return False, "Merge timed out"
 
     def needs_rebase(self, repo: str, review_id: str) -> bool:
         try:
@@ -504,6 +528,21 @@ class GitLabProvider(SCMProvider):
             return False, "glab CLI not found"
         except subprocess.TimeoutExpired:
             return False, "Rebase timed out"
+
+    def merge_review(self, repo: str, review_id: str) -> tuple[bool, str]:
+        try:
+            r = subprocess.run(
+                ["glab", "mr", "merge", review_id, "--repo", self._glab_repo_arg(repo),
+                 "--squash", "--remove-source-branch", "--yes"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if r.returncode == 0:
+                return True, "MR merged successfully"
+            return False, f"Merge failed: {r.stderr.strip()[:300]}"
+        except FileNotFoundError:
+            return False, "glab CLI not found"
+        except subprocess.TimeoutExpired:
+            return False, "Merge timed out"
 
     def needs_rebase(self, repo: str, review_id: str) -> bool:
         try:

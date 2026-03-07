@@ -729,6 +729,8 @@ async def api_update_project(project_id: str, request: Request):
         for key in ("name", "repo_path", "branch", "git_user_name", "git_user_email"):
             if key in body:
                 fields[key] = body[key]
+        if "yolo" in body:
+            fields["yolo"] = bool(body["yolo"])
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
@@ -3915,6 +3917,13 @@ async function loadProjects() {
         <span class="field-label">Git User:</span>
         <span class="field-value">${esc(p.git_user_name)} &lt;${esc(p.git_user_email || '')}&gt;</span>
       </div>` : ''}
+      <div class="field-row">
+        <span class="field-label">YOLO:</span>
+        <label style="cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
+          <input type="checkbox" ${p.yolo ? 'checked' : ''} onchange="toggleYolo('${esc(p.id)}', this.checked)">
+          <span style="font-size:0.75rem;color:${p.yolo ? 'var(--green)' : 'var(--text-muted)'}">${p.yolo ? 'On — auto-merge, auto-resolve, auto-retry' : 'Off'}</span>
+        </label>
+      </div>
       <div class="field-row" style="margin-top:0.75rem;">
         <button onclick="showWorktrees('${esc(p.id)}')">Worktrees</button>
         <button class="btn-danger" onclick="deleteProject('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
@@ -3966,6 +3975,15 @@ async function addProject() {
     errEl.textContent = (data.error && data.error.message) || 'Failed to add project';
     errEl.style.display = 'block';
   }
+}
+
+async function toggleYolo(id, enabled) {
+  await fetch('/api/v1/projects/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({yolo: enabled}),
+  });
+  loadProjects();
 }
 
 async function deleteProject(id, name) {
