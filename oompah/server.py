@@ -2010,6 +2010,7 @@ const COLUMN_LABELS = {deferred: 'Backlog', open: 'Open', in_progress: 'In Progr
 let boardData = {};
 let allIssuesFlat = [];
 let dragState = null;
+const optimisticUpdates = {};  // identifier -> {state, priority, expiry}
 let columnDragState = null;  // {sourceState, epicId (or null for flat)}
 let viewMode = 'flat';
 let collapsedSwimlanes = {};
@@ -2251,6 +2252,12 @@ function moveIssueInBoard(identifier, newState) {
 }
 
 async function updateIssue(identifier, fields) {
+  // Record optimistic state to suppress rubber-banding from stale WebSocket data
+  optimisticUpdates[identifier] = {
+    state: fields.status,
+    priority: fields.priority,
+    expiry: Date.now() + 10000,  // 10 second window
+  };
   const res = await fetch(`/api/v1/issues/${identifier}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
@@ -2282,7 +2289,43 @@ function getEpicById(epicId) {
   return allIssuesFlat.find(i => i.id === epicId && i.issue_type === 'epic');
 }
 
+function applyOptimisticOverrides(data) {
+  // Override stale server data with recent optimistic updates
+  const now = Date.now();
+  for (const id of Object.keys(optimisticUpdates)) {
+    if (optimisticUpdates[id].expiry < now) {
+      delete optimisticUpdates[id];
+      continue;
+    }
+    const upd = optimisticUpdates[id];
+    // Find the issue in any column and move it to the correct one
+    for (const [state, issues] of Object.entries(data)) {
+      const idx = issues.findIndex(i => i.identifier === id);
+      if (idx !== -1) {
+        const issue = issues[idx];
+        const targetState = upd.state || issue.state;
+        if (upd.priority !== undefined) issue.priority = upd.priority;
+        if (targetState !== state) {
+          issues.splice(idx, 1);
+          if (!data[targetState]) data[targetState] = [];
+          issue.state = targetState;
+          data[targetState].push(issue);
+        }
+        // If server confirms our update, clear it early
+        if ((!upd.state || issue.state === upd.state) &&
+            (upd.priority === undefined || issue.priority === upd.priority)) {
+          delete optimisticUpdates[id];
+        }
+        break;
+      }
+    }
+  }
+  return data;
+}
+
 function renderBoard(data) {
+  data = applyOptimisticOverrides(data);
+
   // Bug fix: If the user is currently editing a card field, defer the
   // full DOM rebuild. Store the latest data and render it once the
   // user finishes editing (on blur).
