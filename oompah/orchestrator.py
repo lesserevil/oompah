@@ -390,6 +390,9 @@ class Orchestrator:
                 await self._dispatch(issue, attempt=None)
         t4 = time.monotonic()
 
+        # Part 4.5: Reset orphaned in_progress issues (no agent, no retry)
+        self._reset_orphaned_in_progress(candidates)
+
         # Part 5 + 6 + 7: YOLO + auto-archive + merged-labeling in parallel
         def _timed_yolo():
             t = time.monotonic()
@@ -605,6 +608,30 @@ class Orchestrator:
             for branches in pool.map(_fetch_for_project, projects):
                 result |= branches
         return result
+
+    def _reset_orphaned_in_progress(self, candidates: list[Issue]) -> None:
+        """Reset in_progress issues back to open if no agent is attached.
+
+        An issue is orphaned if it's in_progress but has no running agent
+        and no pending retry. This prevents issues from getting stuck.
+        """
+        running_ids = set(self.state.running.keys())
+        retry_ids = set(self.state.retry_attempts.keys())
+
+        for issue in candidates:
+            if issue.state.strip().lower() != "in_progress":
+                continue
+            if issue.id in running_ids or issue.id in retry_ids:
+                continue
+            # Orphaned — reset to open
+            try:
+                project_id = issue.project_id
+                tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+                tracker.update_issue(issue.identifier, status="open")
+                logger.info("Reset orphaned in_progress issue %s to open (no agent attached)",
+                            issue.identifier)
+            except Exception as exc:
+                logger.debug("Failed to reset orphaned issue %s: %s", issue.identifier, exc)
 
     def _label_merged_issues(self) -> None:
         """Label closed issues whose branch has been merged."""

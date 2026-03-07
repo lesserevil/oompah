@@ -275,6 +275,74 @@ class TestBlockerHasUnmergedPr:
         assert orch._blocker_has_unmerged_pr(blocker) is False
 
 
+class TestResetOrphanedInProgress:
+    """Tests for _reset_orphaned_in_progress."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def test_resets_orphaned_in_progress_to_open(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="in_progress")
+        issue.project_id = project.id
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_called_once_with("feat-1", status="open")
+
+    def test_skips_issue_with_running_agent(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="in_progress")
+        issue.project_id = project.id
+        orch.state.running["feat-1"] = MagicMock()
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_skips_issue_with_pending_retry(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="in_progress")
+        issue.project_id = project.id
+        orch.state.retry_attempts["feat-1"] = MagicMock()
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_skips_open_issues(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="open")
+        issue.project_id = project.id
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_not_called()
+
+
 class TestShouldDispatchCompleted:
     """Tests that completed issues are not re-dispatched."""
 
