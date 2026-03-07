@@ -1,0 +1,399 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah - Reviews</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --yellow: #e2b340; --purple: #bc8cff;
+    }
+    html { font-size: 125%; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .toolbar h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    button { background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 0.3rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    .content { max-width: 1000px; margin: 1.5rem auto; padding: 0 1.5rem; }
+    .summary-bar { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-muted); }
+    .summary-bar strong { color: var(--text); }
+    .project-section { margin-bottom: 2rem; }
+    .project-header { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .provider-badge { font-size: 0.6rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 10px; text-transform: uppercase; }
+    .provider-github { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .provider-gitlab { background: rgba(226, 131, 64, 0.15); color: #e8833f; }
+    .review-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 0.5rem; }
+    .review-card:hover { border-color: var(--accent); }
+    .review-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem; }
+    .review-title { font-weight: 600; font-size: 0.9rem; }
+    .review-title a { color: var(--text); text-decoration: none; }
+    .review-title a:hover { color: var(--accent); text-decoration: underline; }
+    .review-id { color: var(--text-muted); font-size: 0.75rem; font-weight: 400; }
+    .review-meta { display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap; align-items: center; }
+    .review-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; line-height: 1.4; max-height: 3.6em; overflow: hidden; }
+    .draft-badge { background: rgba(125, 133, 144, 0.2); color: var(--text-muted); font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 8px; font-weight: 600; }
+    .ci-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.2rem; vertical-align: middle; }
+    .ci-passed { background: var(--green); }
+    .ci-failed { background: var(--red); }
+    .ci-pending { background: var(--yellow); }
+    .branch-info { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.7rem; background: rgba(88, 166, 255, 0.08); padding: 0.1rem 0.35rem; border-radius: 4px; }
+    .label-tag { display: inline-block; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 4px; background: rgba(188, 140, 255, 0.15); color: var(--purple); margin-left: 0.25rem; }
+    .diff-stat { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.7rem; }
+    .diff-add { color: var(--green); }
+    .diff-del { color: var(--red); }
+    .review-card.needs-rebase { border-color: var(--yellow); }
+    .review-card.has-conflicts { border-color: var(--red); }
+    .rebase-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(226, 179, 64, 0.15); color: var(--yellow); text-transform: uppercase; }
+    .conflict-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(248, 81, 73, 0.15); color: var(--red); text-transform: uppercase; }
+    .btn-rebase { background: rgba(226, 179, 64, 0.15); color: var(--yellow); border-color: rgba(226, 179, 64, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
+    .btn-rebase:hover { background: rgba(226, 179, 64, 0.25); }
+    .btn-rebase:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-rebase.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
+    .btn-rebase.failed { background: rgba(248, 81, 73, 0.15); color: var(--red); border-color: rgba(248, 81, 73, 0.3); }
+    .btn-resolve { background: rgba(248, 81, 73, 0.15); color: var(--red); border-color: rgba(248, 81, 73, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
+    .btn-resolve:hover { background: rgba(248, 81, 73, 0.25); }
+    .btn-resolve:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-resolve.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
+    .btn-retry { background: rgba(248, 81, 73, 0.15); color: var(--red); border-color: rgba(248, 81, 73, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
+    .btn-retry:hover { background: rgba(248, 81, 73, 0.25); }
+    .btn-retry:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-retry.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .loading { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .error-msg { text-align: center; padding: 2rem; color: var(--red); }
+  </style>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: String(msg).slice(0, 200),
+          detail: (err && err.stack) || (src + ':' + line + ':' + col),
+          priority: 3
+        })
+      }).catch(function() {});
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled promise rejection';
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: msg.slice(0, 200),
+          detail: e.reason && e.reason.stack,
+          priority: 3
+        })
+      }).catch(function() {});
+    });
+  </script>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">oompah</a> <span>/ Reviews</span></h1>
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <select id="project-filter" onchange="onProjectChange()" style="display:none;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
+      <button onclick="loadReviews()">Refresh</button>
+      <button onclick="window.location='/'">Dashboard</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="summary-bar" id="summary-bar"></div>
+    <div id="reviews-container"><div class="loading">Loading reviews...</div></div>
+  </div>
+
+<script>
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  const days = Math.floor(hours / 24);
+  return days + 'd ago';
+}
+
+async function loadReviews() {
+  const container = document.getElementById('reviews-container');
+  container.innerHTML = '<div class="loading">Loading reviews...</div>';
+
+  try {
+    const res = await fetch('/api/v1/reviews');
+    if (!res.ok) {
+      const err = await res.json();
+      container.innerHTML = '<div class="error-msg">Failed to load reviews: ' +
+        esc((err.error && err.error.message) || 'unknown error') + '</div>';
+      return;
+    }
+    const data = await res.json();
+    renderReviews(data);
+  } catch(e) {
+    container.innerHTML = '<div class="error-msg">Failed to load reviews: ' + esc(e.message) + '</div>';
+  }
+}
+
+function renderReviews(data) {
+  const container = document.getElementById('reviews-container');
+  const summaryBar = document.getElementById('summary-bar');
+
+  if (data.length === 0) {
+    container.innerHTML = '<div class="empty-state">No open pull requests or merge requests.</div>';
+    summaryBar.innerHTML = '';
+    return;
+  }
+
+  // Group by project
+  const byProject = {};
+  for (const item of data) {
+    const key = item.project_name;
+    if (!byProject[key]) byProject[key] = { provider: item.provider, project_id: item.project_id, reviews: [] };
+    byProject[key].reviews.push(item.review);
+  }
+
+  // Summary
+  const totalReviews = data.length;
+  const drafts = data.filter(d => d.review.draft).length;
+  const conflicts = data.filter(d => d.review.has_conflicts).length;
+  const projectCount = Object.keys(byProject).length;
+  let summaryHtml = '<span>Open: <strong>' + totalReviews + '</strong></span>';
+  if (conflicts > 0) summaryHtml += '<span style="color:var(--red);">Conflicts: <strong>' + conflicts + '</strong></span>';
+  if (drafts > 0) summaryHtml += '<span>Drafts: <strong>' + drafts + '</strong></span>';
+  summaryHtml += '<span>Projects: <strong>' + projectCount + '</strong></span>';
+  summaryBar.innerHTML = summaryHtml;
+
+  // Render by project
+  let html = '';
+  for (const [projectName, group] of Object.entries(byProject)) {
+    const providerClass = 'provider-' + group.provider;
+    const providerLabel = group.provider === 'github' ? 'GitHub' : 'GitLab';
+    const reviewLabel = group.provider === 'github' ? 'PRs' : 'MRs';
+
+    html += '<div class="project-section">';
+    html += '<div class="project-header">' + esc(projectName) +
+      ' <span class="provider-badge ' + providerClass + '">' + providerLabel + '</span>' +
+      ' <span style="color:var(--text-muted);font-size:0.8rem;font-weight:400;">' +
+      group.reviews.length + ' open ' + reviewLabel + '</span></div>';
+
+    for (const r of group.reviews) {
+      html += renderReviewCard(r, group.provider, group.project_id);
+    }
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function renderReviewCard(r, provider, projectId) {
+  const idPrefix = provider === 'github' ? '#' : '!';
+
+  let ciHtml = '';
+  if (r.ci_status) {
+    ciHtml = '<span><span class="ci-dot ci-' + r.ci_status + '"></span>' + r.ci_status + '</span>';
+    if (r.ci_status === 'failed') {
+      ciHtml += ' <button class="btn-retry" onclick="retryReview(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Retry</button>';
+    }
+  }
+
+  let draftHtml = r.draft ? ' <span class="draft-badge">Draft</span>' : '';
+
+  let rebaseHtml = '';
+  if (r.has_conflicts) {
+    rebaseHtml = ' <span class="conflict-badge">Merge Conflicts</span>' +
+      ' <button class="btn-resolve" ' +
+      'onclick="resolveConflicts(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Resolve Conflicts</button>';
+  } else if (r.needs_rebase) {
+    rebaseHtml = ' <span class="rebase-badge">Needs Rebase</span>' +
+      ' <button class="btn-rebase" ' +
+      'onclick="triggerRebase(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Rebase</button>';
+  }
+
+  let labelsHtml = '';
+  if (r.labels && r.labels.length > 0) {
+    labelsHtml = r.labels.map(l => '<span class="label-tag">' + esc(l) + '</span>').join('');
+  }
+
+  let diffHtml = '';
+  if (r.additions > 0 || r.deletions > 0) {
+    diffHtml = '<span class="diff-stat"><span class="diff-add">+' + r.additions + '</span> ' +
+      '<span class="diff-del">-' + r.deletions + '</span></span>';
+  }
+
+  let descHtml = '';
+  if (r.description) {
+    descHtml = '<div class="review-desc">' + esc(r.description) + '</div>';
+  }
+
+  let reviewersHtml = '';
+  if (r.reviewers && r.reviewers.length > 0) {
+    reviewersHtml = '<span>Reviewers: ' + r.reviewers.map(v => esc(v)).join(', ') + '</span>';
+  }
+
+  return `
+    <div class="review-card ${r.has_conflicts ? 'has-conflicts' : r.needs_rebase ? 'needs-rebase' : ''}">
+      <div class="review-header">
+        <div class="review-title">
+          <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+          ${draftHtml}${rebaseHtml}${labelsHtml}
+          <span class="review-id">${idPrefix}${esc(r.id)}</span>
+        </div>
+        ${diffHtml}
+      </div>
+      <div class="review-meta">
+        <span>${esc(r.author)}</span>
+        <span class="branch-info">${esc(r.source_branch)} &rarr; ${esc(r.target_branch)}</span>
+        ${ciHtml}
+        <span>${timeAgo(r.created_at)}</span>
+        ${reviewersHtml}
+      </div>
+      ${descHtml}
+    </div>
+  `;
+}
+
+async function triggerRebase(projectId, reviewId, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Rebasing...';
+  try {
+    const res = await fetch('/api/v1/reviews/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(reviewId) + '/rebase', {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Done';
+      btn.className = 'btn-rebase success';
+      setTimeout(() => loadReviews(), 2000);
+    } else {
+      btn.className = 'btn-rebase failed';
+      btn.disabled = false;
+      const msg = (data.message || '').toLowerCase();
+      if (msg.includes('conflict') && data.notified_issue) {
+        btn.textContent = 'Conflicts — notified ' + data.notified_issue;
+        btn.className = 'btn-rebase success';
+        btn.disabled = true;
+      } else if (msg.includes('conflict')) {
+        btn.textContent = 'Conflicts — no matching bead found';
+      } else {
+        btn.textContent = 'Failed';
+      }
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
+    btn.className = 'btn-rebase failed';
+    btn.disabled = false;
+  }
+}
+
+async function resolveConflicts(projectId, reviewId, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Notifying agent...';
+  try {
+    const res = await fetch('/api/v1/reviews/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(reviewId) + '/rebase', {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.notified_issue) {
+      btn.textContent = 'Agent notified (' + data.notified_issue + ')';
+      btn.className = 'btn-resolve success';
+    } else if (data.success) {
+      btn.textContent = 'Rebased';
+      btn.className = 'btn-resolve success';
+      setTimeout(() => loadReviews(), 2000);
+    } else {
+      btn.textContent = 'No matching bead found';
+      btn.className = 'btn-resolve';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
+    btn.className = 'btn-resolve';
+    btn.disabled = false;
+  }
+}
+
+async function retryReview(projectId, reviewId, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Reopening...';
+  try {
+    const res = await fetch('/api/v1/reviews/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(reviewId) + '/retry', {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Reopened ' + (data.identifier || '');
+      btn.className = 'btn-retry success';
+      setTimeout(() => loadReviews(), 2000);
+    } else {
+      btn.textContent = data.message || 'No bead found';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+
+
+// --- Project selector (sticky) ---
+const PROJECT_STORAGE_KEY = 'oompah_selected_project';
+
+async function initProjectSelector() {
+  const sel = document.getElementById('project-filter');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) return;
+    const projects = await res.json();
+    if (projects.length === 0) { sel.style.display = 'none'; return; }
+    const saved = localStorage.getItem(PROJECT_STORAGE_KEY) || '';
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + escP(p.id) + '"' +
+        (p.id === saved ? ' selected' : '') + '>' + escP(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } catch(e) { sel.style.display = 'none'; }
+}
+
+function onProjectChange() {
+  const sel = document.getElementById('project-filter');
+  if (sel) localStorage.setItem(PROJECT_STORAGE_KEY, sel.value);
+}
+
+function escP(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function filterReviewsByProject(data) {
+  const sel = document.getElementById('project-filter');
+  const pid = sel ? sel.value : '';
+  if (!pid) return data;
+  return data.filter(item => item.project_id === pid);
+}
+
+loadReviews();
+initProjectSelector();
+</script>
+</body>
+</html>

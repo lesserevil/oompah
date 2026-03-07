@@ -1,0 +1,2087 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-hover: #1c2129;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #7d8590;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --orange: #d18616;
+      --purple: #bc8cff;
+    }
+    html { font-size: 125%; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .toolbar h1 {
+      font-size: 1.25rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .toolbar .status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    button {
+      background: var(--surface);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    button.active {
+      background: rgba(88, 166, 255, 0.15);
+      border-color: var(--accent);
+    }
+
+    .view-toggle {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .view-toggle button {
+      border: none;
+      border-radius: 0;
+      padding: 0.3rem 0.6rem;
+    }
+    .view-toggle button + button {
+      border-left: 1px solid var(--border);
+    }
+
+    .main-area {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .board {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      align-items: flex-start;
+    }
+
+    /* Swimlane view */
+    .board.swimlane-view {
+      flex-direction: column;
+      align-items: stretch;
+      overflow-y: auto;
+      overflow-x: hidden;
+      gap: 0;
+      padding: 1rem calc(1.5rem - 1px);
+    }
+    .swimlane {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin: 0 0 0.75rem 0;
+      background: var(--surface);
+    }
+    .swimlane-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .swimlane.collapsed .swimlane-header {
+      border-bottom: none;
+    }
+    .swimlane-toggle {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      transition: transform 0.15s;
+    }
+    .swimlane.collapsed .swimlane-toggle {
+      transform: rotate(-90deg);
+    }
+    .swimlane-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+    }
+    .swimlane-counts {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .swimlane-actions button {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.5rem;
+    }
+    .swimlane-columns {
+      display: flex;
+      gap: 1rem;
+      padding: 0.5rem 0;
+      overflow-x: auto;
+    }
+    .swimlane.collapsed .swimlane-columns {
+      display: none;
+    }
+    .swimlane-columns .column {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      max-height: none;
+    }
+
+    .column {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      min-width: 280px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 80px);
+    }
+    .column-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      cursor: grab;
+    }
+    .column-header:active { cursor: grabbing; }
+    .column-header.col-drag-over {
+      background: rgba(88, 166, 255, 0.15);
+      border-bottom-color: var(--blue);
+    }
+    .column-header .col-grip {
+      color: var(--text-muted);
+      opacity: 0.4;
+      font-size: 0.7rem;
+      margin-right: 0.4rem;
+      user-select: none;
+    }
+    .column-header:hover .col-grip { opacity: 0.8; }
+    .column-header .col-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    .column-header .col-count {
+      font-size: 0.7rem;
+      background: var(--border);
+      color: var(--text-muted);
+      padding: 0.1rem 0.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .column-body {
+      padding: 0.5rem;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 60px;
+    }
+    .column-body.drag-over {
+      background: rgba(88, 166, 255, 0.05);
+      outline: 2px dashed var(--accent);
+      outline-offset: -4px;
+      border-radius: 0 0 10px 10px;
+    }
+
+    .card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 0.5rem;
+      cursor: grab;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+    .card:hover {
+      border-color: var(--accent);
+    }
+    .card.dragging {
+      opacity: 0.4;
+    }
+    .card-id {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .card-id-left {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 500;
+      line-height: 1.3;
+      cursor: text;
+      padding: 2px 4px;
+      margin: -2px -4px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      outline: none;
+      min-height: 1.3em;
+    }
+    .card-title:hover { border-color: var(--border); }
+    .card-title:focus {
+      border-color: var(--accent);
+      background: var(--surface);
+      cursor: text;
+    }
+    .card-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+      line-height: 1.3;
+      cursor: text;
+      padding: 2px 4px;
+      margin-left: -4px;
+      margin-right: -4px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      outline: none;
+      max-height: 3.9em;
+      overflow: hidden;
+    }
+    .card-desc:hover { border-color: var(--border); }
+    .card-desc:focus {
+      border-color: var(--accent);
+      background: var(--surface);
+      cursor: text;
+      max-height: none;
+    }
+    .card-desc:empty::before {
+      content: "Add description...";
+      color: var(--border);
+      font-style: italic;
+    }
+
+    .priority-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .p0 { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+    .p1 { background: rgba(209, 134, 22, 0.2); color: var(--orange); }
+    .p2 { background: rgba(210, 153, 34, 0.2); color: var(--yellow); }
+    .p3 { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .p4 { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
+
+    /* Epic badge on child cards */
+    .epic-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(188, 140, 255, 0.15);
+      color: var(--purple);
+      cursor: pointer;
+      position: relative;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* Epic tooltip */
+    .epic-tooltip {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      width: 240px;
+      z-index: 50;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+    .epic-badge:hover .epic-tooltip {
+      display: block;
+    }
+    .epic-tooltip-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+    .epic-tooltip-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+    .epic-tooltip-link {
+      font-size: 0.7rem;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+    .epic-tooltip-link:hover { text-decoration: underline; }
+
+    .drop-indicator {
+      height: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      margin: 2px 0;
+      display: none;
+    }
+    .drop-indicator.visible {
+      display: block;
+    }
+
+    /* Detail slide-out panel */
+    .detail-panel {
+      width: 0;
+      overflow: hidden;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      transition: width 0.2s ease;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .detail-panel.open {
+      width: 400px;
+    }
+    .detail-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .detail-panel-header h3 {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .detail-panel-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+    }
+    .detail-panel-close:hover { color: var(--text); background: none; }
+    .detail-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+    }
+    .detail-field {
+      margin-bottom: 1rem;
+    }
+    .detail-field-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+    .detail-field-value {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .detail-editable {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.4;
+      cursor: text;
+      padding: 2px 4px;
+      margin: -2px -4px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      outline: none;
+      min-height: 1.3em;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .detail-editable:hover { border-color: var(--border); }
+    .detail-editable:focus {
+      border-color: var(--accent);
+      background: var(--bg);
+      cursor: text;
+    }
+    .detail-editable:empty::before {
+      content: attr(data-placeholder);
+      color: var(--border);
+      font-style: italic;
+    }
+    .detail-children-list {
+      list-style: none;
+    }
+    .detail-children-list li {
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      margin-bottom: 0.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .detail-children-list li:hover {
+      background: var(--bg);
+    }
+    .detail-child-state {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: var(--border);
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* Comments */
+    .comments-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 0.5rem;
+    }
+    .comment {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    }
+    .comment:last-child { border-bottom: none; }
+    .comment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.15rem;
+    }
+    .comment-author {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .comment-time {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .comment-text {
+      font-size: 0.75rem;
+      color: var(--text);
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .comment-input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.75rem;
+      font-family: inherit;
+      outline: none;
+      resize: vertical;
+      min-height: 50px;
+    }
+    .comment-input:focus { border-color: var(--accent); }
+
+    /* Agent status bar */
+    .agent-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.4rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.72rem;
+      flex-shrink: 0;
+    }
+    .agent-bar .agent-stat {
+      color: var(--text-muted);
+    }
+    .agent-bar .agent-stat strong {
+      color: var(--text);
+    }
+    .agent-bar .paused-badge {
+      background: rgba(210, 153, 34, 0.2);
+      color: var(--yellow);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .running-agents {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .running-agent-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(63, 185, 80, 0.1);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.65rem;
+      color: var(--green);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      cursor: pointer;
+    }
+    .running-agent-chip:hover {
+      background: rgba(63, 185, 80, 0.2);
+    }
+    .running-agent-chip .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .btn-paused {
+      color: var(--yellow) !important;
+      border-color: var(--yellow) !important;
+    }
+
+    /* Activity panel */
+    .activity-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+    }
+    .activity-overlay.open { display: flex; }
+    .activity-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 700px;
+      max-width: 90vw;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .activity-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .activity-header h3 {
+      font-size: 0.9rem;
+      color: var(--accent);
+    }
+    .activity-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .activity-entry {
+      padding: 0.3rem 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: flex-start;
+      cursor: pointer;
+    }
+    .activity-entry:hover { background: rgba(48, 54, 61, 0.3); }
+    .activity-entry:last-child { border-bottom: none; }
+    .activity-turn {
+      color: var(--text-muted);
+      min-width: 2rem;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .activity-kind {
+      min-width: 5rem;
+      flex-shrink: 0;
+      font-weight: 600;
+    }
+    .activity-kind.thinking { color: var(--purple); }
+    .activity-kind.tool_call { color: var(--yellow); }
+    .activity-kind.tool_result { color: var(--text-muted); }
+    .activity-kind.message { color: var(--green); }
+    .activity-kind.error { color: var(--red); }
+    .activity-summary {
+      color: var(--text);
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .activity-detail {
+      display: none;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.25rem;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .activity-entry.expanded .activity-detail { display: block; }
+
+    /* Create dialog */
+    .dialog-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .dialog-overlay.open {
+      display: flex;
+    }
+    .dialog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 460px;
+      max-width: 90vw;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .dialog h2 {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+    .dialog label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+      margin-top: 0.75rem;
+    }
+    .dialog label:first-of-type { margin-top: 0; }
+    .dialog input, .dialog select, .dialog textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .dialog input:focus, .dialog select:focus, .dialog textarea:focus {
+      border-color: var(--accent);
+    }
+    .dialog textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+    .dialog-actions button {
+      padding: 0.4rem 1rem;
+      font-size: 0.8rem;
+    }
+    .dialog-actions .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+    .dialog-actions .btn-primary:hover {
+      background: #79bbff;
+    }
+    .dialog-actions .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  </style>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: String(msg).slice(0, 200),
+          detail: (err && err.stack) || (src + ':' + line + ':' + col),
+          priority: 3
+        })
+      }).catch(function() {});
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled promise rejection';
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: msg.slice(0, 200),
+          detail: e.reason && e.reason.stack,
+          priority: 3
+        })
+      }).catch(function() {});
+    });
+  </script>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>oompah</h1>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <span class="status" id="status-text">Loading...</span>
+      <div class="view-toggle">
+        <button id="btn-flat" class="active" onclick="setViewMode('flat')">Flat</button>
+        <button id="btn-swimlane" onclick="setViewMode('swimlane')">Swimlanes</button>
+      </div>
+      <select id="project-filter" onchange="saveProjectFilter(); refreshBoard()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
+      <button onclick="openCreateDialog()">+ Create</button>
+      <button onclick="window.location='/projects-manage'">Projects</button>
+      <button onclick="window.location='/providers'">Providers</button>
+      <button onclick="window.location='/foci'">Foci</button>
+      <button onclick="window.location='/reviews'">Reviews</button>
+      <button id="btn-pause" onclick="togglePause()">Pause</button>
+      <button onclick="refreshBoard()">Refresh</button>
+    </div>
+  </div>
+  <div class="agent-bar" id="agent-bar">
+    <span class="agent-stat">Agents: <strong id="agent-count">0</strong></span>
+    <span class="agent-stat">Tokens: <strong id="agent-tokens">0</strong></span>
+    <span class="agent-stat">Cost: <strong id="agent-cost">$0.00</strong></span>
+    <span class="agent-stat">Budget: <strong id="agent-budget">-</strong></span>
+    <span class="agent-stat" id="reviews-stat" style="display:none;cursor:pointer;" onclick="window.location='/reviews'">
+      <strong id="reviews-count" style="color:var(--blue,#58a6ff);">0</strong> <span class="reviews-label">reviews waiting</span>
+    </span>
+    <span class="agent-stat" id="proposed-foci-stat" style="display:none;cursor:pointer;" onclick="window.location='/foci'">
+      <strong id="proposed-foci-count" style="color:var(--yellow,#e2b340);">0</strong> proposed foci
+    </span>
+    <div class="running-agents" id="running-agents"></div>
+  </div>
+  <div class="main-area">
+    <div class="board" id="board">
+      <div id="board-spinner" style="display:flex;align-items:center;justify-content:center;width:100%;padding:3rem;color:var(--text-muted);font-size:0.9rem;gap:0.75rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+        </svg>
+        Loading issues...
+      </div>
+    </div>
+    <div class="detail-panel" id="detail-panel">
+      <div class="detail-panel-header">
+        <h3 id="detail-panel-title">Details</h3>
+        <button class="detail-panel-close" onclick="closeDetailPanel()">&times;</button>
+      </div>
+      <div class="detail-panel-body" id="detail-panel-body"></div>
+    </div>
+  </div>
+
+<script>
+const COLUMNS = ['deferred', 'open', 'in_progress', 'closed'];
+const COLUMN_LABELS = {deferred: 'Backlog', open: 'Open', in_progress: 'In Progress', closed: 'Closed'};
+
+let boardData = {};
+let allIssuesFlat = [];
+let dragState = null;
+const optimisticUpdates = {};  // identifier -> {state, priority, expiry}
+let columnDragState = null;  // {sourceState, epicId (or null for flat)}
+let viewMode = 'flat';
+let collapsedSwimlanes = {};
+let orchPaused = false;
+let lastRunningAgents = [];
+let currentProjects = [];
+
+// --- Edit-state tracking ---
+// Bug fix: Track when user is inline-editing a card field so that incoming
+// WebSocket updates do not destroy their in-progress edits by rebuilding the DOM.
+let editingState = null;      // {identifier, field} or null
+let _pendingBoardData = null; // queued board data to render after editing ends
+let _editingDetailPanel = false; // true if user is typing in comment textarea
+
+// --- WebSocket connection ---
+let ws = null;
+let wsReconnectTimer = null;
+
+function connectWebSocket() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+  ws.onopen = () => {
+    document.getElementById('status-text').textContent = 'Connected';
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'state') {
+        handleStateUpdate(msg.data);
+      } else if (msg.type === 'issues') {
+        renderBoard(filterByProject(msg.data));
+        refreshOpenDetailPanel();
+      } else if (msg.type === 'activity') {
+        handleActivityPush(msg.identifier, msg.entry);
+        if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
+          refreshOpenDetailPanel();
+        }
+      }
+    } catch (e) { /* ignore parse errors */ }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('status-text').textContent = 'Reconnecting...';
+    ws = null;
+    wsReconnectTimer = setTimeout(connectWebSocket, 2000);
+  };
+
+  ws.onerror = () => {
+    if (ws) ws.close();
+  };
+}
+
+function handleStateUpdate(state) {
+  // Update pause state
+  orchPaused = state.paused || false;
+  const pauseBtn = document.getElementById('btn-pause');
+  if (orchPaused) {
+    pauseBtn.textContent = 'Resume';
+    pauseBtn.classList.add('btn-paused');
+  } else {
+    pauseBtn.textContent = 'Pause';
+    pauseBtn.classList.remove('btn-paused');
+  }
+
+  // Update agent stats
+  document.getElementById('agent-count').textContent = state.counts.running;
+  const totals = state.agent_totals || {};
+  document.getElementById('agent-tokens').textContent = (totals.total_tokens || 0).toLocaleString();
+  document.getElementById('agent-cost').textContent = '$' + (totals.estimated_cost || 0).toFixed(2);
+  const budget = state.budget || {};
+  if (budget.limit > 0) {
+    document.getElementById('agent-budget').textContent =
+      '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2);
+  }
+
+  // Check for proposed foci and pending reviews
+  fetchProposedFociCount();
+  fetchReviewsCount();
+
+  // Render running agent chips
+  const container = document.getElementById('running-agents');
+  const running = state.running || [];
+  lastRunningAgents = running;
+  if (running.length === 0) {
+    container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
+  } else {
+    container.innerHTML = running.map(r => {
+      const id = esc(r.issue_identifier);
+      return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
+        '<span class="dot"></span>' +
+        id +
+        (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
+      '</span>';
+    }).join('');
+    if (orchPaused) {
+      container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
+    }
+  }
+
+  // Update project filter dropdown
+  const projects = state.projects || [];
+  currentProjects = projects;
+  const sel = document.getElementById('project-filter');
+  if (sel && projects.length > 0) {
+    // Use saved value from localStorage, falling back to current value
+    const savedProjectId = localStorage.getItem('oompah_selected_project') || '';
+    const curVal = sel.value || savedProjectId;
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + esc(p.id) + '"' +
+        (p.id === curVal ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
+    // If the saved project is valid, make sure it's selected
+    if (savedProjectId && !sel.value) {
+      const matchingOption = Array.from(sel.options).find(o => o.value === savedProjectId);
+      if (matchingOption) sel.value = savedProjectId;
+    }
+    sel.style.display = '';
+  } else if (sel && projects.length === 0) {
+    sel.style.display = 'none';
+  }
+
+  // Update activity panel if open
+  const activityOverlay = document.getElementById('activity-overlay');
+  if (activityOverlay && activityOverlay.classList.contains('open')) {
+    const activeId = document.getElementById('activity-title').dataset.identifier;
+    const agent = running.find(r => r.issue_identifier === activeId);
+    if (agent && agent.focus_role) {
+      // Update title with latest focus info
+      let title = 'Agent: ' + activeId;
+      const parts = [];
+      if (agent.focus_role) parts.push(agent.focus_role);
+      if (agent.agent_profile) parts.push(agent.agent_profile);
+      if (parts.length > 0) title += ' — ' + parts.join(' · ');
+      document.getElementById('activity-title').textContent = title;
+    }
+  }
+}
+
+// --- Orchestrator state (legacy fallback, replaced by WebSocket) ---
+async function fetchOrchestratorState() {
+  try {
+    const res = await fetch('/api/v1/state');
+    if (!res.ok) return;
+    const state = await res.json();
+    handleStateUpdate(state);
+  } catch (e) { /* ignore */ }
+}
+
+async function togglePause() {
+  const endpoint = orchPaused ? '/api/v1/orchestrator/resume' : '/api/v1/orchestrator/pause';
+  await fetch(endpoint, {method: 'POST'});
+  await fetchOrchestratorState();
+}
+
+async function fetchReviewsCount() {
+  try {
+    const res = await fetch('/api/v1/reviews');
+    if (!res.ok) return;
+    const reviews = await res.json();
+    const el = document.getElementById('reviews-stat');
+    const countEl = document.getElementById('reviews-count');
+    const conflicts = reviews.filter(r => r.review && r.review.has_conflicts).length;
+    if (conflicts > 0) {
+      countEl.textContent = conflicts;
+      countEl.style.color = 'var(--red, #f85149)';
+      el.querySelector('.reviews-label').textContent = 'conflicts need resolution';
+      el.style.display = '';
+    } else if (reviews.length > 0) {
+      countEl.textContent = reviews.length;
+      countEl.style.color = 'var(--blue, #58a6ff)';
+      el.querySelector('.reviews-label').textContent = 'reviews waiting';
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+async function fetchProposedFociCount() {
+  try {
+    const res = await fetch('/api/v1/foci');
+    if (!res.ok) return;
+    const foci = await res.json();
+    const proposed = foci.filter(f => f.status === 'proposed');
+    const el = document.getElementById('proposed-foci-stat');
+    const countEl = document.getElementById('proposed-foci-count');
+    if (proposed.length > 0) {
+      countEl.textContent = proposed.length;
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+function saveProjectFilter() {
+  const sel = document.getElementById('project-filter');
+  if (sel) {
+    localStorage.setItem('oompah_selected_project', sel.value);
+  }
+}
+
+function filterByProject(data) {
+  const sel = document.getElementById('project-filter');
+  const pid = sel ? sel.value : '';
+  if (!pid) return data;
+  const filtered = {};
+  for (const [state, issues] of Object.entries(data)) {
+    const matching = issues.filter(i => i.project_id === pid);
+    if (matching.length > 0) filtered[state] = matching;
+  }
+  return filtered;
+}
+
+async function fetchIssues() {
+  const filter = document.getElementById('project-filter');
+  const pid = filter ? filter.value : '';
+  const url = pid ? '/api/v1/issues?project_id=' + encodeURIComponent(pid) : '/api/v1/issues';
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+function moveIssueInBoard(identifier, newState) {
+  // Move an issue between columns in the local boardData
+  if (!boardData) return;
+  for (const [state, issues] of Object.entries(boardData)) {
+    const idx = issues.findIndex(i => i.identifier === identifier);
+    if (idx !== -1) {
+      const [issue] = issues.splice(idx, 1);
+      issue.state = newState;
+      if (!boardData[newState]) boardData[newState] = [];
+      boardData[newState].push(issue);
+      return;
+    }
+  }
+}
+
+async function updateIssue(identifier, fields) {
+  // Record optimistic state to suppress rubber-banding from stale WebSocket data
+  optimisticUpdates[identifier] = {
+    state: fields.status,
+    priority: fields.priority,
+    expiry: Date.now() + 10000,  // 10 second window
+  };
+  const res = await fetch(`/api/v1/issues/${identifier}`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(fields),
+  });
+  return res.ok;
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById('btn-flat').classList.toggle('active', mode === 'flat');
+  document.getElementById('btn-swimlane').classList.toggle('active', mode === 'swimlane');
+  renderBoard(boardData);
+}
+
+// Build flat list of all issues from grouped data
+function flattenIssues(data) {
+  const all = [];
+  for (const state of Object.keys(data)) {
+    for (const issue of data[state]) {
+      all.push(issue);
+    }
+  }
+  return all;
+}
+
+// Get epic info by ID from flat list
+function getEpicById(epicId) {
+  return allIssuesFlat.find(i => i.id === epicId && i.issue_type === 'epic');
+}
+
+function applyOptimisticOverrides(data) {
+  // Override stale server data with recent optimistic updates
+  const now = Date.now();
+  for (const id of Object.keys(optimisticUpdates)) {
+    if (optimisticUpdates[id].expiry < now) {
+      delete optimisticUpdates[id];
+      continue;
+    }
+    const upd = optimisticUpdates[id];
+    // Find the issue in any column and move it to the correct one
+    for (const [state, issues] of Object.entries(data)) {
+      const idx = issues.findIndex(i => i.identifier === id);
+      if (idx !== -1) {
+        const issue = issues[idx];
+        const targetState = upd.state || issue.state;
+        if (upd.priority !== undefined) issue.priority = upd.priority;
+        if (targetState !== state) {
+          issues.splice(idx, 1);
+          if (!data[targetState]) data[targetState] = [];
+          issue.state = targetState;
+          data[targetState].push(issue);
+        }
+        // If server confirms our update, clear it early
+        if ((!upd.state || issue.state === upd.state) &&
+            (upd.priority === undefined || issue.priority === upd.priority)) {
+          delete optimisticUpdates[id];
+        }
+        break;
+      }
+    }
+  }
+  return data;
+}
+
+function renderBoard(data) {
+  data = applyOptimisticOverrides(data);
+
+  // Bug fix: If the user is currently editing a card field, defer the
+  // full DOM rebuild. Store the latest data and render it once the
+  // user finishes editing (on blur).
+  if (editingState) {
+    _pendingBoardData = data;
+    // Still update the in-memory data so other lookups stay current
+    boardData = data;
+    allIssuesFlat = flattenIssues(data);
+    return;
+  }
+
+  boardData = data;
+  allIssuesFlat = flattenIssues(data);
+  _pendingBoardData = null;
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  if (viewMode === 'swimlane') {
+    board.className = 'board swimlane-view';
+    renderSwimlaneView(board, data);
+  } else {
+    board.className = 'board';
+    renderFlatView(board, data);
+  }
+
+  document.getElementById('status-text').textContent =
+    `Updated ${new Date().toLocaleTimeString()}`;
+}
+
+function renderFlatView(board, data) {
+  for (const col of COLUMNS) {
+    const allInCol = data[col] || [];
+    // Filter out epics in flat view
+    const issues = allInCol.filter(i => i.issue_type !== 'epic');
+    const column = document.createElement('div');
+    column.className = 'column';
+    column.dataset.state = col;
+
+    column.innerHTML = `
+      <div class="column-header" draggable="true">
+        <span><span class="col-grip">&#8942;&#8942;</span><span class="col-title">${COLUMN_LABELS[col]}</span></span>
+        <span class="col-count">${issues.length}</span>
+      </div>
+      <div class="column-body" data-state="${col}"></div>
+    `;
+
+    const header = column.querySelector('.column-header');
+    setupColumnDrag(header, col, null);
+    const body = column.querySelector('.column-body');
+    setupDropZone(body);
+
+    for (let i = 0; i < issues.length; i++) {
+      const indicator = document.createElement('div');
+      indicator.className = 'drop-indicator';
+      indicator.dataset.position = String(i);
+      body.appendChild(indicator);
+      body.appendChild(createCard(issues[i]));
+    }
+    const lastIndicator = document.createElement('div');
+    lastIndicator.className = 'drop-indicator';
+    lastIndicator.dataset.position = String(issues.length);
+    body.appendChild(lastIndicator);
+
+    board.appendChild(column);
+  }
+}
+
+function renderSwimlaneView(board, data) {
+  // Collect epics and group children
+  const epics = allIssuesFlat.filter(i => i.issue_type === 'epic');
+  const epicIds = new Set(epics.map(e => e.id));
+  const orphans = allIssuesFlat.filter(i => i.issue_type !== 'epic' && (!i.parent_id || !epicIds.has(i.parent_id)));
+
+  // Render each epic as a swimlane
+  for (const epic of epics) {
+    const children = allIssuesFlat.filter(i => i.parent_id === epic.id && i.issue_type !== 'epic');
+    const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
+    const isCollapsed = collapsedSwimlanes[epic.id] || false;
+
+    const lane = document.createElement('div');
+    lane.className = 'swimlane' + (isCollapsed ? ' collapsed' : '');
+    lane.dataset.epicId = epic.id;
+
+    const countsStr = `${counts.deferred} / ${counts.open} / ${counts.in_progress} / ${counts.closed}`;
+
+    lane.innerHTML = `
+      <div class="swimlane-header" onclick="toggleSwimlane('${esc(epic.id)}')">
+        <span class="swimlane-toggle">&#9660;</span>
+        <span class="swimlane-title">${esc(epic.title)}</span>
+        <span class="swimlane-counts" title="Backlog / Open / In Progress / Closed">${countsStr}</span>
+        <span class="swimlane-actions">
+          <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}')">+ Child</button>
+          <button onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details</button>
+        </span>
+      </div>
+      <div class="swimlane-columns"></div>
+    `;
+
+    const cols = lane.querySelector('.swimlane-columns');
+    for (const col of COLUMNS) {
+      const colIssues = children.filter(c => c.state.trim().toLowerCase() === col);
+      const sc = document.createElement('div');
+      sc.className = 'column';
+      sc.innerHTML = `
+        <div class="column-header" draggable="true">
+          <span><span class="col-grip">&#8942;&#8942;</span><span class="col-title">${COLUMN_LABELS[col]}</span></span>
+          <span class="col-count">${colIssues.length}</span>
+        </div>
+        <div class="column-body" data-state="${col}"></div>
+      `;
+      const scHeader = sc.querySelector('.column-header');
+      setupColumnDrag(scHeader, col, epic.id);
+      const scBody = sc.querySelector('.column-body');
+      setupDropZone(scBody);
+      for (let i = 0; i < colIssues.length; i++) {
+        const ind = document.createElement('div');
+        ind.className = 'drop-indicator';
+        ind.dataset.position = String(i);
+        scBody.appendChild(ind);
+        scBody.appendChild(createCard(colIssues[i]));
+      }
+      const lastInd = document.createElement('div');
+      lastInd.className = 'drop-indicator';
+      lastInd.dataset.position = String(colIssues.length);
+      scBody.appendChild(lastInd);
+      cols.appendChild(sc);
+    }
+
+    board.appendChild(lane);
+  }
+
+  // Orphan swimlane (items not belonging to any epic)
+  if (orphans.length > 0) {
+    const lane = document.createElement('div');
+    const isCollapsed = collapsedSwimlanes['_orphans'] || false;
+    lane.className = 'swimlane' + (isCollapsed ? ' collapsed' : '');
+
+    lane.innerHTML = `
+      <div class="swimlane-header" onclick="toggleSwimlane('_orphans')">
+        <span class="swimlane-toggle">&#9660;</span>
+        <span class="swimlane-title" style="color: var(--text-muted);">Unassigned</span>
+        <span class="swimlane-counts">${orphans.length} items</span>
+      </div>
+      <div class="swimlane-columns"></div>
+    `;
+
+    const cols = lane.querySelector('.swimlane-columns');
+    for (const col of COLUMNS) {
+      const colIssues = orphans.filter(o => o.state.trim().toLowerCase() === col);
+      const sc = document.createElement('div');
+      sc.className = 'column';
+      sc.innerHTML = `
+        <div class="column-header" draggable="true">
+          <span><span class="col-grip">&#8942;&#8942;</span><span class="col-title">${COLUMN_LABELS[col]}</span></span>
+          <span class="col-count">${colIssues.length}</span>
+        </div>
+        <div class="column-body" data-state="${col}"></div>
+      `;
+      const scHeader = sc.querySelector('.column-header');
+      setupColumnDrag(scHeader, col, '_orphans');
+      const scBody = sc.querySelector('.column-body');
+      setupDropZone(scBody);
+      for (let i = 0; i < colIssues.length; i++) {
+        const ind = document.createElement('div');
+        ind.className = 'drop-indicator';
+        ind.dataset.position = String(i);
+        scBody.appendChild(ind);
+        scBody.appendChild(createCard(colIssues[i]));
+      }
+      const lastInd = document.createElement('div');
+      lastInd.className = 'drop-indicator';
+      lastInd.dataset.position = String(colIssues.length);
+      scBody.appendChild(lastInd);
+      cols.appendChild(sc);
+    }
+
+    board.appendChild(lane);
+  }
+}
+
+function toggleSwimlane(id) {
+  collapsedSwimlanes[id] = !collapsedSwimlanes[id];
+  renderBoard(boardData);
+}
+
+function createCard(issue) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.draggable = true;
+  card.dataset.id = issue.identifier;
+  card.dataset.priority = issue.priority ?? 4;
+  card.dataset.projectId = issue.project_id || '';
+
+  const pClass = `p${issue.priority ?? 4}`;
+
+  // Build epic badge HTML if this issue has a parent
+  let epicBadgeHtml = '';
+  if (issue.parent_id) {
+    const epic = getEpicById(issue.parent_id);
+    if (epic) {
+      epicBadgeHtml = `
+        <span class="epic-badge" onclick="event.stopPropagation()">
+          ${esc(epic.identifier)}
+          <span class="epic-tooltip">
+            <div class="epic-tooltip-title">${esc(epic.title)}</div>
+            <div class="epic-tooltip-desc">${esc(epic.description || 'No description')}</div>
+            <span class="epic-tooltip-link" onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details &rarr;</span>
+          </span>
+        </span>
+      `;
+    }
+  }
+
+  card.innerHTML = `
+    <div class="card-id">
+      <span class="card-id-left">
+        <span>${esc(issue.identifier)}</span>
+        ${epicBadgeHtml}
+      </span>
+      <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
+    </div>
+    <div class="card-title" contenteditable="true" spellcheck="false"
+         data-field="title" data-id="${esc(issue.identifier)}">${esc(issue.title)}</div>
+    <div class="card-desc" contenteditable="true" spellcheck="false"
+         data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
+  `;
+
+  // Click card ID to open detail panel
+  card.querySelector('.card-id-left > span:first-child').style.cursor = 'pointer';
+  card.querySelector('.card-id-left > span:first-child').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openDetailPanel(issue.identifier);
+  });
+
+  // Drag handlers
+  card.addEventListener('dragstart', e => {
+    dragState = {
+      identifier: issue.identifier,
+      sourceState: issue.state.trim().toLowerCase(),
+      priority: issue.priority,
+      projectId: issue.project_id,
+    };
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', issue.identifier);
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    clearAllIndicators();
+    dragState = null;
+  });
+
+  // Inline editing
+  const titleEl = card.querySelector('.card-title');
+  const descEl = card.querySelector('.card-desc');
+  for (const el of [titleEl, descEl]) {
+    el.addEventListener('mousedown', e => {
+      if (document.activeElement === el) e.stopPropagation();
+    });
+    el.addEventListener('focus', () => {
+      card.draggable = false;
+      // Bug fix: Track that this field is being edited so renderBoard()
+      // defers DOM rebuilds until the user finishes.
+      editingState = { identifier: el.dataset.id, field: el.dataset.field };
+    });
+    el.addEventListener('blur', async () => {
+      card.draggable = true;
+      const field = el.dataset.field;
+      const id = el.dataset.id;
+      const newValue = el.textContent.trim();
+      const pid = card.dataset.projectId;
+      // Bug fix: Clear editing state *before* the async save so that
+      // any queued board data can be rendered.
+      editingState = null;
+      await updateIssue(id, {[field]: newValue, project_id: pid});
+      // Flush any board data that arrived while we were editing.
+      if (_pendingBoardData) {
+        const pending = _pendingBoardData;
+        _pendingBoardData = null;
+        renderBoard(pending);
+      }
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); }
+      if (e.key === 'Escape') el.blur();
+    });
+  }
+
+  return card;
+}
+
+function setupColumnDrag(header, sourceState, epicId) {
+  header.addEventListener('dragstart', e => {
+    // Don't interfere with card drags — cards set dragState
+    columnDragState = { sourceState, epicId };
+    dragState = null;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', 'column:' + sourceState);
+    header.style.opacity = '0.5';
+  });
+  header.addEventListener('dragend', () => {
+    header.style.opacity = '';
+    columnDragState = null;
+    document.querySelectorAll('.column-header.col-drag-over').forEach(
+      el => el.classList.remove('col-drag-over')
+    );
+  });
+
+  // Column headers are also drop targets for other column drags
+  header.addEventListener('dragover', e => {
+    if (!columnDragState) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    header.classList.add('col-drag-over');
+  });
+  header.addEventListener('dragleave', () => {
+    header.classList.remove('col-drag-over');
+  });
+  header.addEventListener('drop', async e => {
+    e.preventDefault();
+    header.classList.remove('col-drag-over');
+    if (!columnDragState) return;
+
+    const targetState = sourceState;  // this header's state
+    const src = columnDragState;
+    columnDragState = null;
+    if (targetState === src.sourceState) return;
+
+    // Determine which column header's epicId to use for scoping
+    // In swimlane view, only move items within the source epic
+    // Both source and target should be in the same swimlane context
+    const scopeEpicId = src.epicId;
+
+    // Collect cards to move from the source column
+    const cardsToMove = getCardsInColumn(src.sourceState, scopeEpicId);
+    if (cardsToMove.length === 0) return;
+
+    // Confirm with user
+    const label = COLUMN_LABELS[src.sourceState] || src.sourceState;
+    const targetLabel = COLUMN_LABELS[targetState] || targetState;
+    const scope = scopeEpicId ? (scopeEpicId === '_orphans' ? 'Unassigned' : 'this swimlane') : 'all visible';
+    if (!confirm(`Move ${cardsToMove.length} item(s) from ${label} → ${targetLabel} (${scope})?`)) return;
+
+    // Optimistic update
+    for (const issue of cardsToMove) {
+      moveIssueInBoard(issue.identifier, targetState);
+    }
+    renderBoard(boardData);
+
+    // Fire API calls
+    for (const issue of cardsToMove) {
+      updateIssue(issue.identifier, {status: targetState, project_id: issue.project_id || ''});
+    }
+  });
+}
+
+function getCardsInColumn(state, epicId) {
+  // Get visible cards in a column, scoped by epicId (swimlane) or project filter (flat)
+  const issues = (boardData[state] || []).filter(i => i.issue_type !== 'epic');
+  if (epicId === null) {
+    // Flat view — all visible (already filtered by project)
+    return issues;
+  } else if (epicId === '_orphans') {
+    // Orphan swimlane — items with no parent or parent not an epic
+    const epicIds = new Set(allIssuesFlat.filter(i => i.issue_type === 'epic').map(e => e.id));
+    return issues.filter(i => !i.parent_id || !epicIds.has(i.parent_id));
+  } else {
+    // Specific epic swimlane
+    return issues.filter(i => i.parent_id === epicId);
+  }
+}
+
+function setupDropZone(body) {
+  body.addEventListener('dragover', e => {
+    if (columnDragState) return;  // column drags handled by column headers
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    body.classList.add('drag-over');
+    const indicators = body.querySelectorAll('.drop-indicator');
+    let closest = null;
+    let closestDist = Infinity;
+    for (const ind of indicators) {
+      const rect = ind.getBoundingClientRect();
+      const dist = Math.abs(e.clientY - (rect.top + rect.height / 2));
+      if (dist < closestDist) { closestDist = dist; closest = ind; }
+    }
+    clearAllIndicators();
+    body.classList.add('drag-over');
+    if (closest) closest.classList.add('visible');
+  });
+
+  body.addEventListener('dragleave', e => {
+    if (!body.contains(e.relatedTarget)) {
+      body.classList.remove('drag-over');
+      clearAllIndicators();
+    }
+  });
+
+  body.addEventListener('drop', async e => {
+    e.preventDefault();
+    body.classList.remove('drag-over');
+    if (!dragState) return;
+
+    const targetState = body.dataset.state;
+    const identifier = dragState.identifier;
+
+    // Find which drop indicator was active
+    const activeIndicator = body.querySelector('.drop-indicator.visible');
+    clearAllIndicators();
+
+    if (targetState === dragState.sourceState) {
+      // Same column — reorder by priority
+      if (!activeIndicator) return;
+      const dropPos = parseInt(activeIndicator.dataset.position, 10);
+      const colIssues = (boardData[targetState] || []).filter(i => i.issue_type !== 'epic');
+      // Exclude the dragged card from the list to compute neighbors
+      const others = colIssues.filter(i => i.identifier !== identifier);
+      // Clamp drop position after removing the dragged card
+      const pos = Math.min(dropPos, others.length);
+      const above = pos > 0 ? others[pos - 1] : null;
+      const below = pos < others.length ? others[pos] : null;
+      const abovePri = above ? (above.priority ?? 4) : 0;
+      const belowPri = below ? (below.priority ?? 4) : 4;
+      let newPri;
+      if (!above) {
+        newPri = Math.max(belowPri - 1, 0);
+      } else if (!below) {
+        newPri = Math.min(abovePri + 1, 4);
+      } else {
+        newPri = Math.round((abovePri + belowPri) / 2);
+      }
+      if (newPri === dragState.priority) return; // no change
+      // Optimistic update
+      const issue = colIssues.find(i => i.identifier === identifier);
+      if (issue) issue.priority = newPri;
+      boardData[targetState].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+      renderBoard(boardData);
+      updateIssue(identifier, {priority: newPri, project_id: dragState.projectId});
+      return;
+    }
+
+    // Different column — move between states
+    moveIssueInBoard(identifier, targetState);
+    renderBoard(boardData);
+    updateIssue(identifier, {status: targetState, project_id: dragState.projectId});
+  });
+}
+
+function clearAllIndicators() {
+  document.querySelectorAll('.drop-indicator').forEach(el => el.classList.remove('visible'));
+  document.querySelectorAll('.column-body').forEach(el => el.classList.remove('drag-over'));
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function refreshBoard() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Ask server to push fresh data via WebSocket
+    ws.send(JSON.stringify({action: 'refresh'}));
+    return;
+  }
+  // Fallback to REST
+  document.getElementById('status-text').textContent = 'Refreshing...';
+  const data = await fetchIssues();
+  if (data) renderBoard(data);
+  fetchOrchestratorState();
+}
+
+// --- Agent activity panel ---
+let activityPollTimer = null;
+
+async function openActivityPanel(identifier) {
+  const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
+  let title = 'Agent: ' + identifier;
+  if (agent) {
+    const parts = [];
+    if (agent.focus_role) parts.push(agent.focus_role);
+    if (agent.agent_profile) parts.push(agent.agent_profile);
+    if (parts.length > 0) title += ' — ' + parts.join(' · ');
+  }
+  const titleEl = document.getElementById('activity-title');
+  titleEl.textContent = title;
+  titleEl.dataset.identifier = identifier;
+  document.getElementById('activity-overlay').classList.add('open');
+  await refreshActivity(identifier);
+  // Only poll if WebSocket is not connected
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    activityPollTimer = setInterval(() => refreshActivity(identifier), 2000);
+  }
+}
+
+function closeActivityPanel() {
+  const el = document.getElementById('activity-overlay');
+  if (el) el.classList.remove('open');
+  if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
+}
+
+function renderActivityEntry(a) {
+  const hasDetail = a.detail && a.detail.trim().length > 0;
+  const div = document.createElement('div');
+  div.className = 'activity-entry';
+  if (hasDetail) {
+    div.style.cursor = 'pointer';
+    div.addEventListener('click', () => div.classList.toggle('expanded'));
+  }
+  div.innerHTML =
+    '<span class="activity-turn">' + esc(String(a.turn || '')) + '</span>' +
+    '<span class="activity-kind ' + esc(a.kind || '') + '">' + esc(a.kind || '') + '</span>' +
+    '<span class="activity-summary">' + esc(a.summary || '') +
+      (hasDetail ? ' <span style="color:var(--text-muted);font-size:0.7rem;">&#9660;</span>' : '') +
+    '</span>' +
+    (hasDetail ? '<div class="activity-detail">' + esc(a.detail) + '</div>' : '');
+  return div;
+}
+
+function handleActivityPush(identifier, entry) {
+  // Only update if the activity panel is open for this agent
+  const overlay = document.getElementById('activity-overlay');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  const titleEl = document.getElementById('activity-title');
+  if (titleEl.dataset.identifier !== identifier) return;
+  const body = document.getElementById('activity-body');
+  body.appendChild(renderActivityEntry(entry));
+  body.scrollTop = body.scrollHeight;
+}
+
+async function refreshActivity(identifier) {
+  try {
+    const res = await fetch('/api/v1/agents/' + encodeURIComponent(identifier) + '/activity');
+    const data = await res.json();
+    const body = document.getElementById('activity-body');
+    const entries = data.activity || [];
+    if (entries.length === 0) {
+      body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No activity yet...</div>';
+      return;
+    }
+    body.innerHTML = '';
+    for (const a of entries) {
+      body.appendChild(renderActivityEntry(a));
+    }
+    body.scrollTop = body.scrollHeight;
+  } catch(e) {}
+}
+
+// --- Detail panel ---
+let _openDetailIdentifier = null;
+let _detailRefreshTimer = null;
+
+function refreshOpenDetailPanel() {
+  if (!_openDetailIdentifier) return;
+  if (!document.getElementById('detail-panel').classList.contains('open')) return;
+  // Do not overwrite while user is editing title, description, or comment.
+  const focused = document.activeElement;
+  if (focused && focused.classList.contains('detail-editable')) return;
+  const commentInput = document.getElementById('comment-input');
+  if (commentInput && document.activeElement === commentInput) return;
+  // Debounce: wait 500ms to batch rapid updates
+  if (_detailRefreshTimer) clearTimeout(_detailRefreshTimer);
+  _detailRefreshTimer = setTimeout(() => {
+    _detailRefreshTimer = null;
+    // Re-check: user may have started editing during the debounce window
+    const stillFocused = document.activeElement;
+    if (stillFocused && stillFocused.classList.contains('detail-editable')) return;
+    const ci = document.getElementById('comment-input');
+    if (ci && document.activeElement === ci) return;
+    if (_openDetailIdentifier) openDetailPanel(_openDetailIdentifier);
+  }, 500);
+}
+
+async function openDetailPanel(identifier) {
+  _openDetailIdentifier = identifier;
+  const panel = document.getElementById('detail-panel');
+  const body = document.getElementById('detail-panel-body');
+  const isRefresh = panel.classList.contains('open');
+  if (!isRefresh) {
+    body.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">Loading...</div>';
+  }
+  panel.classList.add('open');
+
+  const issue = allIssuesFlat.find(i => i.identifier === identifier);
+  const pidParam = issue && issue.project_id ? `?project_id=${encodeURIComponent(issue.project_id)}` : '';
+  const res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail${pidParam}`);
+  if (!res.ok) {
+    body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load</div>';
+    return;
+  }
+  const detail = await res.json();
+  document.getElementById('detail-panel-title').textContent = detail.identifier;
+  body.dataset.projectId = detail.project_id || '';
+
+  const pClass = `p${detail.priority ?? 4}`;
+  let html = `
+    <div class="detail-field">
+      <div class="detail-field-label">Title</div>
+      <div class="detail-editable" contenteditable="true" spellcheck="false"
+           id="detail-title-edit" data-field="title" data-placeholder="No title"
+           data-id="${esc(detail.identifier)}">${esc(detail.title)}</div>
+    </div>
+    <div class="detail-field">
+      <div class="detail-field-label">Type</div>
+      <div class="detail-field-value">${esc(detail.issue_type)}</div>
+    </div>
+    <div class="detail-field">
+      <div class="detail-field-label">State</div>
+      <div class="detail-field-value">${esc(detail.state)}</div>
+    </div>
+    <div class="detail-field">
+      <div class="detail-field-label">Priority</div>
+      <div class="detail-field-value"><span class="priority-badge ${pClass}">P${detail.priority ?? 4}</span></div>
+    </div>
+    <div class="detail-field">
+      <div class="detail-field-label">Description</div>
+      <div class="detail-editable" contenteditable="true" spellcheck="false"
+           id="detail-desc-edit" data-field="description" data-placeholder="No description"
+           data-id="${esc(detail.identifier)}">${esc(detail.description || '')}</div>
+    </div>
+  `;
+
+  if (detail.parent_id) {
+    const epic = getEpicById(detail.parent_id);
+    if (epic) {
+      html += `
+        <div class="detail-field">
+          <div class="detail-field-label">Parent Epic</div>
+          <div class="detail-field-value">
+            <span class="epic-badge" style="cursor:pointer" onclick="openDetailPanel('${esc(epic.identifier)}')">${esc(epic.identifier)}</span>
+            ${esc(epic.title)}
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  if (detail.created_at) {
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">Created</div>
+        <div class="detail-field-value">${new Date(detail.created_at).toLocaleString()}</div>
+      </div>
+    `;
+  }
+
+  if (detail.children && detail.children.length > 0) {
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">Children (${detail.children.length})</div>
+        <ul class="detail-children-list">
+          ${detail.children.map(c => `
+            <li onclick="openDetailPanel('${esc(c.identifier)}')">
+              <span>${esc(c.identifier)} ${esc(c.title)}</span>
+              <span class="detail-child-state">${esc(c.state)}</span>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+
+    html += `
+      <button onclick="openCreateDialogForEpic('${esc(detail.id)}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
+    `;
+  } else if (detail.issue_type === 'epic') {
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">Children</div>
+        <div class="detail-field-value" style="color:var(--text-muted)">No children yet</div>
+      </div>
+      <button onclick="openCreateDialogForEpic('${esc(detail.id)}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
+    `;
+  }
+
+  // Comments section
+  const comments = detail.comments || [];
+  html += `
+    <div class="detail-field" style="margin-top:1rem; border-top:1px solid var(--border); padding-top:1rem;">
+      <div class="detail-field-label">Comments (${comments.length})</div>
+      <div class="comments-list" id="comments-list">
+        ${comments.length === 0 ? '<div style="color:var(--text-muted);font-size:0.75rem;padding:0.3rem 0;">No comments yet</div>' : ''}
+        ${comments.map(c => `
+          <div class="comment">
+            <div class="comment-header">
+              <span class="comment-author">${esc(c.author || 'unknown')}</span>
+              <span class="comment-time">${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</span>
+            </div>
+            <div class="comment-text">${esc(c.text)}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="comment-input-area">
+        <textarea id="comment-input" class="comment-input" placeholder="Add a comment..." rows="2"></textarea>
+        <button onclick="submitComment('${esc(detail.identifier)}')" style="margin-top:0.3rem;width:100%;">Post Comment</button>
+      </div>
+    </div>
+  `;
+
+  // Preserve in-progress comment text across refreshes
+  const prevInput = document.getElementById('comment-input');
+  const prevText = prevInput ? prevInput.value : '';
+
+  body.innerHTML = html;
+
+  // Wire up editable title and description fields
+  for (const el of body.querySelectorAll('.detail-editable')) {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey && el.id === 'detail-title-edit') {
+        // Single-line feel for title: Enter saves
+        e.preventDefault();
+        el.blur();
+      }
+      if (e.key === 'Escape') el.blur();
+    });
+    el.addEventListener('blur', async () => {
+      const field = el.dataset.field;
+      const id = el.dataset.id;
+      const newValue = el.textContent.trim();
+      const pid = document.getElementById('detail-panel-body').dataset.projectId;
+      await updateIssue(id, {[field]: newValue, project_id: pid});
+    });
+  }
+
+  // Restore comment draft and scroll to bottom
+  if (prevText) {
+    const newInput = document.getElementById('comment-input');
+    if (newInput) newInput.value = prevText;
+  }
+  const commentsList = document.getElementById('comments-list');
+  if (commentsList) commentsList.scrollTop = commentsList.scrollHeight;
+}
+
+async function submitComment(identifier) {
+  const input = document.getElementById('comment-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/comments`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text, author: 'user', project_id: document.getElementById('detail-panel-body').dataset.projectId}),
+  });
+  // Reload detail panel to show new comment
+  openDetailPanel(identifier);
+}
+
+function closeDetailPanel() {
+  _openDetailIdentifier = null;
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+// --- Create dialog ---
+let createParentId = null;
+
+function populateProjectSelect(selectedId) {
+  const row = document.getElementById('create-project-row');
+  const sel = document.getElementById('create-project-select');
+  if (!row || !sel) return;
+  if (currentProjects.length === 0) {
+    row.style.display = 'none';
+    return;
+  }
+  row.style.display = '';
+  sel.innerHTML = currentProjects.map(p =>
+    '<option value="' + esc(p.id) + '"' + (p.id === selectedId ? ' selected' : '') + '>' + esc(p.name) + '</option>'
+  ).join('');
+}
+
+function openCreateDialog() {
+  createParentId = null;
+  document.getElementById('create-dialog-title').textContent = 'Create Issue';
+  document.getElementById('create-dialog').classList.add('open');
+  document.getElementById('create-title').value = '';
+  document.getElementById('create-desc').value = '';
+  document.getElementById('create-type').value = 'task';
+  document.getElementById('create-priority').value = '2';
+  // Show all types when creating standalone
+  const typeSelect = document.getElementById('create-type');
+  typeSelect.querySelector('option[value="epic"]').style.display = '';
+  // Pre-select the currently filtered project (if any)
+  const filterSel = document.getElementById('project-filter');
+  const defaultProjectId = filterSel ? filterSel.value : '';
+  populateProjectSelect(defaultProjectId);
+  setTimeout(() => document.getElementById('create-title').focus(), 50);
+}
+
+function openCreateDialogForEpic(epicId) {
+  createParentId = epicId;
+  const epic = allIssuesFlat.find(i => i.id === epicId);
+  document.getElementById('create-dialog-title').textContent =
+    epic ? `Create Child of ${epic.identifier}` : 'Create Child';
+  document.getElementById('create-dialog').classList.add('open');
+  document.getElementById('create-title').value = '';
+  document.getElementById('create-desc').value = '';
+  document.getElementById('create-type').value = 'task';
+  document.getElementById('create-priority').value = '2';
+  // Hide epic type when creating children
+  const typeSelect = document.getElementById('create-type');
+  typeSelect.querySelector('option[value="epic"]').style.display = 'none';
+  // Pre-select the epic's project
+  const epicProjectId = epic && epic.project_id ? epic.project_id : '';
+  populateProjectSelect(epicProjectId);
+  setTimeout(() => document.getElementById('create-title').focus(), 50);
+}
+
+function closeCreateDialog() {
+  document.getElementById('create-dialog').classList.remove('open');
+  createParentId = null;
+}
+
+async function submitCreateDialog() {
+  const title = document.getElementById('create-title').value.trim();
+  if (!title) return;
+
+  const btn = document.getElementById('create-submit');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+
+  try {
+    const body = {
+      title,
+      type: document.getElementById('create-type').value,
+      description: document.getElementById('create-desc').value.trim() || undefined,
+      priority: parseInt(document.getElementById('create-priority').value, 10),
+    };
+    if (createParentId) {
+      body.parent_id = createParentId;
+    }
+    // Use project from dialog selector if available
+    const projectSel = document.getElementById('create-project-select');
+    if (projectSel && projectSel.value) {
+      body.project_id = projectSel.value;
+    }
+    // Fallback: if no project selector (single-project mode), use the parent epic's project
+    if (!body.project_id && createParentId) {
+      const epic = allIssuesFlat.find(i => i.id === createParentId);
+      if (epic && epic.project_id) body.project_id = epic.project_id;
+    }
+    // Last resort: selected project filter
+    if (!body.project_id) {
+      const sel = document.getElementById('project-filter');
+      if (sel && sel.value) body.project_id = sel.value;
+    }
+    const res = await fetch('/api/v1/issues', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      closeCreateDialog();
+      await refreshBoard();
+      // Re-open detail panel if we were creating a child
+      if (createParentId) {
+        const epic = allIssuesFlat.find(i => i.id === createParentId);
+        if (epic) openDetailPanel(epic.identifier);
+      }
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create';
+  }
+}
+
+// Close on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeCreateDialog();
+    closeDetailPanel();
+    closeActivityPanel();
+  }
+});
+
+// Initial load via WebSocket (falls back to REST if WS fails)
+connectWebSocket();
+</script>
+
+<div class="dialog-overlay" id="create-dialog" onclick="if(event.target===this)closeCreateDialog()">
+  <div class="dialog">
+    <h2 id="create-dialog-title">Create Issue</h2>
+    <div id="create-project-row" style="display:none;">
+      <label for="create-project-select">Project</label>
+      <select id="create-project-select"></select>
+    </div>
+    <label for="create-type">Type</label>
+    <select id="create-type">
+      <option value="task">Task</option>
+      <option value="bug">Bug</option>
+      <option value="feature">Feature</option>
+      <option value="epic">Epic</option>
+      <option value="chore">Chore</option>
+    </select>
+    <label for="create-title">Summary</label>
+    <input type="text" id="create-title" placeholder="Brief issue summary"
+           onkeydown="if(event.key==='Enter')submitCreateDialog()">
+    <label for="create-priority">Priority</label>
+    <select id="create-priority">
+      <option value="0">P0 &mdash; Critical</option>
+      <option value="1">P1 &mdash; High</option>
+      <option value="2" selected>P2 &mdash; Medium</option>
+      <option value="3">P3 &mdash; Low</option>
+      <option value="4">P4 &mdash; Backlog</option>
+    </select>
+    <label for="create-desc">Description</label>
+    <textarea id="create-desc" placeholder="Optional details..."></textarea>
+    <div class="dialog-actions">
+      <button onclick="closeCreateDialog()">Cancel</button>
+      <button class="btn-primary" id="create-submit" onclick="submitCreateDialog()">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="activity-overlay" id="activity-overlay" onclick="if(event.target===this)closeActivityPanel()">
+  <div class="activity-panel">
+    <div class="activity-header">
+      <h3 id="activity-title">Agent Activity</h3>
+      <button onclick="closeActivityPanel()">&times;</button>
+    </div>
+    <div class="activity-body" id="activity-body">
+      <div style="color: var(--text-muted); text-align: center; padding: 2rem;">Loading...</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

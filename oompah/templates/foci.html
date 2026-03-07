@@ -1,0 +1,373 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah - Foci</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --yellow: #e2b340;
+    }
+    html { font-size: 125%; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .toolbar h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    button { background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 0.3rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn-primary:hover { background: #79bbff; }
+    .btn-danger { color: var(--red); border-color: rgba(248, 81, 73, 0.3); }
+    .btn-danger:hover { background: rgba(248, 81, 73, 0.1); }
+    .btn-sm { font-size: 0.7rem; padding: 0.2rem 0.5rem; }
+    .content { max-width: 900px; margin: 1.5rem auto; padding: 0 1.5rem; }
+    .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text); }
+    .focus-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+    .focus-card.proposed { border-color: var(--yellow); }
+    .focus-card.inactive { opacity: 0.6; }
+    .focus-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .focus-name { font-weight: 700; font-size: 0.95rem; }
+    .focus-role { color: var(--text-muted); font-size: 0.8rem; }
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 10px; text-transform: uppercase; margin-left: 0.5rem; }
+    .badge-active { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+    .badge-inactive { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
+    .badge-proposed { background: rgba(226, 179, 64, 0.15); color: var(--yellow); }
+    .focus-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; line-height: 1.4; }
+    .focus-keywords { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .focus-keywords span { display: inline-block; background: rgba(88, 166, 255, 0.1); color: var(--accent); padding: 0.1rem 0.4rem; border-radius: 4px; margin: 0.1rem 0.15rem; font-size: 0.7rem; }
+    .focus-rules { font-size: 0.75rem; margin-bottom: 0.5rem; }
+    .focus-rules strong { color: var(--text); }
+    .focus-rules ul { margin: 0.2rem 0 0 1.2rem; color: var(--text-muted); }
+    .focus-rules li { margin-bottom: 0.15rem; }
+    .focus-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .suggestion-reason { font-size: 0.75rem; color: var(--yellow); margin-bottom: 0.5rem; font-style: italic; }
+    .edit-form { margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+    .edit-form .form-row { margin-bottom: 0.5rem; }
+    .edit-form label { display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.15rem; font-weight: 600; }
+    .edit-form input, .edit-form textarea { width: 100%; padding: 0.35rem 0.5rem; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.8rem; font-family: inherit; }
+    .edit-form textarea { resize: vertical; min-height: 3rem; }
+    .edit-form .help { font-size: 0.65rem; color: var(--text-muted); margin-top: 0.1rem; }
+    .edit-form .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  </style>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: String(msg).slice(0, 200),
+          detail: (err && err.stack) || (src + ':' + line + ':' + col),
+          priority: 3
+        })
+      }).catch(function() {});
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled promise rejection';
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: msg.slice(0, 200),
+          detail: e.reason && e.reason.stack,
+          priority: 3
+        })
+      }).catch(function() {});
+    });
+  </script>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">oompah</a> <span>/ Foci</span></h1>
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <select id="project-filter" onchange="onProjectChange()" style="display:none;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
+      <button onclick="window.location='/'">Dashboard</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="proposed-section"></div>
+    <div id="active-section"></div>
+    <div id="inactive-section"></div>
+  </div>
+
+<script>
+let _fociData = [];
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escAttr(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadFoci() {
+  const res = await fetch('/api/v1/foci');
+  _fociData = await res.json();
+
+  const proposed = _fociData.filter(f => f.status === 'proposed');
+  const active = _fociData.filter(f => f.status === 'active');
+  const inactive = _fociData.filter(f => f.status === 'inactive');
+
+  renderSection('proposed-section', 'Proposed Foci', proposed, 'proposed');
+  renderSection('active-section', 'Active Foci', active, 'active');
+  renderSection('inactive-section', 'Inactive Foci', inactive, 'inactive');
+}
+
+function renderSection(containerId, title, foci, sectionType) {
+  const el = document.getElementById(containerId);
+  if (foci.length === 0 && sectionType !== 'active') {
+    el.innerHTML = '';
+    return;
+  }
+  let html = '<h2 class="section-title">' + esc(title) + ' (' + foci.length + ')</h2>';
+  if (foci.length === 0) {
+    html += '<div class="empty-state">No ' + sectionType + ' foci.</div>';
+  } else {
+    html += foci.map(f => renderFocusCard(f)).join('');
+  }
+  el.innerHTML = html;
+}
+
+function renderFocusCard(f) {
+  const badgeClass = 'badge-' + f.status;
+  let statusActions = '';
+
+  if (f.status === 'proposed') {
+    statusActions = `
+      <button class="btn-primary btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'active')">Activate</button>
+      <button class="btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'inactive')">Dismiss</button>
+    `;
+  } else if (f.status === 'active') {
+    statusActions = `<button class="btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'inactive')">Deactivate</button>`;
+  } else {
+    statusActions = `<button class="btn-primary btn-sm" onclick="setFocusStatus('${escAttr(f.name)}', 'active')">Activate</button>`;
+  }
+
+  let keywords = '';
+  if (f.keywords && f.keywords.length > 0) {
+    keywords = '<div class="focus-keywords">Keywords: ' +
+      f.keywords.map(k => '<span>' + esc(k) + '</span>').join('') + '</div>';
+  }
+
+  let issueTypes = '';
+  if (f.issue_types && f.issue_types.length > 0) {
+    issueTypes = '<div class="focus-keywords">Issue types: ' +
+      f.issue_types.map(t => '<span>' + esc(t) + '</span>').join('') + '</div>';
+  }
+
+  let labels = '';
+  if (f.labels && f.labels.length > 0) {
+    labels = '<div class="focus-keywords">Labels: ' +
+      f.labels.map(l => '<span>' + esc(l) + '</span>').join('') + '</div>';
+  }
+
+  let mustDo = '';
+  if (f.must_do && f.must_do.length > 0) {
+    mustDo = '<div class="focus-rules"><strong>Must do:</strong><ul>' +
+      f.must_do.map(m => '<li>' + esc(m) + '</li>').join('') + '</ul></div>';
+  }
+
+  let mustNotDo = '';
+  if (f.must_not_do && f.must_not_do.length > 0) {
+    mustNotDo = '<div class="focus-rules"><strong>Must NOT do:</strong><ul>' +
+      f.must_not_do.map(m => '<li>' + esc(m) + '</li>').join('') + '</ul></div>';
+  }
+
+  const cardId = 'focus-' + f.name.replace(/[^a-zA-Z0-9]/g, '_');
+
+  return `
+    <div class="focus-card ${f.status}" id="${cardId}">
+      <div class="focus-header">
+        <div>
+          <span class="focus-name">${esc(f.name)}</span>
+          <span class="badge ${badgeClass}">${esc(f.status)}</span>
+        </div>
+        <span class="focus-role">${esc(f.role)}</span>
+      </div>
+      <div class="focus-desc">${esc(f.description)}</div>
+      ${keywords}
+      ${issueTypes}
+      ${labels}
+      ${mustDo}
+      ${mustNotDo}
+      <div class="focus-actions">
+        ${statusActions}
+        <button class="btn-sm" onclick="toggleEdit('${escAttr(f.name)}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="deleteFocus('${escAttr(f.name)}')">Delete</button>
+      </div>
+      <div id="edit-${cardId}" style="display:none;"></div>
+    </div>
+  `;
+}
+
+function toggleEdit(name) {
+  const f = _fociData.find(x => x.name === name);
+  if (!f) return;
+  const cardId = 'focus-' + name.replace(/[^a-zA-Z0-9]/g, '_');
+  const editEl = document.getElementById('edit-' + cardId);
+  if (!editEl) return;
+
+  if (editEl.style.display !== 'none') {
+    editEl.style.display = 'none';
+    editEl.innerHTML = '';
+    return;
+  }
+
+  editEl.style.display = 'block';
+  editEl.innerHTML = renderEditForm(f);
+}
+
+function renderEditForm(f) {
+  const n = escAttr(f.name);
+  return `
+    <div class="edit-form">
+      <div class="form-row">
+        <label>Role</label>
+        <input type="text" id="ef-role-${n}" value="${escAttr(f.role)}">
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <textarea id="ef-desc-${n}" rows="3">${esc(f.description)}</textarea>
+      </div>
+      <div class="form-row">
+        <label>Keywords</label>
+        <input type="text" id="ef-kw-${n}" value="${escAttr((f.keywords || []).join(', '))}">
+        <div class="help">Comma-separated</div>
+      </div>
+      <div class="form-row">
+        <label>Issue Types</label>
+        <input type="text" id="ef-types-${n}" value="${escAttr((f.issue_types || []).join(', '))}">
+        <div class="help">Comma-separated (e.g. bug, task, feature)</div>
+      </div>
+      <div class="form-row">
+        <label>Labels</label>
+        <input type="text" id="ef-labels-${n}" value="${escAttr((f.labels || []).join(', '))}">
+        <div class="help">Comma-separated</div>
+      </div>
+      <div class="form-row">
+        <label>Priority (tiebreaker, higher = preferred)</label>
+        <input type="number" id="ef-pri-${n}" value="${f.priority || 0}" style="width:5rem;">
+      </div>
+      <div class="form-row">
+        <label>Must Do (one per line)</label>
+        <textarea id="ef-must-${n}" rows="3">${esc((f.must_do || []).join('\\n'))}</textarea>
+      </div>
+      <div class="form-row">
+        <label>Must NOT Do (one per line)</label>
+        <textarea id="ef-mustnot-${n}" rows="3">${esc((f.must_not_do || []).join('\\n'))}</textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary btn-sm" onclick="saveEdit('${n}')">Save</button>
+        <button class="btn-sm" onclick="toggleEdit('${n}')">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
+function splitCSV(s) {
+  return s.split(',').map(x => x.trim()).filter(x => x);
+}
+
+function splitLines(s) {
+  return s.split('\\n').map(x => x.trim()).filter(x => x);
+}
+
+async function saveEdit(name) {
+  const n = name;
+  const body = {
+    role: document.getElementById('ef-role-' + n).value,
+    description: document.getElementById('ef-desc-' + n).value,
+    keywords: splitCSV(document.getElementById('ef-kw-' + n).value),
+    issue_types: splitCSV(document.getElementById('ef-types-' + n).value),
+    labels: splitCSV(document.getElementById('ef-labels-' + n).value),
+    priority: parseInt(document.getElementById('ef-pri-' + n).value) || 0,
+    must_do: splitLines(document.getElementById('ef-must-' + n).value),
+    must_not_do: splitLines(document.getElementById('ef-mustnot-' + n).value),
+  };
+  const res = await fetch('/api/v1/foci/' + encodeURIComponent(name), {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    loadFoci();
+  } else {
+    const err = await res.json();
+    alert('Save failed: ' + ((err.error && err.error.message) || 'unknown error'));
+  }
+}
+
+async function setFocusStatus(name, status) {
+  await fetch('/api/v1/foci/' + encodeURIComponent(name), {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status}),
+  });
+  loadFoci();
+}
+
+async function deleteFocus(name) {
+  if (!confirm('Delete focus "' + name + '"? This cannot be undone.')) return;
+  const res = await fetch('/api/v1/foci/' + encodeURIComponent(name), {
+    method: 'DELETE',
+  });
+  if (res.ok) {
+    loadFoci();
+  } else {
+    const err = await res.json();
+    alert('Delete failed: ' + ((err.error && err.error.message) || 'unknown error'));
+  }
+}
+
+
+// --- Project selector (sticky) ---
+const PROJECT_STORAGE_KEY = 'oompah_selected_project';
+
+async function initProjectSelector() {
+  const sel = document.getElementById('project-filter');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) return;
+    const projects = await res.json();
+    if (projects.length === 0) { sel.style.display = 'none'; return; }
+    const saved = localStorage.getItem(PROJECT_STORAGE_KEY) || '';
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + escP(p.id) + '"' +
+        (p.id === saved ? ' selected' : '') + '>' + escP(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } catch(e) { sel.style.display = 'none'; }
+}
+
+function onProjectChange() {
+  const sel = document.getElementById('project-filter');
+  if (sel) localStorage.setItem(PROJECT_STORAGE_KEY, sel.value);
+}
+
+function escP(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+loadFoci();
+initProjectSelector();
+</script>
+</body>
+</html>

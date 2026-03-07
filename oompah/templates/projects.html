@@ -1,0 +1,272 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>oompah - Projects</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --text-muted: #7d8590; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149;
+    }
+    html { font-size: 125%; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); }
+    .toolbar h1 { font-size: 1.25rem; color: var(--accent); font-weight: 700; }
+    .toolbar h1 a { color: var(--accent); text-decoration: none; }
+    .toolbar h1 span { color: var(--text-muted); font-weight: 400; }
+    button { background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 0.3rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+    button:hover { background: rgba(88, 166, 255, 0.1); }
+    .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn-primary:hover { background: #79bbff; }
+    .btn-danger { color: var(--red); border-color: rgba(248, 81, 73, 0.3); }
+    .btn-danger:hover { background: rgba(248, 81, 73, 0.1); }
+    .content { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
+    .content h2 { font-size: 1.1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .project-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; }
+    .project-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .project-name { font-size: 1rem; font-weight: 600; }
+    .project-id { font-size: 0.7rem; color: var(--text-muted); font-family: 'SF Mono', 'Fira Code', monospace; }
+    .field-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.35rem; font-size: 0.8rem; color: var(--text-muted); }
+    .field-label { font-weight: 600; min-width: 80px; }
+    .field-value { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.75rem; word-break: break-all; }
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+    .form-group input { width: 100%; padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.85rem; }
+    .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; display: none; }
+    .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; }
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .worktree-list { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; margin-top: 0.5rem; }
+  </style>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: String(msg).slice(0, 200),
+          detail: (err && err.stack) || (src + ':' + line + ':' + col),
+          priority: 3
+        })
+      }).catch(function() {});
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled promise rejection';
+      fetch('/api/v1/errors', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          source: 'frontend',
+          message: msg.slice(0, 200),
+          detail: e.reason && e.reason.stack,
+          priority: 3
+        })
+      }).catch(function() {});
+    });
+  </script>
+</head>
+<body>
+  <div class="toolbar">
+    <h1><a href="/">oompah</a> <span>/ Projects</span></h1>
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <select id="project-filter" onchange="onProjectChange()" style="display:none;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
+      <button onclick="window.location='/'">Dashboard</button>
+      <button onclick="window.location='/providers'">Providers</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <h2>Projects <button class="btn-primary" onclick="toggleAddForm()">+ Add Project</button></h2>
+
+    <div class="form-card" id="add-form">
+      <div class="form-group">
+        <label>Git Repository URL</label>
+        <input type="text" id="add-repo" placeholder="https://github.com/org/repo.git">
+      </div>
+      <div class="form-group">
+        <label>Name (optional &mdash; defaults to repo name)</label>
+        <input type="text" id="add-name" placeholder="">
+      </div>
+      <div class="form-group">
+        <label>Branch</label>
+        <input type="text" id="add-branch" placeholder="main" value="main">
+      </div>
+      <div class="form-group">
+        <label>Git User Name (defaults to global git config)</label>
+        <input type="text" id="add-git-user-name" placeholder="">
+      </div>
+      <div class="form-group">
+        <label>Git User Email (defaults to global git config)</label>
+        <input type="text" id="add-git-user-email" placeholder="">
+      </div>
+      <div id="add-error" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
+      <div class="form-actions">
+        <button onclick="toggleAddForm()">Cancel</button>
+        <button class="btn-primary" onclick="addProject()">Add Project</button>
+      </div>
+    </div>
+
+    <div id="project-list"></div>
+  </div>
+
+<script>
+async function loadProjects() {
+  const res = await fetch('/api/v1/projects');
+  const projects = await res.json();
+  const container = document.getElementById('project-list');
+  if (projects.length === 0) {
+    container.innerHTML = '<div class="empty-state">No projects configured.<br>Add a git repo with beads to get started.</div>';
+    return;
+  }
+  container.innerHTML = projects.map(p => `
+    <div class="project-card" id="card-${esc(p.id)}">
+      <div class="project-header">
+        <span class="project-name">${esc(p.name)}</span>
+        <span class="project-id">${esc(p.id)}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Repo:</span>
+        <span class="field-value">${esc(p.repo_url)}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Local:</span>
+        <span class="field-value">${esc(p.repo_path)}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Branch:</span>
+        <span class="field-value">${esc(p.branch)}</span>
+      </div>
+      ${p.git_user_name ? `<div class="field-row">
+        <span class="field-label">Git User:</span>
+        <span class="field-value">${esc(p.git_user_name)} &lt;${esc(p.git_user_email || '')}&gt;</span>
+      </div>` : ''}
+      <div class="field-row">
+        <span class="field-label">YOLO:</span>
+        <label style="cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
+          <input type="checkbox" ${p.yolo ? 'checked' : ''} onchange="toggleYolo('${esc(p.id)}', this.checked)">
+          <span style="font-size:0.75rem;color:${p.yolo ? 'var(--green)' : 'var(--text-muted)'}">${p.yolo ? 'On — auto-merge, auto-resolve, auto-retry' : 'Off'}</span>
+        </label>
+      </div>
+      <div class="field-row" style="margin-top:0.75rem;">
+        <button onclick="showWorktrees('${esc(p.id)}')">Worktrees</button>
+        <button class="btn-danger" onclick="deleteProject('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
+      </div>
+      <div class="worktree-list" id="wt-${esc(p.id)}" style="display:none;"></div>
+    </div>
+  `).join('');
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toggleAddForm() {
+  const f = document.getElementById('add-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('add-error').style.display = 'none';
+}
+
+async function addProject() {
+  const repo = document.getElementById('add-repo').value.trim();
+  const name = document.getElementById('add-name').value.trim() || undefined;
+  const branch = document.getElementById('add-branch').value.trim() || 'main';
+  const gitUserName = document.getElementById('add-git-user-name').value.trim() || undefined;
+  const gitUserEmail = document.getElementById('add-git-user-email').value.trim() || undefined;
+  const errEl = document.getElementById('add-error');
+  if (!repo) {
+    errEl.textContent = 'Repository URL is required';
+    errEl.style.display = 'block';
+    return;
+  }
+  const res = await fetch('/api/v1/projects', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({repo_url: repo, name, branch, git_user_name: gitUserName, git_user_email: gitUserEmail}),
+  });
+  if (res.ok) {
+    toggleAddForm();
+    document.getElementById('add-name').value = '';
+    document.getElementById('add-repo').value = '';
+    document.getElementById('add-branch').value = 'main';
+    document.getElementById('add-git-user-name').value = '';
+    document.getElementById('add-git-user-email').value = '';
+    loadProjects();
+  } else {
+    const data = await res.json();
+    errEl.textContent = (data.error && data.error.message) || 'Failed to add project';
+    errEl.style.display = 'block';
+  }
+}
+
+async function toggleYolo(id, enabled) {
+  await fetch('/api/v1/projects/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({yolo: enabled}),
+  });
+  loadProjects();
+}
+
+async function deleteProject(id, name) {
+  if (!confirm('Delete project "' + name + '"? This does not delete the repo.')) return;
+  await fetch('/api/v1/projects/' + id, {method: 'DELETE'});
+  loadProjects();
+}
+
+async function showWorktrees(id) {
+  const el = document.getElementById('wt-' + id);
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  const res = await fetch('/api/v1/projects/' + id + '/worktrees');
+  const data = await res.json();
+  const wts = data.worktrees || [];
+  el.innerHTML = wts.length > 0
+    ? '<strong>Active worktrees:</strong><br>' + wts.map(w => esc(w)).join('<br>')
+    : '<em>No active worktrees</em>';
+  el.style.display = 'block';
+}
+
+
+// --- Project selector (sticky) ---
+const PROJECT_STORAGE_KEY = 'oompah_selected_project';
+
+async function initProjectSelector() {
+  const sel = document.getElementById('project-filter');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) return;
+    const projects = await res.json();
+    if (projects.length === 0) { sel.style.display = 'none'; return; }
+    const saved = localStorage.getItem(PROJECT_STORAGE_KEY) || '';
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + escP(p.id) + '"' +
+        (p.id === saved ? ' selected' : '') + '>' + escP(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } catch(e) { sel.style.display = 'none'; }
+}
+
+function onProjectChange() {
+  const sel = document.getElementById('project-filter');
+  if (sel) localStorage.setItem(PROJECT_STORAGE_KEY, sel.value);
+}
+
+function escP(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+loadProjects();
+initProjectSelector();
+</script>
+</body>
+</html>
