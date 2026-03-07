@@ -318,13 +318,22 @@ class GitHubProvider(SCMProvider):
 class GitLabProvider(SCMProvider):
     """GitLab implementation using the `glab` CLI."""
 
+    def __init__(self, hostname: str = "gitlab.com"):
+        self._hostname = hostname
+
     def provider_name(self) -> str:
         return "gitlab"
+
+    def _glab_repo_arg(self, repo: str) -> str:
+        """Return the fully-qualified repo arg for glab (hostname/owner/project)."""
+        if "/" in repo and not repo.startswith(self._hostname):
+            return f"{self._hostname}/{repo}"
+        return repo
 
     def is_available(self) -> bool:
         try:
             r = subprocess.run(
-                ["glab", "auth", "status"],
+                ["glab", "auth", "status", "--hostname", self._hostname],
                 capture_output=True, text=True, timeout=10,
             )
             return r.returncode == 0
@@ -336,8 +345,7 @@ class GitLabProvider(SCMProvider):
             r = subprocess.run(
                 [
                     "glab", "mr", "list",
-                    "--repo", repo,
-                    "--state", "opened",
+                    "--repo", self._glab_repo_arg(repo),
                     "--output", "json",
                     "--per-page", "100",
                 ],
@@ -405,7 +413,7 @@ class GitLabProvider(SCMProvider):
             r = subprocess.run(
                 [
                     "glab", "mr", "view", review_id,
-                    "--repo", repo,
+                    "--repo", self._glab_repo_arg(repo),
                     "--output", "json",
                 ],
                 capture_output=True, text=True, timeout=15,
@@ -440,7 +448,7 @@ class GitLabProvider(SCMProvider):
     ) -> ReviewRequest | None:
         cmd = [
             "glab", "mr", "create",
-            "--repo", repo,
+            "--repo", self._glab_repo_arg(repo),
             "--title", title,
             "--source-branch", source_branch,
             "--target-branch", target_branch,
@@ -467,7 +475,7 @@ class GitLabProvider(SCMProvider):
         try:
             # glab mr rebase triggers a server-side rebase on GitLab
             r = subprocess.run(
-                ["glab", "mr", "rebase", review_id, "--repo", repo],
+                ["glab", "mr", "rebase", review_id, "--repo", self._glab_repo_arg(repo)],
                 capture_output=True, text=True, timeout=60,
             )
             if r.returncode == 0:
@@ -484,7 +492,7 @@ class GitLabProvider(SCMProvider):
     def needs_rebase(self, repo: str, review_id: str) -> bool:
         try:
             r = subprocess.run(
-                ["glab", "mr", "view", review_id, "--repo", repo, "--output", "json"],
+                ["glab", "mr", "view", review_id, "--repo", self._glab_repo_arg(repo), "--output", "json"],
                 capture_output=True, text=True, timeout=15,
             )
             if r.returncode != 0:
@@ -520,7 +528,13 @@ def detect_provider(repo_url: str) -> SCMProvider | None:
     if "github.com" in url_lower:
         return GitHubProvider()
     if "gitlab" in url_lower:
-        return GitLabProvider()
+        # Extract hostname for non-default GitLab instances
+        hostname = "gitlab.com"
+        if "://" in repo_url:
+            hostname = repo_url.split("://", 1)[1].split("/", 1)[0]
+        elif repo_url.startswith("git@"):
+            hostname = repo_url.split("@", 1)[1].split(":", 1)[0]
+        return GitLabProvider(hostname=hostname)
     return None
 
 
