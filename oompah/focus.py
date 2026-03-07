@@ -288,7 +288,7 @@ BUILTIN_FOCI: list[Focus] = [
             "Push to the main/default branch — only push to this issue's branch",
             "Create a new branch or PR — work on the existing one",
         ],
-        keywords=["merge conflict", "rebase", "conflict"],
+        keywords=["merge conflict", "rebase conflict", "resolve conflict"],
         labels=["merge-conflict"],
         priority=100,
     ),

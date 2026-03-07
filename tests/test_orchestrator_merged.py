@@ -273,3 +273,31 @@ class TestBlockerHasUnmergedPr:
 
         blocker = BlockerRef(id="", identifier="", state="closed")
         assert orch._blocker_has_unmerged_pr(blocker) is False
+
+
+class TestShouldDispatchCompleted:
+    """Tests that completed issues are not re-dispatched."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def test_completed_issue_not_dispatched(self, tmp_path):
+        """An issue in state.completed should not be re-dispatched."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-1", state="in_progress")
+        orch.state.completed.add("feat-1")
+        assert orch._should_dispatch(issue) is False
+
+    def test_non_completed_issue_dispatched(self, tmp_path):
+        """An issue NOT in state.completed should be dispatchable."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-1", state="in_progress")
+        assert orch._should_dispatch(issue) is True

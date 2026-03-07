@@ -485,6 +485,8 @@ class Orchestrator:
             return False
         if issue.id in self.state.claimed:
             return False
+        if issue.id in self.state.completed:
+            return False
         is_p0 = issue.priority is not None and issue.priority == 0
         if not is_p0:
             if self._available_slots() <= 0:
@@ -697,6 +699,10 @@ class Orchestrator:
             issue = tracker.fetch_issue_detail(source_branch)
             if not issue:
                 return
+            # Don't re-notify if already open/in_progress with merge-conflict label
+            state_lower = issue.state.strip().lower()
+            if state_lower in ("open", "in_progress") and "merge-conflict" in issue.labels:
+                return
             comment_text = (
                 f"YOLO: Merge conflict detected on MR #{review_id}. "
                 f"Rebase onto {target_branch} and resolve conflicts."
@@ -707,9 +713,10 @@ class Orchestrator:
             except Exception:
                 pass
             terminal = {s.lower() for s in self.config.tracker_terminal_states}
-            if issue.state.strip().lower() in terminal:
+            if state_lower in terminal:
                 tracker.reopen_issue(issue.identifier)
                 tracker.update_issue(issue.identifier, priority="0")
+                self.state.completed.discard(issue.id)
                 logger.info("YOLO: reopened %s as P0 for conflict resolution", issue.identifier)
         except Exception as exc:
             logger.warning("YOLO: conflict notification failed for MR #%s: %s", review_id, exc)
@@ -737,6 +744,7 @@ class Orchestrator:
                 "Do NOT rewrite the feature — only fix test failures.",
                 author="oompah",
             )
+            self.state.completed.discard(issue.id)
             logger.info("YOLO: re-filed %s as P0 ci-fix", issue.identifier)
         except Exception as exc:
             logger.warning("YOLO: CI retry failed for branch %s: %s", review.source_branch, exc)

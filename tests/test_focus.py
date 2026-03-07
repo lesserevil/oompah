@@ -140,6 +140,16 @@ class TestSelectFocus:
         focus = select_focus(issue)
         assert focus.name == "merge_conflict"
 
+    def test_merge_in_title_does_not_trigger_conflict_focus(self):
+        """Issue with 'merge' in title but no conflict context should not get merge_conflict focus."""
+        issue = _make_issue(
+            title="Merge Executor (In-Order)",
+            description="Merge via GitLab API with safety. Failures: conflict->failed.",
+            issue_type="task",
+        )
+        focus = select_focus(issue)
+        assert focus.name != "merge_conflict"
+
 
 class TestFocusRender:
     def test_render_contains_role(self):
