@@ -259,8 +259,9 @@ class Orchestrator:
             self._notify_observers()
             return
 
-        # Part 2.5: Cache unmerged PR branches for blocker checks
+        # Part 2.5: Cache data for blocker checks
         self._unmerged_pr_branches = self._fetch_unmerged_pr_branches()
+        self._blocker_state_cache = {}  # reset per tick
 
         # Part 3: Fetch candidates from all projects (and legacy tracker)
         candidates = self._fetch_all_candidates()
@@ -344,6 +345,10 @@ class Orchestrator:
             terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
             for blocker in issue.blocked_by:
                 blocker_state = (blocker.state or "").strip().lower()
+                # If blocker state is unknown, look it up
+                if not blocker_state and blocker.id:
+                    resolved = self._resolve_blocker_state(blocker, issue)
+                    blocker_state = resolved
                 if blocker_state not in terminal_norms:
                     # Blocker not yet closed — still blocked
                     return False
@@ -379,6 +384,28 @@ class Orchestrator:
             except Exception as exc:
                 logger.debug("Failed to fetch open reviews for %s: %s", project.name, exc)
         return branches
+
+    def _resolve_blocker_state(self, blocker: BlockerRef, issue: Issue) -> str:
+        """Look up a blocker's current state, using a per-tick cache."""
+        cache = getattr(self, "_blocker_state_cache", {})
+        bid = blocker.id or ""
+        if bid in cache:
+            blocker.state = cache[bid]
+            return cache[bid].strip().lower()
+        try:
+            tracker = self._tracker_for_issue(issue)
+            detail = tracker.fetch_issue_detail(bid)
+            if detail:
+                state = detail.state
+                cache[bid] = state
+                self._blocker_state_cache = cache
+                blocker.state = state
+                return state.strip().lower()
+        except Exception:
+            pass
+        cache[bid] = ""
+        self._blocker_state_cache = cache
+        return ""
 
     def _blocker_has_unmerged_pr(self, blocker: BlockerRef) -> bool:
         """Check if a closed blocker still has an unmerged PR."""

@@ -354,11 +354,17 @@ class BeadsTracker:
                     dep_type = b.get("type") or b.get("dependency_type") or ""
                     if dep_type == "parent-child":
                         continue
+                    # bd list uses depends_on_id; bd show uses id/identifier
+                    blocker_id = (
+                        b.get("depends_on_id")
+                        or b.get("id")
+                        or b.get("identifier")
+                    )
                     blocked_by.append(
                         BlockerRef(
-                            id=b.get("id"),
-                            identifier=b.get("identifier"),
-                            state=b.get("state", b.get("status")),
+                            id=blocker_id,
+                            identifier=blocker_id,
+                            state=b.get("state") or b.get("status"),
                         )
                     )
                 elif isinstance(b, str):
