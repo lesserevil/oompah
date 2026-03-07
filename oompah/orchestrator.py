@@ -764,13 +764,29 @@ class Orchestrator:
         return ""
 
     def _blocker_has_unmerged_pr(self, blocker: BlockerRef) -> bool:
-        """Check if a closed blocker still has an unmerged PR."""
-        cache = getattr(self, "_unmerged_pr_branches", set())
-        if not cache:
-            return False
-        # The branch name is typically the issue identifier
+        """Check if a closed blocker's branch hasn't been merged to main.
+
+        A blocker is considered unmerged if:
+        1. It still has an open PR/MR, OR
+        2. Its branch is not in the set of merged branches (closed without merging)
+        """
         blocker_id = blocker.identifier or blocker.id or ""
-        return blocker_id in cache
+        if not blocker_id:
+            return False
+
+        # If the branch still has an open PR, it's definitely unmerged
+        open_branches = getattr(self, "_unmerged_pr_branches", set())
+        if blocker_id in open_branches:
+            return True
+
+        # If we have merged branch data, check if the branch has been merged
+        merged = getattr(self, "_merged_branches", None)
+        if merged is not None:
+            # Branch not in merged set means it hasn't landed in main
+            return blocker_id not in merged
+
+        # No merged data available — fall back to permissive (allow dispatch)
+        return False
 
     def _sort_for_dispatch(self, issues: list[Issue]) -> list[Issue]:
         def sort_key(issue: Issue):

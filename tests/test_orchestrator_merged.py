@@ -1,11 +1,11 @@
-"""Tests for orchestrator merged-issue labeling."""
+"""Tests for orchestrator merged-issue labeling and dispatch gating."""
 
 from unittest.mock import MagicMock, patch, call
 
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import Issue
+from oompah.models import BlockerRef, Issue
 from oompah.orchestrator import Orchestrator
 
 
@@ -219,3 +219,57 @@ class TestFetchAllMergedBranches:
             state_path=str(tmp_path / "state.json"),
         )
         assert orch._fetch_all_merged_branches() == set()
+
+
+class TestBlockerHasUnmergedPr:
+    """Tests for _blocker_has_unmerged_pr dispatch gating."""
+
+    def _make_orchestrator(self, tmp_path):
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def test_blocker_with_open_pr_is_unmerged(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        orch._unmerged_pr_branches = {"feat-branch"}
+        orch._merged_branches = set()
+
+        blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
+        assert orch._blocker_has_unmerged_pr(blocker) is True
+
+    def test_blocker_branch_merged_is_not_blocking(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        orch._unmerged_pr_branches = set()
+        orch._merged_branches = {"feat-branch"}
+
+        blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
+        assert orch._blocker_has_unmerged_pr(blocker) is False
+
+    def test_blocker_closed_but_not_merged_is_blocking(self, tmp_path):
+        """Key test: closed issue without a merged branch should still block."""
+        orch = self._make_orchestrator(tmp_path)
+        orch._unmerged_pr_branches = set()
+        orch._merged_branches = {"other-branch"}  # feat-branch NOT in merged set
+
+        blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
+        assert orch._blocker_has_unmerged_pr(blocker) is True
+
+    def test_no_merged_data_falls_back_to_permissive(self, tmp_path):
+        """If merged branch data unavailable, don't block (backwards compat)."""
+        orch = self._make_orchestrator(tmp_path)
+        orch._unmerged_pr_branches = set()
+        orch._merged_branches = None
+
+        blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
+        assert orch._blocker_has_unmerged_pr(blocker) is False
+
+    def test_empty_blocker_id_is_not_blocking(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        orch._unmerged_pr_branches = set()
+        orch._merged_branches = set()
+
+        blocker = BlockerRef(id="", identifier="", state="closed")
+        assert orch._blocker_has_unmerged_pr(blocker) is False

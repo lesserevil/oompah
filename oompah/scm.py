@@ -480,7 +480,7 @@ class GitLabProvider(SCMProvider):
                 [
                     "glab", "mr", "list",
                     "--repo", self._glab_repo_arg(repo),
-                    "--state", "merged",
+                    "--merged",
                     "--output", "json",
                     "--per-page", "100",
                 ],
