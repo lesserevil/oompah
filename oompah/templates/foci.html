@@ -265,11 +265,11 @@ function renderEditForm(f) {
       </div>
       <div class="form-row">
         <label>Must Do (one per line)</label>
-        <textarea id="ef-must-${n}" rows="3">${esc((f.must_do || []).join('\\n'))}</textarea>
+        <textarea id="ef-must-${n}" rows="3">${esc((f.must_do || []).join('\n'))}</textarea>
       </div>
       <div class="form-row">
         <label>Must NOT Do (one per line)</label>
-        <textarea id="ef-mustnot-${n}" rows="3">${esc((f.must_not_do || []).join('\\n'))}</textarea>
+        <textarea id="ef-mustnot-${n}" rows="3">${esc((f.must_not_do || []).join('\n'))}</textarea>
       </div>
       <div class="form-actions">
         <button class="btn-primary btn-sm" onclick="saveEdit('${n}')">Save</button>
@@ -284,7 +284,7 @@ function splitCSV(s) {
 }
 
 function splitLines(s) {
-  return s.split('\\n').map(x => x.trim()).filter(x => x);
+  return s.split('\n').map(x => x.trim()).filter(x => x);
 }
 
 async function saveEdit(name) {

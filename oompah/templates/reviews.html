@@ -211,7 +211,7 @@ function renderReviewCard(r, provider, projectId) {
   if (r.ci_status) {
     ciHtml = '<span><span class="ci-dot ci-' + r.ci_status + '"></span>' + r.ci_status + '</span>';
     if (r.ci_status === 'failed') {
-      ciHtml += ' <button class="btn-retry" onclick="retryReview(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Retry</button>';
+      ciHtml += ' <button class="btn-retry" onclick="retryReview(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Retry</button>';
     }
   }
 
@@ -221,11 +221,11 @@ function renderReviewCard(r, provider, projectId) {
   if (r.has_conflicts) {
     rebaseHtml = ' <span class="conflict-badge">Merge Conflicts</span>' +
       ' <button class="btn-resolve" ' +
-      'onclick="resolveConflicts(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Resolve Conflicts</button>';
+      'onclick="resolveConflicts(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Resolve Conflicts</button>';
   } else if (r.needs_rebase) {
     rebaseHtml = ' <span class="rebase-badge">Needs Rebase</span>' +
       ' <button class="btn-rebase" ' +
-      'onclick="triggerRebase(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Rebase</button>';
+      'onclick="triggerRebase(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Rebase</button>';
   }
 
   let labelsHtml = '';
