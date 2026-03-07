@@ -317,6 +317,9 @@ class Orchestrator:
             return False
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
+        # Never dispatch epics — they are containers, not actionable work items
+        if issue.issue_type == "epic":
+            return False
         state_norm = issue.state.strip().lower()
         if state_norm not in [s.strip().lower() for s in self.config.tracker_active_states]:
             return False
