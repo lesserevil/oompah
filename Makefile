@@ -4,7 +4,7 @@ PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
 PORT := 8080
 
-.PHONY: setup start stop restart status logs clean
+.PHONY: setup start stop restart graceful status logs clean
 
 setup: $(VENV)/.uv-setup
 
@@ -34,6 +34,13 @@ stop:
 	fi
 
 restart: stop start
+
+graceful:
+	@curl -sf -X POST http://127.0.0.1:$(PORT)/api/v1/orchestrator/restart \
+		-H 'Content-Type: application/json' -d '{"drain_timeout_s": 60}' \
+		| python3 -m json.tool \
+		&& echo "Graceful restart initiated" \
+		|| echo "Failed — is oompah running?"
 
 status:
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
