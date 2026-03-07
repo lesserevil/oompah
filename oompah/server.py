@@ -474,6 +474,14 @@ async def api_issue_full_detail(identifier: str, request: Request):
                 {"error": {"code": "issue_not_found", "message": f"Issue {identifier} not found"}},
                 status_code=404,
             )
+        # Bug fix: _normalize_issue() does not populate project_id from bd
+        # output, so issue.project_id is always None. Propagate the
+        # project_id from the request query parameter into the response so
+        # the frontend retains project context for subsequent operations
+        # (e.g. adding comments).  This mirrors what _fetch_all_issues()
+        # already does for the list endpoint.
+        if project_id:
+            issue.project_id = project_id
         result = {
             "id": issue.id,
             "identifier": issue.identifier,
