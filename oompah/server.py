@@ -1047,7 +1047,7 @@ async def api_retry_review(project_id: str, review_id: str):
                 {"success": False, "message": f"No bead found matching branch '{branch}'"},
                 status_code=404,
             )
-        tracker.update_issue(matched.identifier, status="open")
+        tracker.update_issue(matched.identifier, status="open", priority="0")
         tracker.add_comment(
             matched.identifier,
             f"CI tests failed on PR/MR #{review_id}. Please rebase onto main, "
