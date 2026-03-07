@@ -1412,7 +1412,6 @@ class Orchestrator:
         project_id = entry.issue.project_id if entry.issue else None
 
         if reason == "normal":
-            self.state.completed.add(issue_id)
             self.state.claimed.discard(issue_id)
             self.state.stall_counts.pop(issue_id, None)
             self._post_comment(
@@ -1425,6 +1424,20 @@ class Orchestrator:
                 issue_id,
                 entry.identifier,
             )
+            # Check if the agent actually closed the issue
+            try:
+                tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+                current = tracker.fetch_issue_detail(entry.identifier)
+                terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
+                if current and current.state.strip().lower() not in terminal:
+                    # Agent completed without closing — reset to open for re-dispatch
+                    tracker.update_issue(entry.identifier, status="open")
+                    logger.info("Agent completed without closing %s — reset to open",
+                                entry.identifier)
+                else:
+                    self.state.completed.add(issue_id)
+            except Exception:
+                self.state.completed.add(issue_id)
             # Analyze completed work against foci library
             self._analyze_focus_fit(entry.issue, project_id)
         elif reason in ("max_turns", "stalled"):
