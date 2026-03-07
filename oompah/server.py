@@ -72,7 +72,7 @@ def _on_orchestrator_change(snapshot: dict) -> None:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             loop.create_task(_broadcast({"type": "state", "data": snapshot}))
-            loop.create_task(broadcast_issues())
+            loop.create_task(_throttled_broadcast_issues())
     except RuntimeError:
         pass
 
@@ -128,7 +128,12 @@ async def _do_broadcast_issues() -> None:
 
 
 async def broadcast_issues() -> None:
-    """Throttled issue broadcast — debounces rapid calls."""
+    """Immediately fetch and broadcast issues (used for UI-driven actions)."""
+    await _do_broadcast_issues()
+
+
+async def _throttled_broadcast_issues() -> None:
+    """Throttled issue broadcast — debounces rapid background orchestrator calls."""
     global _issues_broadcast_pending
     if not _ws_clients:
         return
