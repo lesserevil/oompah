@@ -78,6 +78,11 @@ class SCMProvider(ABC):
         ...
 
     @abstractmethod
+    def list_merged_branches(self, repo: str) -> set[str]:
+        """Return source branch names of recently merged PRs/MRs."""
+        ...
+
+    @abstractmethod
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         """Get a single pull/merge request by ID."""
         ...
@@ -211,6 +216,27 @@ class GitHubProvider(SCMProvider):
                 has_conflicts=has_conflicts,
             ))
         return results
+
+    def list_merged_branches(self, repo: str) -> set[str]:
+        try:
+            r = subprocess.run(
+                [
+                    "gh", "pr", "list",
+                    "--repo", repo,
+                    "--state", "merged",
+                    "--json", "headRefName",
+                    "--limit", "100",
+                ],
+                capture_output=True, text=True, timeout=30,
+            )
+            if r.returncode != 0:
+                logger.debug("gh pr list --state merged failed for %s: %s", repo, r.stderr.strip()[:200])
+                return set()
+            data = json.loads(r.stdout)
+            return {pr.get("headRefName", "") for pr in data if pr.get("headRefName")}
+        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            logger.debug("GitHub list_merged_branches failed for %s: %s", repo, exc)
+            return set()
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         try:
@@ -447,6 +473,27 @@ class GitLabProvider(SCMProvider):
                 has_conflicts=has_conflicts,
             ))
         return results
+
+    def list_merged_branches(self, repo: str) -> set[str]:
+        try:
+            r = subprocess.run(
+                [
+                    "glab", "mr", "list",
+                    "--repo", self._glab_repo_arg(repo),
+                    "--state", "merged",
+                    "--output", "json",
+                    "--per-page", "100",
+                ],
+                capture_output=True, text=True, timeout=30,
+            )
+            if r.returncode != 0:
+                logger.debug("glab mr list --state merged failed for %s: %s", repo, r.stderr.strip()[:200])
+                return set()
+            data = json.loads(r.stdout)
+            return {mr.get("source_branch", "") for mr in data if mr.get("source_branch")}
+        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            logger.debug("GitLab list_merged_branches failed for %s: %s", repo, exc)
+            return set()
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         try:

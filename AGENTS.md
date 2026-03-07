@@ -12,6 +12,20 @@ bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
 
+## Use Makefile Targets
+
+**ALWAYS use Makefile targets** when one exists for the task you're performing. Before running a raw command, check if there's a `make` target that does the same thing. Makefile targets encode project-specific flags, sequences, and conventions that raw commands may miss.
+
+```bash
+# Examples:
+make start            # NOT: uv run oompah
+make restart          # NOT: killing and restarting manually
+make graceful         # NOT: sending signals directly
+make test             # NOT: pytest directly
+```
+
+If unsure whether a target exists, run `make help` or `grep` the Makefile.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
