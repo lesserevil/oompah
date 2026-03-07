@@ -276,7 +276,9 @@ class BeadsTracker:
         for issue_id in issue_ids:
             try:
                 raw = self._run_bd(["show", issue_id, "--json"])
-                if isinstance(raw, dict):
+                if isinstance(raw, list) and raw:
+                    issues.append(self._normalize_issue(raw[0]))
+                elif isinstance(raw, dict):
                     issues.append(self._normalize_issue(raw))
             except TrackerError as exc:
                 logger.warning(
