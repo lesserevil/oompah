@@ -19,6 +19,7 @@ from oompah.focus import (
     load_foci, load_suggestions, save_foci, score_focus,
     update_suggestion_status,
 )
+from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
@@ -29,11 +30,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+_template_cache: dict[str, str] = {}
 
 
 def _load_template(name: str) -> str:
-    """Load an HTML template from the templates directory."""
-    return (_TEMPLATES_DIR / name).read_text()
+    """Load an HTML template, cached in memory after first read."""
+    cached = _template_cache.get(name)
+    if cached is not None:
+        return cached
+    content = (_TEMPLATES_DIR / name).read_text()
+    _template_cache[name] = content
+    return content
 
 
 app = FastAPI(title="oompah", version="0.1.0")
@@ -78,9 +85,9 @@ from concurrent.futures import ThreadPoolExecutor
 _api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
-_issues_cache: dict | None = None  # Cached issues response
-_issues_cache_ts: float = 0.0  # When the cache was last updated
-_ISSUES_CACHE_TTL_MS = 5000  # Cache TTL — serve from cache if fresh enough
+
+# Shared response cache for API endpoints
+_api_cache = TTLCache()
 
 def _on_state_only_change(snapshot: dict) -> None:
     """Called on agent activity — broadcast state only, no issues re-fetch."""
@@ -104,6 +111,7 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     """Called on state changes (dispatch, close, etc.). Broadcasts state + issues."""
     import time
     global _last_state_broadcast
+    _api_cache.invalidate("issues:all")
     if not _ws_clients:
         return
     now = time.monotonic() * 1000
@@ -163,7 +171,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
 
 async def _do_broadcast_issues() -> None:
     """Actually fetch and broadcast issues to all WS clients."""
-    global _last_issues_broadcast, _issues_broadcast_pending, _issues_cache, _issues_cache_ts
+    global _last_issues_broadcast, _issues_broadcast_pending
     _issues_broadcast_pending = False
     try:
         orch = _get_orchestrator()
@@ -172,8 +180,7 @@ async def _do_broadcast_issues() -> None:
             _api_thread_pool, _fetch_and_serialize_issues, orch
         )
         _last_issues_broadcast = time.monotonic() * 1000
-        _issues_cache = result
-        _issues_cache_ts = time.monotonic() * 1000
+        _api_cache.set("issues:all", result, ttl_ms=5000)
         if _ws_clients:
             await _broadcast({"type": "issues", "data": result})
     except Exception as exc:
@@ -290,11 +297,10 @@ async def api_issues(request: Request):
         filter_project = request.query_params.get("project_id")
 
         # Serve from cache if fresh and no project filter
-        now_ms = time.monotonic() * 1000
-        if (not filter_project and _issues_cache is not None
-                and (now_ms - _issues_cache_ts) < _ISSUES_CACHE_TTL_MS):
-            logger.debug("Issues API: serving from cache")
-            return JSONResponse(_issues_cache)
+        if not filter_project:
+            cached = _api_cache.get("issues:all")
+            if cached is not None:
+                return JSONResponse(cached)
 
         # Fetch issues from all projects (in dedicated pool to avoid tick contention)
         loop = asyncio.get_event_loop()
@@ -346,6 +352,8 @@ async def api_issues(request: Request):
         # Sort each column by priority
         for state in result:
             result[state].sort(key=lambda i: i["priority"] if i["priority"] is not None else 999)
+        if not filter_project:
+            _api_cache.set("issues:all", result, ttl_ms=5000)
         return JSONResponse(result)
     except Exception as exc:
         logger.error("Issues API error: %s", exc)
@@ -425,6 +433,7 @@ async def api_create_issue(request: Request):
         if parent_id:
             tracker.add_parent_child(issue.id, parent_id)
 
+        _api_cache.invalidate("issues:all")
         await broadcast_issues()
         return JSONResponse({
             "ok": True,
@@ -482,6 +491,8 @@ async def api_update_issue(identifier: str, request: Request):
                         await orch._terminate_running(issue_id, cleanup_workspace=(status_norm in terminal))
                         break
 
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
         await broadcast_issues()
         return JSONResponse({"ok": True})
     except Exception as exc:
@@ -498,8 +509,13 @@ async def api_get_comments(identifier: str, request: Request):
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
+        cache_key = f"comments:{project_id}:{identifier}"
+        cached = _api_cache.get(cache_key)
+        if cached is not None:
+            return JSONResponse(cached)
         tracker = _get_tracker(orch, project_id)
         comments = tracker.fetch_comments(identifier)
+        _api_cache.set(cache_key, comments, ttl_ms=3000)
         return JSONResponse(comments)
     except Exception as exc:
         logger.error("Comments API error: %s", exc)
@@ -525,6 +541,8 @@ async def api_add_comment(identifier: str, request: Request):
         project_id = body.get("project_id")
         tracker = _get_tracker(orch, project_id)
         result = tracker.add_comment(identifier, text, author=author)
+        _api_cache.invalidate(f"comments:{project_id}:{identifier}")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
         return JSONResponse(result, status_code=201)
     except Exception as exc:
         logger.error("Add comment API error: %s", exc)
@@ -540,6 +558,10 @@ async def api_issue_full_detail(identifier: str, request: Request):
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
+        cache_key = f"detail:{project_id}:{identifier}"
+        cached = _api_cache.get(cache_key)
+        if cached is not None:
+            return JSONResponse(cached)
         tracker = _get_tracker(orch, project_id)
         issue = tracker.fetch_issue_detail(identifier)
         if issue is None:
@@ -576,6 +598,7 @@ async def api_issue_full_detail(identifier: str, request: Request):
             ]
         # Always include comments
         result["comments"] = tracker.fetch_comments(issue.identifier)
+        _api_cache.set(cache_key, result, ttl_ms=3000)
         return JSONResponse(result)
     except Exception as exc:
         logger.error("Issue detail API error: %s", exc)
@@ -1043,9 +1066,13 @@ async def api_budget():
 async def api_list_reviews():
     """List all open PRs/MRs across all projects."""
     try:
+        cached = _api_cache.get("reviews:all")
+        if cached is not None:
+            return JSONResponse(cached)
         orch = _get_orchestrator()
         projects = orch.project_store.list_all()
         reviews = get_all_open_reviews(projects)
+        _api_cache.set("reviews:all", reviews, ttl_ms=10000)
         return JSONResponse(reviews)
     except Exception as exc:
         logger.error("Reviews API error: %s", exc)
@@ -1089,6 +1116,7 @@ async def api_rebase_review(project_id: str, review_id: str):
             )
 
         status_code = 200 if success else 409
+        _api_cache.invalidate("reviews:all")
         resp = {"success": success, "message": message}
         if notified_issue:
             resp["notified_issue"] = notified_issue
@@ -1153,6 +1181,8 @@ async def api_retry_review(project_id: str, review_id: str):
             "3) fix any test failures, 4) push. Nothing else.",
             author="oompah",
         )
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate("reviews:all")
         await broadcast_issues()
         return JSONResponse({"success": True, "identifier": matched.identifier})
     except Exception as exc:
