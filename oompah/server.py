@@ -1952,6 +1952,7 @@ let viewMode = 'flat';
 let collapsedSwimlanes = {};
 let orchPaused = false;
 let lastRunningAgents = [];
+let currentProjects = [];
 
 // --- Edit-state tracking ---
 // Bug fix: Track when user is inline-editing a card field so that incoming
@@ -2050,6 +2051,7 @@ function handleStateUpdate(state) {
 
   // Update project filter dropdown
   const projects = state.projects || [];
+  currentProjects = projects;
   const sel = document.getElementById('project-filter');
   if (sel && projects.length > 0) {
     const curVal = sel.value;
@@ -2912,6 +2914,20 @@ function closeDetailPanel() {
 // --- Create dialog ---
 let createParentId = null;
 
+function populateProjectSelect(selectedId) {
+  const row = document.getElementById('create-project-row');
+  const sel = document.getElementById('create-project-select');
+  if (!row || !sel) return;
+  if (currentProjects.length === 0) {
+    row.style.display = 'none';
+    return;
+  }
+  row.style.display = '';
+  sel.innerHTML = currentProjects.map(p =>
+    '<option value="' + esc(p.id) + '"' + (p.id === selectedId ? ' selected' : '') + '>' + esc(p.name) + '</option>'
+  ).join('');
+}
+
 function openCreateDialog() {
   createParentId = null;
   document.getElementById('create-dialog-title').textContent = 'Create Issue';
@@ -2923,6 +2939,10 @@ function openCreateDialog() {
   // Show all types when creating standalone
   const typeSelect = document.getElementById('create-type');
   typeSelect.querySelector('option[value="epic"]').style.display = '';
+  // Pre-select the currently filtered project (if any)
+  const filterSel = document.getElementById('project-filter');
+  const defaultProjectId = filterSel ? filterSel.value : '';
+  populateProjectSelect(defaultProjectId);
   setTimeout(() => document.getElementById('create-title').focus(), 50);
 }
 
@@ -2939,6 +2959,9 @@ function openCreateDialogForEpic(epicId) {
   // Hide epic type when creating children
   const typeSelect = document.getElementById('create-type');
   typeSelect.querySelector('option[value="epic"]').style.display = 'none';
+  // Pre-select the epic's project
+  const epicProjectId = epic && epic.project_id ? epic.project_id : '';
+  populateProjectSelect(epicProjectId);
   setTimeout(() => document.getElementById('create-title').focus(), 50);
 }
 
@@ -2964,10 +2987,18 @@ async function submitCreateDialog() {
     };
     if (createParentId) {
       body.parent_id = createParentId;
+    }
+    // Use project from dialog selector if available
+    const projectSel = document.getElementById('create-project-select');
+    if (projectSel && projectSel.value) {
+      body.project_id = projectSel.value;
+    }
+    // Fallback: if no project selector (single-project mode), use the parent epic's project
+    if (!body.project_id && createParentId) {
       const epic = allIssuesFlat.find(i => i.id === createParentId);
       if (epic && epic.project_id) body.project_id = epic.project_id;
     }
-    // Default to selected project filter if no parent
+    // Last resort: selected project filter
     if (!body.project_id) {
       const sel = document.getElementById('project-filter');
       if (sel && sel.value) body.project_id = sel.value;
@@ -3008,6 +3039,10 @@ connectWebSocket();
 <div class="dialog-overlay" id="create-dialog" onclick="if(event.target===this)closeCreateDialog()">
   <div class="dialog">
     <h2 id="create-dialog-title">Create Issue</h2>
+    <div id="create-project-row" style="display:none;">
+      <label for="create-project-select">Project</label>
+      <select id="create-project-select"></select>
+    </div>
     <label for="create-type">Type</label>
     <select id="create-type">
       <option value="task">Task</option>

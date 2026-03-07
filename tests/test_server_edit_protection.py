@@ -96,8 +96,14 @@ class TestEditProtectionIntegration:
     """Higher-level checks that the edit protection is wired correctly."""
 
     def test_ws_onmessage_calls_renderBoard_which_defers(self, script):
-        """The ws.onmessage handler calls renderBoard, which will defer if editing."""
-        assert "renderBoard(msg.data)" in script
+        """The ws.onmessage handler calls renderBoard, which will defer if editing.
+
+        renderBoard may receive data directly (renderBoard(msg.data)) or
+        filtered through filterByProject (renderBoard(filterByProject(msg.data))).
+        Either way, renderBoard is called with the WebSocket issues data.
+        """
+        assert "renderBoard(msg.data)" in script or \
+               "renderBoard(filterByProject(msg.data))" in script
         assert "if (editingState)" in script
 
     def test_clear_before_save_not_after(self, script):
