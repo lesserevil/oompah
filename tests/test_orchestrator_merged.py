@@ -248,14 +248,14 @@ class TestBlockerHasUnmergedPr:
         blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
         assert orch._blocker_has_unmerged_pr(blocker) is False
 
-    def test_blocker_closed_but_not_merged_is_blocking(self, tmp_path):
-        """Key test: closed issue without a merged branch should still block."""
+    def test_blocker_closed_no_open_pr_not_blocking(self, tmp_path):
+        """Closed issue with no open PR should not block (may never have had an MR)."""
         orch = self._make_orchestrator(tmp_path)
         orch._unmerged_pr_branches = set()
         orch._merged_branches = {"other-branch"}  # feat-branch NOT in merged set
 
         blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
-        assert orch._blocker_has_unmerged_pr(blocker) is True
+        assert orch._blocker_has_unmerged_pr(blocker) is False
 
     def test_no_merged_data_falls_back_to_permissive(self, tmp_path):
         """If merged branch data unavailable, don't block (backwards compat)."""

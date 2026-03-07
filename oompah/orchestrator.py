@@ -772,11 +772,10 @@ class Orchestrator:
         return ""
 
     def _blocker_has_unmerged_pr(self, blocker: BlockerRef) -> bool:
-        """Check if a closed blocker's branch hasn't been merged to main.
+        """Check if a closed blocker still has an unmerged PR/MR.
 
-        A blocker is considered unmerged if:
-        1. It still has an open PR/MR, OR
-        2. Its branch is not in the set of merged branches (closed without merging)
+        A blocker is considered unmerged ONLY if it has an open PR/MR.
+        If the branch has been merged OR has no open PR, it's not blocking.
         """
         blocker_id = blocker.identifier or blocker.id or ""
         if not blocker_id:
@@ -787,11 +786,8 @@ class Orchestrator:
         if blocker_id in open_branches:
             return True
 
-        # If we have merged branch data, check if the branch has been merged
-        merged = getattr(self, "_merged_branches", None)
-        if merged is not None:
-            # Branch not in merged set means it hasn't landed in main
-            return blocker_id not in merged
+        # No open PR — either merged or never had one. Don't block.
+        return False
 
         # No merged data available — fall back to permissive (allow dispatch)
         return False
