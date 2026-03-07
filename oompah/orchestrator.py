@@ -611,7 +611,7 @@ class Orchestrator:
             return
 
         for project in self.project_store.list_all():
-            tracker = self._get_project_tracker(project)
+            tracker = self._tracker_for_project(project.id)
             try:
                 closed_issues = tracker.fetch_issues_by_states(
                     self.config.tracker_terminal_states
