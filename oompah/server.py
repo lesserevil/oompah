@@ -52,6 +52,9 @@ def _get_orchestrator() -> Orchestrator:
 
 
 _last_state_broadcast = 0.0
+_last_issues_broadcast = 0.0
+_ISSUES_THROTTLE_MS = 3000  # Don't fetch/broadcast issues more than every 3s
+_issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
 
 def _on_orchestrator_change(snapshot: dict) -> None:
@@ -90,8 +93,10 @@ def _on_agent_activity(identifier: str, entry) -> None:
         pass
 
 
-async def broadcast_issues() -> None:
-    """Fetch current issues and broadcast to all WS clients."""
+async def _do_broadcast_issues() -> None:
+    """Actually fetch and broadcast issues to all WS clients."""
+    global _last_issues_broadcast, _issues_broadcast_pending
+    _issues_broadcast_pending = False
     if not _ws_clients:
         return
     try:
@@ -116,9 +121,27 @@ async def broadcast_issues() -> None:
                 "parent_id": issue.parent_id,
                 "project_id": issue.project_id,
             })
+        _last_issues_broadcast = time.monotonic() * 1000
         await _broadcast({"type": "issues", "data": result})
     except Exception as exc:
         logger.debug("broadcast_issues failed: %s", exc)
+
+
+async def broadcast_issues() -> None:
+    """Throttled issue broadcast — debounces rapid calls."""
+    global _issues_broadcast_pending
+    if not _ws_clients:
+        return
+    now = time.monotonic() * 1000
+    elapsed = now - _last_issues_broadcast
+    if elapsed >= _ISSUES_THROTTLE_MS:
+        await _do_broadcast_issues()
+    elif not _issues_broadcast_pending:
+        _issues_broadcast_pending = True
+        delay = (_ISSUES_THROTTLE_MS - elapsed) / 1000
+        asyncio.get_event_loop().call_later(
+            delay, lambda: asyncio.ensure_future(_do_broadcast_issues())
+        )
 
 
 async def _broadcast(msg: dict) -> None:
@@ -376,6 +399,19 @@ async def api_update_issue(identifier: str, request: Request):
 
         if new_description is not None:
             tracker.update_issue(identifier, description=new_description)
+
+        # Immediately terminate agent if issue moved to terminal or non-active state
+        if new_status is not None:
+            terminal = {s.strip().lower() for s in orch.config.tracker_terminal_states}
+            active = {s.strip().lower() for s in orch.config.tracker_active_states}
+            status_norm = new_status.strip().lower()
+            if status_norm in terminal or status_norm not in active:
+                # Find running entry by identifier and terminate
+                for issue_id, entry in list(orch.state.running.items()):
+                    if entry.identifier == identifier:
+                        logger.info("Terminating agent for %s (moved to %s via UI)", identifier, new_status)
+                        await orch._terminate_running(issue_id, cleanup_workspace=(status_norm in terminal))
+                        break
 
         await broadcast_issues()
         return JSONResponse({"ok": True})
@@ -1667,6 +1703,9 @@ DASHBOARD_HTML = """\
       0%, 100% { opacity: 1; }
       50% { opacity: 0.3; }
     }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
     .btn-paused {
       color: var(--yellow) !important;
       border-color: var(--yellow) !important;
@@ -1854,7 +1893,14 @@ DASHBOARD_HTML = """\
     <div class="running-agents" id="running-agents"></div>
   </div>
   <div class="main-area">
-    <div class="board" id="board"></div>
+    <div class="board" id="board">
+      <div id="board-spinner" style="display:flex;align-items:center;justify-content:center;width:100%;padding:3rem;color:var(--text-muted);font-size:0.9rem;gap:0.75rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+        </svg>
+        Loading issues...
+      </div>
+    </div>
     <div class="detail-panel" id="detail-panel">
       <div class="detail-panel-header">
         <h3 id="detail-panel-title">Details</h3>
