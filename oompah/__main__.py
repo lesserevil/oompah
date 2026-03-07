@@ -63,16 +63,23 @@ def main() -> None:
         logger.error("Workflow file not found: %s", workflow_path)
         sys.exit(1)
 
-    try:
-        asyncio.run(_run(workflow_path, args.port))
-    except KeyboardInterrupt:
-        logger.info("Shutting down")
-    except Exception as exc:
-        logger.exception("Fatal error: %s", exc)
-        sys.exit(1)
+    while True:
+        restart = False
+        try:
+            restart = asyncio.run(_run(workflow_path, args.port))
+        except KeyboardInterrupt:
+            logger.info("Shutting down")
+        except Exception as exc:
+            logger.exception("Fatal error: %s", exc)
+            sys.exit(1)
+
+        if restart:
+            logger.info("Restarting via os.execv: %s %s", sys.executable, sys.argv)
+            os.execv(sys.executable, [sys.executable, "-m", "oompah"] + sys.argv[1:])
+        break
 
 
-async def _run(workflow_path: str, cli_port: int | None) -> None:
+async def _run(workflow_path: str, cli_port: int | None) -> bool:
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.orchestrator import Orchestrator
     from oompah.projects import ProjectStore
@@ -131,6 +138,7 @@ async def _run(workflow_path: str, cli_port: int | None) -> None:
     orch_task = asyncio.create_task(orchestrator.run())
 
     # Start HTTP server if port configured
+    server = None
     server_task = None
     if port is not None:
         import uvicorn
@@ -147,17 +155,19 @@ async def _run(workflow_path: str, cli_port: int | None) -> None:
         logger.info("HTTP server starting on http://127.0.0.1:%d", port)
 
     try:
-        tasks = [orch_task, watch_task]
-        if server_task:
-            tasks.append(server_task)
-        await asyncio.gather(*tasks)
+        # Wait for orchestrator to finish (normal stop or restart)
+        await orch_task
     except asyncio.CancelledError:
         pass
     finally:
+        wants_restart = orchestrator.wants_restart
         await orchestrator.stop()
         watch_task.cancel()
+        if server:
+            server.should_exit = True
         if server_task:
             server_task.cancel()
+        return wants_restart
 
 
 if __name__ == "__main__":

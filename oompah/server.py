@@ -625,6 +625,28 @@ async def api_orchestrator_resume():
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@app.post("/api/v1/orchestrator/restart")
+async def api_orchestrator_restart(request: Request):
+    """Graceful restart: drain running agents, then restart the process."""
+    try:
+        orch = _get_orchestrator()
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        drain_timeout = body.get("drain_timeout_s", 60)
+        running_count = len(orch.state.running)
+        asyncio.create_task(orch.graceful_restart(drain_timeout_s=drain_timeout))
+        return JSONResponse({
+            "ok": True,
+            "draining": running_count,
+            "drain_timeout_s": drain_timeout,
+        })
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/api/v1/orchestrator/dispatch/{identifier}")
 async def api_orchestrator_dispatch(identifier: str):
     """Manually dispatch a specific issue to an agent."""

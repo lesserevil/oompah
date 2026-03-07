@@ -77,6 +77,7 @@ class Orchestrator:
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
+        self._restart_requested = False
         self._observers: list[Any] = []
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
@@ -87,26 +88,35 @@ class Orchestrator:
             max_workers=8, thread_name_prefix="tick"
         )
 
-    def _load_paused_state(self) -> bool:
-        """Load persisted paused state from disk. Returns False if not found."""
+    def _load_state(self) -> dict:
+        """Load persisted service state from disk."""
         if not os.path.exists(self._state_path):
-            return False
+            return {}
         try:
             with open(self._state_path, "r") as f:
-                data = json.load(f)
-            return bool(data.get("paused", False))
+                return json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Failed to load service state from %s: %s", self._state_path, exc)
-            return False
+            return {}
+
+    def _load_paused_state(self) -> bool:
+        """Load persisted paused state from disk. Returns False if not found."""
+        return bool(self._load_state().get("paused", False))
+
+    def _save_state(self, **updates: object) -> None:
+        """Persist service state to disk, merging with existing state."""
+        try:
+            data = self._load_state()
+            data.update(updates)
+            os.makedirs(os.path.dirname(self._state_path) or ".", exist_ok=True)
+            with open(self._state_path, "w") as f:
+                json.dump(data, f, indent=2)
+        except OSError as exc:
+            logger.warning("Failed to save service state to %s: %s", self._state_path, exc)
 
     def _save_paused_state(self) -> None:
         """Persist paused state to disk."""
-        try:
-            os.makedirs(os.path.dirname(self._state_path) or ".", exist_ok=True)
-            with open(self._state_path, "w") as f:
-                json.dump({"paused": self._paused}, f, indent=2)
-        except OSError as exc:
-            logger.warning("Failed to save service state to %s: %s", self._state_path, exc)
+        self._save_state(paused=self._paused)
 
     def reload_config(self, config: ServiceConfig, prompt_template: str) -> None:
         """Apply new config and prompt template from workflow reload."""
@@ -158,6 +168,52 @@ class Orchestrator:
         logger.info("Orchestrator unpaused")
         self._refresh_requested.set()
         self._notify_observers()
+
+    async def graceful_restart(self, drain_timeout_s: float = 60) -> None:
+        """Drain running agents and restart the process.
+
+        1. Pause dispatch (no new agents)
+        2. Wait up to drain_timeout_s for running agents to finish
+        3. Save any still-running issue IDs for re-dispatch after restart
+        4. Signal the main loop to stop (which triggers os.execv in __main__)
+        """
+        logger.info("Graceful restart requested (drain_timeout=%.0fs)", drain_timeout_s)
+        self._paused = True
+        self._notify_observers()
+
+        # Wait for running agents to drain
+        deadline = time.monotonic() + drain_timeout_s
+        while self.state.running and time.monotonic() < deadline:
+            remaining = len(self.state.running)
+            logger.info("Draining: %d agent(s) still running, %.0fs remaining",
+                        remaining, deadline - time.monotonic())
+            await asyncio.sleep(2)
+
+        # Save issue IDs of anything still running for re-dispatch
+        restart_issues = []
+        for issue_id, entry in self.state.running.items():
+            restart_issues.append({
+                "issue_id": issue_id,
+                "identifier": entry.issue.identifier if entry.issue else issue_id,
+                "project_id": entry.issue.project_id if entry.issue else None,
+            })
+
+        if restart_issues:
+            logger.info("Saving %d undrained issue(s) for re-dispatch after restart",
+                        len(restart_issues))
+
+        self._save_state(
+            paused=False,
+            restart_issues=restart_issues,
+        )
+
+        # Signal the main loop to stop and restart
+        self._restart_requested = True
+        self._stopping = True
+
+    @property
+    def wants_restart(self) -> bool:
+        return self._restart_requested
 
     def _tracker_for_project(self, project_id: str) -> BeadsTracker:
         """Get or create a BeadsTracker for a project."""
@@ -224,9 +280,38 @@ class Orchestrator:
             except TrackerError as exc:
                 logger.warning("Startup terminal cleanup failed: %s", exc)
 
+    async def _recover_restart_issues(self) -> None:
+        """Re-dispatch issues that were running when a graceful restart happened."""
+        state = self._load_state()
+        restart_issues = state.get("restart_issues", [])
+        if not restart_issues:
+            return
+
+        # Clear the restart_issues from state immediately
+        self._save_state(restart_issues=[])
+
+        logger.info("Recovering %d issue(s) from graceful restart", len(restart_issues))
+        for entry in restart_issues:
+            issue_id = entry.get("issue_id")
+            identifier = entry.get("identifier", issue_id)
+            project_id = entry.get("project_id")
+            if not issue_id:
+                continue
+            try:
+                if project_id:
+                    tracker = self._tracker_for_project(project_id)
+                else:
+                    tracker = self.tracker
+                # Re-open the issue so it gets picked up on the next tick
+                tracker.update_issue(identifier, status="open")
+                logger.info("Marked %s as open for re-dispatch after restart", identifier)
+            except (TrackerError, ProjectError) as exc:
+                logger.warning("Failed to recover issue %s: %s", identifier, exc)
+
     async def run(self) -> None:
         """Main event loop: poll, dispatch, reconcile."""
         await self.startup_cleanup()
+        await self._recover_restart_issues()
         logger.info("Orchestrator starting poll loop interval_ms=%d", self.state.poll_interval_ms)
 
         while not self._stopping:
