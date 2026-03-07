@@ -291,10 +291,10 @@ async def api_issues(request: Request):
 
 
 def _get_tracker(orch, project_id: str | None = None):
-    """Get the appropriate tracker for a project_id, falling back to legacy."""
-    if project_id:
-        return orch._tracker_for_project(project_id)
-    return orch.tracker
+    """Get the appropriate tracker for a project_id."""
+    if not project_id:
+        raise ValueError("project_id is required")
+    return orch._tracker_for_project(project_id)
 
 
 def _fetch_all_issues(orch, filter_project: str | None = None):
@@ -483,7 +483,7 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "state": issue.state,
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
-            "project_id": issue.project_id,
+            "project_id": project_id,
             "labels": issue.labels,
             "created_at": issue.created_at.isoformat() if issue.created_at else None,
             "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
