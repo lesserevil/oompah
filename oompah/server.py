@@ -94,6 +94,31 @@ def _on_agent_activity(identifier: str, entry) -> None:
         pass
 
 
+def _fetch_and_serialize_issues(orch) -> dict[str, list]:
+    """Fetch all issues and serialize — runs in thread pool to avoid blocking."""
+    all_issues = _fetch_all_issues(orch, None)
+    result: dict[str, list] = {}
+    for issue in all_issues:
+        if "archive:yes" in issue.labels:
+            continue
+        state = issue.state.strip().lower()
+        if state not in result:
+            result[state] = []
+        result[state].append({
+            "id": issue.id,
+            "identifier": issue.identifier,
+            "title": issue.title,
+            "description": issue.description,
+            "priority": issue.priority,
+            "state": issue.state,
+            "labels": issue.labels,
+            "issue_type": issue.issue_type,
+            "parent_id": issue.parent_id,
+            "project_id": issue.project_id,
+        })
+    return result
+
+
 async def _do_broadcast_issues() -> None:
     """Actually fetch and broadcast issues to all WS clients."""
     global _last_issues_broadcast, _issues_broadcast_pending
@@ -102,26 +127,7 @@ async def _do_broadcast_issues() -> None:
         return
     try:
         orch = _get_orchestrator()
-        all_issues = _fetch_all_issues(orch, None)
-        result: dict[str, list] = {}
-        for issue in all_issues:
-            if "archive:yes" in issue.labels:
-                continue
-            state = issue.state.strip().lower()
-            if state not in result:
-                result[state] = []
-            result[state].append({
-                "id": issue.id,
-                "identifier": issue.identifier,
-                "title": issue.title,
-                "description": issue.description,
-                "priority": issue.priority,
-                "state": issue.state,
-                "labels": issue.labels,
-                "issue_type": issue.issue_type,
-                "parent_id": issue.parent_id,
-                "project_id": issue.project_id,
-            })
+        result = await asyncio.to_thread(_fetch_and_serialize_issues, orch)
         _last_issues_broadcast = time.monotonic() * 1000
         await _broadcast({"type": "issues", "data": result})
     except Exception as exc:
@@ -180,22 +186,8 @@ async def websocket_endpoint(ws: WebSocket):
         orch = _get_orchestrator()
         await ws.send_text(json.dumps(
             {"type": "state", "data": orch.get_snapshot()}, default=str))
-        # Send initial issues
-        all_issues = _fetch_all_issues(orch, None)
-        result: dict[str, list] = {}
-        for issue in all_issues:
-            if "archive:yes" in issue.labels:
-                continue
-            state = issue.state.strip().lower()
-            if state not in result:
-                result[state] = []
-            result[state].append({
-                "id": issue.id, "identifier": issue.identifier,
-                "title": issue.title, "description": issue.description,
-                "priority": issue.priority, "state": issue.state,
-                "labels": issue.labels, "issue_type": issue.issue_type,
-                "parent_id": issue.parent_id, "project_id": issue.project_id,
-            })
+        # Send initial issues (fetch in thread to avoid blocking)
+        result = await asyncio.to_thread(_fetch_and_serialize_issues, orch)
         await ws.send_text(json.dumps({"type": "issues", "data": result}, default=str))
 
         # Keep connection alive, handle client messages
@@ -247,8 +239,8 @@ async def api_issues(request: Request):
         orch = _get_orchestrator()
         filter_project = request.query_params.get("project_id")
 
-        # Fetch issues from all projects (or legacy tracker)
-        all_issues = _fetch_all_issues(orch, filter_project)
+        # Fetch issues from all projects (in thread to avoid blocking)
+        all_issues = await asyncio.to_thread(_fetch_all_issues, orch, filter_project)
 
         # Build a map for epic child counts
         epics: dict[str, dict] = {}
@@ -312,7 +304,7 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
     projects = orch.project_store.list_all()
     if not projects:
         # No projects configured — legacy mode
-        return orch.tracker.fetch_all_issues_enriched()
+        return orch.tracker.fetch_all_issues()
 
     all_issues = []
     for project in projects:
@@ -320,7 +312,7 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
             continue
         try:
             tracker = orch._tracker_for_project(project.id)
-            issues = tracker.fetch_all_issues_enriched()
+            issues = tracker.fetch_all_issues()
             for issue in issues:
                 issue.project_id = project.id
             all_issues.extend(issues)
@@ -2669,15 +2661,20 @@ function closeActivityPanel() {
 
 function renderActivityEntry(a) {
   const hasDetail = a.detail && a.detail.trim().length > 0;
-  return '<div class="activity-entry' + (hasDetail ? '' : '') + '"' +
-    (hasDetail ? ' onclick="this.classList.toggle(\'expanded\')"' : '') + '>' +
+  const div = document.createElement('div');
+  div.className = 'activity-entry';
+  if (hasDetail) {
+    div.style.cursor = 'pointer';
+    div.addEventListener('click', () => div.classList.toggle('expanded'));
+  }
+  div.innerHTML =
     '<span class="activity-turn">' + esc(String(a.turn || '')) + '</span>' +
     '<span class="activity-kind ' + esc(a.kind || '') + '">' + esc(a.kind || '') + '</span>' +
     '<span class="activity-summary">' + esc(a.summary || '') +
       (hasDetail ? ' <span style="color:var(--text-muted);font-size:0.7rem;">&#9660;</span>' : '') +
     '</span>' +
-    (hasDetail ? '<div class="activity-detail">' + esc(a.detail) + '</div>' : '') +
-  '</div>';
+    (hasDetail ? '<div class="activity-detail">' + esc(a.detail) + '</div>' : '');
+  return div;
 }
 
 function handleActivityPush(identifier, entry) {
@@ -2687,9 +2684,7 @@ function handleActivityPush(identifier, entry) {
   const titleEl = document.getElementById('activity-title');
   if (titleEl.dataset.identifier !== identifier) return;
   const body = document.getElementById('activity-body');
-  const tmp = document.createElement('div');
-  tmp.innerHTML = renderActivityEntry(entry);
-  body.appendChild(tmp.firstChild);
+  body.appendChild(renderActivityEntry(entry));
   body.scrollTop = body.scrollHeight;
 }
 
@@ -2703,7 +2698,10 @@ async function refreshActivity(identifier) {
       body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No activity yet...</div>';
       return;
     }
-    body.innerHTML = entries.map(a => renderActivityEntry(a)).join('');
+    body.innerHTML = '';
+    for (const a of entries) {
+      body.appendChild(renderActivityEntry(a));
+    }
     body.scrollTop = body.scrollHeight;
   } catch(e) {}
 }

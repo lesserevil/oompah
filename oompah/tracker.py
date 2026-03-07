@@ -69,6 +69,22 @@ class BeadsTracker:
 
     def fetch_all_issues(self) -> list[Issue]:
         """Fetch all issues regardless of state."""
+        # Try --all first (single call), fall back to per-status queries
+        try:
+            result = self._run_bd(["list", "--all", "--json"])
+            if isinstance(result, list) and result:
+                seen: set[str] = set()
+                issues: list[Issue] = []
+                for raw in result:
+                    issue = self._normalize_issue(raw)
+                    if issue.id not in seen:
+                        issues.append(issue)
+                        seen.add(issue.id)
+                return issues
+        except TrackerError:
+            pass
+
+        # Fallback: query per status
         all_raw: list[dict] = []
         for status_filter in [None, "closed", "deferred", "blocked", "pinned"]:
             try:
@@ -81,8 +97,8 @@ class BeadsTracker:
             except TrackerError:
                 pass
 
-        seen: set[str] = set()
-        issues: list[Issue] = []
+        seen = set()
+        issues = []
         for raw in all_raw:
             issue = self._normalize_issue(raw)
             if issue.id not in seen:
