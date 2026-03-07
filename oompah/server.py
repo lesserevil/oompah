@@ -1166,11 +1166,22 @@ async def api_retry_review(project_id: str, review_id: str):
                 matched = issue
                 break
         if not matched:
-            return JSONResponse(
-                {"success": False, "message": f"No bead found matching branch '{branch}'"},
-                status_code=404,
+            # No existing bead — create one for this external PR/MR
+            matched = tracker.create_issue(
+                title=f"Fix CI: {review.title or branch}",
+                issue_type="bug",
+                description=(
+                    f"Auto-created bead for external PR/MR #{review_id} "
+                    f"(branch: {branch}).\n\n"
+                    f"URL: {review.url or 'N/A'}"
+                ),
+                priority=0,
+                initial_status="open",
             )
-        tracker.update_issue(matched.identifier, status="open", priority="0")
+            logger.info("Created bead %s for external PR/MR #%s (branch %s)",
+                         matched.identifier, review_id, branch)
+        else:
+            tracker.update_issue(matched.identifier, status="open", priority="0")
         tracker.add_label(matched.identifier, "ci-fix")
         tracker.add_comment(
             matched.identifier,
@@ -1217,11 +1228,21 @@ def _notify_conflict_on_bead(
         tracker = orch._tracker_for_project(project_id)
         issue = tracker.fetch_issue_detail(source_branch)
         if not issue:
-            logger.info(
-                "No bead found matching branch '%s' for PR #%s",
-                source_branch, review_id,
+            # No existing bead — create one for this external PR/MR
+            review_title = review.title or source_branch
+            issue = tracker.create_issue(
+                title=f"Resolve conflicts: {review_title}",
+                issue_type="bug",
+                description=(
+                    f"Auto-created bead for external PR/MR #{review_id} "
+                    f"(branch: {source_branch}) which has merge conflicts.\n\n"
+                    f"URL: {review.url or 'N/A'}"
+                ),
+                priority=0,
+                initial_status="open",
             )
-            return None
+            logger.info("Created bead %s for external PR/MR #%s conflict (branch %s)",
+                         issue.identifier, review_id, source_branch)
 
         # Post a comment about the conflict
         comment_text = (
