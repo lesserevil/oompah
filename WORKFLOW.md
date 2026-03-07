@@ -90,6 +90,15 @@ You MUST post comments to the issue at key milestones using `bd comments add {{ 
 
 Keep comments concise but informative — write what a project manager needs to see.
 
+## Test Requirements
+
+**ALL code changes MUST be covered by tests.** Do not submit code without corresponding test coverage.
+
+- Write unit tests for every new function or method
+- Bug fixes must include a test that reproduces the bug
+- Run tests before committing to verify they pass
+- Follow existing test patterns in the project's test directory
+
 ## Git Workflow
 
 You are working in a git worktree on a branch named after this issue. When your work is complete:

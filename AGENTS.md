@@ -26,6 +26,15 @@ make test             # NOT: pytest directly
 
 If unsure whether a target exists, run `make help` or `grep` the Makefile.
 
+## Test Coverage Required
+
+**ALL code changes MUST be covered by tests.** Do not submit code without corresponding test coverage.
+
+- New functions/methods require unit tests
+- Bug fixes require a test that reproduces the bug
+- Run `make test` before committing to verify tests pass
+- Tests go in `tests/` following existing patterns (pytest, unittest.mock)
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
