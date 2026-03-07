@@ -374,10 +374,15 @@ class BeadsTracker:
                         or b.get("id")
                         or b.get("identifier")
                     )
+                    # Use the explicit identifier if available, fall back to id
+                    blocker_identifier = (
+                        b.get("identifier")
+                        or blocker_id
+                    )
                     blocked_by.append(
                         BlockerRef(
                             id=blocker_id,
-                            identifier=blocker_id,
+                            identifier=blocker_identifier,
                             state=b.get("state") or b.get("status"),
                         )
                     )

@@ -15,27 +15,28 @@ import pytest
 
 
 def _load_dashboard_html() -> str:
-    """Load DASHBOARD_HTML from server.py without importing fastapi."""
-    server_path = os.path.join(
-        os.path.dirname(__file__), os.pardir, "oompah", "server.py"
+    """Load dashboard HTML from the templates directory.
+
+    The dashboard was originally an inline DASHBOARD_HTML string in server.py
+    but was extracted to oompah/templates/dashboard.html.  Load it directly.
+    """
+    template_path = os.path.join(
+        os.path.dirname(__file__), os.pardir, "oompah", "templates", "dashboard.html"
     )
-    with open(server_path, "r") as f:
-        source = f.read()
-    # Extract the DASHBOARD_HTML string literal
-    match = re.search(
-        r'DASHBOARD_HTML\s*=\s*"""\\\n(.*?)^"""',
-        source,
-        re.DOTALL | re.MULTILINE,
-    )
-    assert match, "Could not find DASHBOARD_HTML in server.py"
-    return match.group(1)
+    with open(template_path, "r") as f:
+        return f.read()
 
 
 def _extract_script(html: str) -> str:
-    """Extract the main <script> block from the dashboard HTML."""
-    match = re.search(r"<script>(.*?)</script>", html, re.DOTALL)
-    assert match, "Could not find <script> block in DASHBOARD_HTML"
-    return match.group(1)
+    """Extract the main (largest) <script> block from the dashboard HTML.
+
+    The dashboard may contain multiple <script> blocks (e.g. an error
+    handler and the main application script).  We want the largest one
+    which contains the board rendering and edit-state logic.
+    """
+    matches = re.findall(r"<script>(.*?)</script>", html, re.DOTALL)
+    assert matches, "Could not find any <script> block in dashboard HTML"
+    return max(matches, key=len)
 
 
 @pytest.fixture(scope="module")
