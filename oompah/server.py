@@ -2382,9 +2382,17 @@ function renderSwimlaneView(board, data) {
       setupColumnDrag(scHeader, col, epic.id);
       const scBody = sc.querySelector('.column-body');
       setupDropZone(scBody);
-      for (const issue of colIssues) {
-        scBody.appendChild(createCard(issue));
+      for (let i = 0; i < colIssues.length; i++) {
+        const ind = document.createElement('div');
+        ind.className = 'drop-indicator';
+        ind.dataset.position = String(i);
+        scBody.appendChild(ind);
+        scBody.appendChild(createCard(colIssues[i]));
       }
+      const lastInd = document.createElement('div');
+      lastInd.className = 'drop-indicator';
+      lastInd.dataset.position = String(colIssues.length);
+      scBody.appendChild(lastInd);
       cols.appendChild(sc);
     }
 
@@ -2422,9 +2430,17 @@ function renderSwimlaneView(board, data) {
       setupColumnDrag(scHeader, col, '_orphans');
       const scBody = sc.querySelector('.column-body');
       setupDropZone(scBody);
-      for (const issue of colIssues) {
-        scBody.appendChild(createCard(issue));
+      for (let i = 0; i < colIssues.length; i++) {
+        const ind = document.createElement('div');
+        ind.className = 'drop-indicator';
+        ind.dataset.position = String(i);
+        scBody.appendChild(ind);
+        scBody.appendChild(createCard(colIssues[i]));
       }
+      const lastInd = document.createElement('div');
+      lastInd.className = 'drop-indicator';
+      lastInd.dataset.position = String(colIssues.length);
+      scBody.appendChild(lastInd);
       cols.appendChild(sc);
     }
 
@@ -2653,18 +2669,49 @@ function setupDropZone(body) {
   body.addEventListener('drop', async e => {
     e.preventDefault();
     body.classList.remove('drag-over');
-    clearAllIndicators();
     if (!dragState) return;
 
     const targetState = body.dataset.state;
     const identifier = dragState.identifier;
-    if (targetState === dragState.sourceState) return;
 
-    // Optimistic update: move card in boardData immediately
+    // Find which drop indicator was active
+    const activeIndicator = body.querySelector('.drop-indicator.visible');
+    clearAllIndicators();
+
+    if (targetState === dragState.sourceState) {
+      // Same column — reorder by priority
+      if (!activeIndicator) return;
+      const dropPos = parseInt(activeIndicator.dataset.position, 10);
+      const colIssues = (boardData[targetState] || []).filter(i => i.issue_type !== 'epic');
+      // Exclude the dragged card from the list to compute neighbors
+      const others = colIssues.filter(i => i.identifier !== identifier);
+      // Clamp drop position after removing the dragged card
+      const pos = Math.min(dropPos, others.length);
+      const above = pos > 0 ? others[pos - 1] : null;
+      const below = pos < others.length ? others[pos] : null;
+      const abovePri = above ? (above.priority ?? 4) : 0;
+      const belowPri = below ? (below.priority ?? 4) : 4;
+      let newPri;
+      if (!above) {
+        newPri = Math.max(belowPri - 1, 0);
+      } else if (!below) {
+        newPri = Math.min(abovePri + 1, 4);
+      } else {
+        newPri = Math.round((abovePri + belowPri) / 2);
+      }
+      if (newPri === dragState.priority) return; // no change
+      // Optimistic update
+      const issue = colIssues.find(i => i.identifier === identifier);
+      if (issue) issue.priority = newPri;
+      boardData[targetState].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+      renderBoard(boardData);
+      updateIssue(identifier, {priority: newPri, project_id: dragState.projectId});
+      return;
+    }
+
+    // Different column — move between states
     moveIssueInBoard(identifier, targetState);
     renderBoard(boardData);
-
-    // Fire API call in background — WebSocket will confirm or correct
     updateIssue(identifier, {status: targetState, project_id: dragState.projectId});
   });
 }
