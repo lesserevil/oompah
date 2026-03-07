@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
@@ -77,8 +78,14 @@ class Orchestrator:
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
         self._observers: list[Any] = []
+        self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
         self._refresh_requested = asyncio.Event()
+        # Dedicated thread pool for tick operations so they don't compete
+        # with agent tool-execution threads on the default pool.
+        self._tick_pool = ThreadPoolExecutor(
+            max_workers=8, thread_name_prefix="tick"
+        )
 
     def _load_paused_state(self) -> bool:
         """Load persisted paused state from disk. Returns False if not found."""
@@ -249,8 +256,11 @@ class Orchestrator:
 
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle."""
+        t0 = time.monotonic()
+
         # Part 1: Reconcile
         await self._reconcile()
+        t1 = time.monotonic()
 
         # Part 2: Validate config
         errors = validate_dispatch_config(self.config)
@@ -259,12 +269,30 @@ class Orchestrator:
             self._notify_observers()
             return
 
-        # Part 2.5: Cache data for blocker checks
-        self._unmerged_pr_branches = self._fetch_unmerged_pr_branches()
+        # Part 2.5 + 3: Fetch reviews, PR branches, and candidates in parallel
         self._blocker_state_cache = {}  # reset per tick
+        self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
+        loop = asyncio.get_event_loop()
+        reviews_task = loop.run_in_executor(self._tick_pool, self._fetch_all_reviews)
+        candidates_task = loop.run_in_executor(self._tick_pool, self._fetch_all_candidates)
+        reviews_by_project, candidates = await asyncio.gather(
+            reviews_task, candidates_task
+        )
+        self._reviews_cache = reviews_by_project
+        # Derive unmerged PR branches from cached reviews
+        self._unmerged_pr_branches = {
+            r.source_branch
+            for reviews in reviews_by_project.values()
+            for r in reviews
+            if r.source_branch
+        }
+        t2 = time.monotonic()
 
-        # Part 3: Fetch candidates from all projects (and legacy tracker)
-        candidates = self._fetch_all_candidates()
+        # Pre-resolve blocker states in thread (internally parallel)
+        await loop.run_in_executor(
+            self._tick_pool, self._pre_resolve_blockers, candidates
+        )
+        t3 = time.monotonic()
 
         # Part 4: Sort and dispatch
         sorted_issues = self._sort_for_dispatch(candidates)
@@ -273,17 +301,39 @@ class Orchestrator:
                 break
             if self._should_dispatch(issue):
                 await self._dispatch(issue, attempt=None)
+        t4 = time.monotonic()
 
-        # Part 5: YOLO mode — auto-merge, auto-resolve, auto-retry
-        await self._yolo_review_actions()
+        # Part 5 + 6: YOLO (uses cached reviews) + auto-archive in parallel
+        def _timed_yolo():
+            t = time.monotonic()
+            self._yolo_review_actions_sync()
+            return (time.monotonic() - t) * 1000
 
-        # Part 6: Auto-archive closed issues older than 7 days
-        self._auto_archive()
+        def _timed_archive():
+            t = time.monotonic()
+            self._auto_archive()
+            return (time.monotonic() - t) * 1000
+
+        yolo_ms, archive_ms = await asyncio.gather(
+            loop.run_in_executor(self._tick_pool, _timed_yolo),
+            loop.run_in_executor(self._tick_pool, _timed_archive),
+        )
+        t5 = time.monotonic()
+
+        total_ms = (t5 - t0) * 1000
+        if total_ms > 2000:
+            logger.warning(
+                "Slow tick: %.0fms (reconcile=%.0f fetch=%.0f blockers=%.0f "
+                "dispatch=%.0f yolo=%.0f archive=%.0f)",
+                total_ms,
+                (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000,
+                (t4 - t3) * 1000, yolo_ms, archive_ms,
+            )
 
         self._notify_observers()
 
     def _fetch_all_candidates(self) -> list[Issue]:
-        """Fetch candidate issues from all configured projects."""
+        """Fetch candidate issues from all configured projects (parallel)."""
         projects = self.project_store.list_all()
         if not projects:
             # No projects configured — use legacy tracker
@@ -293,16 +343,21 @@ class Orchestrator:
                 logger.error("Tracker fetch failed: %s", exc)
                 return []
 
-        all_candidates: list[Issue] = []
-        for project in projects:
+        def _fetch_for_project(project) -> list[Issue]:
             try:
                 tracker = self._tracker_for_project(project.id)
                 issues = tracker.fetch_candidate_issues()
                 for issue in issues:
                     issue.project_id = project.id
-                all_candidates.extend(issues)
+                return issues
             except (TrackerError, ProjectError) as exc:
                 logger.error("Fetch failed for project %s: %s", project.name, exc)
+                return []
+
+        all_candidates: list[Issue] = []
+        with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
+            for issues in pool.map(_fetch_for_project, projects):
+                all_candidates.extend(issues)
         return all_candidates
 
     def _available_slots(self) -> int:
@@ -367,35 +422,84 @@ class Orchestrator:
             return False
         return True
 
-    def _fetch_unmerged_pr_branches(self) -> set[str]:
-        """Fetch source branches of all open PRs/MRs across projects.
+    def _pre_resolve_blockers(self, candidates: list[Issue]) -> None:
+        """Pre-resolve unknown blocker states into the cache (blocking, runs in thread).
 
-        Returns a set of branch names (which correspond to issue identifiers)
-        that have unmerged PRs, used to keep blockers active until code merges.
+        Batches all unknown blockers into parallel bd show calls.
         """
-        branches: set[str] = set()
-        for project in self.project_store.list_all():
+        # Collect all unique blocker IDs that need resolution
+        to_resolve: dict[str, list[tuple[BlockerRef, Issue]]] = {}
+        for issue in candidates:
+            for blocker in issue.blocked_by:
+                blocker_state = (blocker.state or "").strip().lower()
+                if not blocker_state and blocker.id:
+                    to_resolve.setdefault(blocker.id, []).append((blocker, issue))
+
+        if not to_resolve:
+            return
+
+        # Resolve all unknown blockers in parallel
+        def _resolve_one(bid: str) -> tuple[str, str]:
+            # Pick any issue to find the right tracker
+            blocker, issue = to_resolve[bid][0]
+            try:
+                tracker = self._tracker_for_issue(issue)
+                detail = tracker.fetch_issue_detail(bid)
+                if detail:
+                    return (bid, detail.state)
+            except Exception:
+                pass
+            return (bid, "")
+
+        cache = getattr(self, "_blocker_state_cache", {})
+        with ThreadPoolExecutor(max_workers=min(len(to_resolve), 4)) as pool:
+            for bid, state in pool.map(_resolve_one, to_resolve.keys()):
+                cache[bid] = state
+                # Update all blocker refs that reference this ID
+                for blocker, _ in to_resolve[bid]:
+                    blocker.state = state
+        self._blocker_state_cache = cache
+
+    def _fetch_all_reviews(self) -> dict[str, list]:
+        """Fetch open reviews for all projects in parallel.
+
+        Returns a dict of project_id -> list[ReviewRequest], cached for the
+        entire tick so list_open_reviews is called at most once per project.
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            return {}
+
+        def _fetch_for_project(project) -> tuple[str, list]:
             provider = detect_provider(project.repo_url)
             if not provider:
-                continue
+                return (project.id, [])
             slug = extract_repo_slug(project.repo_url)
             try:
                 reviews = provider.list_open_reviews(slug)
-                for review in reviews:
-                    if review.source_branch:
-                        branches.add(review.source_branch)
+                return (project.id, reviews)
             except Exception as exc:
                 logger.debug("Failed to fetch open reviews for %s: %s", project.name, exc)
-        return branches
+                return (project.id, [])
 
-    async def _yolo_review_actions(self) -> None:
+        result: dict[str, list] = {}
+        with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
+            for pid, reviews in pool.map(_fetch_for_project, projects):
+                result[pid] = reviews
+        return result
+
+    def _yolo_review_actions_sync(self) -> None:
         """Auto-manage reviews for projects with YOLO enabled.
+
+        Uses the per-tick _reviews_cache populated by _fetch_all_reviews
+        to avoid redundant API calls.
 
         For each open PR/MR on a YOLO project:
         - CI passed + mergeable → merge it
         - Has merge conflicts → trigger conflict resolution
         - CI failed → re-file ticket to fix tests
         """
+        reviews_cache = getattr(self, "_reviews_cache", {})
         for project in self.project_store.list_all():
             if not project.yolo:
                 continue
@@ -403,11 +507,7 @@ class Orchestrator:
             if not provider:
                 continue
             slug = extract_repo_slug(project.repo_url)
-            try:
-                reviews = provider.list_open_reviews(slug)
-            except Exception as exc:
-                logger.debug("YOLO: failed to fetch reviews for %s: %s", project.name, exc)
-                continue
+            reviews = reviews_cache.get(project.id, [])
 
             for review in reviews:
                 if review.draft:
@@ -711,10 +811,13 @@ class Orchestrator:
         )
         self.state.claimed.add(issue.id)
 
-        # Move issue to in_progress
+        # Move issue to in_progress (in thread to avoid blocking event loop)
         try:
             tracker = self._tracker_for_issue(issue)
-            tracker.update_issue(issue.identifier, status="in_progress")
+            await asyncio.get_event_loop().run_in_executor(
+                self._tick_pool,
+                lambda: tracker.update_issue(issue.identifier, status="in_progress"),
+            )
         except Exception as exc:
             logger.debug("Failed to set in_progress for %s: %s", issue.identifier, exc)
 
@@ -739,12 +842,16 @@ class Orchestrator:
             agent_profile_name=profile_name,
         )
 
-        if attempt and attempt > 1:
-            self._post_comment(issue.identifier, f"Retrying (attempt #{attempt}, agent: {profile_name})",
-                               project_id=issue.project_id)
-        else:
-            self._post_comment(issue.identifier, f"Agent dispatched (profile: {profile_name})",
-                               project_id=issue.project_id)
+        # Post dispatch comment in thread to avoid blocking event loop
+        comment = (f"Retrying (attempt #{attempt}, agent: {profile_name})"
+                   if attempt and attempt > 1
+                   else f"Agent dispatched (profile: {profile_name})")
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(
+            self._tick_pool,
+            lambda: self._post_comment(issue.identifier, comment,
+                                       project_id=issue.project_id),
+        )  # fire-and-forget, don't await
 
         self._notify_observers()
 
@@ -778,40 +885,49 @@ class Orchestrator:
             raise ValueError(f"Model {model} not available in provider {provider.name}")
 
         try:
-            # Create workspace: use project worktree if available, else legacy
-            if issue.project_id:
-                workspace_path = self.project_store.create_worktree(
-                    issue.project_id, issue.identifier)
-            else:
-                workspace = self.workspace_mgr.create_for_issue(issue.identifier)
-                workspace_path = workspace.path
-                self.workspace_mgr.run_before_run(workspace_path)
+            # Run blocking setup work in thread to avoid blocking event loop
+            def _setup_worker():
+                # Create workspace
+                if issue.project_id:
+                    wp = self.project_store.create_worktree(
+                        issue.project_id, issue.identifier)
+                else:
+                    workspace = self.workspace_mgr.create_for_issue(issue.identifier)
+                    wp = workspace.path
+                    self.workspace_mgr.run_before_run(wp)
 
-            # Select focus tailored to this issue
-            focus = select_focus(issue)
-            logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role)
-            self._post_comment(issue.identifier, f"Focus: {focus.role}",
-                               project_id=issue.project_id)
-            # Clean up handoff labels after focus selection
-            self._clear_handoff_labels(issue)
+                # Select focus
+                focus = select_focus(issue)
+                logger.info("Issue %s assigned focus: %s (%s)",
+                            issue.identifier, focus.name, focus.role)
+                self._post_comment(issue.identifier, f"Focus: {focus.role}",
+                                   project_id=issue.project_id)
+                self._clear_handoff_labels(issue)
+
+                # Fetch comments
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    comments = tracker.fetch_comments(issue.identifier)
+                except Exception:
+                    comments = []
+
+                # Build prompt
+                prompt = render_prompt(
+                    self._prompt_template, issue, attempt,
+                    comments=comments, focus_text=focus.render(),
+                )
+                return wp, focus, prompt
+
+            loop = asyncio.get_event_loop()
+            workspace_path, focus, prompt = await loop.run_in_executor(
+                self._tick_pool, _setup_worker
+            )
+
             # Store focus on running entry for dashboard display
             running_entry = self.state.running.get(issue.id)
             if running_entry:
                 running_entry.focus_name = focus.name
                 running_entry.focus_role = focus.role
-
-            # Fetch existing comments to kick-start agent context
-            try:
-                tracker = self._tracker_for_issue(issue)
-                comments = tracker.fetch_comments(issue.identifier)
-            except Exception:
-                comments = []
-
-            # Build prompt
-            prompt = render_prompt(
-                self._prompt_template, issue, attempt,
-                comments=comments, focus_text=focus.render(),
-            )
 
             session = ApiAgentSession(
                 base_url=provider.base_url,
@@ -844,7 +960,9 @@ class Orchestrator:
                         self.state.running[issue.id].session.last_timestamp = datetime.now(timezone.utc)
                     # Broadcast activity entry to WS clients
                     self._notify_activity(issue.identifier, activity_entry)
-                    self._notify_observers()
+                    # Only broadcast state (lightweight), not issues (expensive)
+                    # Issues are only re-fetched on state changes (dispatch, close, etc.)
+                    self._notify_state_only()
 
             def _is_cancelled() -> bool:
                 """Check if this issue has been closed or removed from running."""
@@ -1289,6 +1407,33 @@ class Orchestrator:
         await self._dispatch(issue, attempt=retry.attempt,
                              override_profile=retry.escalated_profile)
 
+    def _fetch_running_states(self, by_project: dict) -> dict[str, Issue]:
+        """Fetch current states for running issues (blocking, runs in thread).
+
+        Parallelizes across projects; each project's tracker already
+        parallelizes individual bd show calls internally.
+        """
+        if not by_project:
+            return {}
+
+        def _fetch_for_project(item: tuple) -> list[tuple[str | None, Issue]]:
+            pid, ids = item
+            try:
+                tracker = self._tracker_for_project(pid) if pid else self.tracker
+                refreshed = tracker.fetch_issue_states_by_ids(ids)
+                return [(pid, issue) for issue in refreshed]
+            except (TrackerError, ProjectError):
+                logger.debug("Reconciliation refresh failed for project %s", pid)
+                return []
+
+        refreshed_map: dict[str, Issue] = {}
+        with ThreadPoolExecutor(max_workers=min(len(by_project), 4)) as pool:
+            for results in pool.map(_fetch_for_project, by_project.items()):
+                for pid, issue in results:
+                    issue.project_id = pid
+                    refreshed_map[issue.id] = issue
+        return refreshed_map
+
     async def _reconcile(self) -> None:
         """Reconcile running issues: stall detection + tracker state refresh."""
         # Part A: Stall detection
@@ -1325,21 +1470,16 @@ class Orchestrator:
             return
 
         # Group running issues by project for targeted tracker queries
-        refreshed_map: dict[str, Issue] = {}
         by_project: dict[str | None, list[str]] = {}
         for issue_id, entry in self.state.running.items():
             pid = entry.issue.project_id if entry.issue else None
             by_project.setdefault(pid, []).append(issue_id)
 
-        for pid, ids in by_project.items():
-            try:
-                tracker = self._tracker_for_project(pid) if pid else self.tracker
-                refreshed = tracker.fetch_issue_states_by_ids(ids)
-                for issue in refreshed:
-                    issue.project_id = pid
-                    refreshed_map[issue.id] = issue
-            except (TrackerError, ProjectError):
-                logger.debug("Reconciliation refresh failed for project %s", pid)
+        # Run blocking tracker queries in dedicated tick pool
+        loop = asyncio.get_event_loop()
+        refreshed_map = await loop.run_in_executor(
+            self._tick_pool, self._fetch_running_states, by_project
+        )
         terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
         active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
 
@@ -1623,8 +1763,19 @@ class Orchestrator:
         return None
 
     def _notify_observers(self) -> None:
-        """Notify any registered observers of state changes."""
+        """Notify any registered observers of state changes (includes issues refresh)."""
         for observer in self._observers:
+            try:
+                observer(self.get_snapshot())
+            except Exception:
+                pass
+
+    def _notify_state_only(self) -> None:
+        """Notify observers with state only (no issues refresh).
+
+        Used for agent activity updates where issue data hasn't changed.
+        """
+        for observer in self._state_only_observers:
             try:
                 observer(self.get_snapshot())
             except Exception:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from oompah.models import BlockerRef, Issue
@@ -196,22 +197,24 @@ class BeadsTracker:
         return []
 
     def fetch_all_issues_enriched(self) -> list[Issue]:
-        """Fetch all issues with parent info from bd show --json."""
+        """Fetch all issues with parent info from bd show --json (parallel)."""
         all_issues = self.fetch_all_issues()
-        # For each issue, we need parent info. bd show returns it.
-        enriched: list[Issue] = []
-        for issue in all_issues:
+        if not all_issues:
+            return []
+
+        def _enrich_one(issue: Issue) -> Issue:
             try:
                 raw = self._run_bd(["show", issue.id, "--json"])
                 if isinstance(raw, list) and raw:
-                    enriched.append(self._normalize_issue(raw[0]))
-                elif isinstance(raw, dict):
-                    enriched.append(self._normalize_issue(raw))
-                else:
-                    enriched.append(issue)
+                    return self._normalize_issue(raw[0])
+                if isinstance(raw, dict):
+                    return self._normalize_issue(raw)
             except TrackerError:
-                enriched.append(issue)
-        return enriched
+                pass
+            return issue
+
+        with ThreadPoolExecutor(max_workers=min(len(all_issues), 4)) as pool:
+            return list(pool.map(_enrich_one, all_issues))
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         """Update an issue's fields via bd update."""
@@ -270,23 +273,32 @@ class BeadsTracker:
         return issues
 
     def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
-        """Fetch current state for specific issue IDs."""
-        issues: list[Issue] = []
+        """Fetch current state for specific issue IDs (parallel)."""
+        if not issue_ids:
+            return []
 
-        for issue_id in issue_ids:
+        def _fetch_one(issue_id: str) -> Issue | None:
             try:
                 raw = self._run_bd(["show", issue_id, "--json"])
                 if isinstance(raw, list) and raw:
-                    issues.append(self._normalize_issue(raw[0]))
-                elif isinstance(raw, dict):
-                    issues.append(self._normalize_issue(raw))
+                    return self._normalize_issue(raw[0])
+                if isinstance(raw, dict):
+                    return self._normalize_issue(raw)
             except TrackerError as exc:
                 logger.warning(
                     "Failed to fetch issue state issue_id=%s error=%s",
                     issue_id,
                     exc,
                 )
+            return None
 
+        issues: list[Issue] = []
+        with ThreadPoolExecutor(max_workers=min(len(issue_ids), 4)) as pool:
+            futures = {pool.submit(_fetch_one, iid): iid for iid in issue_ids}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    issues.append(result)
         return issues
 
     def _run_bd(self, args: list[str]) -> dict | list:

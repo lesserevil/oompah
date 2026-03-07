@@ -41,8 +41,10 @@ _ws_clients: set[WebSocket] = set()
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator
     _orchestrator = orch
-    # Register as observer so we push on every state change
+    # Full observer: state + issues refresh (for dispatch, close, state changes)
     orch._observers.append(_on_orchestrator_change)
+    # State-only observer: state broadcast without issues re-fetch (for agent activity)
+    orch._state_only_observers.append(_on_state_only_change)
     orch._activity_observers.append(_on_agent_activity)
 
 
@@ -55,11 +57,35 @@ def _get_orchestrator() -> Orchestrator:
 _last_state_broadcast = 0.0
 _last_issues_broadcast = 0.0
 _ISSUES_THROTTLE_MS = 3000  # Don't fetch/broadcast issues more than every 3s
+# Dedicated thread pool for API requests so they don't compete with tick threads
+from concurrent.futures import ThreadPoolExecutor
+_api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
+_issues_cache: dict | None = None  # Cached issues response
+_issues_cache_ts: float = 0.0  # When the cache was last updated
+_ISSUES_CACHE_TTL_MS = 5000  # Cache TTL — serve from cache if fresh enough
+
+def _on_state_only_change(snapshot: dict) -> None:
+    """Called on agent activity — broadcast state only, no issues re-fetch."""
+    import time
+    global _last_state_broadcast
+    if not _ws_clients:
+        return
+    now = time.monotonic() * 1000
+    if now - _last_state_broadcast < _STATE_THROTTLE_MS:
+        return
+    _last_state_broadcast = now
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(_broadcast({"type": "state", "data": snapshot}))
+    except RuntimeError:
+        pass
+
 
 def _on_orchestrator_change(snapshot: dict) -> None:
-    """Called by the orchestrator whenever state changes. Enqueue WS broadcast."""
+    """Called on state changes (dispatch, close, etc.). Broadcasts state + issues."""
     import time
     global _last_state_broadcast
     if not _ws_clients:
@@ -121,15 +147,19 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
 
 async def _do_broadcast_issues() -> None:
     """Actually fetch and broadcast issues to all WS clients."""
-    global _last_issues_broadcast, _issues_broadcast_pending
+    global _last_issues_broadcast, _issues_broadcast_pending, _issues_cache, _issues_cache_ts
     _issues_broadcast_pending = False
-    if not _ws_clients:
-        return
     try:
         orch = _get_orchestrator()
-        result = await asyncio.to_thread(_fetch_and_serialize_issues, orch)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _api_thread_pool, _fetch_and_serialize_issues, orch
+        )
         _last_issues_broadcast = time.monotonic() * 1000
-        await _broadcast({"type": "issues", "data": result})
+        _issues_cache = result
+        _issues_cache_ts = time.monotonic() * 1000
+        if _ws_clients:
+            await _broadcast({"type": "issues", "data": result})
     except Exception as exc:
         logger.debug("broadcast_issues failed: %s", exc)
 
@@ -187,7 +217,10 @@ async def websocket_endpoint(ws: WebSocket):
         await ws.send_text(json.dumps(
             {"type": "state", "data": orch.get_snapshot()}, default=str))
         # Send initial issues (fetch in thread to avoid blocking)
-        result = await asyncio.to_thread(_fetch_and_serialize_issues, orch)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            _api_thread_pool, _fetch_and_serialize_issues, orch
+        )
         await ws.send_text(json.dumps({"type": "issues", "data": result}, default=str))
 
         # Keep connection alive, handle client messages
@@ -236,11 +269,27 @@ async def api_issues(request: Request):
         project_id - filter to a single project (optional)
     """
     try:
+        t_start = time.monotonic()
         orch = _get_orchestrator()
         filter_project = request.query_params.get("project_id")
 
-        # Fetch issues from all projects (in thread to avoid blocking)
-        all_issues = await asyncio.to_thread(_fetch_all_issues, orch, filter_project)
+        # Serve from cache if fresh and no project filter
+        now_ms = time.monotonic() * 1000
+        if (not filter_project and _issues_cache is not None
+                and (now_ms - _issues_cache_ts) < _ISSUES_CACHE_TTL_MS):
+            logger.debug("Issues API: serving from cache")
+            return JSONResponse(_issues_cache)
+
+        # Fetch issues from all projects (in dedicated pool to avoid tick contention)
+        loop = asyncio.get_event_loop()
+        all_issues = await loop.run_in_executor(
+            _api_thread_pool, _fetch_all_issues, orch, filter_project
+        )
+        t_fetch = time.monotonic()
+        fetch_ms = (t_fetch - t_start) * 1000
+        if fetch_ms > 1000:
+            logger.warning("Issues API slow: fetch=%.0fms issues=%d",
+                           fetch_ms, len(all_issues))
 
         # Build a map for epic child counts
         epics: dict[str, dict] = {}
@@ -298,7 +347,8 @@ def _get_tracker(orch, project_id: str | None = None):
 
 
 def _fetch_all_issues(orch, filter_project: str | None = None):
-    """Fetch issues from all projects or a specific one."""
+    """Fetch issues from all projects or a specific one (parallel)."""
+    from concurrent.futures import ThreadPoolExecutor
     from oompah.tracker import TrackerError
 
     projects = orch.project_store.list_all()
@@ -306,18 +356,25 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
         # No projects configured — legacy mode
         return orch.tracker.fetch_all_issues()
 
-    all_issues = []
-    for project in projects:
-        if filter_project and project.id != filter_project:
-            continue
+    targets = [p for p in projects if not filter_project or p.id == filter_project]
+    if not targets:
+        return []
+
+    def _fetch_for_project(project):
         try:
             tracker = orch._tracker_for_project(project.id)
             issues = tracker.fetch_all_issues()
             for issue in issues:
                 issue.project_id = project.id
-            all_issues.extend(issues)
+            return issues
         except (TrackerError, ProjectError) as exc:
             logger.error("Fetch issues failed for project %s: %s", project.name, exc)
+            return []
+
+    all_issues = []
+    with ThreadPoolExecutor(max_workers=min(len(targets), 4)) as pool:
+        for issues in pool.map(_fetch_for_project, targets):
+            all_issues.extend(issues)
     return all_issues
 
 

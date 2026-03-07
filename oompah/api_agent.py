@@ -424,7 +424,7 @@ class ApiAgentSession:
                     turns_since_productive += 1
 
                 # Check if the task was cancelled (e.g. issue closed externally)
-                if is_cancelled and is_cancelled():
+                if is_cancelled and await asyncio.to_thread(is_cancelled):
                     _emit(turn, "message", "Task cancelled (issue no longer active)")
                     return ApiAgentResult(
                         status="succeeded",
