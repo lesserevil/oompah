@@ -1902,7 +1902,7 @@ function connectWebSocket() {
       if (msg.type === 'state') {
         handleStateUpdate(msg.data);
       } else if (msg.type === 'issues') {
-        renderBoard(msg.data);
+        renderBoard(filterByProject(msg.data));
         refreshOpenDetailPanel();
       } else if (msg.type === 'activity') {
         handleActivityPush(msg.identifier, msg.entry);
@@ -2056,6 +2056,18 @@ async function fetchProposedFociCount() {
       el.style.display = 'none';
     }
   } catch(e) {}
+}
+
+function filterByProject(data) {
+  const sel = document.getElementById('project-filter');
+  const pid = sel ? sel.value : '';
+  if (!pid) return data;
+  const filtered = {};
+  for (const [state, issues] of Object.entries(data)) {
+    const matching = issues.filter(i => i.project_id === pid);
+    if (matching.length > 0) filtered[state] = matching;
+  }
+  return filtered;
 }
 
 async function fetchIssues() {
@@ -2284,6 +2296,7 @@ function createCard(issue) {
   card.draggable = true;
   card.dataset.id = issue.identifier;
   card.dataset.priority = issue.priority ?? 4;
+  card.dataset.projectId = issue.project_id || '';
 
   const pClass = `p${issue.priority ?? 4}`;
 
@@ -2332,6 +2345,7 @@ function createCard(issue) {
       identifier: issue.identifier,
       sourceState: issue.state.trim().toLowerCase(),
       priority: issue.priority,
+      projectId: issue.project_id,
     };
     card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -2361,10 +2375,11 @@ function createCard(issue) {
       const field = el.dataset.field;
       const id = el.dataset.id;
       const newValue = el.textContent.trim();
+      const pid = card.dataset.projectId;
       // Bug fix: Clear editing state *before* the async save so that
       // any queued board data can be rendered.
       editingState = null;
-      await updateIssue(id, {[field]: newValue});
+      await updateIssue(id, {[field]: newValue, project_id: pid});
       // Flush any board data that arrived while we were editing.
       if (_pendingBoardData) {
         const pending = _pendingBoardData;
@@ -2421,7 +2436,7 @@ function setupDropZone(body) {
     renderBoard(boardData);
 
     // Fire API call in background — WebSocket will confirm or correct
-    updateIssue(identifier, {status: targetState});
+    updateIssue(identifier, {status: targetState, project_id: dragState.projectId});
   });
 }
 
@@ -2552,13 +2567,16 @@ async function openDetailPanel(identifier) {
   }
   panel.classList.add('open');
 
-  const res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail`);
+  const issue = allIssuesFlat.find(i => i.identifier === identifier);
+  const pidParam = issue && issue.project_id ? `?project_id=${encodeURIComponent(issue.project_id)}` : '';
+  const res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail${pidParam}`);
   if (!res.ok) {
     body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load</div>';
     return;
   }
   const detail = await res.json();
   document.getElementById('detail-panel-title').textContent = detail.identifier;
+  body.dataset.projectId = detail.project_id || '';
 
   const pClass = `p${detail.priority ?? 4}`;
   let html = `
@@ -2684,7 +2702,8 @@ async function openDetailPanel(identifier) {
       const field = el.dataset.field;
       const id = el.dataset.id;
       const newValue = el.textContent.trim();
-      await updateIssue(id, {[field]: newValue});
+      const pid = document.getElementById('detail-panel-body').dataset.projectId;
+      await updateIssue(id, {[field]: newValue, project_id: pid});
     });
   }
 
@@ -2705,7 +2724,7 @@ async function submitComment(identifier) {
   await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/comments`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({text, author: 'user'}),
+    body: JSON.stringify({text, author: 'user', project_id: document.getElementById('detail-panel-body').dataset.projectId}),
   });
   // Reload detail panel to show new comment
   openDetailPanel(identifier);
@@ -2771,6 +2790,13 @@ async function submitCreateDialog() {
     };
     if (createParentId) {
       body.parent_id = createParentId;
+      const epic = allIssuesFlat.find(i => i.id === createParentId);
+      if (epic && epic.project_id) body.project_id = epic.project_id;
+    }
+    // Default to selected project filter if no parent
+    if (!body.project_id) {
+      const sel = document.getElementById('project-filter');
+      if (sel && sel.value) body.project_id = sel.value;
     }
     const res = await fetch('/api/v1/issues', {
       method: 'POST',
