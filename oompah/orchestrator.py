@@ -335,7 +335,7 @@ class Orchestrator:
             await self._terminate_running(issue_id, cleanup_workspace=False)
         # Cancel retry timers
         for issue_id, retry in list(self.state.retry_attempts.items()):
-            if retry.timer_handle and not retry.timer_handle.done():
+            if retry.timer_handle and not retry.timer_handle.cancelled():
                 retry.timer_handle.cancel()
         logger.info("Orchestrator stopped")
 
