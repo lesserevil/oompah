@@ -325,10 +325,6 @@ class Orchestrator:
             return False
         if state_norm in [s.strip().lower() for s in self.config.tracker_terminal_states]:
             return False
-        # Only auto-dispatch issues already in "in_progress" — the user must
-        # explicitly move an issue to in_progress to trigger an agent.
-        if state_norm != "in_progress":
-            return False
         if issue.id in self.state.running:
             return False
         if issue.id in self.state.claimed:
@@ -1173,18 +1169,20 @@ class Orchestrator:
                 continue
 
             state_norm = issue.state.strip().lower()
-            if state_norm in terminal_norms:
+            if state_norm == "in_progress":
+                # Still in progress — update issue snapshot
+                self.state.running[issue_id].issue = issue
+            elif state_norm in terminal_norms:
                 logger.info(
                     "Reconcile: terminal state issue_id=%s state=%s",
                     issue_id,
                     issue.state,
                 )
                 await self._terminate_running(issue_id, cleanup_workspace=True)
-            elif state_norm in active_norms:
-                self.state.running[issue_id].issue = issue
             else:
+                # Moved out of in_progress (to open, deferred, etc.) — stop agent
                 logger.info(
-                    "Reconcile: non-active state issue_id=%s state=%s",
+                    "Reconcile: no longer in_progress issue_id=%s state=%s",
                     issue_id,
                     issue.state,
                 )

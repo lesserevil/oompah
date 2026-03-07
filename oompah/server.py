@@ -398,13 +398,11 @@ async def api_update_issue(identifier: str, request: Request):
         if new_description is not None:
             tracker.update_issue(identifier, description=new_description)
 
-        # Immediately terminate agent if issue moved to terminal or non-active state
+        # Terminate agent whenever issue is moved away from in_progress
         if new_status is not None:
             terminal = {s.strip().lower() for s in orch.config.tracker_terminal_states}
-            active = {s.strip().lower() for s in orch.config.tracker_active_states}
             status_norm = new_status.strip().lower()
-            if status_norm in terminal or status_norm not in active:
-                # Find running entry by identifier and terminate
+            if status_norm != "in_progress":
                 for issue_id, entry in list(orch.state.running.items()):
                     if entry.identifier == identifier:
                         logger.info("Terminating agent for %s (moved to %s via UI)", identifier, new_status)
