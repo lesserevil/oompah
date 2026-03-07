@@ -24,6 +24,7 @@ from oompah.focus import analyze_completed_issue, save_suggestion, select_focus
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
+from oompah.scm import detect_provider, extract_repo_slug
 from oompah.tracker import BeadsTracker, TrackerError
 from oompah.workspace import WorkspaceError, WorkspaceManager
 
@@ -258,6 +259,9 @@ class Orchestrator:
             self._notify_observers()
             return
 
+        # Part 2.5: Cache unmerged PR branches for blocker checks
+        self._unmerged_pr_branches = self._fetch_unmerged_pr_branches()
+
         # Part 3: Fetch candidates from all projects (and legacy tracker)
         candidates = self._fetch_all_candidates()
 
@@ -339,7 +343,12 @@ class Orchestrator:
         if state_norm in ("open", "todo"):
             terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
             for blocker in issue.blocked_by:
-                if blocker.state and blocker.state.strip().lower() not in terminal_norms:
+                blocker_state = (blocker.state or "").strip().lower()
+                if blocker_state not in terminal_norms:
+                    # Blocker not yet closed — still blocked
+                    return False
+                if self._blocker_has_unmerged_pr(blocker):
+                    # Blocker is closed but PR hasn't merged — still blocked
                     return False
         # Budget circuit breaker
         if not self._check_budget():
@@ -349,6 +358,36 @@ class Orchestrator:
                              self.state.agent_totals.estimated_cost, self.config.budget_limit)
             return False
         return True
+
+    def _fetch_unmerged_pr_branches(self) -> set[str]:
+        """Fetch source branches of all open PRs/MRs across projects.
+
+        Returns a set of branch names (which correspond to issue identifiers)
+        that have unmerged PRs, used to keep blockers active until code merges.
+        """
+        branches: set[str] = set()
+        for project in self.project_store.list_all():
+            provider = detect_provider(project.repo_url)
+            if not provider:
+                continue
+            slug = extract_repo_slug(project.repo_url)
+            try:
+                reviews = provider.list_open_reviews(slug)
+                for review in reviews:
+                    if review.source_branch:
+                        branches.add(review.source_branch)
+            except Exception as exc:
+                logger.debug("Failed to fetch open reviews for %s: %s", project.name, exc)
+        return branches
+
+    def _blocker_has_unmerged_pr(self, blocker: BlockerRef) -> bool:
+        """Check if a closed blocker still has an unmerged PR."""
+        cache = getattr(self, "_unmerged_pr_branches", set())
+        if not cache:
+            return False
+        # The branch name is typically the issue identifier
+        blocker_id = blocker.identifier or blocker.id or ""
+        return blocker_id in cache
 
     def _sort_for_dispatch(self, issues: list[Issue]) -> list[Issue]:
         def sort_key(issue: Issue):

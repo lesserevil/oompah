@@ -370,9 +370,25 @@ class GitLabProvider(SCMProvider):
                 if isinstance(rv, dict):
                     reviewers.append(rv.get("username", rv.get("name", "")))
 
-            # CI status from head_pipeline
+            # CI status from head_pipeline — glab mr list often returns None,
+            # so fall back to glab mr view for individual MR pipeline data
             ci_status = ""
             pipeline = mr.get("head_pipeline") or {}
+            if not pipeline:
+                # Enrich with glab mr view which includes pipeline info
+                mr_id = str(mr.get("iid", mr.get("id", "")))
+                try:
+                    vr = subprocess.run(
+                        ["glab", "mr", "view", mr_id,
+                         "--repo", self._glab_repo_arg(repo),
+                         "--output", "json"],
+                        capture_output=True, text=True, timeout=15,
+                    )
+                    if vr.returncode == 0:
+                        detail = json.loads(vr.stdout)
+                        pipeline = detail.get("head_pipeline") or {}
+                except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+                    pass
             if pipeline:
                 ps = pipeline.get("status", "").lower()
                 if ps == "success":
