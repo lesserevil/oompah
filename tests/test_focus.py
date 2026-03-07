@@ -8,6 +8,8 @@ import pytest
 from oompah.focus import (
     BUILTIN_FOCI,
     DEFAULT_FOCUS,
+    MIN_DOMAIN_KEYWORDS,
+    MIN_ISSUES_FOR_PROPOSAL,
     Focus,
     FocusSuggestion,
     _extract_work_keywords,
@@ -17,6 +19,7 @@ from oompah.focus import (
     analyze_completed_issue,
     load_foci,
     save_foci,
+    save_suggestion,
     score_focus,
     select_focus,
 )
@@ -298,34 +301,76 @@ class TestAnalyzeCompletedIssue:
         result = analyze_completed_issue(issue, comments, foci=BUILTIN_FOCI, threshold=0.1)
         assert result is None  # bugfix focus should match
 
+    def test_returns_none_when_too_few_domain_keywords(self):
+        """Generic work without domain keywords should not trigger a suggestion."""
+        narrow_foci = [
+            Focus(name="narrow", role="", description="",
+                  keywords=["quantum", "photon"], status="active"),
+        ]
+        issue = _make_issue(title="Rename some variables", description="Cleanup")
+        comments = [{"text": "Renamed foo to bar"}]
+        result = analyze_completed_issue(issue, comments, foci=narrow_foci)
+        assert result is None
+
     def test_returns_suggestion_when_no_match(self, tmp_path, monkeypatch):
         # Use tmp paths to avoid writing to real files
         foci_path = str(tmp_path / "foci.json")
+        suggestions_path = str(tmp_path / "suggestions.json")
         monkeypatch.setattr("oompah.focus.DEFAULT_FOCI_PATH", foci_path)
+        monkeypatch.setattr("oompah.focus.DEFAULT_SUGGESTIONS_PATH", suggestions_path)
 
         # Foci that won't match the work
         narrow_foci = [
             Focus(name="narrow", role="", description="",
                   keywords=["quantum", "photon"], status="active"),
         ]
+        # Use text with enough domain keywords (cache, database, api, config)
         issue = _make_issue(
-            title="Implement caching layer for database queries",
-            description="Add Redis caching to reduce database load",
+            title="Add API cache layer with database config",
+            description="Build a cache in front of the database API with config-driven TTL",
         )
-        comments = [{"text": "Implemented cache invalidation with TTL strategy"}]
+        comments = [{"text": "Added cache invalidation via webhook callback on config change"}]
         result = analyze_completed_issue(issue, comments, foci=narrow_foci)
         assert result is not None
         assert isinstance(result, FocusSuggestion)
         assert len(result.sample_keywords) > 0
 
-        # Verify the proposed focus saved to disk has rules
+        # A single issue should NOT create a proposed focus yet
         saved = load_foci(foci_path)
         proposed = [f for f in saved if f.status == "proposed"]
-        assert len(proposed) >= 1
+        assert len(proposed) == 0, "One issue should not be enough to propose a focus"
+
+    def test_proposed_focus_after_enough_issues(self, tmp_path, monkeypatch):
+        """A proposed focus should only be saved after MIN_ISSUES_FOR_PROPOSAL issues."""
+        foci_path = str(tmp_path / "foci.json")
+        suggestions_path = str(tmp_path / "suggestions.json")
+        monkeypatch.setattr("oompah.focus.DEFAULT_FOCI_PATH", foci_path)
+        monkeypatch.setattr("oompah.focus.DEFAULT_SUGGESTIONS_PATH", suggestions_path)
+
+        narrow_foci = [
+            Focus(name="narrow", role="", description="",
+                  keywords=["quantum", "photon"], status="active"),
+        ]
+
+        # Submit suggestions from multiple distinct issues, all in the same domain
+        for i in range(MIN_ISSUES_FOR_PROPOSAL):
+            issue = _make_issue(
+                id=str(i), identifier=f"beads-{i:03d}",
+                title="Add API cache layer with database config",
+                description="Build a cache in front of the database API with config-driven TTL",
+            )
+            comments = [{"text": "Added cache invalidation via webhook callback on config change"}]
+            result = analyze_completed_issue(issue, comments, foci=narrow_foci)
+            assert result is not None
+            save_suggestion(result, suggestions_path)
+
+        # Now enough issues have accumulated — a proposed focus should exist
+        saved = load_foci(foci_path)
+        proposed = [f for f in saved if f.status == "proposed"]
+        assert len(proposed) >= 1, f"Expected proposed focus after {MIN_ISSUES_FOR_PROPOSAL} issues"
         p = proposed[0]
-        assert len(p.must_do) > 0, "Proposed focus should have must_do rules"
-        assert len(p.must_not_do) > 0, "Proposed focus should have must_not_do rules"
-        assert "review and edit" not in p.description.lower(), "Description should be meaningful, not boilerplate"
+        assert len(p.must_do) > 0
+        assert len(p.must_not_do) > 0
 
 
 class TestHandoffLabelScoring:

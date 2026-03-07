@@ -817,13 +817,29 @@ def _generate_focus_rules(
     return description, must_do, must_not_do
 
 
+# Minimum number of distinct source issues before a suggestion is promoted
+# to a proposed focus. A single issue is not enough evidence.
+MIN_ISSUES_FOR_PROPOSAL = 3
+
+# Minimum number of domain keywords (from _DOMAIN_KEYWORDS) that must appear
+# in the work to consider it a coherent new domain worth a focus.
+MIN_DOMAIN_KEYWORDS = 3
+
+
 def analyze_completed_issue(
     issue: Issue,
     comments: list[dict],
     foci: list[Focus] | None = None,
-    threshold: float = 0.15,
+    threshold: float = 0.4,
 ) -> FocusSuggestion | None:
     """Analyze a completed issue to see if existing foci cover the work done.
+
+    Only suggests a new focus when there is overwhelming evidence that no
+    existing focus covers the work: the best match must be below the threshold
+    (default 0.4), AND the work must contain enough domain-specific keywords
+    to represent a coherent specialty. Even then, a proposed focus is only
+    written to disk after multiple distinct issues have triggered the same
+    suggestion.
 
     Args:
         issue: The closed issue.
@@ -842,6 +858,16 @@ def analyze_completed_issue(
     if not work_keywords:
         return None  # not enough signal
 
+    # Require a minimum number of domain-specific keywords to avoid
+    # suggesting foci for generic or one-off work.
+    domain_hits = sum(1 for kw in work_keywords if kw in _DOMAIN_KEYWORDS)
+    if domain_hits < MIN_DOMAIN_KEYWORDS:
+        logger.debug(
+            "Issue %s has only %d domain keywords (need %d), skipping suggestion",
+            issue.identifier, domain_hits, MIN_DOMAIN_KEYWORDS,
+        )
+        return None
+
     # Score each focus against the actual work
     best_match = 0.0
     best_focus_name = ""
@@ -858,7 +884,9 @@ def analyze_completed_issue(
         )
         return None
 
-    # No good match — suggest a new focus
+    # No good match — record a suggestion but don't propose a focus yet.
+    # A proposed focus is only written after MIN_ISSUES_FOR_PROPOSAL distinct
+    # issues have contributed to the same suggestion.
     top_kw = work_keywords[:5]
     suggested_name = "_".join(top_kw[:2]) if len(top_kw) >= 2 else top_kw[0] if top_kw else "unknown"
     suggested_role = f"{' '.join(w.capitalize() for w in top_kw[:3])} Specialist"
@@ -883,18 +911,40 @@ def analyze_completed_issue(
         created_at=datetime.now(timezone.utc).isoformat(),
     )
 
-    # Also create a proposed Focus in the foci library
-    proposed = Focus(
-        name=suggested_name,
-        role=suggested_role,
-        description=description,
-        must_do=must_do,
-        must_not_do=must_not_do,
-        keywords=work_keywords[:10],
-        issue_types=[issue.issue_type] if issue.issue_type else [],
-        status="proposed",
+    # Only promote to a proposed focus after enough distinct issues have
+    # triggered the same suggestion — one issue is noise, three is a pattern.
+    existing_suggestions = load_suggestions()
+    existing = next(
+        (s for s in existing_suggestions
+         if s.suggested_name == suggested_name and s.status == "pending"),
+        None,
     )
-    _save_proposed_focus(proposed)
+    # Count how many unique issues will back this suggestion after merging
+    merged_issues = set(suggestion.source_issues)
+    if existing:
+        merged_issues |= set(existing.source_issues)
+
+    if len(merged_issues) >= MIN_ISSUES_FOR_PROPOSAL:
+        proposed = Focus(
+            name=suggested_name,
+            role=suggested_role,
+            description=description,
+            must_do=must_do,
+            must_not_do=must_not_do,
+            keywords=work_keywords[:10],
+            issue_types=[issue.issue_type] if issue.issue_type else [],
+            status="proposed",
+        )
+        _save_proposed_focus(proposed)
+        logger.info(
+            "Focus proposal promoted for '%s' (%s) — backed by %d issues",
+            suggested_name, suggested_role, len(merged_issues),
+        )
+    else:
+        logger.info(
+            "Focus suggestion recorded for '%s' — %d/%d issues needed before proposal",
+            suggested_name, len(merged_issues), MIN_ISSUES_FOR_PROPOSAL,
+        )
 
     logger.info(
         "Focus suggestion for %s: '%s' (%s) — no existing focus matched well",
