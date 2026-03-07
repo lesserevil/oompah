@@ -51,6 +51,7 @@
     .review-card.has-conflicts { border-color: var(--red); }
     .rebase-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(226, 179, 64, 0.15); color: var(--yellow); text-transform: uppercase; }
     .conflict-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(248, 81, 73, 0.15); color: var(--red); text-transform: uppercase; }
+    .agent-active-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(56, 139, 253, 0.15); color: var(--blue); text-transform: uppercase; }
     .btn-rebase { background: rgba(226, 179, 64, 0.15); color: var(--yellow); border-color: rgba(226, 179, 64, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
     .btn-rebase:hover { background: rgba(226, 179, 64, 0.25); }
     .btn-rebase:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -168,7 +169,9 @@ function renderReviews(data) {
   for (const item of data) {
     const key = item.project_name;
     if (!byProject[key]) byProject[key] = { provider: item.provider, project_id: item.project_id, reviews: [] };
-    byProject[key].reviews.push(item.review);
+    const review = item.review;
+    review.agent_active = item.agent_active || false;
+    byProject[key].reviews.push(review);
   }
 
   // Summary
@@ -207,10 +210,15 @@ function renderReviews(data) {
 function renderReviewCard(r, provider, projectId) {
   const idPrefix = provider === 'github' ? '#' : '!';
 
+  let agentHtml = '';
+  if (r.agent_active) {
+    agentHtml = ' <span class="agent-active-badge">Agent working on fix</span>';
+  }
+
   let ciHtml = '';
   if (r.ci_status) {
     ciHtml = '<span><span class="ci-dot ci-' + r.ci_status + '"></span>' + r.ci_status + '</span>';
-    if (r.ci_status === 'failed') {
+    if (r.ci_status === 'failed' && !r.agent_active) {
       ciHtml += ' <button class="btn-retry" onclick="retryReview(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Retry</button>';
     }
   }
@@ -218,7 +226,9 @@ function renderReviewCard(r, provider, projectId) {
   let draftHtml = r.draft ? ' <span class="draft-badge">Draft</span>' : '';
 
   let rebaseHtml = '';
-  if (r.has_conflicts) {
+  if (r.agent_active) {
+    // Agent is handling it — no action buttons needed
+  } else if (r.has_conflicts) {
     rebaseHtml = ' <span class="conflict-badge">Merge Conflicts</span>' +
       ' <button class="btn-resolve" ' +
       'onclick="resolveConflicts(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Resolve Conflicts</button>';
@@ -254,7 +264,7 @@ function renderReviewCard(r, provider, projectId) {
       <div class="review-header">
         <div class="review-title">
           <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
-          ${draftHtml}${rebaseHtml}${labelsHtml}
+          ${draftHtml}${agentHtml}${rebaseHtml}${labelsHtml}
           <span class="review-id">${idPrefix}${esc(r.id)}</span>
         </div>
         ${diffHtml}

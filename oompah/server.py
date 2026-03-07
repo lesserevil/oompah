@@ -1072,6 +1072,15 @@ async def api_list_reviews():
         orch = _get_orchestrator()
         projects = orch.project_store.list_all()
         reviews = get_all_open_reviews(projects)
+        # Enrich reviews with agent status
+        active_branches = {
+            entry.issue.identifier
+            for entry in orch.state.running.values()
+            if entry.issue
+        }
+        for item in reviews:
+            r = item.get("review", {})
+            item["agent_active"] = r.get("source_branch", "") in active_branches
         _api_cache.set("reviews:all", reviews, ttl_ms=10000)
         return JSONResponse(reviews)
     except Exception as exc:
