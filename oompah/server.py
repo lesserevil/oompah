@@ -1050,10 +1050,14 @@ async def api_retry_review(project_id: str, review_id: str):
                 status_code=404,
             )
         tracker.update_issue(matched.identifier, status="open", priority="0")
+        tracker.add_label(matched.identifier, "ci-fix")
         tracker.add_comment(
             matched.identifier,
-            f"CI tests failed on PR/MR #{review_id}. Please rebase onto main, "
-            "fix the failing tests, and push so CI passes and the PR can merge cleanly.",
+            f"CI tests failed on PR/MR #{review_id}. "
+            "Your ONLY task is to fix the failing CI tests so this PR can merge. "
+            "Do NOT rewrite or rework the feature — the feature code is done. "
+            "Steps: 1) rebase your branch onto main, 2) run the tests locally, "
+            "3) fix any test failures, 4) push. Nothing else.",
             author="oompah",
         )
         await broadcast_issues()

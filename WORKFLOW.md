@@ -128,6 +128,18 @@ If you determine that this issue requires a different specialist to complete (e.
 
 ## Instructions
 
+{% if issue.labels contains "ci-fix" %}
+**PRIORITY: FIX CI TESTS**
+
+This issue already has a PR open but CI tests are failing. Your ONLY job is to make the tests pass so the PR can merge. Do NOT rework or rewrite the feature — the feature code is done.
+
+1. Read the latest comments to understand what CI reported
+2. Rebase your branch onto main: `git fetch origin && git rebase origin/main`
+3. Run the test suite locally and identify failures
+4. Fix ONLY the failing tests — minimal changes
+5. Commit, push, and verify CI passes
+6. Post a comment with the fix summary and close the issue using `bd close {{ issue.identifier }}`
+{% else %}
 1. Read the issue carefully and understand the requirements
 2. Post a comment with your understanding and plan
 3. Explore the codebase to find the relevant code
@@ -138,3 +150,4 @@ If you determine that this issue requires a different specialist to complete (e.
 8. Post a comment with test results
 9. Commit, push, and create a PR (see Git Workflow above)
 10. Post a completion summary and close the issue using `bd close {{ issue.identifier }}`
+{% endif %}
