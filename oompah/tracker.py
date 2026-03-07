@@ -258,7 +258,7 @@ class BeadsTracker:
 
         normalized = {s.strip().lower() for s in state_names}
         try:
-            raw_list = self._run_bd(["list", "--json"])
+            raw_list = self._run_bd(["list", "--all", "--json"])
         except TrackerError as exc:
             logger.warning("Failed to fetch issues by states: %s", exc)
             raise
