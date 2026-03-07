@@ -325,6 +325,10 @@ class Orchestrator:
             return False
         if state_norm in [s.strip().lower() for s in self.config.tracker_terminal_states]:
             return False
+        # Only auto-dispatch issues already in "in_progress" — the user must
+        # explicitly move an issue to in_progress to trigger an agent.
+        if state_norm != "in_progress":
+            return False
         if issue.id in self.state.running:
             return False
         if issue.id in self.state.claimed:
