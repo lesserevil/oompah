@@ -1958,7 +1958,7 @@ DASHBOARD_HTML = """\
         <button id="btn-flat" class="active" onclick="setViewMode('flat')">Flat</button>
         <button id="btn-swimlane" onclick="setViewMode('swimlane')">Swimlanes</button>
       </div>
-      <select id="project-filter" onchange="refreshBoard()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);">
+      <select id="project-filter" onchange="saveProjectFilter(); refreshBoard()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
         <option value="">All Projects</option>
       </select>
       <button onclick="openCreateDialog()">+ Create</button>
@@ -2115,10 +2115,17 @@ function handleStateUpdate(state) {
   currentProjects = projects;
   const sel = document.getElementById('project-filter');
   if (sel && projects.length > 0) {
-    const curVal = sel.value;
+    // Use saved value from localStorage, falling back to current value
+    const savedProjectId = localStorage.getItem('oompah_selected_project') || '';
+    const curVal = sel.value || savedProjectId;
     sel.innerHTML = '<option value="">All Projects</option>' +
       projects.map(p => '<option value="' + esc(p.id) + '"' +
         (p.id === curVal ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('');
+    // If the saved project is valid, make sure it's selected
+    if (savedProjectId && !sel.value) {
+      const matchingOption = Array.from(sel.options).find(o => o.value === savedProjectId);
+      if (matchingOption) sel.value = savedProjectId;
+    }
     sel.style.display = '';
   } else if (sel && projects.length === 0) {
     sel.style.display = 'none';
@@ -2196,6 +2203,13 @@ async function fetchProposedFociCount() {
       el.style.display = 'none';
     }
   } catch(e) {}
+}
+
+function saveProjectFilter() {
+  const sel = document.getElementById('project-filter');
+  if (sel) {
+    localStorage.setItem('oompah_selected_project', sel.value);
+  }
 }
 
 function filterByProject(data) {
@@ -3458,7 +3472,10 @@ PROVIDERS_HTML = """\
 <body>
   <div class="toolbar">
     <h1><a href="/">oompah</a> <span>/ providers</span></h1>
-    <div style="display: flex; gap: 0.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <select id="project-filter" onchange="onProjectChange()" style="display:none;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
       <button onclick="window.location='/'">Back to Board</button>
     </div>
   </div>
@@ -3610,7 +3627,40 @@ async function fetchModelsFromProvider() {
   }
 }
 
+
+// --- Project selector (sticky) ---
+const PROJECT_STORAGE_KEY = 'oompah_selected_project';
+
+async function initProjectSelector() {
+  const sel = document.getElementById('project-filter');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) return;
+    const projects = await res.json();
+    if (projects.length === 0) { sel.style.display = 'none'; return; }
+    const saved = localStorage.getItem(PROJECT_STORAGE_KEY) || '';
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + escP(p.id) + '"' +
+        (p.id === saved ? ' selected' : '') + '>' + escP(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } catch(e) { sel.style.display = 'none'; }
+}
+
+function onProjectChange() {
+  const sel = document.getElementById('project-filter');
+  if (sel) localStorage.setItem(PROJECT_STORAGE_KEY, sel.value);
+}
+
+function escP(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  initProjectSelector();
   document.getElementById('prov-models-input').addEventListener('keydown', e => {
     const input = e.target;
     if (e.key === 'Enter' || e.key === ',') {
@@ -3791,7 +3841,10 @@ PROJECTS_HTML = """\
 <body>
   <div class="toolbar">
     <h1><a href="/">oompah</a> <span>/ Projects</span></h1>
-    <div style="display:flex;gap:0.5rem;">
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <select id="project-filter" onchange="onProjectChange()" style="display:none;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
       <button onclick="window.location='/'">Dashboard</button>
       <button onclick="window.location='/providers'">Providers</button>
     </div>
@@ -3933,7 +3986,40 @@ async function showWorktrees(id) {
   el.style.display = 'block';
 }
 
+
+// --- Project selector (sticky) ---
+const PROJECT_STORAGE_KEY = 'oompah_selected_project';
+
+async function initProjectSelector() {
+  const sel = document.getElementById('project-filter');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) return;
+    const projects = await res.json();
+    if (projects.length === 0) { sel.style.display = 'none'; return; }
+    const saved = localStorage.getItem(PROJECT_STORAGE_KEY) || '';
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + escP(p.id) + '"' +
+        (p.id === saved ? ' selected' : '') + '>' + escP(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } catch(e) { sel.style.display = 'none'; }
+}
+
+function onProjectChange() {
+  const sel = document.getElementById('project-filter');
+  if (sel) localStorage.setItem(PROJECT_STORAGE_KEY, sel.value);
+}
+
+function escP(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 loadProjects();
+initProjectSelector();
 </script>
 </body>
 </html>
@@ -4119,7 +4205,10 @@ FOCI_HTML = """\
 <body>
   <div class="toolbar">
     <h1><a href="/">oompah</a> <span>/ Foci</span></h1>
-    <div>
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <select id="project-filter" onchange="onProjectChange()" style="display:none;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
       <button onclick="window.location='/'">Dashboard</button>
     </div>
   </div>
@@ -4364,7 +4453,40 @@ async function deleteFocus(name) {
   }
 }
 
+
+// --- Project selector (sticky) ---
+const PROJECT_STORAGE_KEY = 'oompah_selected_project';
+
+async function initProjectSelector() {
+  const sel = document.getElementById('project-filter');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) return;
+    const projects = await res.json();
+    if (projects.length === 0) { sel.style.display = 'none'; return; }
+    const saved = localStorage.getItem(PROJECT_STORAGE_KEY) || '';
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + escP(p.id) + '"' +
+        (p.id === saved ? ' selected' : '') + '>' + escP(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } catch(e) { sel.style.display = 'none'; }
+}
+
+function onProjectChange() {
+  const sel = document.getElementById('project-filter');
+  if (sel) localStorage.setItem(PROJECT_STORAGE_KEY, sel.value);
+}
+
+function escP(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 loadFoci();
+initProjectSelector();
 </script>
 </body>
 </html>
@@ -4451,7 +4573,10 @@ REVIEWS_HTML = """\
 <body>
   <div class="toolbar">
     <h1><a href="/">oompah</a> <span>/ Reviews</span></h1>
-    <div>
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <select id="project-filter" onchange="onProjectChange()" style="display:none;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+        <option value="">All Projects</option>
+      </select>
       <button onclick="loadReviews()">Refresh</button>
       <button onclick="window.location='/'">Dashboard</button>
     </div>
@@ -4702,7 +4827,47 @@ async function retryReview(projectId, reviewId, btn) {
   }
 }
 
+
+// --- Project selector (sticky) ---
+const PROJECT_STORAGE_KEY = 'oompah_selected_project';
+
+async function initProjectSelector() {
+  const sel = document.getElementById('project-filter');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) return;
+    const projects = await res.json();
+    if (projects.length === 0) { sel.style.display = 'none'; return; }
+    const saved = localStorage.getItem(PROJECT_STORAGE_KEY) || '';
+    sel.innerHTML = '<option value="">All Projects</option>' +
+      projects.map(p => '<option value="' + escP(p.id) + '"' +
+        (p.id === saved ? ' selected' : '') + '>' + escP(p.name) + '</option>').join('');
+    sel.style.display = '';
+  } catch(e) { sel.style.display = 'none'; }
+}
+
+function onProjectChange() {
+  const sel = document.getElementById('project-filter');
+  if (sel) localStorage.setItem(PROJECT_STORAGE_KEY, sel.value);
+}
+
+function escP(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function filterReviewsByProject(data) {
+  const sel = document.getElementById('project-filter');
+  const pid = sel ? sel.value : '';
+  if (!pid) return data;
+  return data.filter(item => item.project_id === pid);
+}
+
 loadReviews();
+initProjectSelector();
 </script>
 </body>
 </html>
