@@ -1760,9 +1760,12 @@ DASHBOARD_HTML = """\
       padding: 0.3rem 0;
       border-bottom: 1px solid rgba(48, 54, 61, 0.5);
       display: flex;
+      flex-wrap: wrap;
       gap: 0.5rem;
       align-items: flex-start;
+      cursor: pointer;
     }
+    .activity-entry:hover { background: rgba(48, 54, 61, 0.3); }
     .activity-entry:last-child { border-bottom: none; }
     .activity-turn {
       color: var(--text-muted);
@@ -1785,6 +1788,21 @@ DASHBOARD_HTML = """\
       word-break: break-word;
       white-space: pre-wrap;
     }
+    .activity-detail {
+      display: none;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.25rem;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .activity-entry.expanded .activity-detail { display: block; }
 
     /* Create dialog */
     .dialog-overlay {
@@ -2545,6 +2563,19 @@ function closeActivityPanel() {
   if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
 }
 
+function renderActivityEntry(a) {
+  const hasDetail = a.detail && a.detail.trim().length > 0;
+  return '<div class="activity-entry' + (hasDetail ? '' : '') + '"' +
+    (hasDetail ? ' onclick="this.classList.toggle(\'expanded\')"' : '') + '>' +
+    '<span class="activity-turn">' + esc(String(a.turn || '')) + '</span>' +
+    '<span class="activity-kind ' + esc(a.kind || '') + '">' + esc(a.kind || '') + '</span>' +
+    '<span class="activity-summary">' + esc(a.summary || '') +
+      (hasDetail ? ' <span style="color:var(--text-muted);font-size:0.7rem;">&#9660;</span>' : '') +
+    '</span>' +
+    (hasDetail ? '<div class="activity-detail">' + esc(a.detail) + '</div>' : '') +
+  '</div>';
+}
+
 function handleActivityPush(identifier, entry) {
   // Only update if the activity panel is open for this agent
   const overlay = document.getElementById('activity-overlay');
@@ -2552,13 +2583,9 @@ function handleActivityPush(identifier, entry) {
   const titleEl = document.getElementById('activity-title');
   if (titleEl.dataset.identifier !== identifier) return;
   const body = document.getElementById('activity-body');
-  const div = document.createElement('div');
-  div.className = 'activity-entry';
-  div.innerHTML =
-    '<span class="activity-turn">' + (entry.turn || '') + '</span>' +
-    '<span class="activity-kind ' + esc(entry.kind || '') + '">' + esc(entry.kind || '') + '</span>' +
-    '<span class="activity-summary">' + esc(entry.summary || '') + '</span>';
-  body.appendChild(div);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderActivityEntry(entry);
+  body.appendChild(tmp.firstChild);
   body.scrollTop = body.scrollHeight;
 }
 
@@ -2572,13 +2599,7 @@ async function refreshActivity(identifier) {
       body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No activity yet...</div>';
       return;
     }
-    body.innerHTML = entries.map(a =>
-      '<div class="activity-entry">' +
-        '<span class="activity-turn">' + a.turn + '</span>' +
-        '<span class="activity-kind ' + esc(a.kind) + '">' + esc(a.kind) + '</span>' +
-        '<span class="activity-summary">' + esc(a.summary) + '</span>' +
-      '</div>'
-    ).join('');
+    body.innerHTML = entries.map(a => renderActivityEntry(a)).join('');
     body.scrollTop = body.scrollHeight;
   } catch(e) {}
 }

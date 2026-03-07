@@ -332,7 +332,18 @@ class ApiAgentSession:
         try:
             for turn in range(1, self.max_turns + 1):
                 turns = turn
-                _emit(turn, "thinking", f"Turn {turn}: calling {self.model}...")
+                # Capture the last user/tool messages being sent this turn
+                recent_msgs = []
+                for m in reversed(messages):
+                    if m.get("role") in ("user", "tool"):
+                        recent_msgs.insert(0, m)
+                    else:
+                        break
+                prompt_preview = "\n".join(
+                    f"[{m.get('role')}] {(m.get('content') or '')[:500]}"
+                    for m in recent_msgs
+                ) if recent_msgs else "(system prompt + history)"
+                _emit(turn, "thinking", f"Turn {turn}: calling {self.model}...", prompt_preview)
 
                 response = await self._call_api(messages)
 
