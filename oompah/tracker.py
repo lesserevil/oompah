@@ -350,6 +350,9 @@ class BeadsTracker:
         if isinstance(blockers_raw, list):
             for b in blockers_raw:
                 if isinstance(b, dict):
+                    # Skip parent-child relationships — they aren't blockers
+                    if b.get("type") == "parent-child":
+                        continue
                     blocked_by.append(
                         BlockerRef(
                             id=b.get("id"),
