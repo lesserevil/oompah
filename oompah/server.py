@@ -1006,6 +1006,64 @@ async def api_rebase_review(project_id: str, review_id: str):
         )
 
 
+@app.post("/api/v1/reviews/{project_id}/{review_id}/retry")
+async def api_retry_review(project_id: str, review_id: str):
+    """Move a bead back to 'open' so its agent retries (e.g. after CI failure).
+
+    Matches the PR/MR source branch to a bead identifier, moves it to open,
+    and adds a comment instructing the agent to fix CI failures.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+        provider = detect_provider(project.repo_url)
+        if not provider:
+            return JSONResponse(
+                {"error": {"code": "unsupported", "message": "No SCM provider detected"}},
+                status_code=400,
+            )
+        slug = extract_repo_slug(project.repo_url)
+        review = provider.get_review(slug, review_id)
+        if not review:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "Review not found"}},
+                status_code=404,
+            )
+        branch = review.source_branch
+        tracker = orch._tracker_for_project(project_id)
+        all_issues = tracker.fetch_all_issues()
+        matched = None
+        for issue in all_issues:
+            if issue.identifier == branch or issue.id == branch:
+                matched = issue
+                break
+        if not matched:
+            return JSONResponse(
+                {"success": False, "message": f"No bead found matching branch '{branch}'"},
+                status_code=404,
+            )
+        tracker.update_issue(matched.identifier, status="open")
+        tracker.add_comment(
+            matched.identifier,
+            f"CI tests failed on PR/MR #{review_id}. Please rebase onto main, "
+            "fix the failing tests, and push so CI passes and the PR can merge cleanly.",
+            author="oompah",
+        )
+        await broadcast_issues()
+        return JSONResponse({"success": True, "identifier": matched.identifier})
+    except Exception as exc:
+        logger.error("Retry review API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "retry_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
 def _notify_conflict_on_bead(
     orch, project_id: str, provider, slug: str, review_id: str,
 ) -> str | None:
@@ -4331,6 +4389,10 @@ REVIEWS_HTML = """\
     .btn-resolve:hover { background: rgba(248, 81, 73, 0.25); }
     .btn-resolve:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-resolve.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
+    .btn-retry { background: rgba(248, 81, 73, 0.15); color: var(--red); border-color: rgba(248, 81, 73, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
+    .btn-retry:hover { background: rgba(248, 81, 73, 0.25); }
+    .btn-retry:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-retry.success { background: rgba(63, 185, 80, 0.15); color: var(--green); border-color: rgba(63, 185, 80, 0.3); }
     .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
     .loading { text-align: center; padding: 3rem; color: var(--text-muted); }
     .error-msg { text-align: center; padding: 2rem; color: var(--red); }
@@ -4447,6 +4509,9 @@ function renderReviewCard(r, provider, projectId) {
   let ciHtml = '';
   if (r.ci_status) {
     ciHtml = '<span><span class="ci-dot ci-' + r.ci_status + '"></span>' + r.ci_status + '</span>';
+    if (r.ci_status === 'failed') {
+      ciHtml += ' <button class="btn-retry" onclick="retryReview(\\'' + esc(projectId) + '\\', \\'' + esc(r.id) + '\\', this)">Retry</button>';
+    }
   }
 
   let draftHtml = r.draft ? ' <span class="draft-badge">Draft</span>' : '';
@@ -4561,6 +4626,28 @@ async function resolveConflicts(projectId, reviewId, btn) {
   } catch(e) {
     btn.textContent = 'Error';
     btn.className = 'btn-resolve';
+    btn.disabled = false;
+  }
+}
+
+async function retryReview(projectId, reviewId, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Reopening...';
+  try {
+    const res = await fetch('/api/v1/reviews/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(reviewId) + '/retry', {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.success) {
+      btn.textContent = 'Reopened ' + (data.identifier || '');
+      btn.className = 'btn-retry success';
+      setTimeout(() => loadReviews(), 2000);
+    } else {
+      btn.textContent = data.message || 'No bead found';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
     btn.disabled = false;
   }
 }

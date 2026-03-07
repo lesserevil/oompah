@@ -315,8 +315,10 @@ class BeadsTracker:
 
         try:
             return json.loads(stdout)
-        except json.JSONDecodeError as exc:
-            raise TrackerError(f"Failed to parse bd JSON output: {exc}")
+        except json.JSONDecodeError:
+            # Non-JSON output (e.g. "✓ Updated issue: ...") — return empty
+            # This is normal for write commands (update, close, label, etc.)
+            return []
 
     def _normalize_issue(self, raw: dict) -> Issue:
         """Normalize a raw beads issue dict to the Issue model."""
