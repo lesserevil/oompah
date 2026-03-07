@@ -1120,8 +1120,9 @@ def _notify_conflict_on_bead(
         state_lower = issue.state.strip().lower()
         if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
             tracker.reopen_issue(issue.identifier)
+            tracker.update_issue(issue.identifier, priority="0")
             logger.info(
-                "Reopened bead %s for merge conflict resolution (PR #%s)",
+                "Reopened bead %s as P0 for merge conflict resolution (PR #%s)",
                 issue.identifier, review_id,
             )
         else:
