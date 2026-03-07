@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from liquid import Environment as LiquidEnvironment
@@ -47,12 +48,28 @@ def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
     }
 
 
+def _read_agents_md(workspace_path: str | None) -> str:
+    """Read AGENTS.md from the workspace if it exists."""
+    if not workspace_path:
+        return ""
+    for name in ("AGENTS.md", "agents.md"):
+        path = os.path.join(workspace_path, name)
+        if os.path.isfile(path):
+            try:
+                with open(path, "r") as f:
+                    return f.read().strip()
+            except OSError:
+                pass
+    return ""
+
+
 def render_prompt(
     template_source: str,
     issue: Issue,
     attempt: int | None = None,
     comments: list[dict] | None = None,
     focus_text: str | None = None,
+    workspace_path: str | None = None,
 ) -> str:
     """Render a Liquid prompt template with issue and attempt variables.
 
@@ -69,11 +86,14 @@ def render_prompt(
             error_class="template_parse_error",
         ) from exc
 
+    agents_md = _read_agents_md(workspace_path)
+
     variables: dict[str, Any] = {
         "issue": _issue_to_template_vars(issue),
         "attempt": attempt,
         "comments": comments or [],
         "focus": focus_text or "",
+        "agents_md": agents_md,
     }
 
     try:

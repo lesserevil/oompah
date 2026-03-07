@@ -1000,6 +1000,7 @@ class Orchestrator:
                 prompt = render_prompt(
                     self._prompt_template, issue, attempt,
                     comments=comments, focus_text=focus.render(),
+                    workspace_path=wp,
                 )
                 return wp, focus, prompt
 
@@ -1179,6 +1180,7 @@ class Orchestrator:
                         prompt = render_prompt(
                             self._prompt_template, current_issue, attempt,
                             comments=cli_comments, focus_text=cli_focus.render(),
+                            workspace_path=workspace_path,
                         )
                     else:
                         prompt = build_continuation_prompt(
