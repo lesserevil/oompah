@@ -329,10 +329,12 @@ class Orchestrator:
             return False
         if issue.id in self.state.claimed:
             return False
-        if self._available_slots() <= 0:
-            return False
-        if not self._per_state_available(issue.state):
-            return False
+        is_p0 = issue.priority is not None and issue.priority == 0
+        if not is_p0:
+            if self._available_slots() <= 0:
+                return False
+            if not self._per_state_available(issue.state):
+                return False
         # Blocker rule for "open"/"todo" state
         if state_norm in ("open", "todo"):
             terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
