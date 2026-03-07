@@ -1316,7 +1316,21 @@ DASHBOARD_HTML = """\
       justify-content: space-between;
       align-items: center;
       flex-shrink: 0;
+      cursor: grab;
     }
+    .column-header:active { cursor: grabbing; }
+    .column-header.col-drag-over {
+      background: rgba(88, 166, 255, 0.15);
+      border-bottom-color: var(--blue);
+    }
+    .column-header .col-grip {
+      color: var(--text-muted);
+      opacity: 0.4;
+      font-size: 0.7rem;
+      margin-right: 0.4rem;
+      user-select: none;
+    }
+    .column-header:hover .col-grip { opacity: 0.8; }
     .column-header .col-title {
       font-size: 0.8rem;
       font-weight: 700;
@@ -1941,6 +1955,7 @@ const COLUMN_LABELS = {deferred: 'Backlog', open: 'Open', in_progress: 'In Progr
 let boardData = {};
 let allIssuesFlat = [];
 let dragState = null;
+let columnDragState = null;  // {sourceState, epicId (or null for flat)}
 let viewMode = 'flat';
 let collapsedSwimlanes = {};
 let orchPaused = false;
@@ -2236,13 +2251,15 @@ function renderFlatView(board, data) {
     column.dataset.state = col;
 
     column.innerHTML = `
-      <div class="column-header">
-        <span class="col-title">${COLUMN_LABELS[col]}</span>
+      <div class="column-header" draggable="true">
+        <span><span class="col-grip">&#8942;&#8942;</span><span class="col-title">${COLUMN_LABELS[col]}</span></span>
         <span class="col-count">${issues.length}</span>
       </div>
       <div class="column-body" data-state="${col}"></div>
     `;
 
+    const header = column.querySelector('.column-header');
+    setupColumnDrag(header, col, null);
     const body = column.querySelector('.column-body');
     setupDropZone(body);
 
@@ -2299,12 +2316,14 @@ function renderSwimlaneView(board, data) {
       const sc = document.createElement('div');
       sc.className = 'column';
       sc.innerHTML = `
-        <div class="column-header">
-          <span class="col-title">${COLUMN_LABELS[col]}</span>
+        <div class="column-header" draggable="true">
+          <span><span class="col-grip">&#8942;&#8942;</span><span class="col-title">${COLUMN_LABELS[col]}</span></span>
           <span class="col-count">${colIssues.length}</span>
         </div>
         <div class="column-body" data-state="${col}"></div>
       `;
+      const scHeader = sc.querySelector('.column-header');
+      setupColumnDrag(scHeader, col, epic.id);
       const scBody = sc.querySelector('.column-body');
       setupDropZone(scBody);
       for (const issue of colIssues) {
@@ -2337,12 +2356,14 @@ function renderSwimlaneView(board, data) {
       const sc = document.createElement('div');
       sc.className = 'column';
       sc.innerHTML = `
-        <div class="column-header">
-          <span class="col-title">${COLUMN_LABELS[col]}</span>
+        <div class="column-header" draggable="true">
+          <span><span class="col-grip">&#8942;&#8942;</span><span class="col-title">${COLUMN_LABELS[col]}</span></span>
           <span class="col-count">${colIssues.length}</span>
         </div>
         <div class="column-body" data-state="${col}"></div>
       `;
+      const scHeader = sc.querySelector('.column-header');
+      setupColumnDrag(scHeader, col, '_orphans');
       const scBody = sc.querySelector('.column-body');
       setupDropZone(scBody);
       for (const issue of colIssues) {
@@ -2466,8 +2487,90 @@ function createCard(issue) {
   return card;
 }
 
+function setupColumnDrag(header, sourceState, epicId) {
+  header.addEventListener('dragstart', e => {
+    // Don't interfere with card drags — cards set dragState
+    columnDragState = { sourceState, epicId };
+    dragState = null;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', 'column:' + sourceState);
+    header.style.opacity = '0.5';
+  });
+  header.addEventListener('dragend', () => {
+    header.style.opacity = '';
+    columnDragState = null;
+    document.querySelectorAll('.column-header.col-drag-over').forEach(
+      el => el.classList.remove('col-drag-over')
+    );
+  });
+
+  // Column headers are also drop targets for other column drags
+  header.addEventListener('dragover', e => {
+    if (!columnDragState) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    header.classList.add('col-drag-over');
+  });
+  header.addEventListener('dragleave', () => {
+    header.classList.remove('col-drag-over');
+  });
+  header.addEventListener('drop', async e => {
+    e.preventDefault();
+    header.classList.remove('col-drag-over');
+    if (!columnDragState) return;
+
+    const targetState = sourceState;  // this header's state
+    const src = columnDragState;
+    columnDragState = null;
+    if (targetState === src.sourceState) return;
+
+    // Determine which column header's epicId to use for scoping
+    // In swimlane view, only move items within the source epic
+    // Both source and target should be in the same swimlane context
+    const scopeEpicId = src.epicId;
+
+    // Collect cards to move from the source column
+    const cardsToMove = getCardsInColumn(src.sourceState, scopeEpicId);
+    if (cardsToMove.length === 0) return;
+
+    // Confirm with user
+    const label = COLUMN_LABELS[src.sourceState] || src.sourceState;
+    const targetLabel = COLUMN_LABELS[targetState] || targetState;
+    const scope = scopeEpicId ? (scopeEpicId === '_orphans' ? 'Unassigned' : 'this swimlane') : 'all visible';
+    if (!confirm(`Move ${cardsToMove.length} item(s) from ${label} → ${targetLabel} (${scope})?`)) return;
+
+    // Optimistic update
+    for (const issue of cardsToMove) {
+      moveIssueInBoard(issue.identifier, targetState);
+    }
+    renderBoard(boardData);
+
+    // Fire API calls
+    for (const issue of cardsToMove) {
+      updateIssue(issue.identifier, {status: targetState, project_id: issue.project_id || ''});
+    }
+  });
+}
+
+function getCardsInColumn(state, epicId) {
+  // Get visible cards in a column, scoped by epicId (swimlane) or project filter (flat)
+  const issues = (boardData[state] || []).filter(i => i.issue_type !== 'epic');
+  if (epicId === null) {
+    // Flat view — all visible (already filtered by project)
+    return issues;
+  } else if (epicId === '_orphans') {
+    // Orphan swimlane — items with no parent or parent not an epic
+    const epicIds = new Set(allIssuesFlat.filter(i => i.issue_type === 'epic').map(e => e.id));
+    return issues.filter(i => !i.parent_id || !epicIds.has(i.parent_id));
+  } else {
+    // Specific epic swimlane
+    return issues.filter(i => i.parent_id === epicId);
+  }
+}
+
 function setupDropZone(body) {
   body.addEventListener('dragover', e => {
+    if (columnDragState) return;  // column drags handled by column headers
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     body.classList.add('drag-over');
