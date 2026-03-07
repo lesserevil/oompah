@@ -311,6 +311,17 @@
     .p3 { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
     .p4 { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
 
+    /* Merged badge on closed cards */
+    .merged-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(136, 87, 229, 0.2);
+      color: var(--purple, #bc8cff);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
     /* Epic badge on child cards */
     .epic-badge {
       font-size: 0.6rem;
@@ -1008,11 +1019,13 @@ async function fetchReviewsCount() {
     const reviews = await res.json();
     const el = document.getElementById('reviews-stat');
     const countEl = document.getElementById('reviews-count');
-    const conflicts = reviews.filter(r => r.review && r.review.has_conflicts).length;
-    if (conflicts > 0) {
-      countEl.textContent = conflicts;
+    const conflicts = reviews.filter(r => r.review && r.review.has_conflicts && !r.agent_active).length;
+    const ciFailures = reviews.filter(r => r.review && r.review.ci_status === 'failed' && !r.agent_active).length;
+    const needsAttention = conflicts + ciFailures;
+    if (needsAttention > 0) {
+      countEl.textContent = needsAttention;
       countEl.style.color = 'var(--red, #f85149)';
-      el.querySelector('.reviews-label').textContent = 'conflicts need resolution';
+      el.querySelector('.reviews-label').textContent = conflicts > 0 ? 'need resolution' : 'CI failures';
       el.style.display = '';
     } else if (reviews.length > 0) {
       countEl.textContent = reviews.length;
@@ -1373,11 +1386,17 @@ function createCard(issue) {
     }
   }
 
+  // Build merged badge if issue has the "merged" label
+  const mergedBadgeHtml = (issue.labels || []).includes('merged')
+    ? ' <span class="merged-badge">merged</span>'
+    : '';
+
   card.innerHTML = `
     <div class="card-id">
       <span class="card-id-left">
         <span>${esc(issue.identifier)}</span>
         ${epicBadgeHtml}
+        ${mergedBadgeHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>

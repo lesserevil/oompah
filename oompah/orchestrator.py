@@ -335,7 +335,7 @@ class Orchestrator:
             await self._terminate_running(issue_id, cleanup_workspace=False)
         # Cancel retry timers
         for issue_id, retry in list(self.state.retry_attempts.items()):
-            if retry.timer_handle and not retry.timer_handle.done():
+            if retry.timer_handle and not retry.timer_handle.cancelled():
                 retry.timer_handle.cancel()
         logger.info("Orchestrator stopped")
 
@@ -354,16 +354,18 @@ class Orchestrator:
             self._notify_observers()
             return
 
-        # Part 2.5 + 3: Fetch reviews, PR branches, and candidates in parallel
+        # Part 2.5 + 3: Fetch reviews, PR branches, merged branches, and candidates in parallel
         self._blocker_state_cache = {}  # reset per tick
         self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
         loop = asyncio.get_event_loop()
         reviews_task = loop.run_in_executor(self._tick_pool, self._fetch_all_reviews)
         candidates_task = loop.run_in_executor(self._tick_pool, self._fetch_all_candidates)
-        reviews_by_project, candidates = await asyncio.gather(
-            reviews_task, candidates_task
+        merged_task = loop.run_in_executor(self._tick_pool, self._fetch_all_merged_branches)
+        reviews_by_project, candidates, merged_branches = await asyncio.gather(
+            reviews_task, candidates_task, merged_task
         )
         self._reviews_cache = reviews_by_project
+        self._merged_branches = merged_branches
         # Derive unmerged PR branches from cached reviews
         self._unmerged_pr_branches = {
             r.source_branch
@@ -388,7 +390,7 @@ class Orchestrator:
                 await self._dispatch(issue, attempt=None)
         t4 = time.monotonic()
 
-        # Part 5 + 6: YOLO (uses cached reviews) + auto-archive in parallel
+        # Part 5 + 6 + 7: YOLO + auto-archive + merged-labeling in parallel
         def _timed_yolo():
             t = time.monotonic()
             self._yolo_review_actions_sync()
@@ -399,9 +401,15 @@ class Orchestrator:
             self._auto_archive()
             return (time.monotonic() - t) * 1000
 
-        yolo_ms, archive_ms = await asyncio.gather(
+        def _timed_merged_labels():
+            t = time.monotonic()
+            self._label_merged_issues()
+            return (time.monotonic() - t) * 1000
+
+        yolo_ms, archive_ms, merged_ms = await asyncio.gather(
             loop.run_in_executor(self._tick_pool, _timed_yolo),
             loop.run_in_executor(self._tick_pool, _timed_archive),
+            loop.run_in_executor(self._tick_pool, _timed_merged_labels),
         )
         t5 = time.monotonic()
 
@@ -409,10 +417,10 @@ class Orchestrator:
         if total_ms > 2000:
             logger.warning(
                 "Slow tick: %.0fms (reconcile=%.0f fetch=%.0f blockers=%.0f "
-                "dispatch=%.0f yolo=%.0f archive=%.0f)",
+                "dispatch=%.0f yolo=%.0f archive=%.0f merged=%.0f)",
                 total_ms,
                 (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000,
-                (t4 - t3) * 1000, yolo_ms, archive_ms,
+                (t4 - t3) * 1000, yolo_ms, archive_ms, merged_ms,
             )
 
         self._notify_observers()
@@ -572,6 +580,55 @@ class Orchestrator:
             for pid, reviews in pool.map(_fetch_for_project, projects):
                 result[pid] = reviews
         return result
+
+    def _fetch_all_merged_branches(self) -> set[str]:
+        """Fetch merged PR/MR branch names across all projects."""
+        projects = self.project_store.list_all()
+        if not projects:
+            return set()
+
+        def _fetch_for_project(project) -> set[str]:
+            provider = detect_provider(project.repo_url)
+            if not provider:
+                return set()
+            slug = extract_repo_slug(project.repo_url)
+            try:
+                return provider.list_merged_branches(slug)
+            except Exception as exc:
+                logger.debug("Failed to fetch merged branches for %s: %s", project.name, exc)
+                return set()
+
+        result: set[str] = set()
+        with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
+            for branches in pool.map(_fetch_for_project, projects):
+                result |= branches
+        return result
+
+    def _label_merged_issues(self) -> None:
+        """Label closed issues whose branch has been merged."""
+        merged = getattr(self, "_merged_branches", set())
+        if not merged:
+            return
+
+        for project in self.project_store.list_all():
+            tracker = self._tracker_for_project(project.id)
+            try:
+                closed_issues = tracker.fetch_issues_by_states(
+                    self.config.tracker_terminal_states
+                )
+            except TrackerError:
+                continue
+            for issue in closed_issues:
+                if "merged" in issue.labels or "archive:yes" in issue.labels:
+                    continue
+                # Branch name is typically the issue identifier
+                branch = issue.branch_name or issue.identifier
+                if branch in merged:
+                    try:
+                        tracker.add_label(issue.identifier, "merged")
+                        logger.info("Labelled %s as merged (branch %s)", issue.identifier, branch)
+                    except TrackerError as exc:
+                        logger.debug("Failed to label %s as merged: %s", issue.identifier, exc)
 
     def _yolo_review_actions_sync(self) -> None:
         """Auto-manage reviews for projects with YOLO enabled.
