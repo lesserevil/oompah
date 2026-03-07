@@ -1194,9 +1194,11 @@ DASHBOARD_HTML = """\
     /* Swimlane view */
     .board.swimlane-view {
       flex-direction: column;
+      align-items: stretch;
       overflow-y: auto;
       overflow-x: hidden;
       gap: 0;
+      padding: 1rem calc(1.5rem - 1px);
     }
     .swimlane {
       border: 1px solid var(--border);
@@ -1241,29 +1243,18 @@ DASHBOARD_HTML = """\
     }
     .swimlane-columns {
       display: flex;
-      gap: 0.5rem;
-      padding: 0.5rem;
+      gap: 1rem;
+      padding: 0.5rem 0;
       overflow-x: auto;
     }
     .swimlane.collapsed .swimlane-columns {
       display: none;
     }
-    .swimlane-col {
-      flex: 1;
-      min-width: 200px;
-    }
-    .swimlane-col-header {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      padding: 0.3rem 0.5rem;
-      margin-bottom: 0.25rem;
-    }
-    .swimlane-col-body {
-      min-height: 40px;
-      padding: 0 0.25rem;
+    .swimlane-columns .column {
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      max-height: none;
     }
 
     .column {
@@ -1271,7 +1262,6 @@ DASHBOARD_HTML = """\
       border: 1px solid var(--border);
       border-radius: 10px;
       min-width: 280px;
-      max-width: 340px;
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -2225,12 +2215,15 @@ function renderSwimlaneView(board, data) {
     for (const col of COLUMNS) {
       const colIssues = children.filter(c => c.state.trim().toLowerCase() === col);
       const sc = document.createElement('div');
-      sc.className = 'swimlane-col';
+      sc.className = 'column';
       sc.innerHTML = `
-        <div class="swimlane-col-header">${COLUMN_LABELS[col]} (${colIssues.length})</div>
-        <div class="swimlane-col-body" data-state="${col}"></div>
+        <div class="column-header">
+          <span class="col-title">${COLUMN_LABELS[col]}</span>
+          <span class="col-count">${colIssues.length}</span>
+        </div>
+        <div class="column-body" data-state="${col}"></div>
       `;
-      const scBody = sc.querySelector('.swimlane-col-body');
+      const scBody = sc.querySelector('.column-body');
       setupDropZone(scBody);
       for (const issue of colIssues) {
         scBody.appendChild(createCard(issue));
@@ -2260,12 +2253,15 @@ function renderSwimlaneView(board, data) {
     for (const col of COLUMNS) {
       const colIssues = orphans.filter(o => o.state.trim().toLowerCase() === col);
       const sc = document.createElement('div');
-      sc.className = 'swimlane-col';
+      sc.className = 'column';
       sc.innerHTML = `
-        <div class="swimlane-col-header">${COLUMN_LABELS[col]} (${colIssues.length})</div>
-        <div class="swimlane-col-body" data-state="${col}"></div>
+        <div class="column-header">
+          <span class="col-title">${COLUMN_LABELS[col]}</span>
+          <span class="col-count">${colIssues.length}</span>
+        </div>
+        <div class="column-body" data-state="${col}"></div>
       `;
-      const scBody = sc.querySelector('.swimlane-col-body');
+      const scBody = sc.querySelector('.column-body');
       setupDropZone(scBody);
       for (const issue of colIssues) {
         scBody.appendChild(createCard(issue));
@@ -2431,7 +2427,7 @@ function setupDropZone(body) {
 
 function clearAllIndicators() {
   document.querySelectorAll('.drop-indicator').forEach(el => el.classList.remove('visible'));
-  document.querySelectorAll('.column-body, .swimlane-col-body').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.column-body').forEach(el => el.classList.remove('drag-over'));
 }
 
 function esc(s) {
