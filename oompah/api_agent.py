@@ -58,7 +58,7 @@ class ApiAgentResult:
 
 
 # Tools that indicate the agent is making progress (not just reading/exploring)
-_PRODUCTIVE_TOOLS = {"write_file", "run_command"}
+_PRODUCTIVE_TOOLS = {"write_file", "edit_file", "run_command"}
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +138,70 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_file",
+            "description": (
+                "Edit a file by replacing an exact string match with new content. "
+                "More efficient than write_file for targeted changes — only send the "
+                "changed parts, not the entire file. The old_string must match exactly "
+                "one location in the file (including whitespace and indentation). "
+                "Use replace_all=true to replace every occurrence."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path relative to workspace root.",
+                    },
+                    "old_string": {
+                        "type": "string",
+                        "description": "The exact text to find in the file. Must match uniquely unless replace_all is true.",
+                    },
+                    "new_string": {
+                        "type": "string",
+                        "description": "The replacement text.",
+                    },
+                    "replace_all": {
+                        "type": "boolean",
+                        "description": "If true, replace all occurrences. Default false.",
+                    },
+                },
+                "required": ["path", "old_string", "new_string"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_files",
+            "description": (
+                "Search for a pattern across files in the workspace. "
+                "Returns matching lines with file paths and line numbers. "
+                "Useful for finding where functions, variables, or strings are used."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Search pattern (plain text or regex).",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Directory or file to search in (relative to workspace root). Default '.'.",
+                    },
+                    "include": {
+                        "type": "string",
+                        "description": "Glob pattern to filter files, e.g. '*.go' or '*.py'.",
+                    },
+                },
+                "required": ["pattern"],
+            },
+        },
+    },
 ]
 
 
@@ -189,6 +253,81 @@ def _exec_list_files(workspace: Path, args: dict[str, Any]) -> str:
         return f"Error listing directory: {exc}"
 
 
+def _exec_edit_file(workspace: Path, args: dict[str, Any]) -> str:
+    path = _safe_resolve(workspace, args["path"])
+    if not path.is_file():
+        return f"Error: file not found: {args['path']}"
+    try:
+        content = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        return f"Error reading file: {exc}"
+
+    old_string = args["old_string"]
+    new_string = args["new_string"]
+    replace_all = args.get("replace_all", False)
+
+    if not old_string:
+        return "Error: old_string must not be empty"
+    if old_string == new_string:
+        return "Error: old_string and new_string are identical"
+
+    count = content.count(old_string)
+    if count == 0:
+        # Show a snippet of the file to help the model find the right text
+        lines = content.splitlines()
+        preview = "\n".join(lines[:30])
+        return (
+            f"Error: old_string not found in {args['path']}. "
+            f"File has {len(lines)} lines. First 30 lines:\n{preview}"
+        )
+    if count > 1 and not replace_all:
+        return (
+            f"Error: old_string matches {count} locations in {args['path']}. "
+            f"Provide more context to make it unique, or set replace_all=true."
+        )
+
+    if replace_all:
+        new_content = content.replace(old_string, new_string)
+    else:
+        new_content = content.replace(old_string, new_string, 1)
+
+    try:
+        path.write_text(new_content, encoding="utf-8")
+        replacements = count if replace_all else 1
+        return f"OK: replaced {replacements} occurrence(s) in {args['path']}"
+    except Exception as exc:
+        return f"Error writing file: {exc}"
+
+
+def _exec_search_files(workspace: Path, args: dict[str, Any]) -> str:
+    search_path = _safe_resolve(workspace, args.get("path", "."))
+    pattern = args["pattern"]
+    include = args.get("include", "")
+
+    cmd = ["grep", "-rn", "--include", include, pattern, str(search_path)] if include else \
+          ["grep", "-rn", pattern, str(search_path)]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=15,
+            cwd=str(workspace),
+        )
+        output = result.stdout
+        if not output:
+            return f"No matches found for {pattern!r}"
+        # Make paths relative to workspace
+        ws_prefix = str(workspace.resolve()) + os.sep
+        lines = output.splitlines()
+        rel_lines = [l.replace(ws_prefix, "") for l in lines]
+        if len(rel_lines) > 100:
+            rel_lines = rel_lines[:100]
+            rel_lines.append(f"... ({len(lines) - 100} more matches)")
+        return "\n".join(rel_lines)
+    except subprocess.TimeoutExpired:
+        return "Error: search timed out"
+    except Exception as exc:
+        return f"Error searching: {exc}"
+
+
 def _exec_run_command(workspace: Path, args: dict[str, Any], timeout: int = 60) -> str:
     command = args["command"]
     try:
@@ -215,6 +354,8 @@ def _exec_run_command(workspace: Path, args: dict[str, Any], timeout: int = 60) 
 _TOOL_DISPATCH: dict[str, Any] = {
     "read_file": _exec_read_file,
     "write_file": _exec_write_file,
+    "edit_file": _exec_edit_file,
+    "search_files": _exec_search_files,
     "list_files": _exec_list_files,
     "run_command": _exec_run_command,
 }
@@ -223,6 +364,8 @@ _TOOL_DISPATCH: dict[str, Any] = {
 _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "read_file": ["path"],
     "write_file": ["path", "content"],
+    "edit_file": ["path", "old_string", "new_string"],
+    "search_files": ["pattern"],
     "run_command": ["command"],
     "list_files": [],
 }
@@ -389,7 +532,25 @@ class ApiAgentSession:
                         activity=activity,
                     )
 
+                finish_reason = choices[0].get("finish_reason", "")
                 assistant_msg = choices[0].get("message", {})
+
+                # If the response was truncated due to max_tokens, warn and
+                # strip any incomplete tool calls to avoid missing-arg errors.
+                if finish_reason == "length":
+                    _emit(turn, "warning", "Response truncated (max_tokens reached)")
+                    tool_calls_raw = assistant_msg.get("tool_calls") or []
+                    valid_tcs = []
+                    for tc in tool_calls_raw:
+                        fn = tc.get("function", {})
+                        try:
+                            json.loads(fn.get("arguments", "{}"))
+                            valid_tcs.append(tc)
+                        except json.JSONDecodeError:
+                            _emit(turn, "warning",
+                                  f"Dropping truncated tool call: {fn.get('name', '?')}")
+                    assistant_msg["tool_calls"] = valid_tcs or None
+
                 messages.append(assistant_msg)
 
                 content = assistant_msg.get("content") or ""
@@ -546,6 +707,7 @@ class ApiAgentSession:
             "messages": messages,
             "tools": TOOL_DEFINITIONS,
             "tool_choice": "auto",
+            "max_tokens": 16384,
         }
         body = json.dumps(payload).encode("utf-8")
         headers = {
