@@ -220,11 +220,30 @@ _TOOL_DISPATCH: dict[str, Any] = {
 }
 
 
+_TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
+    "read_file": ["path"],
+    "write_file": ["path", "content"],
+    "run_command": ["command"],
+    "list_files": [],
+}
+
+
 def _execute_tool(workspace: Path, name: str, args: dict[str, Any], cmd_timeout: int = 60) -> str:
     """Execute a tool call and return its string result."""
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
-        return f"Error: unknown tool {name!r}"
+        return f"Error: unknown tool {name!r}. Available tools: {', '.join(_TOOL_DISPATCH)}"
+
+    # Validate required arguments upfront with clear error messages
+    required = _TOOL_REQUIRED_ARGS.get(name, [])
+    missing = [arg for arg in required if arg not in args]
+    if missing:
+        return (
+            f"Error: {name} requires the following arguments: {', '.join(required)}. "
+            f"Missing: {', '.join(missing)}. "
+            f"Received: {', '.join(args.keys()) if args else '(none)'}"
+        )
+
     try:
         if name == "run_command":
             return handler(workspace, args, timeout=cmd_timeout)
@@ -328,6 +347,9 @@ class ApiAgentSession:
         last_message = ""
         turns = 0
         turns_since_productive = 0  # stall detection
+        consecutive_errors = 0  # track repeated tool errors
+        last_error_signature = ""  # detect identical repeated errors
+        _MAX_CONSECUTIVE_ERRORS = 3  # bail after this many identical errors
 
         try:
             for turn in range(1, self.max_turns + 1):
@@ -392,8 +414,9 @@ class ApiAgentSession:
                 for tc in tool_calls:
                     fn = tc.get("function", {})
                     tool_name = fn.get("name", "")
+                    raw_args = fn.get("arguments", "{}")
                     try:
-                        tool_args = json.loads(fn.get("arguments", "{}"))
+                        tool_args = json.loads(raw_args)
                     except json.JSONDecodeError:
                         tool_args = {}
 
@@ -402,10 +425,19 @@ class ApiAgentSession:
                     )[:150]
                     _emit(turn, "tool_call", f"{tool_name}({args_summary})")
 
-                    result_str = await asyncio.to_thread(
-                        _execute_tool, self.workspace, tool_name, tool_args, self.command_timeout
-                    )
+                    # If JSON parsing failed, give the model a clear error
+                    if not tool_args and raw_args not in ("{}", ""):
+                        result_str = (
+                            f"Error: malformed JSON in tool arguments for {tool_name}. "
+                            f"Received: {raw_args[:200]}. "
+                            f"Please provide valid JSON with the required arguments."
+                        )
+                    else:
+                        result_str = await asyncio.to_thread(
+                            _execute_tool, self.workspace, tool_name, tool_args, self.command_timeout
+                        )
 
+                    tool_failed = result_str.startswith("Error")
                     _emit(turn, "tool_result", f"{tool_name} → {result_str[:150]}", result_str)
 
                     messages.append({
@@ -414,8 +446,38 @@ class ApiAgentSession:
                         "content": result_str,
                     })
 
-                    if tool_name in _PRODUCTIVE_TOOLS:
+                    if tool_name in _PRODUCTIVE_TOOLS and not tool_failed:
                         turn_had_productive = True
+
+                    # Track repeated identical errors
+                    if tool_failed:
+                        error_sig = f"{tool_name}:{result_str[:200]}"
+                        if error_sig == last_error_signature:
+                            consecutive_errors += 1
+                        else:
+                            consecutive_errors = 1
+                            last_error_signature = error_sig
+                    else:
+                        consecutive_errors = 0
+                        last_error_signature = ""
+
+                # Repeated error detection — stop wasting turns on the same error
+                if consecutive_errors >= _MAX_CONSECUTIVE_ERRORS:
+                    error_msg = (
+                        f"Stalled after {consecutive_errors} identical tool errors: "
+                        f"{last_error_signature[:150]}"
+                    )
+                    _emit(turn, "message", error_msg)
+                    return ApiAgentResult(
+                        status="stalled",
+                        input_tokens=total_input,
+                        output_tokens=total_output,
+                        total_tokens=total_tokens,
+                        turns=turns,
+                        last_message=error_msg,
+                        error=error_msg,
+                        activity=activity,
+                    )
 
                 # Stall detection
                 if turn_had_productive:
