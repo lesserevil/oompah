@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import subprocess
@@ -34,6 +35,10 @@ class BeadsTracker:
         self.active_states = [s.strip().lower() for s in active_states]
         self.terminal_states = [s.strip().lower() for s in terminal_states]
         self.cwd = cwd
+        # Last-known fingerprint for change detection.
+        # None means "never polled" — first call to has_changed() always
+        # returns True.
+        self._last_fingerprint: str | None = None
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Fetch issues in active states, sorted for dispatch."""
@@ -300,6 +305,107 @@ class BeadsTracker:
                 if result:
                     issues.append(result)
         return issues
+
+    # ------------------------------------------------------------------
+    # Change detection
+    # ------------------------------------------------------------------
+
+    def working_set_fingerprint(self) -> str:
+        """Return a lightweight fingerprint of the tracker's current state.
+
+        The fingerprint changes whenever the issue database is modified.
+        Two strategies are tried in order:
+
+        1. **Dolt commit hash** (``bd vc status --json``): If the tracker
+           is backed by Dolt, the commit hash of the working set changes on
+           every write.  This is the cheapest possible check — a single
+           subprocess call returning ~50 bytes of JSON.
+
+        2. **Status summary** (``bd status --json --no-activity``): Falls
+           back to hashing the issue count summary.  This is still much
+           cheaper than ``bd list`` but can miss changes that don't alter
+           aggregate counts (e.g., editing a title).
+
+        Returns a hex-digest string.  Raises ``TrackerError`` if neither
+        strategy produces a usable result.
+        """
+        # Strategy 1: Dolt commit hash (ideal — exact change detection)
+        try:
+            raw = self._run_bd(["vc", "status", "--json"])
+            if isinstance(raw, dict) and raw.get("commit"):
+                # Include branch so switching branches is detected
+                branch = raw.get("branch", "")
+                commit = raw["commit"]
+                return f"dolt:{branch}:{commit}"
+        except TrackerError:
+            logger.debug("Dolt vc status unavailable — falling back to status summary")
+
+        # Strategy 2: Status summary hash (approximate change detection)
+        try:
+            raw = self._run_bd(["status", "--json", "--no-activity"])
+            if isinstance(raw, dict):
+                # Deterministic JSON serialization → hash
+                canonical = json.dumps(raw, sort_keys=True, separators=(",", ":"))
+                digest = hashlib.sha256(canonical.encode()).hexdigest()[:16]
+                return f"summary:{digest}"
+        except TrackerError:
+            pass
+
+        raise TrackerError("Unable to compute working set fingerprint")
+
+    def has_changed(self) -> bool:
+        """Check if the working set has changed since the last call.
+
+        Returns ``True`` if:
+        - This is the first call (no prior fingerprint).
+        - The fingerprint could not be computed (fail-open).
+        - The fingerprint differs from the last-known value.
+
+        Returns ``False`` only when the fingerprint matches the last-known
+        value, meaning no tracker writes have occurred since the previous
+        poll.
+
+        This method is designed for use in the orchestrator's poll loop:
+        call it before ``fetch_candidate_issues()`` to skip expensive
+        fetches when nothing has changed.
+        """
+        try:
+            current = self.working_set_fingerprint()
+        except TrackerError:
+            # Fail-open: if we can't determine the fingerprint, assume
+            # something changed so the caller does the full fetch.
+            logger.debug("Fingerprint unavailable — assuming changed")
+            return True
+
+        if self._last_fingerprint is None:
+            # First poll — always consider changed
+            self._last_fingerprint = current
+            return True
+
+        if current != self._last_fingerprint:
+            logger.debug(
+                "Working set changed old=%s new=%s",
+                self._last_fingerprint,
+                current,
+            )
+            self._last_fingerprint = current
+            return True
+
+        logger.debug("Working set unchanged fingerprint=%s", current)
+        return False
+
+    def reset_fingerprint(self) -> None:
+        """Reset the stored fingerprint, forcing the next has_changed() to return True.
+
+        Useful when the orchestrator wants to force a full refresh (e.g.,
+        after a manual refresh request or on startup).
+        """
+        self._last_fingerprint = None
+
+    @property
+    def last_fingerprint(self) -> str | None:
+        """The last-known fingerprint, or None if never polled."""
+        return self._last_fingerprint
 
     def _run_bd(self, args: list[str]) -> dict | list:
         """Run a bd command and parse JSON output."""
