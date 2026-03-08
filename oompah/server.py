@@ -607,7 +607,12 @@ async def api_get_comments(identifier: str, request: Request):
 
 @app.post("/api/v1/issues/{identifier}/comments")
 async def api_add_comment(identifier: str, request: Request):
-    """Add a comment to an issue."""
+    """Add a comment to an issue.
+
+    When a non-agent user posts a comment on an issue with the
+    'asking_question' label, the label is automatically removed so
+    the orchestrator can re-dispatch an agent to continue work.
+    """
     try:
         orch = _get_orchestrator()
         body = await request.json()
@@ -621,8 +626,28 @@ async def api_add_comment(identifier: str, request: Request):
         project_id = body.get("project_id")
         tracker = _get_tracker(orch, project_id)
         result = tracker.add_comment(identifier, text, author=author)
+
+        # When a human (non-oompah) answers a question, remove the
+        # asking_question label so the orchestrator picks it back up.
+        if author != "oompah":
+            try:
+                issue = tracker.fetch_issue_detail(identifier)
+                if issue and "asking_question" in issue.labels:
+                    tracker.remove_label(identifier, "asking_question")
+                    logger.info(
+                        "Removed asking_question label from %s after user comment",
+                        identifier,
+                    )
+            except Exception as exc:
+                logger.debug(
+                    "Failed to check/remove asking_question label on %s: %s",
+                    identifier, exc,
+                )
+
         _api_cache.invalidate(f"comments:{project_id}:{identifier}")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        _api_cache.invalidate("issues:all")
+        await broadcast_issues()
         return JSONResponse(result, status_code=201)
     except Exception as exc:
         logger.error("Add comment API error: %s", exc)

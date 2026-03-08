@@ -55,13 +55,14 @@ class AgentActivity:
 
 @dataclass
 class ApiAgentResult:
-    status: str  # "succeeded" | "failed" | "max_turns" | "stalled"
+    status: str  # "succeeded" | "failed" | "max_turns" | "stalled" | "ask_question"
     input_tokens: int
     output_tokens: int
     total_tokens: int
     turns: int
     last_message: str
     error: str | None = None
+    question: str | None = None  # set when status == "ask_question"
     activity: list[AgentActivity] = field(default_factory=list)
 
 
@@ -207,6 +208,30 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     },
                 },
                 "required": ["pattern"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_question",
+            "description": (
+                "Ask a question to the project maintainer when you are blocked and "
+                "cannot proceed without human input. The question will be posted as a "
+                "comment on the issue. The agent session will then stop and the issue "
+                "will be held until a human answers. Only use this when you truly "
+                "cannot proceed without clarification — do NOT use it for things you "
+                "can figure out yourself."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "The question to ask the project maintainer.",
+                    },
+                },
+                "required": ["question"],
             },
         },
     },
@@ -366,6 +391,7 @@ _TOOL_DISPATCH: dict[str, Any] = {
     "search_files": _exec_search_files,
     "list_files": _exec_list_files,
     "run_command": _exec_run_command,
+    # ask_question is handled specially in the agent loop, not here
 }
 
 
@@ -376,6 +402,7 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "search_files": ["pattern"],
     "run_command": ["command"],
     "list_files": [],
+    "ask_question": ["question"],
 }
 
 
@@ -614,6 +641,32 @@ class ApiAgentSession:
                         f"{k}={v!r}" for k, v in tool_args.items()
                     )[:150]
                     _emit(turn, "tool_call", f"{tool_name}({args_summary})")
+
+                    # Handle ask_question specially — stop the agent loop
+                    if tool_name == "ask_question":
+                        question_text = tool_args.get("question", "")
+                        if not question_text:
+                            result_str = "Error: question text is required"
+                            _emit(turn, "tool_result", f"{tool_name} → {result_str}", result_str)
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc.get("id", ""),
+                                "content": result_str,
+                            })
+                            continue
+                        _emit(turn, "tool_result",
+                              f"ask_question → Question posted, stopping agent",
+                              f"Question: {question_text}")
+                        return ApiAgentResult(
+                            status="ask_question",
+                            input_tokens=total_input,
+                            output_tokens=total_output,
+                            total_tokens=total_tokens,
+                            turns=turns,
+                            last_message=question_text,
+                            question=question_text,
+                            activity=activity,
+                        )
 
                     # If JSON parsing failed, give the model a clear error
                     if not tool_args and raw_args not in ("{}", ""):
