@@ -859,6 +859,7 @@ const optimisticUpdates = {};  // identifier -> {state, priority, expiry}
 let columnDragState = null;  // {sourceState, epicId (or null for flat)}
 let viewMode = 'flat';
 let collapsedSwimlanes = {};
+let userToggledSwimlanes = {};  // Tracks explicit user toggles (true = user overrode default)
 let orchPaused = false;
 let lastRunningAgents = [];
 let currentProjects = [];
@@ -1240,6 +1241,15 @@ function renderFlatView(board, data) {
   }
 }
 
+function isEpicInactive(epic) {
+  // An epic is "inactive" (unopened) if it has no children in backlog, open, or in_progress.
+  // Only epics with all active/potential work counts at 0 are considered inactive.
+  const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
+  return (counts.deferred || 0) === 0 &&
+         (counts.open || 0) === 0 &&
+         (counts.in_progress || 0) === 0;
+}
+
 function renderSwimlaneView(board, data) {
   // Collect epics and group children
   const epics = allIssuesFlat.filter(i => i.issue_type === 'epic');
@@ -1250,7 +1260,10 @@ function renderSwimlaneView(board, data) {
   for (const epic of epics) {
     const children = allIssuesFlat.filter(i => i.parent_id === epic.id && i.issue_type !== 'epic');
     const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
-    const isCollapsed = collapsedSwimlanes[epic.id] || false;
+    // Auto-collapse inactive epics unless the user has explicitly toggled this swimlane
+    const autoCollapse = isEpicInactive(epic);
+    const isCollapsed = userToggledSwimlanes[epic.id] ? collapsedSwimlanes[epic.id] : autoCollapse;
+    collapsedSwimlanes[epic.id] = isCollapsed;
 
     const lane = document.createElement('div');
     lane.className = 'swimlane' + (isCollapsed ? ' collapsed' : '');
@@ -1355,6 +1368,7 @@ function renderSwimlaneView(board, data) {
 
 function toggleSwimlane(id) {
   collapsedSwimlanes[id] = !collapsedSwimlanes[id];
+  userToggledSwimlanes[id] = true;  // Mark as explicitly toggled by user
   renderBoard(boardData);
 }
 

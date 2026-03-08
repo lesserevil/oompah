@@ -160,6 +160,18 @@ def _on_agent_activity(identifier: str, entry) -> None:
 def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     """Fetch all issues and serialize — runs in thread pool to avoid blocking."""
     all_issues = _fetch_all_issues(orch, None)
+
+    # Build a map for epic child counts (same logic as api_issues)
+    epics: dict[str, dict] = {}
+    for issue in all_issues:
+        if issue.issue_type == "epic":
+            epics[issue.id] = {"deferred": 0, "open": 0, "in_progress": 0, "closed": 0}
+    for issue in all_issues:
+        if issue.parent_id and issue.parent_id in epics:
+            child_state = issue.state.strip().lower()
+            if child_state in epics[issue.parent_id]:
+                epics[issue.parent_id][child_state] += 1
+
     result: dict[str, list] = {}
     for issue in all_issues:
         if "archive:yes" in issue.labels:
@@ -167,7 +179,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         state = issue.state.strip().lower()
         if state not in result:
             result[state] = []
-        result[state].append({
+        entry = {
             "id": issue.id,
             "identifier": issue.identifier,
             "title": issue.title,
@@ -178,7 +190,10 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
             "project_id": issue.project_id,
-        })
+        }
+        if issue.issue_type == "epic" and issue.id in epics:
+            entry["children_counts"] = epics[issue.id]
+        result[state].append(entry)
     return result
 
 
