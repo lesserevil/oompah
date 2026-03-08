@@ -136,11 +136,13 @@ bd automatically syncs with git:
 
 - ✅ Use bd for ALL task tracking
 - ✅ Always use `--json` flag for programmatic use
+- ✅ Always use `--author=oompah` when posting comments: `bd comments add <id> "message" --author=oompah`
 - ✅ Link discovered work with `discovered-from` dependencies
 - ✅ Check `bd ready` before asking "what should I work on?"
 - ❌ Do NOT create markdown TODO lists
 - ❌ Do NOT use external issue trackers
 - ❌ Do NOT duplicate tracking systems
+- ❌ Do NOT post comments without `--author=oompah` — comments must be attributed to 'oompah', not the system user
 
 For more details, see README.md and docs/QUICKSTART.md.
 

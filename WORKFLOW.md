@@ -80,13 +80,15 @@ The following comments have been posted on this issue. Read them carefully to un
 
 ## Progress Comments
 
-You MUST post comments to the issue at key milestones using `bd comments add {{ issue.identifier }} "your message"`. This is how project managers track progress. Post comments at these points:
+You MUST post comments to the issue at key milestones using `bd comments add {{ issue.identifier }} "your message" --author=oompah`. This is how project managers track progress. Post comments at these points:
 
-1. **Understanding** — After reading the issue, comment with your interpretation of what needs to be done and your planned approach. Example: `bd comments add {{ issue.identifier }} "I understand the issue: [summary]. My plan is to [approach]."`
-2. **Discovery** — When you find the relevant code, root cause of a bug, or key insight. Example: `bd comments add {{ issue.identifier }} "Found the bug: [explanation of what's wrong and why]."`
+1. **Understanding** — After reading the issue, comment with your interpretation of what needs to be done and your planned approach. Example: `bd comments add {{ issue.identifier }} "I understand the issue: [summary]. My plan is to [approach]." --author=oompah`
+2. **Discovery** — When you find the relevant code, root cause of a bug, or key insight. Example: `bd comments add {{ issue.identifier }} "Found the bug: [explanation of what's wrong and why]." --author=oompah`
 3. **Implementation** — When you've made the core changes. Briefly describe what you changed and why.
 4. **Verification** — After running tests. Report pass/fail and any issues found.
 5. **Completion** — When done, summarize what was delivered before closing.
+
+**IMPORTANT: Always use `--author=oompah` when posting comments.** All comments from oompah agents must be attributed to 'oompah', not to the system user or git user.
 
 Keep comments concise but informative — write what a project manager needs to see.
 
@@ -116,7 +118,7 @@ If you determine that this issue requires a different specialist to complete (e.
 
 1. **Post a detailed handoff comment** explaining what you've done, what you've found, and what the next agent needs to do:
    ```
-   bd comments add {{ issue.identifier }} "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments."
+   bd comments add {{ issue.identifier }} "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments." --author=oompah
    ```
 
 2. **Add a `needs:<focus>` label** to route the issue to the right specialist:
