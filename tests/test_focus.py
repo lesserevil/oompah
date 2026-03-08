@@ -553,3 +553,57 @@ class TestEpicPlannerFocus:
     def test_epic_planner_description_mentions_decomposing(self):
         focus = self._get_epic_planner()
         assert "decomposing" in focus.description.lower() or "decompose" in focus.description.lower()
+
+    def test_epic_planner_has_draft_label(self):
+        """epic_planner should match on epics with the 'draft' label."""
+        focus = self._get_epic_planner()
+        assert "draft" in focus.labels
+
+    def test_epic_planner_selected_for_draft_epic(self):
+        """epic_planner should be selected for an epic with the 'draft' label."""
+        issue = _make_issue(title="New feature epic", issue_type="epic", labels=["draft"])
+        focus = select_focus(issue)
+        assert focus.name == "epic_planner"
+
+    def test_epic_planner_keywords_include_children(self):
+        """epic_planner keywords should include 'children'."""
+        focus = self._get_epic_planner()
+        assert "children" in focus.keywords
+
+    def test_epic_planner_keywords_include_subtask(self):
+        """epic_planner keywords should include 'subtask'."""
+        focus = self._get_epic_planner()
+        assert "subtask" in focus.keywords
+
+    def test_epic_planner_must_do_includes_dep_add(self):
+        """epic_planner must_do should instruct use of bd dep add for dependencies."""
+        focus = self._get_epic_planner()
+        dep_add_rule = any("bd dep add" in rule for rule in focus.must_do)
+        assert dep_add_rule, "must_do should include a rule about bd dep add"
+
+    def test_epic_planner_must_do_includes_parent_child_link(self):
+        """epic_planner must_do should instruct linking children to parent epic."""
+        focus = self._get_epic_planner()
+        parent_child_rule = any("parent-child" in rule for rule in focus.must_do)
+        assert parent_child_rule, "must_do should include a rule about parent-child linking"
+
+    def test_epic_planner_must_do_includes_remove_draft_label(self):
+        """epic_planner must_do should instruct removing the draft label when done."""
+        focus = self._get_epic_planner()
+        remove_draft_rule = any("draft" in rule and ("remove" in rule or "label" in rule) for rule in focus.must_do)
+        assert remove_draft_rule, "must_do should include a rule about removing the draft label"
+
+    def test_epic_planner_must_do_includes_set_deferred(self):
+        """epic_planner must_do should instruct setting the epic status to 'deferred'."""
+        focus = self._get_epic_planner()
+        deferred_rule = any("deferred" in rule for rule in focus.must_do)
+        assert deferred_rule, "must_do should include a rule about setting status to deferred"
+
+    def test_epic_planner_draft_label_boosts_score(self):
+        """draft label on an epic should boost the epic_planner score."""
+        focus = self._get_epic_planner()
+        issue_with_draft = _make_issue(title="New epic", issue_type="epic", labels=["draft"])
+        issue_without_draft = _make_issue(title="New epic", issue_type="epic")
+        score_with = score_focus(focus, issue_with_draft)
+        score_without = score_focus(focus, issue_without_draft)
+        assert score_with > score_without, "draft label should increase the epic_planner score"
