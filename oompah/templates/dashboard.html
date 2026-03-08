@@ -342,6 +342,18 @@
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
 
+    /* Draft badge on swimlane headers for draft epics */
+    .swimlane-draft-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent, #58a6ff);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      vertical-align: middle;
+    }
+
     /* Epic badge on child cards */
     .epic-badge {
       font-size: 0.6rem;
@@ -1295,6 +1307,7 @@ function renderSwimlaneView(board, data) {
       <div class="swimlane-header" onclick="toggleSwimlane('${esc(epic.id)}')">
         <span class="swimlane-toggle">&#9660;</span>
         <span class="swimlane-title">${esc(epic.title)}</span>
+        ${(epic.labels || []).includes('draft') ? '<span class="swimlane-draft-badge" aria-label="Draft epic">Draft</span>' : ''}
         <span class="swimlane-counts" title="Backlog / Open / In Progress / Closed">${countsStr}</span>
         <span class="swimlane-actions">
           <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}')">+ Child</button>
