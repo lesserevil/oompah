@@ -328,7 +328,7 @@ BUILTIN_FOCI: list[Focus] = [
             "Give each task a clear title and a description with enough context to work independently",
             "Cover the full scope of the epic — don't leave gaps",
             "Set appropriate priorities and dependencies between tasks",
-            "Use `bd create --parent <epic-id>` to file each child task linked to the parent epic",
+            "Use `bd create --parent <epic-id>` to file each child task linked to the parent epic (creates a parent-child relationship)",
             "Add dependencies between children via `bd dep add` where needed",
             "Remove the 'draft' label from the epic when planning is complete via `bd label remove <epic-id> draft`",
             "Set the epic status to 'deferred' when planning is complete via `bd update <epic-id> --status deferred`",
@@ -399,12 +399,13 @@ def score_focus(focus: Focus, issue: Issue) -> int:
     keyword_hits = _text_matches(search_text, focus.keywords)
     score += keyword_hits * 10
 
-    # Issue type match — if a focus specifies issue_types, it ONLY applies to those types
+    # Issue type match — if a focus specifies issue_types, prefer issues of those types.
+    # A hard mismatch (return 0) only applies when there are no keyword or label hits.
     if focus.issue_types:
         if issue.issue_type and issue.issue_type.lower() in [t.lower() for t in focus.issue_types]:
             score += 50
-        else:
-            return 0  # hard mismatch — this focus cannot apply to this issue type
+        elif score == 0:
+            return 0  # hard mismatch — no keyword/label hits and wrong type
 
     # Label match
     if focus.labels and issue.labels:

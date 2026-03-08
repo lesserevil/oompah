@@ -650,6 +650,65 @@
       border-color: var(--yellow) !important;
     }
 
+    /* Questions notification dropdown */
+    .questions-stat {
+      position: relative;
+    }
+    .questions-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      min-width: 260px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      z-index: 300;
+      overflow: hidden;
+    }
+    .questions-dropdown.open {
+      display: block;
+    }
+    .questions-dropdown-header {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .questions-dropdown-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      transition: background 0.1s;
+    }
+    .questions-dropdown-item:last-child {
+      border-bottom: none;
+    }
+    .questions-dropdown-item:hover {
+      background: rgba(88, 166, 255, 0.08);
+    }
+    .questions-dropdown-item-id {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.65rem;
+      color: var(--accent);
+    }
+    .questions-dropdown-item-title {
+      font-size: 0.75rem;
+      color: var(--text);
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* Activity panel */
     .activity-overlay {
       display: none;
@@ -873,6 +932,12 @@
     </span>
     <span class="agent-stat" id="proposed-foci-stat" style="display:none;cursor:pointer;" onclick="window.location='/foci'">
       <strong id="proposed-foci-count" style="color:var(--yellow,#e2b340);">0</strong> proposed foci
+    </span>
+    <span class="agent-stat questions-stat" id="questions-stat" style="display:none;cursor:pointer;"
+          onclick="toggleQuestionsDropdown(event)" aria-haspopup="true" aria-expanded="false"
+          aria-label="Issues waiting for your answer">
+      &#10067; <strong id="questions-count" style="color:var(--orange,#d18616);">0</strong> <span>questions waiting</span>
+      <div class="questions-dropdown" id="questions-dropdown" role="menu" aria-label="Issues asking questions"></div>
     </span>
     <div class="running-agents" id="running-agents"></div>
   </div>
@@ -1114,6 +1179,60 @@ async function fetchProposedFociCount() {
   } catch(e) {}
 }
 
+// Scan in-memory board data for issues with the 'asking_question' label and update the
+// questions notification widget in the agent bar.
+function scanQuestionsFromBoard() {
+  const askingIssues = allIssuesFlat.filter(
+    i => (i.labels || []).includes('asking_question')
+  );
+  const el = document.getElementById('questions-stat');
+  const countEl = document.getElementById('questions-count');
+  const dropdown = document.getElementById('questions-dropdown');
+  if (!el || !countEl || !dropdown) return;
+
+  if (askingIssues.length > 0) {
+    countEl.textContent = askingIssues.length;
+    el.style.display = '';
+    el.setAttribute('aria-expanded', 'false');
+
+    // Build dropdown items
+    dropdown.innerHTML =
+      '<div class="questions-dropdown-header">Waiting for your answer</div>' +
+      askingIssues.map(issue =>
+        '<div class="questions-dropdown-item" role="menuitem" tabindex="0"' +
+          ' onclick="event.stopPropagation(); closeQuestionsDropdown(); openDetailPanel(\'' + esc(issue.identifier) + '\')"' +
+          ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();event.stopPropagation();closeQuestionsDropdown();openDetailPanel(\'' + esc(issue.identifier) + '\')}">' +
+          '<span class="questions-dropdown-item-id">' + esc(issue.identifier) + '</span>' +
+          '<span class="questions-dropdown-item-title">' + esc(issue.title) + '</span>' +
+        '</div>'
+      ).join('');
+  } else {
+    el.style.display = 'none';
+    closeQuestionsDropdown();
+  }
+}
+
+function toggleQuestionsDropdown(e) {
+  e.stopPropagation();
+  const dropdown = document.getElementById('questions-dropdown');
+  const stat = document.getElementById('questions-stat');
+  if (!dropdown || !stat) return;
+  const isOpen = dropdown.classList.contains('open');
+  if (isOpen) {
+    closeQuestionsDropdown();
+  } else {
+    dropdown.classList.add('open');
+    stat.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function closeQuestionsDropdown() {
+  const dropdown = document.getElementById('questions-dropdown');
+  const stat = document.getElementById('questions-stat');
+  if (dropdown) dropdown.classList.remove('open');
+  if (stat) stat.setAttribute('aria-expanded', 'false');
+}
+
 function saveProjectFilter() {
   const sel = document.getElementById('project-filter');
   if (sel) {
@@ -1286,6 +1405,9 @@ function renderBoard(data) {
 
   document.getElementById('status-text').textContent =
     `Updated ${new Date().toLocaleTimeString()}`;
+
+  // Update questions-waiting notification from fresh board data
+  scanQuestionsFromBoard();
 }
 
 function renderFlatView(board, data) {
@@ -1337,20 +1459,18 @@ function isEpicInactive(epic) {
 }
 
 function renderSwimlaneView(board, data) {
-  // Collect all epics (including drafts) as swimlane headers
-  const epics = allIssuesFlat.filter(i => i.issue_type === 'epic');
+  // Collect non-draft epics as swimlane headers; draft epics appear as cards in the orphan swimlane
+  const epics = allIssuesFlat.filter(i => i.issue_type === 'epic' && !(i.labels || []).includes('draft'));
   const epicIds = new Set(epics.map(e => e.id));
-  // Orphans: non-epic issues with no epic parent
-  const orphans = allIssuesFlat.filter(i => i.issue_type !== 'epic' && (!i.parent_id || !epicIds.has(i.parent_id)));
+  // Orphans: non-epic issues with no epic parent, PLUS draft epics (shown as cards)
+  const orphans = allIssuesFlat.filter(i => (i.issue_type !== 'epic' || (i.labels || []).includes('draft')) && (!i.parent_id || !epicIds.has(i.parent_id)));
 
   // Render each epic as a swimlane
   for (const epic of epics) {
     const children = allIssuesFlat.filter(i => i.parent_id === epic.id && i.issue_type !== 'epic');
     const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
     // Auto-collapse inactive epics unless the user has explicitly toggled this swimlane
-    // Draft epics are never auto-collapsed — they need to be visible for interaction
-    const isDraft = (epic.labels || []).includes('draft');
-    const autoCollapse = isDraft ? false : isEpicInactive(epic);
+    const autoCollapse = isEpicInactive(epic);
     const isCollapsed = userToggledSwimlanes[epic.id] ? collapsedSwimlanes[epic.id] : autoCollapse;
     collapsedSwimlanes[epic.id] = isCollapsed;
 
@@ -1671,8 +1791,8 @@ function getCardsInColumn(state, epicId) {
     // Flat view — all visible (already filtered by project)
     return issues;
   } else if (epicId === '_orphans') {
-    // Orphan swimlane — items with no parent or parent not an epic
-    const epicIds = new Set(allIssuesFlat.filter(i => i.issue_type === 'epic').map(e => e.id));
+    // Orphan swimlane — items with no parent or parent not a non-draft epic
+    const epicIds = new Set(allIssuesFlat.filter(i => i.issue_type === 'epic' && !(i.labels || []).includes('draft')).map(e => e.id));
     return issues.filter(i => !i.parent_id || !epicIds.has(i.parent_id));
   } else {
     // Specific epic swimlane
@@ -2178,6 +2298,15 @@ document.addEventListener('keydown', e => {
     closeCreateDialog();
     closeDetailPanel();
     closeActivityPanel();
+    closeQuestionsDropdown();
+  }
+});
+
+// Close questions dropdown when clicking outside it
+document.addEventListener('click', e => {
+  const stat = document.getElementById('questions-stat');
+  if (stat && !stat.contains(e.target)) {
+    closeQuestionsDropdown();
   }
 });
 
