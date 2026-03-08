@@ -93,6 +93,11 @@ class Orchestrator:
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
         self._refresh_requested = asyncio.Event()
+        # Timestamp (monotonic) of the last full _tick() run.
+        # Used by the safety-net logic in run() to ensure a full sync
+        # fires at full_sync_interval_ms even when event-driven wakeups
+        # are more frequent.
+        self._last_full_sync: float = 0.0
         # Dedicated thread pool for tick operations so they don't compete
         # with agent tool-execution threads on the default pool.
         self._tick_pool = ThreadPoolExecutor(
@@ -135,6 +140,9 @@ class Orchestrator:
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents
+        # Reset last full sync so the new full_sync_interval_ms takes effect
+        # on the next tick boundary rather than inheriting stale state.
+        self._last_full_sync = 0.0
         self.tracker = BeadsTracker(
             active_states=config.tracker_active_states,
             terminal_states=config.tracker_terminal_states,
@@ -321,14 +329,54 @@ class Orchestrator:
             except (TrackerError, ProjectError) as exc:
                 logger.warning("Failed to recover issue %s: %s", identifier, exc)
 
+    def _full_sync_due(self) -> bool:
+        """Return True if a safety-net full sync is due.
+
+        A full sync is due when:
+        - No full sync has ever run (startup), OR
+        - More than full_sync_interval_ms milliseconds have elapsed since the
+          last full sync.
+        """
+        if self._last_full_sync == 0.0:
+            return True
+        elapsed_ms = (time.monotonic() - self._last_full_sync) * 1000
+        return elapsed_ms >= self.config.full_sync_interval_ms
+
     async def run(self) -> None:
-        """Main event loop: poll, dispatch, reconcile."""
+        """Main event loop: poll, dispatch, reconcile.
+
+        The loop wakes up on either:
+        - A refresh request (immediate wakeup via _refresh_requested event)
+        - The poll_interval_ms timeout (regular heartbeat)
+
+        A full _tick() is guaranteed to run at least every full_sync_interval_ms
+        as a safety net, regardless of how frequently event-driven wakeups
+        occur.  This catches external tracker changes, missed webhook deliveries,
+        and state drift from bugs.
+        """
         await self.startup_cleanup()
         await self._recover_restart_issues()
-        logger.info("Orchestrator starting poll loop interval_ms=%d", self.state.poll_interval_ms)
+        logger.info(
+            "Orchestrator starting poll loop interval_ms=%d full_sync_interval_ms=%d",
+            self.state.poll_interval_ms,
+            self.config.full_sync_interval_ms,
+        )
 
         while not self._stopping:
+            # Safety-net: log when we're triggering a periodic full sync
+            # (skip the log on the very first tick to avoid noise at startup).
+            if not self._full_sync_due() and self._last_full_sync == 0.0:
+                pass  # startup — always run
+            elif self._full_sync_due() and self._last_full_sync != 0.0:
+                logger.info(
+                    "Safety-net full sync triggered (%.0fs since last full sync, interval=%.0fs)",
+                    (time.monotonic() - self._last_full_sync),
+                    self.config.full_sync_interval_ms / 1000,
+                )
+
             await self._tick()
+            self._last_full_sync = time.monotonic()
+
             # Wait for either the poll interval or a refresh request
             try:
                 await asyncio.wait_for(
