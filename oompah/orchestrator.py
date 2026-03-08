@@ -15,6 +15,7 @@ from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_
 from oompah.models import (
     AgentProfile,
     AgentTotals,
+    BlockerRef,
     Issue,
     LiveSession,
     OrchestratorState,
@@ -388,6 +389,15 @@ class Orchestrator:
                 break
             if self._should_dispatch(issue):
                 await self._dispatch(issue, attempt=None)
+
+        # Part 4.1: Dispatch epic planning agents for open epics without children
+        epics_to_plan = await loop.run_in_executor(
+            self._tick_pool, self._plan_open_epics, candidates
+        )
+        for epic in epics_to_plan:
+            if self._available_slots() <= 0:
+                break
+            await self._dispatch(epic, attempt=None)
         t4 = time.monotonic()
 
         # Part 4.5: Reset orphaned in_progress issues (no agent, no retry)
@@ -488,12 +498,76 @@ class Orchestrator:
         # Any non-draft open review counts as "in flight"
         return any(not r.draft for r in project_reviews)
 
+    def _should_dispatch_epic(self, issue: Issue) -> bool:
+        """Check whether an epic should be dispatched for planning.
+
+        An epic is dispatchable for planning when:
+        - It is in an active state (open)
+        - It has no existing children (hasn't been planned yet)
+        - It is not already running, claimed, retrying, or completed
+        - Standard guards (paused, budget, slots) pass
+        """
+        if self._paused:
+            return False
+        if issue.issue_type != "epic":
+            return False
+        if not issue.id or not issue.identifier or not issue.title or not issue.state:
+            return False
+        state_norm = issue.state.strip().lower()
+        if state_norm not in [s.strip().lower() for s in self.config.tracker_active_states]:
+            return False
+        if state_norm in [s.strip().lower() for s in self.config.tracker_terminal_states]:
+            return False
+        if issue.id in self.state.running:
+            return False
+        if issue.id in self.state.claimed:
+            return False
+        if issue.id in self.state.retry_attempts:
+            return False
+        if issue.id in self.state.completed:
+            return False
+        if self._available_slots() <= 0:
+            return False
+        if not self._check_budget():
+            return False
+        # Check if epic already has children — if so, it's already been planned
+        children = self._fetch_epic_children(issue)
+        if children:
+            return False
+        return True
+
+    def _fetch_epic_children(self, epic: Issue) -> list[Issue]:
+        """Fetch existing child issues for an epic.
+
+        Returns a list of child issues, or empty if none exist or on error.
+        """
+        try:
+            tracker = self._tracker_for_issue(epic)
+            return tracker.fetch_children(epic.id)
+        except Exception as exc:
+            logger.debug("Failed to fetch children for epic %s: %s", epic.identifier, exc)
+            return []
+
+    def _plan_open_epics(self, candidates: list[Issue]) -> list[Issue]:
+        """Identify open epics that need planning and return them for dispatch.
+
+        An epic needs planning if it's in an active state and has no children.
+        """
+        epics_to_plan: list[Issue] = []
+        for issue in candidates:
+            if issue.issue_type != "epic":
+                continue
+            if self._should_dispatch_epic(issue):
+                epics_to_plan.append(issue)
+        return epics_to_plan
+
     def _should_dispatch(self, issue: Issue) -> bool:
         if self._paused:
             return False
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
-        # Never dispatch epics — they are containers, not actionable work items
+        # Never dispatch epics via normal dispatch — they are planned
+        # separately by _plan_open_epics / _should_dispatch_epic
         if issue.issue_type == "epic":
             return False
         state_norm = issue.state.strip().lower()
