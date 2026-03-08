@@ -1,9 +1,23 @@
-"""Error watcher: intercepts backend errors and creates beads for tracking."""
+"""Error watcher: intercepts backend errors and creates beads for tracking.
+
+Provides two mechanisms for detecting errors:
+
+1. **Python logging handler** — ``ErrorWatcher.install_log_handler()``
+   hooks into Python's ``logging`` system to catch ERROR+ records from the
+   oompah backend and create beads automatically.
+
+2. **Log file watcher** — ``LogFileWatcher`` monitors an external log file
+   for error lines and feeds them to an ``ErrorWatcher``.  Any project can
+   use this by setting a ``log_path`` on its :class:`~oompah.models.Project`.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
+import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -164,3 +178,258 @@ class _BeadLoggingHandler(logging.Handler):
         except Exception:
             # Never let handler errors propagate
             pass
+
+
+# ---------------------------------------------------------------------------
+# Log file patterns for detecting errors
+# ---------------------------------------------------------------------------
+
+# Matches common log-level keywords at ERROR or above.
+# Handles formats like:
+#   2024-01-01 12:00:00 ERROR ...
+#   [ERROR] ...
+#   ERROR: ...
+#   level=error ...
+_ERROR_LINE_RE = re.compile(
+    r"(?i)\b(ERROR|CRITICAL|FATAL|SEVERE)\b"
+)
+
+# Priority mapping based on log level keywords.
+_LEVEL_PRIORITY: dict[str, int] = {
+    "critical": 1,
+    "fatal": 1,
+    "severe": 1,
+    "error": 2,
+}
+
+
+def _detect_error_level(line: str) -> str | None:
+    """Return the error level keyword if the line looks like an error, else None."""
+    m = _ERROR_LINE_RE.search(line)
+    if m:
+        return m.group(1).lower()
+    return None
+
+
+def _priority_for_level(level: str) -> int:
+    """Return a bead priority (0-4) for a detected log level."""
+    return _LEVEL_PRIORITY.get(level, 2)
+
+
+def _extract_message(line: str) -> str:
+    """Extract the meaningful message portion from a log line.
+
+    Strips common prefixes (timestamps, log-level tags) so the error
+    message used for bead titles and fingerprinting is clean.
+    """
+    # Strip leading timestamp (ISO-8601 or common syslog-style)
+    stripped = re.sub(
+        r"^\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}[.,]?\d*\s*", "", line
+    )
+    # Strip leading log level keyword and punctuation
+    stripped = re.sub(
+        r"^[\[\(]?\s*(?:ERROR|CRITICAL|FATAL|SEVERE)\s*[\]\)]?\s*[:|-]?\s*",
+        "", stripped, flags=re.IGNORECASE,
+    )
+    # Strip leading logger name (e.g. "com.example.Foo - ")
+    stripped = re.sub(r"^[\w.]+\s*[-:]\s*", "", stripped)
+    return stripped.strip() or line.strip()
+
+
+class LogFileWatcher:
+    """Watches an external log file and reports errors to an ErrorWatcher.
+
+    Tails the log file asynchronously, scanning new lines for error-level
+    messages.  When one is found, it calls ``error_watcher.report_error()``
+    which handles deduplication and bead creation.
+
+    Usage::
+
+        watcher = LogFileWatcher(
+            log_path="/var/log/myapp/error.log",
+            error_watcher=error_watcher,
+            source_name="myapp",
+        )
+        task = asyncio.create_task(watcher.start())
+        # ... later ...
+        watcher.stop()
+        await task
+    """
+
+    def __init__(
+        self,
+        log_path: str,
+        error_watcher: ErrorWatcher,
+        source_name: str = "logfile",
+        poll_interval: float = 2.0,
+    ):
+        self._log_path = log_path
+        self._error_watcher = error_watcher
+        self._source_name = source_name
+        self._poll_interval = poll_interval
+        self._running = False
+        self._task: asyncio.Task | None = None
+        # Track file position so we only process new lines.
+        self._file_offset: int = 0
+        self._inode: int | None = None
+
+    @property
+    def log_path(self) -> str:
+        return self._log_path
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    async def start(self) -> None:
+        """Start watching the log file (runs until ``stop()`` is called)."""
+        self._running = True
+        logger.info("LogFileWatcher started path=%s source=%s", self._log_path, self._source_name)
+
+        # Seek to end of file if it exists, so we only catch new errors.
+        self._seek_to_end()
+
+        while self._running:
+            try:
+                self._poll_file()
+            except Exception as exc:
+                logger.debug("LogFileWatcher poll error path=%s: %s", self._log_path, exc)
+            await asyncio.sleep(self._poll_interval)
+
+        logger.info("LogFileWatcher stopped path=%s", self._log_path)
+
+    def stop(self) -> None:
+        """Signal the watcher to stop on its next poll cycle."""
+        self._running = False
+
+    def _seek_to_end(self) -> None:
+        """Move the file offset to the end of the current file."""
+        try:
+            stat = os.stat(self._log_path)
+            self._file_offset = stat.st_size
+            self._inode = stat.st_ino
+        except FileNotFoundError:
+            self._file_offset = 0
+            self._inode = None
+        except OSError:
+            self._file_offset = 0
+            self._inode = None
+
+    def _poll_file(self) -> None:
+        """Read new lines from the log file and check for errors."""
+        if not os.path.isfile(self._log_path):
+            return
+
+        try:
+            stat = os.stat(self._log_path)
+        except OSError:
+            return
+
+        # Detect log rotation (inode changed or file truncated).
+        if self._inode is not None and stat.st_ino != self._inode:
+            # File was rotated — start reading from beginning of new file.
+            self._file_offset = 0
+            self._inode = stat.st_ino
+        elif stat.st_size < self._file_offset:
+            # File was truncated — reset offset.
+            self._file_offset = 0
+
+        if stat.st_size <= self._file_offset:
+            return  # No new data.
+
+        try:
+            with open(self._log_path, "r", errors="replace") as f:
+                f.seek(self._file_offset)
+                new_data = f.read()
+                self._file_offset = f.tell()
+                self._inode = stat.st_ino
+        except OSError:
+            return
+
+        for line in new_data.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            level = _detect_error_level(line)
+            if level:
+                message = _extract_message(line)
+                priority = _priority_for_level(level)
+                self._error_watcher.report_error(
+                    source=f"log:{self._source_name}",
+                    message=message,
+                    detail=line,
+                    priority=priority,
+                )
+
+
+class ProjectLogWatcherManager:
+    """Manages LogFileWatcher instances for all projects with a ``log_path``.
+
+    Call ``sync_watchers(projects)`` whenever the project list may have
+    changed (e.g. on each orchestrator tick or after project CRUD).  It
+    starts watchers for new projects, stops watchers for removed projects,
+    and updates watchers whose log_path changed.
+    """
+
+    def __init__(self, error_watcher_factory):
+        """
+        Args:
+            error_watcher_factory: Callable ``(project_id) -> ErrorWatcher``
+                that returns the ErrorWatcher for a given project. The
+                manager calls this to get project-specific watchers so
+                beads are created in the correct project.
+        """
+        self._error_watcher_factory = error_watcher_factory
+        # project_id -> (LogFileWatcher, asyncio.Task)
+        self._watchers: dict[str, tuple[LogFileWatcher, asyncio.Task]] = {}
+
+    def sync_watchers(self, projects: list) -> None:
+        """Synchronize running watchers with the current project list.
+
+        Starts new watchers, stops removed ones, restarts changed ones.
+        Each *project* must have ``id``, ``name``, and ``log_path`` attributes.
+        """
+        desired: dict[str, tuple[str, str]] = {}  # project_id -> (log_path, name)
+        for project in projects:
+            if project.log_path:
+                desired[project.id] = (project.log_path, project.name)
+
+        # Stop watchers for projects that no longer need one.
+        for pid in list(self._watchers):
+            if pid not in desired:
+                self._stop_watcher(pid)
+            elif self._watchers[pid][0].log_path != desired[pid][0]:
+                # log_path changed — restart.
+                self._stop_watcher(pid)
+
+        # Start watchers for new / restarted projects.
+        for pid, (log_path, name) in desired.items():
+            if pid not in self._watchers:
+                self._start_watcher(pid, log_path, name)
+
+    def stop_all(self) -> None:
+        """Stop all running watchers."""
+        for pid in list(self._watchers):
+            self._stop_watcher(pid)
+
+    def _start_watcher(self, project_id: str, log_path: str, source_name: str) -> None:
+        error_watcher = self._error_watcher_factory(project_id)
+        watcher = LogFileWatcher(
+            log_path=log_path,
+            error_watcher=error_watcher,
+            source_name=source_name,
+        )
+        task = asyncio.ensure_future(watcher.start())
+        self._watchers[project_id] = (watcher, task)
+        logger.info(
+            "Started log file watcher project=%s path=%s",
+            project_id, log_path,
+        )
+
+    def _stop_watcher(self, project_id: str) -> None:
+        entry = self._watchers.pop(project_id, None)
+        if entry:
+            watcher, task = entry
+            watcher.stop()
+            task.cancel()
+            logger.info("Stopped log file watcher project=%s", project_id)

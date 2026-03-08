@@ -113,6 +113,7 @@ class Project:
     git_user_name: str | None = None
     git_user_email: str | None = None
     yolo: bool = False
+    log_path: str | None = None  # optional path to a log file to watch for errors
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -127,6 +128,8 @@ class Project:
             d["git_user_name"] = self.git_user_name
         if self.git_user_email:
             d["git_user_email"] = self.git_user_email
+        if self.log_path:
+            d["log_path"] = self.log_path
         return d
 
     @classmethod
@@ -140,6 +143,7 @@ class Project:
             git_user_name=d.get("git_user_name"),
             git_user_email=d.get("git_user_email"),
             yolo=bool(d.get("yolo", False)),
+            log_path=d.get("log_path"),
         )
 
 
