@@ -114,6 +114,7 @@ class Project:
     git_user_email: str | None = None
     yolo: bool = False
     log_path: str | None = None  # optional path to a log file to watch for errors
+    webhook_secret: str | None = None  # HMAC secret for validating forge webhooks
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -130,6 +131,8 @@ class Project:
             d["git_user_email"] = self.git_user_email
         if self.log_path:
             d["log_path"] = self.log_path
+        if self.webhook_secret:
+            d["webhook_secret"] = self.webhook_secret
         return d
 
     @classmethod
@@ -144,6 +147,7 @@ class Project:
             git_user_email=d.get("git_user_email"),
             yolo=bool(d.get("yolo", False)),
             log_path=d.get("log_path"),
+            webhook_secret=d.get("webhook_secret"),
         )
 
 

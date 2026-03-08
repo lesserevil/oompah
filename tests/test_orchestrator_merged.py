@@ -223,7 +223,7 @@ class TestFetchAllMergedBranches:
 
 
 class TestBlockerHasUnmergedPr:
-    """Tests for _blocker_has_unmerged_pr dispatch gating."""
+    """Tests for _blocker_has_unmerged_review dispatch gating."""
 
     def _make_orchestrator(self, tmp_path):
         orch = Orchestrator(
@@ -235,45 +235,40 @@ class TestBlockerHasUnmergedPr:
 
     def test_blocker_with_open_pr_is_unmerged(self, tmp_path):
         orch = self._make_orchestrator(tmp_path)
-        orch._unmerged_pr_branches = {"feat-branch"}
-        orch._merged_branches = set()
+        orch._unmerged_review_branches = {"feat-branch"}
 
         blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
-        assert orch._blocker_has_unmerged_pr(blocker) is True
+        assert orch._blocker_has_unmerged_review(blocker) is True
 
     def test_blocker_branch_merged_is_not_blocking(self, tmp_path):
         orch = self._make_orchestrator(tmp_path)
-        orch._unmerged_pr_branches = set()
-        orch._merged_branches = {"feat-branch"}
+        orch._unmerged_review_branches = set()
 
         blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
-        assert orch._blocker_has_unmerged_pr(blocker) is False
+        assert orch._blocker_has_unmerged_review(blocker) is False
 
     def test_blocker_closed_no_open_pr_not_blocking(self, tmp_path):
-        """Closed issue with no open PR should not block (may never have had an MR)."""
+        """Closed issue with no open review should not block (may never have had an MR)."""
         orch = self._make_orchestrator(tmp_path)
-        orch._unmerged_pr_branches = set()
-        orch._merged_branches = {"other-branch"}  # feat-branch NOT in merged set
+        orch._unmerged_review_branches = set()
 
         blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
-        assert orch._blocker_has_unmerged_pr(blocker) is False
+        assert orch._blocker_has_unmerged_review(blocker) is False
 
     def test_no_merged_data_falls_back_to_permissive(self, tmp_path):
-        """If merged branch data unavailable, don't block (backwards compat)."""
+        """If no open review data available, don't block (backwards compat)."""
         orch = self._make_orchestrator(tmp_path)
-        orch._unmerged_pr_branches = set()
-        orch._merged_branches = None
+        orch._unmerged_review_branches = set()
 
         blocker = BlockerRef(id="feat-branch", identifier="feat-branch", state="closed")
-        assert orch._blocker_has_unmerged_pr(blocker) is False
+        assert orch._blocker_has_unmerged_review(blocker) is False
 
     def test_empty_blocker_id_is_not_blocking(self, tmp_path):
         orch = self._make_orchestrator(tmp_path)
-        orch._unmerged_pr_branches = set()
-        orch._merged_branches = set()
+        orch._unmerged_review_branches = set()
 
         blocker = BlockerRef(id="", identifier="", state="closed")
-        assert orch._blocker_has_unmerged_pr(blocker) is False
+        assert orch._blocker_has_unmerged_review(blocker) is False
 
 
 class TestResetOrphanedInProgress:
