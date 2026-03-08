@@ -18,3 +18,5 @@ build/
 
 # Environment variables — never commit secrets
 .env
+
+*.log
