@@ -441,3 +441,115 @@ class TestFocusSuggestionSerialization:
         assert restored.suggested_name == original.suggested_name
         assert restored.source_issues == original.source_issues
         assert restored.status == original.status
+
+
+class TestEpicPlannerFocus:
+    """Tests for the built-in epic_planner focus."""
+
+    def _get_epic_planner(self):
+        """Retrieve the epic_planner focus from BUILTIN_FOCI."""
+        matches = [f for f in BUILTIN_FOCI if f.name == "epic_planner"]
+        assert matches, "epic_planner focus not found in BUILTIN_FOCI"
+        return matches[0]
+
+    def test_epic_planner_exists_in_builtin_foci(self):
+        names = [f.name for f in BUILTIN_FOCI]
+        assert "epic_planner" in names
+
+    def test_epic_planner_has_correct_role(self):
+        focus = self._get_epic_planner()
+        assert focus.role == "Epic Planner"
+
+    def test_epic_planner_has_must_do_rules(self):
+        focus = self._get_epic_planner()
+        assert len(focus.must_do) > 0
+
+    def test_epic_planner_has_must_not_do_rules(self):
+        focus = self._get_epic_planner()
+        assert len(focus.must_not_do) > 0
+
+    def test_epic_planner_issue_type_is_epic(self):
+        focus = self._get_epic_planner()
+        assert "epic" in focus.issue_types
+
+    def test_epic_planner_keywords_include_epic(self):
+        focus = self._get_epic_planner()
+        assert "epic" in focus.keywords
+
+    def test_epic_planner_selected_for_epic_issue_type(self):
+        """epic_planner should be selected when issue_type is 'epic'."""
+        issue = _make_issue(title="Build new payment system", issue_type="epic")
+        focus = select_focus(issue)
+        assert focus.name == "epic_planner"
+
+    def test_epic_planner_selected_by_keyword_epic(self):
+        """epic_planner should score for issues with 'epic' in the title."""
+        foci = [
+            Focus(name="epic_planner", role="Epic Planner", description="",
+                  keywords=["epic", "plan", "breakdown"], issue_types=["epic"],
+                  priority=8, status="active"),
+            Focus(name="feature", role="Feature Dev", description="",
+                  keywords=["feature", "add"], status="active"),
+        ]
+        issue = _make_issue(title="Epic: redesign user onboarding")
+        focus = select_focus(issue, foci)
+        assert focus.name == "epic_planner"
+
+    def test_epic_planner_selected_for_planning_keywords(self):
+        """epic_planner should score for issues that mention planning/breakdown."""
+        foci = [
+            Focus(name="epic_planner", role="Epic Planner", description="",
+                  keywords=["epic", "plan", "planning", "breakdown", "decompose"],
+                  issue_types=["epic"], priority=8, status="active"),
+        ]
+        issue = _make_issue(title="Plan and breakdown authentication tasks", issue_type="epic")
+        focus = select_focus(issue, foci)
+        assert focus.name == "epic_planner"
+
+    def test_epic_planner_render_contains_role(self):
+        focus = self._get_epic_planner()
+        rendered = focus.render()
+        assert "Epic Planner" in rendered
+
+    def test_epic_planner_render_contains_must_do(self):
+        focus = self._get_epic_planner()
+        rendered = focus.render()
+        assert "### You MUST:" in rendered
+
+    def test_epic_planner_render_contains_must_not_do(self):
+        focus = self._get_epic_planner()
+        rendered = focus.render()
+        assert "### You must NOT:" in rendered
+
+    def test_epic_planner_serialization_round_trip(self):
+        focus = self._get_epic_planner()
+        restored = Focus.from_dict(focus.to_dict())
+        assert restored.name == focus.name
+        assert restored.role == focus.role
+        assert restored.issue_types == focus.issue_types
+        assert restored.keywords == focus.keywords
+        assert restored.must_do == focus.must_do
+        assert restored.must_not_do == focus.must_not_do
+        assert restored.priority == focus.priority
+        assert restored.status == focus.status
+
+    def test_epic_planner_not_selected_when_inactive(self):
+        """Inactive epic_planner should not be selected."""
+        foci = [
+            Focus(name="epic_planner", role="Epic Planner", description="",
+                  keywords=["epic"], issue_types=["epic"], status="inactive"),
+        ]
+        issue = _make_issue(title="Plan new epic", issue_type="epic")
+        focus = select_focus(issue, foci)
+        assert focus.name == DEFAULT_FOCUS.name
+
+    def test_epic_planner_score_from_issue_type(self):
+        """Issue type 'epic' should add significant score for epic_planner."""
+        focus = self._get_epic_planner()
+        issue = _make_issue(title="Some work", issue_type="epic")
+        score = score_focus(focus, issue)
+        assert score >= 50  # at minimum the issue_type contribution
+
+    def test_epic_planner_description_mentions_decomposing(self):
+        focus = self._get_epic_planner()
+        assert "decomposing" in focus.description.lower() or "decompose" in focus.description.lower()
