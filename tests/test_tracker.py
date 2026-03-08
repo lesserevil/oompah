@@ -1,7 +1,7 @@
 """Tests for oompah.tracker (parsing/normalization only)."""
 
 from datetime import datetime, timezone
-from unittest.mock import patch, call
+from unittest.mock import patch, call, MagicMock
 
 from oompah.tracker import BeadsTracker, DEFAULT_INITIAL_STATUS, _parse_timestamp
 
@@ -97,6 +97,67 @@ class TestNormalizeIssue:
         raw = {"id": "1", "title": "t", "parent": "epic-001"}
         issue = self._tracker()._normalize_issue(raw)
         assert issue.parent_id == "epic-001"
+
+
+class TestAddComment:
+    """Tests for BeadsTracker.add_comment to ensure author='oompah' is always used."""
+
+    def _tracker(self):
+        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_default_author_is_oompah(self, mock_run_bd):
+        """When no author is specified, the comment must be attributed to 'oompah'."""
+        mock_run_bd.return_value = {
+            "id": 1, "issue_id": "test-1", "author": "oompah", "text": "hello"
+        }
+        tracker = self._tracker()
+        tracker.add_comment("test-1", "hello")
+
+        mock_run_bd.assert_called_once_with([
+            "comments", "add", "test-1", "hello",
+            "--author=oompah", "--json",
+        ])
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_explicit_oompah_author(self, mock_run_bd):
+        """Explicit author='oompah' passes --author=oompah to bd CLI."""
+        mock_run_bd.return_value = {}
+        tracker = self._tracker()
+        tracker.add_comment("test-1", "hello", author="oompah")
+
+        mock_run_bd.assert_called_once_with([
+            "comments", "add", "test-1", "hello",
+            "--author=oompah", "--json",
+        ])
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_custom_author_passed_through(self, mock_run_bd):
+        """An explicit custom author is still passed through (e.g. for human users via API)."""
+        mock_run_bd.return_value = {}
+        tracker = self._tracker()
+        tracker.add_comment("test-1", "message", author="alice")
+
+        mock_run_bd.assert_called_once_with([
+            "comments", "add", "test-1", "message",
+            "--author=alice", "--json",
+        ])
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_returns_dict_on_success(self, mock_run_bd):
+        """add_comment returns the response dict on success."""
+        mock_run_bd.return_value = {"id": 42, "author": "oompah", "text": "hi"}
+        tracker = self._tracker()
+        result = tracker.add_comment("test-1", "hi")
+        assert result == {"id": 42, "author": "oompah", "text": "hi"}
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_returns_empty_dict_on_non_dict_response(self, mock_run_bd):
+        """add_comment returns {} when bd returns a non-dict (e.g. empty list)."""
+        mock_run_bd.return_value = []
+        tracker = self._tracker()
+        result = tracker.add_comment("test-1", "hello")
+        assert result == {}
 
 
 class TestDefaultInitialStatus:
