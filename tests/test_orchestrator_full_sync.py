@@ -169,7 +169,14 @@ class TestRunLoopUpdatesSyncTime:
     """run() must set _last_full_sync after every _tick() call."""
 
     def test_run_updates_last_full_sync(self, tmp_path):
-        """After the first tick, _last_full_sync is set to a nonzero value."""
+        """After the first tick, _last_full_sync is set to a nonzero value.
+
+        With the event-driven loop, the second tick only fires when a queue
+        event arrives, so we post a REFRESH_REQUESTED event after the first
+        tick to trigger it.
+        """
+        from oompah.orchestrator import DispatchEvent, DispatchEventType
+
         orch = _make_orchestrator(tmp_path, poll_interval_ms=50)
 
         tick_count = 0
@@ -177,6 +184,10 @@ class TestRunLoopUpdatesSyncTime:
         async def _fake_tick():
             nonlocal tick_count
             tick_count += 1
+            if tick_count == 1:
+                # Post an event so the queue loop fires a second tick
+                orch._post_event(DispatchEvent(
+                    event_type=DispatchEventType.REFRESH_REQUESTED))
             if tick_count >= 2:
                 orch._stopping = True
 
@@ -189,8 +200,14 @@ class TestRunLoopUpdatesSyncTime:
         assert orch._last_full_sync > 0.0
 
     def test_run_logs_safety_net_message(self, tmp_path, caplog):
-        """run() logs an info message when the safety-net interval elapses."""
+        """run() logs an info message when the safety-net interval elapses.
+
+        With the event-driven loop, the second tick only fires when a queue
+        event arrives, so we post one after the first tick.
+        """
         import logging
+        from oompah.orchestrator import DispatchEvent, DispatchEventType
+
         orch = _make_orchestrator(tmp_path, poll_interval_ms=50, full_sync_interval_ms=1_000)
 
         tick_count = 0
@@ -198,6 +215,10 @@ class TestRunLoopUpdatesSyncTime:
         async def _fake_tick():
             nonlocal tick_count
             tick_count += 1
+            if tick_count == 1:
+                # Post an event so the queue loop fires a second tick
+                orch._post_event(DispatchEvent(
+                    event_type=DispatchEventType.REFRESH_REQUESTED))
             if tick_count >= 2:
                 orch._stopping = True
 
