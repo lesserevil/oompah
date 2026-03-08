@@ -1197,8 +1197,10 @@ async def api_retry_review(project_id: str, review_id: str):
             f"CI tests failed on PR/MR #{review_id}. "
             "Your ONLY task is to fix the failing CI tests so this PR can merge. "
             "Do NOT rewrite or rework the feature — the feature code is done. "
+            "IMPORTANT: File paths in CI logs are not trustworthy — "
+            "do NOT use them. Run tests locally to get accurate paths. "
             "Steps: 1) rebase your branch onto main, 2) run the tests locally, "
-            "3) fix any test failures, 4) push. Nothing else.",
+            "3) fix any test failures using local paths, 4) push. Nothing else.",
             author="oompah",
         )
         _api_cache.invalidate("issues:all")

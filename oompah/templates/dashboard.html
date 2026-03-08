@@ -1020,7 +1020,7 @@ async function fetchReviewsCount() {
     const el = document.getElementById('reviews-stat');
     const countEl = document.getElementById('reviews-count');
     const conflicts = reviews.filter(r => r.review && r.review.has_conflicts && !r.agent_active).length;
-    const ciFailures = reviews.filter(r => r.review && r.review.ci_status === 'failed' && !r.agent_active).length;
+    const ciFailures = reviews.filter(r => r.review && r.review.ci_status === 'failed' && !r.review.has_conflicts && !r.agent_active).length;
     const needsAttention = conflicts + ciFailures;
     if (needsAttention > 0) {
       countEl.textContent = needsAttention;

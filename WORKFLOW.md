@@ -148,12 +148,16 @@ If you determine that this issue requires a different specialist to complete (e.
 
 This issue already has a PR open but CI tests are failing. Your ONLY job is to make the tests pass so the PR can merge. Do NOT rework or rewrite the feature — the feature code is done.
 
-1. Read the latest comments to understand what CI reported
+**IMPORTANT: File paths in CI logs are NOT trustworthy — they may not match local paths.** Do NOT use paths from CI output. Instead, always run tests locally to get accurate paths and error messages.
+
+1. Read the latest comments to understand WHAT failed (test names, error messages) — but ignore file paths from CI logs
 2. Rebase your branch onto main: `git fetch origin && git rebase origin/main`
-3. Run the test suite locally and identify failures
-4. Fix ONLY the failing tests — minimal changes
-5. Commit, push, and verify CI passes
-6. Post a comment with the fix summary and close the issue using `bd close {{ issue.identifier }}`
+3. Run the test suite locally to reproduce failures and get accurate local file paths
+4. Use the local test output (not CI logs) to locate and fix the failing code
+5. Fix ONLY the failing tests — minimal changes
+6. Run the test suite locally again to confirm the fix
+7. Commit, push, and verify CI passes
+8. Post a comment with the fix summary and close the issue using `bd close {{ issue.identifier }}`
 {% else %}
 1. Read the issue carefully and understand the requirements
 2. Post a comment with your understanding and plan

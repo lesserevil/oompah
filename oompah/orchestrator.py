@@ -505,6 +505,8 @@ class Orchestrator:
             return False
         if issue.id in self.state.claimed:
             return False
+        if issue.id in self.state.retry_attempts:
+            return False
         if issue.id in self.state.completed:
             return False
         is_p0 = issue.priority is not None and issue.priority == 0
@@ -645,11 +647,15 @@ class Orchestrator:
         """
         running_ids = set(self.state.running.keys())
         retry_ids = set(self.state.retry_attempts.keys())
+        claimed_ids = self.state.claimed
+        completed_ids = self.state.completed
 
         for issue in candidates:
             if issue.state.strip().lower() != "in_progress":
                 continue
             if issue.id in running_ids or issue.id in retry_ids:
+                continue
+            if issue.id in claimed_ids or issue.id in completed_ids:
                 continue
             # Orphaned — reset to open
             try:
@@ -808,7 +814,9 @@ class Orchestrator:
                 issue.identifier,
                 f"YOLO: CI tests failed on MR #{review.id}. "
                 "Fix the failing tests so this MR can merge. "
-                "Do NOT rewrite the feature — only fix test failures.",
+                "Do NOT rewrite the feature — only fix test failures. "
+                "IMPORTANT: Paths in CI logs are not trustworthy. "
+                "Run tests locally to get accurate paths and errors.",
                 author="oompah",
             )
             self.state.completed.discard(issue.id)
@@ -1048,7 +1056,9 @@ class Orchestrator:
                 lambda: tracker.update_issue(issue.identifier, status="in_progress"),
             )
         except Exception as exc:
-            logger.debug("Failed to set in_progress for %s: %s", issue.identifier, exc)
+            logger.warning("Failed to set in_progress for %s: %s — aborting dispatch", issue.identifier, exc)
+            self.state.claimed.discard(issue.id)
+            return
 
         # Remove from retry if present
         retry = self.state.retry_attempts.pop(issue.id, None)
@@ -1497,12 +1507,31 @@ class Orchestrator:
                 current = tracker.fetch_issue_detail(entry.identifier)
                 terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
                 if current and current.state.strip().lower() not in terminal:
-                    # Agent completed without closing — reset to open for re-dispatch
-                    tracker.update_issue(entry.identifier, status="open")
-                    logger.info("Agent completed without closing %s — reset to open",
-                                entry.identifier)
+                    # Track how many times this issue completed without closing
+                    reopen_count = self.state.reopen_counts.get(issue_id, 0) + 1
+                    self.state.reopen_counts[issue_id] = reopen_count
+                    max_reopens = 3
+                    if reopen_count >= max_reopens:
+                        # Stop re-dispatching — agent can't close this issue
+                        logger.warning(
+                            "Agent completed without closing %s %d times — giving up (marking deferred)",
+                            entry.identifier, reopen_count)
+                        self._post_comment(
+                            entry.identifier,
+                            f"Agent completed {reopen_count} times without closing this issue. "
+                            f"Deferring — needs human attention.",
+                            project_id=project_id,
+                        )
+                        tracker.update_issue(entry.identifier, status="deferred")
+                        self.state.completed.add(issue_id)
+                    else:
+                        # Reset to open for retry with backoff
+                        tracker.update_issue(entry.identifier, status="open")
+                        logger.info("Agent completed without closing %s — reset to open (%d/%d)",
+                                    entry.identifier, reopen_count, max_reopens)
                 else:
                     self.state.completed.add(issue_id)
+                    self.state.reopen_counts.pop(issue_id, None)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library
@@ -1747,12 +1776,35 @@ class Orchestrator:
                 await self._terminate_running(issue_id, cleanup_workspace=True)
             else:
                 # Moved out of in_progress (to open, deferred, etc.) — stop agent
-                logger.info(
-                    "Reconcile: no longer in_progress issue_id=%s state=%s",
+                logger.warning(
+                    "Reconcile: no longer in_progress issue_id=%s state=%s — terminating agent",
                     issue_id,
                     issue.state,
                 )
+                running_entry = self.state.running.get(issue_id)
                 await self._terminate_running(issue_id, cleanup_workspace=False)
+                # If state reverted to an active state (e.g. open), mark as claimed
+                # with a cooldown to prevent immediate re-dispatch loops
+                if state_norm in active_norms and running_entry:
+                    reopen_count = self.state.reopen_counts.get(issue_id, 0) + 1
+                    self.state.reopen_counts[issue_id] = reopen_count
+                    if reopen_count >= 3:
+                        logger.warning(
+                            "Reconcile: issue %s reverted to %s %d times — marking completed to stop loop",
+                            running_entry.identifier, state_norm, reopen_count)
+                        self.state.completed.add(issue_id)
+                    else:
+                        delay = self._backoff_delay(reopen_count)
+                        logger.info(
+                            "Reconcile: scheduling retry for %s in %dms (%d/3)",
+                            running_entry.identifier, delay, reopen_count)
+                        self._schedule_retry(
+                            issue_id,
+                            attempt=reopen_count,
+                            identifier=running_entry.identifier,
+                            delay_ms=delay,
+                            error=f"state reverted to {state_norm}",
+                        )
 
     _ARCHIVE_DAYS = 7
 

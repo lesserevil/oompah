@@ -290,8 +290,8 @@ class ProjectStore:
             except Exception:
                 pass
 
-        # Inherit core.hooksPath from the parent repo (e.g. beads merge hooks)
-        self._inherit_hooks_path(wt_path, project)
+        # Disable beads hooks to prevent state interference
+        self._disable_worktree_hooks(wt_path)
 
         logger.info("Worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
@@ -335,31 +335,28 @@ class ProjectStore:
                     branch_name, wt_path, exc.stderr.strip()[:200] if exc.stderr else "",
                 )
 
-        # Ensure hooks path is set (e.g. beads merge hooks)
-        self._inherit_hooks_path(wt_path, project)
+        # Disable beads hooks in worktrees to prevent post-checkout/pre-commit
+        # hooks from syncing backup JSONL back to Dolt and reverting issue states
+        self._disable_worktree_hooks(wt_path)
 
-    def _inherit_hooks_path(self, wt_path: str, project: Project) -> None:
-        """Copy core.hooksPath from the parent repo to a worktree."""
+    def _disable_worktree_hooks(self, wt_path: str) -> None:
+        """Point worktree hooks to an empty directory to prevent beads hook interference.
+
+        Beads git hooks (post-checkout, pre-commit) sync backup JSONL into the
+        Dolt database. When agents run git operations (rebase, checkout) in
+        worktrees, these hooks overwrite the orchestrator's in_progress state
+        back to the stale state from the backup. Disabling hooks in worktrees
+        prevents this.
+        """
         try:
-            r = subprocess.run(
-                ["git", "config", "core.hooksPath"],
-                cwd=project.repo_path,
-                capture_output=True, text=True, timeout=5,
-            )
-            hooks_path = r.stdout.strip() if r.returncode == 0 else ""
-            if not hooks_path:
-                return
-
-            # Resolve relative paths against the parent repo
-            if not os.path.isabs(hooks_path):
-                hooks_path = os.path.join(project.repo_path, hooks_path)
-
+            empty_hooks = os.path.join(wt_path, ".oompah-no-hooks")
+            os.makedirs(empty_hooks, exist_ok=True)
             subprocess.run(
-                ["git", "config", "core.hooksPath", hooks_path],
+                ["git", "config", "core.hooksPath", empty_hooks],
                 cwd=wt_path,
                 capture_output=True, text=True, timeout=5,
             )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             pass
 
     def remove_worktree(self, project_id: str, issue_identifier: str) -> None:
