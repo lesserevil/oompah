@@ -401,29 +401,84 @@ class Orchestrator:
         logger.info("Orchestrator stopped")
 
     async def _tick(self) -> None:
-        """One poll-and-dispatch cycle."""
+        """One poll-and-dispatch cycle.
+
+        Delegates to targeted handlers:
+        1. _handle_reconcile()        — stall detection + tracker state refresh
+        2. _handle_review_check()     — forge API: reviews + merged branches
+        3. _handle_dispatch_needed()  — candidates fetch, blocker resolution, dispatch
+        4. _handle_yolo_review()      — YOLO merge actions, auto-archive, merged-labeling
+        5. _handle_auto_update()      — git pull + restart when idle
+        """
         t0 = time.monotonic()
 
-        # Part 1: Reconcile
-        await self._reconcile()
+        # 1. Reconcile running agents against tracker
+        await self._handle_reconcile()
         t1 = time.monotonic()
 
-        # Part 2: Validate config
+        # 2. Validate config before doing any expensive work
         errors = validate_dispatch_config(self.config)
         if errors:
             logger.error("Dispatch validation failed: %s", "; ".join(errors))
             self._notify_observers()
             return
 
-        # Part 2.5 + 3: Fetch reviews, review branches, merged branches, and candidates in parallel
-        self._blocker_state_cache = {}  # reset per tick
-        self._reviews_cache = {}  # reset per tick — shared by review branches + YOLO
+        # 3. Fetch forge state (reviews + merged branches) — populates caches
+        t_review_start = time.monotonic()
+        await self._handle_review_check()
+        t2 = time.monotonic()
+
+        # 4. Fetch candidates and dispatch eligible issues
+        t3_start = time.monotonic()
+        await self._handle_dispatch_needed()
+        t3 = time.monotonic()
+
+        # 5. YOLO actions, auto-archive, merged-labeling (uses cached forge state)
+        yolo_ms, archive_ms, merged_ms = await self._handle_yolo_review()
+        t4 = time.monotonic()
+
+        total_ms = (t4 - t0) * 1000
+        if total_ms > 2000:
+            logger.warning(
+                "Slow tick: %.0fms (reconcile=%.0f reviews=%.0f dispatch=%.0f "
+                "yolo=%.0f archive=%.0f merged=%.0f)",
+                total_ms,
+                (t1 - t0) * 1000,
+                (t2 - t1) * 1000,
+                (t3 - t3_start) * 1000,
+                yolo_ms, archive_ms, merged_ms,
+            )
+
+        self._notify_observers()
+
+        # 6. Auto-update when idle (no agents, no retries)
+        await self._handle_auto_update()
+
+    async def _handle_reconcile(self) -> None:
+        """Reconcile running agents: stall detection + tracker state refresh.
+
+        This handler runs every tick. It checks for stalled agents and
+        refreshes the tracker state for all running issues.
+        """
+        await self._reconcile()
+
+    async def _handle_review_check(self) -> None:
+        """Fetch forge state: open reviews and merged branches.
+
+        Populates ``_reviews_cache``, ``_unmerged_review_branches``, and
+        ``_merged_branches`` used by dispatch gating and YOLO actions.
+
+        This handler is the single place where forge API calls happen per tick.
+        In a future event-driven architecture, it will only run when forge
+        state might have changed (e.g., webhook received or polling interval
+        elapsed).
+        """
+        self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
         loop = asyncio.get_event_loop()
         reviews_task = loop.run_in_executor(self._tick_pool, self._fetch_all_reviews)
-        candidates_task = loop.run_in_executor(self._tick_pool, self._fetch_all_candidates)
         merged_task = loop.run_in_executor(self._tick_pool, self._fetch_all_merged_branches)
-        reviews_by_project, candidates, merged_branches = await asyncio.gather(
-            reviews_task, candidates_task, merged_task
+        reviews_by_project, merged_branches = await asyncio.gather(
+            reviews_task, merged_task
         )
         self._reviews_cache = reviews_by_project
         self._merged_branches = merged_branches
@@ -434,15 +489,35 @@ class Orchestrator:
             for r in reviews
             if r.source_branch
         }
-        t2 = time.monotonic()
+
+    async def _handle_dispatch_needed(self) -> None:
+        """Fetch candidates, resolve blockers, and dispatch eligible issues.
+
+        This handler:
+        - Fetches all candidate issues from configured trackers
+        - Pre-resolves unknown blocker states in parallel
+        - Sorts and dispatches eligible non-epic issues
+        - Dispatches epic planning agents for open epics without children
+        - Resets orphaned in_progress issues (no agent, no retry pending)
+
+        In a future event-driven architecture, this will only run when
+        tracker state has changed (e.g., agent exit event, tracker diff
+        detected) rather than every tick.
+        """
+        self._blocker_state_cache = {}  # reset per fetch cycle
+        loop = asyncio.get_event_loop()
+
+        # Fetch candidates from all trackers in parallel
+        candidates = await loop.run_in_executor(
+            self._tick_pool, self._fetch_all_candidates
+        )
 
         # Pre-resolve blocker states in thread (internally parallel)
         await loop.run_in_executor(
             self._tick_pool, self._pre_resolve_blockers, candidates
         )
-        t3 = time.monotonic()
 
-        # Part 4: Sort and dispatch
+        # Sort and dispatch regular (non-epic) issues
         sorted_issues = self._sort_for_dispatch(candidates)
         for issue in sorted_issues:
             if self._available_slots() <= 0:
@@ -450,7 +525,7 @@ class Orchestrator:
             if self._should_dispatch(issue):
                 await self._dispatch(issue, attempt=None)
 
-        # Part 4.1: Dispatch epic planning agents for open epics without children
+        # Dispatch epic planning agents for open epics without children
         epics_to_plan = await loop.run_in_executor(
             self._tick_pool, self._plan_open_epics, candidates
         )
@@ -458,12 +533,24 @@ class Orchestrator:
             if self._available_slots() <= 0:
                 break
             await self._dispatch(epic, attempt=None)
-        t4 = time.monotonic()
 
-        # Part 4.5: Reset orphaned in_progress issues (no agent, no retry)
+        # Reset orphaned in_progress issues (no agent, no retry)
         self._reset_orphaned_in_progress(candidates)
 
-        # Part 5 + 6 + 7: YOLO + auto-archive + merged-labeling in parallel
+    async def _handle_yolo_review(self) -> tuple[float, float, float]:
+        """Run YOLO merge actions, auto-archive, and merged-issue labeling.
+
+        Uses the forge state cached by ``_handle_review_check()`` to avoid
+        redundant API calls within the same tick.
+
+        Returns timing tuple (yolo_ms, archive_ms, merged_ms) for telemetry.
+
+        In a future event-driven architecture, this will only run when:
+        - Reviews are fetched and have actionable items, OR
+        - The auto-archive interval has elapsed.
+        """
+        loop = asyncio.get_event_loop()
+
         def _timed_yolo():
             t = time.monotonic()
             self._yolo_review_actions_sync()
@@ -484,21 +571,17 @@ class Orchestrator:
             loop.run_in_executor(self._tick_pool, _timed_archive),
             loop.run_in_executor(self._tick_pool, _timed_merged_labels),
         )
-        t5 = time.monotonic()
+        return yolo_ms, archive_ms, merged_ms
 
-        total_ms = (t5 - t0) * 1000
-        if total_ms > 2000:
-            logger.warning(
-                "Slow tick: %.0fms (reconcile=%.0f fetch=%.0f blockers=%.0f "
-                "dispatch=%.0f yolo=%.0f archive=%.0f merged=%.0f)",
-                total_ms,
-                (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000,
-                (t4 - t3) * 1000, yolo_ms, archive_ms, merged_ms,
-            )
+    async def _handle_auto_update(self) -> None:
+        """Trigger git auto-update when the orchestrator is idle.
 
-        self._notify_observers()
+        Idle means no agents are running and no retries are pending. This
+        avoids restarting mid-flight when agents are active.
 
-        # Part 8: Auto-update when idle
+        In a future event-driven architecture, this will run on a separate
+        slow-cadence timer rather than being checked every tick.
+        """
         if not self.state.running and not self.state.retry_attempts:
             await asyncio.get_event_loop().run_in_executor(
                 self._tick_pool, self._check_auto_update
