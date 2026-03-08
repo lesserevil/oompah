@@ -311,6 +311,15 @@
     .p3 { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
     .p4 { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
 
+    /* Type icon badge on all cards */
+    .type-icon {
+      font-size: 0.75rem;
+      line-height: 1;
+      cursor: default;
+      user-select: none;
+      title: attr(title);
+    }
+
     /* Merged badge on closed cards */
     .merged-badge {
       font-size: 0.6rem;
@@ -1372,6 +1381,19 @@ function toggleSwimlane(id) {
   renderBoard(boardData);
 }
 
+// Map issue type to a visual icon (emoji) for the card header
+const TYPE_ICONS = {
+  feature:  '✨',
+  epic:     '🗺️',
+  task:     '✅',
+  bug:      '🐛',
+  chore:    '🔧',
+};
+
+function getTypeIcon(issueType) {
+  return TYPE_ICONS[issueType] || '📋';
+}
+
 function createCard(issue) {
   const card = document.createElement('div');
   card.className = 'card';
@@ -1405,10 +1427,14 @@ function createCard(issue) {
     ? ' <span class="merged-badge">merged</span>'
     : '';
 
+  const typeIcon = getTypeIcon(issue.issue_type);
+  const typeLabel = issue.issue_type || 'task';
+
   card.innerHTML = `
     <div class="card-id">
       <span class="card-id-left">
-        <span>${esc(issue.identifier)}</span>
+        <span class="type-icon" title="${esc(typeLabel)}" aria-label="${esc(typeLabel)}">${typeIcon}</span>
+        <span class="card-identifier">${esc(issue.identifier)}</span>
         ${epicBadgeHtml}
         ${mergedBadgeHtml}
       </span>
@@ -1421,8 +1447,8 @@ function createCard(issue) {
   `;
 
   // Click card ID to open detail panel
-  card.querySelector('.card-id-left > span:first-child').style.cursor = 'pointer';
-  card.querySelector('.card-id-left > span:first-child').addEventListener('click', (e) => {
+  card.querySelector('.card-identifier').style.cursor = 'pointer';
+  card.querySelector('.card-identifier').addEventListener('click', (e) => {
     e.stopPropagation();
     openDetailPanel(issue.identifier);
   });
