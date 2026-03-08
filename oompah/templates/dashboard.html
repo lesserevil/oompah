@@ -331,6 +331,17 @@
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
 
+    /* Draft Epic badge on epic cards with 'draft' label */
+    .draft-epic-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent, #58a6ff);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
     /* Epic badge on child cards */
     .epic-badge {
       font-size: 0.6rem;
@@ -1215,8 +1226,8 @@ function renderBoard(data) {
 function renderFlatView(board, data) {
   for (const col of COLUMNS) {
     const allInCol = data[col] || [];
-    // Filter out epics in flat view
-    const issues = allInCol.filter(i => i.issue_type !== 'epic');
+    // Filter out epics in flat view, but keep draft epics (epics with 'draft' label)
+    const issues = allInCol.filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'));
     const column = document.createElement('div');
     column.className = 'column';
     column.dataset.state = col;
@@ -1422,6 +1433,11 @@ function createCard(issue) {
     }
   }
 
+  // Build draft epic badge if issue is an epic with the "draft" label
+  const draftEpicBadgeHtml = (issue.issue_type === 'epic' && (issue.labels || []).includes('draft'))
+    ? ' <span class="draft-epic-badge" aria-label="Draft Epic">Draft Epic</span>'
+    : '';
+
   // Build merged badge if issue has the "merged" label
   const mergedBadgeHtml = (issue.labels || []).includes('merged')
     ? ' <span class="merged-badge">merged</span>'
@@ -1436,6 +1452,7 @@ function createCard(issue) {
         <span class="type-icon" title="${esc(typeLabel)}" aria-label="${esc(typeLabel)}">${typeIcon}</span>
         <span class="card-identifier">${esc(issue.identifier)}</span>
         ${epicBadgeHtml}
+        ${draftEpicBadgeHtml}
         ${mergedBadgeHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
