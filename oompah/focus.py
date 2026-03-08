@@ -313,6 +313,34 @@ BUILTIN_FOCI: list[Focus] = [
         issue_types=["chore"],
         priority=0,
     ),
+    Focus(
+        name="epic_planner",
+        role="Epic Planner",
+        description=(
+            "You are decomposing an epic into well-defined, actionable child tasks. "
+            "Your job is to read the epic's goals, understand the scope, and create "
+            "a complete set of sub-tasks that together fulfil the epic. Each task "
+            "should be small enough to be completed in a single agent session."
+        ),
+        must_do=[
+            "Read the epic description and any existing child tasks before creating new ones",
+            "Create tasks that are concrete and independently actionable",
+            "Give each task a clear title and a description with enough context to work independently",
+            "Cover the full scope of the epic — don't leave gaps",
+            "Set appropriate priorities and dependencies between tasks",
+            "Use `bd create` to file each child task linked to the parent epic",
+        ],
+        must_not_do=[
+            "Start implementing code — your job is planning, not coding",
+            "Create tasks that are too large to finish in a single session",
+            "Leave tasks without descriptions or context",
+            "Duplicate tasks that already exist as children of the epic",
+            "Close the epic yourself — it closes when all child tasks are done",
+        ],
+        keywords=["epic", "plan", "planning", "breakdown", "decompose", "tasks", "subtasks", "milestones"],
+        issue_types=["epic"],
+        priority=8,
+    ),
 ]
 
 # Default focus used when no specific focus matches
