@@ -853,14 +853,27 @@ async def api_create_project(request: Request):
         )
 
 
+@app.get("/api/v1/projects/{project_id}")
+async def api_get_project(project_id: str):
+    """Return a single project by ID."""
+    orch = _get_orchestrator()
+    project = orch.project_store.get(project_id)
+    if not project:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+            status_code=404,
+        )
+    return JSONResponse(project.to_dict())
+
+
 @app.patch("/api/v1/projects/{project_id}")
 async def api_update_project(project_id: str, request: Request):
-    """Update a project."""
+    """Update a project's mutable fields."""
     try:
         orch = _get_orchestrator()
         body = await request.json()
         fields = {}
-        for key in ("name", "repo_path", "branch", "git_user_name", "git_user_email", "log_path"):
+        for key in ("name", "repo_url", "branch", "git_user_name", "git_user_email", "log_path"):
             if key in body:
                 fields[key] = body[key]
         if "yolo" in body:
@@ -875,6 +888,11 @@ async def api_update_project(project_id: str, request: Request):
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         return JSONResponse(project.to_dict())
+    except ProjectError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
     except Exception as exc:
         logger.error("Update project error: %s", exc)
         return JSONResponse(

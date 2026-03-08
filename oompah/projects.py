@@ -192,13 +192,50 @@ class ProjectStore:
         logger.info("Project created id=%s name=%s repo=%s", project_id, name, repo_url)
         return project
 
+    # Fields that may be changed via update().
+    UPDATABLE_FIELDS = frozenset({
+        "name", "repo_url", "branch", "git_user_name", "git_user_email",
+        "yolo", "log_path",
+    })
+
     def update(self, project_id: str, **fields) -> Project | None:
+        """Update a project's mutable fields.
+
+        Args:
+            project_id: The project to update.
+            **fields: Key/value pairs to change. Only keys listed in
+                      ``UPDATABLE_FIELDS`` are accepted.
+
+        Returns:
+            The updated Project, or ``None`` if *project_id* is unknown.
+
+        Raises:
+            ProjectError: If a field name is not in the allow-list or
+                          if a required-string field is set to an empty value.
+        """
         project = self._projects.get(project_id)
         if not project:
             return None
+
+        unknown = set(fields) - self.UPDATABLE_FIELDS
+        if unknown:
+            raise ProjectError(
+                f"Unknown or immutable fields: {', '.join(sorted(unknown))}"
+            )
+
+        # Validate non-empty for fields that must have a value
+        for key in ("name",):
+            if key in fields:
+                val = fields[key]
+                if isinstance(val, str):
+                    val = val.strip()
+                if not val:
+                    raise ProjectError(f"'{key}' must not be empty")
+                fields[key] = val  # store trimmed value
+
         for key, value in fields.items():
-            if hasattr(project, key) and key != "id":
-                setattr(project, key, value)
+            setattr(project, key, value)
+
         self._save()
         return project
 
