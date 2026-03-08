@@ -14,6 +14,7 @@ from typing import Any
 from oompah.agent import AgentError, AgentEvent, AgentSession
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
+from oompah.events import EventBus, EventType
 from oompah.models import (
     AgentProfile,
     AgentTotals,
@@ -83,6 +84,11 @@ class Orchestrator:
         self._restart_requested = False
         self._alerts: list[dict[str, str]] = []  # {"level": "warning", "message": "..."}
         self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
+        # EventBus: typed pub/sub for internal event-driven communication.
+        # The legacy _observers/_state_only_observers/_activity_observers lists
+        # are kept for backward compatibility with server.py, but internally
+        # the EventBus is the canonical dispatch mechanism.
+        self.event_bus: EventBus = EventBus()
         self._observers: list[Any] = []
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
@@ -158,6 +164,7 @@ class Orchestrator:
         # Terminate all running agents (keep workspaces for resume)
         asyncio.ensure_future(self._terminate_all_running())
         logger.info("Orchestrator paused — all agents stopped")
+        self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
         self._notify_observers()
 
     async def _terminate_all_running(self) -> None:
@@ -172,6 +179,7 @@ class Orchestrator:
         self._save_paused_state()
         logger.info("Orchestrator unpaused")
         self._refresh_requested.set()
+        self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
         self._notify_observers()
 
     async def graceful_restart(self, drain_timeout_s: float = 60) -> None:
@@ -1223,6 +1231,13 @@ class Orchestrator:
                                        project_id=issue.project_id),
         )  # fire-and-forget, don't await
 
+        # Emit agent dispatched event on EventBus
+        self.event_bus.emit(EventType.AGENT_DISPATCHED, {
+            "issue_id": issue.id,
+            "identifier": issue.identifier,
+            "profile": profile_name,
+            "attempt": attempt,
+        })
         self._notify_observers()
 
     async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
@@ -1654,6 +1669,13 @@ class Orchestrator:
             return
 
         if reason == "normal":
+            _exit_event = EventType.AGENT_COMPLETED
+        elif reason in ("max_turns", "stalled"):
+            _exit_event = EventType.AGENT_STALLED if reason == "stalled" else EventType.AGENT_MAX_TURNS
+        else:
+            _exit_event = EventType.AGENT_FAILED
+
+        if reason == "normal":
             self.state.claimed.discard(issue_id)
             self.state.stall_counts.pop(issue_id, None)
             self._post_comment(
@@ -1809,6 +1831,14 @@ class Orchestrator:
                 delay,
             )
 
+        # Emit the agent lifecycle event on the EventBus
+        self.event_bus.emit(_exit_event, {
+            "issue_id": issue_id,
+            "identifier": entry.identifier,
+            "reason": reason,
+            "error": error,
+            "elapsed_s": elapsed,
+        })
         self._notify_observers()
 
     def _is_rate_limited(self) -> bool:
@@ -1859,6 +1889,14 @@ class Orchestrator:
             error=error,
             escalated_profile=escalated_profile,
         )
+        # Emit retry scheduled event on EventBus
+        self.event_bus.emit(EventType.ISSUE_RETRY_SCHEDULED, {
+            "issue_id": issue_id,
+            "identifier": identifier,
+            "attempt": attempt,
+            "delay_ms": delay_ms,
+            "error": error,
+        })
 
     async def _on_retry_timer(self, issue_id: str) -> None:
         """Handle retry timer expiration."""
@@ -2279,10 +2317,18 @@ class Orchestrator:
         return None
 
     def _notify_observers(self) -> None:
-        """Notify any registered observers of state changes (includes issues refresh)."""
+        """Notify any registered observers of state changes (includes issues refresh).
+
+        Emits EventType.ORCHESTRATOR_TICK on the EventBus (authoritative) and
+        also calls legacy _observers callbacks for backward compatibility.
+        """
+        snapshot = self.get_snapshot()
+        # EventBus (authoritative)
+        self.event_bus.emit(EventType.ORCHESTRATOR_TICK, {"snapshot": snapshot})
+        # Legacy observer lists (backward compat)
         for observer in self._observers:
             try:
-                observer(self.get_snapshot())
+                observer(snapshot)
             except Exception:
                 pass
 
@@ -2290,15 +2336,32 @@ class Orchestrator:
         """Notify observers with state only (no issues refresh).
 
         Used for agent activity updates where issue data hasn't changed.
+        Emits EventType.STATE_UPDATED on the EventBus and calls legacy
+        _state_only_observers callbacks for backward compatibility.
         """
+        snapshot = self.get_snapshot()
+        # EventBus (authoritative)
+        self.event_bus.emit(EventType.STATE_UPDATED, {"snapshot": snapshot})
+        # Legacy observer lists (backward compat)
         for observer in self._state_only_observers:
             try:
-                observer(self.get_snapshot())
+                observer(snapshot)
             except Exception:
                 pass
 
     def _notify_activity(self, identifier: str, entry: Any) -> None:
-        """Notify observers of a specific agent activity entry."""
+        """Notify observers of a specific agent activity entry.
+
+        Emits EventType.AGENT_ACTIVITY on the EventBus and calls legacy
+        _activity_observers callbacks for backward compatibility.
+        """
+        payload = {
+            "identifier": identifier,
+            "entry": entry.to_dict() if hasattr(entry, "to_dict") else str(entry),
+        }
+        # EventBus (authoritative)
+        self.event_bus.emit(EventType.AGENT_ACTIVITY, payload)
+        # Legacy observer lists (backward compat)
         for observer in self._activity_observers:
             try:
                 observer(identifier, entry)
