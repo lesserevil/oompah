@@ -269,7 +269,7 @@ BUILTIN_FOCI: list[Focus] = [
         name="merge_conflict",
         role="Merge Conflict Resolver",
         description=(
-            "You are resolving merge conflicts on a pull request branch. Your ONLY job is to "
+            "You are resolving merge conflicts on a review branch. Your ONLY job is to "
             "rebase the branch onto the target, resolve all conflicts correctly, and force-push. "
             "Do NOT add new features, fix other bugs, or make any changes beyond conflict resolution."
         ),
@@ -279,14 +279,14 @@ BUILTIN_FOCI: list[Focus] = [
             "Preserve the original work from this branch — do not drop commits",
             "Run tests after resolving all conflicts to verify nothing is broken",
             "Force-push with `git push --force-with-lease` after a clean rebase",
-            "Verify the PR/MR diff looks correct after force-pushing",
+            "Verify the review diff looks correct after force-pushing",
         ],
         must_not_do=[
             "Make any code changes beyond what is needed to resolve conflicts",
             "Drop or squash commits from the branch",
             "Accept 'ours' or 'theirs' blindly — understand what both sides intended",
             "Push to the main/default branch — only push to this issue's branch",
-            "Create a new branch or PR — work on the existing one",
+            "Create a new branch or review — work on the existing one",
         ],
         keywords=["merge conflict", "rebase conflict", "resolve conflict"],
         labels=["merge-conflict"],

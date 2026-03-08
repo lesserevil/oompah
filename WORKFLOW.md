@@ -107,10 +107,9 @@ You are working in a git worktree on a branch named after this issue. When your 
 
 1. Stage and commit your changes: `git add -A && git commit -m "{{ issue.identifier }}: <brief summary>"`
 2. Push the branch: `git push -u origin HEAD`
-3. Create a pull request: `gh pr create --title "{{ issue.identifier }}: <title>" --body "<summary of changes>"`
-4. Post the PR URL as a comment on the issue
 
-Do NOT push to the main branch. Always work on your issue branch and create a PR.
+Do NOT push to the main branch. Always work on your issue branch and push it.
+The orchestrator will automatically create a review and manage the merge process — you do not need to create one yourself.
 
 ## Handoff to Another Agent
 
@@ -148,7 +147,7 @@ If you determine that this issue requires a different specialist to complete (e.
 {% if issue.labels contains "ci-fix" %}
 **PRIORITY: FIX CI TESTS**
 
-This issue already has a PR open but CI tests are failing. Your ONLY job is to make the tests pass so the PR can merge. Do NOT rework or rewrite the feature — the feature code is done.
+This issue already has a review open but CI tests are failing. Your ONLY job is to make the tests pass so the review can merge. Do NOT rework or rewrite the feature — the feature code is done.
 
 **IMPORTANT: File paths in CI logs are NOT trustworthy — they may not match local paths.** Do NOT use paths from CI output. Instead, always run tests locally to get accurate paths and error messages.
 
@@ -169,6 +168,6 @@ This issue already has a PR open but CI tests are failing. Your ONLY job is to m
 6. Post a comment describing what you changed
 7. Run any relevant tests to verify your changes
 8. Post a comment with test results
-9. Commit, push, and create a PR (see Git Workflow above)
+9. Commit and push (see Git Workflow above)
 10. Post a completion summary and close the issue using `bd close {{ issue.identifier }}`
 {% endif %}

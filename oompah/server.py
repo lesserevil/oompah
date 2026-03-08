@@ -1196,7 +1196,7 @@ async def api_budget():
 
 @app.get("/api/v1/reviews")
 async def api_list_reviews():
-    """List all open PRs/MRs across all projects."""
+    """List all open reviews across all projects."""
     try:
         cached = _api_cache.get("reviews:all")
         if cached is not None:
@@ -1225,10 +1225,10 @@ async def api_list_reviews():
 
 @app.post("/api/v1/reviews/{project_id}/{review_id}/rebase")
 async def api_rebase_review(project_id: str, review_id: str):
-    """Trigger a rebase for a PR/MR.
+    """Trigger a rebase for a review.
 
     If the rebase fails due to merge conflicts, automatically finds the
-    original bead (by matching the PR source branch to bead identifiers),
+    original bead (by matching the review source branch to bead identifiers),
     posts a comment about the conflict, and reopens the bead so the
     agent can resolve it on its own branch.
     """
@@ -1274,7 +1274,7 @@ async def api_rebase_review(project_id: str, review_id: str):
 async def api_retry_review(project_id: str, review_id: str):
     """Move a bead back to 'open' so its agent retries (e.g. after CI failure).
 
-    Matches the PR/MR source branch to a bead identifier, moves it to open,
+    Matches the review source branch to a bead identifier, moves it to open,
     and adds a comment instructing the agent to fix CI failures.
     """
     try:
@@ -1307,27 +1307,27 @@ async def api_retry_review(project_id: str, review_id: str):
                 matched = issue
                 break
         if not matched:
-            # No existing bead — create one for this external PR/MR
+            # No existing bead — create one for this external review
             matched = tracker.create_issue(
                 title=f"Fix CI: {review.title or branch}",
                 issue_type="bug",
                 description=(
-                    f"Auto-created bead for external PR/MR #{review_id} "
+                    f"Auto-created bead for external review #{review_id} "
                     f"(branch: {branch}).\n\n"
                     f"URL: {review.url or 'N/A'}"
                 ),
                 priority=0,
                 initial_status="open",
             )
-            logger.info("Created bead %s for external PR/MR #%s (branch %s)",
+            logger.info("Created bead %s for external review #%s (branch %s)",
                          matched.identifier, review_id, branch)
         else:
             tracker.update_issue(matched.identifier, status="open", priority="0")
         tracker.add_label(matched.identifier, "ci-fix")
         tracker.add_comment(
             matched.identifier,
-            f"CI tests failed on PR/MR #{review_id}. "
-            "Your ONLY task is to fix the failing CI tests so this PR can merge. "
+            f"CI tests failed on review #{review_id}. "
+            "Your ONLY task is to fix the failing CI tests so this review can merge. "
             "Do NOT rewrite or rework the feature — the feature code is done. "
             "IMPORTANT: File paths in CI logs are not trustworthy — "
             "do NOT use them. Run tests locally to get accurate paths. "
@@ -1350,12 +1350,12 @@ async def api_retry_review(project_id: str, review_id: str):
 def _notify_conflict_on_bead(
     orch, project_id: str, provider, slug: str, review_id: str,
 ) -> str | None:
-    """Find the bead that owns a PR's source branch, comment, and reopen.
+    """Find the bead that owns a review's source branch, comment, and reopen.
 
     Returns the bead identifier if found and notified, else None.
     """
     try:
-        # Get the PR/MR details to find the source branch
+        # Get the review details to find the source branch
         review = provider.get_review(slug, review_id)
         if not review:
             logger.warning("Could not fetch review %s to find source branch", review_id)
@@ -1371,32 +1371,32 @@ def _notify_conflict_on_bead(
         tracker = orch._tracker_for_project(project_id)
         issue = tracker.fetch_issue_detail(source_branch)
         if not issue:
-            # No existing bead — create one for this external PR/MR
+            # No existing bead — create one for this external review
             review_title = review.title or source_branch
             issue = tracker.create_issue(
                 title=f"Resolve conflicts: {review_title}",
                 issue_type="bug",
                 description=(
-                    f"Auto-created bead for external PR/MR #{review_id} "
+                    f"Auto-created bead for external review #{review_id} "
                     f"(branch: {source_branch}) which has merge conflicts.\n\n"
                     f"URL: {review.url or 'N/A'}"
                 ),
                 priority=0,
                 initial_status="open",
             )
-            logger.info("Created bead %s for external PR/MR #%s conflict (branch %s)",
+            logger.info("Created bead %s for external review #%s conflict (branch %s)",
                          issue.identifier, review_id, source_branch)
 
         # Post a comment about the conflict
         comment_text = (
-            f"Merge conflict detected: PR/MR #{review_id} cannot be automatically rebased "
+            f"Merge conflict detected: review #{review_id} cannot be automatically rebased "
             f"onto {target_branch}.\n\n"
             f"Please resolve the conflicts on this branch ({source_branch}):\n"
             f"1. Run: git fetch origin && git rebase origin/{target_branch}\n"
             f"2. Resolve all conflicts, keeping the intent of both sides\n"
             f"3. Run tests to verify nothing is broken\n"
             f"4. Force-push: git push --force-with-lease\n"
-            f"5. Verify the PR/MR is clean and CI passes"
+            f"5. Verify the review is clean and CI passes"
         )
         tracker.add_comment(issue.identifier, comment_text, author="oompah")
 
@@ -1413,19 +1413,19 @@ def _notify_conflict_on_bead(
             tracker.reopen_issue(issue.identifier)
             tracker.update_issue(issue.identifier, priority="0")
             logger.info(
-                "Reopened bead %s as P0 for merge conflict resolution (PR #%s)",
+                "Reopened bead %s as P0 for merge conflict resolution (review #%s)",
                 issue.identifier, review_id,
             )
         else:
             logger.info(
-                "Commented on bead %s about merge conflict (PR #%s), already in state '%s'",
+                "Commented on bead %s about merge conflict (review #%s), already in state '%s'",
                 issue.identifier, review_id, issue.state,
             )
 
         return issue.identifier
 
     except Exception as exc:
-        logger.warning("Failed to notify bead about conflict for PR #%s: %s", review_id, exc)
+        logger.warning("Failed to notify bead about conflict for review #%s: %s", review_id, exc)
         return None
 
 
@@ -1649,7 +1649,7 @@ async def foci_page():
 
 @app.get("/reviews", response_class=HTMLResponse)
 async def reviews_page():
-    """Serve the reviews (PR/MR) listing page."""
+    """Serve the reviews (review) listing page."""
     return _load_template("reviews.html")
 
 

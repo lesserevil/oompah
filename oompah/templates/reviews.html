@@ -159,7 +159,7 @@ function renderReviews(data) {
   const summaryBar = document.getElementById('summary-bar');
 
   if (data.length === 0) {
-    container.innerHTML = '<div class="empty-state">No open pull requests or merge requests.</div>';
+    container.innerHTML = '<div class="empty-state">No open reviews.</div>';
     summaryBar.innerHTML = '';
     return;
   }

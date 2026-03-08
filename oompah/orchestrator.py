@@ -415,9 +415,9 @@ class Orchestrator:
             self._notify_observers()
             return
 
-        # Part 2.5 + 3: Fetch reviews, PR branches, merged branches, and candidates in parallel
+        # Part 2.5 + 3: Fetch reviews, review branches, merged branches, and candidates in parallel
         self._blocker_state_cache = {}  # reset per tick
-        self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
+        self._reviews_cache = {}  # reset per tick — shared by review branches + YOLO
         loop = asyncio.get_event_loop()
         reviews_task = loop.run_in_executor(self._tick_pool, self._fetch_all_reviews)
         candidates_task = loop.run_in_executor(self._tick_pool, self._fetch_all_candidates)
@@ -427,8 +427,8 @@ class Orchestrator:
         )
         self._reviews_cache = reviews_by_project
         self._merged_branches = merged_branches
-        # Derive unmerged PR branches from cached reviews
-        self._unmerged_pr_branches = {
+        # Derive unmerged review branches from cached reviews
+        self._unmerged_review_branches = {
             r.source_branch
             for reviews in reviews_by_project.values()
             for r in reviews
@@ -588,11 +588,11 @@ class Orchestrator:
         return count < limit
 
     def _project_has_open_review(self, project_id: str | None) -> bool:
-        """Return True if the project has at least one open MR/PR.
+        """Return True if the project has at least one open review.
 
         Used to serialize dispatch: don't start a new agent for a project
         that already has an open review waiting to merge, which would create
-        a second in-flight MR that could conflict with the first.
+        a second in-flight review that could conflict with the first.
 
         Only applies to projects (issues with a project_id). For legacy
         issues without a project, this check is skipped.
@@ -714,11 +714,11 @@ class Orchestrator:
                 if blocker_state not in terminal_norms:
                     # Blocker not yet closed — still blocked
                     return False
-                if self._blocker_has_unmerged_pr(blocker):
-                    # Blocker is closed but PR hasn't merged — still blocked
+                if self._blocker_has_unmerged_review(blocker):
+                    # Blocker is closed but review hasn't merged — still blocked
                     return False
-        # Serialize MR/PR fixes by project: if a project already has an open
-        # review (PR/MR), don't dispatch another agent to that project until the
+        # Serialize review fixes by project: if a project already has an open
+        # review (review), don't dispatch another agent to that project until the
         # existing review is merged. This prevents multiple simultaneous merges
         # from conflicting with each other (each merge changes the target branch).
         # P0 issues bypass this check to ensure critical fixes are never blocked.
@@ -804,7 +804,7 @@ class Orchestrator:
         return result
 
     def _fetch_all_merged_branches(self) -> set[str]:
-        """Fetch merged PR/MR branch names across all projects."""
+        """Fetch merged review branch names across all projects."""
         projects = self.project_store.list_all()
         if not projects:
             return set()
@@ -886,14 +886,14 @@ class Orchestrator:
         Uses the per-tick _reviews_cache populated by _fetch_all_reviews
         to avoid redundant API calls.
 
-        For each open PR/MR on a YOLO project:
+        For each open review on a YOLO project:
         - CI passed + mergeable → merge it
         - Has merge conflicts → trigger conflict resolution
         - CI failed → re-file ticket to fix tests
 
         **Serialization**: only one action is taken per project per tick.
         This prevents multiple simultaneous merges from conflicting with each
-        other — each merge changes the target branch, so subsequent PRs must
+        other — each merge changes the target branch, so subsequent reviews must
         be rebased before they can merge cleanly.
         """
         reviews_cache = getattr(self, "_reviews_cache", {})
@@ -913,7 +913,7 @@ class Orchestrator:
 
                 if review.has_conflicts:
                     # Auto-resolve conflicts — act on this one and stop for this project.
-                    logger.info("YOLO: auto-resolving conflicts on %s MR #%s",
+                    logger.info("YOLO: auto-resolving conflicts on %s review #%s",
                                 project.name, review_id)
                     success, msg = provider.rebase_review(slug, review_id)
                     if not success and "conflict" in msg.lower():
@@ -924,7 +924,7 @@ class Orchestrator:
                 if review.ci_status == "failed":
                     # Auto-retry: re-file the ticket to fix tests.
                     # Act on this one and stop for this project.
-                    logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
+                    logger.info("YOLO: auto-retrying failed CI on %s review #%s",
                                 project.name, review_id)
                     self._yolo_retry_ci(project, review)
                     # Serialization: only one action per project per tick.
@@ -932,18 +932,60 @@ class Orchestrator:
 
                 if review.ci_status == "passed" and not review.needs_rebase:
                     # Auto-merge — act on this one and stop for this project.
-                    # Merging one PR changes the target branch; subsequent PRs
+                    # Merging one review changes the target branch; subsequent reviews
                     # must rebase before they can be merged cleanly.
-                    logger.info("YOLO: auto-merging %s MR #%s",
+                    logger.info("YOLO: auto-merging %s review #%s",
                                 project.name, review_id)
                     success, msg = provider.merge_review(slug, review_id)
                     if success:
-                        logger.info("YOLO: merged %s MR #%s", project.name, review_id)
+                        logger.info("YOLO: merged %s review #%s", project.name, review_id)
                     else:
-                        logger.warning("YOLO: merge failed for %s MR #%s: %s",
+                        logger.warning("YOLO: merge failed for %s review #%s: %s",
                                        project.name, review_id, msg)
                     # Serialization: only one action per project per tick.
                     break
+
+    def _ensure_review_exists(self, entry, project_id: str | None) -> None:
+        """Auto-create a review if the agent pushed a branch but no review exists."""
+        if not project_id:
+            return
+        project = self.project_store.get(project_id)
+        if not project:
+            return
+        provider = detect_provider(project.repo_url)
+        if not provider:
+            return
+        slug = extract_repo_slug(project.repo_url)
+        branch = entry.identifier  # branch is named after the issue
+        try:
+            # Check if a review already exists for this branch
+            open_reviews = provider.list_open_reviews(slug)
+            for r in open_reviews:
+                if r.source_branch == branch:
+                    return  # already has a review
+            # Check if the branch actually exists on the remote
+            repo_path = project.repo_path
+            result = subprocess.run(
+                ["git", "ls-remote", "--heads", "origin", branch],
+                cwd=repo_path, capture_output=True, text=True, timeout=15,
+            )
+            if not result.stdout.strip():
+                return  # branch not pushed
+            # Create the review
+            title = f"{entry.identifier}: {entry.issue.title}" if entry.issue else entry.identifier
+            description = f"Automated review for {entry.identifier}"
+            review = provider.create_review(slug, title, branch, description=description)
+            if review:
+                logger.info("Auto-created review for %s: %s #%s", entry.identifier, project.name, review.id)
+                self._post_comment(
+                    entry.identifier,
+                    f"Review created: {review.url}",
+                    project_id=project_id,
+                )
+            else:
+                logger.warning("Failed to auto-create review for %s on %s", entry.identifier, project.name)
+        except Exception as exc:
+            logger.warning("_ensure_review_exists failed for %s: %s", entry.identifier, exc)
 
     def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
         """Notify the bead about a merge conflict (YOLO mode)."""
@@ -964,7 +1006,7 @@ class Orchestrator:
             if state_lower in ("open", "in_progress") and "merge-conflict" in issue.labels:
                 return
             comment_text = (
-                f"YOLO: Merge conflict detected on MR #{review_id}. "
+                f"YOLO: Merge conflict detected on review #{review_id}. "
                 f"Rebase onto {target_branch} and resolve conflicts."
             )
             tracker.add_comment(issue.identifier, comment_text, author="oompah")
@@ -979,7 +1021,7 @@ class Orchestrator:
                 self.state.completed.discard(issue.id)
                 logger.info("YOLO: reopened %s as P0 for conflict resolution", issue.identifier)
         except Exception as exc:
-            logger.warning("YOLO: conflict notification failed for MR #%s: %s", review_id, exc)
+            logger.warning("YOLO: conflict notification failed for review #%s: %s", review_id, exc)
 
     def _yolo_retry_ci(self, project, review) -> None:
         """Re-file a ticket to fix failed CI tests (YOLO mode)."""
@@ -999,8 +1041,8 @@ class Orchestrator:
             tracker.add_label(issue.identifier, "ci-fix")
             tracker.add_comment(
                 issue.identifier,
-                f"YOLO: CI tests failed on MR #{review.id}. "
-                "Fix the failing tests so this MR can merge. "
+                f"YOLO: CI tests failed on review #{review.id}. "
+                "Fix the failing tests so this review can merge. "
                 "Do NOT rewrite the feature — only fix test failures. "
                 "IMPORTANT: Paths in CI logs are not trustworthy. "
                 "Run tests locally to get accurate paths and errors.",
@@ -1033,22 +1075,22 @@ class Orchestrator:
         self._blocker_state_cache = cache
         return ""
 
-    def _blocker_has_unmerged_pr(self, blocker: BlockerRef) -> bool:
-        """Check if a closed blocker still has an unmerged PR/MR.
+    def _blocker_has_unmerged_review(self, blocker: BlockerRef) -> bool:
+        """Check if a closed blocker still has an unmerged review.
 
-        A blocker is considered unmerged ONLY if it has an open PR/MR.
-        If the branch has been merged OR has no open PR, it's not blocking.
+        A blocker is considered unmerged ONLY if it has an open review.
+        If the branch has been merged OR has no open review, it's not blocking.
         """
         blocker_id = blocker.identifier or blocker.id or ""
         if not blocker_id:
             return False
 
-        # If the branch still has an open PR, it's definitely unmerged
-        open_branches = getattr(self, "_unmerged_pr_branches", set())
+        # If the branch still has an open review, it's definitely unmerged
+        open_branches = getattr(self, "_unmerged_review_branches", set())
         if blocker_id in open_branches:
             return True
 
-        # No open PR — either merged or never had one. Don't block.
+        # No open review — either merged or never had one. Don't block.
         return False
 
         # No merged data available — fall back to permissive (allow dispatch)
@@ -1736,6 +1778,8 @@ class Orchestrator:
                 issue_id,
                 entry.identifier,
             )
+            # Auto-create review if agent pushed a branch but didn't create one
+            self._ensure_review_exists(entry, project_id)
             # Check if the agent actually closed the issue
             try:
                 tracker = self._tracker_for_project(project_id) if project_id else self.tracker
