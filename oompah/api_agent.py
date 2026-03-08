@@ -543,12 +543,21 @@ class ApiAgentSession:
                     valid_tcs = []
                     for tc in tool_calls_raw:
                         fn = tc.get("function", {})
+                        tc_name = fn.get("name", "?")
                         try:
-                            json.loads(fn.get("arguments", "{}"))
-                            valid_tcs.append(tc)
+                            parsed = json.loads(fn.get("arguments", "{}"))
                         except json.JSONDecodeError:
                             _emit(turn, "warning",
-                                  f"Dropping truncated tool call: {fn.get('name', '?')}")
+                                  f"Dropping truncated tool call: {tc_name}")
+                            continue
+                        # Also drop if required args are missing (truncation mid-JSON)
+                        required = _TOOL_REQUIRED_ARGS.get(tc_name, [])
+                        missing = [a for a in required if a not in parsed]
+                        if missing:
+                            _emit(turn, "warning",
+                                  f"Dropping truncated tool call: {tc_name} (missing {', '.join(missing)})")
+                            continue
+                        valid_tcs.append(tc)
                     assistant_msg["tool_calls"] = valid_tcs or None
 
                 messages.append(assistant_msg)
@@ -707,7 +716,7 @@ class ApiAgentSession:
             "messages": messages,
             "tools": TOOL_DEFINITIONS,
             "tool_choice": "auto",
-            "max_tokens": 16384,
+            "max_tokens": 32768,
         }
         body = json.dumps(payload).encode("utf-8")
         headers = {
