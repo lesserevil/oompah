@@ -531,6 +531,53 @@ async def api_update_issue(identifier: str, request: Request):
         )
 
 
+@app.post("/api/v1/issues/{identifier}/labels")
+async def api_add_label(identifier: str, request: Request):
+    """Add a label to an issue."""
+    try:
+        orch = _get_orchestrator()
+        body = await request.json()
+        label = body.get("label", "").strip()
+        if not label:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "label is required"}},
+                status_code=400,
+            )
+        project_id = body.get("project_id")
+        tracker = _get_tracker(orch, project_id)
+        tracker.add_label(identifier, label)
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        await broadcast_issues()
+        return JSONResponse({"ok": True}, status_code=201)
+    except Exception as exc:
+        logger.error("Add label API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "label_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.delete("/api/v1/issues/{identifier}/labels/{label}")
+async def api_remove_label(identifier: str, label: str, request: Request):
+    """Remove a label from an issue."""
+    try:
+        orch = _get_orchestrator()
+        project_id = request.query_params.get("project_id")
+        tracker = _get_tracker(orch, project_id)
+        tracker.remove_label(identifier, label)
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        await broadcast_issues()
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        logger.error("Remove label API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "label_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
 @app.get("/api/v1/issues/{identifier}/comments")
 async def api_get_comments(identifier: str, request: Request):
     """Return comments for an issue."""
