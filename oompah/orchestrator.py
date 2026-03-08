@@ -471,6 +471,23 @@ class Orchestrator:
         )
         return count < limit
 
+    def _project_has_open_review(self, project_id: str | None) -> bool:
+        """Return True if the project has at least one open MR/PR.
+
+        Used to serialize dispatch: don't start a new agent for a project
+        that already has an open review waiting to merge, which would create
+        a second in-flight MR that could conflict with the first.
+
+        Only applies to projects (issues with a project_id). For legacy
+        issues without a project, this check is skipped.
+        """
+        if not project_id:
+            return False
+        reviews_cache = getattr(self, "_reviews_cache", {})
+        project_reviews = reviews_cache.get(project_id, [])
+        # Any non-draft open review counts as "in flight"
+        return any(not r.draft for r in project_reviews)
+
     def _should_dispatch(self, issue: Issue) -> bool:
         if self._paused:
             return False
@@ -511,6 +528,17 @@ class Orchestrator:
                 if self._blocker_has_unmerged_pr(blocker):
                     # Blocker is closed but PR hasn't merged — still blocked
                     return False
+        # Serialize MR/PR fixes by project: if a project already has an open
+        # review (PR/MR), don't dispatch another agent to that project until the
+        # existing review is merged. This prevents multiple simultaneous merges
+        # from conflicting with each other (each merge changes the target branch).
+        # P0 issues bypass this check to ensure critical fixes are never blocked.
+        if not is_p0 and self._project_has_open_review(issue.project_id):
+            logger.debug(
+                "Skipping dispatch for %s: project %s already has an open review",
+                issue.identifier, issue.project_id,
+            )
+            return False
         # Budget circuit breaker
         if not self._check_budget():
             if not self.state.budget_exceeded:
