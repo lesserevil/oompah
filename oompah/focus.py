@@ -400,10 +400,12 @@ def score_focus(focus: Focus, issue: Issue) -> int:
     keyword_hits = _text_matches(search_text, focus.keywords)
     score += keyword_hits * 10
 
-    # Issue type match
-    if focus.issue_types and issue.issue_type:
-        if issue.issue_type.lower() in [t.lower() for t in focus.issue_types]:
+    # Issue type match — if a focus specifies issue_types, it ONLY applies to those types
+    if focus.issue_types:
+        if issue.issue_type and issue.issue_type.lower() in [t.lower() for t in focus.issue_types]:
             score += 50
+        else:
+            return 0  # hard mismatch — this focus cannot apply to this issue type
 
     # Label match
     if focus.labels and issue.labels:

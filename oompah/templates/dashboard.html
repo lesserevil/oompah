@@ -1291,8 +1291,8 @@ function renderBoard(data) {
 function renderFlatView(board, data) {
   for (const col of COLUMNS) {
     const allInCol = data[col] || [];
-    // Filter out epics in flat view, but keep draft epics (epics with 'draft' label)
-    const issues = allInCol.filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'));
+    // Filter out epics in flat view — they appear as swimlane headers
+    const issues = allInCol.filter(i => i.issue_type !== 'epic');
     const column = document.createElement('div');
     column.className = 'column';
     column.dataset.state = col;
@@ -1336,11 +1336,11 @@ function isEpicInactive(epic) {
 }
 
 function renderSwimlaneView(board, data) {
-  // Collect epics and group children — exclude draft epics from swimlane headers
-  const epics = allIssuesFlat.filter(i => i.issue_type === 'epic' && !(i.labels || []).includes('draft'));
+  // Collect all epics (including drafts) as swimlane headers
+  const epics = allIssuesFlat.filter(i => i.issue_type === 'epic');
   const epicIds = new Set(epics.map(e => e.id));
-  // Orphans: non-epic issues with no epic parent, PLUS draft epics (rendered as cards not headers)
-  const orphans = allIssuesFlat.filter(i => (i.issue_type !== 'epic' || (i.labels || []).includes('draft')) && (!i.parent_id || !epicIds.has(i.parent_id)));
+  // Orphans: non-epic issues with no epic parent
+  const orphans = allIssuesFlat.filter(i => i.issue_type !== 'epic' && (!i.parent_id || !epicIds.has(i.parent_id)));
 
   // Render each epic as a swimlane
   for (const epic of epics) {
@@ -1662,14 +1662,14 @@ function setupColumnDrag(header, sourceState, epicId) {
 
 function getCardsInColumn(state, epicId) {
   // Get visible cards in a column, scoped by epicId (swimlane) or project filter (flat)
-  // Allow draft epics (epic with 'draft' label) to appear as cards; filter out non-draft epics
-  const issues = (boardData[state] || []).filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'));
+  // Epics are shown as swimlane headers, never as cards
+  const issues = (boardData[state] || []).filter(i => i.issue_type !== 'epic');
   if (epicId === null) {
     // Flat view — all visible (already filtered by project)
     return issues;
   } else if (epicId === '_orphans') {
-    // Orphan swimlane — items with no parent or parent not a non-draft epic
-    const epicIds = new Set(allIssuesFlat.filter(i => i.issue_type === 'epic' && !(i.labels || []).includes('draft')).map(e => e.id));
+    // Orphan swimlane — items with no parent or parent not an epic
+    const epicIds = new Set(allIssuesFlat.filter(i => i.issue_type === 'epic').map(e => e.id));
     return issues.filter(i => !i.parent_id || !epicIds.has(i.parent_id));
   } else {
     // Specific epic swimlane
