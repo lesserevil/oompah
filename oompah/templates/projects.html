@@ -40,6 +40,10 @@
     .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; }
     .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
     .worktree-list { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; margin-top: 0.5rem; }
+    .edit-form { margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; display: none; }
+    .edit-form .form-group { margin-bottom: 0.5rem; }
+    .btn-edit { color: var(--accent); border-color: rgba(88, 166, 255, 0.3); }
+    .btn-edit:hover { background: rgba(88, 166, 255, 0.1); }
   </style>
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -146,6 +150,10 @@ async function loadProjects() {
         <span class="field-label">Git User:</span>
         <span class="field-value">${esc(p.git_user_name)} &lt;${esc(p.git_user_email || '')}&gt;</span>
       </div>` : ''}
+      ${p.log_path ? `<div class="field-row">
+        <span class="field-label">Log Path:</span>
+        <span class="field-value">${esc(p.log_path)}</span>
+      </div>` : ''}
       <div class="field-row">
         <span class="field-label">YOLO:</span>
         <label style="cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
@@ -154,8 +162,40 @@ async function loadProjects() {
         </label>
       </div>
       <div class="field-row" style="margin-top:0.75rem;">
+        <button class="btn-edit" onclick="toggleEditForm('${esc(p.id)}')">Edit</button>
         <button onclick="showWorktrees('${esc(p.id)}')">Worktrees</button>
         <button class="btn-danger" onclick="deleteProject('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
+      </div>
+      <div class="edit-form" id="edit-${esc(p.id)}">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="edit-name-${esc(p.id)}" value="${esc(p.name)}">
+        </div>
+        <div class="form-group">
+          <label>Repo URL</label>
+          <input type="text" id="edit-repo-url-${esc(p.id)}" value="${esc(p.repo_url)}">
+        </div>
+        <div class="form-group">
+          <label>Branch</label>
+          <input type="text" id="edit-branch-${esc(p.id)}" value="${esc(p.branch)}">
+        </div>
+        <div class="form-group">
+          <label>Git User Name</label>
+          <input type="text" id="edit-git-user-name-${esc(p.id)}" value="${esc(p.git_user_name || '')}">
+        </div>
+        <div class="form-group">
+          <label>Git User Email</label>
+          <input type="text" id="edit-git-user-email-${esc(p.id)}" value="${esc(p.git_user_email || '')}">
+        </div>
+        <div class="form-group">
+          <label>Log Path (optional)</label>
+          <input type="text" id="edit-log-path-${esc(p.id)}" value="${esc(p.log_path || '')}">
+        </div>
+        <div id="edit-error-${esc(p.id)}" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
+        <div class="form-actions">
+          <button onclick="toggleEditForm('${esc(p.id)}')">Cancel</button>
+          <button class="btn-primary" onclick="saveProject('${esc(p.id)}')">Save</button>
+        </div>
       </div>
       <div class="worktree-list" id="wt-${esc(p.id)}" style="display:none;"></div>
     </div>
@@ -219,6 +259,45 @@ async function deleteProject(id, name) {
   if (!confirm('Delete project "' + name + '"? This does not delete the repo.')) return;
   await fetch('/api/v1/projects/' + id, {method: 'DELETE'});
   loadProjects();
+}
+
+function toggleEditForm(id) {
+  const f = document.getElementById('edit-' + id);
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  const errEl = document.getElementById('edit-error-' + id);
+  if (errEl) errEl.style.display = 'none';
+}
+
+async function saveProject(id) {
+  const errEl = document.getElementById('edit-error-' + id);
+  const name = document.getElementById('edit-name-' + id).value.trim();
+  const repoUrl = document.getElementById('edit-repo-url-' + id).value.trim();
+  const branch = document.getElementById('edit-branch-' + id).value.trim();
+  const gitUserName = document.getElementById('edit-git-user-name-' + id).value.trim();
+  const gitUserEmail = document.getElementById('edit-git-user-email-' + id).value.trim();
+  const logPath = document.getElementById('edit-log-path-' + id).value.trim();
+  if (!name) {
+    errEl.textContent = 'Name is required';
+    errEl.style.display = 'block';
+    return;
+  }
+  const body = {name, branch};
+  if (repoUrl) body.repo_url = repoUrl;
+  if (gitUserName) body.git_user_name = gitUserName;
+  if (gitUserEmail) body.git_user_email = gitUserEmail;
+  body.log_path = logPath || null;
+  const res = await fetch('/api/v1/projects/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    loadProjects();
+  } else {
+    const data = await res.json();
+    errEl.textContent = (data.error && data.error.message) || 'Failed to save project';
+    errEl.style.display = 'block';
+  }
 }
 
 async function showWorktrees(id) {
