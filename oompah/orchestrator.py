@@ -82,6 +82,7 @@ class Orchestrator:
         self._paused = self._load_paused_state()
         self._restart_requested = False
         self._alerts: list[dict[str, str]] = []  # {"level": "warning", "message": "..."}
+        self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
         self._observers: list[Any] = []
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
@@ -558,6 +559,8 @@ class Orchestrator:
         """
         if self._paused:
             return False
+        if self._is_rate_limited():
+            return False
         if issue.issue_type != "epic":
             return False
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
@@ -612,6 +615,8 @@ class Orchestrator:
 
     def _should_dispatch(self, issue: Issue) -> bool:
         if self._paused:
+            return False
+        if self._is_rate_limited():
             return False
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
@@ -1356,7 +1361,11 @@ class Orchestrator:
                 s.last_message = result.last_message[:200]
                 s.last_event = f"api_{result.status}"
 
-            if result.status == "failed":
+            if result.status == "rate_limited":
+                exit_reason = "rate_limited"
+                error_msg = result.error or "Rate limited by API"
+                logger.warning("API agent rate limited on %s: %s", issue.identifier, error_msg)
+            elif result.status == "failed":
                 exit_reason = "abnormal"
                 error_msg = result.error or "API agent failed"
             elif result.status == "max_turns":
@@ -1659,6 +1668,35 @@ class Orchestrator:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library
             self._analyze_focus_fit(entry.issue, project_id)
+        elif reason == "rate_limited":
+            # Global cooldown — stop dispatching new agents for a while
+            cooldown_s = 120  # 2 minutes
+            self._rate_limit_until = time.time() + cooldown_s
+            self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
+            self._alerts.append({
+                "level": "warning",
+                "source": "rate_limit",
+                "message": f"Rate limited by API — pausing dispatch for {cooldown_s}s",
+            })
+            next_attempt = (entry.retry_attempt or 0) + 1
+            delay = max(cooldown_s * 1000, self._backoff_delay(next_attempt))
+            self._post_comment(
+                entry.identifier,
+                f"Rate limited by API. Pausing all dispatch for {cooldown_s}s. "
+                f"Retrying in {delay // 1000}s (attempt #{next_attempt})",
+                project_id=project_id,
+            )
+            self._schedule_retry(
+                issue_id,
+                attempt=next_attempt,
+                identifier=entry.identifier,
+                delay_ms=delay,
+                error=error,
+            )
+            logger.warning(
+                "Rate limited — pausing dispatch for %ds. issue_id=%s retrying_in_ms=%d",
+                cooldown_s, issue_id, delay,
+            )
         elif reason in ("max_turns", "stalled"):
             next_attempt = (entry.retry_attempt or 0) + 1
             delay = self._backoff_delay(next_attempt)
@@ -1702,8 +1740,22 @@ class Orchestrator:
                 delay,
             )
         else:
+            # Check if the failure is actually a rate limit (e.g. from CLI agent)
+            error_lower = (error or "").lower()
+            is_rate_limit = any(s in error_lower for s in ("429", "rate limit", "too many requests", "overloaded"))
+            if is_rate_limit:
+                cooldown_s = 120
+                self._rate_limit_until = time.time() + cooldown_s
+                self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
+                self._alerts.append({
+                    "level": "warning",
+                    "source": "rate_limit",
+                    "message": f"Rate limited by API — pausing dispatch for {cooldown_s}s",
+                })
+
             next_attempt = (entry.retry_attempt or 0) + 1
-            delay = self._backoff_delay(next_attempt)
+            base_delay = self._backoff_delay(next_attempt)
+            delay = max(120_000, base_delay) if is_rate_limit else base_delay
             self._post_comment(
                 entry.identifier,
                 f"Agent failed: {error or 'unknown error'}. Retrying in {delay // 1000}s (attempt #{next_attempt})",
@@ -1725,6 +1777,17 @@ class Orchestrator:
             )
 
         self._notify_observers()
+
+    def _is_rate_limited(self) -> bool:
+        """Check if we're in a rate-limit cooldown period."""
+        if self._rate_limit_until <= 0:
+            return False
+        if time.time() >= self._rate_limit_until:
+            # Cooldown expired — clear alert
+            self._rate_limit_until = 0.0
+            self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
+            return False
+        return True
 
     def _backoff_delay(self, attempt: int) -> int:
         """Compute exponential backoff delay."""
