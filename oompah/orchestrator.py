@@ -471,6 +471,23 @@ class Orchestrator:
         )
         return count < limit
 
+    def _project_has_open_review(self, project_id: str | None) -> bool:
+        """Return True if the project has at least one open MR/PR.
+
+        Used to serialize dispatch: don't start a new agent for a project
+        that already has an open review waiting to merge, which would create
+        a second in-flight MR that could conflict with the first.
+
+        Only applies to projects (issues with a project_id). For legacy
+        issues without a project, this check is skipped.
+        """
+        if not project_id:
+            return False
+        reviews_cache = getattr(self, "_reviews_cache", {})
+        project_reviews = reviews_cache.get(project_id, [])
+        # Any non-draft open review counts as "in flight"
+        return any(not r.draft for r in project_reviews)
+
     def _should_dispatch(self, issue: Issue) -> bool:
         if self._paused:
             return False
@@ -511,6 +528,17 @@ class Orchestrator:
                 if self._blocker_has_unmerged_pr(blocker):
                     # Blocker is closed but PR hasn't merged — still blocked
                     return False
+        # Serialize MR/PR fixes by project: if a project already has an open
+        # review (PR/MR), don't dispatch another agent to that project until the
+        # existing review is merged. This prevents multiple simultaneous merges
+        # from conflicting with each other (each merge changes the target branch).
+        # P0 issues bypass this check to ensure critical fixes are never blocked.
+        if not is_p0 and self._project_has_open_review(issue.project_id):
+            logger.debug(
+                "Skipping dispatch for %s: project %s already has an open review",
+                issue.identifier, issue.project_id,
+            )
+            return False
         # Budget circuit breaker
         if not self._check_budget():
             if not self.state.budget_exceeded:
@@ -669,6 +697,11 @@ class Orchestrator:
         - CI passed + mergeable → merge it
         - Has merge conflicts → trigger conflict resolution
         - CI failed → re-file ticket to fix tests
+
+        **Serialization**: only one action is taken per project per tick.
+        This prevents multiple simultaneous merges from conflicting with each
+        other — each merge changes the target branch, so subsequent PRs must
+        be rebased before they can merge cleanly.
         """
         reviews_cache = getattr(self, "_reviews_cache", {})
         for project in self.project_store.list_all():
@@ -686,23 +719,28 @@ class Orchestrator:
                 review_id = review.id
 
                 if review.has_conflicts:
-                    # Auto-resolve conflicts
+                    # Auto-resolve conflicts — act on this one and stop for this project.
                     logger.info("YOLO: auto-resolving conflicts on %s MR #%s",
                                 project.name, review_id)
                     success, msg = provider.rebase_review(slug, review_id)
                     if not success and "conflict" in msg.lower():
                         self._yolo_notify_conflict(project, provider, slug, review_id)
-                    continue
+                    # Serialization: only one action per project per tick.
+                    break
 
                 if review.ci_status == "failed":
-                    # Auto-retry: re-file the ticket to fix tests
+                    # Auto-retry: re-file the ticket to fix tests.
+                    # Act on this one and stop for this project.
                     logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
                                 project.name, review_id)
                     self._yolo_retry_ci(project, review)
-                    continue
+                    # Serialization: only one action per project per tick.
+                    break
 
                 if review.ci_status == "passed" and not review.needs_rebase:
-                    # Auto-merge
+                    # Auto-merge — act on this one and stop for this project.
+                    # Merging one PR changes the target branch; subsequent PRs
+                    # must rebase before they can be merged cleanly.
                     logger.info("YOLO: auto-merging %s MR #%s",
                                 project.name, review_id)
                     success, msg = provider.merge_review(slug, review_id)
@@ -711,6 +749,8 @@ class Orchestrator:
                     else:
                         logger.warning("YOLO: merge failed for %s MR #%s: %s",
                                        project.name, review_id, msg)
+                    # Serialization: only one action per project per tick.
+                    break
 
     def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
         """Notify the bead about a merge conflict (YOLO mode)."""
