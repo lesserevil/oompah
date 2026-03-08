@@ -66,6 +66,9 @@ class EventType(str, Enum):
     # State-only (lightweight broadcast without issue refresh)
     STATE_UPDATED = "state_updated"
 
+    # Forge webhook
+    FORGE_WEBHOOK_RECEIVED = "forge_webhook_received"
+
 
 # Type alias for event handler callables.
 # A handler receives the event type and a payload dict.

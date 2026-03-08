@@ -13,7 +13,16 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oompah.events import EventType
 from oompah.scm import detect_provider, extract_repo_slug, get_all_open_reviews
+from oompah.webhooks import (
+    WebhookEvent,
+    match_project_by_repo,
+    parse_github_webhook,
+    parse_gitlab_webhook,
+    validate_github_signature,
+    validate_gitlab_token,
+)
 from oompah.focus import (
     BUILTIN_FOCI, DEFAULT_FOCUS, Focus, FocusSuggestion,
     load_foci, load_suggestions, save_foci, score_focus,
@@ -965,7 +974,7 @@ async def api_update_project(project_id: str, request: Request):
         orch = _get_orchestrator()
         body = await request.json()
         fields = {}
-        for key in ("name", "repo_url", "branch", "git_user_name", "git_user_email", "log_path"):
+        for key in ("name", "repo_url", "branch", "git_user_name", "git_user_email", "log_path", "webhook_secret"):
             if key in body:
                 fields[key] = body[key]
         if "yolo" in body:
@@ -1506,6 +1515,190 @@ async def api_report_error(request: Request):
         "identifier": identifier,
         "deduplicated": identifier is None,
     })
+
+
+# --- Forge Webhook Receivers ---
+
+
+def _handle_webhook_event(event: WebhookEvent, project) -> None:
+    """Process a validated webhook event: emit on EventBus and trigger refresh.
+
+    Args:
+        event: The parsed webhook event.
+        project: The matched Project object (may be None for unmatched repos).
+    """
+    orch = _get_orchestrator()
+
+    payload = {
+        "provider": event.provider,
+        "event_type": event.event_type,
+        "action": event.action,
+        "repo_slug": event.repo_slug,
+        "review_id": event.review_id,
+        "source_branch": event.source_branch,
+        "target_branch": event.target_branch,
+        "author": event.author,
+        "title": event.title,
+        "merged": event.merged,
+    }
+    if project:
+        payload["project_id"] = project.id
+        payload["project_name"] = project.name
+
+    orch.event_bus.emit(EventType.FORGE_WEBHOOK_RECEIVED, payload)
+    logger.info(
+        "Forge webhook: %s %s/%s #%s (action=%s, merged=%s, project=%s)",
+        event.provider,
+        event.repo_slug,
+        event.event_type,
+        event.review_id,
+        event.action,
+        event.merged,
+        project.name if project else "unmatched",
+    )
+
+    # Invalidate caches and trigger a refresh cycle
+    _api_cache.invalidate("reviews:all")
+    _api_cache.invalidate("issues:all")
+    orch.request_refresh()
+
+
+@app.post("/api/v1/webhooks/github")
+async def api_webhook_github(request: Request):
+    """Receive GitHub webhook events (push, pull_request, etc.).
+
+    Validates the ``X-Hub-Signature-256`` HMAC signature against the
+    project's ``webhook_secret``. If no secret is configured on any
+    matching project, the webhook is accepted without validation (to
+    support initial setup).
+    """
+    try:
+        body_bytes = await request.body()
+
+        event_type = request.headers.get("X-GitHub-Event", "")
+        signature = request.headers.get("X-Hub-Signature-256", "")
+        delivery_id = request.headers.get("X-GitHub-Delivery", "")
+
+        if not event_type:
+            return JSONResponse(
+                {"error": "Missing X-GitHub-Event header"},
+                status_code=400,
+            )
+
+        try:
+            payload = json.loads(body_bytes)
+        except (json.JSONDecodeError, ValueError):
+            return JSONResponse(
+                {"error": "Invalid JSON payload"},
+                status_code=400,
+            )
+
+        # Parse the webhook
+        event = parse_github_webhook(event_type, payload)
+        if event is None:
+            # Non-PR event — acknowledge but don't process
+            return JSONResponse({"ok": True, "action": "ignored", "event_type": event_type})
+
+        # Find matching project
+        orch = _get_orchestrator()
+        projects = orch.project_store.list_all()
+        project = match_project_by_repo(projects, event.repo_slug, "github")
+
+        # Validate signature if project has a webhook_secret
+        if project and project.webhook_secret:
+            if not validate_github_signature(body_bytes, signature, project.webhook_secret):
+                logger.warning(
+                    "GitHub webhook signature validation failed for %s (delivery=%s)",
+                    event.repo_slug, delivery_id,
+                )
+                return JSONResponse(
+                    {"error": "Invalid signature"},
+                    status_code=401,
+                )
+
+        _handle_webhook_event(event, project)
+        return JSONResponse({
+            "ok": True,
+            "action": "processed",
+            "event_type": event_type,
+            "delivery_id": delivery_id,
+            "review_id": event.review_id,
+            "pr_action": event.action,
+        })
+
+    except Exception as exc:
+        logger.error("GitHub webhook error: %s", exc, exc_info=True)
+        return JSONResponse(
+            {"error": {"code": "webhook_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.post("/api/v1/webhooks/gitlab")
+async def api_webhook_gitlab(request: Request):
+    """Receive GitLab webhook events (Merge Request Hook, etc.).
+
+    Validates the ``X-Gitlab-Token`` header against the project's
+    ``webhook_secret``. If no secret is configured on any matching
+    project, the webhook is accepted without validation.
+    """
+    try:
+        body_bytes = await request.body()
+
+        event_type = request.headers.get("X-Gitlab-Event", "")
+        token = request.headers.get("X-Gitlab-Token", "")
+
+        if not event_type:
+            return JSONResponse(
+                {"error": "Missing X-Gitlab-Event header"},
+                status_code=400,
+            )
+
+        try:
+            payload = json.loads(body_bytes)
+        except (json.JSONDecodeError, ValueError):
+            return JSONResponse(
+                {"error": "Invalid JSON payload"},
+                status_code=400,
+            )
+
+        # Parse the webhook
+        event = parse_gitlab_webhook(event_type, payload)
+        if event is None:
+            return JSONResponse({"ok": True, "action": "ignored", "event_type": event_type})
+
+        # Find matching project
+        orch = _get_orchestrator()
+        projects = orch.project_store.list_all()
+        project = match_project_by_repo(projects, event.repo_slug, "gitlab")
+
+        # Validate token if project has a webhook_secret
+        if project and project.webhook_secret:
+            if not validate_gitlab_token(token, project.webhook_secret):
+                logger.warning(
+                    "GitLab webhook token validation failed for %s",
+                    event.repo_slug,
+                )
+                return JSONResponse(
+                    {"error": "Invalid token"},
+                    status_code=401,
+                )
+
+        _handle_webhook_event(event, project)
+        return JSONResponse({
+            "ok": True,
+            "action": "processed",
+            "event_type": event_type,
+            "review_id": event.review_id,
+            "mr_action": event.action,
+        })
+
+    except Exception as exc:
+        logger.error("GitLab webhook error: %s", exc, exc_info=True)
+        return JSONResponse(
+            {"error": {"code": "webhook_error", "message": str(exc)}},
+            status_code=500,
+        )
 
 
 # --- Kanban Dashboard ---
