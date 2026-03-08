@@ -145,14 +145,14 @@ async def _run(workflow_path: str, cli_port: int | None) -> bool:
 
         uvi_config = uvicorn.Config(
             app,
-            host="127.0.0.1",
+            host="0.0.0.0",
             port=port,
             log_level="info",
             access_log=False,
         )
         server = uvicorn.Server(uvi_config)
         server_task = asyncio.create_task(server.serve())
-        logger.info("HTTP server starting on http://127.0.0.1:%d", port)
+        logger.info("HTTP server starting on http://0.0.0.0:%d", port)
 
     try:
         # Wait for orchestrator to finish (normal stop or restart)
