@@ -1291,8 +1291,9 @@ function renderBoard(data) {
 function renderFlatView(board, data) {
   for (const col of COLUMNS) {
     const allInCol = data[col] || [];
-    // Filter out epics in flat view — they appear as swimlane headers
-    const issues = allInCol.filter(i => i.issue_type !== 'epic');
+    // Filter out non-draft epics in flat view — they appear as swimlane headers
+    // Draft epics are shown as cards so they're visible before they have children
+    const issues = allInCol.filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'));
     const column = document.createElement('div');
     column.className = 'column';
     column.dataset.state = col;
@@ -1347,7 +1348,9 @@ function renderSwimlaneView(board, data) {
     const children = allIssuesFlat.filter(i => i.parent_id === epic.id && i.issue_type !== 'epic');
     const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
     // Auto-collapse inactive epics unless the user has explicitly toggled this swimlane
-    const autoCollapse = isEpicInactive(epic);
+    // Draft epics are never auto-collapsed — they need to be visible for interaction
+    const isDraft = (epic.labels || []).includes('draft');
+    const autoCollapse = isDraft ? false : isEpicInactive(epic);
     const isCollapsed = userToggledSwimlanes[epic.id] ? collapsedSwimlanes[epic.id] : autoCollapse;
     collapsedSwimlanes[epic.id] = isCollapsed;
 
@@ -1662,8 +1665,8 @@ function setupColumnDrag(header, sourceState, epicId) {
 
 function getCardsInColumn(state, epicId) {
   // Get visible cards in a column, scoped by epicId (swimlane) or project filter (flat)
-  // Epics are shown as swimlane headers, never as cards
-  const issues = (boardData[state] || []).filter(i => i.issue_type !== 'epic');
+  // Non-draft epics are swimlane headers; draft epics appear as cards in flat view
+  const issues = (boardData[state] || []).filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'));
   if (epicId === null) {
     // Flat view — all visible (already filtered by project)
     return issues;
