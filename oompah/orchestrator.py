@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -79,6 +81,7 @@ class Orchestrator:
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
         self._restart_requested = False
+        self._alerts: list[dict[str, str]] = []  # {"level": "warning", "message": "..."}
         self._observers: list[Any] = []
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
@@ -437,6 +440,52 @@ class Orchestrator:
             )
 
         self._notify_observers()
+
+        # Part 8: Auto-update when idle
+        if not self.state.running and not self.state.retry_attempts:
+            await asyncio.get_event_loop().run_in_executor(
+                self._tick_pool, self._check_auto_update
+            )
+
+    def _check_auto_update(self) -> None:
+        """Pull new code and restart if idle and remote has changes."""
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        try:
+            subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=repo_dir, capture_output=True, text=True, timeout=30,
+            )
+            result = subprocess.run(
+                ["git", "rev-list", "HEAD..origin/main", "--count"],
+                cwd=repo_dir, capture_output=True, text=True, timeout=10,
+            )
+            count = int(result.stdout.strip()) if result.returncode == 0 else 0
+            if count == 0:
+                # Clear any previous auto-update alert
+                self._alerts = [a for a in self._alerts if a.get("source") != "auto_update"]
+                return
+
+            logger.info("Auto-update: %d new commit(s) on origin/main, pulling and restarting", count)
+            pull = subprocess.run(
+                ["git", "pull", "--ff-only", "origin", "main"],
+                cwd=repo_dir, capture_output=True, text=True, timeout=60,
+            )
+            if pull.returncode != 0:
+                msg = f"Auto-update failed: git pull returned error — {pull.stderr.strip()[:200]}"
+                logger.warning("Auto-update: git pull failed: %s", pull.stderr.strip()[:200])
+                # Replace any existing auto-update alert
+                self._alerts = [a for a in self._alerts if a.get("source") != "auto_update"]
+                self._alerts.append({"level": "warning", "source": "auto_update", "message": msg})
+                return
+
+            # Trigger graceful restart
+            self._restart_requested = True
+            self._stopping = True
+        except (subprocess.TimeoutExpired, OSError, ValueError) as exc:
+            msg = f"Auto-update failed: {exc}"
+            logger.debug("Auto-update check failed: %s", exc)
+            self._alerts = [a for a in self._alerts if a.get("source") != "auto_update"]
+            self._alerts.append({"level": "warning", "source": "auto_update", "message": msg})
 
     def _fetch_all_candidates(self) -> list[Issue]:
         """Fetch candidate issues from all configured projects (parallel)."""
@@ -2071,6 +2120,7 @@ class Orchestrator:
             ],
             "rate_limits": self.state.rate_limits,
             "projects": [p.to_dict() for p in self.project_store.list_all()],
+            "alerts": list(self._alerts),
         }
 
     def get_issue_detail(self, issue_identifier: str) -> dict[str, Any] | None:
