@@ -1153,16 +1153,18 @@ async function fetchReviewsCount() {
     const reviews = await res.json();
     const el = document.getElementById('reviews-stat');
     const countEl = document.getElementById('reviews-count');
-    const conflicts = reviews.filter(r => r.review && r.review.has_conflicts && !r.agent_active).length;
-    const ciFailures = reviews.filter(r => r.review && r.review.ci_status === 'failed' && !r.review.has_conflicts && !r.agent_active).length;
+    const yoloProjectIds = new Set(currentProjects.filter(p => p.yolo).map(p => p.id));
+    const nonYolo = reviews.filter(r => !yoloProjectIds.has(r.project_id));
+    const conflicts = nonYolo.filter(r => r.review && r.review.has_conflicts && !r.agent_active).length;
+    const ciFailures = nonYolo.filter(r => r.review && r.review.ci_status === 'failed' && !r.review.has_conflicts && !r.agent_active).length;
     const needsAttention = conflicts + ciFailures;
     if (needsAttention > 0) {
       countEl.textContent = needsAttention;
       countEl.style.color = 'var(--red, #f85149)';
       el.querySelector('.reviews-label').textContent = conflicts > 0 ? 'need resolution' : 'CI failures';
       el.style.display = '';
-    } else if (reviews.length > 0) {
-      countEl.textContent = reviews.length;
+    } else if (nonYolo.length > 0) {
+      countEl.textContent = nonYolo.length;
       countEl.style.color = 'var(--blue, #58a6ff)';
       el.querySelector('.reviews-label').textContent = 'reviews waiting';
       el.style.display = '';
