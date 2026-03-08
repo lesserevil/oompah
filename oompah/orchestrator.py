@@ -721,8 +721,11 @@ class Orchestrator:
         # review (review), don't dispatch another agent to that project until the
         # existing review is merged. This prevents multiple simultaneous merges
         # from conflicting with each other (each merge changes the target branch).
-        # P0 issues bypass this check to ensure critical fixes are never blocked.
-        if not is_p0 and self._project_has_open_review(issue.project_id):
+        # P0 and merge-conflict/ci-fix issues bypass this check to avoid
+        # deadlocks where the review can't merge without an agent fix.
+        issue_labels = {l.lower() for l in (issue.labels or [])}
+        is_review_fix = bool(issue_labels & {"merge-conflict", "ci-fix"})
+        if not is_p0 and not is_review_fix and self._project_has_open_review(issue.project_id):
             logger.debug(
                 "Skipping dispatch for %s: project %s already has an open review",
                 issue.identifier, issue.project_id,
