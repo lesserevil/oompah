@@ -624,6 +624,9 @@ class Orchestrator:
         # separately by _plan_open_epics / _should_dispatch_epic
         if issue.issue_type == "epic":
             return False
+        # Never dispatch issues that are waiting for a human answer
+        if "asking_question" in issue.labels:
+            return False
         state_norm = issue.state.strip().lower()
         if state_norm not in [s.strip().lower() for s in self.config.tracker_active_states]:
             return False
@@ -1361,7 +1364,12 @@ class Orchestrator:
                 s.last_message = result.last_message[:200]
                 s.last_event = f"api_{result.status}"
 
-            if result.status == "rate_limited":
+            if result.status == "ask_question":
+                exit_reason = "ask_question"
+                error_msg = result.question
+                logger.info("API agent asked a question on %s: %s",
+                            issue.identifier, result.question)
+            elif result.status == "rate_limited":
                 exit_reason = "rate_limited"
                 error_msg = result.error or "Rate limited by API"
                 logger.warning("API agent rate limited on %s: %s", issue.identifier, error_msg)
@@ -1619,6 +1627,31 @@ class Orchestrator:
             tokens_str = f" ({entry.session.total_tokens} tokens)"
 
         project_id = entry.issue.project_id if entry.issue else None
+
+        if reason == "ask_question":
+            # Agent asked a question — post it, label the issue, move to open
+            self.state.claimed.discard(issue_id)
+            self.state.stall_counts.pop(issue_id, None)
+            question_text = error or "Agent has a question (no text provided)"
+            self._post_comment(
+                entry.identifier,
+                f"🤚 **Question from agent:**\n\n{question_text}",
+                project_id=project_id,
+            )
+            try:
+                tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+                tracker.add_label(entry.identifier, "asking_question")
+                tracker.update_issue(entry.identifier, status="open")
+            except Exception as exc:
+                logger.warning("Failed to set asking_question state for %s: %s",
+                               entry.identifier, exc)
+            logger.info(
+                "Worker asked question issue_id=%s issue_identifier=%s",
+                issue_id,
+                entry.identifier,
+            )
+            self._notify_observers()
+            return
 
         if reason == "normal":
             self.state.claimed.discard(issue_id)
