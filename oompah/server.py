@@ -447,14 +447,19 @@ async def api_create_issue(request: Request):
         project_id = body.get("project_id")
         tracker = _get_tracker(orch, project_id)
 
+        issue_type = body.get("type", "task")
         issue = tracker.create_issue(
             title=title,
-            issue_type=body.get("type", "task"),
+            issue_type=issue_type,
             description=body.get("description"),
             priority=body.get("priority"),
             initial_status=body.get("status"),
         )
         issue.project_id = project_id
+
+        # Auto-add 'draft' label to new epics so they appear in the kanban
+        if issue_type == "epic":
+            tracker.add_label(issue.identifier, "draft")
 
         # Link to parent epic if specified
         parent_id = body.get("parent_id")
