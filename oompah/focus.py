@@ -329,6 +329,10 @@ BUILTIN_FOCI: list[Focus] = [
             "Cover the full scope of the epic — don't leave gaps",
             "Set appropriate priorities and dependencies between tasks",
             "Use `bd create` to file each child task linked to the parent epic",
+            "Add dependencies between children via `bd dep add` where needed",
+            "Link each child to the parent epic via `bd dep add --type parent-child <child-id> <epic-id>`",
+            "Remove the 'draft' label from the epic when planning is complete via `bd label remove <epic-id> draft`",
+            "Set the epic status to 'deferred' when planning is complete via `bd update <epic-id> --status deferred`",
         ],
         must_not_do=[
             "Start implementing code — your job is planning, not coding",
@@ -337,8 +341,9 @@ BUILTIN_FOCI: list[Focus] = [
             "Duplicate tasks that already exist as children of the epic",
             "Close the epic yourself — it closes when all child tasks are done",
         ],
-        keywords=["epic", "plan", "planning", "breakdown", "decompose", "tasks", "subtasks", "milestones"],
+        keywords=["epic", "plan", "planning", "breakdown", "decompose", "children", "subtask", "tasks", "subtasks", "milestones"],
         issue_types=["epic"],
+        labels=["draft"],
         priority=8,
     ),
 ]
