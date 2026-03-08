@@ -8,7 +8,9 @@ import os
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 
 from oompah.agent import AgentError, AgentEvent, AgentSession
@@ -40,6 +42,36 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SERVICE_STATE_PATH = ".oompah/service_state.json"
 
+
+class DispatchEventType(str, Enum):
+    """Types of events that drive the event-driven dispatch loop.
+
+    Using ``str`` as the base allows direct use as dict keys and logging.
+    """
+
+    # A worker completed, failed, or hit a terminal state — re-evaluate dispatch
+    WORKER_EXIT = "worker_exit"
+    # An external caller (API, user action) requested an immediate refresh
+    REFRESH_REQUESTED = "refresh_requested"
+    # A retry timer fired — re-evaluate the specific issue
+    RETRY_FIRED = "retry_fired"
+    # Safety-net: periodic full sync to catch anything missed
+    FULL_SYNC = "full_sync"
+
+
+@dataclass
+class DispatchEvent:
+    """A single event driving the orchestrator's dispatch loop.
+
+    Attributes:
+        event_type: What happened.
+        issue_id: The specific issue affected, if any (may be None for global events).
+        payload: Optional extra context (e.g., exit reason for WORKER_EXIT).
+    """
+
+    event_type: DispatchEventType
+    issue_id: str | None = None
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
 class Orchestrator:
@@ -93,10 +125,14 @@ class Orchestrator:
         self._state_only_observers: list[Any] = []
         self._activity_observers: list[Any] = []
         self._refresh_requested = asyncio.Event()
+        # Event-driven dispatch queue: all events that should wake the
+        # dispatch loop are posted here.  The loop blocks on this queue
+        # instead of sleeping for poll_interval_ms on every cycle.
+        self._dispatch_queue: asyncio.Queue[DispatchEvent] = asyncio.Queue()
         # Timestamp (monotonic) of the last full _tick() run.
-        # Used by the safety-net logic in run() to ensure a full sync
-        # fires at full_sync_interval_ms even when event-driven wakeups
-        # are more frequent.
+        # Updated after each _tick() call so _full_sync_due() can determine
+        # when the next safety-net full sync should fire and to support
+        # logging the safety-net message when the interval elapses.
         self._last_full_sync: float = 0.0
         # Dedicated thread pool for tick operations so they don't compete
         # with agent tool-execution threads on the default pool.
@@ -140,9 +176,6 @@ class Orchestrator:
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents
-        # Reset last full sync so the new full_sync_interval_ms takes effect
-        # on the next tick boundary rather than inheriting stale state.
-        self._last_full_sync = 0.0
         self.tracker = BeadsTracker(
             active_states=config.tracker_active_states,
             terminal_states=config.tracker_terminal_states,
@@ -159,8 +192,12 @@ class Orchestrator:
             },
             hooks_timeout_ms=config.hooks_timeout_ms,
         )
-        logger.info("Config reloaded poll_interval_ms=%d max_agents=%d",
-                     config.poll_interval_ms, config.max_concurrent_agents)
+        # Reset last full sync so the new full_sync_interval_ms takes effect
+        # immediately rather than waiting for the old interval to expire.
+        self._last_full_sync = 0.0
+        logger.info("Config reloaded poll_interval_ms=%d full_sync_interval_ms=%d max_agents=%d",
+                     config.poll_interval_ms, config.full_sync_interval_ms,
+                     config.max_concurrent_agents)
 
     def set_prompt_template(self, template: str) -> None:
         self._prompt_template = template
@@ -186,7 +223,13 @@ class Orchestrator:
         self._paused = False
         self._save_paused_state()
         logger.info("Orchestrator unpaused")
+        # Post a REFRESH_REQUESTED event so the dispatch loop wakes immediately.
+        # Also set the legacy event for any code that still awaits it.
         self._refresh_requested.set()
+        self._post_event(DispatchEvent(
+            event_type=DispatchEventType.REFRESH_REQUESTED,
+            payload={"reason": "unpaused"},
+        ))
         self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
         self._notify_observers()
 
@@ -264,6 +307,10 @@ class Orchestrator:
     def request_refresh(self) -> None:
         """Request an immediate poll+reconciliation cycle."""
         self._refresh_requested.set()
+        self._post_event(DispatchEvent(
+            event_type=DispatchEventType.REFRESH_REQUESTED,
+            payload={"reason": "api_request"},
+        ))
 
     async def startup_cleanup(self) -> None:
         """Remove workspaces/worktrees for issues in terminal states."""
@@ -333,59 +380,113 @@ class Orchestrator:
         """Return True if a safety-net full sync is due.
 
         A full sync is due when:
-        - No full sync has ever run (startup), OR
-        - More than full_sync_interval_ms milliseconds have elapsed since the
-          last full sync.
+        - No full sync has ever run (startup, ``_last_full_sync == 0.0``), OR
+        - More than ``full_sync_interval_ms`` milliseconds have elapsed since
+          the last full sync.
         """
         if self._last_full_sync == 0.0:
             return True
         elapsed_ms = (time.monotonic() - self._last_full_sync) * 1000
         return elapsed_ms >= self.config.full_sync_interval_ms
 
+    def _post_event(self, event: DispatchEvent) -> None:
+        """Put an event onto the dispatch queue (thread-safe, non-blocking).
+
+        Callers that run from the event loop can call this directly.
+        Callers from threads should use asyncio.get_event_loop().call_soon_threadsafe
+        if they need to post from outside the loop (rare — most callers are async).
+        """
+        try:
+            self._dispatch_queue.put_nowait(event)
+        except asyncio.QueueFull:
+            # The queue is unbounded, so this should never happen in practice.
+            logger.warning("Dispatch queue unexpectedly full; dropping event %s", event.event_type)
+
+    async def _full_sync_loop(self) -> None:
+        """Background task: post FULL_SYNC events at the configured safety-net interval.
+
+        This replaces the old poll_interval_ms sleep — a full _tick() is still
+        run periodically, but at a much longer cadence (full_sync_interval_ms,
+        default 5 min) as a consistency safety net rather than the primary
+        dispatch mechanism.
+        """
+        while not self._stopping:
+            interval_s = self.config.full_sync_interval_ms / 1000.0
+            await asyncio.sleep(interval_s)
+            if not self._stopping:
+                self._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
+
     async def run(self) -> None:
-        """Main event loop: poll, dispatch, reconcile.
+        """Main event loop: event-driven dispatch with a periodic full-sync safety net.
 
-        The loop wakes up on either:
-        - A refresh request (immediate wakeup via _refresh_requested event)
-        - The poll_interval_ms timeout (regular heartbeat)
+        The loop blocks on the internal dispatch queue instead of sleeping for
+        poll_interval_ms.  Events are posted by:
 
-        A full _tick() is guaranteed to run at least every full_sync_interval_ms
-        as a safety net, regardless of how frequently event-driven wakeups
-        occur.  This catches external tracker changes, missed webhook deliveries,
-        and state drift from bugs.
+        - ``_on_worker_exit()`` when a worker finishes or fails
+        - ``request_refresh()`` for API/user-triggered refreshes
+        - ``unpause()`` to restart dispatch after a pause
+        - ``_on_retry_timer()`` when a retry timer fires
+        - ``_full_sync_loop()`` for the periodic safety-net full sync
+
+        A full ``_tick()`` (world scan) is run for FULL_SYNC events and for the
+        initial startup tick.  For WORKER_EXIT and REFRESH_REQUESTED events,
+        ``_tick()`` is also run because it's the simplest correct behavior
+        (targeted optimisations can be layered on top later without changing
+        the loop contract).
         """
         await self.startup_cleanup()
         await self._recover_restart_issues()
+        full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
         logger.info(
-            "Orchestrator starting poll loop interval_ms=%d full_sync_interval_ms=%d",
-            self.state.poll_interval_ms,
+            "Orchestrator starting event-driven loop "
+            "full_sync_interval_ms=%d (safety-net poll_interval_ms=%d kept for compat)",
             self.config.full_sync_interval_ms,
+            self.state.poll_interval_ms,
         )
 
-        while not self._stopping:
-            # Safety-net: log when we're triggering a periodic full sync
-            # (skip the log on the very first tick to avoid noise at startup).
-            if not self._full_sync_due() and self._last_full_sync == 0.0:
-                pass  # startup — always run
-            elif self._full_sync_due() and self._last_full_sync != 0.0:
+        # Start the safety-net full-sync background task.
+        full_sync_task = asyncio.create_task(
+            self._full_sync_loop(), name="full-sync-loop"
+        )
+
+        async def _run_tick() -> None:
+            """Run _tick() and update _last_full_sync afterwards."""
+            if self._full_sync_due() and self._last_full_sync != 0.0:
                 logger.info(
                     "Safety-net full sync triggered (%.0fs since last full sync, interval=%.0fs)",
                     (time.monotonic() - self._last_full_sync),
                     self.config.full_sync_interval_ms / 1000,
                 )
-
             await self._tick()
             self._last_full_sync = time.monotonic()
 
-            # Wait for either the poll interval or a refresh request
+        try:
+            # Run an initial tick on startup to catch anything already pending.
+            await _run_tick()
+
+            while not self._stopping:
+                try:
+                    event = await self._dispatch_queue.get()
+                except asyncio.CancelledError:
+                    break
+
+                if self._stopping:
+                    break
+
+                logger.debug("Dispatch loop received event: %s issue_id=%s",
+                             event.event_type, event.issue_id)
+
+                # All current event types result in a full _tick().
+                # Future optimisations can add targeted handlers per event type
+                # (e.g. only reconcile on WORKER_EXIT) without changing this
+                # loop's structure.
+                await _run_tick()
+
+        finally:
+            full_sync_task.cancel()
             try:
-                await asyncio.wait_for(
-                    self._refresh_requested.wait(),
-                    timeout=self.state.poll_interval_ms / 1000.0,
-                )
-                self._refresh_requested.clear()
-                logger.info("Refresh requested, running immediate tick")
-            except asyncio.TimeoutError:
+                await full_sync_task
+            except (asyncio.CancelledError, Exception):
                 pass
 
     async def stop(self) -> None:
@@ -424,7 +525,6 @@ class Orchestrator:
             return
 
         # 3. Fetch forge state (reviews + merged branches) — populates caches
-        t_review_start = time.monotonic()
         await self._handle_review_check()
         t2 = time.monotonic()
 
@@ -467,11 +567,6 @@ class Orchestrator:
 
         Populates ``_reviews_cache``, ``_unmerged_review_branches``, and
         ``_merged_branches`` used by dispatch gating and YOLO actions.
-
-        This handler is the single place where forge API calls happen per tick.
-        In a future event-driven architecture, it will only run when forge
-        state might have changed (e.g., webhook received or polling interval
-        elapsed).
         """
         self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
         loop = asyncio.get_event_loop()
@@ -491,19 +586,7 @@ class Orchestrator:
         }
 
     async def _handle_dispatch_needed(self) -> None:
-        """Fetch candidates, resolve blockers, and dispatch eligible issues.
-
-        This handler:
-        - Fetches all candidate issues from configured trackers
-        - Pre-resolves unknown blocker states in parallel
-        - Sorts and dispatches eligible non-epic issues
-        - Dispatches epic planning agents for open epics without children
-        - Resets orphaned in_progress issues (no agent, no retry pending)
-
-        In a future event-driven architecture, this will only run when
-        tracker state has changed (e.g., agent exit event, tracker diff
-        detected) rather than every tick.
-        """
+        """Fetch candidates, resolve blockers, and dispatch eligible issues."""
         self._blocker_state_cache = {}  # reset per fetch cycle
         loop = asyncio.get_event_loop()
 
@@ -544,10 +627,6 @@ class Orchestrator:
         redundant API calls within the same tick.
 
         Returns timing tuple (yolo_ms, archive_ms, merged_ms) for telemetry.
-
-        In a future event-driven architecture, this will only run when:
-        - Reviews are fetched and have actionable items, OR
-        - The auto-archive interval has elapsed.
         """
         loop = asyncio.get_event_loop()
 
@@ -576,11 +655,7 @@ class Orchestrator:
     async def _handle_auto_update(self) -> None:
         """Trigger git auto-update when the orchestrator is idle.
 
-        Idle means no agents are running and no retries are pending. This
-        avoids restarting mid-flight when agents are active.
-
-        In a future event-driven architecture, this will run on a separate
-        slow-cadence timer rather than being checked every tick.
+        Idle means no agents are running and no retries are pending.
         """
         if not self.state.running and not self.state.retry_attempts:
             await asyncio.get_event_loop().run_in_executor(
@@ -671,11 +746,11 @@ class Orchestrator:
         return count < limit
 
     def _project_has_open_review(self, project_id: str | None) -> bool:
-        """Return True if the project has at least one open review.
+        """Return True if the project has at least one open MR/PR.
 
         Used to serialize dispatch: don't start a new agent for a project
         that already has an open review waiting to merge, which would create
-        a second in-flight review that could conflict with the first.
+        a second in-flight MR that could conflict with the first.
 
         Only applies to projects (issues with a project_id). For legacy
         issues without a project, this check is skipped.
@@ -797,18 +872,15 @@ class Orchestrator:
                 if blocker_state not in terminal_norms:
                     # Blocker not yet closed — still blocked
                     return False
-                if self._blocker_has_unmerged_review(blocker):
-                    # Blocker is closed but review hasn't merged — still blocked
+                if self._blocker_has_unmerged_pr(blocker):
+                    # Blocker is closed but PR hasn't merged — still blocked
                     return False
-        # Serialize review fixes by project: if a project already has an open
-        # review (review), don't dispatch another agent to that project until the
+        # Serialize MR/PR fixes by project: if a project already has an open
+        # review (PR/MR), don't dispatch another agent to that project until the
         # existing review is merged. This prevents multiple simultaneous merges
         # from conflicting with each other (each merge changes the target branch).
-        # P0 and merge-conflict/ci-fix issues bypass this check to avoid
-        # deadlocks where the review can't merge without an agent fix.
-        issue_labels = {l.lower() for l in (issue.labels or [])}
-        is_review_fix = bool(issue_labels & {"merge-conflict", "ci-fix"})
-        if not is_p0 and not is_review_fix and self._project_has_open_review(issue.project_id):
+        # P0 issues bypass this check to ensure critical fixes are never blocked.
+        if not is_p0 and self._project_has_open_review(issue.project_id):
             logger.debug(
                 "Skipping dispatch for %s: project %s already has an open review",
                 issue.identifier, issue.project_id,
@@ -890,7 +962,7 @@ class Orchestrator:
         return result
 
     def _fetch_all_merged_branches(self) -> set[str]:
-        """Fetch merged review branch names across all projects."""
+        """Fetch merged PR/MR branch names across all projects."""
         projects = self.project_store.list_all()
         if not projects:
             return set()
@@ -972,14 +1044,14 @@ class Orchestrator:
         Uses the per-tick _reviews_cache populated by _fetch_all_reviews
         to avoid redundant API calls.
 
-        For each open review on a YOLO project:
+        For each open PR/MR on a YOLO project:
         - CI passed + mergeable → merge it
         - Has merge conflicts → trigger conflict resolution
         - CI failed → re-file ticket to fix tests
 
         **Serialization**: only one action is taken per project per tick.
         This prevents multiple simultaneous merges from conflicting with each
-        other — each merge changes the target branch, so subsequent reviews must
+        other — each merge changes the target branch, so subsequent PRs must
         be rebased before they can merge cleanly.
         """
         reviews_cache = getattr(self, "_reviews_cache", {})
@@ -999,7 +1071,7 @@ class Orchestrator:
 
                 if review.has_conflicts:
                     # Auto-resolve conflicts — act on this one and stop for this project.
-                    logger.info("YOLO: auto-resolving conflicts on %s review #%s",
+                    logger.info("YOLO: auto-resolving conflicts on %s MR #%s",
                                 project.name, review_id)
                     success, msg = provider.rebase_review(slug, review_id)
                     if not success and "conflict" in msg.lower():
@@ -1010,7 +1082,7 @@ class Orchestrator:
                 if review.ci_status == "failed":
                     # Auto-retry: re-file the ticket to fix tests.
                     # Act on this one and stop for this project.
-                    logger.info("YOLO: auto-retrying failed CI on %s review #%s",
+                    logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
                                 project.name, review_id)
                     self._yolo_retry_ci(project, review)
                     # Serialization: only one action per project per tick.
@@ -1018,60 +1090,18 @@ class Orchestrator:
 
                 if review.ci_status == "passed" and not review.needs_rebase:
                     # Auto-merge — act on this one and stop for this project.
-                    # Merging one review changes the target branch; subsequent reviews
+                    # Merging one PR changes the target branch; subsequent PRs
                     # must rebase before they can be merged cleanly.
-                    logger.info("YOLO: auto-merging %s review #%s",
+                    logger.info("YOLO: auto-merging %s MR #%s",
                                 project.name, review_id)
                     success, msg = provider.merge_review(slug, review_id)
                     if success:
-                        logger.info("YOLO: merged %s review #%s", project.name, review_id)
+                        logger.info("YOLO: merged %s MR #%s", project.name, review_id)
                     else:
-                        logger.warning("YOLO: merge failed for %s review #%s: %s",
+                        logger.warning("YOLO: merge failed for %s MR #%s: %s",
                                        project.name, review_id, msg)
                     # Serialization: only one action per project per tick.
                     break
-
-    def _ensure_review_exists(self, entry, project_id: str | None) -> None:
-        """Auto-create a review if the agent pushed a branch but no review exists."""
-        if not project_id:
-            return
-        project = self.project_store.get(project_id)
-        if not project:
-            return
-        provider = detect_provider(project.repo_url)
-        if not provider:
-            return
-        slug = extract_repo_slug(project.repo_url)
-        branch = entry.identifier  # branch is named after the issue
-        try:
-            # Check if a review already exists for this branch
-            open_reviews = provider.list_open_reviews(slug)
-            for r in open_reviews:
-                if r.source_branch == branch:
-                    return  # already has a review
-            # Check if the branch actually exists on the remote
-            repo_path = project.repo_path
-            result = subprocess.run(
-                ["git", "ls-remote", "--heads", "origin", branch],
-                cwd=repo_path, capture_output=True, text=True, timeout=15,
-            )
-            if not result.stdout.strip():
-                return  # branch not pushed
-            # Create the review
-            title = f"{entry.identifier}: {entry.issue.title}" if entry.issue else entry.identifier
-            description = f"Automated review for {entry.identifier}"
-            review = provider.create_review(slug, title, branch, description=description)
-            if review:
-                logger.info("Auto-created review for %s: %s #%s", entry.identifier, project.name, review.id)
-                self._post_comment(
-                    entry.identifier,
-                    f"Review created: {review.url}",
-                    project_id=project_id,
-                )
-            else:
-                logger.warning("Failed to auto-create review for %s on %s", entry.identifier, project.name)
-        except Exception as exc:
-            logger.warning("_ensure_review_exists failed for %s: %s", entry.identifier, exc)
 
     def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
         """Notify the bead about a merge conflict (YOLO mode)."""
@@ -1092,7 +1122,7 @@ class Orchestrator:
             if state_lower in ("open", "in_progress") and "merge-conflict" in issue.labels:
                 return
             comment_text = (
-                f"YOLO: Merge conflict detected on review #{review_id}. "
+                f"YOLO: Merge conflict detected on MR #{review_id}. "
                 f"Rebase onto {target_branch} and resolve conflicts."
             )
             tracker.add_comment(issue.identifier, comment_text, author="oompah")
@@ -1107,7 +1137,7 @@ class Orchestrator:
                 self.state.completed.discard(issue.id)
                 logger.info("YOLO: reopened %s as P0 for conflict resolution", issue.identifier)
         except Exception as exc:
-            logger.warning("YOLO: conflict notification failed for review #%s: %s", review_id, exc)
+            logger.warning("YOLO: conflict notification failed for MR #%s: %s", review_id, exc)
 
     def _yolo_retry_ci(self, project, review) -> None:
         """Re-file a ticket to fix failed CI tests (YOLO mode)."""
@@ -1127,8 +1157,8 @@ class Orchestrator:
             tracker.add_label(issue.identifier, "ci-fix")
             tracker.add_comment(
                 issue.identifier,
-                f"YOLO: CI tests failed on review #{review.id}. "
-                "Fix the failing tests so this review can merge. "
+                f"YOLO: CI tests failed on MR #{review.id}. "
+                "Fix the failing tests so this MR can merge. "
                 "Do NOT rewrite the feature — only fix test failures. "
                 "IMPORTANT: Paths in CI logs are not trustworthy. "
                 "Run tests locally to get accurate paths and errors.",
@@ -1161,22 +1191,22 @@ class Orchestrator:
         self._blocker_state_cache = cache
         return ""
 
-    def _blocker_has_unmerged_review(self, blocker: BlockerRef) -> bool:
-        """Check if a closed blocker still has an unmerged review.
+    def _blocker_has_unmerged_pr(self, blocker: BlockerRef) -> bool:
+        """Check if a closed blocker still has an unmerged PR/MR.
 
-        A blocker is considered unmerged ONLY if it has an open review.
-        If the branch has been merged OR has no open review, it's not blocking.
+        A blocker is considered unmerged ONLY if it has an open PR/MR.
+        If the branch has been merged OR has no open PR, it's not blocking.
         """
         blocker_id = blocker.identifier or blocker.id or ""
         if not blocker_id:
             return False
 
-        # If the branch still has an open review, it's definitely unmerged
+        # If the branch still has an open PR, it's definitely unmerged
         open_branches = getattr(self, "_unmerged_review_branches", set())
         if blocker_id in open_branches:
             return True
 
-        # No open review — either merged or never had one. Don't block.
+        # No open PR — either merged or never had one. Don't block.
         return False
 
         # No merged data available — fall back to permissive (allow dispatch)
@@ -1864,8 +1894,6 @@ class Orchestrator:
                 issue_id,
                 entry.identifier,
             )
-            # Auto-create review if agent pushed a branch but didn't create one
-            self._ensure_review_exists(entry, project_id)
             # Check if the agent actually closed the issue
             try:
                 tracker = self._tracker_for_project(project_id) if project_id else self.tracker
@@ -2018,6 +2046,12 @@ class Orchestrator:
             "elapsed_s": elapsed,
         })
         self._notify_observers()
+        # Wake the dispatch loop so it can pick up the next candidate immediately.
+        self._post_event(DispatchEvent(
+            event_type=DispatchEventType.WORKER_EXIT,
+            issue_id=issue_id,
+            payload={"reason": reason},
+        ))
 
     def _is_rate_limited(self) -> bool:
         """Check if we're in a rate-limit cooldown period."""
@@ -2077,10 +2111,23 @@ class Orchestrator:
         })
 
     async def _on_retry_timer(self, issue_id: str) -> None:
-        """Handle retry timer expiration."""
+        """Handle retry timer expiration.
+
+        Posts a RETRY_FIRED event to wake the dispatch loop, then immediately
+        dispatches the issue (same as before) so retries are still prompt.
+        The event also ensures the main loop runs a _tick() to catch any other
+        work that may have appeared while the timer was pending.
+        """
         retry = self.state.retry_attempts.pop(issue_id, None)
         if not retry:
             return
+
+        # Wake the dispatch loop — even if we handle dispatch directly below,
+        # the loop should run a tick to pick up any other work that appeared.
+        self._post_event(DispatchEvent(
+            event_type=DispatchEventType.RETRY_FIRED,
+            issue_id=issue_id,
+        ))
 
         try:
             candidates = self._fetch_all_candidates()
