@@ -20,7 +20,7 @@ from oompah.focus import (
     update_suggestion_status,
 )
 from oompah.cache import TTLCache
-from oompah.error_watcher import ErrorWatcher
+from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 
@@ -54,12 +54,15 @@ _orchestrator: Orchestrator | None = None
 # Error watcher — created when orchestrator is set
 _error_watcher: ErrorWatcher | None = None
 
+# Project log watcher manager — watches log files for all projects
+_log_watcher_manager: ProjectLogWatcherManager | None = None
+
 # Connected WebSocket clients
 _ws_clients: set[WebSocket] = set()
 
 
 def set_orchestrator(orch: Orchestrator) -> None:
-    global _orchestrator, _error_watcher
+    global _orchestrator, _error_watcher, _log_watcher_manager
     _orchestrator = orch
     # Full observer: state + issues refresh (for dispatch, close, state changes)
     orch._observers.append(_on_orchestrator_change)
@@ -69,6 +72,16 @@ def set_orchestrator(orch: Orchestrator) -> None:
     # Error watcher: creates beads for backend/frontend errors
     _error_watcher = ErrorWatcher(orch.tracker)
     _error_watcher.install_log_handler("oompah")
+
+    # Project log watcher manager: watches log files for projects that set log_path.
+    # Each project gets its own ErrorWatcher backed by the project's tracker so
+    # error beads are created in the correct project.
+    def _make_error_watcher(project_id: str) -> ErrorWatcher:
+        tracker = orch._tracker_for_project(project_id)
+        return ErrorWatcher(tracker, project_id=project_id)
+
+    _log_watcher_manager = ProjectLogWatcherManager(_make_error_watcher)
+    _log_watcher_manager.sync_watchers(orch.project_store.list_all())
 
 
 def _get_orchestrator() -> Orchestrator:
@@ -823,6 +836,9 @@ async def api_create_project(request: Request):
             repo_url=repo_url, name=name, branch=branch,
             git_user_name=git_user_name, git_user_email=git_user_email,
         )
+        # Sync log watchers in case the new project has a log_path
+        if _log_watcher_manager:
+            _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         return JSONResponse(project.to_dict(), status_code=201)
     except ProjectError as exc:
         return JSONResponse(
@@ -844,7 +860,7 @@ async def api_update_project(project_id: str, request: Request):
         orch = _get_orchestrator()
         body = await request.json()
         fields = {}
-        for key in ("name", "repo_path", "branch", "git_user_name", "git_user_email"):
+        for key in ("name", "repo_path", "branch", "git_user_name", "git_user_email", "log_path"):
             if key in body:
                 fields[key] = body[key]
         if "yolo" in body:
@@ -855,6 +871,9 @@ async def api_update_project(project_id: str, request: Request):
                 {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
                 status_code=404,
             )
+        # Sync log watchers when project settings change (log_path may have been added/changed/removed)
+        if _log_watcher_manager:
+            _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         return JSONResponse(project.to_dict())
     except Exception as exc:
         logger.error("Update project error: %s", exc)
@@ -869,6 +888,9 @@ async def api_delete_project(project_id: str):
     """Delete a project."""
     orch = _get_orchestrator()
     if orch.project_store.delete(project_id):
+        # Stop any log file watcher for this project
+        if _log_watcher_manager:
+            _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         return JSONResponse({"ok": True})
     return JSONResponse(
         {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
