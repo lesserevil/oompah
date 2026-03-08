@@ -1146,6 +1146,33 @@ async function updateIssue(identifier, fields) {
   return res.ok;
 }
 
+async function toggleEpicDraft(epicIdentifier, isDraft, projectId) {
+  try {
+    if (isDraft) {
+      // Remove 'draft' label then set status to deferred
+      const delUrl = `/api/v1/issues/${encodeURIComponent(epicIdentifier)}/labels/draft` +
+        (projectId ? `?project_id=${encodeURIComponent(projectId)}` : '');
+      await fetch(delUrl, {method: 'DELETE'});
+    } else {
+      // Add 'draft' label then set status to deferred
+      await fetch(`/api/v1/issues/${encodeURIComponent(epicIdentifier)}/labels`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({label: 'draft', project_id: projectId}),
+      });
+    }
+    // In both cases, set status to deferred
+    await fetch(`/api/v1/issues/${encodeURIComponent(epicIdentifier)}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: 'deferred', project_id: projectId}),
+    });
+    await refreshBoard();
+  } catch (err) {
+    console.error('toggleEpicDraft failed:', err);
+  }
+}
+
 function setViewMode(mode) {
   viewMode = mode;
   document.getElementById('btn-flat').classList.toggle('active', mode === 'flat');
@@ -1313,6 +1340,7 @@ function renderSwimlaneView(board, data) {
         <span class="swimlane-actions">
           <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}')">+ Child</button>
           <button onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details</button>
+          ${(() => { const isDraft = (epic.labels || []).includes('draft'); const draftBtnLabel = isDraft ? 'Finalize' : 'Mark as Draft'; return `<button onclick="event.stopPropagation(); toggleEpicDraft('${esc(epic.identifier)}', ${isDraft}, '${esc(epic.project_id || '')}')" aria-label="${isDraft ? 'Finalize epic' : 'Mark epic as draft'}">${draftBtnLabel}</button>`; })()}
         </span>
       </div>
       <div class="swimlane-columns"></div>
