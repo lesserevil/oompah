@@ -22,6 +22,14 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
+
+class RateLimitError(Exception):
+    """Raised when the API returns 429 or 529 (overloaded)."""
+
+    def __init__(self, message: str, retry_after: float = 0):
+        super().__init__(message)
+        self.retry_after = retry_after  # seconds; 0 means not specified
+
 # ---------------------------------------------------------------------------
 # Result dataclass
 # ---------------------------------------------------------------------------
@@ -420,6 +428,18 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
             error_body = exc.read().decode("utf-8", errors="replace")[:2000]
         except Exception:
             pass
+        if exc.code in (429, 529):
+            retry_after = 0.0
+            ra_header = exc.headers.get("Retry-After", "") if exc.headers else ""
+            if ra_header:
+                try:
+                    retry_after = float(ra_header)
+                except ValueError:
+                    pass
+            raise RateLimitError(
+                f"HTTP {exc.code} from {url}: {error_body}",
+                retry_after=retry_after,
+            ) from exc
         raise RuntimeError(
             f"HTTP {exc.code} from {url}: {error_body}"
         ) from exc
@@ -693,6 +713,19 @@ class ApiAgentSession:
                 activity=activity,
             )
 
+        except RateLimitError as exc:
+            _emit(turns, "error", f"Rate limited: {exc}")
+            logger.warning("ApiAgentSession.run_task rate limited: %s", exc)
+            return ApiAgentResult(
+                status="rate_limited",
+                input_tokens=total_input,
+                output_tokens=total_output,
+                total_tokens=total_tokens,
+                turns=turns,
+                last_message=last_message,
+                error=str(exc),
+                activity=activity,
+            )
         except Exception as exc:
             _emit(turns, "error", str(exc))
             logger.error("ApiAgentSession.run_task failed: %s", exc)
@@ -710,7 +743,7 @@ class ApiAgentSession:
     # -- private helpers ----------------------------------------------------
 
     async def _call_api(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
-        """Make one chat completions call (blocking HTTP wrapped in to_thread)."""
+        """Make one chat completions call with automatic rate-limit retry."""
         payload = {
             "model": self.model,
             "messages": messages,
@@ -725,6 +758,19 @@ class ApiAgentSession:
             "User-Agent": "oompah/0.1",
         }
 
-        return await asyncio.to_thread(
-            _http_post, self._url, headers, body, self._ssl_ctx
-        )
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                return await asyncio.to_thread(
+                    _http_post, self._url, headers, body, self._ssl_ctx
+                )
+            except RateLimitError as exc:
+                if attempt >= max_retries - 1:
+                    raise
+                # Use Retry-After if provided, otherwise exponential backoff
+                delay = exc.retry_after if exc.retry_after > 0 else min(2 ** attempt * 5, 120)
+                logger.warning(
+                    "Rate limited (attempt %d/%d), retrying in %.0fs: %s",
+                    attempt + 1, max_retries, delay, exc,
+                )
+                await asyncio.sleep(delay)
