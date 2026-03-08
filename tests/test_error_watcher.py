@@ -289,11 +289,57 @@ class TestLogFileWatcher:
         finally:
             os.unlink(log_path)
 
-    def test_stop(self):
+    def test_stop_before_start_is_noop(self):
+        """stop() before start() should be a no-op (no stop event set yet)."""
         error_watcher = MagicMock()
         watcher = LogFileWatcher("/tmp/test.log", error_watcher)
+        assert watcher._stop_event is None
+        # Without start(), _stop_event is None — stop() should not raise
         watcher.stop()
         assert not watcher.is_running
+        assert watcher._stop_event is None  # still None since we never started
+
+    def test_stop_before_start_does_not_raise(self):
+        """stop() before start() should be a no-op and not raise."""
+        error_watcher = MagicMock()
+        watcher = LogFileWatcher("/tmp/test.log", error_watcher)
+        watcher.stop()  # Should not raise
+
+    def test_watch_path_returns_file_when_exists(self):
+        """_watch_path() returns the log file path when it exists."""
+        error_watcher = MagicMock()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            log_path = f.name
+        try:
+            watcher = LogFileWatcher(log_path, error_watcher)
+            assert watcher._watch_path() == log_path
+        finally:
+            os.unlink(log_path)
+
+    def test_watch_path_returns_parent_when_file_missing(self):
+        """_watch_path() returns the parent dir when the log file does not exist."""
+        error_watcher = MagicMock()
+        log_path = "/tmp/definitely_nonexistent_test_log_file.log"
+        watcher = LogFileWatcher(log_path, error_watcher)
+        watch_path = watcher._watch_path()
+        assert watch_path == "/tmp"
+        assert watch_path != log_path
+
+    def test_make_watch_filter_matches_target_file(self):
+        """_make_watch_filter() returns a filter that matches only the target file."""
+        error_watcher = MagicMock()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            log_path = f.name
+        try:
+            watcher = LogFileWatcher(log_path, error_watcher)
+            filt = watcher._make_watch_filter()
+            # Should accept the target file
+            assert filt(None, log_path) is True
+            # Should reject other files
+            assert filt(None, "/tmp/other_file.log") is False
+            assert filt(None, "/var/log/syslog") is False
+        finally:
+            os.unlink(log_path)
 
     def test_start_and_stop(self):
         """Integration test: start the watcher, write an error, verify detection."""
@@ -307,7 +353,7 @@ class TestLogFileWatcher:
             log_path = f.name
 
         async def _run():
-            watcher = LogFileWatcher(log_path, ew, "testapp", poll_interval=0.1)
+            watcher = LogFileWatcher(log_path, ew, "testapp")
             task = asyncio.create_task(watcher.start())
 
             # Give it time to start
@@ -318,13 +364,79 @@ class TestLogFileWatcher:
             with open(log_path, "a") as f:
                 f.write("ERROR: async detected error\n")
 
-            # Wait for it to be picked up
-            await asyncio.sleep(0.3)
+            # Wait for it to be picked up (event-driven, should be fast)
+            await asyncio.sleep(0.5)
 
             watcher.stop()
-            await asyncio.sleep(0.15)
+            await asyncio.sleep(0.3)
+            assert not watcher.is_running
 
             assert tracker.create_issue.call_count == 1
+
+        try:
+            asyncio.run(_run())
+        finally:
+            os.unlink(log_path)
+
+    def test_start_and_stop_event_driven(self):
+        """Event-driven test: watcher should react quickly to file changes."""
+        tracker = MagicMock()
+        issue = MagicMock()
+        issue.identifier = "test-event-001"
+        tracker.create_issue.return_value = issue
+        ew = ErrorWatcher(tracker)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            log_path = f.name
+
+        async def _run():
+            watcher = LogFileWatcher(log_path, ew, "testapp")
+            task = asyncio.create_task(watcher.start())
+
+            # Give it time to start
+            await asyncio.sleep(0.2)
+
+            # Write multiple errors
+            with open(log_path, "a") as f:
+                f.write("ERROR: first failure\n")
+                f.write("CRITICAL: second failure\n")
+                f.write("INFO: all systems go\n")  # not an error line
+
+            # Event-driven: should be picked up quickly
+            await asyncio.sleep(0.5)
+
+            watcher.stop()
+            await asyncio.sleep(0.3)
+
+            # Should have detected 2 errors (ERROR + CRITICAL), not INFO
+            assert tracker.create_issue.call_count == 2
+
+        try:
+            asyncio.run(_run())
+        finally:
+            os.unlink(log_path)
+
+    def test_stop_event_terminates_watcher(self):
+        """Watcher terminates cleanly when stop() is called via stop_event."""
+        error_watcher = MagicMock()
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            log_path = f.name
+
+        async def _run():
+            watcher = LogFileWatcher(log_path, error_watcher)
+            task = asyncio.create_task(watcher.start())
+            await asyncio.sleep(0.2)
+            assert watcher.is_running
+
+            # stop() should signal via the event
+            watcher.stop()
+            assert watcher._stop_event is not None
+            assert watcher._stop_event.is_set()
+
+            # Wait for the task to finish
+            await asyncio.sleep(0.5)
+            assert not watcher.is_running
 
         try:
             asyncio.run(_run())

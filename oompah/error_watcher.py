@@ -22,6 +22,8 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from watchfiles import awatch
+
 if TYPE_CHECKING:
     from oompah.tracker import BeadsTracker
 
@@ -239,9 +241,14 @@ def _extract_message(line: str) -> str:
 class LogFileWatcher:
     """Watches an external log file and reports errors to an ErrorWatcher.
 
-    Tails the log file asynchronously, scanning new lines for error-level
-    messages.  When one is found, it calls ``error_watcher.report_error()``
-    which handles deduplication and bead creation.
+    Tails the log file using event-driven file-system notifications (via
+    ``watchfiles``), scanning new lines for error-level messages.  When one
+    is found, it calls ``error_watcher.report_error()`` which handles
+    deduplication and bead creation.
+
+    If the log file does not yet exist, the watcher monitors the parent
+    directory until the file is created, then switches to watching the file
+    directly.  This avoids any polling loop.
 
     Usage::
 
@@ -261,14 +268,12 @@ class LogFileWatcher:
         log_path: str,
         error_watcher: ErrorWatcher,
         source_name: str = "logfile",
-        poll_interval: float = 2.0,
     ):
         self._log_path = log_path
         self._error_watcher = error_watcher
         self._source_name = source_name
-        self._poll_interval = poll_interval
         self._running = False
-        self._task: asyncio.Task | None = None
+        self._stop_event: asyncio.Event | None = None
         # Track file position so we only process new lines.
         self._file_offset: int = 0
         self._inode: int | None = None
@@ -281,26 +286,112 @@ class LogFileWatcher:
     def is_running(self) -> bool:
         return self._running
 
+    def _watch_path(self) -> str:
+        """Return the path to watch: the log file itself, or its parent dir.
+
+        When the log file does not yet exist, we watch its parent directory
+        and apply a filter so we only react to events on the target file.
+        """
+        if os.path.exists(self._log_path):
+            return self._log_path
+        parent = os.path.dirname(os.path.abspath(self._log_path))
+        return parent if parent else "."
+
+    def _make_watch_filter(self):
+        """Return a ``watchfiles`` filter that matches only the target log file.
+
+        Used when watching the parent directory so that unrelated changes
+        (other files in the same directory) do not trigger spurious reads.
+        """
+        abs_log = os.path.abspath(self._log_path)
+
+        def _filter(change, path: str) -> bool:  # type: ignore[override]
+            return os.path.abspath(path) == abs_log
+
+        return _filter
+
     async def start(self) -> None:
         """Start watching the log file (runs until ``stop()`` is called)."""
         self._running = True
-        logger.info("LogFileWatcher started path=%s source=%s", self._log_path, self._source_name)
+        self._stop_event = asyncio.Event()
+        logger.info(
+            "LogFileWatcher started path=%s source=%s",
+            self._log_path, self._source_name,
+        )
 
         # Seek to end of file if it exists, so we only catch new errors.
         self._seek_to_end()
 
-        while self._running:
-            try:
-                self._poll_file()
-            except Exception as exc:
-                logger.debug("LogFileWatcher poll error path=%s: %s", self._log_path, exc)
-            await asyncio.sleep(self._poll_interval)
+        try:
+            await self._watch_loop()
+        except asyncio.CancelledError:
+            pass
 
+        self._running = False
         logger.info("LogFileWatcher stopped path=%s", self._log_path)
 
+    async def _watch_loop(self) -> None:
+        """Event-driven inner loop using watchfiles.awatch().
+
+        Watches the log file (or its parent directory when the file does not
+        yet exist) and calls ``_poll_file()`` whenever a change is detected.
+        The loop restarts automatically when the watch target changes (e.g.
+        the file is created after we started watching the parent dir, or
+        after a log rotation changes the inode).
+        """
+        assert self._stop_event is not None  # set by start()
+
+        while not self._stop_event.is_set():
+            watch_target = self._watch_path()
+            watching_parent = watch_target != self._log_path
+
+            try:
+                watch_kwargs: dict = {
+                    "stop_event": self._stop_event,
+                    "recursive": False,
+                }
+                if watching_parent:
+                    # Only react to events on the specific log file
+                    watch_kwargs["watch_filter"] = self._make_watch_filter()
+
+                async for _changes in awatch(watch_target, **watch_kwargs):
+                    try:
+                        self._poll_file()
+                    except Exception as exc:
+                        logger.debug(
+                            "LogFileWatcher read error path=%s: %s",
+                            self._log_path, exc,
+                        )
+
+                    # If we were watching the parent and the file now exists,
+                    # restart the loop so we watch the file directly.
+                    if watching_parent and os.path.exists(self._log_path):
+                        break
+
+                    if self._stop_event.is_set():
+                        break
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                # watchfiles can raise if the watch target disappears.
+                # Back off briefly so we don't spin hard, then retry.
+                logger.debug(
+                    "LogFileWatcher watch error path=%s: %s",
+                    self._log_path, exc,
+                )
+                try:
+                    await asyncio.wait_for(
+                        self._stop_event.wait(), timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    pass
+
     def stop(self) -> None:
-        """Signal the watcher to stop on its next poll cycle."""
+        """Signal the watcher to stop at the next file-system event."""
         self._running = False
+        if self._stop_event is not None:
+            self._stop_event.set()
 
     def _seek_to_end(self) -> None:
         """Move the file offset to the end of the current file."""
