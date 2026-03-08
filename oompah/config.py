@@ -229,6 +229,7 @@ class ServiceConfig:
         default_factory=lambda: ["closed"]
     )
     poll_interval_ms: int = 30000
+    full_sync_interval_ms: int = 300000  # 5 minutes — safety-net full sync
     workspace_root: str = ""
     hooks_after_create: str | None = None
     hooks_before_run: str | None = None
@@ -317,6 +318,7 @@ class ServiceConfig:
                 tracker.get("terminal_states"), ["closed"]
             ),
             poll_interval_ms=_coerce_int(polling.get("interval_ms"), 30000),
+            full_sync_interval_ms=_coerce_int(polling.get("full_sync_interval_ms"), 300000),
             workspace_root=ws_root,
             hooks_after_create=hooks.get("after_create"),
             hooks_before_run=hooks.get("before_run"),
