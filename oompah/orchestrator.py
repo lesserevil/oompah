@@ -139,6 +139,12 @@ class Orchestrator:
         self._tick_pool = ThreadPoolExecutor(
             max_workers=8, thread_name_prefix="tick"
         )
+        # Watchdog state
+        self._last_watchdog_run: float = 0.0
+        self._watchdog_interval_s: float = 300.0  # 5 minutes
+        self._last_candidates: list[Issue] = []
+        self._orphan_reset_counts: dict[str, int] = {}
+        self._yolo_limbo_ticks: dict[str, int] = {}
 
     def _load_state(self) -> dict:
         """Load persisted service state from disk."""
@@ -537,6 +543,9 @@ class Orchestrator:
         yolo_ms, archive_ms, merged_ms = await self._handle_yolo_review()
         t4 = time.monotonic()
 
+        # 5b. Watchdog: detect and fix stuck issues (periodic, lightweight)
+        self._maybe_run_watchdog()
+
         total_ms = (t4 - t0) * 1000
         if total_ms > 2000:
             logger.warning(
@@ -594,6 +603,7 @@ class Orchestrator:
         candidates = await loop.run_in_executor(
             self._tick_pool, self._fetch_all_candidates
         )
+        self._last_candidates = candidates
 
         # Pre-resolve blocker states in thread (internally parallel)
         await loop.run_in_executor(
@@ -1016,10 +1026,143 @@ class Orchestrator:
                 project_id = issue.project_id
                 tracker = self._tracker_for_project(project_id) if project_id else self.tracker
                 tracker.update_issue(issue.identifier, status="open")
-                logger.info("Reset orphaned in_progress issue %s to open (no agent attached)",
-                            issue.identifier)
+                self._orphan_reset_counts[issue.id] = self._orphan_reset_counts.get(issue.id, 0) + 1
+                logger.info("Reset orphaned in_progress issue %s to open (no agent attached, count=%d)",
+                            issue.identifier, self._orphan_reset_counts[issue.id])
             except Exception as exc:
                 logger.debug("Failed to reset orphaned issue %s: %s", issue.identifier, exc)
+
+    # ------------------------------------------------------------------
+    # Watchdog: periodic health checks for stuck issues
+    # ------------------------------------------------------------------
+
+    def _maybe_run_watchdog(self) -> None:
+        """Run watchdog if enough time has elapsed since last run."""
+        now = time.monotonic()
+        if now - self._last_watchdog_run < self._watchdog_interval_s:
+            return
+        self._last_watchdog_run = now
+        self._watchdog_check()
+
+    def _watchdog_check(self) -> None:
+        """Run all watchdog sub-checks."""
+        t0 = time.monotonic()
+        fixed = 0
+        fixed += self._watchdog_stale_completed()
+        fixed += self._watchdog_orphan_loops()
+        fixed += self._watchdog_stuck_open()
+        fixed += self._watchdog_yolo_limbo()
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        if fixed > 0:
+            logger.info("Watchdog: fixed %d issues (%.0fms)", fixed, elapsed_ms)
+
+    def _watchdog_stale_completed(self) -> int:
+        """Clear issues stuck in the completed set despite being active in tracker."""
+        active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
+        stale = []
+        for issue in self._last_candidates:
+            if issue.id in self.state.completed:
+                state_norm = issue.state.strip().lower()
+                if state_norm in active_norms:
+                    stale.append(issue)
+        for issue in stale:
+            self.state.completed.discard(issue.id)
+            logger.warning("Watchdog: cleared stale completed entry for %s "
+                           "(tracker state=%s)", issue.identifier, issue.state)
+        return len(stale)
+
+    def _watchdog_orphan_loops(self) -> int:
+        """Alert on issues that keep bouncing back to in_progress without an agent."""
+        for issue_id, count in list(self._orphan_reset_counts.items()):
+            if count >= 3:
+                identifier = issue_id
+                for c in self._last_candidates:
+                    if c.id == issue_id:
+                        identifier = c.identifier
+                        break
+                logger.warning("Watchdog: issue %s reset from in_progress %d times "
+                               "— possible state loop", identifier, count)
+                self._orphan_reset_counts[issue_id] = 0
+        return 0
+
+    def _watchdog_stuck_open(self) -> int:
+        """Fix issues stuck on stale unmerged_review blockers."""
+        fixed = 0
+        open_branches = getattr(self, "_unmerged_review_branches", set())
+        for issue_id, (reason, count) in list(self.state.reject_streak.items()):
+            if count < 10:
+                continue
+            identifier = issue_id
+            for c in self._last_candidates:
+                if c.id == issue_id:
+                    identifier = c.identifier
+                    break
+            if "unmerged_review" in reason:
+                # Extract blocker id and check if its branch still exists
+                parts = reason.split()
+                blocker_part = [p for p in parts if p.startswith("blocker=")]
+                if blocker_part:
+                    blocker_id = blocker_part[0].split("=", 1)[1]
+                    # Check if blocker_id matches any open branch
+                    has_branch = any(blocker_id in b for b in open_branches)
+                    if not has_branch:
+                        logger.warning("Watchdog: clearing stale unmerged_review block "
+                                       "on %s (blocker %s has no open review after %d ticks)",
+                                       identifier, blocker_id, count)
+                        cache = getattr(self, "_blocker_state_cache", {})
+                        cache.pop(blocker_id, None)
+                        del self.state.reject_streak[issue_id]
+                        fixed += 1
+                        continue
+        return fixed
+
+    def _watchdog_yolo_limbo(self) -> int:
+        """Detect YOLO MRs in limbo (no action condition matched)."""
+        reviews_cache = getattr(self, "_reviews_cache", {})
+        current_limbo: set[str] = set()
+        fixed = 0
+        for project in self.project_store.list_all():
+            if not project.yolo:
+                continue
+            provider = detect_provider(project.repo_url)
+            if not provider:
+                continue
+            slug = extract_repo_slug(project.repo_url)
+            for review in reviews_cache.get(project.id, []):
+                if review.draft:
+                    continue
+                key = f"{project.id}:{review.id}"
+                would_act = (
+                    review.has_conflicts
+                    or review.ci_status == "failed"
+                    or (review.ci_status == "passed" and not review.needs_rebase)
+                )
+                if would_act:
+                    continue
+                current_limbo.add(key)
+                self._yolo_limbo_ticks[key] = self._yolo_limbo_ticks.get(key, 0) + 1
+                tick_count = self._yolo_limbo_ticks[key]
+                if tick_count >= 3:
+                    if review.ci_status == "passed" and review.needs_rebase:
+                        logger.warning("Watchdog: YOLO limbo MR #%s on %s needs rebase "
+                                       "(CI passed, %d cycles). Triggering rebase.",
+                                       review.id, project.name, tick_count)
+                        try:
+                            provider.rebase_review(slug, review.id)
+                            fixed += 1
+                        except Exception as exc:
+                            logger.warning("Watchdog: rebase failed for %s #%s: %s",
+                                           project.name, review.id, exc)
+                    else:
+                        logger.warning("Watchdog: YOLO limbo MR #%s on %s — "
+                                       "ci=%r rebase=%s (%d cycles)",
+                                       review.id, project.name, review.ci_status,
+                                       review.needs_rebase, tick_count)
+        # Clear resolved limbo entries
+        for key in list(self._yolo_limbo_ticks):
+            if key not in current_limbo:
+                del self._yolo_limbo_ticks[key]
+        return fixed
 
     def _label_merged_issues(self) -> None:
         """Label closed issues whose branch has been merged."""
