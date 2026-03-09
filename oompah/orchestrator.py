@@ -1911,6 +1911,7 @@ class Orchestrator:
                     if "merge-conflict" in current_labels:
                         logger.info("Merge-conflict agent completed for %s — "
                                     "awaiting YOLO merge", entry.identifier)
+                        tracker.update_issue(entry.identifier, status="open")
                         self.state.completed.add(issue_id)
                         self.state.reopen_counts.pop(issue_id, None)
                     else:
