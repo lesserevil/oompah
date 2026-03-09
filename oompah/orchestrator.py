@@ -1164,6 +1164,36 @@ class Orchestrator:
                 del self._yolo_limbo_ticks[key]
         return fixed
 
+    def _ensure_review_exists(self, entry: RunningEntry, project_id: str | None) -> None:
+        """Create a review (PR/MR) if the agent pushed a branch but none exists."""
+        if not project_id:
+            return
+        project = self.project_store.get(project_id)
+        if not project or not project.repo_url:
+            return
+        provider = detect_provider(project.repo_url)
+        if not provider:
+            return
+        slug = extract_repo_slug(project.repo_url)
+        branch = entry.identifier  # branch is named after the issue
+        # Check if a review already exists for this branch
+        reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
+        for r in reviews:
+            if r.source_branch == branch:
+                return  # review already exists
+        # Create the review
+        try:
+            title = f"{entry.identifier}: {entry.issue.title}" if entry.issue else entry.identifier
+            result = provider.create_review(slug, title, branch)
+            if result:
+                logger.info("Auto-created review for %s on %s (review #%s)",
+                            entry.identifier, project.name, result.id)
+            else:
+                logger.warning("Failed to create review for %s on %s",
+                               entry.identifier, project.name)
+        except Exception as exc:
+            logger.warning("Error creating review for %s: %s", entry.identifier, exc)
+
     def _label_merged_issues(self) -> None:
         """Label closed issues whose branch has been merged."""
         merged = getattr(self, "_merged_branches", set())
@@ -2103,6 +2133,8 @@ class Orchestrator:
                 else:
                     self.state.completed.add(issue_id)
                     self.state.reopen_counts.pop(issue_id, None)
+                    # Auto-create review if agent pushed a branch
+                    self._ensure_review_exists(entry, project_id)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library
