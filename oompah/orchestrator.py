@@ -1910,8 +1910,16 @@ class Orchestrator:
                     current_labels = {l.lower() for l in (current.labels or [])}
                     if "merge-conflict" in current_labels:
                         logger.info("Merge-conflict agent completed for %s — "
-                                    "awaiting YOLO merge", entry.identifier)
-                        tracker.update_issue(entry.identifier, status="open")
+                                    "closing, awaiting YOLO merge",
+                                    entry.identifier)
+                        # Close the issue — the agent resolved the conflict.
+                        # YOLO will reopen it if new conflicts arise.
+                        try:
+                            tracker.update_issue(entry.identifier,
+                                                 **{"remove-label": "merge-conflict"})
+                        except Exception:
+                            pass
+                        tracker.close_issue(entry.identifier)
                         self.state.completed.add(issue_id)
                         self.state.reopen_counts.pop(issue_id, None)
                     else:
