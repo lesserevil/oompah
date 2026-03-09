@@ -1119,9 +1119,11 @@ class Orchestrator:
             issue = tracker.fetch_issue_detail(source_branch)
             if not issue:
                 return
-            # Don't re-notify if already open/in_progress with merge-conflict label
+            # Don't re-notify if already open/in_progress with merge-conflict label,
+            # but ensure we clear the completed set so it can be re-dispatched.
             state_lower = issue.state.strip().lower()
             if state_lower in ("open", "in_progress") and "merge-conflict" in issue.labels:
+                self.state.completed.discard(issue.id)
                 return
             comment_text = (
                 f"YOLO: Merge conflict detected on MR #{review_id}. "
