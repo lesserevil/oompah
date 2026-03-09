@@ -160,6 +160,34 @@
       border-radius: 0;
       max-height: none;
     }
+    /* Hide per-swimlane column headers in swimlane view — headings are shown
+       once in the sticky .swimlane-board-header row instead */
+    .swimlane-columns .column-header {
+      display: none;
+    }
+
+    /* Sticky column-heading row rendered once at the top of swimlane view */
+    .swimlane-board-header {
+      display: flex;
+      gap: 1rem;
+      padding: 0 0 0.25rem 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.5rem;
+    }
+    .swimlane-board-header .col-heading {
+      min-width: 280px;
+      flex: 1;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+    }
 
     .column {
       background: var(--surface);
@@ -1476,6 +1504,18 @@ function renderSwimlaneView(board, data) {
   const epicIds = new Set(epics.map(e => e.id));
   // Orphans: non-epic issues with no epic parent, PLUS draft epics (shown as cards)
   const orphans = allIssuesFlat.filter(i => (i.issue_type !== 'epic' || (i.labels || []).includes('draft')) && (!i.parent_id || !epicIds.has(i.parent_id)));
+
+  // Render a single sticky column-heading row at the top of the board.
+  // Per-swimlane column headers are hidden via CSS so headings appear exactly once.
+  const boardHeader = document.createElement('div');
+  boardHeader.className = 'swimlane-board-header';
+  for (const col of COLUMNS) {
+    const heading = document.createElement('div');
+    heading.className = 'col-heading';
+    heading.textContent = COLUMN_LABELS[col];
+    boardHeader.appendChild(heading);
+  }
+  board.appendChild(boardHeader);
 
   // Render each epic as a swimlane
   for (const epic of epics) {
