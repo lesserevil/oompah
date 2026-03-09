@@ -828,38 +828,51 @@ class Orchestrator:
         return epics_to_plan
 
     def _should_dispatch(self, issue: Issue) -> bool:
+        def _reject(reason: str) -> bool:
+            # Track consecutive rejections for stuck-issue detection
+            key = issue.id
+            prev_reason, count = self.state.reject_streak.get(key, ("", 0))
+            if reason == prev_reason:
+                count += 1
+            else:
+                count = 1
+            self.state.reject_streak[key] = (reason, count)
+            if count >= 10 and count % 10 == 0:
+                logger.warning("Stuck issue %s: rejected %d consecutive ticks (%s)",
+                               issue.identifier, count, reason)
+            else:
+                logger.debug("Dispatch reject %s: %s", issue.identifier, reason)
+            return False
         if self._paused:
-            return False
-        if self._is_rate_limited():
-            return False
+            return _reject("paused")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
-            return False
+            return _reject("missing_fields")
         # Never dispatch epics via normal dispatch — they are planned
         # separately by _plan_open_epics / _should_dispatch_epic
         if issue.issue_type == "epic":
-            return False
+            return _reject("epic")
         # Never dispatch issues that are waiting for a human answer
         if "asking_question" in issue.labels:
-            return False
+            return _reject("asking_question")
         state_norm = issue.state.strip().lower()
         if state_norm not in [s.strip().lower() for s in self.config.tracker_active_states]:
-            return False
+            return _reject(f"inactive_state={state_norm}")
         if state_norm in [s.strip().lower() for s in self.config.tracker_terminal_states]:
-            return False
+            return _reject(f"terminal_state={state_norm}")
         if issue.id in self.state.running:
-            return False
+            return _reject("running")
         if issue.id in self.state.claimed:
-            return False
+            return _reject("claimed")
         if issue.id in self.state.retry_attempts:
-            return False
+            return _reject("retry_pending")
         if issue.id in self.state.completed:
-            return False
+            return _reject("completed")
         is_p0 = issue.priority is not None and issue.priority == 0
         if not is_p0:
             if self._available_slots() <= 0:
-                return False
+                return _reject("no_slots")
             if not self._per_state_available(issue.state):
-                return False
+                return _reject("per_state_limit")
         # Blocker rule for "open"/"todo" state
         if state_norm in ("open", "todo"):
             terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
@@ -871,28 +884,24 @@ class Orchestrator:
                     blocker_state = resolved
                 if blocker_state not in terminal_norms:
                     # Blocker not yet closed — still blocked
-                    return False
+                    return _reject(f"blocker={blocker.id} state={blocker_state}")
                 if self._blocker_has_unmerged_pr(blocker):
                     # Blocker is closed but PR hasn't merged — still blocked
-                    return False
+                    return _reject(f"blocker={blocker.id} unmerged_review")
         # Serialize MR/PR fixes by project: if a project already has an open
         # review (PR/MR), don't dispatch another agent to that project until the
         # existing review is merged. This prevents multiple simultaneous merges
         # from conflicting with each other (each merge changes the target branch).
         # P0 issues bypass this check to ensure critical fixes are never blocked.
         if not is_p0 and self._project_has_open_review(issue.project_id):
-            logger.debug(
-                "Skipping dispatch for %s: project %s already has an open review",
-                issue.identifier, issue.project_id,
-            )
-            return False
+            return _reject("open_review")
         # Budget circuit breaker
         if not self._check_budget():
             if not self.state.budget_exceeded:
                 self.state.budget_exceeded = True
                 logger.warning("Budget limit exceeded (%.2f/%.2f), halting dispatch",
                              self.state.agent_totals.estimated_cost, self.config.budget_limit)
-            return False
+            return _reject("budget_exceeded")
         return True
 
     def _pre_resolve_blockers(self, candidates: list[Issue]) -> None:
@@ -1073,6 +1082,8 @@ class Orchestrator:
                     logger.info("YOLO: auto-resolving conflicts on %s review #%s",
                                 project.name, review_id)
                     success, msg = provider.rebase_review(slug, review_id)
+                    logger.info("YOLO: rebase result for %s #%s: success=%s msg=%s",
+                                project.name, review_id, success, msg[:200] if msg else "")
                     if not success and "conflict" in msg.lower():
                         self._yolo_notify_conflict(project, provider, slug, review_id)
                         # Failed rebase doesn't change target branch — safe to
@@ -1379,6 +1390,7 @@ class Orchestrator:
     async def _dispatch(self, issue: Issue, attempt: int | None,
                         override_profile: str | None = None) -> None:
         """Dispatch a worker for an issue."""
+        self.state.reject_streak.pop(issue.id, None)
         # Use escalated profile if provided, otherwise match normally
         if override_profile:
             profile = self._get_profile_by_name(override_profile)

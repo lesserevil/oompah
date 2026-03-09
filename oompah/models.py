@@ -269,6 +269,7 @@ class OrchestratorState:
     completed: set[str] = field(default_factory=set)
     stall_counts: dict[str, int] = field(default_factory=dict)  # issue_id → stall count
     reopen_counts: dict[str, int] = field(default_factory=dict)  # issue_id → times agent completed without closing
+    reject_streak: dict[str, tuple[str, int]] = field(default_factory=dict)  # issue_id → (reason, count)
     agent_totals: AgentTotals = field(default_factory=AgentTotals)
     cost_by_profile: dict[str, float] = field(default_factory=dict)
     budget_exceeded: bool = False
