@@ -1902,28 +1902,38 @@ class Orchestrator:
                 current = tracker.fetch_issue_detail(entry.identifier)
                 terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
                 if current and current.state.strip().lower() not in terminal:
-                    # Track how many times this issue completed without closing
-                    reopen_count = self.state.reopen_counts.get(issue_id, 0) + 1
-                    self.state.reopen_counts[issue_id] = reopen_count
-                    max_reopens = 3
-                    if reopen_count >= max_reopens:
-                        # Stop re-dispatching — agent can't close this issue
-                        logger.warning(
-                            "Agent completed without closing %s %d times — giving up (marking deferred)",
-                            entry.identifier, reopen_count)
-                        self._post_comment(
-                            entry.identifier,
-                            f"Agent completed {reopen_count} times without closing this issue. "
-                            f"Deferring — needs human attention.",
-                            project_id=project_id,
-                        )
-                        tracker.update_issue(entry.identifier, status="deferred")
+                    # Merge-conflict agents just rebase — closure happens when
+                    # YOLO merges the MR.  Don't count these toward the reopen
+                    # limit; just mark completed and let YOLO handle the rest.
+                    current_labels = {l.lower() for l in (current.labels or [])}
+                    if "merge-conflict" in current_labels:
+                        logger.info("Merge-conflict agent completed for %s — "
+                                    "awaiting YOLO merge", entry.identifier)
                         self.state.completed.add(issue_id)
+                        self.state.reopen_counts.pop(issue_id, None)
                     else:
-                        # Reset to open for retry with backoff
-                        tracker.update_issue(entry.identifier, status="open")
-                        logger.info("Agent completed without closing %s — reset to open (%d/%d)",
-                                    entry.identifier, reopen_count, max_reopens)
+                        # Track how many times this issue completed without closing
+                        reopen_count = self.state.reopen_counts.get(issue_id, 0) + 1
+                        self.state.reopen_counts[issue_id] = reopen_count
+                        max_reopens = 3
+                        if reopen_count >= max_reopens:
+                            # Stop re-dispatching — agent can't close this issue
+                            logger.warning(
+                                "Agent completed without closing %s %d times — giving up (marking deferred)",
+                                entry.identifier, reopen_count)
+                            self._post_comment(
+                                entry.identifier,
+                                f"Agent completed {reopen_count} times without closing this issue. "
+                                f"Deferring — needs human attention.",
+                                project_id=project_id,
+                            )
+                            tracker.update_issue(entry.identifier, status="deferred")
+                            self.state.completed.add(issue_id)
+                        else:
+                            # Reset to open for retry with backoff
+                            tracker.update_issue(entry.identifier, status="open")
+                            logger.info("Agent completed without closing %s — reset to open (%d/%d)",
+                                        entry.identifier, reopen_count, max_reopens)
                 else:
                     self.state.completed.add(issue_id)
                     self.state.reopen_counts.pop(issue_id, None)
