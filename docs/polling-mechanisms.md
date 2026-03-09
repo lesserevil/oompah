@@ -5,6 +5,39 @@ used. It was created as part of issue **oompah-8r5**, a subtask of the
 event-driven architecture epic **oompah-ky3** ("All actions must be event
 driven").
 
+## Overview
+
+The diagram below shows all six polling/loop mechanisms and their relationship
+to the main orchestrator event loop.
+
+```mermaid
+flowchart TD
+    CLI["CLI main()
+    __main__.py"]
+    Orch["Orchestrator
+    run()"]
+    Restart["graceful_restart()
+    orchestrator.py"]
+    LFW["LogFileWatcher
+    error_watcher.py"]
+    Stderr["_drain_stderr()
+    agent.py"]
+    StdOut["stream_turn()
+    agent.py"]
+
+    CLI -- "one-shot restart wrapper" --> Orch
+    Orch -- "drain timeout" --> Restart
+    Orch -- "spawns" --> Stderr
+    Orch -- "spawns" --> StdOut
+    Orch -- "monitors" --> LFW
+
+    style Orch fill:#f9a,stroke:#c66
+    style LFW fill:#fa9,stroke:#c66
+```
+
+Items shaded in orange (`Orchestrator.run()` and `LogFileWatcher`) are the
+highest-priority candidates for replacement with an event-driven approach.
+
 ---
 
 ## 1. Orchestrator main poll loop
@@ -32,6 +65,19 @@ state. The `asyncio.Event` (`_refresh_requested`) lets an external signal
 (e.g., a webhook) trigger an early tick, but if no signal arrives the loop
 falls back to the fixed timeout — pure polling.
 
+The flow within each tick is:
+
+```mermaid
+flowchart LR
+    Wait["Wait for Event\nor timeout (30 s)"]
+    Tick["_tick()\nfetch issues\ndispatch agents\nreconcile state"]
+    Signal["External signal\n(webhook / API)"]
+
+    Wait -- "timeout expires" --> Tick
+    Signal -- "sets _refresh_requested" --> Wait
+    Tick --> Wait
+```
+
 ---
 
 ## 2. Graceful-restart drain loop
@@ -50,6 +96,24 @@ while self.state.running and time.monotonic() < deadline:
 **What it does:** After a restart is requested, polls every 2 seconds to check
 whether all running agents have finished, up to `drain_timeout_s` (default
 60 s).
+
+```mermaid
+flowchart TD
+    Start["Restart requested"]
+    Check{"All agents\nfinished?"}
+    Sleep["sleep(2 s)"]
+    Timeout{"Deadline\nexceeded?"}
+    Done["Restart proceeds"]
+    Force["Force-terminate\nremaining agents"]
+
+    Start --> Check
+    Check -- "yes" --> Done
+    Check -- "no" --> Timeout
+    Timeout -- "no" --> Sleep
+    Sleep --> Check
+    Timeout -- "yes" --> Force
+    Force --> Done
+```
 
 ---
 
@@ -70,6 +134,20 @@ while self._running:
 **Interval:** `poll_interval` parameter, default 2.0 seconds.  
 **What it does:** Periodically reads new lines appended to a log file and
 dispatches error events to registered callbacks.
+
+```mermaid
+flowchart LR
+    Poll["_poll_file()\nread new lines"]
+    Sleep["sleep(2 s)"]
+    Callbacks["Error callbacks\ndispatched"]
+    Running{"_running?"}
+
+    Running -- "yes" --> Poll
+    Poll -- "errors found" --> Callbacks
+    Poll --> Sleep
+    Sleep --> Running
+    Running -- "no" --> Stop["Stop"]
+```
 
 ---
 
