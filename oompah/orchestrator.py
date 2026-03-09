@@ -1070,13 +1070,15 @@ class Orchestrator:
                 review_id = review.id
 
                 if review.has_conflicts:
-                    # Auto-resolve conflicts — act on this one and stop for this project.
-                    logger.info("YOLO: auto-resolving conflicts on %s MR #%s",
+                    logger.info("YOLO: auto-resolving conflicts on %s review #%s",
                                 project.name, review_id)
                     success, msg = provider.rebase_review(slug, review_id)
                     if not success and "conflict" in msg.lower():
                         self._yolo_notify_conflict(project, provider, slug, review_id)
-                    # Serialization: only one action per project per tick.
+                        # Failed rebase doesn't change target branch — safe to
+                        # continue processing other reviews for this project.
+                        continue
+                    # Successful rebase changes branch state — serialize.
                     break
 
                 if review.ci_status == "failed":
