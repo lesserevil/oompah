@@ -92,6 +92,10 @@ You MUST post comments to the issue at key milestones using `bd comments add {{ 
 
 Keep comments concise but informative — write what a project manager needs to see.
 
+## Documentation Rules
+
+- When creating diagrams in documentation, **always use Mermaid** (```mermaid code blocks). Never use ASCII art diagrams.
+
 ## Test Requirements
 
 **ALL code changes MUST be covered by tests.** Do not submit code without corresponding test coverage.

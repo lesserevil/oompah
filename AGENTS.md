@@ -26,6 +26,10 @@ make test             # NOT: pytest directly
 
 If unsure whether a target exists, run `make help` or `grep` the Makefile.
 
+## Documentation Rules
+
+- When creating diagrams in documentation, **always use Mermaid** (```mermaid code blocks). Never use ASCII art diagrams.
+
 ## Test Coverage Required
 
 **ALL code changes MUST be covered by tests.** Do not submit code without corresponding test coverage.
