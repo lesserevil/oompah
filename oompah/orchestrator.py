@@ -792,6 +792,8 @@ class Orchestrator:
             return False
         if issue.issue_type != "epic":
             return False
+        if "human-only" in issue.labels:
+            return False
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
         state_norm = issue.state.strip().lower()
@@ -907,6 +909,9 @@ class Orchestrator:
         # Never dispatch issues that are waiting for a human answer
         if "asking_question" in issue.labels:
             return _reject("asking_question")
+        # Never dispatch issues reserved for human action (e.g. capability requests)
+        if "human-only" in issue.labels:
+            return _reject("human-only")
         # Never dispatch issues that have been decomposed into children
         if "decomposed" in issue.labels:
             return _reject("decomposed")
