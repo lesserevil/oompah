@@ -7,17 +7,7 @@ tracker:
   terminal_states:
     - closed
 
-polling:
-  interval_ms: 30000
-
-workspace:
-  root: /tmp/oompah_workspaces
-
 agent:
-  max_concurrent_agents: 5
-  stall_turns: 5
-  max_retry_backoff_ms: 300000
-  budget_limit: 50.00
   profiles:
     - name: quick
       model_role: fast
@@ -35,9 +25,6 @@ agent:
       max_priority: 1
     - name: default
       model_role: fast
-
-server:
-  port: 8080
 ---
 
 You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
@@ -61,6 +48,8 @@ The following insights have been collected by previous agents working on this pr
 
 {{ agents_md }}
 {% endif %}
+
+**Self-reliance principle:** You are an autonomous agent. When you need to understand something — a bug's root cause, how a system works, why something is broken — you MUST investigate it yourself by reading code, running commands, checking logs, and testing hypotheses. Never ask the user to diagnose problems for you or explain things you can figure out by reading the codebase. Questions to the user should be reserved for decisions that require human judgment — e.g., choosing between technologies, preferred testing methodologies, architectural trade-offs, or ambiguous requirements where multiple valid approaches exist. Do not ask questions about things you can determine by investigation.
 
 **Handoff principle:** You are a specialist. If part of this issue requires expertise outside your role (e.g., you're fixing a bug but the fix needs frontend CSS work, or you're building a feature but it needs a security review), hand off that part rather than doing it poorly. See "Handoff to Another Agent" below.
 

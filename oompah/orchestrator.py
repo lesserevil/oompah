@@ -627,6 +627,11 @@ class Orchestrator:
                 break
             await self._dispatch(epic, attempt=None)
 
+        # Auto-close epics whose children are all done
+        await asyncio.get_event_loop().run_in_executor(
+            self._tick_pool, self._auto_close_completed_epics, candidates
+        )
+
         # Reset orphaned in_progress issues (no agent, no retry)
         self._reset_orphaned_in_progress(candidates)
 
@@ -823,6 +828,44 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to fetch children for epic %s: %s", epic.identifier, exc)
             return []
+
+    def _auto_close_completed_epics(self, candidates: list[Issue]) -> None:
+        """Auto-close epics whose children are all in terminal states.
+
+        Scans deferred/open epics that have children; if every child is
+        in a terminal state, the epic is closed automatically.
+        """
+        terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
+        active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
+        non_terminal = active_norms | {"deferred", "in_progress"}
+
+        for issue in candidates:
+            if issue.issue_type != "epic":
+                continue
+            state_norm = issue.state.strip().lower()
+            if state_norm in terminal_norms:
+                continue  # already closed
+
+            children = self._fetch_epic_children(issue)
+            if not children:
+                continue  # no children — nothing to roll up
+
+            all_terminal = all(
+                c.state.strip().lower() in terminal_norms for c in children
+            )
+            if all_terminal:
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    tracker.close_issue(issue.identifier)
+                    logger.info(
+                        "Auto-closed epic %s — all %d children in terminal state",
+                        issue.identifier,
+                        len(children),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to auto-close epic %s: %s", issue.identifier, exc
+                    )
 
     def _plan_open_epics(self, candidates: list[Issue]) -> list[Issue]:
         """Identify open epics that need planning and return them for dispatch.
@@ -2187,25 +2230,33 @@ class Orchestrator:
                     entry.identifier, next_attempt,
                 )
             else:
-                # Track stall count for escalation
+                # Track stall/failure count for escalation
                 escalated = None
                 if reason == "stalled":
                     self.state.stall_counts[issue_id] = self.state.stall_counts.get(issue_id, 0) + 1
                     stall_count = self.state.stall_counts[issue_id]
-                    # Check if we should escalate to a higher profile
+
+                # Escalate on both stalled and max_turns once threshold is met
+                if next_attempt >= self.config.escalate_after_attempts:
                     current_profile = self._get_profile_by_name(entry.agent_profile_name)
                     escalated = self._escalate_profile(current_profile, entry.issue)
-                    if escalated:
-                        msg = (f"Agent stalled {stall_count} time(s) ({elapsed:.0f}s{tokens_str}). "
+
+                if escalated:
+                    if reason == "stalled":
+                        msg = (f"Agent stalled {self.state.stall_counts.get(issue_id, 1)} time(s) ({elapsed:.0f}s{tokens_str}). "
                                f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
                                f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
-                        logger.info("Escalating issue %s from profile %s to %s (stall_count=%d)",
-                                    entry.identifier, entry.agent_profile_name, escalated.name, stall_count)
                     else:
-                        msg = (f"Agent stalled — no productive actions (writes/commands) "
-                               f"for {self.config.stall_turns} consecutive turns "
-                               f"({elapsed:.0f}s{tokens_str}). "
+                        msg = (f"Agent hit turn limit ({elapsed:.0f}s{tokens_str}). "
+                               f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
                                f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                    logger.info("Escalating issue %s from profile %s to %s (attempt=%d, reason=%s)",
+                                entry.identifier, entry.agent_profile_name, escalated.name, next_attempt, reason)
+                elif reason == "stalled":
+                    msg = (f"Agent stalled — no productive actions (writes/commands) "
+                           f"for {self.config.stall_turns} consecutive turns "
+                           f"({elapsed:.0f}s{tokens_str}). "
+                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
                 else:
                     msg = (f"Agent hit safety turn limit ({elapsed:.0f}s{tokens_str}). "
                            f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
@@ -2216,7 +2267,7 @@ class Orchestrator:
                     identifier=entry.identifier,
                     delay_ms=delay,
                     error=error or reason,
-                    escalated_profile=escalated.name if reason == "stalled" and escalated else None,
+                    escalated_profile=escalated.name if escalated else None,
                 )
                 logger.info(
                     "Worker %s issue_id=%s issue_identifier=%s retrying_in_ms=%d",
