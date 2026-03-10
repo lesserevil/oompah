@@ -668,6 +668,10 @@ async def api_add_comment(identifier: str, request: Request):
                         "Removed asking_question label from %s after user comment",
                         identifier,
                     )
+                    # Trigger dispatch so the orchestrator re-dispatches promptly
+                    orch = _get_orchestrator()
+                    if orch:
+                        orch.request_refresh()
             except Exception as exc:
                 logger.debug(
                     "Failed to check/remove asking_question label on %s: %s",
