@@ -2190,10 +2190,34 @@ class Orchestrator:
                             tracker.update_issue(entry.identifier, status="deferred")
                             self.state.completed.add(issue_id)
                         else:
-                            # Reset to open for retry with backoff
-                            tracker.update_issue(entry.identifier, status="open")
-                            logger.info("Agent completed without closing %s — reset to open (%d/%d)",
-                                        entry.identifier, reopen_count, max_reopens)
+                            # Try to escalate to a stronger profile before retrying
+                            current_profile = self._get_profile_by_name(entry.agent_profile_name)
+                            escalated = self._escalate_profile(current_profile, entry.issue)
+                            if escalated:
+                                delay = self._backoff_delay(reopen_count)
+                                self._post_comment(
+                                    entry.identifier,
+                                    f"Agent completed without closing this issue ({elapsed:.0f}s{tokens_str}). "
+                                    f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
+                                    f"Retrying in {delay // 1000}s ({reopen_count}/{max_reopens}).",
+                                    project_id=project_id,
+                                )
+                                self._schedule_retry(
+                                    issue_id,
+                                    attempt=reopen_count,
+                                    identifier=entry.identifier,
+                                    delay_ms=delay,
+                                    error="completed_without_closing",
+                                    escalated_profile=escalated.name,
+                                )
+                                logger.info("Escalating %s from %s to %s after completing without closing (%d/%d)",
+                                            entry.identifier, entry.agent_profile_name, escalated.name,
+                                            reopen_count, max_reopens)
+                            else:
+                                # No higher profile available — retry with same profile
+                                tracker.update_issue(entry.identifier, status="open")
+                                logger.info("Agent completed without closing %s — reset to open (%d/%d)",
+                                            entry.identifier, reopen_count, max_reopens)
                 else:
                     self.state.completed.add(issue_id)
                     self.state.reopen_counts.pop(issue_id, None)
@@ -2405,7 +2429,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     {{
       "title": "Short descriptive title",
       "description": "Detailed description with enough context to work independently",
-      "focus_hint": "one of: bugfix, feature, refactor, frontend, docs, test, security, devops, chore",
+      "focus_hint": "one of: feature, refactor, frontend, docs, test, security, devops, chore",
       "priority": 2,
       "depends_on": []
     }}

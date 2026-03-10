@@ -218,10 +218,19 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "description": (
                 "Ask a question to the project maintainer when you are blocked and "
                 "cannot proceed without human input. The question will be posted as a "
-                "comment on the issue. The agent session will then stop and the issue "
-                "will be held until a human answers. Only use this when you truly "
-                "cannot proceed without clarification — do NOT use it for things you "
-                "can figure out yourself."
+                "comment on the issue. The agent session will then STOP and the issue "
+                "will be held until a human answers.\n\n"
+                "STRICT RULES — violating these wastes human time and blocks progress:\n"
+                "- NEVER ask about HOW to implement something — figure it out by reading code\n"
+                "- NEVER restate the issue description as a question\n"
+                "- NEVER ask for confirmation of your plan — just execute it\n"
+                "- NEVER ask 'how should I proceed' or 'what should I prioritize'\n"
+                "- ONLY ask when the issue is genuinely ambiguous and multiple valid "
+                "interpretations exist that would lead to fundamentally different implementations\n"
+                "- Examples of valid questions: 'The issue says remove feature X, but feature Y "
+                "depends on it — should I remove both or keep Y working?'\n"
+                "- Examples of INVALID questions: 'How do I fix this bug?', 'Should I prioritize X?', "
+                "'What approach should I take?'"
             ),
             "parameters": {
                 "type": "object",

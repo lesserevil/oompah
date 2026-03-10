@@ -170,7 +170,7 @@ class TestRenderFlatViewFilter:
         )
         # The OR branch should include draft label check
         assert re.search(
-            r"!isSwimlaneParent\(.*\|\|.*draft",
+            r"!isSwimlaneParent\(.*?\).*\|\|.*draft",
             render_flat_body,
             re.DOTALL,
         ), "renderFlatView filter must OR-include draft epics"
@@ -308,7 +308,7 @@ class TestCreateCardDraftEpicBadge:
         )
         assert badge_match, "Could not find draftEpicBadgeHtml declaration"
         condition = badge_match.group(1)
-        assert "isSwimlaneParent" in condition, (
+        assert re.search(r"isSwimlaneParent\(issue\)", condition), (
             "draftEpicBadgeHtml must check isSwimlaneParent(issue)"
         )
 
@@ -817,7 +817,7 @@ class TestRegressionFilterExpression:
     def test_filter_allows_non_epic_issues_through(self, render_flat_body):
         """The filter must still allow all non-swimlane-parent issues through."""
         # The filter condition is: !isSwimlaneParent(i) || ...
-        # For non-epics/non-parents, the first clause (true) short-circuits → included ✓
+        # For non-epics/non-parents, the first clause (true) short-circuits -> included
         assert re.search(
             r"!isSwimlaneParent\(i\)",
             render_flat_body,

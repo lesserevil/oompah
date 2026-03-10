@@ -137,9 +137,9 @@ class TestDraftEpicBadgeInCreateCard:
         )
         assert createcard_match
         body = createcard_match.group(1)
-        # Find the draftEpicBadgeHtml assignment
+        # Find the draftEpicBadgeHtml assignment using isSwimlaneParent
         assert re.search(
-            r"draftEpicBadgeHtml\s*=.*isSwimlaneParent\(",
+            r"draftEpicBadgeHtml\s*=.*isSwimlaneParent\(issue\)",
             body,
         ), "createCard must check isSwimlaneParent(issue) for draft epic badge"
 
@@ -275,6 +275,8 @@ class TestDraftEpicBadgeConditionLogic:
         condition_code = badge_match.group(2)
         assert "isSwimlaneParent" in condition_code, \
             "draftEpicBadgeHtml condition must check isSwimlaneParent(issue)"
+        assert "draft" in condition_code, \
+            "draftEpicBadgeHtml condition must check for 'draft' label"
 
     def test_badge_handles_missing_labels_gracefully(self, script):
         """Badge condition should handle issues without labels (labels may be null/undefined)."""
@@ -353,7 +355,7 @@ class TestDraftEpicDraggability:
             re.DOTALL,
         )
         assert filter_match, (
-            "renderFlatView must have a isSwimlaneParent filter that handles draft epics"
+            "renderFlatView must have an isSwimlaneParent filter that handles draft epics"
         )
         filter_code = filter_match.group(0)
         # The filter should include an exception for draft label

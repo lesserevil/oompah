@@ -4,7 +4,7 @@ PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
 PORT := 8080
 
-.PHONY: setup start stop restart graceful status logs clean
+.PHONY: setup start stop restart graceful status logs test clean
 
 setup: $(VENV)/.uv-setup
 
@@ -51,6 +51,9 @@ status:
 		rm -f $(PID_FILE); \
 		echo "oompah is not running"; \
 	fi
+
+test: setup
+	uv run pytest tests/ -v
 
 logs:
 	@tail -f $(LOG_FILE)

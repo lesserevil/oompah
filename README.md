@@ -117,11 +117,10 @@ Providers are configured at runtime via the dashboard (`/providers`) and stored 
 
 ## Focus system
 
-Foci are specialized agent roles that tailor the prompt to the type of work. Oompah includes 9 built-in foci:
+Foci are specialized agent roles that tailor the prompt to the type of work. Oompah includes 8 built-in foci:
 
 | Focus | Role | Matches |
 |---|---|---|
-| `bugfix` | Bug Investigator & Fixer | bugs, crashes, errors |
 | `feature` | Feature Developer | new features, implementations |
 | `refactor` | Refactoring Specialist | cleanup, restructuring |
 | `frontend` | Frontend Developer | UI, CSS, components |

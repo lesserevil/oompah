@@ -9,7 +9,7 @@ Covers:
 - request_refresh() posts a REFRESH_REQUESTED event
 - unpause() posts a REFRESH_REQUESTED event
 - _on_retry_timer() posts a RETRY_FIRED event
-- full_sync_interval_ms config field (default 300000)
+- full_sync_interval_ms config field (default 30000)
 - from_workflow parses full_sync_interval_ms
 """
 

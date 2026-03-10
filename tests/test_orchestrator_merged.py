@@ -448,20 +448,17 @@ class TestYoloReviewSerializationByProject:
     def test_conflict_resolution_dispatches_notify_for_each(
         self, mock_slug, mock_detect, tmp_path
     ):
-        """When multiple PRs have conflicts, each gets a conflict notification (no serialization)."""
+        """When multiple PRs have conflicts, each gets a conflict notification (no serialization).
+        Conflicts use continue (all processed) not break, and _yolo_notify_conflict is called for all."""
         project = _make_project()
         project.yolo = True
 
         provider = MagicMock()
-        # _yolo_notify_conflict calls provider.get_review() which returns a review object
-        mock_review = MagicMock()
-        mock_review.source_branch = "feat-1"
-        mock_review.target_branch = "main"
-        provider.get_review.return_value = mock_review
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
 
         # Mock the tracker to return an issue for fetch_issue_detail
         mock_tracker = MagicMock()
@@ -481,10 +478,14 @@ class TestYoloReviewSerializationByProject:
 
         orch._yolo_review_actions_sync()
 
-        # Both conflict reviews should trigger get_review (conflict notification, not rebase)
-        assert provider.get_review.call_count == 2
         # rebase_review should NOT be called (conflicts use notify, not rebase)
-        assert provider.rebase_review.call_count == 0
+        provider.rebase_review.assert_not_called()
+        # Both conflict reviews should trigger _yolo_notify_conflict (continue, not break)
+        assert orch._yolo_notify_conflict.call_count == 2
+        calls = orch._yolo_notify_conflict.call_args_list
+        assert calls[0][0][2] == "org/repo"  # slug
+        assert calls[0][0][3] == "1"          # review_id
+        assert calls[1][0][3] == "2"          # review_id
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")

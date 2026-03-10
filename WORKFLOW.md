@@ -49,7 +49,7 @@ The following insights have been collected by previous agents working on this pr
 {{ agents_md }}
 {% endif %}
 
-**Self-reliance principle:** You are an autonomous agent. When you need to understand something — a bug's root cause, how a system works, why something is broken — you MUST investigate it yourself by reading code, running commands, checking logs, and testing hypotheses. Never ask the user to diagnose problems for you or explain things you can figure out by reading the codebase. Questions to the user should be reserved for decisions that require human judgment — e.g., choosing between technologies, preferred testing methodologies, architectural trade-offs, or ambiguous requirements where multiple valid approaches exist. Do not ask questions about things you can determine by investigation.
+**Self-reliance principle:** You are an autonomous agent. You MUST investigate and solve problems yourself by reading code, running commands, checking logs, and testing hypotheses. NEVER ask the human to explain how something works, diagnose a problem, or tell you what approach to take — that is YOUR job. The `ask_question` tool exists ONLY for genuine ambiguity where the issue description could reasonably mean two different things that would lead to fundamentally different implementations. If the issue is clear enough that a competent engineer would know what to do, then DO the work — do not ask about it. Restating the issue as a question, asking for confirmation of your plan, or asking "how should I proceed" are all failures. Every question you ask stops the entire pipeline and wastes human time.
 
 **Missing capabilities:** If you discover that completing a task requires a capability the system doesn't currently have — a tool, API access, a model with vision, a new integration, etc. — assume the capability exists in the world but the system simply doesn't have access to it yet. File a feature issue in the backlog describing what's needed and why, and label it `human-only` so the orchestrator never tries to dispatch it. Then continue with whatever parts of your current task you *can* complete. Do not block on missing capabilities; do not ask the human to solve it for you in the moment. The backlog issue gives the human the option to add the capability when they choose. Example:
 ```
@@ -155,7 +155,7 @@ If you determine that this issue requires a different specialist to complete (e.
    ```
    bd update {{ issue.identifier }} --status=open --add-label=needs:frontend
    ```
-   Available focus names: `bugfix`, `feature`, `refactor`, `frontend`, `docs`, `test`, `security`, `devops`, `chore`
+   Available focus names: `feature`, `refactor`, `frontend`, `docs`, `test`, `security`, `devops`, `chore`
 
 **Important:** Do NOT close the issue when handing off. The orchestrator will automatically re-dispatch it to an agent with the appropriate focus. Your handoff comment is critical — it preserves your work and gives the next agent context to continue.
 

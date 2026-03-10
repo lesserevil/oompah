@@ -306,10 +306,10 @@ class TestGenerateFocusRules:
 
 class TestAnalyzeCompletedIssue:
     def test_returns_none_when_focus_matches(self):
-        issue = _make_issue(title="Fix a crash in the parser", issue_type="bug")
-        comments = [{"text": "Found the bug in the error handler"}]
+        issue = _make_issue(title="Add a new feature to support user profiles", issue_type="feature")
+        comments = [{"text": "Implemented the new feature for user profile creation"}]
         result = analyze_completed_issue(issue, comments, foci=BUILTIN_FOCI, threshold=0.1)
-        assert result is None  # bugfix focus should match
+        assert result is None  # feature focus should match
 
     def test_returns_none_when_too_few_domain_keywords(self):
         """Generic work without domain keywords should not trigger a suggestion."""

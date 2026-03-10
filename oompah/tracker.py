@@ -246,8 +246,13 @@ class BeadsTracker:
         self._run_bd(args)
 
     def close_issue(self, identifier: str) -> None:
-        """Close an issue via bd close."""
+        """Close an issue via bd close.
+
+        Also removes the asking_question label if present, since closed
+        issues cannot ask questions.
+        """
         self._run_bd(["close", identifier])
+        self.remove_label(identifier, "asking_question")
 
     def reopen_issue(self, identifier: str) -> None:
         """Reopen a closed issue by setting status to open."""

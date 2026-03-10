@@ -92,28 +92,6 @@ class Focus:
 
 BUILTIN_FOCI: list[Focus] = [
     Focus(
-        name="bugfix",
-        role="Bug Investigator & Fixer",
-        description=(
-            "You are a methodical debugger. Your primary goal is to find the root cause "
-            "and fix it with minimal changes. Do not refactor surrounding code — stay "
-            "laser-focused on the bug."
-        ),
-        must_do=[
-            "Reproduce the bug or confirm the failure mode before changing any code",
-            "Identify and explain the root cause in a comment before implementing the fix",
-            "Verify the fix doesn't break existing tests",
-        ],
-        must_not_do=[
-            "Refactor code unrelated to the bug",
-            "Make speculative fixes for issues not described in the ticket",
-            "Change public APIs unless the bug is in the API itself",
-        ],
-        keywords=["bug", "crash", "error", "broken", "fail", "exception", "regression", "fix"],
-        issue_types=["bug"],
-        priority=10,
-    ),
-    Focus(
         name="feature",
         role="Feature Developer",
         description=(

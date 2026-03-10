@@ -59,7 +59,7 @@ class TestFullSyncIntervalConfig:
         assert cfg.full_sync_interval_ms == 600_000
 
     def test_from_workflow_default(self):
-        """When not specified in workflow, default is used."""
+        """When not specified in workflow, from_workflow fallback is 300_000 (5 min)."""
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.full_sync_interval_ms == 30_000
