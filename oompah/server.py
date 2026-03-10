@@ -417,6 +417,37 @@ def _get_tracker(orch, project_id: str | None = None):
     return orch._tracker_for_project(project_id)
 
 
+def _find_tracker_for_issue(orch, identifier: str) -> tuple:
+    """Search all projects for an issue by identifier.
+
+    Returns a (tracker, project_id) tuple if found, or (None, None) if not.
+    Useful when project_id is not known by the caller.
+    """
+    from oompah.tracker import TrackerError
+
+    projects = orch.project_store.list_all()
+    if not projects:
+        # Legacy single-project mode
+        tracker = orch.tracker
+        try:
+            issue = tracker.fetch_issue_detail(identifier)
+            if issue is not None:
+                return tracker, None
+        except (TrackerError, Exception):
+            pass
+        return None, None
+
+    for project in projects:
+        try:
+            tracker = orch._tracker_for_project(project.id)
+            issue = tracker.fetch_issue_detail(identifier)
+            if issue is not None:
+                return tracker, project.id
+        except (TrackerError, Exception):
+            continue
+    return None, None
+
+
 def _fetch_all_issues(orch, filter_project: str | None = None):
     """Fetch issues from all projects or a specific one (parallel)."""
     from concurrent.futures import ThreadPoolExecutor
@@ -701,8 +732,18 @@ async def api_issue_full_detail(identifier: str, request: Request):
         cached = _api_cache.get(cache_key)
         if cached is not None:
             return JSONResponse(cached)
-        tracker = _get_tracker(orch, project_id)
-        issue = tracker.fetch_issue_detail(identifier)
+        if project_id:
+            tracker = _get_tracker(orch, project_id)
+            issue = tracker.fetch_issue_detail(identifier)
+        else:
+            # No project_id provided — search across all projects
+            loop = asyncio.get_event_loop()
+            tracker, project_id = await loop.run_in_executor(
+                _api_thread_pool, _find_tracker_for_issue, orch, identifier
+            )
+            issue = None
+            if tracker is not None:
+                issue = tracker.fetch_issue_detail(identifier)
         if issue is None:
             return JSONResponse(
                 {"error": {"code": "issue_not_found", "message": f"Issue {identifier} not found"}},

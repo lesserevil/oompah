@@ -445,19 +445,33 @@ class TestYoloReviewSerializationByProject:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_only_one_conflict_resolution_per_project_per_tick(
+    def test_conflict_resolution_dispatches_notify_for_each(
         self, mock_slug, mock_detect, tmp_path
     ):
-        """When multiple PRs have conflicts, only resolve the first one per tick."""
+        """When multiple PRs have conflicts, each gets a conflict notification (no serialization)."""
         project = _make_project()
         project.yolo = True
 
         provider = MagicMock()
-        provider.rebase_review.return_value = (True, "rebased")
+        # _yolo_notify_conflict calls provider.get_review() which returns a review object
+        mock_review = MagicMock()
+        mock_review.source_branch = "feat-1"
+        mock_review.target_branch = "main"
+        provider.get_review.return_value = mock_review
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        # Mock the tracker to return an issue for fetch_issue_detail
+        mock_tracker = MagicMock()
+        mock_issue = MagicMock()
+        mock_issue.state = "closed"
+        mock_issue.labels = []
+        mock_issue.identifier = "test-001"
+        mock_issue.id = "test-001"
+        mock_tracker.fetch_issue_detail.return_value = mock_issue
+        orch._project_trackers[project.id] = mock_tracker
 
         reviews = [
             _make_review("1", source_branch="feat-1", has_conflicts=True),
@@ -467,9 +481,10 @@ class TestYoloReviewSerializationByProject:
 
         orch._yolo_review_actions_sync()
 
-        # Only one rebase should have been attempted
-        assert provider.rebase_review.call_count == 1
-        provider.rebase_review.assert_called_once_with("org/repo", "1")
+        # Both conflict reviews should trigger get_review (conflict notification, not rebase)
+        assert provider.get_review.call_count == 2
+        # rebase_review should NOT be called (conflicts use notify, not rebase)
+        assert provider.rebase_review.call_count == 0
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")

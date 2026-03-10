@@ -116,14 +116,14 @@ class TestDispatchEvent:
 class TestFullSyncIntervalConfig:
     """full_sync_interval_ms has a sensible default and can be configured."""
 
-    def test_default_is_300000(self):
+    def test_default_is_30000(self):
         cfg = ServiceConfig()
-        assert cfg.full_sync_interval_ms == 300000
+        assert cfg.full_sync_interval_ms == 30000
 
     def test_from_workflow_default(self):
         wf = WorkflowDefinition(config={}, prompt_template="")
         cfg = ServiceConfig.from_workflow(wf)
-        assert cfg.full_sync_interval_ms == 300000
+        assert cfg.full_sync_interval_ms == 30000
 
     def test_from_workflow_custom(self):
         wf = WorkflowDefinition(

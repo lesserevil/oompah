@@ -413,9 +413,10 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         finally:
             loop.close()
 
-        # Tracker used must be project-scoped
-        mock_tracker.add_label.assert_called_once_with(issue.identifier, "asking_question")
-        mock_tracker.update_issue.assert_called_once_with(issue.identifier, status="open")
+        # Tracker used must be project-scoped — atomic update with label
+        mock_tracker.update_issue.assert_called_once_with(
+            issue.identifier, status="open", **{"add-label": "asking_question"}
+        )
 
     def test_ask_question_exit_legacy_tracker_without_project(self, tmp_path):
         """For legacy (no project_id) issues, the default tracker must be used."""
@@ -439,8 +440,10 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         finally:
             loop.close()
 
-        mock_tracker.add_label.assert_called_once_with(issue.identifier, "asking_question")
-        mock_tracker.update_issue.assert_called_once_with(issue.identifier, status="open")
+        # Atomic update with label
+        mock_tracker.update_issue.assert_called_once_with(
+            issue.identifier, status="open", **{"add-label": "asking_question"}
+        )
 
     def test_ask_question_comment_format_includes_question(self, tmp_path):
         """The posted comment must include the question text prominently."""
@@ -936,10 +939,10 @@ class TestAskQuestionLifecycleIntegration:
         assert issue_a.id not in orch.state.running
         assert issue_b.id not in orch.state.running
 
-        # Labels added for both
-        add_label_calls = mock_tracker.add_label.call_args_list
-        assert call("issue-a", "asking_question") in add_label_calls
-        assert call("issue-b", "asking_question") in add_label_calls
+        # Both issues updated atomically with label
+        update_calls = mock_tracker.update_issue.call_args_list
+        assert call("issue-a", status="open", **{"add-label": "asking_question"}) in update_calls
+        assert call("issue-b", status="open", **{"add-label": "asking_question"}) in update_calls
 
         # Neither in retry
         assert issue_a.id not in orch.state.retry_attempts

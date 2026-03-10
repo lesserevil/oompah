@@ -301,11 +301,10 @@ class TestOrchestratorAskQuestionExit:
         assert issue.identifier in comment_args[0]
         assert "What database should I use?" in comment_args[0][1]
 
-        # Verify: label was added
-        mock_tracker.add_label.assert_called_once_with(issue.identifier, "asking_question")
-
-        # Verify: issue was moved to open
-        mock_tracker.update_issue.assert_called_once_with(issue.identifier, status="open")
+        # Verify: issue was moved to open with label added atomically
+        mock_tracker.update_issue.assert_called_once_with(
+            issue.identifier, status="open", **{"add-label": "asking_question"}
+        )
 
         # Verify: issue_id removed from running and claimed
         assert issue_id not in orch.state.running

@@ -49,10 +49,10 @@ def _make_orchestrator(tmp_path, **config_kwargs) -> Orchestrator:
 class TestFullSyncIntervalConfig:
     """full_sync_interval_ms defaults and workflow parsing."""
 
-    def test_default_is_300_000ms(self):
-        """Default full_sync_interval_ms is 5 minutes (300 000 ms)."""
+    def test_default_is_30_000ms(self):
+        """Default full_sync_interval_ms is 30 seconds (30 000 ms)."""
         cfg = ServiceConfig()
-        assert cfg.full_sync_interval_ms == 300_000
+        assert cfg.full_sync_interval_ms == 30_000
 
     def test_custom_value(self):
         cfg = ServiceConfig(full_sync_interval_ms=600_000)
@@ -62,7 +62,7 @@ class TestFullSyncIntervalConfig:
         """When not specified in workflow, default is used."""
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
-        assert cfg.full_sync_interval_ms == 300_000
+        assert cfg.full_sync_interval_ms == 30_000
 
     def test_from_workflow_custom(self):
         """full_sync_interval_ms can be set via polling section."""

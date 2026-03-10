@@ -156,12 +156,12 @@ class TestRenderFlatViewFilter:
     """Verify the filter expression in renderFlatView allows draft epics through."""
 
     def test_filter_excludes_non_draft_epics(self, render_flat_body):
-        """The filter must exclude plain epics (no 'draft' label)."""
-        # The filter line must have: issue_type !== 'epic' OR includes('draft')
+        """The filter must exclude swimlane parents (epics) unless they have 'draft' label."""
+        # The filter uses !isSwimlaneParent(i) || includes('draft')
         assert re.search(
-            r"filter\(.*issue_type\s*!==\s*['\"]epic['\"]",
+            r"filter\(.*!isSwimlaneParent\(",
             render_flat_body,
-        ), "renderFlatView must filter out non-draft epics via issue_type !== 'epic'"
+        ), "renderFlatView must filter out swimlane parents (epics) via !isSwimlaneParent()"
 
     def test_filter_includes_draft_epics_via_or_clause(self, render_flat_body):
         """The filter must allow through epics that include the 'draft' label."""
@@ -170,7 +170,7 @@ class TestRenderFlatViewFilter:
         )
         # The OR branch should include draft label check
         assert re.search(
-            r"issue_type\s*!==\s*['\"]epic['\"].*\|\|.*draft",
+            r"!isSwimlaneParent\(.*\|\|.*draft",
             render_flat_body,
             re.DOTALL,
         ), "renderFlatView filter must OR-include draft epics"
@@ -200,15 +200,15 @@ class TestRenderFlatViewFilter:
         ), "renderFlatView must store filtered issues in 'const issues = allInCol.filter(...)'"
 
     def test_filter_correct_full_expression(self, render_flat_body):
-        """The exact filter expression must match the spec."""
-        # Expected: filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'))
+        """The filter expression must use isSwimlaneParent with draft exception."""
+        # Expected: filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'))
         assert re.search(
-            r"filter\(\s*i\s*=>\s*i\.issue_type\s*!==\s*['\"]epic['\"]"
+            r"filter\(\s*i\s*=>\s*!isSwimlaneParent\(i\)"
             r"\s*\|\|\s*\(i\.labels\s*\|\|\s*\[\s*\]\)\.includes\(['\"]draft['\"]\)\s*\)",
             render_flat_body,
         ), (
             "renderFlatView filter must be: "
-            "filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'))"
+            "filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'))"
         )
 
     def test_col_count_uses_issues_length(self, render_flat_body):
@@ -222,16 +222,14 @@ class TestRenderFlatViewFilter:
         ), "col-count must display issues.length (filtered count including draft epics)"
 
     def test_non_draft_epics_excluded_semantically(self, render_flat_body):
-        """Confirm the filter semantics: epic without draft → excluded; epic with draft → included."""
-        # The filter is: issue_type !== 'epic' || (labels||[]).includes('draft')
-        # For a plain epic (issue_type='epic', labels=[]):
+        """Confirm the filter semantics: swimlane parent without draft → excluded; with draft → included."""
+        # The filter is: !isSwimlaneParent(i) || (labels||[]).includes('draft')
+        # For a plain epic (isSwimlaneParent=true, labels=[]):
         #   false || false → false → excluded ✓
-        # For a draft epic (issue_type='epic', labels=['draft']):
+        # For a draft epic (isSwimlaneParent=true, labels=['draft']):
         #   false || true → true → included ✓
-        # For a task (issue_type='task'):
+        # For a task (isSwimlaneParent=false):
         #   true → true → included ✓
-        # This test confirms the filter expression encodes these semantics by
-        # looking at the whole filter line (not just up to the first closing paren)
         filter_match = re.search(
             r"const\s+issues\s*=\s*allInCol\.filter\((.*?)\)\s*;",
             render_flat_body,
@@ -239,9 +237,9 @@ class TestRenderFlatViewFilter:
         )
         assert filter_match, "Could not find 'const issues = allInCol.filter(...)' statement"
         expr = filter_match.group(1)
-        # Must contain the exclusive-or pattern (not-epic OR has-draft)
-        assert "!== 'epic'" in expr or '!== "epic"' in expr, (
-            "Filter must use issue_type !== 'epic'"
+        # Must contain the negated swimlane parent check OR has-draft
+        assert "isSwimlaneParent" in expr, (
+            "Filter must use isSwimlaneParent() to identify epics/swimlane parents"
         )
         assert "draft" in expr, (
             "Filter must reference 'draft' for the draft epic exception"
@@ -301,8 +299,8 @@ class TestCreateCardDraftEpicBadge:
             "createCard must define draftEpicBadgeHtml"
         )
 
-    def test_draftEpicBadgeHtml_condition_checks_issue_type_epic(self, create_card_body):
-        """draftEpicBadgeHtml condition must check issue_type === 'epic'."""
+    def test_draftEpicBadgeHtml_condition_checks_swimlane_parent(self, create_card_body):
+        """draftEpicBadgeHtml condition must check isSwimlaneParent(issue)."""
         badge_match = re.search(
             r"(?:const|let|var)\s+draftEpicBadgeHtml\s*=\s*(.*?);",
             create_card_body,
@@ -310,8 +308,8 @@ class TestCreateCardDraftEpicBadge:
         )
         assert badge_match, "Could not find draftEpicBadgeHtml declaration"
         condition = badge_match.group(1)
-        assert re.search(r"issue_type\s*===\s*['\"]epic['\"]", condition), (
-            "draftEpicBadgeHtml must check issue_type === 'epic'"
+        assert "isSwimlaneParent" in condition, (
+            "draftEpicBadgeHtml must check isSwimlaneParent(issue)"
         )
 
     def test_draftEpicBadgeHtml_condition_checks_draft_label(self, create_card_body):
@@ -817,23 +815,23 @@ class TestRegressionFilterExpression:
             )
 
     def test_filter_allows_non_epic_issues_through(self, render_flat_body):
-        """The filter must still allow all non-epic issue types (task, bug, feature) through."""
-        # The filter condition is: i.issue_type !== 'epic' || ...
-        # For non-epics, the first clause (true) short-circuits → included ✓
+        """The filter must still allow all non-swimlane-parent issues through."""
+        # The filter condition is: !isSwimlaneParent(i) || ...
+        # For non-epics/non-parents, the first clause (true) short-circuits → included ✓
         assert re.search(
-            r"i\.issue_type\s*!==\s*['\"]epic['\"]",
+            r"!isSwimlaneParent\(i\)",
             render_flat_body,
-        ), "Filter must use issue_type !== 'epic' as the base condition for non-epics"
+        ), "Filter must use !isSwimlaneParent(i) as the base condition for non-parents"
 
     def test_filter_or_clause_provides_draft_exception(self, render_flat_body):
         """The filter must have an OR clause to include draft epics."""
         assert re.search(
-            r"issue_type.*!==.*epic.*\|\|.*draft",
+            r"!isSwimlaneParent\(i\)\s*\|\|.*draft",
             render_flat_body,
             re.DOTALL,
         ), (
             "Filter must include || clause for draft epics. "
-            "Expected: i.issue_type !== 'epic' || (i.labels || []).includes('draft')"
+            "Expected: !isSwimlaneParent(i) || (i.labels || []).includes('draft')"
         )
 
 
