@@ -1441,17 +1441,16 @@ def _notify_conflict_on_bead(
                 status="open", priority="0",
                 **{"add-label": "merge-conflict"},
             )
+            logger.info(
+                "Reopened bead %s as P0 for merge conflict resolution (review #%s)",
+                issue.identifier, review_id,
+            )
         else:
             try:
                 tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
             except Exception as label_exc:
                 logger.warning("Failed to add merge-conflict label to %s: %s",
                              issue.identifier, label_exc)
-            logger.info(
-                "Reopened bead %s as P0 for merge conflict resolution (review #%s)",
-                issue.identifier, review_id,
-            )
-        else:
             logger.info(
                 "Commented on bead %s about merge conflict (review #%s), already in state '%s'",
                 issue.identifier, review_id, issue.state,
