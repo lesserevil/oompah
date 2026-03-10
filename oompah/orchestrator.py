@@ -1303,8 +1303,9 @@ class Orchestrator:
                 review_id = review.id
 
                 if review.has_conflicts:
-                    # Always dispatch a merge-conflict agent — never rely on
-                    # server-side rebase, which reports false success on GitLab.
+                    # Actual merge conflicts — dispatch a conflict-resolution
+                    # agent to rebase.  Never rely on server-side rebase, which
+                    # reports false success on GitLab.
                     logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
                                 project.name, review_id)
                     self._yolo_notify_conflict(project, provider, slug, review_id)
@@ -1319,18 +1320,20 @@ class Orchestrator:
                     # Serialization: only one action per project per tick.
                     break
 
-                if review.ci_status == "passed" and not review.needs_rebase:
-                    # Auto-merge — act on this one and stop for this project.
-                    # Merging one PR changes the target branch; subsequent PRs
-                    # must rebase before they can be merged cleanly.
-                    logger.info("YOLO: auto-merging %s MR #%s",
-                                project.name, review_id)
+                if review.ci_status == "passed":
+                    # Auto-merge — attempt even if the branch is behind main
+                    # (diverged_commits_count > 0), since squash-merge handles
+                    # diverged branches without real conflicts.  If the merge
+                    # fails anyway, fall back to a conflict-resolution agent.
+                    logger.info("YOLO: auto-merging %s MR #%s (needs_rebase=%s)",
+                                project.name, review_id, review.needs_rebase)
                     success, msg = provider.merge_review(slug, review_id)
                     if success:
                         logger.info("YOLO: merged %s MR #%s", project.name, review_id)
                     else:
-                        logger.warning("YOLO: merge failed for %s MR #%s: %s",
+                        logger.warning("YOLO: merge failed for %s MR #%s: %s — dispatching conflict agent",
                                        project.name, review_id, msg)
+                        self._yolo_notify_conflict(project, provider, slug, review_id)
                     # Serialization: only one action per project per tick.
                     break
 
