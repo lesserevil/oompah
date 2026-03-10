@@ -26,6 +26,10 @@ make test             # NOT: pytest directly
 
 If unsure whether a target exists, run `make help` or `grep` the Makefile.
 
+## Configuration via .env
+
+**ALL configuration options MUST go in the `.env` file**, not in WORKFLOW.md. WORKFLOW.md defines the workflow structure (tracker settings, agent profiles, prompt template) — all tunable values (concurrency limits, timeouts, thresholds, ports, budget) are set via `OOMPAH_*` environment variables in `.env`. See `.env.example` for the full reference.
+
 ## Documentation Rules
 
 - When creating diagrams in documentation, **always use Mermaid** (```mermaid code blocks). Never use ASCII art diagrams.
