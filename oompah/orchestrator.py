@@ -1359,16 +1359,20 @@ class Orchestrator:
                 f"Rebase onto {target_branch} and resolve conflicts."
             )
             tracker.add_comment(issue.identifier, comment_text, author="oompah")
-            try:
-                tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
-            except Exception:
-                pass
             terminal = {s.lower() for s in self.config.tracker_terminal_states}
             if state_lower in terminal:
-                tracker.reopen_issue(issue.identifier)
-                tracker.update_issue(issue.identifier, priority="0")
+                tracker.update_issue(
+                    issue.identifier,
+                    status="open", priority="0",
+                    **{"add-label": "merge-conflict"},
+                )
                 self.state.completed.discard(issue.id)
                 logger.info("YOLO: reopened %s as P0 for conflict resolution", issue.identifier)
+            else:
+                try:
+                    tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
+                except Exception:
+                    pass
         except Exception as exc:
             logger.warning("YOLO: conflict notification failed for MR #%s: %s", review_id, exc)
 
@@ -1386,8 +1390,11 @@ class Orchestrator:
             state_lower = issue.state.strip().lower()
             if state_lower in ("open", "in_progress") and "ci-fix" in issue.labels:
                 return
-            tracker.update_issue(issue.identifier, status="open", priority="0")
-            tracker.add_label(issue.identifier, "ci-fix")
+            tracker.update_issue(
+                issue.identifier,
+                status="open", priority="0",
+                **{"add-label": "ci-fix"},
+            )
             tracker.add_comment(
                 issue.identifier,
                 f"YOLO: CI tests failed on MR #{review.id}. "
@@ -2103,8 +2110,11 @@ class Orchestrator:
             )
             try:
                 tracker = self._tracker_for_project(project_id) if project_id else self.tracker
-                tracker.add_label(entry.identifier, "asking_question")
-                tracker.update_issue(entry.identifier, status="open")
+                tracker.update_issue(
+                    entry.identifier,
+                    status="open",
+                    **{"add-label": "asking_question"},
+                )
             except Exception as exc:
                 logger.warning("Failed to set asking_question state for %s: %s",
                                entry.identifier, exc)
@@ -2157,6 +2167,7 @@ class Orchestrator:
                                                  **{"remove-label": "merge-conflict"})
                         except Exception:
                             pass
+                        # Close is a separate bd command — can't combine with update
                         tracker.close_issue(entry.identifier)
                         self.state.completed.add(issue_id)
                         self.state.reopen_counts.pop(issue_id, None)
@@ -2570,13 +2581,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     except Exception:
                         pass
 
-        # Label the original issue as decomposed and move to deferred
+        # Label the original issue as decomposed and move to deferred (atomic)
         try:
-            tracker.add_label(parent_issue.identifier, "decomposed")
-        except Exception:
-            pass
-        try:
-            tracker.update_issue(parent_issue.identifier, status="deferred")
+            tracker.update_issue(
+                parent_issue.identifier,
+                status="deferred",
+                **{"add-label": "decomposed"},
+            )
         except Exception:
             pass
 

@@ -151,16 +151,11 @@ If you determine that this issue requires a different specialist to complete (e.
    bd comments add {{ issue.identifier }} "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments." --author=oompah
    ```
 
-2. **Add a `needs:<focus>` label** to route the issue to the right specialist:
+2. **Set the issue back to open and add the routing label atomically** (to avoid race conditions where an agent is dispatched before the label is applied):
    ```
-   bd label add {{ issue.identifier }} needs:frontend
+   bd update {{ issue.identifier }} --status=open --add-label=needs:frontend
    ```
    Available focus names: `bugfix`, `feature`, `refactor`, `frontend`, `docs`, `test`, `security`, `devops`, `chore`
-
-3. **Set the issue back to open**:
-   ```
-   bd update {{ issue.identifier }} --status=open
-   ```
 
 **Important:** Do NOT close the issue when handing off. The orchestrator will automatically re-dispatch it to an agent with the appropriate focus. Your handoff comment is critical — it preserves your work and gives the next agent context to continue.
 

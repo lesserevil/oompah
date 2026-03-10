@@ -519,18 +519,29 @@ async def api_update_issue(identifier: str, request: Request):
         new_description = body.get("description")
 
         if new_status == "closed":
+            # bd close is a separate command; apply other fields first if any
+            update_fields: dict[str, str] = {}
+            if new_priority is not None:
+                update_fields["priority"] = str(new_priority)
+            if new_title is not None:
+                update_fields["title"] = new_title
+            if new_description is not None:
+                update_fields["description"] = new_description
+            if update_fields:
+                tracker.update_issue(identifier, **update_fields)
             tracker.close_issue(identifier)
-        elif new_status is not None:
-            tracker.update_issue(identifier, status=new_status)
-
-        if new_priority is not None:
-            tracker.update_issue(identifier, priority=str(new_priority))
-
-        if new_title is not None:
-            tracker.update_issue(identifier, title=new_title)
-
-        if new_description is not None:
-            tracker.update_issue(identifier, description=new_description)
+        else:
+            update_fields = {}
+            if new_status is not None:
+                update_fields["status"] = new_status
+            if new_priority is not None:
+                update_fields["priority"] = str(new_priority)
+            if new_title is not None:
+                update_fields["title"] = new_title
+            if new_description is not None:
+                update_fields["description"] = new_description
+            if update_fields:
+                tracker.update_issue(identifier, **update_fields)
 
         # Terminate agent whenever issue is moved away from in_progress
         if new_status is not None:
@@ -1341,8 +1352,11 @@ async def api_retry_review(project_id: str, review_id: str):
             logger.info("Created bead %s for external review #%s (branch %s)",
                          matched.identifier, review_id, branch)
         else:
-            tracker.update_issue(matched.identifier, status="open", priority="0")
-        tracker.add_label(matched.identifier, "ci-fix")
+            tracker.update_issue(
+                matched.identifier,
+                status="open", priority="0",
+                **{"add-label": "ci-fix"},
+            )
         tracker.add_comment(
             matched.identifier,
             f"CI tests failed on review #{review_id}. "
@@ -1419,18 +1433,20 @@ def _notify_conflict_on_bead(
         )
         tracker.add_comment(issue.identifier, comment_text, author="oompah")
 
-        # Add merge-conflict label so the focus system picks the right role
-        try:
-            tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
-        except Exception as label_exc:
-            logger.warning("Failed to add merge-conflict label to %s: %s",
-                         issue.identifier, label_exc)
-
-        # Reopen the bead if it's in a terminal state
+        # Reopen the bead if it's in a terminal state, and add label atomically
         state_lower = issue.state.strip().lower()
         if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
-            tracker.reopen_issue(issue.identifier)
-            tracker.update_issue(issue.identifier, priority="0")
+            tracker.update_issue(
+                issue.identifier,
+                status="open", priority="0",
+                **{"add-label": "merge-conflict"},
+            )
+        else:
+            try:
+                tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
+            except Exception as label_exc:
+                logger.warning("Failed to add merge-conflict label to %s: %s",
+                             issue.identifier, label_exc)
             logger.info(
                 "Reopened bead %s as P0 for merge conflict resolution (review #%s)",
                 issue.identifier, review_id,
