@@ -70,6 +70,7 @@ def render_prompt(
     comments: list[dict] | None = None,
     focus_text: str | None = None,
     workspace_path: str | None = None,
+    memories: dict[str, str] | None = None,
 ) -> str:
     """Render a Liquid prompt template with issue and attempt variables.
 
@@ -94,6 +95,10 @@ def render_prompt(
         "comments": comments or [],
         "focus": focus_text or "",
         "agents_md": agents_md,
+        "memories": [
+            {"key": k, "insight": v}
+            for k, v in (memories or {}).items()
+        ],
     }
 
     try:

@@ -864,6 +864,9 @@ class Orchestrator:
         # Never dispatch issues that are waiting for a human answer
         if "asking_question" in issue.labels:
             return _reject("asking_question")
+        # Never dispatch issues that have been decomposed into children
+        if "decomposed" in issue.labels:
+            return _reject("decomposed")
         state_norm = issue.state.strip().lower()
         if state_norm not in [s.strip().lower() for s in self.config.tracker_active_states]:
             return _reject(f"inactive_state={state_norm}")
@@ -1145,13 +1148,13 @@ class Orchestrator:
                 if tick_count >= 3:
                     if review.ci_status == "passed" and review.needs_rebase:
                         logger.warning("Watchdog: YOLO limbo MR #%s on %s needs rebase "
-                                       "(CI passed, %d cycles). Triggering rebase.",
+                                       "(CI passed, %d cycles). Dispatching conflict agent.",
                                        review.id, project.name, tick_count)
                         try:
-                            provider.rebase_review(slug, review.id)
+                            self._yolo_notify_conflict(project, provider, slug, review.id)
                             fixed += 1
                         except Exception as exc:
-                            logger.warning("Watchdog: rebase failed for %s #%s: %s",
+                            logger.warning("Watchdog: conflict notify failed for %s #%s: %s",
                                            project.name, review.id, exc)
                     else:
                         logger.warning("Watchdog: YOLO limbo MR #%s on %s — "
@@ -1252,18 +1255,12 @@ class Orchestrator:
                 review_id = review.id
 
                 if review.has_conflicts:
-                    logger.info("YOLO: auto-resolving conflicts on %s review #%s",
+                    # Always dispatch a merge-conflict agent — never rely on
+                    # server-side rebase, which reports false success on GitLab.
+                    logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
                                 project.name, review_id)
-                    success, msg = provider.rebase_review(slug, review_id)
-                    logger.info("YOLO: rebase result for %s #%s: success=%s msg=%s",
-                                project.name, review_id, success, msg[:200] if msg else "")
-                    if not success and "conflict" in msg.lower():
-                        self._yolo_notify_conflict(project, provider, slug, review_id)
-                        # Failed rebase doesn't change target branch — safe to
-                        # continue processing other reviews for this project.
-                        continue
-                    # Successful rebase changes branch state — serialize.
-                    break
+                    self._yolo_notify_conflict(project, provider, slug, review_id)
+                    continue
 
                 if review.ci_status == "failed":
                     # Auto-retry: re-file the ticket to fix tests.
@@ -1684,18 +1681,22 @@ class Orchestrator:
                                    project_id=issue.project_id)
                 self._clear_handoff_labels(issue)
 
-                # Fetch comments
+                # Fetch comments and memories
                 try:
                     tracker = self._tracker_for_issue(issue)
                     comments = tracker.fetch_comments(issue.identifier)
                 except Exception:
                     comments = []
+                try:
+                    memories = tracker.fetch_memories()
+                except Exception:
+                    memories = {}
 
                 # Build prompt
                 prompt = render_prompt(
                     self._prompt_template, issue, attempt,
                     comments=comments, focus_text=focus.render(),
-                    workspace_path=wp,
+                    workspace_path=wp, memories=memories,
                 )
                 return wp, focus, prompt
 
@@ -1871,12 +1872,16 @@ class Orchestrator:
                     cli_running.focus_name = cli_focus.name
                     cli_running.focus_role = cli_focus.role
 
-                # Fetch existing comments to kick-start agent context
+                # Fetch existing comments and memories to kick-start agent context
                 try:
                     tracker = self._tracker_for_issue(issue)
                     cli_comments = tracker.fetch_comments(issue.identifier)
                 except Exception:
                     cli_comments = []
+                try:
+                    cli_memories = tracker.fetch_memories()
+                except Exception:
+                    cli_memories = {}
 
                 for turn_number in range(1, max_turns + 1):
                     # Build prompt
@@ -1884,7 +1889,7 @@ class Orchestrator:
                         prompt = render_prompt(
                             self._prompt_template, current_issue, attempt,
                             comments=cli_comments, focus_text=cli_focus.render(),
-                            workspace_path=workspace_path,
+                            workspace_path=workspace_path, memories=cli_memories,
                         )
                     else:
                         prompt = build_continuation_prompt(
@@ -2172,44 +2177,54 @@ class Orchestrator:
             next_attempt = (entry.retry_attempt or 0) + 1
             delay = self._backoff_delay(next_attempt)
 
-            # Track stall count for escalation
-            escalated = None
-            if reason == "stalled":
-                self.state.stall_counts[issue_id] = self.state.stall_counts.get(issue_id, 0) + 1
-                stall_count = self.state.stall_counts[issue_id]
-                # Check if we should escalate to a higher profile
-                current_profile = self._get_profile_by_name(entry.agent_profile_name)
-                escalated = self._escalate_profile(current_profile, entry.issue)
-                if escalated:
-                    msg = (f"Agent stalled {stall_count} time(s) ({elapsed:.0f}s{tokens_str}). "
-                           f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
-                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
-                    logger.info("Escalating issue %s from profile %s to %s (stall_count=%d)",
-                                entry.identifier, entry.agent_profile_name, escalated.name, stall_count)
-                else:
-                    msg = (f"Agent stalled — no productive actions (writes/commands) "
-                           f"for {self.config.stall_turns} consecutive turns "
-                           f"({elapsed:.0f}s{tokens_str}). "
-                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+            # Check if we should decompose instead of retrying
+            if self._should_decompose(entry.issue, next_attempt):
+                asyncio.ensure_future(self._trigger_decomposition(
+                    issue_id, entry, next_attempt, project_id,
+                ))
+                logger.info(
+                    "Triggering auto-decomposition for %s after %d attempts",
+                    entry.identifier, next_attempt,
+                )
             else:
-                msg = (f"Agent hit safety turn limit ({elapsed:.0f}s{tokens_str}). "
-                       f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
-            self._post_comment(entry.identifier, msg, project_id=project_id)
-            self._schedule_retry(
-                issue_id,
-                attempt=next_attempt,
-                identifier=entry.identifier,
-                delay_ms=delay,
-                error=error or reason,
-                escalated_profile=escalated.name if reason == "stalled" and escalated else None,
-            )
-            logger.info(
-                "Worker %s issue_id=%s issue_identifier=%s retrying_in_ms=%d",
-                reason,
-                issue_id,
-                entry.identifier,
-                delay,
-            )
+                # Track stall count for escalation
+                escalated = None
+                if reason == "stalled":
+                    self.state.stall_counts[issue_id] = self.state.stall_counts.get(issue_id, 0) + 1
+                    stall_count = self.state.stall_counts[issue_id]
+                    # Check if we should escalate to a higher profile
+                    current_profile = self._get_profile_by_name(entry.agent_profile_name)
+                    escalated = self._escalate_profile(current_profile, entry.issue)
+                    if escalated:
+                        msg = (f"Agent stalled {stall_count} time(s) ({elapsed:.0f}s{tokens_str}). "
+                               f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
+                               f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                        logger.info("Escalating issue %s from profile %s to %s (stall_count=%d)",
+                                    entry.identifier, entry.agent_profile_name, escalated.name, stall_count)
+                    else:
+                        msg = (f"Agent stalled — no productive actions (writes/commands) "
+                               f"for {self.config.stall_turns} consecutive turns "
+                               f"({elapsed:.0f}s{tokens_str}). "
+                               f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                else:
+                    msg = (f"Agent hit safety turn limit ({elapsed:.0f}s{tokens_str}). "
+                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                self._post_comment(entry.identifier, msg, project_id=project_id)
+                self._schedule_retry(
+                    issue_id,
+                    attempt=next_attempt,
+                    identifier=entry.identifier,
+                    delay_ms=delay,
+                    error=error or reason,
+                    escalated_profile=escalated.name if reason == "stalled" and escalated else None,
+                )
+                logger.info(
+                    "Worker %s issue_id=%s issue_identifier=%s retrying_in_ms=%d",
+                    reason,
+                    issue_id,
+                    entry.identifier,
+                    delay,
+                )
         else:
             # Check if the failure is actually a rate limit (e.g. from CLI agent)
             error_lower = (error or "").lower()
@@ -2273,6 +2288,241 @@ class Orchestrator:
             self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
             return False
         return True
+
+    # ------------------------------------------------------------------
+    # Auto-decomposition
+    # ------------------------------------------------------------------
+
+    def _should_decompose(self, issue: Issue, next_attempt: int) -> bool:
+        """Check whether an issue should be auto-decomposed instead of retried."""
+        if next_attempt < self.config.decompose_after_attempts:
+            return False
+        if "decomposed" in issue.labels or "no-decompose" in issue.labels:
+            return False
+        if issue.parent_id:
+            return False  # don't decompose children — they're already decomposed pieces
+        if self.state.decompose_attempts.get(issue.id, 0) > 0:
+            return False  # already tried decomposing this one
+        return True
+
+    _DECOMPOSE_PROMPT = """\
+You are a task decomposition planner. An autonomous coding agent has tried \
+to complete the following issue {attempt} time(s) but keeps running out of \
+turns or stalling. The issue is too large or complex for a single agent session.
+
+## Original Issue
+- Identifier: {identifier}
+- Title: {title}
+- Type: {issue_type}
+- Description: {description}
+
+## Failure History
+{comments}
+
+## Available Agent Specialisations
+Each child task can be routed to a specialist via a focus hint:
+{foci}
+
+## Instructions
+1. Analyse the failure comments to understand what went wrong and where the agent got stuck.
+2. Break the issue into 2-5 smaller, independently actionable sub-tasks.
+3. Each sub-task must be completable in a single agent session (~20 tool calls).
+4. Assign a focus_hint to route each sub-task to the right specialist.
+5. If sub-tasks must be done in order, express that with depends_on (indices into the tasks array).
+6. Preserve the intent of the original issue — the union of all sub-tasks should fully resolve it.
+
+Return ONLY a JSON object (no markdown fences, no commentary):
+{{
+  "analysis": "Brief explanation of why the original task is too complex",
+  "tasks": [
+    {{
+      "title": "Short descriptive title",
+      "description": "Detailed description with enough context to work independently",
+      "focus_hint": "one of: bugfix, feature, refactor, frontend, docs, test, security, devops, chore",
+      "priority": 2,
+      "depends_on": []
+    }}
+  ]
+}}
+"""
+
+    def _build_decomposition_prompt(self, issue: Issue, comments: list[dict], attempt: int) -> str:
+        """Build the prompt for the decomposition planner."""
+        from oompah.focus import BUILTIN_FOCI
+        foci_text = "\n".join(f"- {f.name}: {f.role}" for f in BUILTIN_FOCI
+                              if f.name not in ("epic_planner", "merge_conflict"))
+        comments_text = "\n".join(
+            f"- {c.get('author', '?')} ({c.get('created_at', '?')}): {c.get('text', '')}"
+            for c in (comments or [])
+        ) or "(no comments)"
+        return self._DECOMPOSE_PROMPT.format(
+            attempt=attempt,
+            identifier=issue.identifier,
+            title=issue.title,
+            issue_type=issue.issue_type,
+            description=issue.description or "(no description)",
+            comments=comments_text,
+            foci=foci_text,
+        )
+
+    async def _trigger_decomposition(
+        self, issue_id: str, entry: RunningEntry, attempt: int, project_id: str | None
+    ) -> None:
+        """Attempt to decompose an issue into smaller child tasks."""
+        issue = entry.issue
+        self.state.decompose_attempts[issue_id] = self.state.decompose_attempts.get(issue_id, 0) + 1
+
+        self._post_comment(
+            entry.identifier,
+            f"Issue has failed {attempt} time(s). Attempting auto-decomposition into smaller tasks.",
+            project_id=project_id,
+        )
+
+        try:
+            # Fetch comments for context
+            tracker = self._tracker_for_issue(issue)
+            comments = tracker.fetch_comments(entry.identifier)
+
+            # Build prompt
+            prompt = self._build_decomposition_prompt(issue, comments, attempt)
+
+            # Resolve provider and model (use fast role for planning)
+            provider = self.provider_store.get_default()
+            if not provider:
+                raise RuntimeError("No provider configured for decomposition")
+            model = (provider.model_roles or {}).get("fast") or provider.default_model
+            if not model and provider.models:
+                model = provider.models[0]
+            if not model:
+                raise RuntimeError("No model available for decomposition")
+
+            # Make API call (single turn, no tools)
+            from oompah.api_agent import _build_ssl_context, _http_post
+            ssl_ctx = _build_ssl_context()
+            url = f"{provider.base_url}/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {provider.api_key}",
+            }
+            payload = json.dumps({
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": "You are a task decomposition planner. Return only valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 2000,
+            }).encode()
+
+            loop = asyncio.get_event_loop()
+            resp = await loop.run_in_executor(
+                self._tick_pool, _http_post, url, headers, payload, ssl_ctx
+            )
+
+            # Parse response
+            content = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+            # Strip markdown fences if present
+            content = content.strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1] if "\n" in content else content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+
+            plan = json.loads(content)
+            tasks = plan.get("tasks", [])
+            if not tasks or not isinstance(tasks, list):
+                raise ValueError("Planner returned no tasks")
+            if len(tasks) > 8:
+                tasks = tasks[:8]  # cap at 8 children
+
+            # Validate and create children
+            await self._execute_decomposition(issue, tasks, tracker, project_id)
+
+            analysis = plan.get("analysis", "")
+            self._post_comment(
+                entry.identifier,
+                f"Decomposed into {len(tasks)} sub-tasks. {analysis}",
+                project_id=project_id,
+            )
+            logger.info("Decomposed %s into %d sub-tasks", entry.identifier, len(tasks))
+
+            # Clean up state for the original issue
+            self.state.claimed.discard(issue_id)
+            self.state.stall_counts.pop(issue_id, None)
+
+        except Exception as exc:
+            logger.warning(
+                "Auto-decomposition failed for %s: %s", entry.identifier, exc
+            )
+            self._post_comment(
+                entry.identifier,
+                f"Auto-decomposition failed: {exc}. Falling back to normal retry.",
+                project_id=project_id,
+            )
+            # Fall back to normal retry
+            delay = self._backoff_delay(attempt)
+            self._schedule_retry(
+                issue_id,
+                attempt=attempt,
+                identifier=entry.identifier,
+                delay_ms=delay,
+                error=str(exc),
+            )
+
+    async def _execute_decomposition(
+        self, parent_issue: Issue, tasks: list[dict], tracker: BeadsTracker, project_id: str | None
+    ) -> None:
+        """Create child issues from a decomposition plan."""
+        created: list[Issue] = []
+
+        for task in tasks:
+            title = task.get("title", "Untitled sub-task")
+            description = task.get("description", "")
+            priority = task.get("priority", parent_issue.priority or 2)
+            if not isinstance(priority, int) or priority < 0 or priority > 4:
+                priority = 2
+
+            child = tracker.create_issue(
+                title=title,
+                issue_type="task",
+                description=description,
+                priority=priority,
+                initial_status="open",
+            )
+            created.append(child)
+
+            # Link as parent-child
+            tracker.add_parent_child(child.identifier, parent_issue.identifier)
+
+            # Add focus hint label
+            focus_hint = task.get("focus_hint", "")
+            if focus_hint:
+                try:
+                    tracker.add_label(child.identifier, f"needs:{focus_hint}")
+                except Exception:
+                    pass
+
+        # Add inter-task dependencies
+        for i, task in enumerate(tasks):
+            for dep_idx in task.get("depends_on", []):
+                if isinstance(dep_idx, int) and 0 <= dep_idx < len(created) and dep_idx != i:
+                    try:
+                        tracker.add_dependency(
+                            created[i].identifier, created[dep_idx].identifier
+                        )
+                    except Exception:
+                        pass
+
+        # Label the original issue as decomposed and move to deferred
+        try:
+            tracker.add_label(parent_issue.identifier, "decomposed")
+        except Exception:
+            pass
+        try:
+            tracker.update_issue(parent_issue.identifier, status="deferred")
+        except Exception:
+            pass
 
     def _backoff_delay(self, attempt: int) -> int:
         """Compute exponential backoff delay."""

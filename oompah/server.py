@@ -170,16 +170,22 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     """Fetch all issues and serialize — runs in thread pool to avoid blocking."""
     all_issues = _fetch_all_issues(orch, None)
 
-    # Build a map for epic child counts (same logic as api_issues)
-    epics: dict[str, dict] = {}
+    # Build a map for parent child counts — any issue that has children gets counts
+    # First pass: find all parent_ids referenced by children
+    parent_ids: set[str] = set()
     for issue in all_issues:
-        if issue.issue_type == "epic":
-            epics[issue.id] = {"deferred": 0, "open": 0, "in_progress": 0, "closed": 0}
+        if issue.parent_id:
+            parent_ids.add(issue.parent_id)
+    # Also include explicit epics even if they have no children yet
+    parents: dict[str, dict] = {}
     for issue in all_issues:
-        if issue.parent_id and issue.parent_id in epics:
+        if issue.id in parent_ids or issue.issue_type == "epic":
+            parents[issue.id] = {"deferred": 0, "open": 0, "in_progress": 0, "closed": 0}
+    for issue in all_issues:
+        if issue.parent_id and issue.parent_id in parents:
             child_state = issue.state.strip().lower()
-            if child_state in epics[issue.parent_id]:
-                epics[issue.parent_id][child_state] += 1
+            if child_state in parents[issue.parent_id]:
+                parents[issue.parent_id][child_state] += 1
 
     result: dict[str, list] = {}
     for issue in all_issues:
@@ -200,8 +206,8 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "parent_id": issue.parent_id,
             "project_id": issue.project_id,
         }
-        if issue.issue_type == "epic" and issue.id in epics:
-            entry["children_counts"] = epics[issue.id]
+        if issue.id in parents:
+            entry["children_counts"] = parents[issue.id]
         result[state].append(entry)
     return result
 
@@ -352,11 +358,15 @@ async def api_issues(request: Request):
 
         # Build a map for epic child counts
         epics: dict[str, dict] = {}
+        parent_ids: set[str] = set()
         for issue in all_issues:
-            if issue.issue_type == "epic":
+            if issue.parent_id:
+                parent_ids.add(issue.parent_id)
+        for issue in all_issues:
+            if issue.id in parent_ids or issue.issue_type == "epic":
                 epics[issue.id] = {"deferred": 0, "open": 0, "in_progress": 0, "closed": 0}
 
-        # Count children per epic per state
+        # Count children per parent per state
         for issue in all_issues:
             if issue.parent_id and issue.parent_id in epics:
                 child_state = issue.state.strip().lower()
@@ -383,7 +393,7 @@ async def api_issues(request: Request):
                 "parent_id": issue.parent_id,
                 "project_id": issue.project_id,
             }
-            if issue.issue_type == "epic" and issue.id in epics:
+            if issue.id in epics:
                 entry["children_counts"] = epics[issue.id]
             result[state].append(entry)
         # Sort each column by priority
@@ -697,7 +707,7 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "created_at": issue.created_at.isoformat() if issue.created_at else None,
             "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
         }
-        if issue.issue_type == "epic":
+        if issue.issue_type in ("epic", "feature"):
             children = tracker.fetch_children(issue.id)
             result["children"] = [
                 {

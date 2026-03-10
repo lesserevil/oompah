@@ -161,6 +161,19 @@ class BeadsTracker:
             return raw
         return {}
 
+    def fetch_memories(self) -> dict[str, str]:
+        """Fetch all stored memories from beads.
+
+        Returns a dict of {key: insight} pairs.
+        """
+        try:
+            raw = self._run_bd(["memories", "--json"])
+            if isinstance(raw, dict):
+                return raw
+        except TrackerError:
+            pass
+        return {}
+
     def fetch_comments(self, identifier: str) -> list[dict]:
         """Fetch all comments for an issue."""
         try:
@@ -174,6 +187,10 @@ class BeadsTracker:
     def add_parent_child(self, child_id: str, parent_id: str) -> None:
         """Link a child issue to a parent epic."""
         self._run_bd(["dep", "add", child_id, parent_id, "--type", "parent-child"])
+
+    def add_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Add a blocks/blocked-by dependency between two issues."""
+        self._run_bd(["dep", "add", blocked_id, blocker_id])
 
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         """Fetch a single issue with full detail including parent info."""

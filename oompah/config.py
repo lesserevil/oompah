@@ -245,6 +245,7 @@ class ServiceConfig:
     read_timeout_ms: int = 5000
     stall_timeout_ms: int = 300_000
     stall_turns: int = 5
+    decompose_after_attempts: int = 3
     server_port: int | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     budget_limit: float = 0.0
@@ -340,6 +341,7 @@ class ServiceConfig:
             read_timeout_ms=_coerce_int(codex.get("read_timeout_ms"), 5000),
             stall_timeout_ms=_coerce_int(codex.get("stall_timeout_ms"), 300_000),
             stall_turns=_coerce_int(agent.get("stall_turns"), 5),
+            decompose_after_attempts=_coerce_int(agent.get("decompose_after_attempts"), 3),
             server_port=_coerce_int(server.get("port"), None) if server.get("port") is not None else None,
             agent_profiles=profiles,
             budget_limit=budget_limit,

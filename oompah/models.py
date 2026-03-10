@@ -272,5 +272,6 @@ class OrchestratorState:
     reject_streak: dict[str, tuple[str, int]] = field(default_factory=dict)  # issue_id → (reason, count)
     agent_totals: AgentTotals = field(default_factory=AgentTotals)
     cost_by_profile: dict[str, float] = field(default_factory=dict)
+    decompose_attempts: dict[str, int] = field(default_factory=dict)  # issue_id → decomposition attempt count
     budget_exceeded: bool = False
     rate_limits: dict | None = None

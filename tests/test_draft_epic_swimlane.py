@@ -77,8 +77,8 @@ class TestRenderSwimlaneViewEpicFilter:
         assert "draft" in epics_line, \
             "epics filter must exclude draft epics (check for 'draft' label)"
 
-    def test_epics_filter_still_requires_epic_type(self, script):
-        """The epics array filter must still require issue_type === 'epic'."""
+    def test_epics_filter_uses_swimlane_parent_check(self, script):
+        """The epics array filter must use isSwimlaneParent to identify parent issues."""
         body = self._get_render_body(script)
         epics_line_match = re.search(
             r"(?:const|let|var)\s+epics\s*=\s*allIssuesFlat\.filter\(.*?\);",
@@ -87,10 +87,8 @@ class TestRenderSwimlaneViewEpicFilter:
         )
         assert epics_line_match, "Could not find 'epics = allIssuesFlat.filter(...)' assignment"
         epics_line = epics_line_match.group(0)
-        assert "issue_type" in epics_line, \
-            "epics filter must still check issue_type"
-        assert "epic" in epics_line, \
-            "epics filter must still check for 'epic' type"
+        assert "isSwimlaneParent" in epics_line, \
+            "epics filter must use isSwimlaneParent to identify parent issues"
 
     def test_epics_filter_uses_negation_for_draft(self, script):
         """The epics filter must negate the draft condition (exclude items WITH draft label)."""
@@ -135,6 +133,20 @@ class TestRenderSwimlaneViewOrphansFilter:
         )
         assert match, "Could not find renderSwimlaneView function"
         return match.group(1)
+
+    def test_isSwimlaneParent_helper_exists(self, script):
+        """The isSwimlaneParent helper must exist and check both epic type and children_counts."""
+        assert "function isSwimlaneParent" in script, \
+            "isSwimlaneParent helper function must be defined"
+        func_match = re.search(
+            r"function isSwimlaneParent\(.*?\)\s*\{(.*?)\}",
+            script,
+            re.DOTALL,
+        )
+        assert func_match, "Could not find isSwimlaneParent function body"
+        body = func_match.group(1)
+        assert "epic" in body, "isSwimlaneParent must check for 'epic' type"
+        assert "children_counts" in body, "isSwimlaneParent must check children_counts"
 
     def test_orphans_filter_includes_draft_epics(self, script):
         """Orphans filter must allow draft epics (issue_type === 'epic' with 'draft' label)."""
@@ -224,8 +236,8 @@ class TestGetCardsInColumnDraftEpics:
         assert "draft" in filter_line, \
             "Base issues filter must allow draft epics through"
 
-    def test_base_filter_still_excludes_non_draft_epics(self, script):
-        """Base issues filter must exclude regular (non-draft) epics."""
+    def test_base_filter_uses_swimlane_parent_check(self, script):
+        """Base issues filter must use isSwimlaneParent to exclude non-draft parents."""
         body = self._get_function_body(script)
         filter_match = re.search(
             r"(?:const|let|var)\s+issues\s*=.*?\.filter\(.*?\);",
@@ -234,11 +246,8 @@ class TestGetCardsInColumnDraftEpics:
         )
         assert filter_match
         filter_line = filter_match.group(0)
-        # Must have the epic type check
-        assert "issue_type" in filter_line, \
-            "Base filter must still check issue_type"
-        assert "epic" in filter_line, \
-            "Base filter must still reference 'epic'"
+        assert "isSwimlaneParent" in filter_line, \
+            "Base filter must use isSwimlaneParent"
 
     def test_base_filter_handles_missing_labels(self, script):
         """Base filter must safely handle missing labels."""

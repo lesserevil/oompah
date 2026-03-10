@@ -46,6 +46,16 @@ You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
 {{ focus }}
 {% endif %}
 
+{% if memories != blank %}
+## Project Knowledge
+
+The following insights have been collected by previous agents working on this project. Use them to avoid redundant exploration and get up to speed quickly.
+
+{% for m in memories %}
+- **{{ m.key }}**: {{ m.insight }}
+{% endfor %}
+{% endif %}
+
 {% if agents_md != blank %}
 ## Project Agent Guidelines
 
@@ -91,6 +101,29 @@ You MUST post comments to the issue at key milestones using `bd comments add {{ 
 **IMPORTANT: Always use `--author=oompah` when posting comments.** All comments from oompah agents must be attributed to 'oompah', not to the system user or git user.
 
 Keep comments concise but informative — write what a project manager needs to see.
+
+## Project Memory
+
+As you work, use `bd remember` to save insights that would help future agents avoid redundant exploration. Good memories are things you **wish you had known** when you started.
+
+**When to remember:**
+- After discovering the architecture or key module relationships
+- When you find non-obvious patterns, conventions, or gotchas
+- When you learn how to build, test, or run the project
+- When you discover important file locations or entry points
+
+**How to remember:**
+```
+bd remember "the HTTP server entry point is cmd/server/main.go, config is loaded from internal/config/" --key entry-points
+bd remember "tests require a running postgres; use make test-deps to start it" --key test-setup
+bd remember "the queue package uses a custom priority heap, not stdlib container/heap" --key queue-impl
+```
+
+**Rules:**
+- Use a descriptive `--key` so memories can be updated later (no duplicates)
+- Keep each memory to 1-2 sentences — facts, not commentary
+- Only remember **stable truths** about the project, not issue-specific details
+- Do NOT remember things already covered in AGENTS.md or README
 
 ## Documentation Rules
 

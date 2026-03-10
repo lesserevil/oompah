@@ -1348,9 +1348,14 @@ function flattenIssues(data) {
   return all;
 }
 
-// Get epic info by ID from flat list
+// Is this issue a swimlane parent? (epic, or any issue with children)
+function isSwimlaneParent(issue) {
+  return issue.issue_type === 'epic' || !!issue.children_counts;
+}
+
+// Get epic/parent info by ID from flat list
 function getEpicById(epicId) {
-  return allIssuesFlat.find(i => i.id === epicId && i.issue_type === 'epic');
+  return allIssuesFlat.find(i => i.id === epicId && isSwimlaneParent(i));
 }
 
 function applyOptimisticOverrides(data) {
@@ -1427,7 +1432,7 @@ function renderFlatView(board, data) {
     const allInCol = data[col] || [];
     // Filter out non-draft epics in flat view — they appear as swimlane headers
     // Draft epics are shown as cards so they're visible before they have children
-    const issues = allInCol.filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'));
+    const issues = allInCol.filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'));
     const column = document.createElement('div');
     column.className = 'column';
     column.dataset.state = col;
@@ -1472,14 +1477,14 @@ function isEpicInactive(epic) {
 
 function renderSwimlaneView(board, data) {
   // Collect non-draft epics as swimlane headers; draft epics appear as cards in the orphan swimlane
-  const epics = allIssuesFlat.filter(i => i.issue_type === 'epic' && !(i.labels || []).includes('draft'));
+  const epics = allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft'));
   const epicIds = new Set(epics.map(e => e.id));
-  // Orphans: non-epic issues with no epic parent, PLUS draft epics (shown as cards)
-  const orphans = allIssuesFlat.filter(i => (i.issue_type !== 'epic' || (i.labels || []).includes('draft')) && (!i.parent_id || !epicIds.has(i.parent_id)));
+  // Orphans: non-parent issues with no parent, PLUS draft parents (shown as cards)
+  const orphans = allIssuesFlat.filter(i => (!isSwimlaneParent(i) || (i.labels || []).includes('draft')) && (!i.parent_id || !epicIds.has(i.parent_id)));
 
   // Render each epic as a swimlane
   for (const epic of epics) {
-    const children = allIssuesFlat.filter(i => i.parent_id === epic.id && i.issue_type !== 'epic');
+    const children = allIssuesFlat.filter(i => i.parent_id === epic.id && !isSwimlaneParent(i));
     const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
     // Auto-collapse inactive epics unless the user has explicitly toggled this swimlane
     const autoCollapse = isEpicInactive(epic);
@@ -1636,8 +1641,8 @@ function createCard(issue) {
     }
   }
 
-  // Build draft epic badge if issue is an epic with the "draft" label
-  const draftEpicBadgeHtml = (issue.issue_type === 'epic' && (issue.labels || []).includes('draft'))
+  // Build draft badge if issue is a swimlane parent with the "draft" label
+  const draftEpicBadgeHtml = (isSwimlaneParent(issue) && (issue.labels || []).includes('draft'))
     ? ' <span class="draft-epic-badge" aria-label="Draft Epic">Draft Epic</span>'
     : '';
 
@@ -1797,14 +1802,14 @@ function setupColumnDrag(header, sourceState, epicId) {
 
 function getCardsInColumn(state, epicId) {
   // Get visible cards in a column, scoped by epicId (swimlane) or project filter (flat)
-  // Non-draft epics are swimlane headers; draft epics appear as cards in flat view
-  const issues = (boardData[state] || []).filter(i => i.issue_type !== 'epic' || (i.labels || []).includes('draft'));
+  // Non-draft parents are swimlane headers; draft parents appear as cards in flat view
+  const issues = (boardData[state] || []).filter(i => !isSwimlaneParent(i) || (i.labels || []).includes('draft'));
   if (epicId === null) {
     // Flat view — all visible (already filtered by project)
     return issues;
   } else if (epicId === '_orphans') {
-    // Orphan swimlane — items with no parent or parent not a non-draft epic
-    const epicIds = new Set(allIssuesFlat.filter(i => i.issue_type === 'epic' && !(i.labels || []).includes('draft')).map(e => e.id));
+    // Orphan swimlane — items with no parent or parent not a non-draft swimlane parent
+    const epicIds = new Set(allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft')).map(e => e.id));
     return issues.filter(i => !i.parent_id || !epicIds.has(i.parent_id));
   } else {
     // Specific epic swimlane
@@ -1854,7 +1859,7 @@ function setupDropZone(body) {
       // Same column — reorder by priority
       if (!activeIndicator) return;
       const dropPos = parseInt(activeIndicator.dataset.position, 10);
-      const colIssues = (boardData[targetState] || []).filter(i => i.issue_type !== 'epic');
+      const colIssues = (boardData[targetState] || []).filter(i => !isSwimlaneParent(i));
       // Exclude the dragged card from the list to compute neighbors
       const others = colIssues.filter(i => i.identifier !== identifier);
       // Clamp drop position after removing the dragged card
@@ -2109,7 +2114,7 @@ async function openDetailPanel(identifier) {
     html += `
       <button onclick="openCreateDialogForEpic('${esc(detail.id)}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
     `;
-  } else if (detail.issue_type === 'epic') {
+  } else if (isSwimlaneParent(detail)) {
     html += `
       <div class="detail-field">
         <div class="detail-field-label">Children</div>
