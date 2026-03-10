@@ -346,7 +346,7 @@ class ServiceConfig:
                 tracker.get("terminal_states"), ["closed"]
             ),
             poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 30000),
-            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 300000),
+            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 30000),
             workspace_root=ws_root,
             hooks_after_create=hooks.get("after_create"),
             hooks_before_run=hooks.get("before_run"),

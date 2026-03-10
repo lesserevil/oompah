@@ -128,8 +128,8 @@ class TestDraftEpicBadgeInCreateCard:
         body = createcard_match.group(1)
         assert "draftEpicBadgeHtml" in body
 
-    def test_draft_epic_badge_checks_issue_type_epic(self, script):
-        """Badge condition must check issue_type === 'epic'."""
+    def test_draft_epic_badge_checks_swimlane_parent(self, script):
+        """Badge condition must check isSwimlaneParent(issue)."""
         createcard_match = re.search(
             r"function createCard\(.*?\)\s*\{(.*?)(?=\nfunction )",
             script,
@@ -139,13 +139,9 @@ class TestDraftEpicBadgeInCreateCard:
         body = createcard_match.group(1)
         # Find the draftEpicBadgeHtml assignment
         assert re.search(
-            r"draftEpicBadgeHtml\s*=.*issue_type.*['\"]epic['\"]",
+            r"draftEpicBadgeHtml\s*=.*isSwimlaneParent\(",
             body,
-        ) or re.search(
-            r"issue_type\s*===\s*['\"]epic['\"].*draftEpicBadgeHtml",
-            body,
-            re.DOTALL,
-        ), "createCard must check issue_type === 'epic' for draft epic badge"
+        ), "createCard must check isSwimlaneParent(issue) for draft epic badge"
 
     def test_draft_epic_badge_checks_draft_label(self, script):
         """Badge condition must check for 'draft' in issue.labels."""
@@ -260,8 +256,8 @@ class TestDraftEpicBadgeInCreateCard:
 class TestDraftEpicBadgeConditionLogic:
     """Verify the conditional logic for when to show the badge."""
 
-    def test_badge_only_for_epic_type(self, script):
-        """Badge must require issue_type to be 'epic'."""
+    def test_badge_only_for_swimlane_parent(self, script):
+        """Badge must require issue to be a swimlane parent (epic or has children)."""
         createcard_match = re.search(
             r"function createCard\(.*?\)\s*\{(.*?)(?=\nfunction )",
             script,
@@ -269,7 +265,7 @@ class TestDraftEpicBadgeConditionLogic:
         )
         assert createcard_match
         body = createcard_match.group(1)
-        # The condition should involve both issue_type check AND label check
+        # The condition should involve isSwimlaneParent check AND label check
         badge_match = re.search(
             r"(const|let|var)\s+draftEpicBadgeHtml\s*=\s*(.*?);",
             body,
@@ -277,10 +273,8 @@ class TestDraftEpicBadgeConditionLogic:
         )
         assert badge_match, "Could not find draftEpicBadgeHtml declaration"
         condition_code = badge_match.group(2)
-        assert "issue_type" in condition_code, \
-            "draftEpicBadgeHtml condition must check issue_type"
-        assert "epic" in condition_code, \
-            "draftEpicBadgeHtml condition must check for 'epic' type"
+        assert "isSwimlaneParent" in condition_code, \
+            "draftEpicBadgeHtml condition must check isSwimlaneParent(issue)"
 
     def test_badge_handles_missing_labels_gracefully(self, script):
         """Badge condition should handle issues without labels (labels may be null/undefined)."""
@@ -352,15 +346,14 @@ class TestDraftEpicDraggability:
         assert render_match, "Could not find renderFlatView function"
         body = render_match.group(1)
         # The filter must handle draft epics (allow them through).
-        # Look for the filter line that excludes epics — it should have a draft exception.
-        # We search for the full filter expression (possibly multi-line).
+        # Look for the filter line that uses isSwimlaneParent — it should have a draft exception.
         filter_match = re.search(
-            r"\.filter\(.*?issue_type.*?epic.*?(?:draft.*?\)|;)",
+            r"\.filter\(.*?isSwimlaneParent.*?draft.*?\)",
             body,
             re.DOTALL,
         )
         assert filter_match, (
-            "renderFlatView must have an issue_type filter that handles draft epics"
+            "renderFlatView must have a isSwimlaneParent filter that handles draft epics"
         )
         filter_code = filter_match.group(0)
         # The filter should include an exception for draft label
