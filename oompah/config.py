@@ -229,7 +229,7 @@ class ServiceConfig:
         default_factory=lambda: ["closed"]
     )
     poll_interval_ms: int = 30000
-    full_sync_interval_ms: int = 300000  # 5 minutes — safety-net full sync
+    full_sync_interval_ms: int = 30000  # 30 seconds — safety-net full sync
     workspace_root: str = ""
     hooks_after_create: str | None = None
     hooks_before_run: str | None = None
@@ -244,8 +244,9 @@ class ServiceConfig:
     turn_timeout_ms: int = 3_600_000
     read_timeout_ms: int = 5000
     stall_timeout_ms: int = 300_000
-    stall_turns: int = 5
-    decompose_after_attempts: int = 3
+    stall_turns: int = 10
+    escalate_after_attempts: int = 1  # escalate profile after N failed attempts (stall or max_turns)
+    decompose_after_attempts: int = 2
     server_port: int | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     budget_limit: float = 0.0
@@ -310,6 +311,32 @@ class ServiceConfig:
 
         budget_limit = float(agent.get("budget_limit", 0) or 0)
 
+        # Environment variables take precedence over WORKFLOW.md values.
+        # Helper: env var > workflow yaml > default
+        def _env_int(env_key: str, yaml_val: Any, default: int) -> int:
+            return _coerce_int(os.environ.get(env_key, yaml_val), default)
+
+        def _env_float(env_key: str, yaml_val: Any, default: float) -> float:
+            raw = os.environ.get(env_key, yaml_val)
+            if raw is None:
+                return default
+            try:
+                return float(raw)
+            except (ValueError, TypeError):
+                return default
+
+        def _env_str(env_key: str, yaml_val: Any, default: str) -> str:
+            return os.environ.get(env_key) or (str(yaml_val) if yaml_val is not None else default)
+
+        # Server port: env > yaml > None
+        raw_port = os.environ.get("OOMPAH_SERVER_PORT", server.get("port"))
+        server_port = _coerce_int(raw_port, None) if raw_port is not None else None
+
+        # Workspace root: env > yaml > tempdir
+        env_ws = os.environ.get("OOMPAH_WORKSPACE_ROOT")
+        if env_ws:
+            ws_root = _expand_path(env_ws)
+
         return cls(
             tracker_kind=str(tracker.get("kind", "beads")),
             tracker_active_states=_parse_state_list(
@@ -318,33 +345,28 @@ class ServiceConfig:
             tracker_terminal_states=_parse_state_list(
                 tracker.get("terminal_states"), ["closed"]
             ),
-            poll_interval_ms=_coerce_int(polling.get("interval_ms"), 30000),
-            full_sync_interval_ms=_coerce_int(polling.get("full_sync_interval_ms"), 300000),
+            poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 30000),
+            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 300000),
             workspace_root=ws_root,
             hooks_after_create=hooks.get("after_create"),
             hooks_before_run=hooks.get("before_run"),
             hooks_after_run=hooks.get("after_run"),
             hooks_before_remove=hooks.get("before_remove"),
-            hooks_timeout_ms=_coerce_int(hooks.get("timeout_ms"), 60000),
-            max_concurrent_agents=_coerce_int(
-                agent.get("max_concurrent_agents"), 10
-            ),
-            max_turns=_coerce_int(agent.get("max_turns"), 200),
-            max_retry_backoff_ms=_coerce_int(
-                agent.get("max_retry_backoff_ms"), 300000
-            ),
+            hooks_timeout_ms=_env_int("OOMPAH_HOOKS_TIMEOUT_MS", hooks.get("timeout_ms"), 60000),
+            max_concurrent_agents=_env_int("OOMPAH_MAX_CONCURRENT_AGENTS", agent.get("max_concurrent_agents"), 10),
+            max_turns=_env_int("OOMPAH_MAX_TURNS", agent.get("max_turns"), 200),
+            max_retry_backoff_ms=_env_int("OOMPAH_MAX_RETRY_BACKOFF_MS", agent.get("max_retry_backoff_ms"), 300000),
             max_concurrent_agents_by_state=by_state,
-            agent_command=str(
-                codex.get("command", "claude --dangerously-skip-permissions")
-            ),
-            turn_timeout_ms=_coerce_int(codex.get("turn_timeout_ms"), 3_600_000),
-            read_timeout_ms=_coerce_int(codex.get("read_timeout_ms"), 5000),
-            stall_timeout_ms=_coerce_int(codex.get("stall_timeout_ms"), 300_000),
-            stall_turns=_coerce_int(agent.get("stall_turns"), 5),
-            decompose_after_attempts=_coerce_int(agent.get("decompose_after_attempts"), 3),
-            server_port=_coerce_int(server.get("port"), None) if server.get("port") is not None else None,
+            agent_command=_env_str("OOMPAH_AGENT_COMMAND", codex.get("command"), "claude --dangerously-skip-permissions"),
+            turn_timeout_ms=_env_int("OOMPAH_TURN_TIMEOUT_MS", codex.get("turn_timeout_ms"), 3_600_000),
+            read_timeout_ms=_env_int("OOMPAH_READ_TIMEOUT_MS", codex.get("read_timeout_ms"), 5000),
+            stall_timeout_ms=_env_int("OOMPAH_STALL_TIMEOUT_MS", codex.get("stall_timeout_ms"), 300_000),
+            stall_turns=_env_int("OOMPAH_STALL_TURNS", agent.get("stall_turns"), 10),
+            escalate_after_attempts=_env_int("OOMPAH_ESCALATE_AFTER_ATTEMPTS", agent.get("escalate_after_attempts"), 1),
+            decompose_after_attempts=_env_int("OOMPAH_DECOMPOSE_AFTER_ATTEMPTS", agent.get("decompose_after_attempts"), 2),
+            server_port=server_port,
             agent_profiles=profiles,
-            budget_limit=budget_limit,
+            budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),
         )
 
 
