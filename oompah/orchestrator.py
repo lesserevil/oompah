@@ -145,6 +145,8 @@ class Orchestrator:
         self._last_candidates: list[Issue] = []
         self._orphan_reset_counts: dict[str, int] = {}
         self._yolo_limbo_ticks: dict[str, int] = {}
+        # Merged-branches cache: persists across ticks, invalidated by webhooks
+        self._merged_branches_dirty: bool = True  # start dirty to force first fetch
 
     def _load_state(self) -> dict:
         """Load persisted service state from disk."""
@@ -309,6 +311,10 @@ class Orchestrator:
     @property
     def is_paused(self) -> bool:
         return self._paused
+
+    def invalidate_merged_branches(self) -> None:
+        """Mark the merged-branches cache as stale (called by webhook handler)."""
+        self._merged_branches_dirty = True
 
     def request_refresh(self) -> None:
         """Request an immediate poll+reconciliation cycle."""
@@ -576,16 +582,25 @@ class Orchestrator:
 
         Populates ``_reviews_cache``, ``_unmerged_review_branches``, and
         ``_merged_branches`` used by dispatch gating and YOLO actions.
+
+        Merged branches are cached across ticks and only re-fetched when
+        ``_merged_branches_dirty`` is set (by webhooks or first tick).
         """
         self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
         loop = asyncio.get_event_loop()
         reviews_task = loop.run_in_executor(self._tick_pool, self._fetch_all_reviews)
-        merged_task = loop.run_in_executor(self._tick_pool, self._fetch_all_merged_branches)
-        reviews_by_project, merged_branches = await asyncio.gather(
-            reviews_task, merged_task
-        )
+
+        if self._merged_branches_dirty:
+            merged_task = loop.run_in_executor(self._tick_pool, self._fetch_all_merged_branches)
+            reviews_by_project, merged_branches = await asyncio.gather(
+                reviews_task, merged_task
+            )
+            self._merged_branches = merged_branches
+            self._merged_branches_dirty = False
+        else:
+            reviews_by_project = await reviews_task
+
         self._reviews_cache = reviews_by_project
-        self._merged_branches = merged_branches
         # Derive unmerged review branches from cached reviews
         self._unmerged_review_branches = {
             r.source_branch
@@ -593,6 +608,7 @@ class Orchestrator:
             for r in reviews
             if r.source_branch
         }
+        logger.debug("Unmerged review branches: %s", sorted(self._unmerged_review_branches))
 
     async def _handle_dispatch_needed(self) -> None:
         """Fetch candidates, resolve blockers, and dispatch eligible issues."""
@@ -604,7 +620,6 @@ class Orchestrator:
             self._tick_pool, self._fetch_all_candidates
         )
         self._last_candidates = candidates
-
         # Pre-resolve blocker states in thread (internally parallel)
         await loop.run_in_executor(
             self._tick_pool, self._pre_resolve_blockers, candidates
@@ -1303,30 +1318,23 @@ class Orchestrator:
                 review_id = review.id
 
                 if review.has_conflicts:
-                    # Actual merge conflicts — dispatch a conflict-resolution
-                    # agent to rebase.  Never rely on server-side rebase, which
-                    # reports false success on GitLab.
                     logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
                                 project.name, review_id)
                     self._yolo_notify_conflict(project, provider, slug, review_id)
                     continue
 
                 if review.ci_status == "failed":
-                    # Auto-retry: re-file the ticket to fix tests.
-                    # Act on this one and stop for this project.
                     logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
                                 project.name, review_id)
                     self._yolo_retry_ci(project, review)
                     # Serialization: only one action per project per tick.
                     break
 
-                if review.ci_status == "passed":
-                    # Auto-merge — attempt even if the branch is behind main
-                    # (diverged_commits_count > 0), since squash-merge handles
-                    # diverged branches without real conflicts.  If the merge
-                    # fails anyway, fall back to a conflict-resolution agent.
-                    logger.info("YOLO: auto-merging %s MR #%s (needs_rebase=%s)",
-                                project.name, review_id, review.needs_rebase)
+                # Merge if CI passed or if there's no CI pipeline (empty status)
+                ci_ok = review.ci_status in ("passed", "", None)
+                if ci_ok and not review.needs_rebase:
+                    logger.info("YOLO: auto-merging %s MR #%s (ci=%s)",
+                                project.name, review_id, review.ci_status)
                     success, msg = provider.merge_review(slug, review_id)
                     if success:
                         logger.info("YOLO: merged %s MR #%s", project.name, review_id)
@@ -1336,6 +1344,11 @@ class Orchestrator:
                         self._yolo_notify_conflict(project, provider, slug, review_id)
                     # Serialization: only one action per project per tick.
                     break
+
+                # MR doesn't match any action condition (e.g. CI running/pending)
+                logger.debug("YOLO: skipping %s MR #%s branch=%s (ci=%s, conflicts=%s, needs_rebase=%s)",
+                             project.name, review_id, review.source_branch,
+                             review.ci_status, review.has_conflicts, review.needs_rebase)
 
     def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
         """Notify the bead about a merge conflict (YOLO mode)."""
