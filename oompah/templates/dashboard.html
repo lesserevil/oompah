@@ -1111,6 +1111,15 @@ function handleStateUpdate(state) {
     sel.style.display = '';
   } else if (sel && projects.length === 0) {
     sel.style.display = 'none';
+    // Show empty state — no projects configured yet
+    const board = document.getElementById('board');
+    if (board) {
+      board.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;padding:4rem;color:var(--text-muted);font-size:0.95rem;gap:1rem;text-align:center;">' +
+        '<div style="font-size:2rem;">📂</div>' +
+        '<div>No projects configured.</div>' +
+        '<a href="/projects-manage" style="color:var(--accent);text-decoration:underline;">Add a project to get started</a>' +
+        '</div>';
+    }
   }
 
   // Update activity panel if open
