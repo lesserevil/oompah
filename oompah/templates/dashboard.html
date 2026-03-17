@@ -1014,8 +1014,10 @@ function connectWebSocket() {
       if (msg.type === 'state') {
         handleStateUpdate(msg.data);
       } else if (msg.type === 'issues') {
-        renderBoard(filterByProject(msg.data));
-        refreshOpenDetailPanel();
+        if (currentProjects.length > 0) {
+          renderBoard(filterByProject(msg.data));
+          refreshOpenDetailPanel();
+        }
       } else if (msg.type === 'activity') {
         handleActivityPush(msg.identifier, msg.entry);
         if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
