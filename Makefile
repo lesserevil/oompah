@@ -4,7 +4,19 @@ PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
 PORT := 8080
 
-.PHONY: setup start stop restart graceful status logs test clean
+.PHONY: help setup start stop restart graceful status logs test clean
+
+help:
+	@echo "oompah — make targets:"
+	@echo "  setup     Install dependencies into $(VENV) (idempotent)"
+	@echo "  start     Start oompah on port $(PORT) in the background"
+	@echo "  stop      Stop the background oompah process"
+	@echo "  restart   Hard restart (stop + start) — use for orchestrator/agent changes"
+	@echo "  graceful  Drain running agents and restart in-place — use for cosmetic/template changes"
+	@echo "  status    Print PID + state JSON if running"
+	@echo "  logs      Tail $(LOG_FILE)"
+	@echo "  test      Run the pytest suite"
+	@echo "  clean     Stop, then remove $(VENV), logs, pid file, and __pycache__ dirs"
 
 setup: $(VENV)/.uv-setup
 
