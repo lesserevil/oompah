@@ -38,9 +38,14 @@ class Focus:
     labels: list[str] = field(default_factory=list)  # matched against issue labels
     priority: int = 0  # higher = preferred when multiple foci match
     status: str = "active"  # active | inactive | proposed
+    # Optional model overrides — when set, take precedence over the agent
+    # profile's choice during dispatch. See docs/per-focus-models.md.
+    model_role: str | None = None
+    model: str | None = None
+    provider_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "name": self.name,
             "role": self.role,
             "description": self.description,
@@ -52,9 +57,22 @@ class Focus:
             "priority": self.priority,
             "status": self.status,
         }
+        if self.model_role is not None:
+            d["model_role"] = self.model_role
+        if self.model is not None:
+            d["model"] = self.model
+        if self.provider_id is not None:
+            d["provider_id"] = self.provider_id
+        return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Focus:
+        def _opt_str(v: Any) -> str | None:
+            if v is None:
+                return None
+            s = str(v).strip()
+            return s or None
+
         return cls(
             name=str(d.get("name", "")),
             role=str(d.get("role", "")),
@@ -66,6 +84,9 @@ class Focus:
             labels=d.get("labels", []),
             priority=int(d.get("priority", 0)),
             status=str(d.get("status", "active")),
+            model_role=_opt_str(d.get("model_role")),
+            model=_opt_str(d.get("model")),
+            provider_id=_opt_str(d.get("provider_id")),
         )
 
     def render(self) -> str:

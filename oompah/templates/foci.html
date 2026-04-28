@@ -271,6 +271,21 @@ function renderEditForm(f) {
         <label>Must NOT Do (one per line)</label>
         <textarea id="ef-mustnot-${n}" rows="3">${esc((f.must_not_do || []).join('\n'))}</textarea>
       </div>
+      <div class="form-row">
+        <label>Provider override (optional)</label>
+        <input type="text" id="ef-provider-${n}" value="${escAttr(f.provider_id || '')}" list="provider-ids">
+        <div class="help">Provider id — leave blank to use the profile's provider</div>
+      </div>
+      <div class="form-row">
+        <label>Model role override (optional)</label>
+        <input type="text" id="ef-modelrole-${n}" value="${escAttr(f.model_role || '')}">
+        <div class="help">Resolved against the provider's model_roles (e.g. fast, standard, deep)</div>
+      </div>
+      <div class="form-row">
+        <label>Explicit model override (optional)</label>
+        <input type="text" id="ef-model-${n}" value="${escAttr(f.model || '')}">
+        <div class="help">Wins over model_role when both are set</div>
+      </div>
       <div class="form-actions">
         <button class="btn-primary btn-sm" onclick="saveEdit('${n}')">Save</button>
         <button class="btn-sm" onclick="toggleEdit('${n}')">Cancel</button>
@@ -298,6 +313,9 @@ async function saveEdit(name) {
     priority: parseInt(document.getElementById('ef-pri-' + n).value) || 0,
     must_do: splitLines(document.getElementById('ef-must-' + n).value),
     must_not_do: splitLines(document.getElementById('ef-mustnot-' + n).value),
+    provider_id: document.getElementById('ef-provider-' + n).value.trim(),
+    model_role: document.getElementById('ef-modelrole-' + n).value.trim(),
+    model: document.getElementById('ef-model-' + n).value.trim(),
   };
   const res = await fetch('/api/v1/foci/' + encodeURIComponent(name), {
     method: 'PATCH',

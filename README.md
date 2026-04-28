@@ -132,6 +132,30 @@ Foci are specialized agent roles that tailor the prompt to the type of work. Oom
 
 When no focus matches, a general-purpose Software Engineer focus is used.
 
+### Per-focus model overrides
+
+Each focus may optionally pin the model and/or provider used when that focus
+runs, regardless of which agent profile won profile matching. All three
+fields are optional — when unset, the agent profile picks the model as
+before.
+
+```json
+{
+  "name": "docs",
+  "role": "Technical Writer",
+  "model_role": "fast",
+  "model": null,
+  "provider_id": null
+}
+```
+
+Resolution priority: `focus.model` > `focus.model_role` > `profile.model` >
+`profile.model_role` > provider default. A focus pointing at a missing
+provider or undefined `model_role` falls back to the profile-level choice
+(with a warning) rather than failing dispatch. Edit these fields on the
+`/foci` dashboard or directly in `.oompah/foci.json`. See
+`docs/per-focus-models.md` for the full design.
+
 ### Focus lifecycle
 
 - **Active** — available for agent dispatch

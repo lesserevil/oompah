@@ -1567,14 +1567,52 @@ class Orchestrator:
                 return higher
         return None
 
-    def _resolve_provider(self, profile: AgentProfile):
-        """Resolve the provider for a profile, falling back to the default."""
+    def _resolve_provider(self, profile: AgentProfile, focus=None):
+        """Resolve the provider for a profile, falling back to the default.
+
+        If ``focus.provider_id`` is set and refers to a known provider, it
+        wins over the profile's ``provider_id``. A focus that points at a
+        missing provider falls back to the profile/default with a warning,
+        rather than failing dispatch.
+        """
+        if focus is not None and getattr(focus, "provider_id", None):
+            p = self.provider_store.get(focus.provider_id)
+            if p is not None:
+                return p
+            logger.warning(
+                "Focus %r references unknown provider_id=%r; falling back to profile/default",
+                focus.name, focus.provider_id,
+            )
         if profile.provider_id:
             return self.provider_store.get(profile.provider_id)
         return self.provider_store.get_default()
 
-    def _resolve_model(self, profile: AgentProfile, provider) -> str | None:
-        """Resolve the model name from a profile and provider."""
+    def _resolve_model(self, profile: AgentProfile, provider, focus=None) -> str | None:
+        """Resolve the model name.
+
+        Priority: focus.model > focus.model_role(provider) > profile.model >
+        profile.model_role(provider) > provider.default_model > first model.
+
+        If both ``focus.model`` and ``focus.model_role`` are set, ``model``
+        wins (a warning is emitted at load time / via validation). When a
+        focus's ``model_role`` is missing on the provider, fall back to the
+        profile-level resolution rather than failing dispatch.
+        """
+        # Focus-level overrides first.
+        if focus is not None:
+            if getattr(focus, "model", None):
+                return focus.model
+            role = getattr(focus, "model_role", None)
+            if role and provider.model_roles:
+                m = provider.model_roles.get(role)
+                if m:
+                    return m
+                logger.warning(
+                    "Focus %r model_role=%r not defined on provider %s; falling back to profile",
+                    focus.name, role, provider.name,
+                )
+
+        # Profile-level resolution (existing behaviour).
         model = None
         if profile.model_role and provider.model_roles:
             model = provider.model_roles.get(profile.model_role)
@@ -1719,10 +1757,42 @@ class Orchestrator:
         exit_reason = "normal"
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
-        # Resolve model: role lookup → explicit model → provider default
-        model = self._resolve_model(profile, provider)
+
+        # Select focus first so its (optional) model/provider overrides
+        # participate in resolution. See docs/per-focus-models.md.
+        focus = select_focus(issue)
+        logger.info("Issue %s assigned focus: %s (%s)",
+                    issue.identifier, focus.name, focus.role)
+
+        # Apply focus-level provider override if any. If the focus changes
+        # the provider, log it.
+        focus_provider = self._resolve_provider(profile, focus=focus)
+        if focus_provider is not None and focus_provider is not provider:
+            logger.info(
+                "Focus %r overrides provider: %s -> %s",
+                focus.name, provider.name, focus_provider.name,
+            )
+            provider = focus_provider
+
+        # Resolve model with focus participating.
+        model = self._resolve_model(profile, provider, focus=focus)
         if not model:
             raise ValueError(f"No model resolved for profile {profile.name!r} with provider {provider.name}")
+
+        # Diagnostic: surface where the model came from.
+        if focus.model:
+            model_source = f"focus={focus.name}.model"
+        elif focus.model_role and provider.model_roles and provider.model_roles.get(focus.model_role) == model:
+            model_source = f"focus={focus.name}.model_role={focus.model_role}"
+        elif profile.model_role and provider.model_roles and provider.model_roles.get(profile.model_role) == model:
+            model_source = f"profile={profile.name}.model_role={profile.model_role}"
+        elif profile.model and profile.model == model:
+            model_source = f"profile={profile.name}.model"
+        else:
+            model_source = "provider.default"
+        logger.info("Resolved provider=%s model=%s source=%s for %s",
+                    provider.name, model, model_source, issue.identifier)
+
         if profile.model_role and provider.model_roles and profile.model_role not in provider.model_roles:
             logger.error("Model role %r not defined in provider %s (available roles: %s)",
                          profile.model_role, provider.name, ", ".join(provider.model_roles))
@@ -1744,10 +1814,6 @@ class Orchestrator:
                     wp = workspace.path
                     self.workspace_mgr.run_before_run(wp)
 
-                # Select focus
-                focus = select_focus(issue)
-                logger.info("Issue %s assigned focus: %s (%s)",
-                            issue.identifier, focus.name, focus.role)
                 self._post_comment(issue.identifier, f"Focus: {focus.role}",
                                    project_id=issue.project_id)
                 self._clear_handoff_labels(issue)
@@ -1769,10 +1835,10 @@ class Orchestrator:
                     comments=comments, focus_text=focus.render(),
                     workspace_path=wp, memories=memories,
                 )
-                return wp, focus, prompt
+                return wp, prompt
 
             loop = asyncio.get_event_loop()
-            workspace_path, focus, prompt = await loop.run_in_executor(
+            workspace_path, prompt = await loop.run_in_executor(
                 self._tick_pool, _setup_worker
             )
 

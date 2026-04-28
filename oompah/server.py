@@ -1220,6 +1220,14 @@ async def api_update_focus(name: str, request: Request):
             found.priority = int(body["priority"])
         except (ValueError, TypeError):
             pass
+    # Optional model overrides — empty string clears the override.
+    for key in ("model_role", "model", "provider_id"):
+        if key in body:
+            v = body[key]
+            if v is None or (isinstance(v, str) and not v.strip()):
+                setattr(found, key, None)
+            else:
+                setattr(found, key, str(v).strip())
 
     save_foci(existing, user_path)
     return JSONResponse(found.to_dict())
@@ -1630,6 +1638,8 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # Invalidate caches and trigger a refresh cycle
     _api_cache.invalidate("reviews:all")
     _api_cache.invalidate("issues:all")
+    if event.merged:
+        orch.invalidate_merged_branches()
     orch.request_refresh()
 
 

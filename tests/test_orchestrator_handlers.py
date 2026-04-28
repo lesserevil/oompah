@@ -19,7 +19,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import Issue
+from oompah.focus import Focus
+from oompah.models import AgentProfile, Issue, ModelProvider
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
 
@@ -765,3 +766,94 @@ class TestHandlerIndependence:
 
         # Should not raise even without _reviews_cache pre-populated
         asyncio.run(orch._handle_dispatch_needed())
+
+
+# ---------------------------------------------------------------------------
+# Per-focus model overrides — see docs/per-focus-models.md
+# ---------------------------------------------------------------------------
+
+def _provider(pid: str = "p1", name: str = "p1", *, model_roles=None,
+              models=None, default_model="m-default") -> ModelProvider:
+    return ModelProvider(
+        id=pid, name=name, base_url="http://x", api_key="k",
+        models=models or ["m-default", "m-fast", "m-deep", "m-explicit"],
+        default_model=default_model,
+        model_roles=model_roles or {"fast": "m-fast", "deep": "m-deep"},
+    )
+
+
+def _profile(name: str = "standard", **kw) -> AgentProfile:
+    defaults = dict(name=name, command="cli")
+    defaults.update(kw)
+    return AgentProfile(**defaults)
+
+
+class TestFocusModelOverrides:
+    """Resolution priority: focus.model > focus.model_role > profile.* > provider default."""
+
+    def test_no_focus_uses_profile_role(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider()
+        prof = _profile(model_role="deep")
+        assert orch._resolve_model(prof, prov, focus=None) == "m-deep"
+
+    def test_focus_explicit_model_wins(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider()
+        prof = _profile(model_role="deep")
+        focus = Focus(name="docs", role="r", description="d", model="m-explicit")
+        assert orch._resolve_model(prof, prov, focus=focus) == "m-explicit"
+
+    def test_focus_model_role_wins_over_profile(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider()
+        prof = _profile(model_role="deep")
+        focus = Focus(name="docs", role="r", description="d", model_role="fast")
+        assert orch._resolve_model(prof, prov, focus=focus) == "m-fast"
+
+    def test_focus_model_beats_focus_model_role(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider()
+        prof = _profile(model_role="deep")
+        focus = Focus(name="docs", role="r", description="d",
+                      model="m-explicit", model_role="fast")
+        assert orch._resolve_model(prof, prov, focus=focus) == "m-explicit"
+
+    def test_focus_unknown_model_role_falls_back_to_profile(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(model_roles={"fast": "m-fast"})  # no "deep"
+        prof = _profile(model_role="fast")
+        focus = Focus(name="docs", role="r", description="d", model_role="deep")
+        # falls back to profile.model_role=fast
+        assert orch._resolve_model(prof, prov, focus=focus) == "m-fast"
+
+    def test_focus_provider_id_overrides(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        prov_a = _provider(pid="a", name="A")
+        prov_b = _provider(pid="b", name="B")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = lambda pid: {"a": prov_a, "b": prov_b}.get(pid)
+        orch.provider_store.get_default.return_value = prov_a
+        prof = _profile(provider_id="a")
+        focus = Focus(name="docs", role="r", description="d", provider_id="b")
+        assert orch._resolve_provider(prof, focus=focus) is prov_b
+
+    def test_focus_unknown_provider_falls_back(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        prov_a = _provider(pid="a", name="A")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = lambda pid: {"a": prov_a}.get(pid)
+        orch.provider_store.get_default.return_value = prov_a
+        prof = _profile(provider_id="a")
+        focus = Focus(name="docs", role="r", description="d", provider_id="missing")
+        # focus override misses → falls back to profile.provider_id
+        assert orch._resolve_provider(prof, focus=focus) is prov_a
+
+    def test_no_overrides_when_focus_fields_unset(self, tmp_path):
+        """Focus with no override fields behaves identically to focus=None."""
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider()
+        prof = _profile(model_role="deep")
+        focus = Focus(name="docs", role="r", description="d")
+        assert orch._resolve_model(prof, prov, focus=focus) == \
+               orch._resolve_model(prof, prov, focus=None)

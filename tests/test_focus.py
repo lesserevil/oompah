@@ -183,6 +183,36 @@ class TestFocusSerialization:
         assert restored.status == original.status
         assert restored.priority == original.priority
 
+    def test_model_overrides_round_trip(self):
+        original = Focus(
+            name="docs", role="Tech Writer", description="docs",
+            model_role="fast", model="gpt-4o-mini", provider_id="prov-xyz",
+        )
+        restored = Focus.from_dict(original.to_dict())
+        assert restored.model_role == "fast"
+        assert restored.model == "gpt-4o-mini"
+        assert restored.provider_id == "prov-xyz"
+
+    def test_model_overrides_default_to_none(self):
+        f = Focus(name="x", role="X", description="x")
+        assert f.model_role is None
+        assert f.model is None
+        assert f.provider_id is None
+        d = f.to_dict()
+        # Don't bloat foci.json with null fields when unset.
+        assert "model_role" not in d
+        assert "model" not in d
+        assert "provider_id" not in d
+
+    def test_model_overrides_blank_strings_normalize_to_none(self):
+        restored = Focus.from_dict({
+            "name": "x", "role": "X", "description": "x",
+            "model_role": "  ", "model": "", "provider_id": None,
+        })
+        assert restored.model_role is None
+        assert restored.model is None
+        assert restored.provider_id is None
+
 
 class TestLoadSaveFoci:
     def test_save_and_load(self, tmp_path):
