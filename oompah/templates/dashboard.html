@@ -1070,9 +1070,9 @@ function handleStateUpdate(state) {
       '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2);
   }
 
-  // Check for proposed foci and pending reviews
-  fetchProposedFociCount();
-  fetchReviewsCount();
+  // Reviews + proposed-foci badges come from the WS state payload now.
+  updateReviewsBadge(state.reviews_summary || null);
+  updateProposedFociBadge(state.proposed_foci_count || 0);
 
   // Render running agent chips
   const container = document.getElementById('running-agents');
@@ -1157,49 +1157,39 @@ async function togglePause() {
   await fetchOrchestratorState();
 }
 
-async function fetchReviewsCount() {
-  try {
-    const res = await fetch('/api/v1/reviews');
-    if (!res.ok) return;
-    const reviews = await res.json();
-    const el = document.getElementById('reviews-stat');
-    const countEl = document.getElementById('reviews-count');
-    const yoloProjectIds = new Set(currentProjects.filter(p => p.yolo).map(p => p.id));
-    const nonYolo = reviews.filter(r => !yoloProjectIds.has(r.project_id));
-    const conflicts = nonYolo.filter(r => r.review && r.review.has_conflicts && !r.agent_active).length;
-    const ciFailures = nonYolo.filter(r => r.review && r.review.ci_status === 'failed' && !r.review.has_conflicts && !r.agent_active).length;
-    const needsAttention = conflicts + ciFailures;
-    if (needsAttention > 0) {
-      countEl.textContent = needsAttention;
-      countEl.style.color = 'var(--red, #f85149)';
-      el.querySelector('.reviews-label').textContent = conflicts > 0 ? 'need resolution' : 'CI failures';
-      el.style.display = '';
-    } else if (nonYolo.length > 0) {
-      countEl.textContent = nonYolo.length;
-      countEl.style.color = 'var(--blue, #58a6ff)';
-      el.querySelector('.reviews-label').textContent = 'reviews waiting';
-      el.style.display = '';
-    } else {
-      el.style.display = 'none';
-    }
-  } catch(e) {}
+// Reviews + proposed-foci badges are pushed via WebSocket state payloads
+// (state.reviews_summary, state.proposed_foci_count). These updaters are
+// pure DOM updaters with no fetches.
+function updateReviewsBadge(summary) {
+  const el = document.getElementById('reviews-stat');
+  const countEl = document.getElementById('reviews-count');
+  if (!summary) { el.style.display = 'none'; return; }
+  const needsAttention = summary.needs_attention || 0;
+  if (needsAttention > 0) {
+    countEl.textContent = needsAttention;
+    countEl.style.color = 'var(--red, #f85149)';
+    el.querySelector('.reviews-label').textContent =
+      (summary.conflicts > 0) ? 'need resolution' : 'CI failures';
+    el.style.display = '';
+  } else if ((summary.total || 0) > 0) {
+    countEl.textContent = summary.total;
+    countEl.style.color = 'var(--blue, #58a6ff)';
+    el.querySelector('.reviews-label').textContent = 'reviews waiting';
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
-async function fetchProposedFociCount() {
-  try {
-    const res = await fetch('/api/v1/foci');
-    if (!res.ok) return;
-    const foci = await res.json();
-    const proposed = foci.filter(f => f.status === 'proposed');
-    const el = document.getElementById('proposed-foci-stat');
-    const countEl = document.getElementById('proposed-foci-count');
-    if (proposed.length > 0) {
-      countEl.textContent = proposed.length;
-      el.style.display = '';
-    } else {
-      el.style.display = 'none';
-    }
-  } catch(e) {}
+function updateProposedFociBadge(count) {
+  const el = document.getElementById('proposed-foci-stat');
+  const countEl = document.getElementById('proposed-foci-count');
+  if (count > 0) {
+    countEl.textContent = count;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 // Scan in-memory board data for issues with the 'asking_question' label and update the

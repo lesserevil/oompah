@@ -27,7 +27,7 @@ from oompah.models import (
     RetryEntry,
     RunningEntry,
 )
-from oompah.focus import analyze_completed_issue, save_suggestion, select_focus
+from oompah.focus import analyze_completed_issue, load_foci, save_suggestion, select_focus
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
@@ -3113,7 +3113,61 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "rate_limits": self.state.rate_limits,
             "projects": [p.to_dict() for p in self.project_store.list_all()],
             "alerts": list(self._alerts),
+            "reviews_summary": self._reviews_summary(),
+            "proposed_foci_count": self._proposed_foci_count(),
         }
+
+    def _reviews_summary(self) -> dict[str, int]:
+        """Aggregate per-tick review cache for the dashboard badge.
+
+        Avoids the dashboard polling /api/v1/reviews every WS state update.
+        Yolo projects are filtered out (their reviews don't need human
+        attention by definition).
+        """
+        reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+        yolo_ids = {p.id for p in self.project_store.list_all() if getattr(p, "yolo", False)}
+        non_yolo_total = 0
+        conflicts = 0
+        ci_failures = 0
+        for project_id, reviews in reviews_cache.items():
+            if project_id in yolo_ids:
+                continue
+            for r in reviews or []:
+                # Skip reviews where an agent is currently working — handled elsewhere.
+                if getattr(r, "agent_active", False):
+                    continue
+                non_yolo_total += 1
+                if getattr(r, "has_conflicts", False):
+                    conflicts += 1
+                elif getattr(r, "ci_status", None) == "failed":
+                    ci_failures += 1
+        return {
+            "total": non_yolo_total,
+            "conflicts": conflicts,
+            "ci_failures": ci_failures,
+            "needs_attention": conflicts + ci_failures,
+        }
+
+    def _proposed_foci_count(self) -> int:
+        """Count foci with status='proposed'.
+
+        Cached by foci.json mtime so the snapshot doesn't re-read JSON on
+        every state push. Returns 0 when the file does not yet exist.
+        """
+        path = ".oompah/foci.json"
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            mtime = 0.0
+        cached = getattr(self, "_proposed_foci_cache", None)
+        if cached is not None and cached[0] == mtime:
+            return cached[1]
+        try:
+            count = sum(1 for f in load_foci() if f.status == "proposed")
+        except Exception:
+            count = 0
+        self._proposed_foci_cache = (mtime, count)
+        return count
 
     def get_issue_detail(self, issue_identifier: str) -> dict[str, Any] | None:
         """Return detailed state for a specific issue."""
