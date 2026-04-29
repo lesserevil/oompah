@@ -115,6 +115,9 @@ class Project:
     yolo: bool = False
     log_path: str | None = None  # optional path to a log file to watch for errors
     webhook_secret: str | None = None  # HMAC secret for validating forge webhooks
+    # True when `git lfs install` succeeded for this clone. When False, the
+    # attachments feature is silently disabled for this project.
+    lfs_available: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -124,6 +127,7 @@ class Project:
             "repo_path": self.repo_path,
             "branch": self.branch,
             "yolo": self.yolo,
+            "lfs_available": self.lfs_available,
         }
         if self.git_user_name:
             d["git_user_name"] = self.git_user_name
@@ -148,6 +152,7 @@ class Project:
             yolo=bool(d.get("yolo", False)),
             log_path=d.get("log_path"),
             webhook_secret=d.get("webhook_secret"),
+            lfs_available=bool(d.get("lfs_available", False)),
         )
 
 

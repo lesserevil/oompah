@@ -9,9 +9,41 @@ import re
 import subprocess
 import uuid
 
+from oompah.attachments import AttachmentStore
 from oompah.models import Project
 
 logger = logging.getLogger(__name__)
+
+
+def _bootstrap_lfs(repo_path: str) -> bool:
+    """Run `git lfs install --local` in ``repo_path`` and write the
+    attachments .gitattributes. Idempotent.
+
+    Returns ``True`` when LFS is configured and ready, ``False`` when
+    ``git lfs`` isn't installed or `install` failed. The caller stores
+    this as :attr:`Project.lfs_available`; multimodal-attachment features
+    silently no-op when it's ``False``.
+    """
+    try:
+        subprocess.run(
+            ["git", "lfs", "install", "--local"],
+            cwd=repo_path,
+            capture_output=True, text=True,
+            check=True, timeout=15,
+        )
+    except FileNotFoundError:
+        logger.warning("git lfs not installed; attachments disabled for %s", repo_path)
+        return False
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        stderr = (getattr(exc, "stderr", "") or "").strip()[:200]
+        logger.warning("git lfs install failed for %s: %s", repo_path, stderr or exc)
+        return False
+    try:
+        AttachmentStore(repo_path).ensure_lfs_configured()
+    except Exception as exc:
+        logger.warning("attachments .gitattributes write failed for %s: %s", repo_path, exc)
+        return False
+    return True
 
 DEFAULT_PROJECTS_PATH = ".oompah/projects.json"
 DEFAULT_REPOS_ROOT = os.path.join(os.path.expanduser("~"), ".oompah", "repos")
@@ -177,6 +209,10 @@ class ProjectStore:
             except Exception:
                 pass
 
+        # Bootstrap git LFS for the multimodal attachments feature.
+        # Always idempotent; degrades gracefully when git lfs is missing.
+        lfs_available = _bootstrap_lfs(repo_path)
+
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
             id=project_id,
@@ -186,10 +222,14 @@ class ProjectStore:
             branch=branch,
             git_user_name=git_user_name,
             git_user_email=git_user_email,
+            lfs_available=lfs_available,
         )
         self._projects[project_id] = project
         self._save()
-        logger.info("Project created id=%s name=%s repo=%s", project_id, name, repo_url)
+        logger.info(
+            "Project created id=%s name=%s repo=%s lfs_available=%s",
+            project_id, name, repo_url, lfs_available,
+        )
         return project
 
     # Fields that may be changed via update().
