@@ -857,3 +857,33 @@ class TestFocusModelOverrides:
         focus = Focus(name="docs", role="r", description="d")
         assert orch._resolve_model(prof, prov, focus=focus) == \
                orch._resolve_model(prof, prov, focus=None)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_capabilities (oompah-zlz.3)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveCapabilities:
+    def test_default_text_only_when_no_model(self):
+        prov = _provider()
+        assert Orchestrator._resolve_capabilities(prov, None) == ["text"]
+
+    def test_default_text_only_when_unmapped(self):
+        prov = _provider()  # no model_capabilities
+        assert Orchestrator._resolve_capabilities(prov, "m-fast") == ["text"]
+
+    def test_returns_declared_caps(self):
+        prov = _provider()
+        prov.model_capabilities = {"m-fast": ["text", "image"]}
+        assert Orchestrator._resolve_capabilities(prov, "m-fast") == ["text", "image"]
+
+    def test_normalizes_and_dedups(self):
+        prov = _provider()
+        prov.model_capabilities = {"m": [" Text ", "TEXT", "image", "image"]}
+        assert Orchestrator._resolve_capabilities(prov, "m") == ["text", "image"]
+
+    def test_empty_list_falls_back_to_text(self):
+        prov = _provider()
+        prov.model_capabilities = {"m-fast": []}
+        assert Orchestrator._resolve_capabilities(prov, "m-fast") == ["text"]

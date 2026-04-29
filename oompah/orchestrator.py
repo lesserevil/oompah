@@ -1567,6 +1567,28 @@ class Orchestrator:
                 return higher
         return None
 
+    @staticmethod
+    def _resolve_capabilities(provider, model: str | None) -> list[str]:
+        """Return the modality capability list for a resolved (provider,
+        model) pair.
+
+        Defaults to ``["text"]`` when ``model`` is ``None`` or the
+        provider hasn't declared capabilities for it. Used by the prompt
+        renderer to decide whether to send attachments inline.
+        """
+        if not model:
+            return ["text"]
+        caps = (getattr(provider, "model_capabilities", None) or {}).get(model)
+        if not caps:
+            return ["text"]
+        # Defensive: normalize to a list of unique non-empty strings.
+        out: list[str] = []
+        for c in caps:
+            s = str(c).strip().lower()
+            if s and s not in out:
+                out.append(s)
+        return out or ["text"]
+
     def _resolve_provider(self, profile: AgentProfile, focus=None):
         """Resolve the provider for a profile, falling back to the default.
 
