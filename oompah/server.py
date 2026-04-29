@@ -1228,6 +1228,8 @@ async def api_update_focus(name: str, request: Request):
                 setattr(found, key, None)
             else:
                 setattr(found, key, str(v).strip())
+    if "allow_image_output" in body:
+        found.allow_image_output = bool(body["allow_image_output"])
 
     save_foci(existing, user_path)
     return JSONResponse(found.to_dict())

@@ -43,6 +43,9 @@ class Focus:
     model_role: str | None = None
     model: str | None = None
     provider_id: str | None = None
+    # Allow agents working under this focus to emit images via the
+    # attach_image tool. Defaults to False; opt-in per focus.
+    allow_image_output: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -63,6 +66,8 @@ class Focus:
             d["model"] = self.model
         if self.provider_id is not None:
             d["provider_id"] = self.provider_id
+        if self.allow_image_output:
+            d["allow_image_output"] = True
         return d
 
     @classmethod
@@ -87,6 +92,7 @@ class Focus:
             model_role=_opt_str(d.get("model_role")),
             model=_opt_str(d.get("model")),
             provider_id=_opt_str(d.get("provider_id")),
+            allow_image_output=bool(d.get("allow_image_output", False)),
         )
 
     def render(self) -> str:

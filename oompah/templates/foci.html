@@ -286,6 +286,10 @@ function renderEditForm(f) {
         <input type="text" id="ef-model-${n}" value="${escAttr(f.model || '')}">
         <div class="help">Wins over model_role when both are set</div>
       </div>
+      <div class="form-row">
+        <label><input type="checkbox" id="ef-aimage-${n}" ${f.allow_image_output ? 'checked' : ''}> Allow image output</label>
+        <div class="help">Lets agents under this focus emit images via the attach_image tool. Requires the resolved model to have the image capability.</div>
+      </div>
       <div class="form-actions">
         <button class="btn-primary btn-sm" onclick="saveEdit('${n}')">Save</button>
         <button class="btn-sm" onclick="toggleEdit('${n}')">Cancel</button>
@@ -316,6 +320,7 @@ async function saveEdit(name) {
     provider_id: document.getElementById('ef-provider-' + n).value.trim(),
     model_role: document.getElementById('ef-modelrole-' + n).value.trim(),
     model: document.getElementById('ef-model-' + n).value.trim(),
+    allow_image_output: document.getElementById('ef-aimage-' + n).checked,
   };
   const res = await fetch('/api/v1/foci/' + encodeURIComponent(name), {
     method: 'PATCH',

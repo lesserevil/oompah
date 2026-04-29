@@ -204,6 +204,18 @@ class TestFocusSerialization:
         assert "model" not in d
         assert "provider_id" not in d
 
+    def test_allow_image_output_default_false(self):
+        f = Focus(name="x", role="X", description="x")
+        assert f.allow_image_output is False
+        assert "allow_image_output" not in f.to_dict()
+
+    def test_allow_image_output_round_trip(self):
+        f = Focus(name="x", role="X", description="x", allow_image_output=True)
+        d = f.to_dict()
+        assert d["allow_image_output"] is True
+        f2 = Focus.from_dict(d)
+        assert f2.allow_image_output is True
+
     def test_model_overrides_blank_strings_normalize_to_none(self):
         restored = Focus.from_dict({
             "name": "x", "role": "X", "description": "x",
