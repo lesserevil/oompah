@@ -250,6 +250,10 @@ class ServiceConfig:
     server_port: int | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     budget_limit: float = 0.0
+    # Multimodal attachments feature gate (docs/multimodal-attachments.md).
+    # When False, attachment endpoints, agent input/output paths, and
+    # dashboard surfaces all behave as if the feature does not exist.
+    attachments: bool = False
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -328,6 +332,17 @@ class ServiceConfig:
         def _env_str(env_key: str, yaml_val: Any, default: str) -> str:
             return os.environ.get(env_key) or (str(yaml_val) if yaml_val is not None else default)
 
+        def _env_bool(env_key: str, yaml_val: Any, default: bool) -> bool:
+            """Env > yaml > default. Falsy strings: 0, false, no, off, ''."""
+            raw = os.environ.get(env_key)
+            if raw is None:
+                if yaml_val is None:
+                    return default
+                if isinstance(yaml_val, bool):
+                    return yaml_val
+                raw = str(yaml_val)
+            return raw.strip().lower() not in ("", "0", "false", "no", "off")
+
         # Server port: env > yaml > None
         raw_port = os.environ.get("OOMPAH_SERVER_PORT", server.get("port"))
         server_port = _coerce_int(raw_port, None) if raw_port is not None else None
@@ -367,6 +382,7 @@ class ServiceConfig:
             server_port=server_port,
             agent_profiles=profiles,
             budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),
+            attachments=_env_bool("OOMPAH_ATTACHMENTS", c.get("attachments"), False),
         )
 
 
