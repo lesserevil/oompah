@@ -298,6 +298,41 @@
       font-style: italic;
     }
 
+    /* Multimodal attachments */
+    .card-attachments { display: flex; gap: 0.25rem; align-items: center; margin-top: 0.35rem; flex-wrap: wrap; }
+    .card-attachment-thumb {
+      width: 32px; height: 32px; object-fit: cover;
+      border-radius: 3px; border: 1px solid var(--border);
+    }
+    .card-attachment-more, .card-attachment-paperclip {
+      font-size: 0.7rem; color: var(--text-muted);
+      padding: 0.1rem 0.35rem; border-radius: 3px;
+      background: rgba(125, 133, 144, 0.15);
+    }
+    .detail-attachments-body { display: flex; flex-direction: column; gap: 0.5rem; }
+    .attachment-section-title {
+      font-size: 0.7rem; text-transform: uppercase;
+      color: var(--text-muted); letter-spacing: 0.05em;
+      margin-top: 0.25rem;
+    }
+    .attachment-row {
+      display: grid; grid-template-columns: 80px 1fr auto;
+      gap: 0.5rem; align-items: center;
+      padding: 0.35rem; border: 1px solid var(--border); border-radius: 5px;
+    }
+    .attachment-preview { width: 80px; height: 60px; object-fit: cover; border-radius: 3px; }
+    .attachment-pdf { width: 80px; height: 60px; }
+    .attachment-meta { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.75rem; }
+    .attachment-mime, .attachment-size { color: var(--text-muted); font-size: 0.7rem; }
+    .attachment-delete { background: transparent; color: var(--text-muted); border: none; cursor: pointer; font-size: 1rem; }
+    .attachment-delete:hover { color: var(--red, #f85149); }
+    .detail-attachments-drop {
+      margin-top: 0.5rem; padding: 0.75rem; border: 1px dashed var(--border);
+      border-radius: 5px; text-align: center; color: var(--text-muted);
+      font-size: 0.75rem; cursor: pointer;
+    }
+    .detail-attachments-drop.drag { border-color: var(--accent); color: var(--accent); }
+
     .priority-badge {
       font-size: 0.65rem;
       font-weight: 700;
@@ -1670,6 +1705,7 @@ function createCard(issue) {
          data-field="title" data-id="${esc(issue.identifier)}">${esc(issue.title)}</div>
     <div class="card-desc" contenteditable="true" spellcheck="false"
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
+    ${renderCardAttachments(issue)}
   `;
 
   // Click card ID to open detail panel
@@ -2071,7 +2107,16 @@ async function openDetailPanel(identifier) {
            id="detail-desc-edit" data-field="description" data-placeholder="No description"
            data-id="${esc(detail.identifier)}">${esc(detail.description || '')}</div>
     </div>
+    <div class="detail-field" id="detail-attachments-${esc(detail.identifier)}">
+      <div class="detail-field-label">Attachments</div>
+      <div class="detail-attachments-body">Loading…</div>
+      <div class="detail-attachments-drop" data-identifier="${esc(detail.identifier)}">
+        Drop images, audio, or PDFs here to attach
+      </div>
+    </div>
   `;
+  // Asynchronously fetch + render after the detail HTML is in the DOM.
+  setTimeout(() => loadIssueAttachments(detail.identifier), 0);
 
   if (detail.parent_id) {
     const epic = getEpicById(detail.parent_id);
@@ -2331,6 +2376,130 @@ document.addEventListener('click', e => {
     closeQuestionsDropdown();
   }
 });
+
+// --- Attachments (kanban thumbnails + detail panel) ---
+
+const _IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml']);
+
+function _attachmentMimeFromPath(path) {
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  return ({
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml',
+    pdf: 'application/pdf',
+    wav: 'audio/wav', mp3: 'audio/mpeg', m4a: 'audio/mp4', mp4: 'video/mp4',
+  })[ext] || 'application/octet-stream';
+}
+
+// Render up to 3 thumbnails on a kanban card; shows a paperclip icon + count
+// for non-image attachments.
+function renderCardAttachments(issue) {
+  const paths = (issue.attachments || []).filter(p => typeof p === 'string');
+  if (!paths.length) return '';
+  const images = paths.filter(p => _IMAGE_MIMES.has(_attachmentMimeFromPath(p)));
+  const nonImages = paths.length - images.length;
+  let html = '<div class="card-attachments">';
+  for (const p of images.slice(0, 3)) {
+    const url = '/api/v1/attachments/' + encodeURI(p);
+    html += `<img class="card-attachment-thumb" loading="lazy" src="${esc(url)}" alt="" title="${esc(p)}">`;
+  }
+  const moreImgs = Math.max(0, images.length - 3);
+  if (moreImgs > 0) html += `<span class="card-attachment-more">+${moreImgs}</span>`;
+  if (nonImages > 0) html += `<span class="card-attachment-paperclip" title="${nonImages} non-image attachment(s)">📎 ${nonImages}</span>`;
+  html += '</div>';
+  return html;
+}
+
+async function loadIssueAttachments(identifier) {
+  const root = document.getElementById('detail-attachments-' + identifier);
+  if (!root) return;
+  const body = root.querySelector('.detail-attachments-body');
+  try {
+    const res = await fetch('/api/v1/issues/' + encodeURIComponent(identifier) + '/attachments');
+    if (!res.ok) {
+      body.textContent = res.status === 503 ? 'Attachments are disabled for this server.' : '(none)';
+      return;
+    }
+    const records = await res.json();
+    if (!records.length) {
+      body.textContent = '(none yet)';
+    } else {
+      const inputs = records.filter(r => !r.generated);
+      const outputs = records.filter(r => r.generated);
+      body.innerHTML =
+        (inputs.length ? '<div class="attachment-section-title">Inputs</div>' + inputs.map(_renderAttachmentRow).join('') : '') +
+        (outputs.length ? '<div class="attachment-section-title">Outputs</div>' + outputs.map(_renderAttachmentRow).join('') : '');
+    }
+  } catch (e) {
+    body.textContent = 'Failed to load attachments';
+  }
+  _wireAttachmentDropZone(root, identifier);
+}
+
+function _renderAttachmentRow(rec) {
+  const url = '/api/v1/attachments/' + encodeURI(rec.path);
+  const mime = rec.mime_type || rec.mime || _attachmentMimeFromPath(rec.path);
+  const name = (rec.path || '').split('/').pop();
+  let preview = '';
+  if (mime.startsWith('image/')) {
+    preview = `<img class="attachment-preview" src="${esc(url)}" alt="${esc(name)}">`;
+  } else if (mime.startsWith('audio/')) {
+    preview = `<audio controls preload="none" src="${esc(url)}"></audio>`;
+  } else if (mime === 'application/pdf') {
+    preview = `<embed class="attachment-pdf" type="application/pdf" src="${esc(url)}">`;
+  }
+  const force = rec.generated ? '?force=generated' : '';
+  return `
+    <div class="attachment-row">
+      ${preview}
+      <div class="attachment-meta">
+        <a href="${esc(url)}" target="_blank">${esc(name)}</a>
+        <span class="attachment-mime">${esc(mime)}</span>
+        ${rec.size ? `<span class="attachment-size">${rec.size} B</span>` : ''}
+      </div>
+      <button class="attachment-delete btn-sm" data-path="${esc(rec.path)}" data-force="${force}">×</button>
+    </div>
+  `;
+}
+
+function _wireAttachmentDropZone(root, identifier) {
+  const drop = root.querySelector('.detail-attachments-drop');
+  if (!drop) return;
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', async e => {
+    e.preventDefault();
+    drop.classList.remove('drag');
+    const files = Array.from(e.dataTransfer.files || []);
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const r = await fetch('/api/v1/issues/' + encodeURIComponent(identifier) + '/attachments', {
+          method: 'POST', body: fd,
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          alert(`Upload failed for ${file.name}: ${(err.error && err.error.message) || r.status}`);
+        }
+      } catch (err) {
+        alert(`Upload failed for ${file.name}: ${err.message || err}`);
+      }
+    }
+    loadIssueAttachments(identifier);
+  });
+  // Wire up delete buttons.
+  root.querySelectorAll('.attachment-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const path = btn.getAttribute('data-path');
+      const force = btn.getAttribute('data-force') || '';
+      if (!confirm(`Remove ${path.split('/').pop()}?`)) return;
+      const r = await fetch('/api/v1/attachments/' + encodeURI(path) + force, { method: 'DELETE' });
+      if (r.ok) loadIssueAttachments(identifier);
+      else alert('Delete failed: ' + r.status);
+    });
+  });
+}
 
 // Initial load via WebSocket (falls back to REST if WS fails)
 connectWebSocket();

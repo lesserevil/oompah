@@ -207,6 +207,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
             "project_id": issue.project_id,
+            "attachments": list(getattr(issue, "attachments", []) or []),
         }
         if issue.id in parents:
             entry["children_counts"] = parents[issue.id]
