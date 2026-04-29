@@ -36,6 +36,13 @@ class Issue:
     created_at: datetime | None = None
     updated_at: datetime | None = None
     closed_at: datetime | None = None
+    # Repo-relative attachment paths (e.g.
+    # ".oompah/attachments/<identifier>/<sha>-<name>.png"). Parsed from
+    # beads metadata["oompah.attachments"]; the rich record (mime, size,
+    # generated, added_by, ...) lives in the metadata block. The list
+    # here carries just paths so prompt rendering and dispatch can ignore
+    # the metadata structure.
+    attachments: list[str] = field(default_factory=list)
 
 
 @dataclass

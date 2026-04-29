@@ -269,6 +269,96 @@ class BeadsTracker:
         except TrackerError:
             pass  # label may not exist
 
+    def fetch_attachments(self, identifier: str) -> list[dict]:
+        """Return the rich attachment records stored on an issue.
+
+        Reads ``metadata["oompah.attachments"]`` from ``bd show <id>``.
+        Each entry is a dict with at least ``path`` plus optional
+        ``mime``/``mime_type``, ``size``, ``generated``, ``added_by``,
+        ``added_at``, ``turn``, ``caption``. Returns an empty list when
+        the issue has no attachments.
+        """
+        try:
+            raw = self._run_bd(["show", identifier, "--json"])
+        except TrackerError as exc:
+            logger.warning("fetch_attachments failed for %s: %s", identifier, exc)
+            return []
+        rec = raw[0] if isinstance(raw, list) and raw else raw
+        if not isinstance(rec, dict):
+            return []
+        meta = rec.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (ValueError, TypeError):
+                return []
+        if not isinstance(meta, dict):
+            return []
+        entries = meta.get("oompah.attachments") or []
+        return [e for e in entries if isinstance(e, dict)]
+
+    def set_attachments(
+        self,
+        identifier: str,
+        attachments: list[dict],
+        *,
+        project_root: str | None = None,
+    ) -> None:
+        """Replace the issue's ``oompah.attachments`` metadata.
+
+        ``attachments`` is a list of attachment-record dicts (the canonical
+        form is the output of :meth:`oompah.attachments.Attachment.to_dict`).
+        Other metadata keys on the issue are preserved.
+
+        When ``project_root`` is provided, also updates a sidecar manifest
+        at ``<project_root>/.oompah/attachments/<identifier>/manifest.json``
+        so the dashboard can render thumbnails without round-tripping
+        through bd.
+        """
+        # Read existing metadata first so we don't clobber unrelated keys.
+        try:
+            raw = self._run_bd(["show", identifier, "--json"])
+        except TrackerError:
+            raw = None
+        meta: dict = {}
+        rec = raw[0] if isinstance(raw, list) and raw else raw
+        if isinstance(rec, dict):
+            existing = rec.get("metadata") or {}
+            if isinstance(existing, str):
+                try:
+                    existing = json.loads(existing)
+                except (ValueError, TypeError):
+                    existing = {}
+            if isinstance(existing, dict):
+                meta = dict(existing)
+        meta["oompah.attachments"] = list(attachments)
+        try:
+            self._run_bd(["update", identifier, "--metadata", json.dumps(meta)])
+        except TrackerError as exc:
+            logger.warning("set_attachments failed for %s: %s", identifier, exc)
+            raise
+
+        if project_root:
+            self._write_attachments_manifest(project_root, identifier, attachments)
+
+    @staticmethod
+    def _write_attachments_manifest(
+        project_root: str, identifier: str, attachments: list[dict],
+    ) -> None:
+        """Write the dashboard sidecar manifest. Best-effort — failures
+        are logged, not raised."""
+        import os
+        from oompah.attachments import ATTACHMENTS_SUBDIR
+        d = os.path.join(project_root, ATTACHMENTS_SUBDIR, identifier)
+        try:
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, "manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(list(attachments), f, indent=2)
+        except OSError as exc:
+            logger.warning(
+                "manifest write failed for %s in %s: %s", identifier, project_root, exc,
+            )
+
     def archive_issue(self, identifier: str) -> None:
         """Mark an issue as archived via set-state dimension."""
         self._run_bd(["set-state", identifier, "archive=yes",
@@ -525,6 +615,26 @@ class BeadsTracker:
         issue_type = str(raw.get("issue_type", raw.get("type", "task")))
         parent_id = raw.get("parent")
 
+        # Multimodal attachments — beads stores the rich record in
+        # metadata["oompah.attachments"] (a list of objects with path/mime/
+        # size/...). Issue.attachments holds just the paths so callers
+        # that only need to dispatch don't have to parse the metadata.
+        attachments_paths: list[str] = []
+        meta = raw.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (ValueError, TypeError):
+                meta = {}
+        if isinstance(meta, dict):
+            entries = meta.get("oompah.attachments") or []
+            if isinstance(entries, list):
+                for e in entries:
+                    if isinstance(e, dict) and isinstance(e.get("path"), str):
+                        attachments_paths.append(e["path"])
+                    elif isinstance(e, str):
+                        attachments_paths.append(e)
+
         return Issue(
             id=issue_id,
             identifier=identifier,
@@ -541,6 +651,7 @@ class BeadsTracker:
             created_at=created_at,
             updated_at=updated_at,
             closed_at=closed_at,
+            attachments=attachments_paths,
         )
 
 

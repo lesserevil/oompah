@@ -250,3 +250,153 @@ class TestCreateIssueInitialStatus:
         assert issue.state == "deferred"
         # Only the create call, no update needed
         assert mock_run_bd.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Multimodal attachments (oompah-zlz.1)
+# ---------------------------------------------------------------------------
+
+import json as _json
+import os as _os
+from unittest.mock import patch as _patch
+
+
+class TestNormalizeIssueAttachments:
+    def _tracker(self):
+        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+
+    def test_no_metadata(self):
+        issue = self._tracker()._normalize_issue({"id": "1", "title": "t"})
+        assert issue.attachments == []
+
+    def test_paths_extracted_from_metadata(self):
+        raw = {
+            "id": "1", "title": "t",
+            "metadata": {
+                "oompah.attachments": [
+                    {"path": ".oompah/attachments/foo-1/abc-x.png",
+                     "mime_type": "image/png", "size": 100},
+                    {"path": ".oompah/attachments/foo-1/def-y.pdf",
+                     "mime_type": "application/pdf", "size": 200},
+                ],
+                "unrelated_key": "ignored",
+            },
+        }
+        issue = self._tracker()._normalize_issue(raw)
+        assert issue.attachments == [
+            ".oompah/attachments/foo-1/abc-x.png",
+            ".oompah/attachments/foo-1/def-y.pdf",
+        ]
+
+    def test_metadata_as_json_string(self):
+        """bd may emit metadata as a JSON-encoded string in some flows."""
+        raw = {
+            "id": "1", "title": "t",
+            "metadata": _json.dumps({
+                "oompah.attachments": [
+                    {"path": ".oompah/attachments/foo-1/x.png"},
+                ],
+            }),
+        }
+        issue = self._tracker()._normalize_issue(raw)
+        assert issue.attachments == [".oompah/attachments/foo-1/x.png"]
+
+    def test_string_entries_are_accepted_as_paths(self):
+        """Tolerate a list of bare path strings."""
+        raw = {
+            "id": "1", "title": "t",
+            "metadata": {"oompah.attachments": [".oompah/attachments/x.png"]},
+        }
+        issue = self._tracker()._normalize_issue(raw)
+        assert issue.attachments == [".oompah/attachments/x.png"]
+
+    def test_malformed_metadata_is_safe(self):
+        for meta in ("not json", 42, None, {"oompah.attachments": "not a list"}):
+            raw = {"id": "1", "title": "t", "metadata": meta}
+            issue = self._tracker()._normalize_issue(raw)
+            assert issue.attachments == []
+
+
+class TestSetAttachments:
+    def _tracker(self):
+        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+
+    @_patch.object(BeadsTracker, "_run_bd")
+    def test_replaces_attachments_metadata(self, mock_run):
+        # First call (show) returns existing metadata; second call (update) returns nothing.
+        mock_run.side_effect = [
+            {"id": "x", "metadata": {"unrelated": "preserved"}},
+            {},
+        ]
+        attachments = [{"path": ".oompah/attachments/foo-1/x.png", "size": 10}]
+        self._tracker().set_attachments("foo-1", attachments)
+
+        # Inspect the update call — must include both keys.
+        update_call = mock_run.call_args_list[1]
+        args = update_call.args[0]
+        assert args[0] == "update"
+        assert args[1] == "foo-1"
+        assert args[2] == "--metadata"
+        sent = _json.loads(args[3])
+        assert sent["unrelated"] == "preserved"
+        assert sent["oompah.attachments"] == attachments
+
+    @_patch.object(BeadsTracker, "_run_bd")
+    def test_handles_missing_existing_metadata(self, mock_run):
+        mock_run.side_effect = [
+            {"id": "x"},  # no metadata key
+            {},
+        ]
+        self._tracker().set_attachments("foo-1", [])
+        sent = _json.loads(mock_run.call_args_list[1].args[0][3])
+        assert sent == {"oompah.attachments": []}
+
+    @_patch.object(BeadsTracker, "_run_bd")
+    def test_writes_sidecar_manifest_when_project_root_given(self, mock_run, tmp_path):
+        mock_run.side_effect = [{"id": "x", "metadata": {}}, {}]
+        attachments = [{"path": ".oompah/attachments/foo-1/x.png"}]
+        self._tracker().set_attachments(
+            "foo-1", attachments, project_root=str(tmp_path),
+        )
+        manifest = tmp_path / ".oompah" / "attachments" / "foo-1" / "manifest.json"
+        assert manifest.exists()
+        loaded = _json.loads(manifest.read_text())
+        assert loaded == attachments
+
+    @_patch.object(BeadsTracker, "_run_bd")
+    def test_no_sidecar_when_no_project_root(self, mock_run, tmp_path):
+        mock_run.side_effect = [{"id": "x", "metadata": {}}, {}]
+        # Run from inside tmp_path so any stray write would be visible.
+        cwd = _os.getcwd()
+        _os.chdir(tmp_path)
+        try:
+            self._tracker().set_attachments("foo-1", [])
+        finally:
+            _os.chdir(cwd)
+        assert not (tmp_path / ".oompah").exists()
+
+
+class TestFetchAttachments:
+    def _tracker(self):
+        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+
+    @_patch.object(BeadsTracker, "_run_bd")
+    def test_returns_metadata_entries(self, mock_run):
+        entries = [{"path": ".oompah/attachments/foo-1/x.png", "size": 10}]
+        mock_run.return_value = {"id": "x", "metadata": {"oompah.attachments": entries}}
+        out = self._tracker().fetch_attachments("foo-1")
+        assert out == entries
+
+    @_patch.object(BeadsTracker, "_run_bd")
+    def test_returns_empty_when_missing(self, mock_run):
+        mock_run.return_value = {"id": "x"}
+        assert self._tracker().fetch_attachments("foo-1") == []
+
+    @_patch.object(BeadsTracker, "_run_bd")
+    def test_filters_non_dict_entries(self, mock_run):
+        mock_run.return_value = {
+            "id": "x",
+            "metadata": {"oompah.attachments": [{"path": "a"}, "stringy", 42]},
+        }
+        # fetch_attachments returns only dict-shaped entries (rich records).
+        assert self._tracker().fetch_attachments("foo-1") == [{"path": "a"}]
