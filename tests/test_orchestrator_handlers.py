@@ -975,3 +975,69 @@ class TestReapOversizeOutputs:
         issue = _make_issue("foo-1")
         # Must not raise.
         orch._reap_oversize_outputs(str(wp), issue)
+
+
+# ---------------------------------------------------------------------------
+# Record generated attachments (oompah-e6y.4)
+# ---------------------------------------------------------------------------
+
+
+class TestRecordGeneratedAttachments:
+    def _setup_workspace(self, tmp_path):
+        from oompah.attachments import ATTACHMENTS_SUBDIR
+        wp = tmp_path / "ws"
+        out = wp / ATTACHMENTS_SUBDIR / "foo-1" / "outputs"
+        out.mkdir(parents=True)
+        (out / "abc-diagram.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 50)
+        return wp
+
+    def test_writes_generated_entries_to_metadata(self, tmp_path):
+        wp = self._setup_workspace(tmp_path)
+        orch = _make_orchestrator(tmp_path)
+        # Mock tracker.
+        tracker = MagicMock()
+        tracker.fetch_attachments.return_value = []
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+
+        issue = _make_issue("foo-1")
+        orch._record_generated_attachments(str(wp), issue)
+
+        tracker.set_attachments.assert_called_once()
+        call = tracker.set_attachments.call_args
+        merged = call.args[1]
+        assert len(merged) == 1
+        rec = merged[0]
+        assert rec["generated"] is True
+        assert rec["added_by"] == "agent"
+        assert rec["path"].endswith("-diagram.png")
+        # Completion comment was posted.
+        orch._post_comment.assert_called_once()
+        assert "abc-diagram.png" in orch._post_comment.call_args.args[1]
+
+    def test_does_not_duplicate_existing_paths(self, tmp_path):
+        wp = self._setup_workspace(tmp_path)
+        orch = _make_orchestrator(tmp_path)
+        # The on-disk filename includes a sha prefix; mirror that in
+        # existing metadata.
+        from oompah.attachments import ATTACHMENTS_SUBDIR
+        out = wp / ATTACHMENTS_SUBDIR / "foo-1" / "outputs"
+        existing_path = ".oompah/attachments/foo-1/outputs/" + list(out.iterdir())[0].name
+        tracker = MagicMock()
+        tracker.fetch_attachments.return_value = [{"path": existing_path}]
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+
+        orch._record_generated_attachments(str(wp), _make_issue("foo-1"))
+        # No new records → no set_attachments call, no comment.
+        tracker.set_attachments.assert_not_called()
+        orch._post_comment.assert_not_called()
+
+    def test_silent_when_no_generated_outputs(self, tmp_path):
+        wp = tmp_path / "ws"
+        wp.mkdir()
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+        orch._record_generated_attachments(str(wp), _make_issue("foo-1"))
+        tracker.set_attachments.assert_not_called()

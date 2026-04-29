@@ -1567,6 +1567,76 @@ class Orchestrator:
                 return higher
         return None
 
+    def _record_generated_attachments(self, workspace_path: str, issue: Issue) -> None:
+        """Write agent-generated outputs into the issue's
+        ``oompah.attachments`` metadata.
+
+        Idempotent: existing metadata entries with the same path are
+        preserved (so re-running the agent on the same issue doesn't
+        produce duplicate records). Posts a completion comment listing
+        any new artifacts.
+        """
+        from oompah.attachments import (
+            ATTACHMENTS_SUBDIR, AttachmentStore, Attachment,
+        )
+        store = AttachmentStore(workspace_path)
+        try:
+            disk_records = store.list(issue.identifier)
+        except Exception as exc:
+            logger.debug("attachment list failed for %s: %s", issue.identifier, exc)
+            return
+
+        # Keep only the agent-generated entries from disk.
+        generated_on_disk = [r for r in disk_records if r.generated]
+        if not generated_on_disk:
+            return
+
+        try:
+            tracker = self._tracker_for_issue(issue)
+        except Exception as exc:
+            logger.warning("tracker lookup failed for %s: %s", issue.identifier, exc)
+            return
+
+        # Read existing rich records from beads, then merge.
+        try:
+            existing = tracker.fetch_attachments(issue.identifier)
+        except Exception:
+            existing = []
+        existing_paths = {e.get("path") for e in existing if isinstance(e, dict)}
+
+        merged = list(existing)
+        new_records: list[dict] = []
+        for rec in generated_on_disk:
+            if rec.path in existing_paths:
+                continue
+            entry = rec.to_dict()
+            entry["added_by"] = "agent"
+            merged.append(entry)
+            new_records.append(entry)
+
+        if not new_records:
+            return
+
+        try:
+            tracker.set_attachments(
+                issue.identifier, merged, project_root=workspace_path,
+            )
+        except Exception as exc:
+            logger.warning(
+                "set_attachments failed for %s: %s", issue.identifier, exc,
+            )
+            return
+
+        # Completion comment listing what was generated.
+        names = [os.path.basename(e["path"]) for e in new_records]
+        msg = "Agent produced " + ", ".join(names)
+        try:
+            self._post_comment(
+                issue.identifier, msg, project_id=issue.project_id,
+            )
+        except Exception:
+            pass
+
     def _reap_oversize_outputs(self, workspace_path: str, issue: Issue) -> None:
         """Drop agent-generated attachments that push the issue over the
         per-issue size cap. Posts a warning comment listing what was
@@ -2100,10 +2170,10 @@ class Orchestrator:
                 error_msg = result.error
                 logger.info("API agent stalled on %s: %s", issue.identifier, error_msg)
 
-            # Enforce per-issue attachment cap on agent-generated outputs.
-            # The attach_image tool already rejects per-attachment overruns;
-            # this is the cumulative gate. Over-cap files are dropped (LIFO
-            # by mtime) and surfaced via a comment on the issue.
+            # Enforce per-issue attachment cap on agent-generated outputs,
+            # then record what was produced in beads metadata so the
+            # dashboard can render it. Both gated on the feature flag and
+            # successful agent completion.
             if (
                 getattr(self.config, "attachments", False)
                 and result.status == "succeeded"
@@ -2113,6 +2183,13 @@ class Orchestrator:
                 except Exception as exc:
                     logger.debug(
                         "output reap failed for %s: %s", issue.identifier, exc,
+                    )
+                try:
+                    self._record_generated_attachments(workspace_path, issue)
+                except Exception as exc:
+                    logger.warning(
+                        "metadata writeback failed for %s: %s",
+                        issue.identifier, exc,
                     )
 
         except Exception as exc:
