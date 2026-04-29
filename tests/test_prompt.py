@@ -75,3 +75,163 @@ class TestBuildContinuationPrompt:
         assert "turn 5" in result
         assert "20" in result
         assert "open" in result
+
+
+# ---------------------------------------------------------------------------
+# RenderedPrompt + multimodal content (oompah-zlz.4)
+# ---------------------------------------------------------------------------
+
+import os as _os
+
+from oompah.prompt import RenderedPrompt
+
+
+def _png_bytes(n: int = 64) -> bytes:
+    return b"\x89PNG\r\n\x1a\n" + b"\x00" * max(0, n - 8)
+
+
+class TestRenderedPromptLegacy:
+    def test_no_attachments_arg_returns_string(self):
+        # Backward-compat: if attachments is not passed, return a plain str.
+        out = render_prompt("Hi {{ issue.identifier }}", _make_issue(identifier="x"))
+        assert isinstance(out, str)
+        assert "Hi x" in out
+
+    def test_explicit_empty_attachments_returns_rendered_prompt(self):
+        out = render_prompt(
+            "Hi {{ issue.identifier }}", _make_issue(identifier="x"),
+            attachments=[], capabilities=["text"],
+        )
+        assert isinstance(out, RenderedPrompt)
+        assert out.parts is None  # no embeds
+        assert "Hi x" in out.text
+
+
+class TestRenderedPromptMultimodal:
+    def test_image_embedded_when_capability_supports_it(self, tmp_path):
+        # Lay out an attachment under .oompah/attachments/.
+        adir = tmp_path / ".oompah" / "attachments" / "foo-1"
+        adir.mkdir(parents=True)
+        png = adir / "abc-shot.png"
+        png.write_bytes(_png_bytes(100))
+        rel = ".oompah/attachments/foo-1/abc-shot.png"
+
+        out = render_prompt(
+            "Hi {{ issue.identifier }}", _make_issue(identifier="foo-1"),
+            attachments=[rel],
+            capabilities=["text", "image"],
+            project_root=str(tmp_path),
+        )
+        assert isinstance(out, RenderedPrompt)
+        assert out.parts is not None
+        assert out.parts[0]["type"] == "text"
+        # Embedded image part with a data URL.
+        img_part = out.parts[1]
+        assert img_part["type"] == "image_url"
+        assert img_part["image_url"]["url"].startswith("data:image/png;base64,")
+        # No "not sent" note for an embedded image.
+        assert "not sent" not in out.text
+
+    def test_image_falls_back_to_text_only_when_no_image_cap(self, tmp_path):
+        adir = tmp_path / ".oompah" / "attachments" / "foo-1"
+        adir.mkdir(parents=True)
+        png = adir / "abc-shot.png"
+        png.write_bytes(_png_bytes(100))
+        rel = ".oompah/attachments/foo-1/abc-shot.png"
+
+        out = render_prompt(
+            "Hi {{ issue.identifier }}", _make_issue(identifier="foo-1"),
+            attachments=[rel],
+            capabilities=["text"],
+            project_root=str(tmp_path),
+        )
+        assert isinstance(out, RenderedPrompt)
+        assert out.parts is None
+        assert "not sent" in out.text
+        assert rel in out.text
+
+    def test_audio_uses_input_audio_part(self, tmp_path):
+        adir = tmp_path / ".oompah" / "attachments" / "foo-1"
+        adir.mkdir(parents=True)
+        wav = adir / "abc-clip.wav"
+        wav.write_bytes(b"RIFF" + b"\x00" * 100)
+        rel = ".oompah/attachments/foo-1/abc-clip.wav"
+
+        out = render_prompt(
+            "Hi", _make_issue(identifier="foo-1"),
+            attachments=[rel],
+            capabilities=["text", "audio"],
+            project_root=str(tmp_path),
+        )
+        assert out.parts is not None
+        assert out.parts[1]["type"] == "input_audio"
+        assert out.parts[1]["input_audio"]["format"] == "wav"
+
+    def test_oversize_attachment_is_text_only(self, tmp_path, monkeypatch):
+        # Tighten cap so a small file overflows.
+        monkeypatch.setattr("oompah.prompt._PER_ATTACHMENT_BYTE_CAP", 50)
+        adir = tmp_path / ".oompah" / "attachments" / "foo-1"
+        adir.mkdir(parents=True)
+        png = adir / "x.png"
+        png.write_bytes(_png_bytes(200))
+        rel = ".oompah/attachments/foo-1/x.png"
+
+        out = render_prompt(
+            "Hi", _make_issue(identifier="foo-1"),
+            attachments=[rel],
+            capabilities=["text", "image"],
+            project_root=str(tmp_path),
+        )
+        assert out.parts is None
+        assert "exceeds per-attachment cap" in out.text
+
+    def test_per_prompt_cap_elides_overflow(self, tmp_path, monkeypatch):
+        # First attachment fits; second pushes us over the prompt cap.
+        monkeypatch.setattr("oompah.prompt._PER_PROMPT_BYTE_CAP", 150)
+        adir = tmp_path / ".oompah" / "attachments" / "foo-1"
+        adir.mkdir(parents=True)
+        a = adir / "a.png"
+        b = adir / "b.png"
+        a.write_bytes(_png_bytes(100))
+        b.write_bytes(_png_bytes(100))
+
+        out = render_prompt(
+            "Hi", _make_issue(identifier="foo-1"),
+            attachments=[
+                ".oompah/attachments/foo-1/a.png",
+                ".oompah/attachments/foo-1/b.png",
+            ],
+            capabilities=["text", "image"],
+            project_root=str(tmp_path),
+        )
+        # First one was embedded, second one elided.
+        assert out.parts is not None
+        assert len(out.parts) == 2  # text + a.png only
+        assert ".oompah/attachments/foo-1/b.png" in out.elided
+        assert "elided to fit prompt size cap" in out.text
+
+    def test_missing_file_falls_back_to_text(self, tmp_path):
+        rel = ".oompah/attachments/foo-1/missing.png"
+        out = render_prompt(
+            "Hi", _make_issue(identifier="foo-1"),
+            attachments=[rel],
+            capabilities=["text", "image"],
+            project_root=str(tmp_path),
+        )
+        assert out.parts is None
+        assert "not found" in out.text
+
+
+class TestAttachmentsExposedToTemplate:
+    def test_template_can_iterate_attachments(self, tmp_path):
+        adir = tmp_path / ".oompah" / "attachments" / "foo-1"
+        adir.mkdir(parents=True)
+        (adir / "abc-shot.png").write_bytes(_png_bytes(64))
+        out = render_prompt(
+            "Files: {% for a in attachments %}{{ a.path }}({{ a.embedded }}){% endfor %}",
+            _make_issue(identifier="foo-1"),
+            attachments=[".oompah/attachments/foo-1/abc-shot.png"],
+            capabilities=["text", "image"],
+            project_root=str(tmp_path),
+        )
+        assert ".oompah/attachments/foo-1/abc-shot.png(true)" in out.text
