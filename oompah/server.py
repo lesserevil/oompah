@@ -1629,8 +1629,6 @@ async def api_list_attachments(identifier: str):
         orch = _get_orchestrator()
     except Exception as exc:
         return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
-    if not getattr(orch.config, "attachments", False):
-        return JSONResponse({"error": {"code": "disabled", "message": "OOMPAH_ATTACHMENTS is off"}}, status_code=503)
     tracker, _project_id = _find_tracker_for_issue(orch, identifier)
     if tracker is None:
         return JSONResponse({"error": {"code": "not_found", "message": f"Issue {identifier} not found"}}, status_code=404)
@@ -1648,8 +1646,6 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
         orch = _get_orchestrator()
     except Exception as exc:
         return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
-    if not getattr(orch.config, "attachments", False):
-        return JSONResponse({"error": {"code": "disabled", "message": "OOMPAH_ATTACHMENTS is off"}}, status_code=503)
 
     tracker, project_id = _find_tracker_for_issue(orch, identifier)
     if tracker is None:
@@ -1758,8 +1754,6 @@ async def api_delete_attachment(path: str, request: Request):
         orch = _get_orchestrator()
     except Exception as exc:
         return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
-    if not getattr(orch.config, "attachments", False):
-        return JSONResponse({"error": {"code": "disabled"}}, status_code=503)
 
     project_id, abs_path = _resolve_attachment_path(orch, path)
     if not project_id:

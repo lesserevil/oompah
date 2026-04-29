@@ -39,16 +39,14 @@ def _png(n: int = 64) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + b"\x00" * max(0, n - 8)
 
 
-def _make_orch(tmp_path, *, attachments_enabled: bool = True):
+def _make_orch(tmp_path):
     repo = _make_repo(tmp_path)
     project = Project(
         id="proj-1", name="r", repo_url="u", repo_path=repo,
         lfs_available=True,
     )
-    config = ServiceConfig()
-    config.attachments = attachments_enabled
     orch = MagicMock()
-    orch.config = config
+    orch.config = ServiceConfig()
     orch.project_store.list_all.return_value = [project]
     orch.project_store.get.side_effect = lambda pid: project if pid == "proj-1" else None
     return orch, project
@@ -76,13 +74,6 @@ class TestListAttachments:
             r = client.get("/api/v1/issues/foo-1/attachments")
         assert r.status_code == 200
         assert r.json()[0]["path"].endswith("x.png")
-
-    def test_disabled_when_flag_off(self, tmp_path, client):
-        orch, _ = _make_orch(tmp_path, attachments_enabled=False)
-        with patch.object(server_module, "_get_orchestrator", return_value=orch):
-            r = client.get("/api/v1/issues/foo-1/attachments")
-        assert r.status_code == 503
-        assert r.json()["error"]["code"] == "disabled"
 
     def test_unknown_issue_returns_404(self, tmp_path, client):
         orch, _ = _make_orch(tmp_path)
@@ -130,15 +121,6 @@ class TestUploadAttachment:
         ).exists()
         # Beads metadata write happened.
         tracker.set_attachments.assert_called_once()
-
-    def test_disabled_when_flag_off(self, tmp_path, client):
-        orch, _ = _make_orch(tmp_path, attachments_enabled=False)
-        with patch.object(server_module, "_get_orchestrator", return_value=orch):
-            r = client.post(
-                "/api/v1/issues/foo-1/attachments",
-                files={"file": ("x.png", _png(10), "image/png")},
-            )
-        assert r.status_code == 503
 
 
 # ---------------------------------------------------------------------------

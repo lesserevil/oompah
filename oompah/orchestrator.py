@@ -2013,33 +2013,19 @@ class Orchestrator:
 
                 # Materialize attachments under the worktree — `git lfs pull`
                 # is a no-op when LFS isn't installed or the path doesn't
-                # exist, so this is safe to run unconditionally when the
-                # feature flag is on.
+                # exist, so this is safe to run unconditionally.
                 attachments = list(getattr(issue, "attachments", None) or [])
-                if (
-                    getattr(self.config, "attachments", False)
-                    and attachments
-                    and issue.identifier
-                ):
+                if attachments and issue.identifier:
                     self._lfs_pull_attachments(wp, issue.identifier)
 
-                # Build prompt — RenderedPrompt when the attachments feature
-                # is on, plain string otherwise (preserves legacy contract).
-                if getattr(self.config, "attachments", False):
-                    rendered = render_prompt(
-                        self._prompt_template, issue, attempt,
-                        comments=comments, focus_text=focus.render(),
-                        workspace_path=wp, memories=memories,
-                        attachments=attachments,
-                        capabilities=capabilities,
-                        project_root=wp,
-                    )
-                else:
-                    rendered = render_prompt(
-                        self._prompt_template, issue, attempt,
-                        comments=comments, focus_text=focus.render(),
-                        workspace_path=wp, memories=memories,
-                    )
+                rendered = render_prompt(
+                    self._prompt_template, issue, attempt,
+                    comments=comments, focus_text=focus.render(),
+                    workspace_path=wp, memories=memories,
+                    attachments=attachments,
+                    capabilities=capabilities,
+                    project_root=wp,
+                )
                 return wp, rendered, attachments
 
             loop = asyncio.get_event_loop()
@@ -2049,19 +2035,12 @@ class Orchestrator:
 
             # One-line summary of what made it into the prompt.
             if attachment_paths:
-                from oompah.prompt import RenderedPrompt as _RP
-                if isinstance(prompt, _RP):
-                    embedded = len(prompt.parts) - 1 if prompt.parts else 0
-                    elided = len(prompt.elided)
-                    logger.info(
-                        "Issue %s attachments: total=%d embedded=%d elided=%d caps=%s",
-                        issue.identifier, len(attachment_paths),
-                        embedded, elided, ",".join(capabilities),
-                    )
-                else:
-                    logger.info(
-                        "Issue %s has %d attachments but feature flag is off — sending text-only",
-                        issue.identifier, len(attachment_paths),
+                embedded = len(prompt.parts) - 1 if prompt.parts else 0
+                elided = len(prompt.elided)
+                logger.info(
+                    "Issue %s attachments: total=%d embedded=%d elided=%d caps=%s",
+                    issue.identifier, len(attachment_paths),
+                    embedded, elided, ",".join(capabilities),
                     )
 
             # Store focus on running entry for dashboard display
@@ -2078,11 +2057,7 @@ class Orchestrator:
                 t["function"]["name"] for t in _TD
                 if t["function"]["name"] not in _OPT
             }
-            if (
-                getattr(self.config, "attachments", False)
-                and getattr(focus, "allow_image_output", False)
-                and "image" in capabilities
-            ):
+            if getattr(focus, "allow_image_output", False) and "image" in capabilities:
                 base_tools.add("attach_image")
 
             session = ApiAgentSession(
@@ -2172,12 +2147,8 @@ class Orchestrator:
 
             # Enforce per-issue attachment cap on agent-generated outputs,
             # then record what was produced in beads metadata so the
-            # dashboard can render it. Both gated on the feature flag and
-            # successful agent completion.
-            if (
-                getattr(self.config, "attachments", False)
-                and result.status == "succeeded"
-            ):
+            # dashboard can render it. Only on successful runs.
+            if result.status == "succeeded":
                 try:
                     self._reap_oversize_outputs(workspace_path, issue)
                 except Exception as exc:

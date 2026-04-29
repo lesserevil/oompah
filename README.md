@@ -14,6 +14,7 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 - **Provider flexibility** — connect to any OpenAI-compatible API for model inference, with per-profile model roles and cost tracking
 - **Budget controls** — set spending limits, track costs by agent profile, and pause dispatch when budgets are exceeded
 - **Live dashboard** — real-time web UI with kanban board, agent activity, cost tracking, reviews page, and focus management
+- **Multimodal attachments** — drop images, audio, or PDFs onto an issue; agents with image-capable models receive them inline. With `allow_image_output` foci, agents can attach generated images back to the issue. Stored in the project repo via git LFS. See `docs/multimodal-attachments.md`.
 - **Hot reload** — edit `WORKFLOW.md` and the service picks up changes without restart
 
 ## Quick start

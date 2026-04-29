@@ -94,35 +94,6 @@ class TestServiceConfig:
         assert cfg.agent_profiles[0].name == "quick"
         assert cfg.agent_profiles[0].model_role == "fast"
 
-    def test_attachments_flag_default(self, monkeypatch):
-        monkeypatch.delenv("OOMPAH_ATTACHMENTS", raising=False)
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="t"))
-        assert cfg.attachments is False
-
-    def test_attachments_flag_yaml_true(self, monkeypatch):
-        monkeypatch.delenv("OOMPAH_ATTACHMENTS", raising=False)
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(
-            config={"attachments": True}, prompt_template="t",
-        ))
-        assert cfg.attachments is True
-
-    def test_attachments_flag_env_overrides_yaml(self, monkeypatch):
-        monkeypatch.setenv("OOMPAH_ATTACHMENTS", "1")
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(
-            config={"attachments": False}, prompt_template="t",
-        ))
-        assert cfg.attachments is True
-
-    @pytest.mark.parametrize("val,expected", [
-        ("0", False), ("false", False), ("False", False), ("no", False),
-        ("off", False), ("", False),
-        ("1", True), ("true", True), ("yes", True), ("True", True),
-    ])
-    def test_attachments_flag_env_parsing(self, monkeypatch, val, expected):
-        monkeypatch.setenv("OOMPAH_ATTACHMENTS", val)
-        cfg = ServiceConfig.from_workflow(WorkflowDefinition(config={}, prompt_template="t"))
-        assert cfg.attachments is expected
-
     def test_tracker_active_states_string(self):
         wf = WorkflowDefinition(
             config={"tracker": {"active_states": "open, in_progress"}},
