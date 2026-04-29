@@ -235,3 +235,61 @@ class TestAttachmentsExposedToTemplate:
             project_root=str(tmp_path),
         )
         assert ".oompah/attachments/foo-1/abc-shot.png(true)" in out.text
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 integration: capability fallback end-to-end (oompah-zlz.7)
+# ---------------------------------------------------------------------------
+
+
+class TestCapabilityFallbackIntegration:
+    """End-to-end check that an issue with image attachments behaves
+    correctly under both text-only and multimodal models."""
+
+    def _setup(self, tmp_path):
+        adir = tmp_path / ".oompah" / "attachments" / "foo-1"
+        adir.mkdir(parents=True)
+        (adir / "abc-shot.png").write_bytes(_png_bytes(100))
+        (adir / "def-mock.png").write_bytes(_png_bytes(80))
+        return [
+            ".oompah/attachments/foo-1/abc-shot.png",
+            ".oompah/attachments/foo-1/def-mock.png",
+        ]
+
+    def test_text_only_model_lists_paths_with_not_sent_notes(self, tmp_path):
+        paths = self._setup(tmp_path)
+        out = render_prompt(
+            "Issue: {{ issue.identifier }}",
+            _make_issue(identifier="foo-1"),
+            attachments=paths,
+            capabilities=["text"],
+            project_root=str(tmp_path),
+        )
+        # No content array — pure text.
+        assert out.parts is None
+        # Both paths show up in the body with the "not sent" reason.
+        for p in paths:
+            assert p in out.text
+        assert "not sent: model lacks image" in out.text
+        # No API failure path is exercised here — the renderer is the
+        # boundary, and it succeeded with a string-shaped prompt.
+
+    def test_multimodal_model_embeds_each_attachment(self, tmp_path):
+        paths = self._setup(tmp_path)
+        out = render_prompt(
+            "Issue: {{ issue.identifier }}",
+            _make_issue(identifier="foo-1"),
+            attachments=paths,
+            capabilities=["text", "image"],
+            project_root=str(tmp_path),
+        )
+        assert out.parts is not None
+        # First part is text, then one image_url per attachment.
+        types = [p["type"] for p in out.parts]
+        assert types == ["text", "image_url", "image_url"]
+        assert all(
+            p["image_url"]["url"].startswith("data:image/png;base64,")
+            for p in out.parts[1:]
+        )
+        # No "not sent" note when everything embedded.
+        assert "not sent" not in out.text
