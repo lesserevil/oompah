@@ -887,3 +887,39 @@ class TestResolveCapabilities:
         prov = _provider()
         prov.model_capabilities = {"m-fast": []}
         assert Orchestrator._resolve_capabilities(prov, "m-fast") == ["text"]
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator LFS-pull helper (oompah-zlz.6)
+# ---------------------------------------------------------------------------
+
+
+class TestLFSPullAttachments:
+    def test_no_lfs_is_silent(self, tmp_path, monkeypatch):
+        """Missing git-lfs binary must not raise."""
+        from oompah import orchestrator as _orch
+
+        def fake_run(args, **kwargs):
+            raise FileNotFoundError()
+        monkeypatch.setattr(_orch.subprocess, "run", fake_run)
+        # Should not raise.
+        Orchestrator._lfs_pull_attachments(str(tmp_path), "foo-1")
+
+    def test_includes_issue_path(self, tmp_path, monkeypatch):
+        from oompah import orchestrator as _orch
+        captured = {}
+
+        def fake_run(args, **kwargs):
+            captured["args"] = args
+            captured["cwd"] = kwargs.get("cwd")
+            class R:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+            return R()
+        monkeypatch.setattr(_orch.subprocess, "run", fake_run)
+
+        Orchestrator._lfs_pull_attachments(str(tmp_path), "foo-1")
+        assert captured["args"][:3] == ["git", "lfs", "pull"]
+        assert "--include=.oompah/attachments/foo-1/" in captured["args"]
+        assert captured["cwd"] == str(tmp_path)

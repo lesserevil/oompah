@@ -1568,6 +1568,30 @@ class Orchestrator:
         return None
 
     @staticmethod
+    def _lfs_pull_attachments(workspace_path: str, issue_identifier: str) -> None:
+        """Best-effort `git lfs pull` for a single issue's attachment dir.
+
+        No-op when ``git lfs`` isn't installed or the include path doesn't
+        exist; both are normal for projects without LFS configured. Errors
+        are logged at DEBUG so a missing LFS doesn't drown the orchestrator
+        log.
+        """
+        include = f".oompah/attachments/{issue_identifier}/"
+        try:
+            subprocess.run(
+                ["git", "lfs", "pull", f"--include={include}"],
+                cwd=workspace_path,
+                capture_output=True, text=True,
+                timeout=60, check=False,
+            )
+        except FileNotFoundError:
+            logger.debug("git lfs not installed; skipping pull for %s", issue_identifier)
+        except subprocess.TimeoutExpired:
+            logger.warning("git lfs pull timed out for %s", issue_identifier)
+        except Exception as exc:
+            logger.debug("git lfs pull failed for %s: %s", issue_identifier, exc)
+
+    @staticmethod
     def _resolve_capabilities(provider, model: str | None) -> list[str]:
         """Return the modality capability list for a resolved (provider,
         model) pair.
@@ -1824,6 +1848,11 @@ class Orchestrator:
                          model, provider.name, ", ".join(provider.models))
             raise ValueError(f"Model {model} not available in provider {provider.name}")
 
+        # Resolve modality capabilities for the (provider, model) pair.
+        # Used by the prompt renderer to decide whether to embed
+        # attachments inline or only mention them in the text body.
+        capabilities = self._resolve_capabilities(provider, model)
+
         try:
             # Run blocking setup work in thread to avoid blocking event loop
             def _setup_worker():
@@ -1851,18 +1880,58 @@ class Orchestrator:
                 except Exception:
                     memories = {}
 
-                # Build prompt
-                prompt = render_prompt(
-                    self._prompt_template, issue, attempt,
-                    comments=comments, focus_text=focus.render(),
-                    workspace_path=wp, memories=memories,
-                )
-                return wp, prompt
+                # Materialize attachments under the worktree — `git lfs pull`
+                # is a no-op when LFS isn't installed or the path doesn't
+                # exist, so this is safe to run unconditionally when the
+                # feature flag is on.
+                attachments = list(getattr(issue, "attachments", None) or [])
+                if (
+                    getattr(self.config, "attachments", False)
+                    and attachments
+                    and issue.identifier
+                ):
+                    self._lfs_pull_attachments(wp, issue.identifier)
+
+                # Build prompt — RenderedPrompt when the attachments feature
+                # is on, plain string otherwise (preserves legacy contract).
+                if getattr(self.config, "attachments", False):
+                    rendered = render_prompt(
+                        self._prompt_template, issue, attempt,
+                        comments=comments, focus_text=focus.render(),
+                        workspace_path=wp, memories=memories,
+                        attachments=attachments,
+                        capabilities=capabilities,
+                        project_root=wp,
+                    )
+                else:
+                    rendered = render_prompt(
+                        self._prompt_template, issue, attempt,
+                        comments=comments, focus_text=focus.render(),
+                        workspace_path=wp, memories=memories,
+                    )
+                return wp, rendered, attachments
 
             loop = asyncio.get_event_loop()
-            workspace_path, prompt = await loop.run_in_executor(
+            workspace_path, prompt, attachment_paths = await loop.run_in_executor(
                 self._tick_pool, _setup_worker
             )
+
+            # One-line summary of what made it into the prompt.
+            if attachment_paths:
+                from oompah.prompt import RenderedPrompt as _RP
+                if isinstance(prompt, _RP):
+                    embedded = len(prompt.parts) - 1 if prompt.parts else 0
+                    elided = len(prompt.elided)
+                    logger.info(
+                        "Issue %s attachments: total=%d embedded=%d elided=%d caps=%s",
+                        issue.identifier, len(attachment_paths),
+                        embedded, elided, ",".join(capabilities),
+                    )
+                else:
+                    logger.info(
+                        "Issue %s has %d attachments but feature flag is off — sending text-only",
+                        issue.identifier, len(attachment_paths),
+                    )
 
             # Store focus on running entry for dashboard display
             running_entry = self.state.running.get(issue.id)
