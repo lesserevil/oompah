@@ -1567,6 +1567,67 @@ class Orchestrator:
                 return higher
         return None
 
+    def _reap_oversize_outputs(self, workspace_path: str, issue: Issue) -> None:
+        """Drop agent-generated attachments that push the issue over the
+        per-issue size cap. Posts a warning comment listing what was
+        removed."""
+        from oompah.attachments import (
+            ATTACHMENTS_SUBDIR, MAX_PER_ISSUE_BYTES,
+        )
+        out_dir = os.path.join(
+            workspace_path, ATTACHMENTS_SUBDIR, issue.identifier, "outputs",
+        )
+        if not os.path.isdir(out_dir):
+            return
+        # Sum across both inputs and outputs to compute total.
+        in_dir = os.path.join(
+            workspace_path, ATTACHMENTS_SUBDIR, issue.identifier,
+        )
+        total = 0
+        for d in (in_dir, out_dir):
+            if not os.path.isdir(d):
+                continue
+            for entry in os.listdir(d):
+                full = os.path.join(d, entry)
+                if os.path.isfile(full) and entry != ".gitattributes":
+                    total += os.path.getsize(full)
+
+        if total <= MAX_PER_ISSUE_BYTES:
+            return
+
+        # Reap newest-first from outputs/ until under the cap.
+        files = []
+        for entry in os.listdir(out_dir):
+            full = os.path.join(out_dir, entry)
+            if os.path.isfile(full):
+                files.append((os.path.getmtime(full), full, entry, os.path.getsize(full)))
+        files.sort(reverse=True)  # newest first
+
+        dropped: list[str] = []
+        for _mtime, full, entry, size in files:
+            if total <= MAX_PER_ISSUE_BYTES:
+                break
+            try:
+                os.remove(full)
+                dropped.append(entry)
+                total -= size
+            except OSError as exc:
+                logger.warning("could not drop oversize output %s: %s", full, exc)
+
+        if dropped:
+            msg = (
+                f"Dropped {len(dropped)} agent-generated attachment(s) to stay "
+                f"under the per-issue {MAX_PER_ISSUE_BYTES} byte cap: "
+                + ", ".join(dropped)
+            )
+            logger.warning("%s for %s", msg, issue.identifier)
+            try:
+                self._post_comment(
+                    issue.identifier, msg, project_id=issue.project_id,
+                )
+            except Exception:
+                pass
+
     @staticmethod
     def _lfs_pull_attachments(workspace_path: str, issue_identifier: str) -> None:
         """Best-effort `git lfs pull` for a single issue's attachment dir.
@@ -2038,6 +2099,21 @@ class Orchestrator:
                 exit_reason = "stalled"
                 error_msg = result.error
                 logger.info("API agent stalled on %s: %s", issue.identifier, error_msg)
+
+            # Enforce per-issue attachment cap on agent-generated outputs.
+            # The attach_image tool already rejects per-attachment overruns;
+            # this is the cumulative gate. Over-cap files are dropped (LIFO
+            # by mtime) and surfaced via a comment on the issue.
+            if (
+                getattr(self.config, "attachments", False)
+                and result.status == "succeeded"
+            ):
+                try:
+                    self._reap_oversize_outputs(workspace_path, issue)
+                except Exception as exc:
+                    logger.debug(
+                        "output reap failed for %s: %s", issue.identifier, exc,
+                    )
 
         except Exception as exc:
             exit_reason = "abnormal"

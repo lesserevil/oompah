@@ -923,3 +923,55 @@ class TestLFSPullAttachments:
         assert captured["args"][:3] == ["git", "lfs", "pull"]
         assert "--include=.oompah/attachments/foo-1/" in captured["args"]
         assert captured["cwd"] == str(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# Reap oversize outputs (oompah-e6y.3)
+# ---------------------------------------------------------------------------
+
+
+class TestReapOversizeOutputs:
+    def _setup(self, tmp_path):
+        from oompah.attachments import ATTACHMENTS_SUBDIR
+        wp = tmp_path / "ws"
+        out = wp / ATTACHMENTS_SUBDIR / "foo-1" / "outputs"
+        out.mkdir(parents=True)
+        return wp, out
+
+    def test_no_op_under_cap(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("oompah.attachments.MAX_PER_ISSUE_BYTES", 1000)
+        orch = _make_orchestrator(tmp_path)
+        wp, out = self._setup(tmp_path)
+        (out / "a.png").write_bytes(b"x" * 100)
+        issue = _make_issue("foo-1")
+        orch._reap_oversize_outputs(str(wp), issue)
+        assert (out / "a.png").exists()
+
+    def test_drops_newest_first_until_under_cap(self, tmp_path, monkeypatch):
+        import time as _t
+        monkeypatch.setattr("oompah.attachments.MAX_PER_ISSUE_BYTES", 250)
+        orch = _make_orchestrator(tmp_path)
+        orch._post_comment = MagicMock()
+        wp, out = self._setup(tmp_path)
+        # Three files of 200 bytes each → 600 total → must drop two.
+        for name in ("oldest.png", "middle.png", "newest.png"):
+            (out / name).write_bytes(b"x" * 200)
+            _t.sleep(0.01)  # ensure distinct mtimes
+        issue = _make_issue("foo-1")
+        orch._reap_oversize_outputs(str(wp), issue)
+        remaining = sorted(p.name for p in out.iterdir())
+        # Oldest survives — newest two were reaped.
+        assert remaining == ["oldest.png"]
+        # Warning comment posted.
+        orch._post_comment.assert_called_once()
+        msg = orch._post_comment.call_args.args[1]
+        assert "newest.png" in msg
+        assert "middle.png" in msg
+
+    def test_silent_when_no_outputs_dir(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        wp = tmp_path / "ws"
+        wp.mkdir()
+        issue = _make_issue("foo-1")
+        # Must not raise.
+        orch._reap_oversize_outputs(str(wp), issue)
