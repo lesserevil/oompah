@@ -246,6 +246,47 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "attach_image",
+            "description": (
+                "Attach an image to the current issue. Use this when you have "
+                "produced a diagram, annotated screenshot, or generated mock that "
+                "should travel with the issue. The image is written into the "
+                "issue's outputs/ directory, committed alongside your code "
+                "changes, and recorded in the issue's attachment metadata. Only "
+                "available when the active focus has allow_image_output=True and "
+                "the resolved model has the image capability."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "issue_identifier": {
+                        "type": "string",
+                        "description": "The identifier of the current issue (e.g. 'oompah-9k1').",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Original file name (extension matters; png/jpg/webp/gif/svg/pdf).",
+                    },
+                    "content_base64": {
+                        "type": "string",
+                        "description": "Base64-encoded image bytes.",
+                    },
+                    "turn": {
+                        "type": "integer",
+                        "description": "Optional turn number; included in the canonical filename when provided.",
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Optional caption — recorded in the issue's attachment metadata.",
+                    },
+                },
+                "required": ["issue_identifier", "filename", "content_base64"],
+            },
+        },
+    },
 ]
 
 
@@ -395,6 +436,68 @@ def _exec_run_command(workspace: Path, args: dict[str, Any], timeout: int = 60) 
         return f"Error running command: {exc}"
 
 
+def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
+    """Decode a base64 image into the workspace's
+    .oompah/attachments/<issue>/outputs/ directory, named
+    ``<turn>-<sha>-<filename>``. Returns the canonical relative path on
+    success, or an error string. The orchestrator commits these on agent
+    completion (see Phase 3, oompah-e6y.3) and writes back to beads
+    metadata (oompah-e6y.4)."""
+    import base64 as _b64
+    import hashlib as _h
+    import re as _re
+
+    issue = str(args.get("issue_identifier") or "").strip()
+    filename = str(args.get("filename") or "").strip()
+    content_b64 = args.get("content_base64") or ""
+    turn = args.get("turn")
+
+    if not issue or not filename or not content_b64:
+        return "Error: attach_image requires issue_identifier, filename, content_base64"
+    if "/" in issue or "\\" in issue:
+        return f"Error: invalid issue_identifier: {issue!r}"
+
+    try:
+        data = _b64.b64decode(content_b64, validate=True)
+    except Exception as exc:
+        return f"Error: content_base64 is not valid base64 ({exc})"
+
+    # Reject anything not on the attachments allow-list.
+    from oompah.attachments import (
+        ALLOWED_MIME_TYPES, MAX_ATTACHMENT_BYTES,
+    )
+    import mimetypes as _mt
+    mime, _ = _mt.guess_type(filename)
+    if not mime or mime not in ALLOWED_MIME_TYPES:
+        return (
+            f"Error: filename {filename!r} has mime {mime!r}; "
+            f"attach_image only accepts {sorted(ALLOWED_MIME_TYPES)}"
+        )
+    if len(data) > MAX_ATTACHMENT_BYTES:
+        return (
+            f"Error: image is {len(data)} bytes; per-attachment cap is "
+            f"{MAX_ATTACHMENT_BYTES}"
+        )
+
+    safe = _re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(filename)) or "file"
+    sha = _h.sha256(data).hexdigest()[:12]
+    turn_part = f"{int(turn)}-" if isinstance(turn, (int, str)) and str(turn).isdigit() else ""
+    fname = f"{turn_part}{sha}-{safe}"
+
+    out_dir = workspace / ".oompah" / "attachments" / issue / "outputs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    dest = out_dir / fname
+    if not dest.exists():
+        dest.write_bytes(data)
+    rel = f".oompah/attachments/{issue}/outputs/{fname}"
+    return f"OK: wrote {len(data)} bytes to {rel}"
+
+
+# Tools that require explicit opt-in. They are NOT registered with the
+# model unless ``ApiAgentSession.enabled_tools`` includes them.
+_OPT_IN_TOOLS: frozenset[str] = frozenset({"attach_image"})
+
+
 _TOOL_DISPATCH: dict[str, Any] = {
     "read_file": _exec_read_file,
     "write_file": _exec_write_file,
@@ -402,6 +505,7 @@ _TOOL_DISPATCH: dict[str, Any] = {
     "search_files": _exec_search_files,
     "list_files": _exec_list_files,
     "run_command": _exec_run_command,
+    "attach_image": _exec_attach_image,
     # ask_question is handled specially in the agent loop, not here
 }
 
@@ -414,6 +518,7 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
     "run_command": ["command"],
     "list_files": [],
     "ask_question": ["question"],
+    "attach_image": ["issue_identifier", "filename", "content_base64"],
 }
 
 
@@ -502,6 +607,7 @@ class ApiAgentSession:
         stall_turns: int = 5,
         system_prompt: str = "",
         command_timeout: int = 60,
+        enabled_tools: set[str] | None = None,
     ):
         # Strip trailing slash for clean URL joining
         self.base_url = base_url.rstrip("/")
@@ -512,9 +618,29 @@ class ApiAgentSession:
         self.stall_turns = stall_turns
         self.system_prompt = system_prompt
         self.command_timeout = command_timeout
+        # Names of tools to expose to the model. ``None`` means "all
+        # tools except those that require explicit opt-in" — currently
+        # ``attach_image`` is the only opt-in tool, so it's filtered out
+        # by default. The orchestrator passes an explicit set when the
+        # active focus opts in and the resolved model has the image
+        # capability.
+        self.enabled_tools = enabled_tools
 
         self._ssl_ctx = _build_ssl_context()
         self._url = f"{self.base_url}/chat/completions"
+
+    @property
+    def _tool_definitions(self) -> list[dict[str, Any]]:
+        """Tool schemas to send to the API for this session."""
+        if self.enabled_tools is None:
+            return [
+                t for t in TOOL_DEFINITIONS
+                if t["function"]["name"] not in _OPT_IN_TOOLS
+            ]
+        return [
+            t for t in TOOL_DEFINITIONS
+            if t["function"]["name"] in self.enabled_tools
+        ]
 
     # -- public interface ---------------------------------------------------
 
@@ -827,7 +953,7 @@ class ApiAgentSession:
         payload = {
             "model": self.model,
             "messages": messages,
-            "tools": TOOL_DEFINITIONS,
+            "tools": self._tool_definitions,
             "tool_choice": "auto",
             "max_tokens": 32768,
         }

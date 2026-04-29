@@ -619,3 +619,117 @@ class TestRunTaskAcceptsRenderedPrompt:
                 assert user["content"][1]["type"] == "image_url"
 
         asyncio.run(run())
+
+
+# ---------------------------------------------------------------------------
+# attach_image tool (oompah-e6y.2)
+# ---------------------------------------------------------------------------
+
+import base64 as _b64
+
+from oompah.api_agent import (
+    ApiAgentSession as _AAS,
+    TOOL_DEFINITIONS as _TD,
+    _OPT_IN_TOOLS as _OPT,
+    _exec_attach_image,
+)
+
+
+def _png(n: int = 64) -> bytes:
+    return b"\x89PNG\r\n\x1a\n" + b"\x00" * max(0, n - 8)
+
+
+class TestAttachImageGating:
+    def test_attach_image_is_opt_in(self):
+        assert "attach_image" in _OPT
+
+    def test_default_session_does_not_register_attach_image(self, tmp_path):
+        s = _AAS(
+            base_url="http://x", api_key="k", model="m",
+            workspace_path=str(tmp_path), max_turns=1,
+        )
+        names = [t["function"]["name"] for t in s._tool_definitions]
+        assert "attach_image" not in names
+        # Other tools are still there.
+        assert "read_file" in names
+
+    def test_explicit_opt_in_registers_attach_image(self, tmp_path):
+        s = _AAS(
+            base_url="http://x", api_key="k", model="m",
+            workspace_path=str(tmp_path), max_turns=1,
+            enabled_tools={"read_file", "attach_image"},
+        )
+        names = [t["function"]["name"] for t in s._tool_definitions]
+        assert names == ["read_file", "attach_image"] or set(names) == {"read_file", "attach_image"}
+
+
+class TestAttachImageExec:
+    def test_writes_image_under_outputs(self, tmp_path):
+        from pathlib import Path as _P
+        result = _exec_attach_image(
+            _P(tmp_path),
+            {
+                "issue_identifier": "foo-1",
+                "filename": "diagram.png",
+                "content_base64": _b64.b64encode(_png(100)).decode(),
+                "turn": 3,
+            },
+        )
+        assert result.startswith("OK:")
+        # Walk the outputs/ dir to find the file.
+        out = tmp_path / ".oompah" / "attachments" / "foo-1" / "outputs"
+        files = list(out.iterdir())
+        assert len(files) == 1
+        # Filename includes turn + sha + safe basename.
+        assert files[0].name.startswith("3-")
+        assert files[0].name.endswith("-diagram.png")
+
+    def test_rejects_disallowed_mime(self, tmp_path):
+        from pathlib import Path as _P
+        result = _exec_attach_image(
+            _P(tmp_path),
+            {
+                "issue_identifier": "foo-1",
+                "filename": "evil.exe",
+                "content_base64": _b64.b64encode(b"MZ").decode(),
+            },
+        )
+        assert result.startswith("Error: filename")
+        assert not (tmp_path / ".oompah" / "attachments").exists()
+
+    def test_rejects_oversize(self, tmp_path, monkeypatch):
+        from pathlib import Path as _P
+        monkeypatch.setattr("oompah.attachments.MAX_ATTACHMENT_BYTES", 50)
+        result = _exec_attach_image(
+            _P(tmp_path),
+            {
+                "issue_identifier": "foo-1",
+                "filename": "big.png",
+                "content_base64": _b64.b64encode(_png(200)).decode(),
+            },
+        )
+        assert "per-attachment cap" in result
+
+    def test_rejects_invalid_base64(self, tmp_path):
+        from pathlib import Path as _P
+        result = _exec_attach_image(
+            _P(tmp_path),
+            {
+                "issue_identifier": "foo-1",
+                "filename": "x.png",
+                "content_base64": "not-valid-base64!!!",
+            },
+        )
+        assert "not valid base64" in result
+
+    def test_rejects_traversal_in_issue_id(self, tmp_path):
+        from pathlib import Path as _P
+        result = _exec_attach_image(
+            _P(tmp_path),
+            {
+                "issue_identifier": "../etc",
+                "filename": "x.png",
+                "content_base64": _b64.b64encode(_png(64)).decode(),
+            },
+        )
+        assert "invalid issue_identifier" in result

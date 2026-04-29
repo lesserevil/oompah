@@ -1939,6 +1939,21 @@ class Orchestrator:
                 running_entry.focus_name = focus.name
                 running_entry.focus_role = focus.role
 
+            # Decide which opt-in tools to expose. Currently this is
+            # just attach_image, gated on (a) the active focus opting in
+            # and (b) the resolved model declaring image capability.
+            from oompah.api_agent import TOOL_DEFINITIONS as _TD, _OPT_IN_TOOLS as _OPT
+            base_tools = {
+                t["function"]["name"] for t in _TD
+                if t["function"]["name"] not in _OPT
+            }
+            if (
+                getattr(self.config, "attachments", False)
+                and getattr(focus, "allow_image_output", False)
+                and "image" in capabilities
+            ):
+                base_tools.add("attach_image")
+
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -1947,6 +1962,7 @@ class Orchestrator:
                 max_turns=max_turns,
                 stall_turns=self.config.stall_turns,
                 system_prompt="You are an autonomous coding agent. Use the provided tools to complete the task.",
+                enabled_tools=base_tools,
             )
 
             # Update running entry with minimal session info
