@@ -5,13 +5,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from oompah.events import EventType
 from oompah.scm import detect_provider, extract_repo_slug, get_all_open_reviews
@@ -1564,6 +1566,251 @@ async def api_refresh():
             {"error": {"code": "unavailable", "message": str(exc)}},
             status_code=503,
         )
+
+
+# ---------------------------------------------------------------------------
+# Multimodal attachments (Phase 4)
+# ---------------------------------------------------------------------------
+
+_ATTACHMENT_MIME_BY_EXT = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml",
+    ".pdf": "application/pdf",
+    ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
+    ".mp4": "video/mp4",
+}
+
+_SVG_SCRIPT_RE = re.compile(rb"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)
+_SVG_EVENT_ATTR_RE = re.compile(rb'\son\w+\s*=\s*"[^"]*"', re.IGNORECASE)
+
+
+def _sanitize_svg(data: bytes) -> bytes:
+    """Strip <script> blocks and on*= event handlers from SVG bytes.
+
+    Best-effort; for richer hardening swap in a real SVG sanitizer."""
+    out = _SVG_SCRIPT_RE.sub(b"", data)
+    out = _SVG_EVENT_ATTR_RE.sub(b"", out)
+    return out
+
+
+def _resolve_attachment_path(orch, rel: str) -> tuple[str | None, str | None]:
+    """Resolve a repo-relative attachment path to ``(project_id, abs_path)``.
+
+    Refuses anything that isn't under some known project's
+    ``.oompah/attachments/`` tree. Returns ``(None, None)`` on traversal,
+    unknown project, or missing file.
+    """
+    if not rel or os.path.isabs(rel) or ".." in rel.split("/"):
+        return None, None
+    if not rel.startswith(".oompah/attachments/"):
+        return None, None
+    for project in orch.project_store.list_all():
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            continue
+        candidate = os.path.realpath(os.path.join(repo_path, rel))
+        attach_root = os.path.realpath(
+            os.path.join(repo_path, ".oompah", "attachments")
+        )
+        if (
+            candidate.startswith(attach_root + os.sep)
+            and os.path.isfile(candidate)
+        ):
+            return project.id, candidate
+    return None, None
+
+
+@app.get("/api/v1/issues/{identifier}/attachments")
+async def api_list_attachments(identifier: str):
+    """List the attachments recorded on an issue (rich records from beads
+    metadata; the on-disk sidecar is not consulted here)."""
+    try:
+        orch = _get_orchestrator()
+    except Exception as exc:
+        return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
+    if not getattr(orch.config, "attachments", False):
+        return JSONResponse({"error": {"code": "disabled", "message": "OOMPAH_ATTACHMENTS is off"}}, status_code=503)
+    tracker, _project_id = _find_tracker_for_issue(orch, identifier)
+    if tracker is None:
+        return JSONResponse({"error": {"code": "not_found", "message": f"Issue {identifier} not found"}}, status_code=404)
+    try:
+        records = tracker.fetch_attachments(identifier)
+    except Exception as exc:
+        return JSONResponse({"error": {"code": "tracker_error", "message": str(exc)}}, status_code=500)
+    return JSONResponse(records)
+
+
+@app.post("/api/v1/issues/{identifier}/attachments")
+async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
+    """Upload an attachment to an issue. Multipart form: ``file=<binary>``."""
+    try:
+        orch = _get_orchestrator()
+    except Exception as exc:
+        return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
+    if not getattr(orch.config, "attachments", False):
+        return JSONResponse({"error": {"code": "disabled", "message": "OOMPAH_ATTACHMENTS is off"}}, status_code=503)
+
+    tracker, project_id = _find_tracker_for_issue(orch, identifier)
+    if tracker is None:
+        return JSONResponse({"error": {"code": "not_found", "message": f"Issue {identifier} not found"}}, status_code=404)
+    if not project_id:
+        return JSONResponse({"error": {"code": "no_project", "message": "Attachments require a project-backed issue"}}, status_code=400)
+    project = orch.project_store.get(project_id)
+    if not project or not project.repo_path:
+        return JSONResponse({"error": {"code": "no_repo", "message": "Project has no repo_path"}}, status_code=500)
+
+    # Validate mime up-front from the file's name (uploads usually have
+    # accurate content_type but the AttachmentStore re-validates from the
+    # extension as the canonical source of truth).
+    from oompah.attachments import (
+        ALLOWED_MIME_TYPES, AttachmentStore, AttachmentMimeRejected,
+        AttachmentTooLarge,
+    )
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    mime = _ATTACHMENT_MIME_BY_EXT.get(ext) or file.content_type or ""
+    if mime not in ALLOWED_MIME_TYPES:
+        return JSONResponse(
+            {"error": {"code": "unsupported_media_type",
+                       "message": f"mime {mime!r} not allowed"}},
+            status_code=415,
+        )
+
+    # Stage to a temp file then hand to AttachmentStore.add.
+    import tempfile
+    contents = await file.read()
+    with tempfile.NamedTemporaryFile(
+        delete=False, suffix=ext, dir=tempfile.gettempdir(),
+    ) as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+
+    try:
+        store = AttachmentStore(project.repo_path)
+        try:
+            rec = store.add(identifier, tmp_path, mime_type=mime, added_by="user")
+        except AttachmentTooLarge as exc:
+            return JSONResponse(
+                {"error": {"code": "payload_too_large", "message": str(exc)}},
+                status_code=413,
+            )
+        except AttachmentMimeRejected as exc:
+            return JSONResponse(
+                {"error": {"code": "unsupported_media_type", "message": str(exc)}},
+                status_code=415,
+            )
+
+        # Update beads metadata: append the new record to the existing list.
+        existing = []
+        try:
+            existing = list(tracker.fetch_attachments(identifier) or [])
+        except Exception:
+            pass
+        merged = existing + [rec.to_dict()]
+        tracker.set_attachments(identifier, merged, project_root=project.repo_path)
+
+        # Commit the file so it travels with the repo.
+        try:
+            store.commit([rec.path], f"Add attachment {os.path.basename(rec.path)} for {identifier}")
+        except Exception as exc:
+            logger.warning("attachment commit failed for %s: %s", identifier, exc)
+
+        return JSONResponse(rec.to_dict(), status_code=201)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+
+@app.get("/api/v1/attachments/{path:path}")
+async def api_serve_attachment(path: str):
+    """Stream an attachment by its repo-relative path. Path-validated to
+    a known project's ``.oompah/attachments/`` tree; SVGs are sanitized
+    before return."""
+    try:
+        orch = _get_orchestrator()
+    except Exception:
+        return JSONResponse({"error": {"code": "unavailable"}}, status_code=503)
+    project_id, abs_path = _resolve_attachment_path(orch, path)
+    if not abs_path:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": "attachment not found"}},
+            status_code=404,
+        )
+    ext = os.path.splitext(abs_path)[1].lower()
+    mime = _ATTACHMENT_MIME_BY_EXT.get(ext, "application/octet-stream")
+    try:
+        with open(abs_path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return JSONResponse({"error": {"code": "io_error"}}, status_code=500)
+    if mime == "image/svg+xml":
+        data = _sanitize_svg(data)
+    return Response(content=data, media_type=mime)
+
+
+@app.delete("/api/v1/attachments/{path:path}")
+async def api_delete_attachment(path: str, request: Request):
+    """Remove an attachment from its issue. Generated attachments require
+    ``?force=generated`` to confirm."""
+    try:
+        orch = _get_orchestrator()
+    except Exception as exc:
+        return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
+    if not getattr(orch.config, "attachments", False):
+        return JSONResponse({"error": {"code": "disabled"}}, status_code=503)
+
+    project_id, abs_path = _resolve_attachment_path(orch, path)
+    if not project_id:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": "attachment not found"}},
+            status_code=404,
+        )
+    project = orch.project_store.get(project_id)
+    if not project or not project.repo_path:
+        return JSONResponse({"error": {"code": "no_repo"}}, status_code=500)
+
+    # Identifier from path: .oompah/attachments/<id>/...
+    parts = path.split("/")
+    if len(parts) < 4:
+        return JSONResponse({"error": {"code": "bad_path"}}, status_code=400)
+    identifier = parts[2]
+
+    # Find the metadata record so we can check generated + emit the right
+    # response.
+    tracker = orch._tracker_for_project(project_id)
+    try:
+        records = list(tracker.fetch_attachments(identifier) or [])
+    except Exception:
+        records = []
+    target = next((r for r in records if r.get("path") == path), None)
+    if target is None:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": "attachment not on issue"}},
+            status_code=404,
+        )
+    if target.get("generated") and request.query_params.get("force") != "generated":
+        return JSONResponse(
+            {"error": {"code": "confirm_generated",
+                       "message": "Generated attachments require ?force=generated"}},
+            status_code=409,
+        )
+
+    from oompah.attachments import AttachmentStore
+    store = AttachmentStore(project.repo_path)
+    try:
+        store.remove(path)
+    except Exception as exc:
+        logger.warning("attachment remove failed: %s", exc)
+
+    remaining = [r for r in records if r.get("path") != path]
+    tracker.set_attachments(identifier, remaining, project_root=project.repo_path)
+    try:
+        store.commit([path], f"Remove attachment {os.path.basename(path)}")
+    except Exception as exc:
+        logger.warning("attachment delete commit failed: %s", exc)
+
+    return JSONResponse({"deleted": path})
 
 
 @app.post("/api/v1/errors")
