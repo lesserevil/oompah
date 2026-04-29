@@ -87,3 +87,39 @@ class TestProviderStore:
         store.create(name="a", base_url="http://a")
         store.create(name="b", base_url="http://b")
         assert store.get_default() is None
+
+
+# ---------------------------------------------------------------------------
+# model_capabilities (oompah-zlz.2)
+# ---------------------------------------------------------------------------
+
+from oompah.models import ModelProvider
+
+
+class TestModelCapabilities:
+    def test_default_empty(self):
+        p = ModelProvider(id="p", name="n", base_url="http://x")
+        assert p.model_capabilities == {}
+
+    def test_round_trip(self):
+        p = ModelProvider(
+            id="p", name="n", base_url="http://x",
+            model_capabilities={"gpt-4o-mini": ["text", "image"],
+                                "nemotron-omni": ["text", "image", "audio"]},
+        )
+        d = p.to_dict()
+        assert d["model_capabilities"]["gpt-4o-mini"] == ["text", "image"]
+        p2 = ModelProvider.from_dict(d)
+        assert p2.model_capabilities == p.model_capabilities
+
+    def test_omitted_when_empty(self):
+        p = ModelProvider(id="p", name="n", base_url="http://x")
+        assert "model_capabilities" not in p.to_dict()
+
+    def test_from_dict_normalizes_values(self):
+        # Ensures lists of non-strings are coerced to lists of strings.
+        p = ModelProvider.from_dict({
+            "id": "p", "name": "n", "base_url": "http://x",
+            "model_capabilities": {"m": ["text", 123]},
+        })
+        assert p.model_capabilities == {"m": ["text", "123"]}

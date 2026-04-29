@@ -176,6 +176,12 @@ class ModelProvider:
     provider_type: str = "openai"  # openai | anthropic | custom
     model_roles: dict[str, str] = field(default_factory=dict)
     model_costs: dict[str, dict[str, float]] = field(default_factory=dict)
+    # Per-model modality capability map. Keys are model names (matching
+    # entries in ``models``); values list supported modalities, e.g.
+    # ``{"gpt-4o-mini": ["text", "image"]}``. When a model is unset,
+    # callers should default to ``["text"]``. See
+    # docs/multimodal-attachments.md§Provider modality capability.
+    model_capabilities: dict[str, list[str]] = field(default_factory=dict)
 
     def get_model_costs(self, model: str) -> tuple[float, float]:
         """Return (cost_per_1k_input, cost_per_1k_output) for a model, or (0, 0) if unknown."""
@@ -196,6 +202,8 @@ class ModelProvider:
             d["model_roles"] = self.model_roles
         if self.model_costs:
             d["model_costs"] = self.model_costs
+        if self.model_capabilities:
+            d["model_capabilities"] = self.model_capabilities
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -221,6 +229,10 @@ class ModelProvider:
             provider_type=str(d.get("provider_type", "openai")),
             model_roles=d.get("model_roles", {}),
             model_costs=d.get("model_costs", {}),
+            model_capabilities={
+                str(k): [str(c) for c in (v or [])]
+                for k, v in (d.get("model_capabilities") or {}).items()
+            },
         )
 
 
