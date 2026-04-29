@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from oompah.prompt import RenderedPrompt
+
 logger = logging.getLogger(__name__)
 
 
@@ -518,11 +520,18 @@ class ApiAgentSession:
 
     async def run_task(
         self,
-        prompt: str,
+        prompt: "str | RenderedPrompt",
         on_activity: Callable[[AgentActivity], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
     ) -> ApiAgentResult:
-        """Run the agent on a task prompt. Returns result with token counts."""
+        """Run the agent on a task prompt. Returns result with token counts.
+
+        ``prompt`` accepts either a plain string (single text user message)
+        or a :class:`RenderedPrompt`. When ``RenderedPrompt.parts`` is set,
+        the first user message uses an OpenAI-style content array so
+        multimodal models receive image/audio inline. Subsequent turns
+        (tool results) remain text.
+        """
         messages: list[dict[str, Any]] = []
         activity: list[AgentActivity] = []
 
@@ -538,7 +547,16 @@ class ApiAgentSession:
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
 
-        messages.append({"role": "user", "content": prompt})
+        # Build the first user message. If a RenderedPrompt was passed and
+        # it carries content parts, send the array form; otherwise fall
+        # back to a plain text content (preserves the legacy contract).
+        if isinstance(prompt, RenderedPrompt):
+            if prompt.parts:
+                messages.append({"role": "user", "content": prompt.parts})
+            else:
+                messages.append({"role": "user", "content": prompt.text})
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         total_input = 0
         total_output = 0

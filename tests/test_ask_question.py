@@ -544,3 +544,78 @@ class TestAskQuestionApiAgentResult:
             last_message="Done",
         )
         assert result.question is None
+import asyncio
+import json
+from unittest.mock import AsyncMock, patch
+
+from oompah.api_agent import ApiAgentSession
+from oompah.prompt import RenderedPrompt
+
+
+def _basic_response():
+    return {
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        "choices": [{
+            "finish_reason": "stop",
+            "message": {"role": "assistant", "content": "done"},
+        }],
+    }
+
+
+class TestRunTaskAcceptsRenderedPrompt:
+    def _session(self, **kw):
+        return ApiAgentSession(
+            base_url="http://fake.test", api_key="k",
+            model="m", workspace_path="/tmp/ws", max_turns=2, **kw,
+        )
+
+    def test_plain_string_still_works(self):
+        session = self._session()
+
+        async def run():
+            with patch.object(session, "_call_api", new_callable=AsyncMock) as mock:
+                mock.return_value = _basic_response()
+                result = await session.run_task("hello")
+                # First user message body is the raw string.
+                args, _kwargs = mock.call_args
+                messages = args[0]
+                user = [m for m in messages if m["role"] == "user"][0]
+                assert user["content"] == "hello"
+                return result
+
+        r = asyncio.run(run())
+        assert r.status == "succeeded"
+
+    def test_rendered_prompt_with_text_only_uses_string(self):
+        session = self._session()
+        rp = RenderedPrompt(text="hi", parts=None)
+
+        async def run():
+            with patch.object(session, "_call_api", new_callable=AsyncMock) as mock:
+                mock.return_value = _basic_response()
+                await session.run_task(rp)
+                user = [m for m in mock.call_args.args[0] if m["role"] == "user"][0]
+                assert user["content"] == "hi"
+
+        asyncio.run(run())
+
+    def test_rendered_prompt_with_parts_uses_array_form(self):
+        session = self._session()
+        rp = RenderedPrompt(
+            text="hi",
+            parts=[
+                {"type": "text", "text": "hi"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+            ],
+        )
+
+        async def run():
+            with patch.object(session, "_call_api", new_callable=AsyncMock) as mock:
+                mock.return_value = _basic_response()
+                await session.run_task(rp)
+                user = [m for m in mock.call_args.args[0] if m["role"] == "user"][0]
+                assert isinstance(user["content"], list)
+                assert user["content"][0]["type"] == "text"
+                assert user["content"][1]["type"] == "image_url"
+
+        asyncio.run(run())
