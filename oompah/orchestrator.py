@@ -3503,28 +3503,39 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """Aggregate per-tick review cache for the dashboard badge.
 
         Avoids the dashboard polling /api/v1/reviews every WS state update.
-        Yolo projects are filtered out (their reviews don't need human
-        attention by definition).
+
+        ``total`` counts every open non-draft review across every project,
+        including yolo projects. Yolo PRs auto-merge once their CI is
+        green, but until then they (a) block other dispatch in the same
+        project via ``_project_has_open_review``, and (b) the operator may
+        still want to peek at what landed. So we show them.
+
+        ``needs_attention`` stays non-yolo: it flags reviews that the
+        watchdog cannot resolve on its own (conflicts, failed CI) and
+        therefore require human action. That's the red badge.
         """
         reviews_cache = getattr(self, "_reviews_cache", {}) or {}
         yolo_ids = {p.id for p in self.project_store.list_all() if getattr(p, "yolo", False)}
-        non_yolo_total = 0
+        total = 0
+        yolo_pending = 0
         conflicts = 0
         ci_failures = 0
         for project_id, reviews in reviews_cache.items():
-            if project_id in yolo_ids:
-                continue
             for r in reviews or []:
                 # Skip reviews where an agent is currently working — handled elsewhere.
                 if getattr(r, "agent_active", False):
                     continue
-                non_yolo_total += 1
+                total += 1
+                if project_id in yolo_ids:
+                    yolo_pending += 1
+                    continue
                 if getattr(r, "has_conflicts", False):
                     conflicts += 1
                 elif getattr(r, "ci_status", None) == "failed":
                     ci_failures += 1
         return {
-            "total": non_yolo_total,
+            "total": total,
+            "yolo_pending": yolo_pending,
             "conflicts": conflicts,
             "ci_failures": ci_failures,
             "needs_attention": conflicts + ci_failures,

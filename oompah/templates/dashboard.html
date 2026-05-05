@@ -1200,16 +1200,22 @@ function updateReviewsBadge(summary) {
   const countEl = document.getElementById('reviews-count');
   if (!summary) { el.style.display = 'none'; return; }
   const needsAttention = summary.needs_attention || 0;
+  const total = summary.total || 0;
+  const yoloPending = summary.yolo_pending || 0;
   if (needsAttention > 0) {
+    // Red: conflicts or failed CI need human action.
     countEl.textContent = needsAttention;
     countEl.style.color = 'var(--red, #f85149)';
     el.querySelector('.reviews-label').textContent =
       (summary.conflicts > 0) ? 'need resolution' : 'CI failures';
     el.style.display = '';
-  } else if ((summary.total || 0) > 0) {
-    countEl.textContent = summary.total;
+  } else if (total > 0) {
+    // Blue: open PRs in flight. Yolo PRs auto-merge once CI clears, but
+    // they block other dispatch in the project until then, so show them.
+    countEl.textContent = total;
     countEl.style.color = 'var(--blue, #58a6ff)';
-    el.querySelector('.reviews-label').textContent = 'reviews waiting';
+    el.querySelector('.reviews-label').textContent =
+      (yoloPending === total) ? 'auto-merging' : 'reviews waiting';
     el.style.display = '';
   } else {
     el.style.display = 'none';
