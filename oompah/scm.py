@@ -134,6 +134,22 @@ class SCMProvider(ABC):
         ...
 
     @abstractmethod
+    def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
+        """Enable auto-merge on a pull/merge request (enqueue mode).
+
+        For GitHub this enables the platform's auto-merge feature so the PR
+        will be merged automatically once CI passes and all required reviews
+        are satisfied — including when the repo uses a merge queue.
+
+        For GitLab, this falls back to a direct merge (merge trains are a
+        separate feature not adopted in this rollout).
+
+        Returns:
+            (success, message) tuple.
+        """
+        ...
+
+    @abstractmethod
     def is_available(self) -> bool:
         """Check if the provider is authenticated and reachable."""
         ...
@@ -425,6 +441,27 @@ class GitHubProvider(SCMProvider):
         except (httpx.HTTPError, json.JSONDecodeError):
             return False
 
+    def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
+        """Enable auto-merge on a GitHub PR (enqueue mode).
+
+        Uses the GitHub REST API ``PATCH /repos/{repo}/pulls/{pr}/auto_merge``
+        endpoint.  When the repo has a merge queue enabled, the platform
+        automatically enqueues the PR once auto-merge is set.
+        """
+        try:
+            r = self._api(
+                "POST",
+                f"/repos/{repo}/pulls/{review_id}/auto-merge",
+                json={"merge_method": "squash"},
+            )
+            if r.status_code in (200, 201):
+                return True, "Auto-merge enabled on PR"
+            if r.status_code == 405:
+                return False, f"Auto-merge not allowed: HTTP 405 (merge queue may not be enabled or PR is not ready)"
+            return False, f"Failed to enable auto-merge: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Failed to enable auto-merge: {exc}"
+
 
 class GitLabProvider(SCMProvider):
     """GitLab implementation using the REST API via httpx."""
@@ -640,6 +677,19 @@ class GitLabProvider(SCMProvider):
             return False
         except (httpx.HTTPError, json.JSONDecodeError):
             return False
+
+    def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
+        """Enable auto-merge for a GitLab MR.
+
+        GitLab merge trains differ from GitHub's merge queue and are not
+        adopted in this rollout.  Falls back to a direct merge so that
+        queue-mode projects on GitLab still make progress.
+        """
+        logger.debug(
+            "GitLab enable_auto_merge: falling back to direct merge for %s MR #%s",
+            repo, review_id,
+        )
+        return self.merge_review(repo, review_id)
 
 
 # -- Helpers --

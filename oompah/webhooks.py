@@ -114,22 +114,30 @@ def parse_github_webhook(
 ) -> WebhookEvent | None:
     """Parse a GitHub webhook payload into a WebhookEvent.
 
-    Handles ``pull_request`` and ``push`` events. ``push`` events surface
-    direct commits to a branch (e.g. operators pushing chore commits to
-    main without a PR) — the tracked-branch advancing is the signal that
-    a source resync is needed. Other event types return ``None``.
+    Handles ``pull_request``, ``push``, and ``merge_group`` events.
+    ``push`` events surface direct commits to a branch (e.g. operators
+    pushing chore commits to main without a PR) — the tracked-branch
+    advancing is the signal that a source resync is needed.
+    ``merge_group`` events fire when GitHub's merge queue processes a PR;
+    a ``checks_requested`` action starts CI on the merge-group ref, and a
+    ``destroyed`` action fires when the queue removes the group (either
+    because it merged successfully or was ejected due to failing CI).
+    Other event types return ``None``.
 
     Args:
         event_type: Value of the ``X-GitHub-Event`` header.
         payload: Parsed JSON body.
 
     Returns:
-        A ``WebhookEvent`` for PR/push events, or ``None`` for other events.
+        A ``WebhookEvent`` for PR/push/merge_group events, or ``None`` for
+        other events.
     """
     if event_type == "pull_request":
         return _parse_github_pr(event_type, payload)
     if event_type == "push":
         return _parse_github_push(event_type, payload)
+    if event_type == "merge_group":
+        return _parse_github_merge_group(event_type, payload)
     logger.debug("Ignoring GitHub event: %s", event_type)
     return None
 
@@ -202,6 +210,62 @@ def _parse_github_push(
         author=author,
         title=title,
         merged=False,
+        raw=payload,
+    )
+
+
+def _parse_github_merge_group(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitHub ``merge_group`` event into a WebhookEvent.
+
+    GitHub fires ``merge_group`` events when the merge queue creates or
+    destroys a merge group (a speculatively-stacked candidate ref).
+
+    Actions:
+      * ``checks_requested`` — CI has been triggered on the merge-group ref.
+      * ``destroyed`` — the merge group was removed.  The ``reason`` field
+        distinguishes success (``"merged"`` → ``merged=True``) from failure
+        (``"invalidated"`` or ``"dequeued"`` → ``merged=False``).
+
+    The ``head_ref`` of the merge group encodes the source PR branch name in
+    the form ``gh-readonly-queue/<base>/<pr-identifier>``.  We surface it
+    in ``source_branch`` so downstream consumers can match the bead.
+
+    Args:
+        event_type: Always ``"merge_group"``.
+        payload: Parsed JSON body from GitHub.
+
+    Returns:
+        A ``WebhookEvent`` or ``None`` (e.g. for unrecognised payloads).
+    """
+    action = payload.get("action", "")
+    mg = payload.get("merge_group") or {}
+    if not mg:
+        logger.debug("merge_group event has no merge_group object; ignoring")
+        return None
+
+    repo = payload.get("repository") or {}
+    repo_slug = repo.get("full_name", "")
+
+    head_ref = mg.get("head_ref", "") or ""
+    base_ref = mg.get("base_ref", "") or mg.get("base_sha", "")
+
+    # ``destroyed`` with reason ``"merged"`` means the queue commit landed.
+    reason = payload.get("reason", "") or ""
+    merged = action == "destroyed" and reason == "merged"
+
+    return WebhookEvent(
+        provider="github",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        review_id="",  # merge_group events don't carry a PR number directly
+        source_branch=head_ref,
+        target_branch=base_ref,
+        author="",
+        title="",
+        merged=merged,
         raw=payload,
     )
 

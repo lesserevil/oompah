@@ -1,0 +1,798 @@
+"""Tests for merge-queue support (Step 4 of the submit-queue rollout).
+
+Covers:
+- Project.merge_queue_enabled field round-trips (to_dict / from_dict)
+- SCMProvider.enable_auto_merge in GitHubProvider (success + failure cases)
+- SCMProvider.enable_auto_merge in GitLabProvider (fallback to direct merge)
+- _yolo_review_actions_sync: direct mode still calls merge_review (default)
+- _yolo_review_actions_sync: queue mode calls enable_auto_merge, not merge_review
+- _yolo_review_actions_sync: queue mode with failed enqueue dispatches conflict agent
+- parse_github_webhook: merge_group events parsed correctly
+- parse_github_webhook: merge_group destroyed+merged=True sets merged=True
+- parse_github_webhook: merge_group destroyed+reason!=merged sets merged=False
+- parse_github_webhook: checks_requested action
+- _webhook_advanced_tracked_branch: merge_group merged event triggers sync
+- _webhook_advanced_tracked_branch: merge_group non-merged event does NOT trigger sync
+- _label_bead_merged_from_merge_group: labels bead merged on success
+- Project CRUD: merge_queue_enabled accepted via UPDATABLE_FIELDS
+"""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch, call
+
+import pytest
+
+from oompah.models import Project
+from oompah.webhooks import (
+    WebhookEvent,
+    parse_github_webhook,
+    _parse_github_merge_group,
+)
+
+# ReviewRequest is imported lazily in tests that need it because oompah.scm
+# imports httpx which may not be available in all test environments.
+try:
+    from oompah.scm import ReviewRequest as _ReviewRequest  # noqa: F401
+    _SCM_AVAILABLE = True
+except ModuleNotFoundError:
+    _SCM_AVAILABLE = False
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_project(
+    project_id: str = "proj-1",
+    repo_url: str = "https://github.com/org/repo",
+    yolo: bool = True,
+    merge_queue_enabled: bool = False,
+) -> MagicMock:
+    p = MagicMock()
+    p.id = project_id
+    p.repo_url = repo_url
+    p.name = "test-project"
+    p.yolo = yolo
+    p.merge_queue_enabled = merge_queue_enabled
+    p.access_token = None
+    return p
+
+
+def _make_review(
+    review_id: str = "42",
+    source_branch: str = "feat-branch",
+    ci_status: str = "passed",
+    has_conflicts: bool = False,
+    needs_rebase: bool = False,
+    draft: bool = False,
+):
+    from oompah.scm import ReviewRequest
+    return ReviewRequest(
+        id=review_id,
+        title=f"PR #{review_id}",
+        url=f"https://github.com/org/repo/pull/{review_id}",
+        author="alice",
+        state="open",
+        source_branch=source_branch,
+        target_branch="main",
+        created_at="2025-01-01",
+        updated_at="2025-01-02",
+        ci_status=ci_status,
+        has_conflicts=has_conflicts,
+        needs_rebase=needs_rebase,
+        draft=draft,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Project model: merge_queue_enabled field
+# ---------------------------------------------------------------------------
+
+
+class TestProjectMergeQueueEnabled:
+    """Project.merge_queue_enabled round-trips through to_dict / from_dict."""
+
+    def test_default_is_false(self):
+        p = Project(id="p1", name="n", repo_url="u", repo_path="r")
+        assert p.merge_queue_enabled is False
+
+    def test_to_dict_includes_field(self):
+        p = Project(id="p1", name="n", repo_url="u", repo_path="r",
+                    merge_queue_enabled=True)
+        d = p.to_dict()
+        assert d["merge_queue_enabled"] is True
+
+    def test_to_dict_false_included(self):
+        p = Project(id="p1", name="n", repo_url="u", repo_path="r",
+                    merge_queue_enabled=False)
+        d = p.to_dict()
+        assert d["merge_queue_enabled"] is False
+
+    def test_from_dict_parses_true(self):
+        d = {
+            "id": "p1", "name": "n", "repo_url": "u", "repo_path": "r",
+            "merge_queue_enabled": True,
+        }
+        p = Project.from_dict(d)
+        assert p.merge_queue_enabled is True
+
+    def test_from_dict_parses_false(self):
+        d = {
+            "id": "p1", "name": "n", "repo_url": "u", "repo_path": "r",
+            "merge_queue_enabled": False,
+        }
+        p = Project.from_dict(d)
+        assert p.merge_queue_enabled is False
+
+    def test_from_dict_missing_defaults_to_false(self):
+        """Backwards compat: existing project dicts without the field default False."""
+        d = {"id": "p1", "name": "n", "repo_url": "u", "repo_path": "r"}
+        p = Project.from_dict(d)
+        assert p.merge_queue_enabled is False
+
+    def test_round_trip(self):
+        p = Project(id="p1", name="n", repo_url="u", repo_path="r",
+                    merge_queue_enabled=True)
+        p2 = Project.from_dict(p.to_dict())
+        assert p2.merge_queue_enabled is True
+
+
+# ---------------------------------------------------------------------------
+# SCM: GitHubProvider.enable_auto_merge
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not _SCM_AVAILABLE, reason="httpx not installed")
+class TestGitHubEnableAutoMerge:
+    """GitHubProvider.enable_auto_merge POSTs to the auto-merge endpoint."""
+
+    class _FakeResponse:
+        def __init__(self, status_code: int, text: str = ""):
+            self.status_code = status_code
+            self.text = text
+
+        def json(self):
+            return {}
+
+    def _provider_with_response(self, status_code: int, text: str = ""):
+        from oompah.scm import GitHubProvider
+        provider = GitHubProvider(access_token="t")
+        provider._api = MagicMock(
+            return_value=self._FakeResponse(status_code, text)
+        )
+        return provider
+
+    def test_success_200(self):
+        from oompah.scm import GitHubProvider
+        provider = self._provider_with_response(200)
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is True
+        assert "auto-merge" in msg.lower()
+
+    def test_success_201(self):
+        provider = self._provider_with_response(201)
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is True
+
+    def test_failure_405_method_not_allowed(self):
+        provider = self._provider_with_response(405, "Method Not Allowed")
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "405" in msg or "not allowed" in msg.lower()
+
+    def test_failure_other_http_error(self):
+        provider = self._provider_with_response(422, "Unprocessable Entity")
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "422" in msg
+
+    def test_http_exception_returns_failure(self):
+        import httpx
+        from oompah.scm import GitHubProvider
+        provider = GitHubProvider(access_token="t")
+        provider._api = MagicMock(side_effect=httpx.HTTPError("connection refused"))
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "connection refused" in msg.lower() or "Failed" in msg
+
+    def test_posts_to_auto_merge_endpoint(self):
+        from oompah.scm import GitHubProvider
+        provider = GitHubProvider(access_token="t")
+        provider._api = MagicMock(
+            return_value=self._FakeResponse(200)
+        )
+        provider.enable_auto_merge("org/repo", "42")
+        call_args = provider._api.call_args
+        assert call_args[0][0] == "POST"
+        assert "/repos/org/repo/pulls/42/auto-merge" in call_args[0][1]
+
+    def test_uses_squash_merge_method(self):
+        from oompah.scm import GitHubProvider
+        provider = GitHubProvider(access_token="t")
+        provider._api = MagicMock(
+            return_value=self._FakeResponse(200)
+        )
+        provider.enable_auto_merge("org/repo", "42")
+        call_kwargs = provider._api.call_args[1]
+        assert call_kwargs.get("json", {}).get("merge_method") == "squash"
+
+
+# ---------------------------------------------------------------------------
+# SCM: GitLabProvider.enable_auto_merge (fallback to direct merge)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not _SCM_AVAILABLE, reason="httpx not installed")
+class TestGitLabEnableAutoMerge:
+    """GitLabProvider.enable_auto_merge falls back to a direct merge."""
+
+    class _FakeResponse:
+        def __init__(self, status_code: int, text: str = ""):
+            self.status_code = status_code
+            self.text = text
+
+        def json(self):
+            return {}
+
+    def test_fallback_to_direct_merge_on_success(self):
+        from oompah.scm import GitLabProvider
+        provider = GitLabProvider(access_token="t")
+        provider._api = MagicMock(
+            return_value=self._FakeResponse(200)
+        )
+        ok, msg = provider.enable_auto_merge("group/project", "7")
+        assert ok is True
+
+    def test_fallback_to_direct_merge_on_failure(self):
+        from oompah.scm import GitLabProvider
+        provider = GitLabProvider(access_token="t")
+        provider._api = MagicMock(
+            return_value=self._FakeResponse(422, "cannot merge")
+        )
+        ok, msg = provider.enable_auto_merge("group/project", "7")
+        assert ok is False
+        assert "422" in msg
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator: _yolo_review_actions_sync dispatch mode
+# ---------------------------------------------------------------------------
+
+
+class TestYoloEnqueueMode:
+    """Tests that _yolo_review_actions_sync dispatches correctly based on merge_queue_enabled."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_direct_mode_calls_merge_review(self, mock_slug, mock_detect, tmp_path):
+        """Default (merge_queue_enabled=False) calls merge_review, not enable_auto_merge."""
+        project = _make_project(merge_queue_enabled=False)
+
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_called_once_with("org/repo", "42")
+        provider.enable_auto_merge.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_calls_enable_auto_merge(self, mock_slug, mock_detect, tmp_path):
+        """When merge_queue_enabled=True, enable_auto_merge is called instead of merge_review."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "42")
+        provider.merge_review.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_failed_enqueue_dispatches_conflict(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """When enable_auto_merge fails, conflict agent is dispatched (same as direct-mode merge failure)."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (False, "405 Method Not Allowed")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "42")
+        orch._yolo_notify_conflict.assert_called_once_with(
+            project, provider, "org/repo", "42"
+        )
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_successful_enqueue_does_not_dispatch_conflict(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Successful enqueue does not trigger a conflict notification."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        orch._yolo_notify_conflict.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_serializes_one_action_per_tick(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Queue mode also serializes to one action per project per tick."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("1", ci_status="passed"),
+                _make_review("2", ci_status="passed"),
+                _make_review("3", ci_status="passed"),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        assert provider.enable_auto_merge.call_count == 1
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "1")
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_pending_ci_is_skipped(self, mock_slug, mock_detect, tmp_path):
+        """Queue mode does not enqueue a PR when CI is still pending."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="pending")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.enable_auto_merge.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_needs_rebase_is_skipped(self, mock_slug, mock_detect, tmp_path):
+        """Queue mode does not enqueue a PR that needs a rebase."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed", needs_rebase=True)]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.enable_auto_merge.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Webhooks: parse_github_webhook merge_group events
+# ---------------------------------------------------------------------------
+
+
+class TestParseGithubMergeGroupWebhook:
+    """parse_github_webhook correctly handles merge_group events."""
+
+    def _make_payload(
+        self,
+        action: str = "checks_requested",
+        reason: str = "",
+        head_ref: str = "gh-readonly-queue/main/pr-42-feat-branch",
+        base_ref: str = "main",
+        repo: str = "org/repo",
+    ) -> dict:
+        payload = {
+            "action": action,
+            "merge_group": {
+                "head_ref": head_ref,
+                "base_ref": base_ref,
+            },
+            "repository": {"full_name": repo},
+        }
+        if reason:
+            payload["reason"] = reason
+        return payload
+
+    def test_merge_group_event_is_parsed(self):
+        payload = self._make_payload(action="checks_requested")
+        event = parse_github_webhook("merge_group", payload)
+        assert event is not None
+        assert event.event_type == "merge_group"
+        assert event.provider == "github"
+
+    def test_checks_requested_action(self):
+        payload = self._make_payload(action="checks_requested")
+        event = parse_github_webhook("merge_group", payload)
+        assert event.action == "checks_requested"
+        assert event.merged is False
+
+    def test_destroyed_with_merged_reason_sets_merged_true(self):
+        payload = self._make_payload(action="destroyed", reason="merged")
+        event = parse_github_webhook("merge_group", payload)
+        assert event.merged is True
+
+    def test_destroyed_with_invalidated_reason_sets_merged_false(self):
+        payload = self._make_payload(action="destroyed", reason="invalidated")
+        event = parse_github_webhook("merge_group", payload)
+        assert event.merged is False
+
+    def test_destroyed_with_dequeued_reason_sets_merged_false(self):
+        payload = self._make_payload(action="destroyed", reason="dequeued")
+        event = parse_github_webhook("merge_group", payload)
+        assert event.merged is False
+
+    def test_destroyed_without_reason_sets_merged_false(self):
+        payload = self._make_payload(action="destroyed")
+        event = parse_github_webhook("merge_group", payload)
+        assert event.merged is False
+
+    def test_repo_slug_extracted(self):
+        payload = self._make_payload(repo="myorg/myrepo")
+        event = parse_github_webhook("merge_group", payload)
+        assert event.repo_slug == "myorg/myrepo"
+
+    def test_head_ref_in_source_branch(self):
+        head_ref = "gh-readonly-queue/main/pr-42-oompah-zlz_2-xyz"
+        payload = self._make_payload(head_ref=head_ref)
+        event = parse_github_webhook("merge_group", payload)
+        assert event.source_branch == head_ref
+
+    def test_base_ref_in_target_branch(self):
+        payload = self._make_payload(base_ref="main")
+        event = parse_github_webhook("merge_group", payload)
+        assert event.target_branch == "main"
+
+    def test_no_review_id_for_merge_group(self):
+        """merge_group events don't directly carry a PR number."""
+        payload = self._make_payload()
+        event = parse_github_webhook("merge_group", payload)
+        assert event.review_id == ""
+
+    def test_none_on_empty_merge_group_object(self):
+        """Malformed payload (no merge_group key) returns None."""
+        event = parse_github_webhook("merge_group", {"action": "checks_requested"})
+        assert event is None
+
+    def test_other_events_still_ignored(self):
+        """Sanity: non-merge_group events still route correctly."""
+        event = parse_github_webhook("star", {"action": "created"})
+        assert event is None
+
+    def test_pull_request_event_unchanged(self):
+        """Existing PR parsing is not broken by the new handler."""
+        payload = {
+            "action": "opened",
+            "pull_request": {
+                "number": 7,
+                "title": "feat",
+                "merged": False,
+                "user": {"login": "alice"},
+                "head": {"ref": "feat-branch"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "org/repo"},
+        }
+        event = parse_github_webhook("pull_request", payload)
+        assert event is not None
+        assert event.event_type == "pull_request"
+
+
+# ---------------------------------------------------------------------------
+# Server: _webhook_advanced_tracked_branch for merge_group events
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookAdvancedTrackedBranchMergeGroup:
+    """_webhook_advanced_tracked_branch recognises successful merge_group events."""
+
+    def _make_project_obj(self, branch: str = "main") -> MagicMock:
+        p = MagicMock()
+        p.branch = branch
+        return p
+
+    def _make_merge_group_event(
+        self, merged: bool, target_branch: str = "main"
+    ) -> WebhookEvent:
+        return WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            repo_slug="org/repo",
+            source_branch="gh-readonly-queue/main/pr-42-feat",
+            target_branch=target_branch,
+            merged=merged,
+        )
+
+    def test_merge_group_merged_and_target_matches(self):
+        from oompah.server import _webhook_advanced_tracked_branch
+        project = self._make_project_obj("main")
+        event = self._make_merge_group_event(merged=True, target_branch="main")
+        assert _webhook_advanced_tracked_branch(event, project) is True
+
+    def test_merge_group_not_merged_does_not_advance(self):
+        from oompah.server import _webhook_advanced_tracked_branch
+        project = self._make_project_obj("main")
+        event = self._make_merge_group_event(merged=False, target_branch="main")
+        assert _webhook_advanced_tracked_branch(event, project) is False
+
+    def test_merge_group_merged_but_different_branch(self):
+        from oompah.server import _webhook_advanced_tracked_branch
+        project = self._make_project_obj("develop")
+        event = self._make_merge_group_event(merged=True, target_branch="main")
+        assert _webhook_advanced_tracked_branch(event, project) is False
+
+    def test_push_event_unaffected(self):
+        """Sanity: push event still works as before."""
+        from oompah.server import _webhook_advanced_tracked_branch
+        project = self._make_project_obj("main")
+        event = WebhookEvent(
+            provider="github",
+            event_type="push",
+            action="pushed",
+            target_branch="main",
+        )
+        assert _webhook_advanced_tracked_branch(event, project) is True
+
+    def test_pull_request_merged_unaffected(self):
+        """Sanity: PR closed+merged event still works as before."""
+        from oompah.server import _webhook_advanced_tracked_branch
+        project = self._make_project_obj("main")
+        event = WebhookEvent(
+            provider="github",
+            event_type="pull_request",
+            action="closed",
+            target_branch="main",
+            merged=True,
+        )
+        assert _webhook_advanced_tracked_branch(event, project) is True
+
+
+# ---------------------------------------------------------------------------
+# Server: _label_bead_merged_from_merge_group
+# ---------------------------------------------------------------------------
+
+
+class TestLabelBeadMergedFromMergeGroup:
+    """_label_bead_merged_from_merge_group parses head_ref and labels the bead."""
+
+    def _make_orch_with_tracker(self, issue_id: str, issue_labels: list[str]):
+        """Build a minimal mock orchestrator with one issue in the tracker."""
+        mock_issue = MagicMock()
+        mock_issue.identifier = issue_id
+        mock_issue.labels = issue_labels
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = mock_issue
+
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = mock_tracker
+        return orch, mock_tracker, mock_issue
+
+    def _make_project(self, project_id: str = "proj-1") -> MagicMock:
+        p = MagicMock()
+        p.id = project_id
+        return p
+
+    def test_labels_bead_merged_on_success(self):
+        from oompah.server import _label_bead_merged_from_merge_group
+        # head_ref: gh-readonly-queue/main/pr-42-oompah-zlz_2-xyz
+        orch, tracker, issue = self._make_orch_with_tracker(
+            "oompah-zlz_2-xyz", []
+        )
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="gh-readonly-queue/main/pr-42-oompah-zlz_2-xyz",
+            merged=True,
+        )
+
+        _label_bead_merged_from_merge_group(orch, event, project)
+
+        tracker.add_label.assert_called_once_with("oompah-zlz_2-xyz", "merged")
+
+    def test_skips_already_merged_bead(self):
+        from oompah.server import _label_bead_merged_from_merge_group
+        orch, tracker, issue = self._make_orch_with_tracker(
+            "oompah-zlz_2-xyz", ["merged"]
+        )
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="gh-readonly-queue/main/pr-42-oompah-zlz_2-xyz",
+            merged=True,
+        )
+
+        _label_bead_merged_from_merge_group(orch, event, project)
+
+        tracker.add_label.assert_not_called()
+
+    def test_no_project_is_noop(self):
+        from oompah.server import _label_bead_merged_from_merge_group
+        orch = MagicMock()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="gh-readonly-queue/main/pr-42-feat",
+            merged=True,
+        )
+
+        # Should not raise
+        _label_bead_merged_from_merge_group(orch, event, None)
+        orch._tracker_for_project.assert_not_called()
+
+    def test_empty_source_branch_is_noop(self):
+        from oompah.server import _label_bead_merged_from_merge_group
+        orch = MagicMock()
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="",
+            merged=True,
+        )
+
+        _label_bead_merged_from_merge_group(orch, event, project)
+        orch._tracker_for_project.assert_not_called()
+
+    def test_tracker_error_does_not_raise(self):
+        from oompah.server import _label_bead_merged_from_merge_group
+        orch = MagicMock()
+        orch._tracker_for_project.side_effect = Exception("db offline")
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="gh-readonly-queue/main/pr-42-feat",
+            merged=True,
+        )
+
+        # Should not raise
+        _label_bead_merged_from_merge_group(orch, event, project)
+
+    def test_bead_not_found_is_noop(self):
+        from oompah.server import _label_bead_merged_from_merge_group
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = None
+        orch = MagicMock()
+        orch._tracker_for_project.return_value = mock_tracker
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="gh-readonly-queue/main/pr-99-unknown-branch",
+            merged=True,
+        )
+
+        _label_bead_merged_from_merge_group(orch, event, project)
+        mock_tracker.add_label.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# ProjectStore: merge_queue_enabled in UPDATABLE_FIELDS
+# ---------------------------------------------------------------------------
+
+
+class TestProjectStoreUpdatableFields:
+    """merge_queue_enabled is accepted by ProjectStore.update."""
+
+    def test_merge_queue_enabled_in_updatable_fields(self):
+        from oompah.projects import ProjectStore
+        assert "merge_queue_enabled" in ProjectStore.UPDATABLE_FIELDS
+
+    def test_update_accepts_merge_queue_enabled(self, tmp_path):
+        """ProjectStore.update does not raise when merge_queue_enabled is passed."""
+        from oompah.projects import ProjectStore
+        from oompah.models import Project
+
+        store = ProjectStore(path=str(tmp_path / "projects.json"))
+        # Directly inject a project (bypassing git clone)
+        project = Project(
+            id="proj-test",
+            name="test",
+            repo_url="https://github.com/org/repo",
+            repo_path=str(tmp_path),
+        )
+        store._projects["proj-test"] = project
+        store._save()
+
+        updated = store.update("proj-test", merge_queue_enabled=True)
+        assert updated is not None
+        assert updated.merge_queue_enabled is True
+
+    def test_update_unknown_field_raises(self, tmp_path):
+        """Unknown fields still raise ProjectError as before."""
+        from oompah.projects import ProjectStore, ProjectError
+        from oompah.models import Project
+
+        store = ProjectStore(path=str(tmp_path / "projects.json"))
+        project = Project(
+            id="proj-test",
+            name="test",
+            repo_url="https://github.com/org/repo",
+            repo_path=str(tmp_path),
+        )
+        store._projects["proj-test"] = project
+        store._save()
+
+        with pytest.raises(ProjectError):
+            store.update("proj-test", unknown_field=True)
