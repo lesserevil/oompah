@@ -4,7 +4,14 @@ Parses webhook payloads, validates HMAC signatures (GitHub) or secret
 tokens (GitLab), and extracts PR/MR event information for the EventBus.
 
 The WebhookForwarder class manages 'gh webhook forward' subprocesses for
-each project, monitoring health and restarting on failure.
+each project, monitoring health and restarting on failure. It depends on
+the third-party ``cli/gh-webhook`` gh extension and probes for it at
+startup; if the extension is missing, a single ERROR is logged and the
+forwarder skips launching subprocesses (rather than silently no-op'ing
+as in the original bug — see issue ``oompah-zlz_2-2g1``).
+
+See ``docs/webhook-forwarding.md`` for setup, verification, and
+troubleshooting.
 
 Usage::
 
@@ -15,6 +22,7 @@ Usage::
         parse_gitlab_webhook,
         WebhookEvent,
         WebhookForwarder,
+        check_gh_webhook_available,
     )
 """
 
@@ -306,6 +314,7 @@ def match_project_by_repo(
 
 import asyncio
 import os
+import shutil
 
 
 _WEBHOOK_FORWARD_URL_DEFAULT = "http://localhost:8080/api/v1/webhooks/github"
@@ -313,11 +322,70 @@ _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
 _WEBHOOK_BASE_DELAY_S = 1.0  # initial restart backoff
 _WEBHOOK_MAX_DELAY_S = 60.0  # cap on restart backoff
 
+# Default events the forwarder subscribes to. ``push`` drives source-sync
+# after operators commit directly to a tracked branch; ``pull_request``
+# drives auto-merge label updates and PR-closed handling. Without
+# ``--events``, the gh-webhook extension subscribes to nothing and
+# the subprocess produces no traffic.
+_WEBHOOK_DEFAULT_EVENTS = "push,pull_request"
+
+# Stderr tail size kept in memory per project (for surfacing the most
+# recent error to the dashboard / logs without unbounded growth).
+_WEBHOOK_STDERR_TAIL_BYTES = 4096
+
+
+async def check_gh_webhook_available() -> tuple[bool, str]:
+    """Probe whether the ``gh webhook`` extension is installed.
+
+    Runs ``gh webhook --help`` once and inspects the exit code. The
+    ``cli/gh-webhook`` extension is a third-party gh extension; on a
+    machine that does not have it installed, ``gh`` exits non-zero and
+    prints ``unknown command "webhook"`` to stderr.
+
+    Returns:
+        A tuple of ``(available, detail)``. ``available`` is ``True`` if
+        the extension responded successfully. ``detail`` is a short
+        human-readable string explaining the failure (or ``""`` on
+        success) — suitable for logging and dashboard alerts.
+    """
+    if shutil.which("gh") is None:
+        return False, "'gh' CLI not found on PATH"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "gh", "webhook", "--help",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+    except asyncio.TimeoutError:
+        return False, "'gh webhook --help' timed out"
+    except FileNotFoundError:
+        return False, "'gh' CLI not found on PATH"
+    except Exception as exc:  # pragma: no cover — defensive
+        return False, f"failed to probe gh webhook: {exc}"
+
+    if proc.returncode == 0:
+        return True, ""
+
+    msg = (stderr or b"").decode("utf-8", errors="replace").strip().splitlines()
+    detail = msg[0] if msg else f"gh webhook exited with code {proc.returncode}"
+    return False, detail
+
 
 class _ForwarderProcess:
     """Holds state for one project's webhook forward subprocess."""
 
-    __slots__ = ("project_id", "project_name", "repo_path", "process", "restart_delay_s", "restart_attempts")
+    __slots__ = (
+        "project_id",
+        "project_name",
+        "repo_path",
+        "process",
+        "restart_delay_s",
+        "restart_attempts",
+        "stderr_task",
+        "last_stderr",
+    )
 
     def __init__(self, project_id: str, project_name: str, repo_path: str):
         self.project_id = project_id
@@ -326,6 +394,13 @@ class _ForwarderProcess:
         self.process: asyncio.subprocess.Process | None = None
         self.restart_delay_s: float = _WEBHOOK_BASE_DELAY_S
         self.restart_attempts: int = 0
+        # Background task that drains the subprocess's stderr into
+        # ``last_stderr``. Reset on every (re)launch.
+        self.stderr_task: asyncio.Task | None = None
+        # Tail of the most recent stderr output (truncated to
+        # _WEBHOOK_STDERR_TAIL_BYTES). Useful for surfacing auth or
+        # extension-install errors when the process crashes.
+        self.last_stderr: str = ""
 
 
 class WebhookForwarder:
@@ -348,6 +423,18 @@ class WebhookForwarder:
                      environment variable or ``http://localhost:8080/api/v1/webhooks/github``.
         poll_interval_s: How often (in seconds) to poll process health.
                          Defaults to 5 seconds.
+        events: Comma-separated list of forge event names to forward
+                (passed verbatim to ``gh webhook forward --events``).
+                Defaults to ``"push,pull_request"`` — the minimum set
+                required for source-sync after direct pushes and for
+                PR-closed / auto-merge label updates. Override via the
+                ``OOMPAH_WEBHOOK_EVENTS`` environment variable.
+        status_callback: Optional callable invoked when the forwarder's
+                         availability state changes. Called with a dict:
+                         ``{"available": bool, "detail": str}`` so an
+                         outer system (orchestrator, dashboard) can
+                         surface a degraded-mode banner. The callback
+                         runs synchronously; keep it cheap.
     """
 
     def __init__(
@@ -355,6 +442,8 @@ class WebhookForwarder:
         project_store: Any = None,
         webhook_url: str | None = None,
         poll_interval_s: float = _WEBHOOK_POLL_INTERVAL_S,
+        events: str | None = None,
+        status_callback: Any = None,
     ):
         self.project_store = project_store
         self._webhook_url = (
@@ -362,24 +451,99 @@ class WebhookForwarder:
             or os.environ.get("OOMPAH_WEBHOOK_FORWARD_URL")
             or _WEBHOOK_FORWARD_URL_DEFAULT
         )
+        self._events = (
+            events
+            or os.environ.get("OOMPAH_WEBHOOK_EVENTS")
+            or _WEBHOOK_DEFAULT_EVENTS
+        )
         self._poll_interval_s = poll_interval_s
         self._processes: dict[str, _ForwarderProcess] = {}  # project_id -> state
         self._stopping = False
         self._task: asyncio.Task | None = None
         self._started = False
+        # Set after the first ``check_gh_webhook_available()`` probe.
+        # ``None`` means "not yet probed". Once probed, downstream code
+        # uses this to skip launching forwarders rather than spamming
+        # the log on every restart-backoff cycle.
+        self._extension_available: bool | None = None
+        self._extension_detail: str = ""
+        self._status_callback = status_callback
 
     @property
     def is_running(self) -> bool:
         """True if the forwarder polling loop is active."""
         return self._started and not self._stopping
 
+    @property
+    def extension_available(self) -> bool | None:
+        """Whether the ``gh webhook`` extension was found at startup.
+
+        ``None`` until :meth:`start` has run the probe. ``False`` means
+        the extension is missing or broken — no subprocesses will be
+        launched. ``True`` means forwarders are running normally.
+        """
+        return self._extension_available
+
+    @property
+    def status(self) -> dict[str, Any]:
+        """Snapshot of the forwarder's health for the dashboard.
+
+        Includes whether the extension is available, the most recent
+        probe detail (e.g. ``"unknown command \"webhook\""``), and a
+        per-project view of the latest stderr tail when a subprocess has
+        been crashing.
+        """
+        per_project: dict[str, dict[str, Any]] = {}
+        for pid, fp in self._processes.items():
+            per_project[pid] = {
+                "name": fp.project_name,
+                "running": fp.process is not None and fp.process.returncode is None,
+                "restart_attempts": fp.restart_attempts,
+                "last_stderr": fp.last_stderr,
+            }
+        return {
+            "running": self.is_running,
+            "extension_available": self._extension_available,
+            "extension_detail": self._extension_detail,
+            "events": self._events,
+            "webhook_url": self._webhook_url,
+            "projects": per_project,
+        }
+
     async def start(self) -> None:
         """Start the forwarder polling loop.
 
         Idempotent — subsequent calls while already running are no-ops.
+
+        Performs a one-shot ``gh webhook --help`` probe before starting
+        the polling loop. If the ``cli/gh-webhook`` extension is missing,
+        a single ERROR log line is emitted, the polling loop runs but
+        never spawns subprocesses, and :meth:`extension_available`
+        becomes ``False`` so the dashboard can show a degraded-mode
+        banner.
         """
         if self._started:
             return
+
+        available, detail = await check_gh_webhook_available()
+        self._extension_available = available
+        self._extension_detail = detail
+        if available:
+            logger.info(
+                "WebhookForwarder: gh-webhook extension OK; forwarding events=%s",
+                self._events,
+            )
+        else:
+            logger.error(
+                "WebhookForwarder: gh-webhook extension unavailable (%s). "
+                "Install with `gh extension install cli/gh-webhook` "
+                "(or run `make install-gh-extensions`). "
+                "No forge webhook events will be forwarded; "
+                "oompah will fall back to the periodic full-sync safety net.",
+                detail or "unknown reason",
+            )
+        self._notify_status()
+
         self._started = True
         self._stopping = False
         self._task = asyncio.create_task(self._run_loop())
@@ -388,6 +552,18 @@ class WebhookForwarder:
             self._webhook_url,
             self._poll_interval_s,
         )
+
+    def _notify_status(self) -> None:
+        """Invoke the status callback (if any), swallowing exceptions."""
+        if self._status_callback is None:
+            return
+        try:
+            self._status_callback({
+                "available": bool(self._extension_available),
+                "detail": self._extension_detail,
+            })
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning("WebhookForwarder status_callback raised: %s", exc)
 
     async def stop(self) -> None:
         """Stop the forwarder and terminate all subprocesses.
@@ -490,7 +666,21 @@ class WebhookForwarder:
         await self._launch(fp)
 
     async def _launch(self, fp: _ForwarderProcess) -> None:
-        """Launch a 'gh webhook forward' subprocess for one project."""
+        """Launch a 'gh webhook forward' subprocess for one project.
+
+        Skips silently (no subprocess, no log spam) when the
+        ``gh webhook`` extension was found unavailable at startup —
+        the single ERROR was already logged in :meth:`start`. The
+        invocation always passes ``--events`` so the upstream extension
+        actually subscribes to events; without it, the subprocess
+        connects but no traffic is delivered.
+        """
+        # Don't pollute logs on every poll cycle when the extension is
+        # known-missing. The single startup ERROR already told the
+        # operator; the dashboard banner keeps the state visible.
+        if self._extension_available is False:
+            return
+
         repo_path = fp.repo_path
         if not repo_path or not os.path.isdir(repo_path):
             logger.debug(
@@ -511,6 +701,8 @@ class WebhookForwarder:
                 "gh",
                 "webhook",
                 "forward",
+                "--events",
+                self._events,
                 "--url",
                 self._webhook_url,
                 cwd=repo_path,
@@ -518,10 +710,18 @@ class WebhookForwarder:
                 stderr=asyncio.subprocess.PIPE,
             )
             fp.process = proc
+            # Reset stderr buffer for the new invocation and start the
+            # background drainer. Capturing stderr is critical for
+            # surfacing install/auth issues — without it, a process
+            # that exits immediately leaves no diagnostic trail.
+            fp.last_stderr = ""
+            fp.stderr_task = asyncio.create_task(self._drain_stderr(fp))
             logger.info(
-                "WebhookForwarder: started gh webhook forward for project %s (pid=%d)",
+                "WebhookForwarder: started gh webhook forward for project %s "
+                "(pid=%d, events=%s)",
                 fp.project_name,
                 proc.pid,
+                self._events,
             )
         except FileNotFoundError:
             logger.warning(
@@ -537,6 +737,45 @@ class WebhookForwarder:
             )
             fp.process = None
 
+    async def _drain_stderr(self, fp: _ForwarderProcess) -> None:
+        """Read the subprocess's stderr into ``fp.last_stderr``.
+
+        Keeps only the most recent ``_WEBHOOK_STDERR_TAIL_BYTES`` bytes
+        so a long-running noisy forwarder doesn't grow unbounded. When
+        the process exits with a non-zero return code, the captured tail
+        is logged at WARNING so install/auth problems surface in
+        ``oompah.log``.
+        """
+        proc = fp.process
+        if proc is None:
+            return
+        stderr = getattr(proc, "stderr", None)
+        if stderr is None:
+            return
+        buf = b""
+        try:
+            while True:
+                chunk = await stderr.read(1024)
+                if not chunk:
+                    break
+                buf = (buf + chunk)[-_WEBHOOK_STDERR_TAIL_BYTES:]
+                fp.last_stderr = buf.decode("utf-8", errors="replace")
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pragma: no cover — defensive
+            pass
+        # If the process exited badly, log the captured tail so the
+        # operator can see auth/install errors in oompah.log.
+        rc = proc.returncode
+        if rc not in (None, 0) and fp.last_stderr:
+            logger.warning(
+                "WebhookForwarder: gh webhook forward stderr for project %s "
+                "(exit=%d): %s",
+                fp.project_name,
+                rc,
+                fp.last_stderr.strip(),
+            )
+
     async def _terminate(self, project_id: str) -> None:
         """Terminate the subprocess for one project, if running."""
         fp = self._processes.get(project_id)
@@ -544,10 +783,14 @@ class WebhookForwarder:
             return
         proc = fp.process
         if proc is None:
+            # No subprocess, but a stderr drainer task may still be
+            # outstanding from a prior run — clean it up.
+            await self._cancel_stderr_task(fp)
             return
 
         fp.process = None
         if proc.returncode is not None:
+            await self._cancel_stderr_task(fp)
             return  # already exited
 
         try:
@@ -560,10 +803,26 @@ class WebhookForwarder:
         except (ProcessLookupError, ValueError, OSError):
             pass
 
+        await self._cancel_stderr_task(fp)
         logger.info(
             "WebhookForwarder: terminated gh webhook forward for project %s",
             fp.project_name,
         )
+
+    @staticmethod
+    async def _cancel_stderr_task(fp: _ForwarderProcess) -> None:
+        """Cancel the background stderr drainer (if any) and await it."""
+        task = fp.stderr_task
+        if task is None:
+            return
+        fp.stderr_task = None
+        if task.done():
+            return
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
 
     async def _kill_all(self) -> None:
         """Terminate all running subprocesses."""

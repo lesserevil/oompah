@@ -27,6 +27,7 @@ from oompah.webhooks import (
     WebhookEvent,
     WebhookForwarder,
     _ForwarderProcess,
+    check_gh_webhook_available,
     match_project_by_repo,
     parse_github_webhook,
     parse_gitlab_webhook,
@@ -1073,3 +1074,353 @@ def _FakeProjectStore(projects=None):
             return self._map.get(pid)
 
     return __Fake(projects)
+
+
+# ---------------------------------------------------------------------------
+# gh-webhook extension detection (oompah-zlz_2-2g1)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckGhWebhookAvailable:
+    """Tests for ``check_gh_webhook_available()`` startup probe.
+
+    These are the test cases described in the AC for oompah-zlz_2-2g1:
+    the forwarder must detect at startup whether the third-party
+    ``cli/gh-webhook`` extension is installed and surface a clear
+    one-shot error if it is missing.
+    """
+
+    @pytest.mark.asyncio
+    async def test_gh_not_on_path_returns_false(self, monkeypatch):
+        """If the gh CLI isn't installed, available=False with a clear detail."""
+        monkeypatch.setattr("oompah.webhooks.shutil.which", lambda _: None)
+        available, detail = await check_gh_webhook_available()
+        assert available is False
+        assert "gh" in detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_extension_present_returns_true(self, monkeypatch):
+        """gh webhook --help exit 0 → extension is available."""
+        monkeypatch.setattr("oompah.webhooks.shutil.which", lambda _: "/usr/bin/gh")
+
+        class _FakeProc:
+            returncode = 0
+
+            async def communicate(self):
+                return (b"Usage: gh webhook ...\n", b"")
+
+        async def fake_exec(*args, **kwargs):
+            return _FakeProc()
+
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_exec)
+        available, detail = await check_gh_webhook_available()
+        assert available is True
+        assert detail == ""
+
+    @pytest.mark.asyncio
+    async def test_extension_missing_returns_false(self, monkeypatch):
+        """gh webhook --help non-zero → available=False, stderr captured."""
+        monkeypatch.setattr("oompah.webhooks.shutil.which", lambda _: "/usr/bin/gh")
+
+        class _FakeProc:
+            returncode = 1
+
+            async def communicate(self):
+                return (b"", b'unknown command "webhook" for "gh"\n')
+
+        async def fake_exec(*args, **kwargs):
+            return _FakeProc()
+
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_exec)
+        available, detail = await check_gh_webhook_available()
+        assert available is False
+        assert "unknown command" in detail
+
+
+class TestWebhookForwarderEventsFlag:
+    """Confirm --events is always passed when launching gh webhook forward.
+
+    Without --events the gh-webhook extension subscribes to no events
+    and the subprocess produces zero traffic — the second half of the
+    bug described in oompah-zlz_2-2g1.
+    """
+
+    @pytest.fixture
+    def git_repo(self, tmp_path):
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+        return tmp_path
+
+    @pytest.mark.asyncio
+    async def test_default_events_passed_to_subprocess(self, git_repo):
+        fwd = WebhookForwarder()
+        # Pretend we already probed and the extension is available so
+        # _launch actually attempts the spawn.
+        fwd._extension_available = True
+
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+
+        captured: dict = {}
+
+        class _FakeProc:
+            pid = 12345
+            returncode = None
+            stderr = None
+
+        async def fake_exec(*args, **kwargs):
+            captured["argv"] = list(args)
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        argv = captured["argv"]
+        assert "gh" == argv[0]
+        assert "webhook" in argv
+        assert "forward" in argv
+        # --events must be present and followed by the default set
+        assert "--events" in argv
+        i = argv.index("--events")
+        assert argv[i + 1] == "push,pull_request"
+        # --url must still be passed
+        assert "--url" in argv
+
+    @pytest.mark.asyncio
+    async def test_custom_events_via_init(self, git_repo):
+        fwd = WebhookForwarder(events="pull_request")
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+
+        captured: dict = {}
+
+        class _FakeProc:
+            pid = 1
+            returncode = None
+            stderr = None
+
+        async def fake_exec(*args, **kwargs):
+            captured["argv"] = list(args)
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        i = captured["argv"].index("--events")
+        assert captured["argv"][i + 1] == "pull_request"
+
+    @pytest.mark.asyncio
+    async def test_events_env_var_override(self, git_repo, monkeypatch):
+        monkeypatch.setenv("OOMPAH_WEBHOOK_EVENTS", "push,issues")
+        fwd = WebhookForwarder()
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+
+        captured: dict = {}
+
+        class _FakeProc:
+            pid = 1
+            returncode = None
+            stderr = None
+
+        async def fake_exec(*args, **kwargs):
+            captured["argv"] = list(args)
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        i = captured["argv"].index("--events")
+        assert captured["argv"][i + 1] == "push,issues"
+
+
+class TestWebhookForwarderExtensionMissing:
+    """Behavior when the gh-webhook extension is not installed.
+
+    Per the AC: the forwarder must log a single ERROR (not on every
+    restart loop), surface the failure to the dashboard, and skip
+    launching subprocesses entirely rather than pretending to run.
+    """
+
+    @pytest.fixture
+    def git_repo(self, tmp_path):
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+        return tmp_path
+
+    @pytest.mark.asyncio
+    async def test_launch_skipped_when_extension_unavailable(self, git_repo):
+        fwd = WebhookForwarder()
+        fwd._extension_available = False  # set by start() probe in real code
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+
+        with patch("asyncio.create_subprocess_exec") as mock_exec:
+            await fwd._launch(fp)
+        # No subprocess was spawned, no fake "started" log.
+        mock_exec.assert_not_called()
+        assert fp.process is None
+
+    @pytest.mark.asyncio
+    async def test_start_runs_probe_and_logs_single_error(self, caplog):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+
+        async def fake_probe():
+            return False, 'unknown command "webhook"'
+
+        with patch("oompah.webhooks.check_gh_webhook_available", side_effect=fake_probe):
+            with caplog.at_level("ERROR", logger="oompah.webhooks"):
+                await fwd.start()
+                try:
+                    # Run a couple of poll cycles to make sure the
+                    # restart loop does NOT keep emitting errors.
+                    await asyncio.sleep(0.02)
+                finally:
+                    await fwd.stop()
+
+        # Exactly one ERROR-level record from the forwarder about the
+        # missing extension — not one per poll cycle.
+        ext_errors = [
+            r for r in caplog.records
+            if r.levelname == "ERROR" and "gh-webhook extension unavailable" in r.message
+        ]
+        assert len(ext_errors) == 1
+        assert fwd.extension_available is False
+
+    @pytest.mark.asyncio
+    async def test_status_callback_invoked_when_unavailable(self):
+        statuses: list = []
+
+        def cb(status):
+            statuses.append(status)
+
+        fwd = WebhookForwarder(
+            project_store=_DummyProjectStore(),
+            status_callback=cb,
+        )
+
+        async def fake_probe():
+            return False, "no gh on PATH"
+
+        with patch("oompah.webhooks.check_gh_webhook_available", side_effect=fake_probe):
+            await fwd.start()
+            await fwd.stop()
+
+        assert len(statuses) == 1
+        assert statuses[0]["available"] is False
+        assert "no gh on PATH" in statuses[0]["detail"]
+
+    @pytest.mark.asyncio
+    async def test_status_callback_invoked_when_available(self):
+        statuses: list = []
+
+        def cb(status):
+            statuses.append(status)
+
+        fwd = WebhookForwarder(
+            project_store=_DummyProjectStore(),
+            status_callback=cb,
+        )
+
+        async def fake_probe():
+            return True, ""
+
+        with patch("oompah.webhooks.check_gh_webhook_available", side_effect=fake_probe):
+            await fwd.start()
+            await fwd.stop()
+
+        assert len(statuses) == 1
+        assert statuses[0]["available"] is True
+
+    @pytest.mark.asyncio
+    async def test_status_property_reports_extension_state(self):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+
+        async def fake_probe():
+            return False, "boom"
+
+        with patch("oompah.webhooks.check_gh_webhook_available", side_effect=fake_probe):
+            await fwd.start()
+            try:
+                status = fwd.status
+                assert status["extension_available"] is False
+                assert status["extension_detail"] == "boom"
+                assert status["events"] == "push,pull_request"
+                assert "projects" in status
+            finally:
+                await fwd.stop()
+
+
+class TestWebhookForwarderStderrCapture:
+    """The forwarder must capture subprocess stderr so install/auth
+    errors surface in oompah.log instead of being silently dropped."""
+
+    @pytest.fixture
+    def git_repo(self, tmp_path):
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+        return tmp_path
+
+    @pytest.mark.asyncio
+    async def test_stderr_drained_into_last_stderr(self, git_repo):
+        fwd = WebhookForwarder()
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+
+        # Fake stderr stream: yields a single chunk then EOF.
+        class _FakeStderr:
+            def __init__(self):
+                self._chunks = [b"auth required: run `gh auth login`\n", b""]
+
+            async def read(self, _n):
+                return self._chunks.pop(0) if self._chunks else b""
+
+        class _FakeProc:
+            pid = 1
+            returncode = 0
+            stderr = _FakeStderr()
+
+        async def fake_exec(*args, **kwargs):
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        # Wait for the drainer to finish.
+        if fp.stderr_task is not None:
+            await fp.stderr_task
+
+        assert "auth required" in fp.last_stderr
+
+    @pytest.mark.asyncio
+    async def test_terminate_cancels_stderr_task(self, git_repo):
+        fwd = WebhookForwarder()
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+
+        class _BlockingStderr:
+            async def read(self, _n):
+                # Block forever so we can verify cancellation cleans up.
+                await asyncio.sleep(3600)
+                return b""
+
+        class _FakeProc:
+            pid = 1
+            returncode = None
+            stderr = _BlockingStderr()
+
+            def terminate(self):
+                pass
+
+            async def wait(self):
+                pass
+
+        async def fake_exec(*args, **kwargs):
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+            assert fp.stderr_task is not None and not fp.stderr_task.done()
+            fwd._processes["p1"] = fp
+            await fwd._terminate("p1")
+
+        # Stderr task should have been cancelled and cleared.
+        assert fp.stderr_task is None

@@ -15,6 +15,7 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 - **Budget controls** — set spending limits, track costs by agent profile, and pause dispatch when budgets are exceeded
 - **Live dashboard** — real-time web UI with kanban board, agent activity, cost tracking, reviews page, and focus management
 - **Multimodal attachments** — drop images, audio, or PDFs onto an issue; agents with image-capable models receive them inline. With `allow_image_output` foci, agents can attach generated images back to the issue. Stored in the project repo via git LFS. See `docs/multimodal-attachments.md`.
+- **Forge webhook forwarding** — listens for PR/push events via `gh webhook forward` so reactions are near-realtime instead of waiting for the periodic full-sync. Requires the `cli/gh-webhook` extension; install with `make install-gh-extensions`. See `docs/webhook-forwarding.md`.
 - **Hot reload** — edit `WORKFLOW.md` and the service picks up changes without restart
 
 ## Quick start
