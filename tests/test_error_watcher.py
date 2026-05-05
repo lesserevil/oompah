@@ -356,6 +356,286 @@ class TestErrorWatcherAutoClose:
 
 
 # ---------------------------------------------------------------------------
+# Tests for fingerprint normalization (issue oompah-zlz_2-ag7)
+# ---------------------------------------------------------------------------
+
+
+class TestFingerprintNormalization:
+    """Verify the fingerprint dedupes operationally-identical errors.
+
+    See oompah-zlz_2-ag7: a single Dolt slowdown produced 3 separate beads
+    because the fingerprint hashed the full message. These tests pin the
+    new normalization rules.
+    """
+
+    def _make_watcher(self):
+        tracker = MagicMock()
+        issue = MagicMock()
+        issue.identifier = "test-001"
+        tracker.create_issue.return_value = issue
+        return ErrorWatcher(tracker), tracker
+
+    def _fp(self, watcher, message, source="backend:orchestrator", **kw):
+        return watcher._fingerprint(source, message, **kw)
+
+    # --- regression: identical messages still collapse ---
+
+    def test_identical_messages_same_fingerprint(self):
+        w, _ = self._make_watcher()
+        msg = "something boring failed"
+        assert self._fp(w, msg) == self._fp(w, msg)
+
+    def test_existing_normalization_preserved(self):
+        """Existing hex-addr / UUID / timestamp / number normalization."""
+        w, _ = self._make_watcher()
+        a = "memory leak at 0xdeadbeef on 2024-01-01T12:00:00 task 1234567"
+        b = "memory leak at 0xfeedface on 2024-12-31T23:59:59 task 9999999"
+        assert self._fp(w, a) == self._fp(w, b)
+
+    def test_uuid_normalization(self):
+        w, _ = self._make_watcher()
+        a = "session 11111111-2222-3333-4444-555555555555 dropped"
+        b = "session aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee dropped"
+        assert self._fp(w, a) == self._fp(w, b)
+
+    # --- new: project name normalization ---
+
+    def test_project_name_collapses(self):
+        w, _ = self._make_watcher()
+        a = "Fetch failed for project oompah: bd command failed (exit 1): boom"
+        b = "Fetch failed for project trickle: bd command failed (exit 1): boom"
+        assert self._fp(w, a) == self._fp(w, b)
+
+    # --- new: bd subcommand args stripped ---
+
+    def test_bd_subcommand_args_stripped(self):
+        """Different bd subcommand args must collapse to one fingerprint."""
+        w, _ = self._make_watcher()
+        a = "Fetch failed for project oompah: bd command timed out: bd list --json"
+        b = "Fetch failed for project oompah: bd command timed out: bd close oompah-zlz_2-16h"
+        c = "Fetch failed for project oompah: bd command timed out: bd show oompah-zlz_2-7st"
+        assert self._fp(w, a) == self._fp(w, b)
+        assert self._fp(w, b) == self._fp(w, c)
+
+    def test_bd_subcommand_args_stripped_across_projects(self):
+        """Combination: project name + bd args stripped → all collapse."""
+        w, _ = self._make_watcher()
+        a = "Fetch failed for project oompah: bd command timed out: bd list --json"
+        b = "Fetch failed for project trickle: bd command timed out: bd close oompah-zlz_2-aup"
+        assert self._fp(w, a) == self._fp(w, b)
+
+    # --- new: identifier normalization ---
+
+    def test_quoted_identifier_normalization(self):
+        w, _ = self._make_watcher()
+        a = 'failed to dispatch "oompah-zlz_2-16h"'
+        b = 'failed to dispatch "oompah-zlz_2-aup"'
+        assert self._fp(w, a) == self._fp(w, b)
+
+    def test_bare_identifier_normalization(self):
+        w, _ = self._make_watcher()
+        a = "could not load oompah-zlz_2-16h from store"
+        b = "could not load oompah-zlz_2-aup from store"
+        assert self._fp(w, a) == self._fp(w, b)
+
+    def test_identifier_does_not_eat_english(self):
+        """2+ dash segments required — ordinary hyphenated words preserved."""
+        w, _ = self._make_watcher()
+        # These messages are operationally distinct; their fingerprints
+        # should NOT collapse just because they contain hyphens.
+        a = "non-empty input required for use-case foo"
+        b = "non-empty input required for use-case bar"
+        assert self._fp(w, a) != self._fp(w, b)
+
+    # --- new: explicit error_class collapses everything ---
+
+    def test_error_class_collapses_disparate_messages(self):
+        """Same root cause, completely different message templates → one fp."""
+        w, _ = self._make_watcher()
+        a = "Fetch failed for project oompah: bd command timed out: bd list --json"
+        b = "Failed to fetch candidates: bd command timed out: bd list --json"
+        c = "Some entirely unrelated phrasing of a timeout"
+        assert (
+            self._fp(w, a, error_class="bd_timeout")
+            == self._fp(w, b, error_class="bd_timeout")
+            == self._fp(w, c, error_class="bd_timeout")
+        )
+
+    def test_error_class_distinct_from_other_classes(self):
+        w, _ = self._make_watcher()
+        a = self._fp(w, "anything", error_class="bd_timeout")
+        b = self._fp(w, "anything", error_class="bd_failed")
+        assert a != b
+
+    def test_error_class_distinct_from_freeform(self):
+        """An error_class fingerprint must not accidentally collide with the
+        free-form fingerprint of the same message."""
+        w, _ = self._make_watcher()
+        msg = "something"
+        assert self._fp(w, msg) != self._fp(w, msg, error_class="bd_timeout")
+
+    def test_error_class_ignores_source(self):
+        """Different sources, same error_class → still collapse to one bead."""
+        w, _ = self._make_watcher()
+        a = self._fp(w, "x", source="backend:tracker", error_class="bd_failed")
+        b = self._fp(w, "x", source="backend:orchestrator", error_class="bd_failed")
+        assert a == b
+
+    # --- regression: free-form path still distinguishes truly different errors ---
+
+    def test_freeform_distinguishes_different_errors(self):
+        w, _ = self._make_watcher()
+        a = "disk full"
+        b = "permission denied"
+        assert self._fp(w, a) != self._fp(w, b)
+
+
+class TestReportErrorWithErrorClass:
+    """End-to-end: report_error with error_class collapses to one bead."""
+
+    def _make_watcher(self):
+        tracker = MagicMock()
+        issue = MagicMock()
+        issue.identifier = "test-001"
+        tracker.create_issue.return_value = issue
+        return ErrorWatcher(tracker), tracker
+
+    def test_three_messages_one_bead_with_error_class(self):
+        """Reproduces the oompah-zlz_2-ag7 scenario: 3 messages → 1 bead."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error(
+            "backend:orchestrator",
+            "Fetch failed for project oompah: bd command timed out: bd list --json",
+            error_class="bd_timeout",
+        )
+        watcher.report_error(
+            "backend:orchestrator",
+            "Fetch failed for project trickle: bd command timed out: bd list --json",
+            error_class="bd_timeout",
+        )
+        watcher.report_error(
+            "backend:tracker",
+            "Failed to fetch candidates: bd command timed out: bd list --json",
+            error_class="bd_timeout",
+        )
+        assert tracker.create_issue.call_count == 1
+
+    def test_no_error_class_falls_back_to_freeform(self):
+        """Without error_class, free-form normalization still applies — and
+        the new project/bd-args normalization collapses these three to one."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error(
+            "backend:orchestrator",
+            "Fetch failed for project oompah: bd command failed (exit 1): bd list --json",
+        )
+        watcher.report_error(
+            "backend:orchestrator",
+            "Fetch failed for project trickle: bd command failed (exit 1): bd close oompah-zlz_2-16h",
+        )
+        # Same source, same template after normalization → collapsed.
+        assert tracker.create_issue.call_count == 1
+
+    def test_no_error_class_keeps_distinct_errors_distinct(self):
+        """Regression: different operational errors → different beads."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error("backend:disk", "disk full")
+        watcher.report_error("backend:net", "permission denied")
+        assert tracker.create_issue.call_count == 2
+
+    def test_description_includes_error_class_and_message(self):
+        """Operator must still see the original message + class for diagnosis."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error(
+            "backend:orchestrator",
+            "Fetch failed for project oompah: bd command timed out: bd list --json",
+            error_class="bd_timeout",
+        )
+        call_kwargs = tracker.create_issue.call_args
+        description = call_kwargs.kwargs.get("description", "")
+        assert "error_class=bd_timeout" in description
+        assert "bd list --json" in description
+
+
+class TestBeadLoggingHandlerErrorClass:
+    """Logging handler must propagate ``extra={'error_class': ...}``."""
+
+    def test_handler_passes_error_class_from_extra(self):
+        from oompah.error_watcher import _BeadLoggingHandler
+        watcher = MagicMock()
+        handler = _BeadLoggingHandler(watcher)
+
+        # Build a LogRecord with error_class set via the standard "extra"
+        # logging mechanism (Python adds the dict as record attributes).
+        record = logging.LogRecord(
+            name="oompah.tracker",
+            level=logging.ERROR,
+            pathname=__file__,
+            lineno=1,
+            msg="bd command failed (exit 1): boom",
+            args=(),
+            exc_info=None,
+        )
+        record.error_class = "bd_failed"
+        record.module = "tracker"
+
+        handler.emit(record)
+
+        watcher.report_error.assert_called_once()
+        kwargs = watcher.report_error.call_args.kwargs
+        assert kwargs["error_class"] == "bd_failed"
+        assert kwargs["source"] == "backend:tracker"
+
+    def test_handler_default_error_class_is_none(self):
+        from oompah.error_watcher import _BeadLoggingHandler
+        watcher = MagicMock()
+        handler = _BeadLoggingHandler(watcher)
+
+        record = logging.LogRecord(
+            name="oompah.foo",
+            level=logging.ERROR,
+            pathname=__file__,
+            lineno=1,
+            msg="some error",
+            args=(),
+            exc_info=None,
+        )
+        record.module = "foo"
+        # No error_class set on record.
+
+        handler.emit(record)
+
+        kwargs = watcher.report_error.call_args.kwargs
+        assert kwargs["error_class"] is None
+
+
+class TestErrorClassForTrackerExc:
+    """Helper that maps tracker/project exceptions to error_class names."""
+
+    def test_bd_timeout(self):
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        from oompah.tracker import TrackerTimeoutError
+        assert _error_class_for_tracker_exc(TrackerTimeoutError("x")) == "bd_timeout"
+
+    def test_tracker_not_configured(self):
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        from oompah.tracker import TrackerNotConfiguredError
+        assert (
+            _error_class_for_tracker_exc(TrackerNotConfiguredError("x"))
+            == "tracker_not_configured"
+        )
+
+    def test_generic_tracker_error(self):
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        from oompah.tracker import TrackerError
+        assert _error_class_for_tracker_exc(TrackerError("x")) == "bd_failed"
+
+    def test_project_error_fallback(self):
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        from oompah.projects import ProjectError
+        assert _error_class_for_tracker_exc(ProjectError("x")) == "project_error"
+
+
+# ---------------------------------------------------------------------------
 # Tests for LogFileWatcher
 # ---------------------------------------------------------------------------
 

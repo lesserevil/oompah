@@ -64,6 +64,29 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
+def _error_class_for_tracker_exc(exc: BaseException) -> str:
+    """Classify a tracker/project exception for error_watcher dedup.
+
+    Returned values match the documented classes used by the error
+    watcher fingerprint:
+      - "bd_timeout"           — TrackerTimeoutError (subprocess timeout)
+      - "tracker_not_configured" — TrackerNotConfiguredError (no DB)
+      - "bd_failed"            — generic TrackerError
+      - "project_error"        — ProjectError fallback
+
+    The returned class collapses every report with the same class to one
+    bead in the dedup window, regardless of which project/subcommand
+    surfaced the failure.
+    """
+    if isinstance(exc, TrackerTimeoutError):
+        return "bd_timeout"
+    if isinstance(exc, TrackerNotConfiguredError):
+        return "tracker_not_configured"
+    if isinstance(exc, TrackerError):
+        return "bd_failed"
+    return "project_error"
+
 DEFAULT_SERVICE_STATE_PATH = ".oompah/service_state.json"
 
 
@@ -1137,7 +1160,10 @@ class Orchestrator:
                 logger.warning("Tracker fetch timed out: %s", exc)
                 return []
             except TrackerError as exc:
-                logger.error("Tracker fetch failed: %s", exc)
+                logger.error(
+                    "Tracker fetch failed: %s", exc,
+                    extra={"error_class": _error_class_for_tracker_exc(exc)},
+                )
                 return []
 
         def _fetch_for_project(project) -> list[Issue]:
@@ -1159,7 +1185,10 @@ class Orchestrator:
                 )
                 return []
             except (TrackerError, ProjectError) as exc:
-                logger.error("Fetch failed for project %s: %s", project.name, exc)
+                logger.error(
+                    "Fetch failed for project %s: %s", project.name, exc,
+                    extra={"error_class": _error_class_for_tracker_exc(exc)},
+                )
                 return []
 
         all_candidates: list[Issue] = []
