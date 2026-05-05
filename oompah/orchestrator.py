@@ -27,7 +27,10 @@ from oompah.models import (
     RetryEntry,
     RunningEntry,
 )
-from oompah.focus import analyze_completed_issue, load_foci, save_suggestion, select_focus
+from oompah.focus import (
+    analyze_completed_issue, load_foci, save_suggestion, select_focus,
+    select_focus_async,
+)
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
@@ -2014,8 +2017,11 @@ class Orchestrator:
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
         # Select focus first so its (optional) model/provider overrides
-        # participate in resolution. See docs/per-focus-models.md.
-        focus = select_focus(issue)
+        # participate in resolution. See docs/per-focus-models.md and
+        # docs/agentic-focus-triage.md. The async variant tries an LLM
+        # call against the provider's default_model and falls back to
+        # the deterministic scorer on any failure.
+        focus = await select_focus_async(issue, provider=provider)
         logger.info("Issue %s assigned focus: %s (%s)",
                     issue.identifier, focus.name, focus.role)
 

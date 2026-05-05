@@ -10,6 +10,8 @@ built-in defaults as fallback.
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -20,6 +22,19 @@ from typing import Any
 from oompah.models import Issue
 
 logger = logging.getLogger(__name__)
+
+# Module-level cache for LLM-based focus triage. Keyed by a stable hash of
+# the issue's content + active foci signature; entries persist for the
+# process lifetime since re-triage only matters when issue text or the
+# focus library changes (both reflected in the cache key).
+_triage_cache: dict[str, tuple[str, str]] = {}
+
+# Hard timeout for the triage LLM call. Set to 60s because the configured
+# default model on Godspeed (nvidia/MiniMax-M2.7-NVFP4) regularly takes
+# 20-40s to generate even a 128-token response. Triage is one-shot per
+# issue (cached afterward), so a slow first call is acceptable. If the
+# call genuinely hangs beyond 60s the deterministic scorer takes over.
+_TRIAGE_TIMEOUT_S = 60.0
 
 DEFAULT_FOCI_PATH = ".oompah/foci.json"
 
@@ -453,8 +468,255 @@ def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
             best_score = s
             best_focus = focus
 
-    logger.info("Focus selected for %s: %s (score=%d)", issue.identifier, best_focus.name, best_score)
+    logger.info("Focus selected for %s: %s (score=%d via=score)",
+                issue.identifier, best_focus.name, best_score)
     return best_focus
+
+
+# ---------------------------------------------------------------------------
+# Agentic (LLM-based) focus triage
+# ---------------------------------------------------------------------------
+#
+# Design recorded in docs/agentic-focus-triage.md. Quick recap:
+#
+# 1. Explicit `needs:<name>` label short-circuits both LLM and scorer
+#    (user routing always wins).
+# 2. LLM triage: provider's default_model gets a prompt listing the
+#    issue + active foci; LLM returns ``name: reasoning``. We log the
+#    reasoning so triage decisions are auditable later.
+# 3. Sanity check (D): if the LLM picks a focus whose deterministic
+#    score_focus() == 0 (zero keyword/label/type alignment), treat it
+#    as a likely hallucination and fall back to deterministic top.
+#    Strict threshold preserves the LLM's value over the scorer in
+#    legitimate cases where keywords are weak.
+# 4. Anything else that fails (bad provider, timeout, empty output,
+#    unknown name, network error) → fall back to deterministic top.
+
+def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
+    """Render the triage prompt for the LLM.
+
+    Output format the LLM is asked to follow:
+        ``<focus_name>: <one-line reasoning>``
+    Alternatively, ``default`` alone if no listed focus is a good fit.
+    """
+    description = (issue.description or "").strip()
+    if len(description) > 1500:
+        description = description[:1500] + " ..."
+    labels = ", ".join(issue.labels or []) or "(none)"
+
+    spec_lines: list[str] = []
+    for f in foci:
+        desc = (f.description or "").strip()
+        if len(desc) > 200:
+            desc = desc[:197] + "..."
+        must_do = "; ".join((f.must_do or [])[:3]) or "(none listed)"
+        spec_lines.append(
+            f"- name: {f.name}\n"
+            f"    role: {f.role}\n"
+            f"    description: {desc}\n"
+            f"    typical work: {must_do}"
+        )
+
+    return (
+        "You are routing an engineering issue to the best-fit specialist.\n\n"
+        "ISSUE\n"
+        f"  identifier: {issue.identifier}\n"
+        f"  title: {issue.title or ''}\n"
+        f"  type: {issue.issue_type or 'task'}\n"
+        f"  priority: {issue.priority}\n"
+        f"  labels: {labels}\n"
+        "  description:\n"
+        f"    {description}\n\n"
+        "SPECIALISTS\n  "
+        + "\n  ".join(spec_lines) + "\n\n"
+        "TASK\n"
+        "Pick the single best-fit specialist by name and give a short reason.\n"
+        "Output exactly one line in the format `name: reasoning`.\n"
+        "If no specialist clearly fits better than the others, output\n"
+        "`default: reasoning`.\n"
+        "Do NOT add prose, quotes, or explanations beyond the single line."
+    )
+
+
+def _parse_triage_response(content: str) -> tuple[str | None, str]:
+    """Parse the model's response into ``(name, reasoning)``.
+
+    Returns ``(None, "")`` for completely empty/garbage output. The
+    caller treats ``name == "default"`` as the explicit decline path.
+    """
+    if not content:
+        return None, ""
+    # Trim and take first non-empty line — models sometimes prefix with
+    # markdown or explanation despite the prompt.
+    line = ""
+    for raw in content.splitlines():
+        candidate = raw.strip().lstrip("-*•").strip()
+        if candidate:
+            line = candidate
+            break
+    if not line:
+        return None, ""
+    if ":" in line:
+        name, reasoning = line.split(":", 1)
+        return name.strip().strip("`'\"").lower() or None, reasoning.strip()
+    # No colon — treat the whole line as a name (e.g. plain ``default``).
+    return line.strip().strip("`'\"").lower() or None, ""
+
+
+def _triage_cache_key(issue: Issue, foci: list[Focus]) -> str:
+    """Stable hash of the inputs that affect the LLM's decision."""
+    content = "|".join([
+        issue.id or "",
+        issue.title or "",
+        issue.description or "",
+        ",".join(sorted(issue.labels or [])),
+        issue.issue_type or "",
+        str(issue.priority if issue.priority is not None else ""),
+    ])
+    foci_sig = ",".join(sorted(
+        f"{f.name}:{(f.description or '')[:120]}:{','.join(sorted(f.keywords or []))}"
+        for f in foci if f.status == "active"
+    ))
+    return hashlib.sha256((content + "||" + foci_sig).encode("utf-8")).hexdigest()
+
+
+async def _select_focus_llm(
+    issue: Issue, foci: list[Focus], provider: Any,
+) -> tuple[str | None, str]:
+    """Call the provider's default_model to pick a focus.
+
+    Returns ``(name, reasoning)`` or ``(None, "")`` on any failure.
+    Network/HTTP/parsing failures are swallowed so the caller can fall
+    through to the deterministic scorer.
+    """
+    if not provider or not getattr(provider, "default_model", None):
+        return None, ""
+    base_url = (provider.base_url or "").rstrip("/")
+    if not base_url:
+        return None, ""
+
+    # Lazy import to keep focus.py from depending on api_agent at import time
+    # (api_agent imports prompt which imports models — keep the dep DAG flat).
+    from oompah.api_agent import _http_post, _build_ssl_context
+
+    prompt = _build_triage_prompt(issue, foci)
+    payload = {
+        "model": provider.default_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 128,
+        "temperature": 0.0,
+    }
+    body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {provider.api_key or ''}",
+        "User-Agent": "oompah/0.1",
+    }
+
+    try:
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                _http_post,
+                f"{base_url}/chat/completions",
+                headers, body, _build_ssl_context(),
+            ),
+            timeout=_TRIAGE_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("LLM triage timed out for %s", issue.identifier)
+        return None, ""
+    except Exception as exc:
+        logger.warning("LLM triage failed for %s: %s", issue.identifier, exc)
+        return None, ""
+
+    try:
+        content = response["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError):
+        return None, ""
+    return _parse_triage_response(content)
+
+
+async def select_focus_async(
+    issue: Issue,
+    foci: list[Focus] | None = None,
+    provider: Any = None,
+) -> Focus:
+    """LLM-augmented focus selection. Falls back to deterministic
+    :func:`select_focus` on any failure or when no provider is given.
+
+    Order of operations:
+        1. ``needs:<focus>`` label short-circuit.
+        2. LLM triage via ``provider.default_model`` (cached by content).
+        3. Deterministic ``score_focus`` ranking (same as :func:`select_focus`).
+    """
+    if foci is None:
+        foci = load_foci()
+    active_foci = [f for f in foci if f.status == "active"]
+
+    # Step 1: explicit handoff label wins.
+    if issue.labels:
+        wanted = None
+        for label in issue.labels:
+            if label.startswith("needs:"):
+                wanted = label[len("needs:"):].strip().lower()
+                break
+        if wanted:
+            for f in active_foci:
+                if f.name.lower() == wanted:
+                    logger.info(
+                        "Focus selected for %s: %s (via=label)",
+                        issue.identifier, f.name,
+                    )
+                    return f
+
+    # Step 2: LLM triage.
+    if provider is not None and active_foci:
+        cache_key = _triage_cache_key(issue, active_foci)
+        cached = _triage_cache.get(cache_key)
+        if cached is not None:
+            name, reasoning = cached
+        else:
+            name, reasoning = await _select_focus_llm(
+                issue, active_foci, provider,
+            )
+            if name is not None:
+                _triage_cache[cache_key] = (name, reasoning)
+
+        if name == "default":
+            logger.info(
+                "Focus selected for %s: default (via=llm reasoning=%r)",
+                issue.identifier, reasoning,
+            )
+            return DEFAULT_FOCUS
+
+        if name:
+            picked = next(
+                (f for f in active_foci if f.name.lower() == name), None,
+            )
+            if picked is None:
+                logger.warning(
+                    "LLM picked unknown focus %r for %s; falling back. reasoning=%r",
+                    name, issue.identifier, reasoning,
+                )
+            else:
+                # Sanity check D: score must be > 0 (catch hallucinated
+                # but plausible-looking names that have zero alignment
+                # with the issue's keywords/labels/type).
+                d_score = score_focus(picked, issue)
+                if d_score > 0:
+                    logger.info(
+                        "Focus selected for %s: %s (via=llm score=%d reasoning=%r)",
+                        issue.identifier, picked.name, d_score, reasoning,
+                    )
+                    return picked
+                logger.warning(
+                    "LLM picked %s for %s but deterministic score=0 "
+                    "(likely hallucination); falling back. reasoning=%r",
+                    picked.name, issue.identifier, reasoning,
+                )
+
+    # Step 3: deterministic fallback.
+    return select_focus(issue, foci)
 
 
 def load_foci(path: str | None = None) -> list[Focus]:
