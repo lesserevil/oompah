@@ -275,12 +275,45 @@ class AcpAgentSession:
                 interrupt=False,
             )
 
+        # Hard-block claude's native built-in tools at the SDK config
+        # layer. We tried doing this via can_use_tool alone — turns out
+        # the callback only intercepts MCP-bridged tool calls; native
+        # built-ins (Bash, Read, Write, Edit, Glob, Grep, WebFetch, ...)
+        # are auto-allowed by the SDK without consulting the callback.
+        # disallowed_tools is the exhaustive denylist that DOES gate
+        # them. Keep this in sync with claude's built-in surface; new
+        # tools Anthropic adds will need explicit entries here OR an
+        # opt-in via a future profile field.
+        _CLAUDE_NATIVE_BUILTINS = [
+            "Bash",
+            "BashOutput",
+            "Edit",
+            "Glob",
+            "Grep",
+            "KillShell",
+            "ListMcpResourcesTool",
+            "NotebookEdit",
+            "Read",
+            "ReadMcpResourceTool",
+            "SlashCommand",
+            "Task",
+            "TodoWrite",
+            "WebFetch",
+            "WebSearch",
+            "Write",
+        ]
+
         options_kwargs: dict[str, Any] = {
             "system_prompt": self.prompt,
             "cwd": self.workspace_path,
             "env": agent_env,
             "permission_mode": "default",
             "can_use_tool": _can_use_tool,
+            # Force tool dispatch through oompah's MCP catalog by hard-
+            # blocking everything claude ships natively. The
+            # can_use_tool callback above is the audit/log layer for
+            # the MCP-bridged calls that ARE allowed.
+            "disallowed_tools": _CLAUDE_NATIVE_BUILTINS,
         }
         if self.model:
             options_kwargs["model"] = self.model
@@ -317,6 +350,7 @@ class AcpAgentSession:
                 "tool_catalog": [
                     getattr(t, "name", str(t)) for t in self.tool_catalog
                 ],
+                "disallowed_native_tools": list(_CLAUDE_NATIVE_BUILTINS),
                 "cwd": self.workspace_path,
             },
         )

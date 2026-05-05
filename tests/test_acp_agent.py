@@ -276,13 +276,19 @@ class TestAcpAgentSession:
         _, _, events = self._run_session_sync([result])
         starts = [e for e in events if e.event == "acp_session_start"]
         assert len(starts) == 1
-        # Permission mode is now "default" (not bypassPermissions) so
+        # Permission mode is "default" (not bypassPermissions) so
         # can_use_tool fires and oompah's catalog is the only allowed
         # surface. The strict-allowlist policy is recorded for audit.
         assert starts[0].payload["permission_mode"] == "default"
         assert starts[0].payload["tool_policy"] == (
             "strict_allowlist:mcp__oompah__*"
         )
+        # The native-tool denylist is recorded too — Bash et al. are
+        # hard-blocked at the SDK config layer because can_use_tool
+        # alone doesn't gate built-ins.
+        denied = starts[0].payload["disallowed_native_tools"]
+        for builtin in ("Bash", "Read", "Write", "Edit", "Glob", "Grep"):
+            assert builtin in denied, f"missing {builtin!r} in denylist"
 
     def test_errored_when_sdk_raises(self):
         async def boom():
@@ -382,6 +388,57 @@ class TestCanUseToolStrictAllowlist:
     def test_session_installs_can_use_tool(self):
         callback, _ = self._capture_callback()
         assert callable(callback)
+
+    def test_session_passes_disallowed_native_tools(self):
+        # Verifies the SDK gets a disallowed_tools list covering
+        # claude's native built-ins, so they're hard-blocked at config
+        # load and never reach the can_use_tool callback. Without this
+        # the SDK auto-allows native tools — the bug we observed live
+        # before the fix.
+        from claude_agent_sdk import ClaudeAgentOptions as _Real
+
+        captured: dict = {}
+
+        def _spy(*args, **kwargs):
+            captured["kwargs"] = kwargs
+            return _Real(*args, **kwargs)
+
+        async def _stream():
+            from claude_agent_sdk import ResultMessage
+            yield ResultMessage(
+                subtype="success", duration_ms=1, duration_api_ms=1,
+                is_error=False, num_turns=0, session_id="s",
+                stop_reason=None, total_cost_usd=None, usage=None,
+                result=None, structured_output=None, model_usage=None,
+                permission_denials=None, errors=None, uuid="u",
+            )
+
+        client_mock = AsyncMock()
+        client_mock.query = AsyncMock()
+        client_mock.receive_response = MagicMock(return_value=_stream())
+        client_mock.interrupt = AsyncMock()
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(return_value=client_mock)
+        cm.__aexit__ = AsyncMock(return_value=None)
+
+        async def runner():
+            with patch("claude_agent_sdk.ClaudeAgentOptions", _spy), \
+                 patch("claude_agent_sdk.ClaudeSDKClient", return_value=cm):
+                session = AcpAgentSession(
+                    workspace_path="/tmp/ws", prompt="x",
+                    model="claude-opus-4-7",
+                )
+                await session.run_task()
+
+        asyncio.run(runner())
+        denied = captured["kwargs"]["disallowed_tools"]
+        # Claude's full built-in surface (as of this writing) must be
+        # blocked. New entries Anthropic adds will need explicit
+        # additions — that's the point of the test, to surface drift.
+        for builtin in ("Bash", "BashOutput", "Edit", "Glob", "Grep",
+                        "KillShell", "NotebookEdit", "Read", "Task",
+                        "TodoWrite", "WebFetch", "WebSearch", "Write"):
+            assert builtin in denied, f"missing {builtin!r} in disallowed_tools"
 
     def test_oompah_tool_allowed(self):
         from claude_agent_sdk import PermissionResultAllow
