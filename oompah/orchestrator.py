@@ -3107,9 +3107,20 @@ class Orchestrator:
                 run_command_timeout_s=60,
             )
 
+            from oompah.api_agent import AgentActivity
+
             def _on_event(ev) -> None:
                 """Capture ACP events to JSONL + the running session
-                state. Mirrors api_agent's on_activity callback."""
+                state + the activity_log the dashboard reads.
+
+                The dashboard's per-agent step list reads from
+                ``RunningEntry.activity_log`` and gets push notifications
+                via ``_notify_activity``. Forgetting this is why ACP
+                runs initially appeared "doing nothing" in the UI even
+                when the agent was actively working — the JSONL log was
+                being written but the live state wasn't.
+                """
+                # 1. Persist the raw event to per-agent JSONL.
                 try:
                     log_fp.write(json.dumps({
                         "ts": datetime.fromtimestamp(
@@ -3122,19 +3133,92 @@ class Orchestrator:
                     log_fp.flush()
                 except Exception:
                     pass
+
+                # 2. Map ACP event kinds onto the AgentActivity vocabulary
+                #    the UI already renders for api_agent runs. Keeping
+                #    the same kinds means no template changes needed.
+                payload = ev.payload or {}
+                kind_map = {
+                    "acp_text": "message",
+                    "acp_thinking": "thinking",
+                    "acp_tool_use": "tool_call",
+                    "acp_tool_result": "tool_result",
+                    "acp_session_start": "message",
+                    "acp_result": "message",
+                    "acp_assistant_error": "error",
+                    "acp_session_error": "error",
+                    "acp_turn_timeout": "error",
+                }
+                activity_kind = kind_map.get(ev.event, "message")
+
+                if ev.event == "acp_tool_use":
+                    tool_name = payload.get("tool", "?")
+                    raw_input = payload.get("input")
+                    args_str = json.dumps(raw_input, default=str)[:140] \
+                        if raw_input is not None else ""
+                    summary = f"{tool_name}({args_str})"
+                    detail = json.dumps(raw_input, default=str)[:2000] \
+                        if raw_input is not None else ""
+                elif ev.event == "acp_tool_result":
+                    summary = (
+                        "tool error" if payload.get("is_error")
+                        else "tool ok"
+                    )
+                    detail = str(payload.get("content", ""))[:2000]
+                elif ev.event == "acp_text":
+                    text = str(payload.get("text", ""))
+                    summary = text[:200] or "(empty text)"
+                    detail = text[:2000]
+                elif ev.event == "acp_thinking":
+                    text = str(payload.get("text", ""))
+                    summary = text[:200] or "(thinking)"
+                    detail = text[:2000]
+                elif ev.event == "acp_session_start":
+                    summary = (
+                        f"ACP session: model={payload.get('model') or 'subscription default'} "
+                        f"perm={payload.get('permission_mode')}"
+                    )
+                    detail = json.dumps(payload, default=str)[:2000]
+                elif ev.event == "acp_result":
+                    sub = payload.get("subtype") or "completed"
+                    is_err = payload.get("is_error")
+                    cost = payload.get("total_cost_usd")
+                    summary = (
+                        f"{sub}{' (error)' if is_err else ''}"
+                        f"{f' cost=${cost:.4f}' if isinstance(cost, (int, float)) else ''}"
+                    )
+                    detail = json.dumps(payload, default=str)[:2000]
+                else:
+                    summary = ev.event
+                    detail = json.dumps(payload, default=str)[:2000]
+
                 if issue.id in self.state.running:
-                    sess = self.state.running[issue.id].session
+                    entry = self.state.running[issue.id]
+                    sess = entry.session
+                    turn_count = sess.turn_count if sess else 0
+
+                    activity = AgentActivity(
+                        turn=turn_count,
+                        kind=activity_kind,
+                        summary=summary,
+                        detail=detail,
+                        timestamp=ev.timestamp,
+                    )
+                    entry.activity_log.append(activity)
+
                     if sess:
                         sess.last_event = ev.event
                         sess.last_timestamp = datetime.fromtimestamp(
                             ev.timestamp, timezone.utc,
                         )
-                        msg = (ev.payload or {}).get("text") or ev.event
-                        sess.last_message = str(msg)[:200]
+                        sess.last_message = summary[:200]
                         u = ev.usage or {}
                         sess.input_tokens = int(u.get("input_tokens", 0) or 0)
                         sess.output_tokens = int(u.get("output_tokens", 0) or 0)
                         sess.total_tokens = int(u.get("total_tokens", 0) or 0)
+
+                    # 3. Push to WS clients exactly the same way api_agent does.
+                    self._notify_activity(issue.identifier, activity)
                     self._notify_state_only()
 
             # RenderedPrompt has both `text` (canonical) and optional
