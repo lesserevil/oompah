@@ -15,11 +15,13 @@ def _make_config() -> ServiceConfig:
 
 
 def _make_issue(identifier: str, state: str = "closed", labels: list | None = None,
-                branch_name: str | None = None) -> Issue:
+                branch_name: str | None = None,
+                description: str | None = "Issue body — exists so the empty-description gate passes.") -> Issue:
     return Issue(
         id=identifier,
         identifier=identifier,
         title=f"Issue {identifier}",
+        description=description,
         state=state,
         labels=labels or [],
         branch_name=branch_name,
@@ -369,6 +371,27 @@ class TestShouldDispatchCompleted:
         """An issue NOT in state.completed should be dispatchable."""
         orch = self._make_orchestrator(tmp_path)
         issue = _make_issue("feat-1", state="in_progress")
+        assert orch._should_dispatch(issue) is True
+
+    def test_empty_description_rejected(self, tmp_path):
+        """A bead with no description body must not be dispatched.
+        Title-only beads are placeholders (e.g. ad-hoc CLI tests) and
+        agents have no useful context to work from."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-empty", state="open", description=None)
+        assert orch._should_dispatch(issue) is False
+
+    def test_whitespace_description_rejected(self, tmp_path):
+        """Description that's only whitespace also counts as empty."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-ws", state="open", description="   \n  \t ")
+        assert orch._should_dispatch(issue) is False
+
+    def test_short_description_accepted(self, tmp_path):
+        """Any non-blank description is enough — judgement of quality is
+        the agent's job, not the dispatcher's."""
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-short", state="open", description="x")
         assert orch._should_dispatch(issue) is True
 
 
@@ -881,6 +904,7 @@ class TestDispatchSerializationByProject:
             id=identifier,
             identifier=identifier,
             title=f"Issue {identifier}",
+            description="body — passes the empty-description gate.",
             state=state,
             project_id=project_id,
             priority=priority,
@@ -938,6 +962,7 @@ class TestDispatchSerializationByProject:
             id="legacy-1",
             identifier="legacy-1",
             title="Legacy issue",
+            description="legacy body",
             state="open",
             project_id=None,
         )

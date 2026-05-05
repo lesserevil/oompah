@@ -23,11 +23,13 @@ def _make_issue(
     labels: list | None = None,
     project_id: str | None = None,
     title: str | None = None,
+    description: str = "Test issue body — passes the empty-description gate.",
 ) -> Issue:
     return Issue(
         id=identifier,
         identifier=identifier,
         title=title or f"Issue {identifier}",
+        description=description,
         state=state,
         issue_type=issue_type,
         priority=priority,

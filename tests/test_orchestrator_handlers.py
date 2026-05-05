@@ -31,11 +31,13 @@ def _make_config() -> ServiceConfig:
 
 def _make_issue(identifier: str, state: str = "open", issue_type: str = "task",
                 priority: int = 2, project_id: str | None = None,
-                labels: list | None = None) -> Issue:
+                labels: list | None = None,
+                description: str = "Test issue body — passes the empty-description gate.") -> Issue:
     return Issue(
         id=identifier,
         identifier=identifier,
         title=f"Issue {identifier}",
+        description=description,
         state=state,
         issue_type=issue_type,
         priority=priority,

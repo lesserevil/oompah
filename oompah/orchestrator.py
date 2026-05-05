@@ -985,6 +985,14 @@ class Orchestrator:
             return _reject("paused")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
+        # Refuse to dispatch beads with no body. A title alone is not enough
+        # context for an agent to do anything sensible — and we've watched
+        # agents burn dozens of turns spinning on placeholder beads created
+        # for ad-hoc CLI testing. Operator either fills in the description,
+        # closes the bead, or defers it. Epics get a pass because they are
+        # planned separately and may legitimately start as title-only.
+        if issue.issue_type != "epic" and not (issue.description or "").strip():
+            return _reject("empty_description")
         # Never dispatch epics via normal dispatch — they are planned
         # separately by _plan_open_epics / _should_dispatch_epic
         if issue.issue_type == "epic":

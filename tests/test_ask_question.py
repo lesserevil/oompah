@@ -45,11 +45,13 @@ def _make_issue(
     labels: list[str] | None = None,
     priority: int = 2,
     issue_type: str = "task",
+    description: str = "Test issue body — passes the empty-description gate.",
 ) -> Issue:
     return Issue(
         id=issue_id,
         identifier=identifier,
         title=title,
+        description=description,
         state=state,
         labels=labels or [],
         priority=priority,

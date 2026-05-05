@@ -53,11 +53,13 @@ def _make_issue(
     priority: int = 2,
     issue_type: str = "task",
     project_id: str | None = None,
+    description: str = "Test issue body — passes the empty-description gate.",
 ) -> Issue:
     return Issue(
         id=issue_id,
         identifier=identifier,
         title=f"Issue {issue_id}",
+        description=description,
         state=state,
         labels=labels or [],
         priority=priority,
