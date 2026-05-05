@@ -558,3 +558,100 @@ class TestCallApiRetriesTransientErrors:
             asyncio.run(s._call_api([_msg("system"), _msg("user")]))
         # Exactly one call — no retries.
         assert call_count["n"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Workspace-escape protection: agents kept cd'ing into the main checkout
+# (where their edits aren't), failing to verify their own work, and looping.
+# Refuse `cd /abs/path` that leaves the worktree, with a clear error.
+# Plus: helpful redirect when the model treats a shell command as a tool name.
+# ---------------------------------------------------------------------------
+
+class TestRunCommandRefusesCdOutsideWorkspace:
+    def test_cd_to_absolute_path_outside_workspace_blocked(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+        # Worktree is at tmp_path; agent tries to cd to a sibling.
+        elsewhere = tmp_path.parent / "elsewhere"
+        elsewhere.mkdir(exist_ok=True)
+        result = _exec_run_command(
+            tmp_path, {"command": f"cd {elsewhere} && grep foo bar.py"},
+        )
+        assert result.startswith("Error:")
+        assert "leaves your worktree" in result
+        assert "relative paths" in result
+
+    def test_cd_to_subdir_of_workspace_allowed(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+        sub = tmp_path / "subdir"
+        sub.mkdir()
+        # Should not be rejected by the cd guard. The actual command is
+        # benign (we don't care about its result here, just that the guard
+        # didn't intercept).
+        result = _exec_run_command(
+            tmp_path, {"command": f"cd {sub} && pwd"},
+        )
+        # Result is shell output, not the guard's "Error: refusing..." string.
+        assert not result.startswith("Error: refusing")
+
+    def test_relative_cd_allowed(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+        sub = tmp_path / "subdir"
+        sub.mkdir()
+        result = _exec_run_command(
+            tmp_path, {"command": "cd subdir && pwd"},
+        )
+        assert not result.startswith("Error: refusing")
+
+    def test_quoted_cd_target_handled(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+        elsewhere = tmp_path.parent / "elsewhere"
+        elsewhere.mkdir(exist_ok=True)
+        result = _exec_run_command(
+            tmp_path, {"command": f'cd "{elsewhere}" && ls'},
+        )
+        assert "leaves your worktree" in result
+
+    def test_pushd_outside_workspace_blocked(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+        elsewhere = tmp_path.parent / "elsewhere"
+        elsewhere.mkdir(exist_ok=True)
+        result = _exec_run_command(
+            tmp_path, {"command": f"pushd {elsewhere}; ls"},
+        )
+        assert "leaves your worktree" in result
+
+    def test_command_without_cd_unaffected(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+        result = _exec_run_command(tmp_path, {"command": "echo hello"})
+        assert "Error: refusing" not in result
+        assert "hello" in result
+
+
+class TestUnknownToolHelpfulErrorWhenLooksShellish:
+    def test_space_in_name_redirects_to_run_command(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+        result = _execute_tool(tmp_path, "bd comments add", {})
+        assert "is not a tool" in result
+        assert "run_command" in result
+        # Must still preserve the original tool list for the model.
+        assert "read_file" in result
+
+    def test_bd_prefix_no_space_still_redirects(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+        result = _execute_tool(tmp_path, "bd_close", {})
+        assert "is not a tool" in result
+        assert "run_command" in result
+
+    def test_git_prefix_redirects(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+        result = _execute_tool(tmp_path, "git commit", {})
+        assert "is not a tool" in result
+        assert "run_command" in result
+
+    def test_unrelated_unknown_tool_keeps_original_message(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+        # Doesn't start with bd/git/uv/make and has no spaces — should
+        # use the original "unknown tool" wording without the shell hint.
+        result = _execute_tool(tmp_path, "frobnicate", {})
+        assert "unknown tool 'frobnicate'" in result
+        assert "looks like a shell command" not in result

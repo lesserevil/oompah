@@ -67,9 +67,9 @@ Read these carefully — they preserve context and findings from prior work on t
 
 ## Beads Quick Reference
 
-You manage this issue and project knowledge via the `bd` CLI. The commands you'll need most:
+You manage this issue and project knowledge via the `bd` CLI. **The entries below are shell commands. Run them via the `run_command` tool — do NOT call them as tool names.** Example: `run_command(command='bd show oompah-zlz_2-4jq')`. There is no `bd_show` or `bd_comment` tool — the only commit/close/comment actions go through `run_command`.
 
-| When                                              | Command                                                                                             |
+| When                                              | Shell command (pass to `run_command`)                                                               |
 |---------------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | Re-read this issue's full state                   | `bd show {{ issue.identifier }}`                                                                    |
 | Post progress (REQUIRED at the milestones below)  | `bd comments add {{ issue.identifier }} "your message" --author=oompah`                             |
@@ -83,6 +83,10 @@ You manage this issue and project knowledge via the `bd` CLI. The commands you'l
 **Always pass `--author=oompah`** when adding comments — comments must be attributed to `oompah`, not your git user.
 
 **Do NOT run `bd edit`** — it opens an interactive editor and will hang the agent. Use `bd update --title=... --description=... --notes=...` for inline edits instead.
+
+**You are NOT done until `bd close {{ issue.identifier }}` succeeds.** Pushing your branch is not enough — the orchestrator will keep re-dispatching you (escalating profiles each time) until the issue is closed. After your final commit and push, run `bd close {{ issue.identifier }}` immediately, then exit.
+
+**Stay in your worktree.** You are running in `{{ issue.branch_name }}`'s worktree. Do NOT `cd` to absolute paths — the workspace IS the project from your perspective. `run_command` will refuse `cd` commands that leave the worktree. Use relative paths from where you are.
 
 {% if focus != blank %}
 {{ focus }}

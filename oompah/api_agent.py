@@ -438,8 +438,56 @@ def _exec_search_files(workspace: Path, args: dict[str, Any]) -> str:
         return f"Error searching: {exc}"
 
 
+def _validate_command_stays_in_workspace(command: str, workspace: Path) -> str | None:
+    """Return an error string if ``command`` cd's out of the agent's
+    worktree, else ``None``. Catches the dominant pattern observed in
+    practice: agents prefixing their shell commands with ``cd /abs/path
+    && ...``, ending up in the main checkout where their edits aren't.
+
+    This isn't airtight — `bash -c "true; cd /; ls"` or `eval` would
+    bypass it — but it covers the leading-cd / leading-pushd cases
+    that show up repeatedly in agent logs, with a clear error message
+    that nudges the agent to use relative paths.
+    """
+    import re as _re
+    # Match leading `cd <target>` or `(cd <target>` or `pushd <target>`,
+    # tolerating leading whitespace.
+    m = _re.match(
+        r"""^\s*\(?\s*(cd|pushd)\s+(?:"([^"]+)"|'([^']+)'|(\S+))""",
+        command,
+    )
+    if not m:
+        return None
+    target = m.group(2) or m.group(3) or m.group(4) or ""
+    # Relative cd is fine — stays within workspace.
+    if not target.startswith("/") and not target.startswith("~"):
+        return None
+    try:
+        target_path = Path(os.path.expanduser(target)).resolve()
+        ws = workspace.resolve()
+    except OSError:
+        return None
+    if target_path == ws:
+        return None
+    # Allow descending into subdirs of the workspace.
+    try:
+        target_path.relative_to(ws)
+    except ValueError:
+        return (
+            f"refusing to run: command starts with `{m.group(1)} {target}` which "
+            f"leaves your worktree ({ws}). Your worktree IS the project — use "
+            f"relative paths from here. If you genuinely need to inspect another "
+            f"checkout, do it without `cd` (e.g. "
+            f"`grep -n PATTERN /other/path/file.py`)."
+        )
+    return None
+
+
 def _exec_run_command(workspace: Path, args: dict[str, Any], timeout: int = 60) -> str:
     command = args["command"]
+    cd_err = _validate_command_stays_in_workspace(command, workspace)
+    if cd_err:
+        return f"Error: {cd_err}"
     try:
         result = subprocess.run(
             ["bash", "-lc", command],
@@ -551,6 +599,22 @@ def _execute_tool(workspace: Path, name: str, args: dict[str, Any], cmd_timeout:
     """Execute a tool call and return its string result."""
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
+        # Models occasionally lift a shell command out of the WORKFLOW.md
+        # cheat sheet and call it as a tool name (e.g. ``bd comments add``
+        # with spaces, or ``git commit``). Detect that and redirect them
+        # to ``run_command`` instead of leaving them to loop on the bare
+        # "unknown tool" message.
+        looks_like_shell = (
+            " " in name
+            or name.startswith(("bd", "bd_", "git", "git_", "uv ", "make"))
+        )
+        if looks_like_shell:
+            return (
+                f"Error: {name!r} is not a tool — it looks like a shell "
+                f"command. Use the run_command tool instead, e.g. "
+                f"run_command(command={name!r} + ' ARGS_HERE'). "
+                f"Available tools: {', '.join(_TOOL_DISPATCH)}"
+            )
         return f"Error: unknown tool {name!r}. Available tools: {', '.join(_TOOL_DISPATCH)}"
 
     # Validate required arguments upfront with clear error messages
