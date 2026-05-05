@@ -223,7 +223,7 @@ class Orchestrator:
         # Cancel pending retries — they bypass _should_dispatch and would
         # otherwise re-dispatch while paused.
         for retry_iid, retry in list(self.state.retry_attempts.items()):
-            if retry.timer_handle and not retry.timer_handle.done():
+            if retry.timer_handle and not retry.timer_handle.cancelled():
                 retry.timer_handle.cancel()
             self.state.retry_attempts.pop(retry_iid, None)
             self.state.claimed.discard(retry_iid)
@@ -1934,7 +1934,7 @@ class Orchestrator:
                 self.state.completed.add(issue.id)
                 # Drop any pending retry too — the issue is done.
                 rt = self.state.retry_attempts.pop(issue.id, None)
-                if rt and rt.timer_handle and not rt.timer_handle.done():
+                if rt and rt.timer_handle and not rt.timer_handle.cancelled():
                     rt.timer_handle.cancel()
                 return
 
@@ -1951,7 +1951,7 @@ class Orchestrator:
 
         # Remove from retry if present
         retry = self.state.retry_attempts.pop(issue.id, None)
-        if retry and retry.timer_handle and not retry.timer_handle.done():
+        if retry and retry.timer_handle and not retry.timer_handle.cancelled():
             retry.timer_handle.cancel()
 
         now = datetime.now(timezone.utc)
@@ -3045,7 +3045,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """Schedule a retry timer for an issue."""
         # Cancel existing retry
         existing = self.state.retry_attempts.pop(issue_id, None)
-        if existing and existing.timer_handle and not existing.timer_handle.done():
+        if existing and existing.timer_handle and not existing.timer_handle.cancelled():
             existing.timer_handle.cancel()
 
         due_at_ms = time.monotonic() * 1000 + delay_ms

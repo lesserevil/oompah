@@ -149,10 +149,12 @@ class TestUiCloseCancelsPendingRetry:
         cancel_called = {"flag": False}
 
         class FakeTimer:
-            def done(self):
-                return False
-
+            def __init__(self):
+                self._cancelled = False
+            def cancelled(self):
+                return self._cancelled
             def cancel(self):
+                self._cancelled = True
                 cancel_called["flag"] = True
 
         orch.state.retry_attempts["i-abc"] = RetryEntry(
@@ -203,9 +205,11 @@ class TestPauseCancelsPendingRetries:
         class FakeTimer:
             def __init__(self, key: str):
                 self._k = key
-            def done(self):
-                return False
+                self._cancelled = False
+            def cancelled(self):
+                return self._cancelled
             def cancel(self):
+                self._cancelled = True
                 cancelled[self._k] = True
 
         for k in ("a", "b"):

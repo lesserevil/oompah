@@ -595,7 +595,7 @@ async def api_update_issue(identifier: str, request: Request):
                 # silently re-opens the issue (oompah-zlz_2-4jq case).
                 for retry_iid, retry in list(orch.state.retry_attempts.items()):
                     if retry.identifier == identifier:
-                        if retry.timer_handle and not retry.timer_handle.done():
+                        if retry.timer_handle and not retry.timer_handle.cancelled():
                             retry.timer_handle.cancel()
                         orch.state.retry_attempts.pop(retry_iid, None)
                         orch.state.claimed.discard(retry_iid)
