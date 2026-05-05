@@ -343,3 +343,245 @@ class TestFetchAllMergedBranchesSkipsHealthy:
         orch = _make_orchestrator_with_store([])
         result = orch._fetch_all_merged_branches()
         assert result == set()
+
+
+# ---------------------------------------------------------------------------
+# Webhook timestamp — edge cases for is_webhook_healthy
+# ---------------------------------------------------------------------------
+
+
+class TestIsWebhookHealthyTimestampEdgeCases:
+    """is_webhook_healthy must handle non-datetime types gracefully.
+
+    The isinstance(ts, datetime) guard is critical: without it, a non-datetime
+    value (e.g. a MagicMock from a poorly-isolated test or a value loaded from
+    a bug in serialization) would crash on the subtraction against
+    datetime.now(timezone.utc).
+    """
+
+    def test_non_datetime_type_falls_back_to_polling(self):
+        """Non-datetime last_webhook_received_at → unhealthy (fallback to polling)."""
+        proj = _make_project(
+            project_id="proj-1",
+            last_webhook_received_at="not-a-datetime",  # str triggers isinstance guard
+        )
+        project_store = MagicMock()
+        project_store.get.return_value = proj
+        orch = _make_orchestrator(projects=[proj])
+        orch.project_store = project_store
+        # Guard catches non-datetime and returns False → unhealthy → will poll
+        assert orch.is_webhook_healthy("proj-1") is False
+
+    def test_magicmock_type_falls_back_to_polling(self):
+        """MagicMock in last_webhook_received_at → unhealthy (no crash)."""
+        proj = _make_project(
+            project_id="proj-1",
+            last_webhook_received_at=MagicMock(),  # simulate broken isolation
+        )
+        project_store = MagicMock()
+        project_store.get.return_value = proj
+        orch = _make_orchestrator(projects=[proj])
+        orch.project_store = project_store
+        # isinstance check catches MagicMock; returns False without crashing
+        assert orch.is_webhook_healthy("proj-1") is False
+
+    def test_integer_timestamp_falls_back_to_polling(self):
+        """Integer last_webhook_received_at → unhealthy (no crash)."""
+        proj = _make_project(
+            project_id="proj-1",
+            last_webhook_received_at=1700000000,  # int is not a datetime
+        )
+        project_store = MagicMock()
+        project_store.get.return_value = proj
+        orch = _make_orchestrator(projects=[proj])
+        orch.project_store = project_store
+        assert orch.is_webhook_healthy("proj-1") is False
+
+    def test_naive_datetime_is_also_healthy_when_recent(self):
+        """Timezone-naive datetime recent enough is treated as healthy."""
+        naive = datetime.now() - timedelta(seconds=30)  # no tzinfo
+        proj = _make_project(
+            project_id="proj-1",
+            last_webhook_received_at=naive,
+        )
+        project_store = MagicMock()
+        project_store.get.return_value = proj
+        orch = _make_orchestrator(projects=[proj])
+        orch.project_store = project_store
+        # isinstance passes for naive datetime too; subtraction works
+        assert orch.is_webhook_healthy("proj-1") is True
+
+    def test_zero_timestamp_is_unhealthy(self):
+        """Numeric 0 for last_webhook_received_at → unhealthy (zero timestamp is epoch, very old)."""
+        proj = _make_project(
+            project_id="proj-1",
+            last_webhook_received_at=0,  # falsy non-None value
+        )
+        project_store = MagicMock()
+        project_store.get.return_value = proj
+        orch = _make_orchestrator(projects=[proj])
+        orch.project_store = project_store
+        assert orch.is_webhook_healthy("proj-1") is False
+
+    def test_exactly_at_150s_boundary(self):
+        """Webhook exactly at the 150s boundary → unhealthy (just over threshold)."""
+        proj = _make_project(
+            project_id="proj-1",
+            last_webhook_received_at=datetime.now(timezone.utc) - timedelta(seconds=150),
+        )
+        project_store = MagicMock()
+        project_store.get.return_value = proj
+        orch = _make_orchestrator(projects=[proj])
+        orch.project_store = project_store
+        assert orch.is_webhook_healthy("proj-1") is False
+
+
+# ---------------------------------------------------------------------------
+# Provider errors during adaptive polling
+# ---------------------------------------------------------------------------
+
+
+class TestFetchAllReviewsWithErrors:
+    """Errors from the forge provider must be handled gracefully.
+
+    A provider that raises mid-fetch should not poison results for other
+    projects; it should return an empty list for the failing project.
+    """
+
+    def test_provider_exception_returns_empty_for_failing_project(self):
+        """Provider that raises → empty list for that project, others unaffected."""
+        healthy_proj = _make_project(
+            project_id="healthy",
+            last_webhook_received_at=datetime.now(timezone.utc) - timedelta(seconds=30),
+            repo_url="https://github.com/org/healthy",
+        )
+        error_proj = _make_project(
+            project_id="error-p",
+            last_webhook_received_at=None,  # unhealthy → polled
+            repo_url="https://github.com/org/error-p",
+        )
+        error_provider = MagicMock()
+        error_provider.list_open_reviews.side_effect = Exception("connection timeout")
+
+        def detect_side_effect(url, access_token=None):
+            if "error-p" in url:
+                return error_provider
+            return None  # healthy project not polled
+
+        orch = _make_orchestrator_with_store([healthy_proj, error_proj])
+        with patch(
+            "oompah.orchestrator.detect_provider",
+            side_effect=detect_side_effect,
+        ):
+            result = orch._fetch_all_reviews()
+        # Failing project gets empty list, no exception propagates
+        assert result.get("error-p") == []
+        assert result.get("healthy", []) == []
+
+    def test_partial_success_some_projects_fail(self):
+        """Mixed: one success, one exception, one skipped (healthy)."""
+        healthy = _make_project(
+            project_id="healthy",
+            last_webhook_received_at=datetime.now(timezone.utc) - timedelta(seconds=10),
+            repo_url="https://github.com/org/healthy",
+        )
+        fail_proj = _make_project(
+            project_id="fail-p",
+            last_webhook_received_at=None,
+            repo_url="https://github.com/org/fail-p",
+        )
+        success_proj = _make_project(
+            project_id="ok-p",
+            last_webhook_received_at=None,
+            repo_url="https://github.com/org/ok-p",
+        )
+        fail_provider = MagicMock()
+        fail_provider.list_open_reviews.side_effect = OSError("network unreachable")
+        ok_provider = MagicMock()
+        ok_provider.list_open_reviews.return_value = [
+            ReviewRequest(
+                id="PR-77",
+                title="Fix bug",
+                url="https://github.com/org/ok-p/pull/77",
+                author="alice",
+                state="open",
+                source_branch="fix-bug",
+                target_branch="main",
+                created_at="2025-01-01",
+                updated_at="2025-01-01",
+                ci_status="passed",
+                has_conflicts=False,
+                needs_rebase=False,
+                draft=False,
+            )
+        ]
+
+        def detect_side_effect(url, access_token=None):
+            if "fail-p" in url:
+                return fail_provider
+            if "ok-p" in url:
+                return ok_provider
+            return None
+
+        orch = _make_orchestrator_with_store([healthy, fail_proj, success_proj])
+        with patch(
+            "oompah.orchestrator.detect_provider",
+            side_effect=detect_side_effect,
+        ):
+            result = orch._fetch_all_reviews()
+        # Healthy skipped, fail returns empty, ok returns the PR
+        assert result.get("healthy", []) == []
+        assert result.get("fail-p") == []
+        assert len(result.get("ok-p", [])) == 1
+        assert result["ok-p"][0].id == "PR-77"
+
+
+class TestFetchAllMergedBranchesWithErrors:
+    """Provider errors during merged-branches fetch are handled gracefully."""
+
+    def test_provider_exception_returns_empty_set_for_failing_project(self):
+        """Exception → empty set for that project, bugs don't cascade."""
+        stale_proj = _make_project(
+            project_id="stale-p",
+            last_webhook_received_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+            repo_url="https://github.com/org/stale-p",
+        )
+        provider_error = MagicMock()
+        provider_error.list_merged_branches.side_effect = Exception("timeout")
+
+        orch = _make_orchestrator_with_store([stale_proj])
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=provider_error
+        ):
+            result = orch._fetch_all_merged_branches()
+        # Failing project yields empty set; no exception propagated
+        assert result == set()
+        provider_error.list_merged_branches.assert_called_once()
+
+    def test_mixed_errors_and_success(self):
+        """One project raises, one succeeds — union is across successful only."""
+        fail_proj = _make_project(
+            project_id="fail",
+            last_webhook_received_at=None,
+            repo_url="https://github.com/org/fail",
+        )
+        success_proj = _make_project(
+            project_id="ok",
+            last_webhook_received_at=None,
+            repo_url="https://github.com/org/ok",
+        )
+        fail_provider = MagicMock()
+        fail_provider.list_merged_branches.side_effect = RuntimeError("boom")
+        ok_provider = MagicMock()
+        ok_provider.list_merged_branches.return_value = {"branch-100"}
+
+        def detect_side_effect(url, access_token=None):
+            return fail_provider if "fail" in url else ok_provider
+
+        orch = _make_orchestrator_with_store([fail_proj, success_proj])
+        with patch(
+            "oompah.orchestrator.detect_provider", side_effect=detect_side_effect
+        ):
+            result = orch._fetch_all_merged_branches()
+        # Only the successful project's branches appear
+        assert result == {"branch-100"}

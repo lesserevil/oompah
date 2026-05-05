@@ -829,10 +829,16 @@ class Orchestrator:
         if not project:
             return False
         ts = project.last_webhook_received_at
-        # If no webhook has ever been received, treat as unhealthy so we poll.
-        # Also guard against non-datetime types (e.g. MagicMock in tests).
+        # Guard against non-datetime types (e.g. MagicMock in tests).
         if not ts or not isinstance(ts, datetime):
             return False
+        # Treat timezone-naive datetimes as UTC to allow comparison.
+        # This is safe because webhook timestamps from the database are
+        # always stored as UTC (server.py normalises them), so a naive
+        # value signals corrupted / misconfigured data — still better
+        # than crashing with a TypeError.
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
         # Fall back to polling if delivery is older than 150 seconds
         age = datetime.now(timezone.utc) - ts
         return age.total_seconds() <= 150
