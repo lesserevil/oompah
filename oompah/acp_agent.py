@@ -221,15 +221,66 @@ class AcpAgentSession:
         agent_env = dict(os.environ)
         agent_env.update(self.env)
 
+        # Permission mode: NOT "bypassPermissions". That mode bypasses
+        # the can_use_tool callback entirely, which is exactly the
+        # mechanism we use to force claude through our MCP-bridged
+        # catalog (vs its native Bash/Read/Write/etc.). With "default"
+        # mode every tool call routes through can_use_tool, which
+        # auto-allows ``mcp__oompah__*`` and auto-denies everything
+        # else. No human-in-the-loop prompts because the callback
+        # always returns a definitive decision. See
+        # docs/acp-agent.md and oompah-zlz_2-bcl.6.
+        from claude_agent_sdk import (
+            PermissionResultAllow,
+            PermissionResultDeny,
+        )
+
+        async def _can_use_tool(
+            tool_name: str,
+            tool_input: dict[str, Any],
+            context: Any,
+        ) -> Any:
+            """Strict allowlist: only oompah's MCP-bridged catalog is
+            permitted. Claude's native built-ins (Bash, Read, Write,
+            Edit, Glob, Grep, WebFetch, ...) are denied so cd-guard,
+            BEADS_DIR routing, and shell-redirect stay in force.
+
+            Every grant and deny is emitted to per-agent JSONL so the
+            agent_watcher (planned in docs/agent-watcher.md) can audit
+            the tool surface after the fact.
+            """
+            allowed = tool_name.startswith("mcp__oompah__")
+            event_kind = (
+                "acp_permission_grant" if allowed else "acp_permission_deny"
+            )
+            try:
+                self._emit(
+                    event_kind,
+                    payload={
+                        "tool": tool_name,
+                        "input": _truncate_for_log(tool_input),
+                    },
+                )
+            except Exception:
+                pass
+            if allowed:
+                return PermissionResultAllow()
+            return PermissionResultDeny(
+                message=(
+                    f"Tool {tool_name!r} is not in oompah's allowed catalog. "
+                    f"Use one of mcp__oompah__* (read_file, write_file, "
+                    f"edit_file, list_files, search_files, run_command) "
+                    f"so safety rails (cd-guard, BEADS_DIR routing) apply."
+                ),
+                interrupt=False,
+            )
+
         options_kwargs: dict[str, Any] = {
             "system_prompt": self.prompt,
             "cwd": self.workspace_path,
             "env": agent_env,
-            # Permission mode: bypass everything for YOLO mode. Mirrors
-            # `claude --dangerously-skip-permissions`. The audit trail
-            # comes from our per-agent JSONL log, which records the
-            # bypass at session start.
-            "permission_mode": "bypassPermissions",
+            "permission_mode": "default",
+            "can_use_tool": _can_use_tool,
         }
         if self.model:
             options_kwargs["model"] = self.model
@@ -239,8 +290,8 @@ class AcpAgentSession:
             options_kwargs["max_turns"] = int(self.max_turns)
         if self.tool_catalog:
             # tool_catalog is a list of mcp.SdkMcpTool produced by the
-            # SDK's @tool decorator. Wrap in a server config and only
-            # allow our explicit catalog.
+            # SDK's @tool decorator. Wrap in a server config so claude
+            # can call them — but the actual gate is can_use_tool above.
             from claude_agent_sdk import create_sdk_mcp_server
 
             server = create_sdk_mcp_server(
@@ -249,25 +300,20 @@ class AcpAgentSession:
                 tools=self.tool_catalog,
             )
             options_kwargs["mcp_servers"] = {"oompah": server}
-            allow_names = [
-                f"mcp__oompah__{t.name}"
-                for t in self.tool_catalog
-                if hasattr(t, "name")
-            ]
-            options_kwargs["allowed_tools"] = allow_names
 
         options = ClaudeAgentOptions(**options_kwargs)
 
         # Emit a one-time "ACP session starting" event so the JSONL log
-        # records the bypass-permissions decision and the model
-        # selection. agent_watcher will use this as the session anchor.
+        # records the permission policy and the model selection.
+        # agent_watcher will use this as the session anchor.
         self._emit(
             "acp_session_start",
             payload={
                 "model": self.model,
                 "fallback_model": self.fallback_model,
                 "max_turns": self.max_turns,
-                "permission_mode": "bypassPermissions",
+                "permission_mode": "default",
+                "tool_policy": "strict_allowlist:mcp__oompah__*",
                 "tool_catalog": [
                     getattr(t, "name", str(t)) for t in self.tool_catalog
                 ],

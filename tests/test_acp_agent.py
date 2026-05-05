@@ -276,9 +276,13 @@ class TestAcpAgentSession:
         _, _, events = self._run_session_sync([result])
         starts = [e for e in events if e.event == "acp_session_start"]
         assert len(starts) == 1
-        # Q4 acceptance: session-start payload records the auto-accept
-        # decision so agent_watcher (later) can audit.
-        assert starts[0].payload["permission_mode"] == "bypassPermissions"
+        # Permission mode is now "default" (not bypassPermissions) so
+        # can_use_tool fires and oompah's catalog is the only allowed
+        # surface. The strict-allowlist policy is recorded for audit.
+        assert starts[0].payload["permission_mode"] == "default"
+        assert starts[0].payload["tool_policy"] == (
+            "strict_allowlist:mcp__oompah__*"
+        )
 
     def test_errored_when_sdk_raises(self):
         async def boom():
@@ -302,6 +306,219 @@ class TestAcpAgentSession:
         status, session = asyncio.run(runner())
         assert status == "errored"
         assert "subprocess crashed" in (session.last_error or "")
+
+
+# ----------------------------------------------------------------------
+# can_use_tool strict allowlist (oompah-zlz_2-bcl.6)
+# ----------------------------------------------------------------------
+
+
+class TestCanUseToolStrictAllowlist:
+    """Verifies the can_use_tool callback installed in AcpAgentSession:
+
+    * Allows tools whose name starts with ``mcp__oompah__`` (our
+      MCP-bridged catalog).
+    * Denies every claude built-in (Bash, Read, Write, Edit, Glob,
+      Grep, WebFetch, Task, etc.) so the cd-out-of-worktree guard,
+      BEADS_DIR routing, and shell-redirect stay in force.
+    * Emits an `acp_permission_grant` event for allows and an
+      `acp_permission_deny` event for denies, both with the tool
+      name and a truncated copy of the input args so the
+      agent_watcher (planned, docs/agent-watcher.md) can audit
+      retroactively.
+    """
+
+    def _capture_callback(self):
+        """Extract the can_use_tool callback the session installs.
+
+        We can't easily run a real ClaudeSDKClient here, so capture
+        the callback by intercepting ClaudeAgentOptions construction
+        inside run_task() and short-circuit the session loop.
+        """
+        captured = {}
+
+        from claude_agent_sdk import ClaudeAgentOptions as _Real
+
+        def _spy(*args, **kwargs):
+            captured["kwargs"] = kwargs
+            return _Real(*args, **kwargs)
+
+        events: list[AgentEvent] = []
+
+        async def _stream():
+            from claude_agent_sdk import ResultMessage
+            yield ResultMessage(
+                subtype="success", duration_ms=1, duration_api_ms=1,
+                is_error=False, num_turns=0, session_id="s",
+                stop_reason=None, total_cost_usd=None,
+                usage=None, result=None, structured_output=None,
+                model_usage=None, permission_denials=None,
+                errors=None, uuid="u",
+            )
+
+        client_mock = AsyncMock()
+        client_mock.query = AsyncMock()
+        client_mock.receive_response = MagicMock(return_value=_stream())
+        client_mock.interrupt = AsyncMock()
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(return_value=client_mock)
+        cm.__aexit__ = AsyncMock(return_value=None)
+
+        async def runner():
+            with patch("claude_agent_sdk.ClaudeAgentOptions", _spy):
+                with patch("claude_agent_sdk.ClaudeSDKClient",
+                           return_value=cm):
+                    session = AcpAgentSession(
+                        workspace_path="/tmp/ws",
+                        prompt="x",
+                        model="claude-opus-4-7",
+                        on_event=events.append,
+                    )
+                    await session.run_task()
+
+        asyncio.run(runner())
+        return captured["kwargs"]["can_use_tool"], events
+
+    def test_session_installs_can_use_tool(self):
+        callback, _ = self._capture_callback()
+        assert callable(callback)
+
+    def test_oompah_tool_allowed(self):
+        from claude_agent_sdk import PermissionResultAllow
+        callback, events = self._capture_callback()
+        result = asyncio.run(callback(
+            "mcp__oompah__read_file", {"path": "x.py"}, MagicMock(),
+        ))
+        assert isinstance(result, PermissionResultAllow)
+
+    def test_native_bash_denied(self):
+        from claude_agent_sdk import PermissionResultDeny
+        callback, _ = self._capture_callback()
+        result = asyncio.run(callback("Bash", {"command": "ls"}, MagicMock()))
+        assert isinstance(result, PermissionResultDeny)
+        assert "not in oompah's allowed catalog" in result.message
+        # `interrupt=False` lets claude see the deny and continue —
+        # important so a single misuse doesn't terminate the whole turn.
+        assert result.interrupt is False
+
+    def test_native_read_denied(self):
+        from claude_agent_sdk import PermissionResultDeny
+        callback, _ = self._capture_callback()
+        result = asyncio.run(callback("Read", {"file_path": "/etc/passwd"}, MagicMock()))
+        assert isinstance(result, PermissionResultDeny)
+
+    def test_native_write_denied(self):
+        from claude_agent_sdk import PermissionResultDeny
+        callback, _ = self._capture_callback()
+        result = asyncio.run(callback("Write", {"file_path": "x", "content": "y"}, MagicMock()))
+        assert isinstance(result, PermissionResultDeny)
+
+    def test_other_mcp_server_denied(self):
+        # Even another MCP server's tools (mcp__some_other__*) are
+        # denied — strict allowlist means oompah's catalog only.
+        from claude_agent_sdk import PermissionResultDeny
+        callback, _ = self._capture_callback()
+        result = asyncio.run(callback("mcp__rogue__do_thing", {}, MagicMock()))
+        assert isinstance(result, PermissionResultDeny)
+
+    def test_grant_emits_jsonl_event(self):
+        callback, _ = self._capture_callback()
+        captured: list[AgentEvent] = []
+
+        # Re-run capture but with fresh on_event we can introspect.
+        from claude_agent_sdk import ClaudeAgentOptions as _Real
+
+        async def runner():
+            kwargs = {}
+
+            def _spy(*args, **kw):
+                kwargs.update(kw)
+                return _Real(*args, **kw)
+
+            async def _stream():
+                from claude_agent_sdk import ResultMessage
+                yield ResultMessage(
+                    subtype="success", duration_ms=1, duration_api_ms=1,
+                    is_error=False, num_turns=0, session_id="s",
+                    stop_reason=None, total_cost_usd=None, usage=None,
+                    result=None, structured_output=None, model_usage=None,
+                    permission_denials=None, errors=None, uuid="u",
+                )
+
+            client_mock = AsyncMock()
+            client_mock.query = AsyncMock()
+            client_mock.receive_response = MagicMock(return_value=_stream())
+            client_mock.interrupt = AsyncMock()
+            cm = AsyncMock()
+            cm.__aenter__ = AsyncMock(return_value=client_mock)
+            cm.__aexit__ = AsyncMock(return_value=None)
+
+            with patch("claude_agent_sdk.ClaudeAgentOptions", _spy), \
+                 patch("claude_agent_sdk.ClaudeSDKClient", return_value=cm):
+                session = AcpAgentSession(
+                    workspace_path="/tmp/ws", prompt="x",
+                    model="claude-opus-4-7",
+                    on_event=captured.append,
+                )
+                await session.run_task()
+            return kwargs["can_use_tool"]
+
+        cb = asyncio.run(runner())
+        # Now drive the callback once and observe the emitted event.
+        captured.clear()
+        asyncio.run(cb("mcp__oompah__read_file", {"path": "x"}, MagicMock()))
+        kinds = [e.event for e in captured]
+        assert "acp_permission_grant" in kinds
+        grant = next(e for e in captured if e.event == "acp_permission_grant")
+        assert grant.payload["tool"] == "mcp__oompah__read_file"
+        # input is recorded for audit
+        assert grant.payload["input"] == {"path": "x"}
+
+    def test_deny_emits_jsonl_event(self):
+        captured: list[AgentEvent] = []
+        from claude_agent_sdk import ClaudeAgentOptions as _Real
+
+        async def runner():
+            kwargs = {}
+
+            def _spy(*args, **kw):
+                kwargs.update(kw)
+                return _Real(*args, **kw)
+
+            async def _stream():
+                from claude_agent_sdk import ResultMessage
+                yield ResultMessage(
+                    subtype="success", duration_ms=1, duration_api_ms=1,
+                    is_error=False, num_turns=0, session_id="s",
+                    stop_reason=None, total_cost_usd=None, usage=None,
+                    result=None, structured_output=None, model_usage=None,
+                    permission_denials=None, errors=None, uuid="u",
+                )
+
+            client_mock = AsyncMock()
+            client_mock.query = AsyncMock()
+            client_mock.receive_response = MagicMock(return_value=_stream())
+            client_mock.interrupt = AsyncMock()
+            cm = AsyncMock()
+            cm.__aenter__ = AsyncMock(return_value=client_mock)
+            cm.__aexit__ = AsyncMock(return_value=None)
+
+            with patch("claude_agent_sdk.ClaudeAgentOptions", _spy), \
+                 patch("claude_agent_sdk.ClaudeSDKClient", return_value=cm):
+                session = AcpAgentSession(
+                    workspace_path="/tmp/ws", prompt="x",
+                    model="claude-opus-4-7",
+                    on_event=captured.append,
+                )
+                await session.run_task()
+            return kwargs["can_use_tool"]
+
+        cb = asyncio.run(runner())
+        captured.clear()
+        asyncio.run(cb("Bash", {"command": "rm -rf /"}, MagicMock()))
+        denies = [e for e in captured if e.event == "acp_permission_deny"]
+        assert len(denies) == 1
+        assert denies[0].payload["tool"] == "Bash"
 
 
 # ----------------------------------------------------------------------
