@@ -99,7 +99,7 @@ Children of this epic:
 
 | Child issue | Title |
 | --- | --- |
-| `oompah-zlz_2-7fp` | Step 1: add `merge_group` CI triggers to oompah and trickle |
+| `oompah-zlz_2-7fp` | Step 1: add `merge_group` CI triggers to oompah and trickle | ✅ Done |
 | `oompah-zlz_2-win` | Step 2: reduce `.beads/issues.jsonl` merge contention via custom git merge driver |
 | `oompah-zlz_2-pt4` | Step 3: soften `_project_has_open_review` to a configurable concurrency limit |
 | `oompah-zlz_2-d7o` | Step 4: update YOLO auto-merge to support enqueue mode for merge-queue-enabled projects |
