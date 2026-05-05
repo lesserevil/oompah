@@ -58,6 +58,18 @@ class TestLoadWorkflow:
 
 
 class TestServiceConfig:
+    def setup_method(self):
+        """Clear OOMPAH_* polling env vars so tests run in a clean environment."""
+        for key in list(os.environ):
+            if key.startswith("OOMPAH_"):
+                os.environ.pop(key, None)
+
+    def teardown_method(self):
+        """Restore clean environment after each test."""
+        for key in list(os.environ):
+            if key.startswith("OOMPAH_"):
+                os.environ.pop(key, None)
+
     def test_from_workflow_defaults(self):
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
