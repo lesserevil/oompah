@@ -412,6 +412,19 @@ class TestHttpPostClassification:
         assert excinfo.value.status_code is None
         assert "Connection refused" in str(excinfo.value)
 
+    def test_timeout_error_raises_transient_server_error(self, monkeypatch):
+        """A read/connect timeout is a URLError like connection refused —
+        it must be wrapped in TransientServerError so _call_api retries it."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        def fake_urlopen(*a, **kw):
+            raise _ue.URLError(reason="timed out")
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code is None
+        assert "timed out" in str(excinfo.value)
+
     def test_429_still_raises_rate_limit_error(self, monkeypatch):
         from oompah.api_agent import _http_post, RateLimitError
 
