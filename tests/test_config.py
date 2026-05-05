@@ -62,7 +62,7 @@ class TestServiceConfig:
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.tracker_kind == "beads"
-        assert cfg.poll_interval_ms == 30000
+        assert cfg.poll_interval_ms == 120000
         assert cfg.max_concurrent_agents == 10
         assert cfg.budget_limit == 0.0
         assert cfg.workspace_root  # should have a default

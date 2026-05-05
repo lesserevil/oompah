@@ -341,7 +341,7 @@ class RunningEntry:
 class OrchestratorState:
     """Single authoritative in-memory state owned by the orchestrator."""
 
-    poll_interval_ms: int = 30000
+    poll_interval_ms: int = 120000
     max_concurrent_agents: int = 10
     running: dict[str, RunningEntry] = field(default_factory=dict)
     claimed: set[str] = field(default_factory=set)
