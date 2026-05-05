@@ -211,9 +211,22 @@ class Orchestrator:
         self._prompt_template = template
 
     def pause(self) -> None:
-        """Pause: stop all running agents and prevent new dispatches."""
+        """Pause: stop all running agents, cancel pending retries, and
+        prevent new dispatches. Agents that were running are terminated;
+        retry timers that were scheduled are cancelled. Without this,
+        a retry timer fires while paused, bypasses the dispatch loop's
+        paused check (which only guards _should_dispatch, not _dispatch
+        itself), and re-dispatches an issue against the user's intent.
+        """
         self._paused = True
         self._save_paused_state()
+        # Cancel pending retries — they bypass _should_dispatch and would
+        # otherwise re-dispatch while paused.
+        for retry_iid, retry in list(self.state.retry_attempts.items()):
+            if retry.timer_handle and not retry.timer_handle.done():
+                retry.timer_handle.cancel()
+            self.state.retry_attempts.pop(retry_iid, None)
+            self.state.claimed.discard(retry_iid)
         # Terminate all running agents (keep workspaces for resume)
         asyncio.ensure_future(self._terminate_all_running())
         logger.info("Orchestrator paused — all agents stopped")
@@ -250,6 +263,11 @@ class Orchestrator:
         4. Signal the main loop to stop (which triggers os.execv in __main__)
         """
         logger.info("Graceful restart requested (drain_timeout=%.0fs)", drain_timeout_s)
+        # Capture whether the user had explicitly paused before this call.
+        # We pause internally for the drain regardless, but on the new boot
+        # we should respect the user's pre-existing intent — overwriting
+        # paused=False unconditionally would silently undo a user-set pause.
+        was_user_paused = self._paused
         self._paused = True
         self._notify_observers()
 
@@ -274,8 +292,10 @@ class Orchestrator:
             logger.info("Saving %d undrained issue(s) for re-dispatch after restart",
                         len(restart_issues))
 
+        # Preserve user's explicit pause across the restart; otherwise
+        # come up unpaused so the saved restart_issues can re-dispatch.
         self._save_state(
-            paused=False,
+            paused=was_user_paused,
             restart_issues=restart_issues,
         )
 
@@ -1854,6 +1874,18 @@ class Orchestrator:
     async def _dispatch(self, issue: Issue, attempt: int | None,
                         override_profile: str | None = None) -> None:
         """Dispatch a worker for an issue."""
+        # Belt-and-suspenders: the regular dispatch loop already checks
+        # _paused via _should_dispatch, but the retry path
+        # (_on_retry_timer -> _dispatch) bypasses that check. Reject here
+        # too so a retry that was already in flight when pause() was
+        # called can't silently re-dispatch.
+        if self._paused:
+            logger.info(
+                "Skipping dispatch of %s: orchestrator paused",
+                issue.identifier,
+            )
+            self.state.claimed.discard(issue.id)
+            return
         self.state.reject_streak.pop(issue.id, None)
         # Use escalated profile if provided, otherwise match normally
         if override_profile:
@@ -1873,9 +1905,41 @@ class Orchestrator:
         )
         self.state.claimed.add(issue.id)
 
-        # Move issue to in_progress (in thread to avoid blocking event loop)
+        # Race protection: the candidate fetch that produced ``issue`` may
+        # have predated a state change (e.g. user closing the bead via the
+        # UI between fetch and dispatch). If we blindly write
+        # status=in_progress here, we'd silently re-open a closed issue.
+        # Re-read current state and abort if it's terminal.
         try:
             tracker = self._tracker_for_issue(issue)
+            refreshed = await asyncio.get_event_loop().run_in_executor(
+                self._tick_pool,
+                lambda: tracker.fetch_issue_states_by_ids([issue.id]),
+            )
+        except Exception as exc:
+            logger.debug(
+                "Pre-dispatch state recheck failed for %s: %s — proceeding anyway",
+                issue.identifier, exc,
+            )
+            refreshed = []
+        if refreshed:
+            cur_state = (refreshed[0].state or "").strip().lower()
+            terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
+            if cur_state in terminal:
+                logger.info(
+                    "Aborting dispatch of %s: state moved to %r since fetch",
+                    issue.identifier, cur_state,
+                )
+                self.state.claimed.discard(issue.id)
+                self.state.completed.add(issue.id)
+                # Drop any pending retry too — the issue is done.
+                rt = self.state.retry_attempts.pop(issue.id, None)
+                if rt and rt.timer_handle and not rt.timer_handle.done():
+                    rt.timer_handle.cancel()
+                return
+
+        # Move issue to in_progress (in thread to avoid blocking event loop)
+        try:
             await asyncio.get_event_loop().run_in_executor(
                 self._tick_pool,
                 lambda: tracker.update_issue(issue.identifier, status="in_progress"),
@@ -2068,6 +2132,17 @@ class Orchestrator:
             if getattr(focus, "allow_image_output", False) and "image" in capabilities:
                 base_tools.add("attach_image")
 
+            # Per-dispatch JSONL log capturing every request, response,
+            # and activity event. One file per dispatch so the user can
+            # see exactly what was sent to and returned from the model.
+            log_dir = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
+                os.path.expanduser("~"), ".oompah", "agent-logs",
+            )
+            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            agent_log_path = os.path.join(
+                log_dir, f"{issue.identifier}__{ts}.jsonl",
+            )
+
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -2078,6 +2153,10 @@ class Orchestrator:
                 system_prompt="You are an autonomous coding agent. Use the provided tools to complete the task.",
                 enabled_tools=base_tools,
                 model_max_context=provider.get_model_context(model),
+                log_path=agent_log_path,
+            )
+            logger.info(
+                "Agent log for %s -> %s", issue.identifier, agent_log_path,
             )
 
             # Update running entry with minimal session info

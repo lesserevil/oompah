@@ -263,3 +263,107 @@ class TestCallApiBudget:
         # max_tokens was clamped to fit.
         mt = captured["payload"]["max_tokens"]
         assert mt >= _MIN_MAX_OUTPUT_TOKENS
+
+
+# ---------------------------------------------------------------------------
+# Per-dispatch JSONL agent logging — captures every request, response,
+# and activity event so users can audit exactly what each agent received
+# and produced. One file per dispatch.
+# ---------------------------------------------------------------------------
+
+class TestAgentLogging:
+    def test_no_log_when_log_path_none(self, tmp_path, monkeypatch):
+        """Backwards-compat: a session without log_path writes no files."""
+        captured = {}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            captured["payload"] = json.loads(body)
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        from oompah.api_agent import ApiAgentSession
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
+        # Nothing should have been written.
+        files = list(tmp_path.iterdir())
+        assert all(not f.name.endswith(".jsonl") for f in files), files
+
+    def test_call_api_writes_request_and_response(self, tmp_path, monkeypatch):
+        log_path = tmp_path / "agent.jsonl"
+
+        def fake_post(url, headers, body, ssl_ctx):
+            return {
+                "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15},
+            }
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        from oompah.api_agent import ApiAgentSession
+        s = ApiAgentSession(
+            base_url="http://x", api_key="secret-redacted", model="m",
+            workspace_path=str(tmp_path),
+            log_path=str(log_path),
+        )
+        asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
+
+        assert log_path.exists()
+        records = [json.loads(l) for l in log_path.read_text().splitlines()]
+        kinds = [r["kind"] for r in records]
+        assert "request" in kinds
+        assert "response" in kinds
+
+        req = next(r for r in records if r["kind"] == "request")
+        resp = next(r for r in records if r["kind"] == "response")
+        # Request has the full payload — messages and model.
+        assert req["payload"]["model"] == "m"
+        assert req["payload"]["messages"][1]["content"] == "hi"
+        # Response has the full body.
+        assert resp["body"]["choices"][0]["message"]["content"] == "ok"
+        assert resp["body"]["usage"]["total_tokens"] == 15
+
+    def test_log_never_contains_api_key(self, tmp_path, monkeypatch):
+        """API keys must never appear in the JSONL."""
+        log_path = tmp_path / "agent.jsonl"
+
+        def fake_post(url, headers, body, ssl_ctx):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        from oompah.api_agent import ApiAgentSession
+        sentinel_key = "should-never-appear-in-the-log-12345"
+        s = ApiAgentSession(
+            base_url="http://x", api_key=sentinel_key, model="m",
+            workspace_path=str(tmp_path),
+            log_path=str(log_path),
+        )
+        asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
+        contents = log_path.read_text()
+        assert sentinel_key not in contents, "api_key leaked to agent log"
+
+    def test_logging_failure_does_not_break_call(self, tmp_path, monkeypatch):
+        """If the log file can't be written, the agent must still proceed."""
+
+        def fake_post(url, headers, body, ssl_ctx):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        from oompah.api_agent import ApiAgentSession
+        # Point the log at a path where the parent doesn't exist AND can't
+        # be created (use a path under an existing file). Use an unwritable
+        # location instead to be portable.
+        bad_path = "/dev/null/cannot/create/here.jsonl"
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+            log_path=bad_path,
+        )
+        # Must not raise.
+        result = asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
+        assert result["choices"][0]["message"]["content"] == "ok"

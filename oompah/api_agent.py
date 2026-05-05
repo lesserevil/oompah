@@ -17,6 +17,7 @@ import time
 import urllib.request
 import urllib.error
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -687,6 +688,7 @@ class ApiAgentSession:
         command_timeout: int = 60,
         enabled_tools: set[str] | None = None,
         model_max_context: int | None = None,
+        log_path: str | None = None,
     ):
         # Strip trailing slash for clean URL joining
         self.base_url = base_url.rstrip("/")
@@ -710,9 +712,37 @@ class ApiAgentSession:
         # clamps max_tokens to fit within the remaining headroom. When
         # None, behaviour falls back to the legacy fixed max_tokens.
         self.model_max_context = model_max_context
+        # Path to a JSONL file recording every request, response, and
+        # activity event for this dispatch. None disables file logging.
+        self.log_path = log_path
 
         self._ssl_ctx = _build_ssl_context()
         self._url = f"{self.base_url}/chat/completions"
+
+    def _log_event(self, kind: str, **fields: Any) -> None:
+        """Append one JSONL record to ``self.log_path`` (best-effort).
+
+        Each record is a single-line JSON object with ``ts`` (UTC ISO),
+        ``kind`` (e.g. "session_start", "request", "response",
+        "activity", "session_end"), and any extra fields the caller
+        passes. Failures are swallowed so logging never disrupts a
+        running agent. ``api_key`` and HTTP headers are never written.
+        """
+        if not self.log_path:
+            return
+        try:
+            record = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": kind,
+                **fields,
+            }
+            os.makedirs(os.path.dirname(self.log_path) or ".", exist_ok=True)
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False, default=str))
+                f.write("\n")
+        except (OSError, TypeError, ValueError):
+            # Logging is best-effort: any error here must not break the agent.
+            pass
 
     @property
     def _tool_definitions(self) -> list[dict[str, Any]]:
@@ -746,6 +776,21 @@ class ApiAgentSession:
         messages: list[dict[str, Any]] = []
         activity: list[AgentActivity] = []
 
+        # One-time header recording the dispatch parameters. After this
+        # the log captures every request/response and every activity
+        # event so the full conversation can be reconstructed.
+        self._log_event(
+            "session_start",
+            model=self.model,
+            base_url=self.base_url,
+            workspace=str(self.workspace),
+            max_turns=self.max_turns,
+            stall_turns=self.stall_turns,
+            system_prompt=self.system_prompt,
+            tools=[t.get("function", {}).get("name") for t in self._tool_definitions],
+            model_max_context=self.model_max_context,
+        )
+
         def _emit(turn: int, kind: str, summary: str, detail: str = "") -> None:
             entry = AgentActivity(
                 turn=turn, kind=kind, summary=summary,
@@ -754,6 +799,10 @@ class ApiAgentSession:
             activity.append(entry)
             if on_activity:
                 on_activity(entry)
+            self._log_event(
+                "activity", turn=turn, event_kind=kind,
+                summary=summary, detail=detail,
+            )
 
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
@@ -1069,6 +1118,9 @@ class ApiAgentSession:
             "tool_choice": "auto",
             "max_tokens": max_tokens,
         }
+        # Log the full outgoing payload (without auth headers) so the
+        # exact prompt the model receives is recoverable from disk.
+        self._log_event("request", payload=payload)
         body = json.dumps(payload).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
@@ -1079,10 +1131,20 @@ class ApiAgentSession:
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                return await asyncio.to_thread(
+                response = await asyncio.to_thread(
                     _http_post, self._url, headers, body, self._ssl_ctx
                 )
+                # Mirror of the "request" log above so each turn has a
+                # complete sent/received pair on disk.
+                self._log_event(
+                    "response", attempt=attempt, body=response,
+                )
+                return response
             except RateLimitError as exc:
+                self._log_event(
+                    "rate_limit", attempt=attempt, retry_after=exc.retry_after,
+                    error=str(exc),
+                )
                 if attempt >= max_retries - 1:
                     raise
                 # Use Retry-After if provided, otherwise exponential backoff

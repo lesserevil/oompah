@@ -588,6 +588,24 @@ async def api_update_issue(identifier: str, request: Request):
                         await orch._terminate_running(issue_id, cleanup_workspace=(status_norm in terminal))
                         break
 
+                # Also cancel any *pending retry* for this identifier so a
+                # scheduled timer doesn't re-dispatch a closed bead later.
+                # Without this, a worker that failed pre-close leaves a
+                # retry timer behind that fires after the close and
+                # silently re-opens the issue (oompah-zlz_2-4jq case).
+                for retry_iid, retry in list(orch.state.retry_attempts.items()):
+                    if retry.identifier == identifier:
+                        if retry.timer_handle and not retry.timer_handle.done():
+                            retry.timer_handle.cancel()
+                        orch.state.retry_attempts.pop(retry_iid, None)
+                        orch.state.claimed.discard(retry_iid)
+                        if status_norm in terminal:
+                            orch.state.completed.add(retry_iid)
+                        logger.info(
+                            "Cancelled pending retry for %s (moved to %s via UI)",
+                            identifier, new_status,
+                        )
+
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
         await broadcast_issues()

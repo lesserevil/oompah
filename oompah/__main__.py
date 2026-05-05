@@ -36,6 +36,14 @@ def main() -> None:
         metavar="PATH",
         help="Path to .env file to load (default: .env)",
     )
+    parser.add_argument(
+        "--paused",
+        action="store_true",
+        help="Start the orchestrator in the paused state. Overrides any "
+             "persisted paused=False from the previous run. Pause is then "
+             "persisted, so subsequent restarts (without the flag) stay "
+             "paused until you call /api/v1/orchestrator/resume.",
+    )
     args = parser.parse_args()
 
     # Load .env file before anything else so $VAR references in WORKFLOW.md resolve.
@@ -66,7 +74,7 @@ def main() -> None:
     while True:
         restart = False
         try:
-            restart = asyncio.run(_run(workflow_path, args.port))
+            restart = asyncio.run(_run(workflow_path, args.port, start_paused=args.paused))
         except KeyboardInterrupt:
             logger.info("Shutting down")
         except Exception as exc:
@@ -74,12 +82,17 @@ def main() -> None:
             sys.exit(1)
 
         if restart:
-            logger.info("Restarting via os.execv: %s %s", sys.executable, sys.argv)
-            os.execv(sys.executable, [sys.executable, "-m", "oompah"] + sys.argv[1:])
+            # Drop --paused from the re-exec argv so an in-process restart
+            # doesn't keep forcing pause when the user had already resumed.
+            execv_args = [a for a in sys.argv[1:] if a != "--paused"]
+            logger.info("Restarting via os.execv: %s %s", sys.executable, execv_args)
+            os.execv(sys.executable, [sys.executable, "-m", "oompah"] + execv_args)
         break
 
 
-async def _run(workflow_path: str, cli_port: int | None) -> bool:
+async def _run(
+    workflow_path: str, cli_port: int | None, start_paused: bool = False,
+) -> bool:
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.orchestrator import Orchestrator
     from oompah.projects import ProjectStore
@@ -108,10 +121,40 @@ async def _run(workflow_path: str, cli_port: int | None) -> bool:
     # Create orchestrator with shared stores
     provider_store = ProviderStore()
     project_store = ProjectStore()
+
+    # Pull latest code (git pull --ff-only) and beads state (bd dolt pull)
+    # for every configured project BEFORE the orchestrator starts dispatching.
+    # Without this, agents work against stale local state — both stale code
+    # in the worktree base and stale beads (e.g. tasks marked deferred on
+    # another machine still appear as open locally and get auto-dispatched).
+    # Best-effort, parallel, with per-call timeouts; failures are logged but
+    # never block boot.
+    projects = project_store.list_all()
+    if projects:
+        logger.info("Syncing sources for %d project(s) before dispatch...", len(projects))
+        sync_results = project_store.sync_all_sources()
+        for pid, st in sync_results.items():
+            name = next((p.name for p in projects if p.id == pid), pid)
+            logger.info(
+                "Startup sync %s: git=%s beads=%s",
+                name, st.get("git", "?"), st.get("beads", "?"),
+            )
+
     orchestrator = Orchestrator(config, workflow_path,
                                 provider_store=provider_store,
                                 project_store=project_store)
     orchestrator.set_prompt_template(workflow.prompt_template)
+
+    # --paused CLI flag forces the orchestrator to boot paused regardless
+    # of what's in the persisted state file. Persist it so subsequent
+    # restarts stay paused until /resume is called.
+    if start_paused and not orchestrator.is_paused:
+        orchestrator._paused = True
+        orchestrator._save_paused_state()
+        logger.info("Booting paused (--paused flag)")
+    elif orchestrator.is_paused:
+        logger.info("Booting paused (persisted state)")
+
     set_orchestrator(orchestrator)
 
     # Start workflow file watcher

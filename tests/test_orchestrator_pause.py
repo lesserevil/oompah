@@ -166,3 +166,62 @@ class TestPausedStatePersistence:
         )
         snapshot = orch2.get_snapshot()
         assert snapshot["paused"] is True
+
+
+# ---------------------------------------------------------------------------
+# Graceful-restart pause preservation. Covers oompah-zlz_2-znn / zcu trust
+# concern: graceful_restart used to unconditionally write paused=False to
+# the state file, silently undoing a user-set pause.
+# ---------------------------------------------------------------------------
+
+class TestGracefulRestartPreservesUserPause:
+    def test_user_pause_survives_graceful_restart(self, tmp_path):
+        """If the user paused before triggering graceful_restart, the new
+        boot must still be paused."""
+        state_path = str(tmp_path / "service_state.json")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            orch = Orchestrator(
+                config=_make_config(),
+                workflow_path="WORKFLOW.md",
+                state_path=state_path,
+            )
+            orch.pause()  # User pauses
+            assert orch.is_paused is True
+
+            # Now trigger graceful_restart — drain budget tiny so it returns fast.
+            loop.run_until_complete(orch.graceful_restart(drain_timeout_s=0.1))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+        # Persisted state must still report paused=True so the new boot
+        # picks it up.
+        with open(state_path) as f:
+            data = json.load(f)
+        assert data["paused"] is True, (
+            "graceful_restart silently overwrote a user-set pause"
+        )
+
+    def test_unpaused_user_stays_unpaused_through_graceful_restart(self, tmp_path):
+        """If the user was NOT paused, graceful_restart should still write
+        paused=False so the new boot can dispatch normally."""
+        state_path = str(tmp_path / "service_state.json")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            orch = Orchestrator(
+                config=_make_config(),
+                workflow_path="WORKFLOW.md",
+                state_path=state_path,
+            )
+            assert orch.is_paused is False
+            loop.run_until_complete(orch.graceful_restart(drain_timeout_s=0.1))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+        with open(state_path) as f:
+            data = json.load(f)
+        assert data["paused"] is False

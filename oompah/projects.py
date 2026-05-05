@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from oompah.attachments import AttachmentStore
 from oompah.models import Project
@@ -287,6 +288,123 @@ class ProjectStore:
             self._save()
             return True
         return False
+
+    # -- Startup sync --
+
+    def sync_project_sources(
+        self, project_id: str, timeout_s: float = 60,
+    ) -> dict[str, str]:
+        """Pull latest code (git) and beads state (dolt) for one project.
+
+        Best-effort: any failure is logged and recorded in the returned
+        status dict but does NOT raise. The orchestrator should boot
+        even if a project's network is flaky — it just operates on
+        whatever local state exists.
+
+        Returns ``{"git": "ok"|"failed: <reason>"|"skipped: <reason>",
+                  "beads": "ok"|"failed: <reason>"|"skipped: <reason>"}``.
+        """
+        project = self._projects.get(project_id)
+        if not project:
+            return {"git": "skipped: unknown project", "beads": "skipped: unknown project"}
+        status: dict[str, str] = {}
+
+        # git fetch + ff-only pull on the project's tracked branch.
+        if not project.repo_path or not os.path.isdir(
+            os.path.join(project.repo_path, ".git")
+        ):
+            status["git"] = "skipped: no .git"
+        else:
+            try:
+                subprocess.run(
+                    ["git", "fetch", "origin"],
+                    cwd=project.repo_path,
+                    capture_output=True, text=True,
+                    timeout=timeout_s,
+                )
+                # --autostash: handle the common case where bd has written
+                # to .beads/issues.jsonl (unstaged) since the last commit.
+                # Without it, fast-forward pulls fail with "Your local
+                # changes to the following files would be overwritten by
+                # merge". --ff-only still refuses if origin has diverged.
+                pull = subprocess.run(
+                    ["git", "pull", "--ff-only", "--autostash",
+                     "origin", project.branch],
+                    cwd=project.repo_path,
+                    capture_output=True, text=True,
+                    timeout=timeout_s,
+                )
+                if pull.returncode == 0:
+                    status["git"] = "ok"
+                else:
+                    stderr = (pull.stderr or "").strip()[:200]
+                    status["git"] = f"failed: {stderr}"
+                    logger.warning(
+                        "Startup git pull failed for %s: %s", project.name, stderr,
+                    )
+            except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
+                status["git"] = f"failed: {exc}"
+                logger.warning(
+                    "Startup git fetch/pull failed for %s: %s", project.name, exc,
+                )
+
+        # bd dolt pull. Skip if there's no .beads/ directory at all.
+        if not os.path.isdir(os.path.join(project.repo_path, ".beads")):
+            status["beads"] = "skipped: no .beads"
+        else:
+            try:
+                pull = subprocess.run(
+                    ["bd", "dolt", "pull"],
+                    cwd=project.repo_path,
+                    capture_output=True, text=True,
+                    timeout=timeout_s,
+                )
+                if pull.returncode == 0:
+                    status["beads"] = "ok"
+                else:
+                    stderr = (pull.stderr or "").strip()[:200]
+                    status["beads"] = f"failed: {stderr}"
+                    logger.warning(
+                        "Startup bd dolt pull failed for %s: %s", project.name, stderr,
+                    )
+            except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
+                status["beads"] = f"failed: {exc}"
+                logger.warning(
+                    "Startup bd dolt pull failed for %s: %s", project.name, exc,
+                )
+
+        return status
+
+    def sync_all_sources(
+        self, timeout_s: float = 60, max_workers: int = 4,
+    ) -> dict[str, dict[str, str]]:
+        """Run :meth:`sync_project_sources` for every project in parallel.
+
+        Returns a mapping of project_id → status dict. Never raises.
+        """
+        projects = list(self._projects.values())
+        if not projects:
+            return {}
+        results: dict[str, dict[str, str]] = {}
+        workers = min(len(projects), max_workers)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(self.sync_project_sources, p.id, timeout_s): p
+                for p in projects
+            }
+            for fut in as_completed(futures):
+                p = futures[fut]
+                try:
+                    results[p.id] = fut.result()
+                except Exception as exc:
+                    logger.warning(
+                        "sync_all_sources: project %s raised: %s", p.name, exc,
+                    )
+                    results[p.id] = {
+                        "git": f"exception: {exc}",
+                        "beads": f"exception: {exc}",
+                    }
+        return results
 
     # -- Worktree helpers --
 
