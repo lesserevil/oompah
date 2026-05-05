@@ -2029,6 +2029,248 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
+    # ------------------------------------------------------------------
+    # Per-task cost telemetry
+    # ------------------------------------------------------------------
+
+    def _compute_run_cost_record(
+        self,
+        entry: RunningEntry,
+    ) -> dict[str, Any] | None:
+        """Build a cost record for one completed run.
+
+        Returns a dict with shape::
+
+            {
+                "total_input_tokens": int,
+                "total_output_tokens": int,
+                "total_cost_usd": float,
+                "by_model": {
+                    "<model_id>": {
+                        "input_tokens": int,
+                        "output_tokens": int,
+                        "cost_usd": float,
+                    },
+                    ...
+                },
+                "runs": [
+                    {
+                        "profile": str,
+                        "model": str,
+                        "input_tokens": int,
+                        "output_tokens": int,
+                        "cost_usd": float,
+                        "recorded_at": str (ISO-8601),
+                    },
+                    ...
+                ],
+            }
+
+        Returns None when there are no tokens to record (e.g. session
+        never started or the agent exited before producing any output).
+        """
+        if not entry.session:
+            return None
+        input_tokens = entry.session.input_tokens
+        output_tokens = entry.session.output_tokens
+        if input_tokens == 0 and output_tokens == 0:
+            return None
+
+        profile = self._get_profile_by_name(entry.agent_profile_name)
+        # Resolve model for this run
+        model_id = "unknown"
+        cost_usd = 0.0
+        if profile:
+            # Start with profile-level fallback rates
+            pc_in: float = profile.cost_per_1k_input
+            pc_out: float = profile.cost_per_1k_output
+            provider = self._resolve_provider(profile)
+            if provider:
+                m = self._resolve_model(profile, provider)
+                if m:
+                    model_id = m
+                # Override with provider model costs if available
+                if provider.model_costs and model_id != "unknown":
+                    mp_in, mp_out = provider.get_model_costs(model_id)
+                    if mp_in or mp_out:
+                        pc_in, pc_out = mp_in, mp_out
+            cost_usd = (input_tokens / 1000.0) * pc_in + (output_tokens / 1000.0) * pc_out
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        run_record = {
+            "profile": entry.agent_profile_name,
+            "model": model_id,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": round(cost_usd, 8),
+            "recorded_at": now_iso,
+        }
+
+        # Build top-level totals and per-model breakdown
+        by_model: dict[str, dict[str, Any]] = {
+            model_id: {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost_usd": round(cost_usd, 8),
+            }
+        }
+        return {
+            "total_input_tokens": input_tokens,
+            "total_output_tokens": output_tokens,
+            "total_cost_usd": round(cost_usd, 8),
+            "by_model": by_model,
+            "runs": [run_record],
+        }
+
+    @staticmethod
+    def _merge_cost_records(
+        existing: dict[str, Any] | None,
+        new_record: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Accumulate *new_record* into *existing*, returning the merged result.
+
+        Per-model entries are deduplicated by model id and summed.
+        The ``runs`` list is appended so the full history is preserved.
+        """
+        if not existing or not isinstance(existing, dict):
+            return new_record
+
+        merged = {
+            "total_input_tokens": (
+                existing.get("total_input_tokens", 0)
+                + new_record.get("total_input_tokens", 0)
+            ),
+            "total_output_tokens": (
+                existing.get("total_output_tokens", 0)
+                + new_record.get("total_output_tokens", 0)
+            ),
+            "total_cost_usd": round(
+                existing.get("total_cost_usd", 0.0)
+                + new_record.get("total_cost_usd", 0.0),
+                8,
+            ),
+            "by_model": dict(existing.get("by_model", {})),
+            "runs": list(existing.get("runs", [])),
+        }
+
+        # Merge per-model breakdown
+        for model_id, new_model_data in new_record.get("by_model", {}).items():
+            if model_id in merged["by_model"]:
+                existing_model = merged["by_model"][model_id]
+                merged["by_model"][model_id] = {
+                    "input_tokens": (
+                        existing_model.get("input_tokens", 0)
+                        + new_model_data.get("input_tokens", 0)
+                    ),
+                    "output_tokens": (
+                        existing_model.get("output_tokens", 0)
+                        + new_model_data.get("output_tokens", 0)
+                    ),
+                    "cost_usd": round(
+                        existing_model.get("cost_usd", 0.0)
+                        + new_model_data.get("cost_usd", 0.0),
+                        8,
+                    ),
+                }
+            else:
+                merged["by_model"][model_id] = dict(new_model_data)
+
+        # Append run history
+        merged["runs"].extend(new_record.get("runs", []))
+
+        return merged
+
+    def _write_task_cost_record(self, entry: RunningEntry) -> None:
+        """Persist cost telemetry for a completed run into the issue's metadata.
+
+        Storage key: ``oompah.task_costs`` in the issue's beads metadata.
+        Multiple runs accumulate cumulatively — per-model entries are summed.
+
+        This method is designed to be called from a background thread
+        (fire-and-forget) so it must not block the worker exit path.
+        Any exception is logged at WARNING and swallowed.
+        """
+        try:
+            new_record = self._compute_run_cost_record(entry)
+            if new_record is None:
+                return  # nothing to record
+
+            issue = entry.issue
+            try:
+                tracker = self._tracker_for_issue(issue)
+            except Exception as exc:
+                logger.warning(
+                    "cost_record: tracker lookup failed for %s: %s",
+                    entry.identifier, exc,
+                )
+                return
+
+            # Fetch existing metadata
+            existing_meta: dict[str, Any] = {}
+            try:
+                raw = tracker._run_bd(["show", issue.identifier, "--json"])
+                rec = raw[0] if isinstance(raw, list) and raw else raw
+                if isinstance(rec, dict):
+                    meta = rec.get("metadata") or {}
+                    if isinstance(meta, str):
+                        try:
+                            meta = json.loads(meta)
+                        except (ValueError, TypeError):
+                            meta = {}
+                    if isinstance(meta, dict):
+                        existing_meta = dict(meta)
+            except Exception as exc:
+                logger.debug(
+                    "cost_record: failed to fetch metadata for %s: %s",
+                    entry.identifier, exc,
+                )
+                # Proceed with empty metadata — we'll write what we have
+
+            # Merge new record into existing cost record
+            existing_costs = existing_meta.get("oompah.task_costs")
+            merged_costs = self._merge_cost_records(
+                existing_costs if isinstance(existing_costs, dict) else None,
+                new_record,
+            )
+            existing_meta["oompah.task_costs"] = merged_costs
+
+            # Persist merged metadata
+            try:
+                tracker._run_bd([
+                    "update", issue.identifier,
+                    "--metadata", json.dumps(existing_meta),
+                ])
+                logger.info(
+                    "cost_record: wrote %s total=$%.4f models=%s",
+                    entry.identifier,
+                    merged_costs["total_cost_usd"],
+                    ",".join(merged_costs["by_model"].keys()),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "cost_record: failed to write metadata for %s: %s",
+                    entry.identifier, exc,
+                )
+        except Exception as exc:
+            logger.warning(
+                "cost_record: unexpected error for %s: %s",
+                entry.identifier, exc,
+            )
+
+    def _fire_task_cost_record(self, entry: RunningEntry) -> None:
+        """Fire-and-forget: write cost telemetry in a background thread.
+
+        Exceptions are logged but never propagate — the worker exit path
+        must not be blocked or broken by cost-writing failures.
+        """
+        try:
+            self._tick_pool.submit(self._write_task_cost_record, entry)
+        except Exception as exc:
+            logger.warning(
+                "cost_record: failed to submit background write for %s: %s",
+                entry.identifier, exc,
+            )
+
     def _clear_handoff_labels(self, issue: Issue) -> None:
         """Remove any needs:* handoff labels after focus has been selected."""
         if not issue.labels:
@@ -2688,6 +2930,9 @@ class Orchestrator:
                 # Persist updated spend so a restart inside the active
                 # window doesn't reset the counter to $0.
                 self._persist_budget_state()
+
+        # Write per-task cost telemetry (fire-and-forget, never blocks exit)
+        self._fire_task_cost_record(entry)
 
         tokens_str = ""
         if entry.session and entry.session.total_tokens > 0:
@@ -3511,6 +3756,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self.state.agent_totals.input_tokens += entry.session.input_tokens
             self.state.agent_totals.output_tokens += entry.session.output_tokens
             self.state.agent_totals.total_tokens += entry.session.total_tokens
+
+        # Write per-task cost telemetry before dropping the runtime entry
+        # (fire-and-forget, never blocks termination)
+        self._fire_task_cost_record(entry)
 
         self.state.claimed.discard(issue_id)
 
