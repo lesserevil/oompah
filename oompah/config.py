@@ -291,6 +291,12 @@ class ServiceConfig:
     # estimated_cost is reset to zero. Default is "day" so a $50/day cap
     # actually means $50/day, not $50/process-lifetime.
     budget_window: str = "day"  # one of: "hour", "day", "week"
+    # IANA timezone name used to align budget window rolls to calendar
+    # boundaries (top-of-hour, local midnight, Sunday 00:00). Empty string
+    # means "auto-detect host's local zone" (TZ env or /etc/localtime).
+    # Set via OOMPAH_BUDGET_TIMEZONE or workflow.agent.budget_timezone.
+    # Invalid IANA names fall back to UTC with a logger.warning.
+    budget_timezone: str = ""
     # When True, every issue's FIRST dispatch uses the catch-all "default"
     # profile (no issue_type/keyword/priority constraints) and the
     # provider's default_model, regardless of issue type/priority/keywords.
@@ -434,6 +440,9 @@ class ServiceConfig:
             budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),
             budget_window=_parse_budget_window(
                 _env_str("OOMPAH_BUDGET_WINDOW", agent.get("budget_window"), "day"),
+            ),
+            budget_timezone=_env_str(
+                "OOMPAH_BUDGET_TIMEZONE", agent.get("budget_timezone"), "",
             ),
             default_first_dispatch=_env_bool(
                 "OOMPAH_DEFAULT_FIRST_DISPATCH",
