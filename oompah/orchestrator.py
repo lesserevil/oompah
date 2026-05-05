@@ -920,6 +920,21 @@ class Orchestrator:
         except (TypeError, ValueError):
             return 1
 
+    def _is_project_paused(self, project_id: str | None) -> bool:
+        """Return True when the project has been individually paused.
+
+        Composes with the global ``_paused`` flag in ``_should_dispatch``:
+        a request is dispatchable only if NEITHER the global nor the
+        project's pause is set. Returns False for unknown project ids
+        and for legacy issues that have no project_id.
+        """
+        if not project_id:
+            return False
+        project = self.project_store.get(project_id)
+        if project is None:
+            return False
+        return bool(getattr(project, "paused", False))
+
     def _project_has_open_review(self, project_id: str | None) -> bool:
         """Return True if the project is at or above its in-flight PR cap.
 
@@ -939,6 +954,9 @@ class Orchestrator:
         - Standard guards (paused, budget, slots) pass
         """
         if self._paused:
+            return False
+        # Per-project pause also blocks epic planning for that project.
+        if self._is_project_paused(issue.project_id):
             return False
         if self._is_rate_limited():
             return False
@@ -1052,6 +1070,14 @@ class Orchestrator:
             return False
         if self._paused:
             return _reject("paused")
+        # Per-project pause composes with the global pause: dispatch
+        # is allowed only if NEITHER is set. This lets an operator
+        # quiet one repo (CI flaking, PR backlog review, forge outage)
+        # without halting the others. Same reject idiom as the global
+        # pause; surfaced via the `paused` flag on each project in the
+        # state snapshot. See bead oompah-zlz_2-u7c.
+        if self._is_project_paused(issue.project_id):
+            return _reject("project_paused")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
         # Refuse to dispatch beads with no body. A title alone is not enough

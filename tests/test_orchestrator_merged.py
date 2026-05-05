@@ -34,6 +34,7 @@ def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.co
     p.repo_url = repo_url
     p.name = "test-project"
     p.merge_queue_enabled = False  # default: direct-merge mode
+    p.paused = False  # default: not paused
     return p
 
 
@@ -891,6 +892,9 @@ class TestDispatchSerializationByProject:
     def _make_orchestrator(self, tmp_path, projects=None):
         project_store = MagicMock()
         project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
         orch = Orchestrator(
             config=_make_config(),
             workflow_path="WORKFLOW.md",

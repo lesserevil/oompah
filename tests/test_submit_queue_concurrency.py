@@ -83,6 +83,7 @@ def _make_project_mock(project_id: str, max_in_flight_prs: int = 1, name: str = 
     p.name = name
     p.repo_url = "https://github.com/org/repo"
     p.yolo = False
+    p.paused = False
     p.max_in_flight_prs = max_in_flight_prs
     p.last_webhook_received_at = None
     return p

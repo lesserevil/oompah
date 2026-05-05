@@ -1089,6 +1089,8 @@ async def api_update_project(project_id: str, request: Request):
             fields["max_in_flight_prs"] = val
         if "merge_queue_enabled" in body:
             fields["merge_queue_enabled"] = bool(body["merge_queue_enabled"])
+        if "paused" in body:
+            fields["paused"] = bool(body["paused"])
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
@@ -1125,6 +1127,57 @@ async def api_delete_project(project_id: str):
         {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
         status_code=404,
     )
+
+
+@app.post("/api/v1/projects/{project_id}/pause")
+async def api_project_pause(project_id: str):
+    """Pause dispatch for a single project.
+
+    Mirrors /api/v1/orchestrator/pause but scoped to one project.
+    The orchestrator's _should_dispatch will reject every issue in
+    this project with reason "project_paused" until /resume is called.
+    Composes with the global pause: a request is dispatchable only
+    if neither the global nor the project's pause is set.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.update(project_id, paused=True)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+        return JSONResponse({"ok": True, "id": project_id, "paused": True})
+    except ProjectError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    except Exception as exc:
+        logger.error("Project pause error: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/v1/projects/{project_id}/resume")
+async def api_project_resume(project_id: str):
+    """Resume dispatch for a single project (clear the per-project pause)."""
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.update(project_id, paused=False)
+        if not project:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                status_code=404,
+            )
+        return JSONResponse({"ok": True, "id": project_id, "paused": False})
+    except ProjectError as exc:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": str(exc)}},
+            status_code=400,
+        )
+    except Exception as exc:
+        logger.error("Project resume error: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 @app.get("/api/v1/projects/{project_id}/worktrees")
