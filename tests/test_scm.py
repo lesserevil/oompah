@@ -125,6 +125,87 @@ class TestTruncate:
         assert _truncate(None, 10) == ""
 
 
+class TestFetchCiStatus:
+    """The combined-status API returns state='pending' with total_count=0
+    for repos that only use GitHub Actions (no legacy commit-statuses).
+    In that case we must fall through to the check-runs endpoint instead
+    of declaring the PR pending and blocking the YOLO auto-merge forever."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider_with_responses(self, status_payload, checkruns_payload):
+        provider = GitHubProvider(access_token="t")
+        responses = {
+            "/status": self._FakeResponse(status_payload),
+            "/check-runs": self._FakeResponse(checkruns_payload),
+        }
+
+        def fake_api(method, path, **kwargs):
+            for suffix, resp in responses.items():
+                if path.endswith(suffix):
+                    return resp
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        return provider
+
+    def test_actions_only_repo_falls_through_to_check_runs(self):
+        # Combined-status: pending+total_count=0 (no legacy statuses); check-runs all green.
+        provider = self._provider_with_responses(
+            {"state": "pending", "total_count": 0},
+            {"check_runs": [
+                {"conclusion": "success", "status": "completed"},
+                {"conclusion": "success", "status": "completed"},
+            ]},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "passed"
+
+    def test_actions_only_repo_with_failing_check_run(self):
+        provider = self._provider_with_responses(
+            {"state": "pending", "total_count": 0},
+            {"check_runs": [
+                {"conclusion": "success", "status": "completed"},
+                {"conclusion": "failure", "status": "completed"},
+            ]},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "failed"
+
+    def test_legacy_pending_with_real_statuses_is_trusted(self):
+        # When total_count > 0 and state='pending', legacy CI is genuinely pending.
+        provider = self._provider_with_responses(
+            {"state": "pending", "total_count": 2},
+            {"check_runs": []},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "pending"
+
+    def test_legacy_success_short_circuits(self):
+        provider = self._provider_with_responses(
+            {"state": "success", "total_count": 1},
+            {"check_runs": []},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "passed"
+
+    def test_legacy_failure_short_circuits(self):
+        provider = self._provider_with_responses(
+            {"state": "failure", "total_count": 1},
+            {"check_runs": []},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "failed"
+
+    def test_no_statuses_and_no_check_runs_returns_empty(self):
+        provider = self._provider_with_responses(
+            {"state": "pending", "total_count": 0},
+            {"check_runs": []},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == ""
+
+
 class TestReviewRequest:
     def test_to_dict(self):
         rr = ReviewRequest(

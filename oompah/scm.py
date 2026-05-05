@@ -219,13 +219,20 @@ class GitHubProvider(SCMProvider):
             r = self._api("GET", f"/repos/{repo}/commits/{sha}/status")
             if r.status_code != 200:
                 return ""
-            state = r.json().get("state", "")
-            if state == "success":
-                return "passed"
-            if state == "failure" or state == "error":
-                return "failed"
-            if state == "pending":
-                return "pending"
+            payload = r.json()
+            state = payload.get("state", "")
+            total = payload.get("total_count", 0)
+            # Only trust the combined-status verdict when at least one legacy
+            # commit-status was reported. Repos that use GitHub Actions only
+            # return state="pending" with total_count=0, which would otherwise
+            # mask all-green check-runs.
+            if total > 0:
+                if state == "success":
+                    return "passed"
+                if state == "failure" or state == "error":
+                    return "failed"
+                if state == "pending":
+                    return "pending"
             # Also check check-runs (GitHub Actions use this instead of status)
             cr = self._api("GET", f"/repos/{repo}/commits/{sha}/check-runs",
                            params={"per_page": 100})
