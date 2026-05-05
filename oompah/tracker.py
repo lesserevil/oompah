@@ -74,35 +74,54 @@ class BeadsTracker:
         self._missing_db_until: float = 0.0
 
     def fetch_candidate_issues(self) -> list[Issue]:
-        """Fetch issues in active states, sorted for dispatch."""
+        """Fetch issues in active states, sorted for dispatch.
+
+        Uses a single ``bd list --status=<comma-list> --limit=0 --json``
+        call to retrieve every issue in any of the configured active
+        states. The comma-separated ``--status`` form has been supported
+        by ``bd`` since well before 1.0; ``--limit=0`` disables the
+        default 50-issue cap so projects with large backlogs aren't
+        silently truncated.
+
+        Previously this method looped per-status and, on any
+        ``TrackerError``, fell back to ``bd list --json`` (no filter,
+        no ``--limit``). That fallback returned the entire database and
+        ran once per active status, which under dolt-sql-server
+        contention regularly tripped the 30s subprocess timeout
+        (see oompah-zlz_2-k5a). The fallback was load-bearing only for
+        legacy bd builds that didn't recognise ``--status``; modern bd
+        does, so we drop it and propagate errors directly.
+        """
+        if not self.active_states:
+            return []
+
+        status_filter = ",".join(self.active_states)
+        try:
+            raw_list = self._run_bd([
+                "list",
+                f"--status={status_filter}",
+                "--limit=0",
+                "--json",
+            ])
+        except TrackerNotConfiguredError:
+            # Already logged at WARNING in _run_bd; bubble up so the
+            # caller skips this project's dispatch for the tick.
+            raise
+        except TrackerError as exc:
+            logger.error("Failed to fetch candidates: %s", exc)
+            raise
+
         issues: list[Issue] = []
         seen_ids: set[str] = set()
-
-        for status in self.active_states:
-            try:
-                raw_list = self._run_bd(["list", f"--status={status}", "--json"])
-            except TrackerNotConfiguredError:
-                # Already logged at WARNING in _run_bd; bubble up so the
-                # caller skips this project's dispatch for the tick.
-                raise
-            except TrackerError:
-                # Try without --status filter and filter manually
-                try:
-                    raw_list = self._run_bd(["list", "--json"])
-                except TrackerNotConfiguredError:
-                    raise
-                except TrackerError as exc:
-                    logger.error("Failed to fetch candidates: %s", exc)
-                    raise
-
-            if isinstance(raw_list, list):
-                for raw in raw_list:
-                    issue = self._normalize_issue(raw)
-                    if issue.id not in seen_ids:
-                        state_norm = issue.state.strip().lower()
-                        if state_norm in self.active_states:
-                            issues.append(issue)
-                            seen_ids.add(issue.id)
+        if isinstance(raw_list, list):
+            for raw in raw_list:
+                issue = self._normalize_issue(raw)
+                if issue.id in seen_ids:
+                    continue
+                state_norm = issue.state.strip().lower()
+                if state_norm in self.active_states:
+                    issues.append(issue)
+                    seen_ids.add(issue.id)
 
         # Sort: priority ascending (None last), created_at oldest first, identifier
         def sort_key(issue: Issue):
