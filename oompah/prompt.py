@@ -57,6 +57,7 @@ def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
         "description": issue.description or "",
         "priority": issue.priority,
         "state": issue.state,
+        "issue_type": issue.issue_type or "task",
         "branch_name": issue.branch_name or "",
         "url": issue.url or "",
         "labels": issue.labels,

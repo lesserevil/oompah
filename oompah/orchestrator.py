@@ -32,7 +32,7 @@ from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.scm import detect_provider, extract_repo_slug
-from oompah.tracker import BeadsTracker, TrackerError
+from oompah.tracker import BeadsTracker, TrackerError, TrackerNotConfiguredError
 from oompah.workspace import WorkspaceError, WorkspaceManager
 
 import json
@@ -739,6 +739,10 @@ class Orchestrator:
             # No projects configured — use legacy tracker
             try:
                 return self.tracker.fetch_candidate_issues()
+            except TrackerNotConfiguredError:
+                # Already logged at WARNING in tracker._run_bd; treat as
+                # an empty backlog this tick.
+                return []
             except TrackerError as exc:
                 logger.error("Tracker fetch failed: %s", exc)
                 return []
@@ -750,6 +754,10 @@ class Orchestrator:
                 for issue in issues:
                     issue.project_id = project.id
                 return issues
+            except TrackerNotConfiguredError:
+                # Project's tracker isn't initialized — environmental.
+                # Already warned in _run_bd; skip this project for the tick.
+                return []
             except (TrackerError, ProjectError) as exc:
                 logger.error("Fetch failed for project %s: %s", project.name, exc)
                 return []
@@ -1029,7 +1037,7 @@ class Orchestrator:
             return {}
 
         def _fetch_for_project(project) -> tuple[str, list]:
-            provider = detect_provider(project.repo_url)
+            provider = detect_provider(project.repo_url, access_token=project.access_token)
             if not provider:
                 return (project.id, [])
             slug = extract_repo_slug(project.repo_url)
@@ -1053,7 +1061,7 @@ class Orchestrator:
             return set()
 
         def _fetch_for_project(project) -> set[str]:
-            provider = detect_provider(project.repo_url)
+            provider = detect_provider(project.repo_url, access_token=project.access_token)
             if not provider:
                 return set()
             slug = extract_repo_slug(project.repo_url)
@@ -1190,7 +1198,7 @@ class Orchestrator:
         for project in self.project_store.list_all():
             if not project.yolo:
                 continue
-            provider = detect_provider(project.repo_url)
+            provider = detect_provider(project.repo_url, access_token=project.access_token)
             if not provider:
                 continue
             slug = extract_repo_slug(project.repo_url)
@@ -1237,7 +1245,7 @@ class Orchestrator:
         project = self.project_store.get(project_id)
         if not project or not project.repo_url:
             return
-        provider = detect_provider(project.repo_url)
+        provider = detect_provider(project.repo_url, access_token=project.access_token)
         if not provider:
             return
         slug = extract_repo_slug(project.repo_url)
@@ -1306,7 +1314,7 @@ class Orchestrator:
         for project in self.project_store.list_all():
             if not project.yolo:
                 continue
-            provider = detect_provider(project.repo_url)
+            provider = detect_provider(project.repo_url, access_token=project.access_token)
             if not provider:
                 continue
             slug = extract_repo_slug(project.repo_url)
@@ -2069,6 +2077,7 @@ class Orchestrator:
                 stall_turns=self.config.stall_turns,
                 system_prompt="You are an autonomous coding agent. Use the provided tools to complete the task.",
                 enabled_tools=base_tools,
+                model_max_context=provider.get_model_context(model),
             )
 
             # Update running entry with minimal session info

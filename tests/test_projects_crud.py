@@ -411,7 +411,8 @@ class TestProjectStoreUpdatableFields:
 
     def test_updatable_fields_are_correct(self):
         expected = {"name", "repo_url", "branch", "git_user_name",
-                    "git_user_email", "yolo", "log_path", "webhook_secret"}
+                    "git_user_email", "yolo", "log_path", "webhook_secret",
+                    "access_token"}
         assert ProjectStore.UPDATABLE_FIELDS == expected
 
     def test_id_is_not_updatable(self):
@@ -419,3 +420,184 @@ class TestProjectStoreUpdatableFields:
 
     def test_repo_path_is_not_updatable(self):
         assert "repo_path" not in ProjectStore.UPDATABLE_FIELDS
+
+
+class TestProjectAccessToken:
+    """Tests for the per-project access_token field."""
+
+    def test_default_is_none(self):
+        p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
+        assert p.access_token is None
+
+    def test_round_trip_through_to_dict(self):
+        p = Project(
+            id="p", name="n", repo_url="u", repo_path="/tmp/x",
+            access_token="ghp_abcdefghij1234567890",
+        )
+        d = p.to_dict()
+        assert d["access_token"] == "ghp_abcdefghij1234567890"
+        p2 = Project.from_dict(d)
+        assert p2.access_token == "ghp_abcdefghij1234567890"
+
+    def test_to_dict_omits_when_unset(self):
+        p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
+        assert "access_token" not in p.to_dict()
+
+    def test_to_safe_dict_masks_token(self):
+        p = Project(
+            id="p", name="n", repo_url="u", repo_path="/tmp/x",
+            access_token="ghp_abcdefghij1234567890",
+        )
+        d = p.to_safe_dict()
+        assert "access_token" not in d
+        assert d["has_access_token"] is True
+        assert d["access_token_masked"].startswith("ghp_")
+        assert d["access_token_masked"].endswith("7890")
+        assert "abcdefghij" not in d["access_token_masked"]
+
+    def test_to_safe_dict_when_unset(self):
+        p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
+        d = p.to_safe_dict()
+        assert d["has_access_token"] is False
+        assert d["access_token_masked"] == ""
+
+    def test_to_safe_dict_short_token_fully_masked(self):
+        p = Project(
+            id="p", name="n", repo_url="u", repo_path="/tmp/x",
+            access_token="short",
+        )
+        d = p.to_safe_dict()
+        assert d["access_token_masked"] == "***"
+
+    def test_store_update_sets_token(self, tmp_path):
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(id="proj-tok", name="n", repo_url="u", repo_path="/tmp/x")
+        store._projects[p.id] = p
+        store._save()
+        updated = store.update("proj-tok", access_token="glpat-XYZ")
+        assert updated.access_token == "glpat-XYZ"
+
+    def test_store_update_clears_token(self, tmp_path):
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(
+            id="proj-tok", name="n", repo_url="u", repo_path="/tmp/x",
+            access_token="glpat-XYZ",
+        )
+        store._projects[p.id] = p
+        store._save()
+        updated = store.update("proj-tok", access_token=None)
+        assert updated.access_token is None
+
+    def test_store_update_token_persists(self, tmp_path):
+        path = str(tmp_path / "projects.json")
+        store = ProjectStore(
+            path=path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(id="proj-tok", name="n", repo_url="u", repo_path="/tmp/x")
+        store._projects[p.id] = p
+        store._save()
+        store.update("proj-tok", access_token="ghp_persisted_token")
+        # Reload from disk
+        store2 = ProjectStore(
+            path=path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        assert store2.get("proj-tok").access_token == "ghp_persisted_token"
+
+
+class TestProjectAccessTokenAPI:
+    """API tests for the access_token field on project endpoints."""
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path):
+        from unittest.mock import MagicMock
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(
+            id="proj-tokapi",
+            name="n",
+            repo_url="https://github.com/org/n.git",
+            repo_path=str(tmp_path / "repos" / "n"),
+            branch="main",
+            access_token="ghp_initial_token_value",
+        )
+        store._projects[p.id] = p
+        store._save()
+
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+        old_orch = srv._orchestrator
+        srv._orchestrator = orch
+        self.client = TestClient(app)
+        self.store = store
+        yield self.client
+        srv._orchestrator = old_orch
+
+    def test_get_returns_masked_token(self):
+        res = self.client.get("/api/v1/projects/proj-tokapi")
+        assert res.status_code == 200
+        data = res.json()
+        # Raw token never returned
+        assert "access_token" not in data
+        assert data["has_access_token"] is True
+        assert data["access_token_masked"].startswith("ghp_")
+        assert "initial_token" not in data["access_token_masked"]
+
+    def test_list_returns_masked_token(self):
+        res = self.client.get("/api/v1/projects")
+        assert res.status_code == 200
+        rows = res.json()
+        assert len(rows) == 1
+        assert "access_token" not in rows[0]
+        assert rows[0]["has_access_token"] is True
+
+    def test_patch_sets_token(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tokapi",
+            json={"access_token": "ghp_replaced_token"},
+        )
+        assert res.status_code == 200
+        # Stored on the project (raw value), masked on the response
+        assert self.store.get("proj-tokapi").access_token == "ghp_replaced_token"
+        assert "access_token" not in res.json()
+        assert res.json()["has_access_token"] is True
+
+    def test_patch_clears_token(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tokapi",
+            json={"access_token": None},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tokapi").access_token is None
+        assert res.json()["has_access_token"] is False
+
+    def test_patch_other_field_does_not_touch_token(self):
+        self.client.patch(
+            "/api/v1/projects/proj-tokapi",
+            json={"name": "renamed-only"},
+        )
+        # Token should remain at its initial value
+        assert self.store.get("proj-tokapi").access_token == "ghp_initial_token_value"

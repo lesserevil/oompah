@@ -122,7 +122,8 @@ class ProjectStore:
     def create(self, repo_url: str, name: str | None = None,
                branch: str = "main",
                git_user_name: str | None = None,
-               git_user_email: str | None = None) -> Project:
+               git_user_email: str | None = None,
+               access_token: str | None = None) -> Project:
         """Register a project by cloning its git repo.
 
         Args:
@@ -222,6 +223,7 @@ class ProjectStore:
             branch=branch,
             git_user_name=git_user_name,
             git_user_email=git_user_email,
+            access_token=access_token,
             lfs_available=lfs_available,
         )
         self._projects[project_id] = project
@@ -235,7 +237,7 @@ class ProjectStore:
     # Fields that may be changed via update().
     UPDATABLE_FIELDS = frozenset({
         "name", "repo_url", "branch", "git_user_name", "git_user_email",
-        "yolo", "log_path", "webhook_secret",
+        "yolo", "log_path", "webhook_secret", "access_token",
     })
 
     def update(self, project_id: str, **fields) -> Project | None:

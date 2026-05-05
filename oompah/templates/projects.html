@@ -109,6 +109,10 @@
         <label>Git User Email (defaults to global git config)</label>
         <input type="text" id="add-git-user-email" placeholder="">
       </div>
+      <div class="form-group">
+        <label>Access Token (optional &mdash; GitHub/GitLab API token; falls back to env vars or gh/glab CLI)</label>
+        <input type="password" id="add-access-token" placeholder="" autocomplete="off">
+      </div>
       <div id="add-error" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
       <div class="form-actions">
         <button onclick="toggleAddForm()">Cancel</button>
@@ -155,6 +159,10 @@ async function loadProjects() {
         <span class="field-value">${esc(p.log_path)}</span>
       </div>` : ''}
       <div class="field-row">
+        <span class="field-label">Token:</span>
+        <span class="field-value">${p.has_access_token ? esc(p.access_token_masked) : '<em style="color:var(--text-muted);font-style:italic;">not set</em>'}</span>
+      </div>
+      <div class="field-row">
         <span class="field-label">YOLO:</span>
         <label style="cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
           <input type="checkbox" ${p.yolo ? 'checked' : ''} onchange="toggleYolo('${esc(p.id)}', this.checked)">
@@ -191,6 +199,10 @@ async function loadProjects() {
           <label>Log Path (optional)</label>
           <input type="text" id="edit-log-path-${esc(p.id)}" value="${esc(p.log_path || '')}">
         </div>
+        <div class="form-group">
+          <label>Access Token ${p.has_access_token ? `(currently set: ${esc(p.access_token_masked)} &mdash; leave blank to keep, type a value to replace, or "clear" to remove)` : '(GitHub/GitLab API token; leave blank to use env vars or gh/glab CLI)'}</label>
+          <input type="password" id="edit-access-token-${esc(p.id)}" value="" placeholder="${p.has_access_token ? '••••••••' : ''}" autocomplete="off">
+        </div>
         <div id="edit-error-${esc(p.id)}" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
         <div class="form-actions">
           <button onclick="toggleEditForm('${esc(p.id)}')">Cancel</button>
@@ -220,6 +232,7 @@ async function addProject() {
   const branch = document.getElementById('add-branch').value.trim() || 'main';
   const gitUserName = document.getElementById('add-git-user-name').value.trim() || undefined;
   const gitUserEmail = document.getElementById('add-git-user-email').value.trim() || undefined;
+  const accessToken = document.getElementById('add-access-token').value.trim() || undefined;
   const errEl = document.getElementById('add-error');
   if (!repo) {
     errEl.textContent = 'Repository URL is required';
@@ -229,7 +242,7 @@ async function addProject() {
   const res = await fetch('/api/v1/projects', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({repo_url: repo, name, branch, git_user_name: gitUserName, git_user_email: gitUserEmail}),
+    body: JSON.stringify({repo_url: repo, name, branch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken}),
   });
   if (res.ok) {
     toggleAddForm();
@@ -238,6 +251,7 @@ async function addProject() {
     document.getElementById('add-branch').value = 'main';
     document.getElementById('add-git-user-name').value = '';
     document.getElementById('add-git-user-email').value = '';
+    document.getElementById('add-access-token').value = '';
     loadProjects();
   } else {
     const data = await res.json();
@@ -276,6 +290,8 @@ async function saveProject(id) {
   const gitUserName = document.getElementById('edit-git-user-name-' + id).value.trim();
   const gitUserEmail = document.getElementById('edit-git-user-email-' + id).value.trim();
   const logPath = document.getElementById('edit-log-path-' + id).value.trim();
+  const accessTokenRaw = document.getElementById('edit-access-token-' + id).value;
+  const accessToken = accessTokenRaw.trim();
   if (!name) {
     errEl.textContent = 'Name is required';
     errEl.style.display = 'block';
@@ -286,6 +302,13 @@ async function saveProject(id) {
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;
   body.log_path = logPath || null;
+  // Token semantics: leaving the field blank keeps the existing value untouched;
+  // typing "clear" removes it; any other value replaces it.
+  if (accessToken === 'clear') {
+    body.access_token = null;
+  } else if (accessToken) {
+    body.access_token = accessToken;
+  }
   const res = await fetch('/api/v1/projects/' + id, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},

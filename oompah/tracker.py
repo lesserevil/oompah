@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import subprocess
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
@@ -18,9 +19,25 @@ logger = logging.getLogger(__name__)
 # are triaged before the orchestrator picks them up.
 DEFAULT_INITIAL_STATUS = "deferred"
 
+# How long to short-circuit ``_run_bd`` after we discover a project's beads
+# DB is missing. Without this, every poll tick spends 5+ subprocess calls
+# (~150ms each) hitting the same "no beads database found" failure.
+_MISSING_DB_TTL_SECONDS = 60.0
+
 
 class TrackerError(Exception):
     """Raised when tracker operations fail."""
+
+
+class TrackerNotConfiguredError(TrackerError):
+    """Raised when the project's tracker store is missing or uninitialized.
+
+    For BeadsTracker this means ``bd`` ran successfully but reported
+    "no beads database found" in the configured workspace. The condition
+    is environmental (someone needs to ``bd init`` or remove the project)
+    rather than a transient failure, so callers should treat it as a
+    persistent state and back off rather than retry every tick.
+    """
 
 
 class BeadsTracker:
@@ -39,6 +56,10 @@ class BeadsTracker:
         # None means "never polled" — first call to has_changed() always
         # returns True.
         self._last_fingerprint: str | None = None
+        # When ``bd`` reports the workspace has no beads DB we set this
+        # to monotonic_time + TTL so subsequent calls short-circuit
+        # without spawning subprocesses (and without spamming logs).
+        self._missing_db_until: float = 0.0
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Fetch issues in active states, sorted for dispatch."""
@@ -48,10 +69,16 @@ class BeadsTracker:
         for status in self.active_states:
             try:
                 raw_list = self._run_bd(["list", f"--status={status}", "--json"])
+            except TrackerNotConfiguredError:
+                # Already logged at WARNING in _run_bd; bubble up so the
+                # caller skips this project's dispatch for the tick.
+                raise
             except TrackerError:
                 # Try without --status filter and filter manually
                 try:
                     raw_list = self._run_bd(["list", "--json"])
+                except TrackerNotConfiguredError:
+                    raise
                 except TrackerError as exc:
                     logger.error("Failed to fetch candidates: %s", exc)
                     raise
@@ -376,6 +403,11 @@ class BeadsTracker:
         normalized = {s.strip().lower() for s in state_names}
         try:
             raw_list = self._run_bd(["list", "--all", "--json"])
+        except TrackerNotConfiguredError:
+            # Already logged at WARNING in _run_bd's first hit; keep quiet
+            # while the missing-DB cache holds. Behavior unchanged: callers
+            # see the empty-set semantics implied by the raise.
+            raise
         except TrackerError as exc:
             logger.warning("Failed to fetch issues by states: %s", exc)
             raise
@@ -521,6 +553,12 @@ class BeadsTracker:
 
     def _run_bd(self, args: list[str]) -> dict | list:
         """Run a bd command and parse JSON output."""
+        # Short-circuit if a recent call already proved the DB is missing.
+        if self._missing_db_until and time.monotonic() < self._missing_db_until:
+            raise TrackerNotConfiguredError(
+                f"bd workspace at {self.cwd!r} has no beads database "
+                f"(cached for {int(self._missing_db_until - time.monotonic())}s)"
+            )
         cmd = ["bd"] + args
         try:
             result = subprocess.run(
@@ -537,9 +575,33 @@ class BeadsTracker:
 
         if result.returncode != 0:
             stderr = result.stderr.strip()
+            # The most common environmental failure is a missing DB —
+            # raise the specific subclass so callers can downgrade
+            # log level and (importantly) not auto-file fresh bug beads
+            # via the error_watcher, which only listens at ERROR.
+            if "no beads database found" in stderr.lower():
+                # Log once per TTL window: only when we transition from
+                # "responsive" into the missing-DB cache. Subsequent calls
+                # short-circuit silently above.
+                logger.warning(
+                    "bd workspace at %r has no beads database — "
+                    "skipping for %ds. Run `bd init` there or remove the project.",
+                    self.cwd, int(_MISSING_DB_TTL_SECONDS),
+                )
+                self._missing_db_until = (
+                    time.monotonic() + _MISSING_DB_TTL_SECONDS
+                )
+                raise TrackerNotConfiguredError(
+                    f"bd workspace at {self.cwd!r} has no beads database: "
+                    f"{stderr.splitlines()[0] if stderr else ''}"
+                )
             raise TrackerError(
                 f"bd command failed (exit {result.returncode}): {stderr}"
             )
+
+        # Successful call — reset the missing-DB cache in case someone
+        # just ran ``bd init`` to fix the workspace.
+        self._missing_db_until = 0.0
 
         stdout = result.stdout.strip()
         if not stdout:

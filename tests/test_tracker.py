@@ -400,3 +400,138 @@ class TestFetchAttachments:
         }
         # fetch_attachments returns only dict-shaped entries (rich records).
         assert self._tracker().fetch_attachments("foo-1") == [{"path": "a"}]
+
+
+# ---------------------------------------------------------------------------
+# Missing-DB handling: TrackerNotConfiguredError + TTL short-circuit.
+# Covers oompah-zlz_2-uxx (and 5 dupes): trickle project's missing beads DB
+# was producing an ERROR log on every tick, which the error_watcher escalated
+# into fresh duplicate bug beads.
+# ---------------------------------------------------------------------------
+
+import subprocess as _subprocess
+
+import pytest as _pytest
+
+from oompah.tracker import (
+    BeadsTracker as _BT,
+    TrackerError as _TE,
+    TrackerNotConfiguredError as _TNCE,
+)
+
+
+class _CompletedProcess:
+    """Tiny stand-in for subprocess.CompletedProcess."""
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _make_tracker():
+    return _BT(active_states=["open"], terminal_states=["closed"], cwd="/tmp/x")
+
+
+class TestMissingDbDetection:
+    def test_raises_specific_subclass_for_no_db(self, monkeypatch):
+        def fake_run(*args, **kwargs):
+            return _CompletedProcess(
+                1, "",
+                "Error: no beads database found\n"
+                "Hint: run 'bd init' to create a new database",
+            )
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        with _pytest.raises(_TNCE):
+            t._run_bd(["list", "--json"])
+
+    def test_other_failures_still_raise_generic_tracker_error(self, monkeypatch):
+        def fake_run(*args, **kwargs):
+            return _CompletedProcess(1, "", "Error: something else went wrong")
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        with _pytest.raises(_TE) as exc_info:
+            t._run_bd(["list", "--json"])
+        # Must NOT be the more-specific subclass.
+        assert not isinstance(exc_info.value, _TNCE)
+
+
+class TestMissingDbTtlCache:
+    def test_second_call_short_circuits_without_subprocess(self, monkeypatch):
+        call_count = {"n": 0}
+
+        def fake_run(*args, **kwargs):
+            call_count["n"] += 1
+            return _CompletedProcess(1, "", "Error: no beads database found")
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        with _pytest.raises(_TNCE):
+            t._run_bd(["list", "--json"])
+        assert call_count["n"] == 1
+        # Within TTL: second call must short-circuit (no subprocess spawned).
+        with _pytest.raises(_TNCE):
+            t._run_bd(["list", "--json"])
+        assert call_count["n"] == 1
+
+    def test_cache_expires_and_retries(self, monkeypatch):
+        import time as _time
+        clock = {"now": 1000.0}
+        monkeypatch.setattr(
+            "oompah.tracker.time.monotonic", lambda: clock["now"],
+        )
+
+        call_count = {"n": 0}
+
+        def fake_run(*args, **kwargs):
+            call_count["n"] += 1
+            return _CompletedProcess(1, "", "Error: no beads database found")
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        with _pytest.raises(_TNCE):
+            t._run_bd(["list", "--json"])
+        assert call_count["n"] == 1
+        # Advance past the TTL.
+        clock["now"] += 61.0
+        with _pytest.raises(_TNCE):
+            t._run_bd(["list", "--json"])
+        # New subprocess call after the cache expired.
+        assert call_count["n"] == 2
+
+    def test_successful_call_resets_cache(self, monkeypatch):
+        responses = [
+            _CompletedProcess(1, "", "Error: no beads database found"),
+            _CompletedProcess(0, "[]", ""),
+        ]
+
+        def fake_run(*args, **kwargs):
+            return responses.pop(0)
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        with _pytest.raises(_TNCE):
+            t._run_bd(["list", "--json"])
+        # Manually clear the cache as if TTL elapsed; success must reset it
+        # so we don't keep short-circuiting after the user fixed the DB.
+        t._missing_db_until = 0.0
+        assert t._run_bd(["list", "--json"]) == []
+        assert t._missing_db_until == 0.0
+
+
+class TestMissingDbLogging:
+    def test_logs_at_warning_not_error(self, monkeypatch, caplog):
+        def fake_run(*args, **kwargs):
+            return _CompletedProcess(1, "", "Error: no beads database found")
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        import logging as _logging
+        with caplog.at_level(_logging.DEBUG, logger="oompah.tracker"):
+            t = _make_tracker()
+            with _pytest.raises(_TNCE):
+                t._run_bd(["list", "--json"])
+        # The key contract: error_watcher only fires on ERROR, so we must
+        # NOT have logged at ERROR for this environmental condition.
+        error_records = [r for r in caplog.records if r.levelname == "ERROR"]
+        assert error_records == []
+        warning_records = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert warning_records, "expected at least one WARNING on missing-DB"

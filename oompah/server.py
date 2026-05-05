@@ -983,7 +983,7 @@ async def api_fetch_models(req: Request):
 async def api_list_projects():
     """List all configured projects."""
     orch = _get_orchestrator()
-    return JSONResponse([p.to_dict() for p in orch.project_store.list_all()])
+    return JSONResponse([p.to_safe_dict() for p in orch.project_store.list_all()])
 
 
 @app.post("/api/v1/projects")
@@ -1002,14 +1002,16 @@ async def api_create_project(request: Request):
         branch = body.get("branch", "main").strip()
         git_user_name = body.get("git_user_name", "").strip() or None
         git_user_email = body.get("git_user_email", "").strip() or None
+        access_token = (body.get("access_token") or "").strip() or None
         project = orch.project_store.create(
             repo_url=repo_url, name=name, branch=branch,
             git_user_name=git_user_name, git_user_email=git_user_email,
+            access_token=access_token,
         )
         # Sync log watchers in case the new project has a log_path
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
-        return JSONResponse(project.to_dict(), status_code=201)
+        return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
         return JSONResponse(
             {"error": {"code": "validation", "message": str(exc)}},
@@ -1033,7 +1035,7 @@ async def api_get_project(project_id: str):
             {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
             status_code=404,
         )
-    return JSONResponse(project.to_dict())
+    return JSONResponse(project.to_safe_dict())
 
 
 @app.patch("/api/v1/projects/{project_id}")
@@ -1043,7 +1045,8 @@ async def api_update_project(project_id: str, request: Request):
         orch = _get_orchestrator()
         body = await request.json()
         fields = {}
-        for key in ("name", "repo_url", "branch", "git_user_name", "git_user_email", "log_path", "webhook_secret"):
+        for key in ("name", "repo_url", "branch", "git_user_name", "git_user_email",
+                    "log_path", "webhook_secret", "access_token"):
             if key in body:
                 fields[key] = body[key]
         if "yolo" in body:
@@ -1057,7 +1060,7 @@ async def api_update_project(project_id: str, request: Request):
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
-        return JSONResponse(project.to_dict())
+        return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
         return JSONResponse(
             {"error": {"code": "validation", "message": str(exc)}},
@@ -1328,7 +1331,7 @@ async def api_rebase_review(project_id: str, review_id: str):
                 {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
                 status_code=404,
             )
-        provider = detect_provider(project.repo_url)
+        provider = detect_provider(project.repo_url, access_token=project.access_token)
         if not provider:
             return JSONResponse(
                 {"error": {"code": "unsupported", "message": "No SCM provider detected for this project"}},
@@ -1373,7 +1376,7 @@ async def api_retry_review(project_id: str, review_id: str):
                 {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
                 status_code=404,
             )
-        provider = detect_provider(project.repo_url)
+        provider = detect_provider(project.repo_url, access_token=project.access_token)
         if not provider:
             return JSONResponse(
                 {"error": {"code": "unsupported", "message": "No SCM provider detected"}},

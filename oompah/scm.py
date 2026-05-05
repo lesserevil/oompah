@@ -1,20 +1,35 @@
 """Source control management abstraction.
 
 Provides a unified interface over GitHub and GitLab for operations like
-listing pull/merge requests. Implementations use CLI tools (gh, glab)
-for auth and API access.
+listing pull/merge requests. Implementations use direct HTTP API calls
+for performance (no subprocess overhead).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
+import urllib.parse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx
+
 logger = logging.getLogger(__name__)
+
+# Shared HTTP client — reuses connections across calls (connection pooling).
+# Created lazily to avoid import-time side effects.
+_http_client: httpx.Client | None = None
+
+
+def _get_http_client() -> httpx.Client:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.Client(timeout=15.0, follow_redirects=True)
+    return _http_client
 
 
 @dataclass
@@ -120,7 +135,7 @@ class SCMProvider(ABC):
 
     @abstractmethod
     def is_available(self) -> bool:
-        """Check if the CLI tool is installed and authenticated."""
+        """Check if the provider is authenticated and reachable."""
         ...
 
     @abstractmethod
@@ -129,87 +144,159 @@ class SCMProvider(ABC):
         ...
 
 
+def _resolve_gh_token() -> str | None:
+    """Resolve GitHub token from environment or gh CLI config."""
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token:
+        return token
+    try:
+        r = subprocess.run(
+            ["gh", "auth", "token"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def _resolve_gitlab_token(hostname: str = "gitlab.com") -> str | None:
+    """Resolve GitLab token from environment or glab CLI config."""
+    token = os.environ.get("GITLAB_TOKEN") or os.environ.get("GITLAB_API_TOKEN")
+    if token:
+        return token
+    try:
+        r = subprocess.run(
+            ["glab", "auth", "token", "--hostname", hostname],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
 class GitHubProvider(SCMProvider):
-    """GitHub implementation using the `gh` CLI."""
+    """GitHub implementation using the REST API via httpx."""
+
+    def __init__(self, access_token: str | None = None) -> None:
+        # When an explicit token is provided (e.g. from project config), skip
+        # the env/CLI fallback so per-project auth wins over the global default.
+        self._token: str | None = access_token
+        self._token_resolved = bool(access_token)
+
+    def _headers(self) -> dict[str, str]:
+        if not self._token_resolved:
+            self._token = _resolve_gh_token()
+            self._token_resolved = True
+        h: dict[str, str] = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        if self._token:
+            h["Authorization"] = f"Bearer {self._token}"
+        return h
+
+    def _api(self, method: str, path: str, **kwargs) -> httpx.Response:
+        url = f"https://api.github.com{path}"
+        return _get_http_client().request(method, url, headers=self._headers(), **kwargs)
 
     def provider_name(self) -> str:
         return "github"
 
     def is_available(self) -> bool:
         try:
-            r = subprocess.run(
-                ["gh", "auth", "status"],
-                capture_output=True, text=True, timeout=10,
-            )
-            return r.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+            r = self._api("GET", "/user")
+            return r.status_code == 200
+        except httpx.HTTPError:
             return False
+
+    def _fetch_ci_status(self, repo: str, sha: str) -> str:
+        """Fetch combined CI status for a commit SHA."""
+        try:
+            r = self._api("GET", f"/repos/{repo}/commits/{sha}/status")
+            if r.status_code != 200:
+                return ""
+            state = r.json().get("state", "")
+            if state == "success":
+                return "passed"
+            if state == "failure" or state == "error":
+                return "failed"
+            if state == "pending":
+                return "pending"
+            # Also check check-runs (GitHub Actions use this instead of status)
+            cr = self._api("GET", f"/repos/{repo}/commits/{sha}/check-runs",
+                           params={"per_page": 100})
+            if cr.status_code == 200:
+                runs = cr.json().get("check_runs", [])
+                if runs:
+                    conclusions = {r.get("conclusion") or r.get("status", "") for r in runs}
+                    if "failure" in conclusions or "timed_out" in conclusions:
+                        return "failed"
+                    if all(c in ("success", "neutral", "skipped") for c in conclusions if c):
+                        return "passed"
+                    return "pending"
+        except (httpx.HTTPError, json.JSONDecodeError):
+            pass
+        return ""
 
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
         try:
-            r = subprocess.run(
-                [
-                    "gh", "pr", "list",
-                    "--repo", repo,
-                    "--state", "open",
-                    "--json", "number,title,url,author,headRefName,baseRefName,"
-                              "createdAt,updatedAt,body,labels,isDraft,"
-                              "reviewRequests,additions,deletions,statusCheckRollup,"
-                              "mergeStateStatus,mergeable",
-                    "--limit", "100",
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode != 0:
-                logger.warning("gh pr list failed for %s: %s", repo, r.stderr.strip()[:200])
+            r = self._api("GET", f"/repos/{repo}/pulls", params={
+                "state": "open",
+                "per_page": 100,
+            })
+            if r.status_code != 200:
+                logger.warning("GitHub list_open_reviews %s: HTTP %d", repo, r.status_code)
                 return []
-            data = json.loads(r.stdout)
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
             logger.warning("GitHub list_open_reviews failed for %s: %s", repo, exc)
             return []
 
+        # Batch-fetch CI status for all PRs (reuses HTTP connection pool)
+        sha_map: dict[str, str] = {}
+        for pr in data:
+            sha = pr.get("head", {}).get("sha", "")
+            if sha:
+                sha_map[str(pr.get("number", ""))] = sha
+        ci_statuses: dict[str, str] = {}
+        for pr_num, sha in sha_map.items():
+            ci_statuses[pr_num] = self._fetch_ci_status(repo, sha)
+
         results = []
         for pr in data:
-            # Extract CI status from statusCheckRollup
-            ci_status = ""
-            checks = pr.get("statusCheckRollup") or []
-            if checks:
-                states = {c.get("conclusion") or c.get("state", "") for c in checks}
-                if "FAILURE" in states or "failure" in states:
-                    ci_status = "failed"
-                elif all(s in ("SUCCESS", "success", "NEUTRAL", "neutral", "SKIPPED", "skipped") for s in states if s):
-                    ci_status = "passed"
-                else:
-                    ci_status = "pending"
-
-            author = pr.get("author", {})
+            author = pr.get("user", {})
             author_login = author.get("login", "") if isinstance(author, dict) else str(author)
 
             labels = [l.get("name", "") for l in (pr.get("labels") or [])]
-            reviewers = [r.get("login", "") for r in (pr.get("reviewRequests") or [])
+            reviewers = [r.get("login", "") for r in (pr.get("requested_reviewers") or [])
                          if isinstance(r, dict)]
 
-            # Detect if rebase is needed or has conflicts
-            merge_state = pr.get("mergeStateStatus", "").upper()
-            mergeable = pr.get("mergeable", "")
-            has_conflicts = mergeable == "CONFLICTING"
+            # mergeable/merge state require individual PR fetch — use what's available
+            mergeable = pr.get("mergeable")
+            merge_state = (pr.get("mergeable_state") or "").upper()
+            has_conflicts = mergeable is False
             rebase_needed = merge_state == "BEHIND" or has_conflicts
 
+            pr_num = str(pr.get("number", ""))
             results.append(ReviewRequest(
-                id=str(pr.get("number", "")),
+                id=pr_num,
                 title=pr.get("title", ""),
-                url=pr.get("url", ""),
+                url=pr.get("html_url", ""),
                 author=author_login,
                 state="open",
-                source_branch=pr.get("headRefName", ""),
-                target_branch=pr.get("baseRefName", ""),
-                created_at=pr.get("createdAt", ""),
-                updated_at=pr.get("updatedAt", ""),
-                description=_truncate(pr.get("body", ""), 500),
+                source_branch=pr.get("head", {}).get("ref", ""),
+                target_branch=pr.get("base", {}).get("ref", ""),
+                created_at=pr.get("created_at", ""),
+                updated_at=pr.get("updated_at", ""),
+                description=_truncate(pr.get("body", "") or "", 500),
                 labels=labels,
-                draft=pr.get("isDraft", False),
+                draft=pr.get("draft", False),
                 reviewers=reviewers,
-                ci_status=ci_status,
+                ci_status=ci_statuses.get(pr_num, ""),
                 additions=pr.get("additions", 0),
                 deletions=pr.get("deletions", 0),
                 needs_rebase=rebase_needed,
@@ -219,59 +306,51 @@ class GitHubProvider(SCMProvider):
 
     def list_merged_branches(self, repo: str) -> set[str]:
         try:
-            r = subprocess.run(
-                [
-                    "gh", "pr", "list",
-                    "--repo", repo,
-                    "--state", "merged",
-                    "--json", "headRefName",
-                    "--limit", "100",
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode != 0:
-                logger.debug("gh pr list --state merged failed for %s: %s", repo, r.stderr.strip()[:200])
+            r = self._api("GET", f"/repos/{repo}/pulls", params={
+                "state": "closed",
+                "per_page": 100,
+                "sort": "updated",
+                "direction": "desc",
+            })
+            if r.status_code != 200:
+                logger.debug("GitHub list_merged_branches %s: HTTP %d", repo, r.status_code)
                 return set()
-            data = json.loads(r.stdout)
-            return {pr.get("headRefName", "") for pr in data if pr.get("headRefName")}
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
             logger.debug("GitHub list_merged_branches failed for %s: %s", repo, exc)
             return set()
 
+        return {
+            pr.get("head", {}).get("ref", "")
+            for pr in data
+            if pr.get("merged_at") and pr.get("head", {}).get("ref")
+        }
+
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         try:
-            r = subprocess.run(
-                [
-                    "gh", "pr", "view", review_id,
-                    "--repo", repo,
-                    "--json", "number,title,url,author,headRefName,baseRefName,"
-                              "createdAt,updatedAt,body,labels,isDraft,"
-                              "reviewRequests,additions,deletions",
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            if r.returncode != 0:
+            r = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
+            if r.status_code != 200:
                 return None
-            pr = json.loads(r.stdout)
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            pr = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError):
             return None
 
-        author = pr.get("author", {})
+        author = pr.get("user", {})
         author_login = author.get("login", "") if isinstance(author, dict) else str(author)
 
         return ReviewRequest(
             id=str(pr.get("number", "")),
             title=pr.get("title", ""),
-            url=pr.get("url", ""),
+            url=pr.get("html_url", ""),
             author=author_login,
             state="open",
-            source_branch=pr.get("headRefName", ""),
-            target_branch=pr.get("baseRefName", ""),
-            created_at=pr.get("createdAt", ""),
-            updated_at=pr.get("updatedAt", ""),
-            description=_truncate(pr.get("body", ""), 500),
+            source_branch=pr.get("head", {}).get("ref", ""),
+            target_branch=pr.get("base", {}).get("ref", ""),
+            created_at=pr.get("created_at", ""),
+            updated_at=pr.get("updated_at", ""),
+            description=_truncate(pr.get("body", "") or "", 500),
             labels=[l.get("name", "") for l in (pr.get("labels") or [])],
-            draft=pr.get("isDraft", False),
+            draft=pr.get("draft", False),
             additions=pr.get("additions", 0),
             deletions=pr.get("deletions", 0),
         )
@@ -280,132 +359,118 @@ class GitHubProvider(SCMProvider):
         self, repo: str, title: str, source_branch: str,
         target_branch: str = "main", description: str = "",
     ) -> ReviewRequest | None:
-        cmd = [
-            "gh", "pr", "create",
-            "--repo", repo,
-            "--title", title,
-            "--head", source_branch,
-            "--base", target_branch,
-            "--body", description,
-        ]
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if r.returncode != 0:
-                logger.warning("gh pr create failed: %s", r.stderr.strip()[:200])
+            r = self._api("POST", f"/repos/{repo}/pulls", json={
+                "title": title,
+                "head": source_branch,
+                "base": target_branch,
+                "body": description,
+            })
+            if r.status_code not in (200, 201):
+                logger.warning("GitHub create_review failed: HTTP %d %s",
+                               r.status_code, r.text[:200])
                 return None
-            # gh pr create outputs the URL
-            url = r.stdout.strip()
-            # Fetch the created PR to return full data
-            pr_number = url.rstrip("/").rsplit("/", 1)[-1]
+            pr = r.json()
+            pr_number = str(pr.get("number", ""))
             return self.get_review(repo, pr_number)
-        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        except httpx.HTTPError as exc:
             logger.warning("GitHub create_review failed: %s", exc)
             return None
 
-
     def rebase_review(self, repo: str, review_id: str) -> tuple[bool, str]:
-        # gh doesn't have a direct rebase command, but has update-branch
-        # which merges or rebases the target into the PR branch.
-        # For a true rebase, we use the GitHub API directly via gh api.
         try:
-            # GitHub's "update branch" API with rebase
-            r = subprocess.run(
-                [
-                    "gh", "api",
-                    f"repos/{repo}/pulls/{review_id}/update-branch",
-                    "--method", "PUT",
-                    "--field", "update_method=rebase",
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode == 0:
+            r = self._api("PUT", f"/repos/{repo}/pulls/{review_id}/update-branch",
+                          json={"update_method": "rebase"})
+            if r.status_code in (200, 202):
                 return True, "Rebase initiated successfully"
-            stderr = r.stderr.strip()[:300]
-            # If rebase fails due to conflicts, report clearly
-            if "merge conflict" in stderr.lower() or "cannot be rebased" in stderr.lower():
+            body = r.text[:300]
+            if "merge conflict" in body.lower() or "cannot be rebased" in body.lower():
                 return False, "Rebase failed: merge conflicts require manual resolution"
-            return False, f"Rebase failed: {stderr}"
-        except FileNotFoundError:
-            return False, "gh CLI not found"
-        except subprocess.TimeoutExpired:
-            return False, "Rebase timed out"
+            return False, f"Rebase failed: HTTP {r.status_code} {body}"
+        except httpx.HTTPError as exc:
+            return False, f"Rebase failed: {exc}"
 
     def merge_review(self, repo: str, review_id: str) -> tuple[bool, str]:
         try:
-            r = subprocess.run(
-                ["gh", "pr", "merge", review_id, "--repo", repo,
-                 "--squash", "--delete-branch"],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode == 0:
+            r = self._api("PUT", f"/repos/{repo}/pulls/{review_id}/merge",
+                          json={"merge_method": "squash"})
+            if r.status_code == 200:
+                # Delete source branch
+                pr = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
+                if pr.status_code == 200:
+                    branch = pr.json().get("head", {}).get("ref", "")
+                    if branch:
+                        self._api("DELETE", f"/repos/{repo}/git/refs/heads/{branch}")
                 return True, "PR merged successfully"
-            return False, f"Merge failed: {r.stderr.strip()[:300]}"
-        except FileNotFoundError:
-            return False, "gh CLI not found"
-        except subprocess.TimeoutExpired:
-            return False, "Merge timed out"
+            return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Merge failed: {exc}"
 
     def needs_rebase(self, repo: str, review_id: str) -> bool:
         try:
-            r = subprocess.run(
-                [
-                    "gh", "pr", "view", review_id,
-                    "--repo", repo,
-                    "--json", "mergeStateStatus,mergeable",
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            if r.returncode != 0:
+            r = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
+            if r.status_code != 200:
                 return False
-            data = json.loads(r.stdout)
-            merge_state = data.get("mergeStateStatus", "").upper()
-            mergeable = data.get("mergeable", "")
-            return merge_state == "BEHIND" or mergeable == "CONFLICTING"
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            pr = r.json()
+            mergeable = pr.get("mergeable")
+            merge_state = (pr.get("mergeable_state") or "").upper()
+            return merge_state == "BEHIND" or mergeable is False
+        except (httpx.HTTPError, json.JSONDecodeError):
             return False
 
 
 class GitLabProvider(SCMProvider):
-    """GitLab implementation using the `glab` CLI."""
+    """GitLab implementation using the REST API via httpx."""
 
-    def __init__(self, hostname: str = "gitlab.com"):
+    def __init__(self, hostname: str = "gitlab.com", access_token: str | None = None):
         self._hostname = hostname
+        # When an explicit token is provided (e.g. from project config), skip
+        # the env/CLI fallback so per-project auth wins over the global default.
+        self._token: str | None = access_token
+        self._token_resolved = bool(access_token)
+
+    def _headers(self) -> dict[str, str]:
+        if not self._token_resolved:
+            self._token = _resolve_gitlab_token(self._hostname)
+            self._token_resolved = True
+        h: dict[str, str] = {}
+        if self._token:
+            h["PRIVATE-TOKEN"] = self._token
+        return h
+
+    def _api_url(self) -> str:
+        return f"https://{self._hostname}/api/v4"
+
+    def _api(self, method: str, path: str, **kwargs) -> httpx.Response:
+        url = f"{self._api_url()}{path}"
+        return _get_http_client().request(method, url, headers=self._headers(), **kwargs)
+
+    def _project_path(self, repo: str) -> str:
+        """URL-encode the project path for GitLab API."""
+        return urllib.parse.quote(repo, safe="")
 
     def provider_name(self) -> str:
         return "gitlab"
 
-    def _glab_repo_arg(self, repo: str) -> str:
-        """Return the fully-qualified repo arg for glab (hostname/owner/project)."""
-        if "/" in repo and not repo.startswith(self._hostname):
-            return f"{self._hostname}/{repo}"
-        return repo
-
     def is_available(self) -> bool:
         try:
-            r = subprocess.run(
-                ["glab", "auth", "status", "--hostname", self._hostname],
-                capture_output=True, text=True, timeout=10,
-            )
-            return r.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+            r = self._api("GET", "/user")
+            return r.status_code == 200
+        except httpx.HTTPError:
             return False
 
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
+        encoded = self._project_path(repo)
         try:
-            r = subprocess.run(
-                [
-                    "glab", "mr", "list",
-                    "--repo", self._glab_repo_arg(repo),
-                    "--output", "json",
-                    "--per-page", "100",
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode != 0:
-                logger.warning("glab mr list failed for %s: %s", repo, r.stderr.strip()[:200])
+            r = self._api("GET", f"/projects/{encoded}/merge_requests", params={
+                "state": "opened",
+                "per_page": 100,
+            })
+            if r.status_code != 200:
+                logger.warning("GitLab list_open_reviews %s: HTTP %d", repo, r.status_code)
                 return []
-            data = json.loads(r.stdout)
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
             logger.warning("GitLab list_open_reviews failed for %s: %s", repo, exc)
             return []
 
@@ -420,25 +485,9 @@ class GitLabProvider(SCMProvider):
                 if isinstance(rv, dict):
                     reviewers.append(rv.get("username", rv.get("name", "")))
 
-            # CI status from head_pipeline — glab mr list often returns None,
-            # so fall back to glab mr view for individual MR pipeline data
+            # CI status from head_pipeline
             ci_status = ""
             pipeline = mr.get("head_pipeline") or {}
-            if not pipeline:
-                # Enrich with glab mr view which includes pipeline info
-                mr_id = str(mr.get("iid", mr.get("id", "")))
-                try:
-                    vr = subprocess.run(
-                        ["glab", "mr", "view", mr_id,
-                         "--repo", self._glab_repo_arg(repo),
-                         "--output", "json"],
-                        capture_output=True, text=True, timeout=15,
-                    )
-                    if vr.returncode == 0:
-                        detail = json.loads(vr.stdout)
-                        pipeline = detail.get("head_pipeline") or {}
-                except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
-                    pass
             if pipeline:
                 ps = pipeline.get("status", "").lower()
                 if ps == "success":
@@ -448,7 +497,6 @@ class GitLabProvider(SCMProvider):
                 elif ps in ("running", "pending", "created"):
                     ci_status = "pending"
 
-            # Detect if rebase is needed or has conflicts
             has_conflicts = mr.get("has_conflicts", False)
             rebase_needed = has_conflicts or (mr.get("diverged_commits_count") or 0) > 0
 
@@ -462,7 +510,7 @@ class GitLabProvider(SCMProvider):
                 target_branch=mr.get("target_branch", ""),
                 created_at=mr.get("created_at", ""),
                 updated_at=mr.get("updated_at", ""),
-                description=_truncate(mr.get("description", ""), 500),
+                description=_truncate(mr.get("description", "") or "", 500),
                 labels=labels,
                 draft=mr.get("draft", False) or mr.get("work_in_progress", False),
                 reviewers=reviewers,
@@ -475,40 +523,32 @@ class GitLabProvider(SCMProvider):
         return results
 
     def list_merged_branches(self, repo: str) -> set[str]:
+        encoded = self._project_path(repo)
         try:
-            r = subprocess.run(
-                [
-                    "glab", "mr", "list",
-                    "--repo", self._glab_repo_arg(repo),
-                    "--merged",
-                    "--output", "json",
-                    "--per-page", "100",
-                ],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode != 0:
-                logger.debug("glab mr list --state merged failed for %s: %s", repo, r.stderr.strip()[:200])
+            r = self._api("GET", f"/projects/{encoded}/merge_requests", params={
+                "state": "merged",
+                "per_page": 100,
+                "order_by": "updated_at",
+                "sort": "desc",
+            })
+            if r.status_code != 200:
+                logger.debug("GitLab list_merged_branches %s: HTTP %d", repo, r.status_code)
                 return set()
-            data = json.loads(r.stdout)
-            return {mr.get("source_branch", "") for mr in data if mr.get("source_branch")}
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
             logger.debug("GitLab list_merged_branches failed for %s: %s", repo, exc)
             return set()
 
+        return {mr.get("source_branch", "") for mr in data if mr.get("source_branch")}
+
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
+        encoded = self._project_path(repo)
         try:
-            r = subprocess.run(
-                [
-                    "glab", "mr", "view", review_id,
-                    "--repo", self._glab_repo_arg(repo),
-                    "--output", "json",
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            if r.returncode != 0:
+            r = self._api("GET", f"/projects/{encoded}/merge_requests/{review_id}")
+            if r.status_code != 200:
                 return None
-            mr = json.loads(r.stdout)
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            mr = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError):
             return None
 
         author = mr.get("author", {})
@@ -524,7 +564,7 @@ class GitLabProvider(SCMProvider):
             target_branch=mr.get("target_branch", ""),
             created_at=mr.get("created_at", ""),
             updated_at=mr.get("updated_at", ""),
-            description=_truncate(mr.get("description", ""), 500),
+            description=_truncate(mr.get("description", "") or "", 500),
             labels=mr.get("labels") or [],
             draft=mr.get("draft", False) or mr.get("work_in_progress", False),
         )
@@ -533,80 +573,65 @@ class GitLabProvider(SCMProvider):
         self, repo: str, title: str, source_branch: str,
         target_branch: str = "main", description: str = "",
     ) -> ReviewRequest | None:
-        cmd = [
-            "glab", "mr", "create",
-            "--repo", self._glab_repo_arg(repo),
-            "--title", title,
-            "--source-branch", source_branch,
-            "--target-branch", target_branch,
-            "--description", description,
-            "--yes",
-        ]
+        encoded = self._project_path(repo)
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if r.returncode != 0:
-                logger.warning("glab mr create failed: %s", r.stderr.strip()[:200])
+            r = self._api("POST", f"/projects/{encoded}/merge_requests", json={
+                "title": title,
+                "source_branch": source_branch,
+                "target_branch": target_branch,
+                "description": description,
+            })
+            if r.status_code not in (200, 201):
+                logger.warning("GitLab create_review failed: HTTP %d %s",
+                               r.status_code, r.text[:200])
                 return None
-            # Parse MR URL from output
-            for line in r.stdout.strip().splitlines():
-                if "http" in line:
-                    url = line.strip()
-                    mr_id = url.rstrip("/").rsplit("/", 1)[-1]
-                    return self.get_review(repo, mr_id)
-            return None
-        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            mr = r.json()
+            mr_id = str(mr.get("iid", mr.get("id", "")))
+            return self.get_review(repo, mr_id)
+        except httpx.HTTPError as exc:
             logger.warning("GitLab create_review failed: %s", exc)
             return None
 
     def rebase_review(self, repo: str, review_id: str) -> tuple[bool, str]:
+        encoded = self._project_path(repo)
         try:
-            # glab mr rebase triggers a server-side rebase on GitLab
-            r = subprocess.run(
-                ["glab", "mr", "rebase", review_id, "--repo", self._glab_repo_arg(repo)],
-                capture_output=True, text=True, timeout=60,
-            )
-            if r.returncode == 0:
+            r = self._api("PUT", f"/projects/{encoded}/merge_requests/{review_id}/rebase")
+            if r.status_code in (200, 202):
                 return True, "Rebase initiated successfully"
-            stderr = r.stderr.strip()[:300]
-            if "conflict" in stderr.lower():
+            body = r.text[:300]
+            if "conflict" in body.lower():
                 return False, "Rebase failed: merge conflicts require manual resolution"
-            return False, f"Rebase failed: {stderr}"
-        except FileNotFoundError:
-            return False, "glab CLI not found"
-        except subprocess.TimeoutExpired:
-            return False, "Rebase timed out"
+            return False, f"Rebase failed: HTTP {r.status_code} {body}"
+        except httpx.HTTPError as exc:
+            return False, f"Rebase failed: {exc}"
 
     def merge_review(self, repo: str, review_id: str) -> tuple[bool, str]:
+        encoded = self._project_path(repo)
         try:
-            r = subprocess.run(
-                ["glab", "mr", "merge", review_id, "--repo", self._glab_repo_arg(repo),
-                 "--squash", "--remove-source-branch", "--yes"],
-                capture_output=True, text=True, timeout=30,
-            )
-            if r.returncode == 0:
+            r = self._api("PUT", f"/projects/{encoded}/merge_requests/{review_id}/merge",
+                          json={
+                              "squash": True,
+                              "should_remove_source_branch": True,
+                          })
+            if r.status_code == 200:
                 return True, "MR merged successfully"
-            return False, f"Merge failed: {r.stderr.strip()[:300]}"
-        except FileNotFoundError:
-            return False, "glab CLI not found"
-        except subprocess.TimeoutExpired:
-            return False, "Merge timed out"
+            return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Merge failed: {exc}"
 
     def needs_rebase(self, repo: str, review_id: str) -> bool:
+        encoded = self._project_path(repo)
         try:
-            r = subprocess.run(
-                ["glab", "mr", "view", review_id, "--repo", self._glab_repo_arg(repo), "--output", "json"],
-                capture_output=True, text=True, timeout=15,
-            )
-            if r.returncode != 0:
+            r = self._api("GET", f"/projects/{encoded}/merge_requests/{review_id}")
+            if r.status_code != 200:
                 return False
-            mr = json.loads(r.stdout)
-            # GitLab uses "has_conflicts" and "diverged_commits_count"
+            mr = r.json()
             if mr.get("has_conflicts", False):
                 return True
             if (mr.get("diverged_commits_count") or 0) > 0:
                 return True
             return False
-        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        except (httpx.HTTPError, json.JSONDecodeError):
             return False
 
 
@@ -620,15 +645,19 @@ def _truncate(s: str, max_len: int) -> str:
     return s[:max_len - 3] + "..."
 
 
-def detect_provider(repo_url: str) -> SCMProvider | None:
+def detect_provider(
+    repo_url: str, access_token: str | None = None,
+) -> SCMProvider | None:
     """Detect the SCM provider from a repository URL.
 
     Returns a GitHubProvider or GitLabProvider instance, or None if
-    the URL doesn't match a known pattern.
+    the URL doesn't match a known pattern. When ``access_token`` is set,
+    the provider uses it instead of resolving from env vars or the
+    gh/glab CLI.
     """
     url_lower = repo_url.lower()
     if "github.com" in url_lower:
-        return GitHubProvider()
+        return GitHubProvider(access_token=access_token)
     if "gitlab" in url_lower:
         # Extract hostname for non-default GitLab instances
         hostname = "gitlab.com"
@@ -636,7 +665,7 @@ def detect_provider(repo_url: str) -> SCMProvider | None:
             hostname = repo_url.split("://", 1)[1].split("/", 1)[0]
         elif repo_url.startswith("git@"):
             hostname = repo_url.split("@", 1)[1].split(":", 1)[0]
-        return GitLabProvider(hostname=hostname)
+        return GitLabProvider(hostname=hostname, access_token=access_token)
     return None
 
 
@@ -686,7 +715,9 @@ def get_all_open_reviews(projects: list) -> list[dict]:
     """
     results = []
     for project in projects:
-        provider = detect_provider(project.repo_url)
+        provider = detect_provider(
+            project.repo_url, access_token=getattr(project, "access_token", None),
+        )
         if not provider:
             logger.debug("No SCM provider detected for %s", project.repo_url)
             continue

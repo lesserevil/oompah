@@ -591,6 +591,84 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
 
 
 # ---------------------------------------------------------------------------
+# Context-window budgeting
+# ---------------------------------------------------------------------------
+
+# Default output reservation when no per-call budget is computed.
+_DEFAULT_MAX_OUTPUT_TOKENS = 32768
+# Floor for ``max_tokens`` after pruning, so the model can always reply.
+_MIN_MAX_OUTPUT_TOKENS = 1024
+# Padding for our 4-chars-per-token approximation drift.
+_TOKENIZER_SAFETY_MARGIN = 1024
+
+
+def _estimate_tokens(payload: object) -> int:
+    """Approximate token count for an arbitrary JSON-serializable object.
+
+    Uses the well-known 4-chars-per-token rule of thumb, which is close
+    for English-heavy content typical of agent transcripts. The caller
+    pads the result with :data:`_TOKENIZER_SAFETY_MARGIN` when budgeting.
+    """
+    try:
+        s = json.dumps(payload, ensure_ascii=False)
+    except (TypeError, ValueError):
+        s = str(payload)
+    return max(1, len(s) // 4)
+
+
+def _prune_messages_to_fit(
+    messages: list[dict[str, Any]],
+    tool_definitions: list[dict[str, Any]],
+    max_input_tokens: int,
+) -> int:
+    """Prune oldest assistant/tool round-trips from ``messages`` in place
+    until the estimated outgoing payload fits in ``max_input_tokens``.
+
+    Always preserves ``messages[0]`` (system) and ``messages[1]`` (the
+    initial user prompt), since dropping those would erase the task.
+
+    Removes message groups, where a group is one assistant message
+    plus any immediately-following tool messages that respond to its
+    tool_calls. Dropping an assistant without its tool responses (or
+    vice versa) would leave dangling ``tool_call_id`` references that
+    OpenAI-compatible endpoints reject with 400. Returns the number of
+    messages removed.
+    """
+    if max_input_tokens <= 0:
+        return 0
+    # Anchor the head — never drop these.
+    head_count = min(2, len(messages))
+    removed = 0
+    while True:
+        est = _estimate_tokens({
+            "messages": messages,
+            "tools": tool_definitions,
+        })
+        if est <= max_input_tokens:
+            return removed
+        # Find the first assistant message after the head.
+        cut_start = None
+        for i in range(head_count, len(messages)):
+            if messages[i].get("role") == "assistant":
+                cut_start = i
+                break
+        if cut_start is None:
+            # Nothing left to drop without breaking the head.
+            return removed
+        # Walk forward to absorb tool responses to this assistant's calls.
+        cut_end = cut_start + 1
+        while cut_end < len(messages) and messages[cut_end].get("role") == "tool":
+            cut_end += 1
+        # If the assistant had no tool_calls and no tool followers, this
+        # is just a plain assistant reply — fine to drop alone.
+        del messages[cut_start:cut_end]
+        removed += cut_end - cut_start
+        if cut_start >= len(messages):
+            # Only head remains.
+            return removed
+
+
+# ---------------------------------------------------------------------------
 # ApiAgentSession
 # ---------------------------------------------------------------------------
 
@@ -608,6 +686,7 @@ class ApiAgentSession:
         system_prompt: str = "",
         command_timeout: int = 60,
         enabled_tools: set[str] | None = None,
+        model_max_context: int | None = None,
     ):
         # Strip trailing slash for clean URL joining
         self.base_url = base_url.rstrip("/")
@@ -625,6 +704,12 @@ class ApiAgentSession:
         # active focus opts in and the resolved model has the image
         # capability.
         self.enabled_tools = enabled_tools
+        # Total context window for ``model`` (input + output, in tokens).
+        # When set, _call_api budgets each request: prunes the oldest
+        # assistant/tool round-trips if the prompt would overflow, and
+        # clamps max_tokens to fit within the remaining headroom. When
+        # None, behaviour falls back to the legacy fixed max_tokens.
+        self.model_max_context = model_max_context
 
         self._ssl_ctx = _build_ssl_context()
         self._url = f"{self.base_url}/chat/completions"
@@ -949,13 +1034,40 @@ class ApiAgentSession:
     # -- private helpers ----------------------------------------------------
 
     async def _call_api(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
-        """Make one chat completions call with automatic rate-limit retry."""
+        """Make one chat completions call with automatic rate-limit retry.
+
+        When :attr:`model_max_context` is set, prunes the oldest
+        assistant/tool round-trips out of ``messages`` (in place) until
+        the estimated outgoing payload fits, then sets ``max_tokens``
+        to the remaining headroom (clamped to a sensible floor).
+        """
+        tool_defs = self._tool_definitions
+        max_tokens = _DEFAULT_MAX_OUTPUT_TOKENS
+        if self.model_max_context:
+            # Reserve at least the floor for output, plus the safety margin.
+            max_input = (
+                self.model_max_context
+                - _MIN_MAX_OUTPUT_TOKENS
+                - _TOKENIZER_SAFETY_MARGIN
+            )
+            removed = _prune_messages_to_fit(messages, tool_defs, max_input)
+            if removed:
+                logger.warning(
+                    "ApiAgentSession: pruned %d oldest message(s) to fit %d-token context window",
+                    removed, self.model_max_context,
+                )
+            est_input = _estimate_tokens({"messages": messages, "tools": tool_defs})
+            headroom = (
+                self.model_max_context - est_input - _TOKENIZER_SAFETY_MARGIN
+            )
+            max_tokens = max(_MIN_MAX_OUTPUT_TOKENS,
+                             min(_DEFAULT_MAX_OUTPUT_TOKENS, headroom))
         payload = {
             "model": self.model,
             "messages": messages,
-            "tools": self._tool_definitions,
+            "tools": tool_defs,
             "tool_choice": "auto",
-            "max_tokens": 32768,
+            "max_tokens": max_tokens,
         }
         body = json.dumps(payload).encode("utf-8")
         headers = {

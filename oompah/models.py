@@ -122,6 +122,10 @@ class Project:
     yolo: bool = False
     log_path: str | None = None  # optional path to a log file to watch for errors
     webhook_secret: str | None = None  # HMAC secret for validating forge webhooks
+    # Optional GitHub/GitLab API token used by SCM operations (list/rebase/merge
+    # PRs and MRs). When None, the SCM provider falls back to env vars
+    # (GH_TOKEN/GITHUB_TOKEN, GITLAB_TOKEN) and then to the gh/glab CLI auth.
+    access_token: str | None = None
     # True when `git lfs install` succeeded for this clone. When False, the
     # attachments feature is silently disabled for this project.
     lfs_available: bool = False
@@ -144,6 +148,22 @@ class Project:
             d["log_path"] = self.log_path
         if self.webhook_secret:
             d["webhook_secret"] = self.webhook_secret
+        if self.access_token:
+            d["access_token"] = self.access_token
+        return d
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        """Return dict with the access token masked for display."""
+        d = self.to_dict()
+        token = d.pop("access_token", None)
+        if token:
+            d["access_token_masked"] = (
+                token[:4] + "..." + token[-4:] if len(token) > 8 else "***"
+            )
+            d["has_access_token"] = True
+        else:
+            d["access_token_masked"] = ""
+            d["has_access_token"] = False
         return d
 
     @classmethod
@@ -159,6 +179,7 @@ class Project:
             yolo=bool(d.get("yolo", False)),
             log_path=d.get("log_path"),
             webhook_secret=d.get("webhook_secret"),
+            access_token=d.get("access_token"),
             lfs_available=bool(d.get("lfs_available", False)),
         )
 
@@ -182,11 +203,23 @@ class ModelProvider:
     # callers should default to ``["text"]``. See
     # docs/multimodal-attachments.md§Provider modality capability.
     model_capabilities: dict[str, list[str]] = field(default_factory=dict)
+    # Per-model maximum total context window (input + output) in tokens.
+    # When set, the API agent estimates the outgoing prompt size and
+    # (a) prunes oldest history if the budget would overflow,
+    # (b) clamps max_tokens to the remaining headroom.
+    # When unset, the agent uses the legacy fixed max_tokens with no
+    # pruning — only safe for models with very large windows.
+    model_contexts: dict[str, int] = field(default_factory=dict)
 
     def get_model_costs(self, model: str) -> tuple[float, float]:
         """Return (cost_per_1k_input, cost_per_1k_output) for a model, or (0, 0) if unknown."""
         costs = self.model_costs.get(model, {})
         return (costs.get("cost_per_1k_input", 0.0), costs.get("cost_per_1k_output", 0.0))
+
+    def get_model_context(self, model: str) -> int | None:
+        """Return the configured max context window for ``model`` or None."""
+        v = self.model_contexts.get(model)
+        return int(v) if v else None
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -204,6 +237,8 @@ class ModelProvider:
             d["model_costs"] = self.model_costs
         if self.model_capabilities:
             d["model_capabilities"] = self.model_capabilities
+        if self.model_contexts:
+            d["model_contexts"] = self.model_contexts
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -232,6 +267,11 @@ class ModelProvider:
             model_capabilities={
                 str(k): [str(c) for c in (v or [])]
                 for k, v in (d.get("model_capabilities") or {}).items()
+            },
+            model_contexts={
+                str(k): int(v)
+                for k, v in (d.get("model_contexts") or {}).items()
+                if isinstance(v, (int, float)) or (isinstance(v, str) and v.isdigit())
             },
         )
 

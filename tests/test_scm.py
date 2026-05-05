@@ -61,6 +61,53 @@ class TestDetectProvider:
         assert isinstance(provider, GitHubProvider)
 
 
+class TestProviderAccessToken:
+    """The per-project access_token must reach the provider's auth header
+    and short-circuit the env/CLI fallback."""
+
+    def test_github_uses_explicit_token_in_authorization_header(self):
+        provider = GitHubProvider(access_token="ghp_test_token")
+        headers = provider._headers()
+        assert headers["Authorization"] == "Bearer ghp_test_token"
+
+    def test_gitlab_uses_explicit_token_in_private_token_header(self):
+        provider = GitLabProvider(access_token="glpat-test-token")
+        headers = provider._headers()
+        assert headers["PRIVATE-TOKEN"] == "glpat-test-token"
+
+    def test_github_explicit_token_skips_env_resolution(self, monkeypatch):
+        # Set env vars that would otherwise be picked up; constructor token wins.
+        monkeypatch.setenv("GH_TOKEN", "env_token_should_not_be_used")
+        monkeypatch.setenv("GITHUB_TOKEN", "env_token_should_not_be_used")
+        provider = GitHubProvider(access_token="explicit_wins")
+        assert provider._headers()["Authorization"] == "Bearer explicit_wins"
+
+    def test_gitlab_explicit_token_skips_env_resolution(self, monkeypatch):
+        monkeypatch.setenv("GITLAB_TOKEN", "env_token_should_not_be_used")
+        monkeypatch.setenv("GITLAB_API_TOKEN", "env_token_should_not_be_used")
+        provider = GitLabProvider(access_token="explicit_wins")
+        assert provider._headers()["PRIVATE-TOKEN"] == "explicit_wins"
+
+    def test_detect_provider_threads_token_to_github(self):
+        provider = detect_provider(
+            "https://github.com/org/repo", access_token="ghp_passthrough",
+        )
+        assert isinstance(provider, GitHubProvider)
+        assert provider._headers()["Authorization"] == "Bearer ghp_passthrough"
+
+    def test_detect_provider_threads_token_to_gitlab(self):
+        provider = detect_provider(
+            "https://gitlab.com/group/project", access_token="glpat-passthrough",
+        )
+        assert isinstance(provider, GitLabProvider)
+        assert provider._headers()["PRIVATE-TOKEN"] == "glpat-passthrough"
+
+    def test_detect_provider_token_optional(self):
+        # Default behavior unchanged when no token supplied.
+        provider = detect_provider("https://github.com/org/repo")
+        assert isinstance(provider, GitHubProvider)
+
+
 class TestTruncate:
     def test_short_string(self):
         assert _truncate("hello", 10) == "hello"
