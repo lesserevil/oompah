@@ -655,3 +655,88 @@ class TestUnknownToolHelpfulErrorWhenLooksShellish:
         result = _execute_tool(tmp_path, "frobnicate", {})
         assert "unknown tool 'frobnicate'" in result
         assert "looks like a shell command" not in result
+
+
+# ---------------------------------------------------------------------------
+# BEADS_DIR plumbing — agents work in their worktree but their bd commands
+# must hit the project's main beads DB, not the worktree's forked dolt copy.
+# ---------------------------------------------------------------------------
+
+class TestRunCommandEnvOverrides:
+    def test_no_overrides_inherits_env(self, tmp_path, monkeypatch):
+        from oompah.api_agent import _exec_run_command
+        # Echoes whatever's in BEADS_DIR (or "unset" if missing) so we can
+        # check whether the caller's env reached the subprocess.
+        monkeypatch.setenv("BEADS_DIR", "/from/parent")
+        result = _exec_run_command(
+            tmp_path, {"command": "echo BEADS_DIR=${BEADS_DIR:-unset}"},
+        )
+        assert "BEADS_DIR=/from/parent" in result
+
+    def test_overrides_replace_specific_keys(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+        # Caller specifies BEADS_DIR via env_overrides — child should see it.
+        result = _exec_run_command(
+            tmp_path, {"command": "echo BEADS_DIR=${BEADS_DIR:-unset}"},
+            env_overrides={"BEADS_DIR": "/main/repo/.beads"},
+        )
+        assert "BEADS_DIR=/main/repo/.beads" in result
+
+    def test_overrides_layer_on_existing_env(self, tmp_path, monkeypatch):
+        """env_overrides should be additive — non-overridden keys still come
+        from the parent process's env."""
+        from oompah.api_agent import _exec_run_command
+        monkeypatch.setenv("OOMPAH_TEST_FIXTURE", "fixture-from-parent")
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "echo PARENT=${OOMPAH_TEST_FIXTURE:-missing} OVERRIDE=${BEADS_DIR:-unset}"},
+            env_overrides={"BEADS_DIR": "/x"},
+        )
+        assert "PARENT=fixture-from-parent" in result
+        assert "OVERRIDE=/x" in result
+
+
+class TestSessionBeadsDir:
+    def test_default_is_none(self, tmp_path):
+        from oompah.api_agent import ApiAgentSession
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        assert s.beads_dir is None
+
+    def test_passes_through(self, tmp_path):
+        from oompah.api_agent import ApiAgentSession
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+            beads_dir="/main/repo/.beads",
+        )
+        assert s.beads_dir == "/main/repo/.beads"
+
+
+class TestExecuteToolForwardsEnvOverrides:
+    """When run_command goes through _execute_tool, env_overrides
+    (e.g. BEADS_DIR) must reach the subprocess. File/edit tools don't
+    spawn subprocesses, so the override has no effect there but must
+    not crash either."""
+
+    def test_run_command_receives_env_override(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+        result = _execute_tool(
+            tmp_path, "run_command",
+            {"command": "echo BD=${BEADS_DIR:-unset}"},
+            env_overrides={"BEADS_DIR": "/sentinel/path"},
+        )
+        assert "BD=/sentinel/path" in result
+
+    def test_other_tools_unaffected_by_env_overrides(self, tmp_path):
+        from oompah.api_agent import _execute_tool
+        # list_files doesn't spawn a subprocess; passing env_overrides
+        # must be a no-op (and definitely not a crash).
+        (tmp_path / "f.txt").write_text("ok")
+        result = _execute_tool(
+            tmp_path, "list_files", {"path": "."},
+            env_overrides={"BEADS_DIR": "/x"},
+        )
+        assert "f.txt" in result

@@ -483,11 +483,25 @@ def _validate_command_stays_in_workspace(command: str, workspace: Path) -> str |
     return None
 
 
-def _exec_run_command(workspace: Path, args: dict[str, Any], timeout: int = 60) -> str:
+def _exec_run_command(
+    workspace: Path,
+    args: dict[str, Any],
+    timeout: int = 60,
+    env_overrides: dict[str, str] | None = None,
+) -> str:
     command = args["command"]
     cd_err = _validate_command_stays_in_workspace(command, workspace)
     if cd_err:
         return f"Error: {cd_err}"
+    # Build env from the agent's own env, layering caller-supplied overrides
+    # on top. Used most importantly to set ``BEADS_DIR`` so that any ``bd``
+    # commands the agent runs operate on the project's main beads database
+    # rather than the worktree's forked dolt copy. Without this, agent-side
+    # ``bd close`` succeeds in the worktree but is invisible to the
+    # orchestrator, and dispatch storms occur.
+    env = None
+    if env_overrides:
+        env = {**os.environ, **env_overrides}
     try:
         result = subprocess.run(
             ["bash", "-lc", command],
@@ -495,6 +509,7 @@ def _exec_run_command(workspace: Path, args: dict[str, Any], timeout: int = 60) 
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
         parts: list[str] = []
         if result.stdout:
@@ -595,8 +610,18 @@ _TOOL_REQUIRED_ARGS: dict[str, list[str]] = {
 }
 
 
-def _execute_tool(workspace: Path, name: str, args: dict[str, Any], cmd_timeout: int = 60) -> str:
-    """Execute a tool call and return its string result."""
+def _execute_tool(
+    workspace: Path,
+    name: str,
+    args: dict[str, Any],
+    cmd_timeout: int = 60,
+    env_overrides: dict[str, str] | None = None,
+) -> str:
+    """Execute a tool call and return its string result.
+
+    ``env_overrides`` is forwarded to ``run_command`` only — the file/edit
+    tools don't spawn subprocesses, so it has no effect on them.
+    """
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
         # Models occasionally lift a shell command out of the WORKFLOW.md
@@ -629,7 +654,10 @@ def _execute_tool(workspace: Path, name: str, args: dict[str, Any], cmd_timeout:
 
     try:
         if name == "run_command":
-            return handler(workspace, args, timeout=cmd_timeout)
+            return handler(
+                workspace, args, timeout=cmd_timeout,
+                env_overrides=env_overrides,
+            )
         return handler(workspace, args)
     except ValueError as exc:
         # path traversal
@@ -798,6 +826,7 @@ class ApiAgentSession:
         enabled_tools: set[str] | None = None,
         model_max_context: int | None = None,
         log_path: str | None = None,
+        beads_dir: str | None = None,
     ):
         # Strip trailing slash for clean URL joining
         self.base_url = base_url.rstrip("/")
@@ -824,6 +853,13 @@ class ApiAgentSession:
         # Path to a JSONL file recording every request, response, and
         # activity event for this dispatch. None disables file logging.
         self.log_path = log_path
+        # When set, every ``bd`` command the agent runs via run_command
+        # gets ``BEADS_DIR=<beads_dir>`` in its env, so writes land in
+        # the orchestrator's source-of-truth DB rather than the agent's
+        # worktree-forked dolt. Without this, ``bd close`` succeeds in
+        # the worktree but is invisible to the orchestrator → dispatch
+        # storms (oompah-zlz_2-{07h,529,etc} pattern observed).
+        self.beads_dir = beads_dir
 
         self._ssl_ctx = _build_ssl_context()
         self._url = f"{self.base_url}/chat/completions"
@@ -1072,8 +1108,13 @@ class ApiAgentSession:
                             f"Please provide valid JSON with the required arguments."
                         )
                     else:
+                        env_overrides = (
+                            {"BEADS_DIR": self.beads_dir}
+                            if self.beads_dir else None
+                        )
                         result_str = await asyncio.to_thread(
-                            _execute_tool, self.workspace, tool_name, tool_args, self.command_timeout
+                            _execute_tool, self.workspace, tool_name, tool_args,
+                            self.command_timeout, env_overrides,
                         )
 
                     tool_failed = result_str.startswith("Error")

@@ -489,6 +489,10 @@ class ProjectStore:
 
         # Disable beads hooks to prevent state interference
         self._disable_worktree_hooks(wt_path)
+        # Remove any forked per-worktree beads dolt state and stop
+        # orphan dolt-sql-server processes — agent bd commands route
+        # to the main DB via BEADS_DIR, so the worktree's copy is dead weight.
+        self._strip_worktree_beads_fork(wt_path)
 
         logger.info("Worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
@@ -535,6 +539,8 @@ class ProjectStore:
         # Disable beads hooks in worktrees to prevent post-checkout/pre-commit
         # hooks from syncing backup JSONL back to Dolt and reverting issue states
         self._disable_worktree_hooks(wt_path)
+        # Defensive cleanup of any forked per-worktree beads dolt state.
+        self._strip_worktree_beads_fork(wt_path)
 
     def _disable_worktree_hooks(self, wt_path: str) -> None:
         """Point worktree hooks to an empty directory to prevent beads hook interference.
@@ -555,6 +561,57 @@ class ProjectStore:
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             pass
+
+    def _strip_worktree_beads_fork(self, wt_path: str) -> None:
+        """Remove any per-worktree beads dolt detritus.
+
+        Each agent runs ``bd`` from inside its worktree. Without
+        ``BEADS_DIR`` set, ``bd`` would create its own ``.beads/dolt/``
+        and spawn a per-worktree dolt-sql-server, then write closures
+        and comments into a forked DB the orchestrator never sees.
+
+        The agent's run_command tool now sets ``BEADS_DIR`` to the
+        project's main ``.beads`` so future invocations route correctly.
+        This function defensively cleans any existing per-worktree
+        dolt files left from past runs (gitignored, so they survive
+        ``git reset --hard``) and stops orphan dolt-sql-server
+        processes referenced by ``.beads/dolt-server.pid``.
+        """
+        beads_dir = os.path.join(wt_path, ".beads")
+        if not os.path.isdir(beads_dir):
+            return
+        # Stop any orphan dolt server still tied to this worktree.
+        pid_file = os.path.join(beads_dir, "dolt-server.pid")
+        if os.path.isfile(pid_file):
+            try:
+                with open(pid_file) as f:
+                    pid_str = f.read().strip()
+                if pid_str.isdigit():
+                    pid = int(pid_str)
+                    try:
+                        os.kill(pid, 15)  # SIGTERM
+                    except ProcessLookupError:
+                        pass
+                    except OSError:
+                        pass
+            except OSError:
+                pass
+        # Drop dolt server runtime files and the embedded DB itself —
+        # all gitignored, all safe to remove. ``bd`` will not regenerate
+        # them as long as BEADS_DIR is set on every invocation.
+        import shutil
+        for entry in (
+            "dolt-server.pid", "dolt-server.port", "dolt-server.log",
+            "dolt-server.lock", "dolt", "embeddeddolt",
+        ):
+            path = os.path.join(beads_dir, entry)
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path, ignore_errors=True)
+                elif os.path.isfile(path) or os.path.islink(path):
+                    os.remove(path)
+            except OSError:
+                pass
 
     def remove_worktree(self, project_id: str, issue_identifier: str) -> None:
         project = self._projects.get(project_id)

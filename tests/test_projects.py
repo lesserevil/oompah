@@ -340,3 +340,81 @@ class TestSyncAllSources:
 
         assert results["p-0"]["beads"].startswith("failed: boom")
         assert results["p-1"]["beads"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# _strip_worktree_beads_fork — defensive cleanup of per-worktree dolt detritus.
+# ---------------------------------------------------------------------------
+
+class TestStripWorktreeBeadsFork:
+    def _store(self, tmp_path):
+        return _PS(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+
+    def test_no_op_when_no_beads_dir(self, tmp_path):
+        store = self._store(tmp_path)
+        wt = tmp_path / "worktree"
+        wt.mkdir()
+        # Should not raise — worktree has no .beads/ at all.
+        store._strip_worktree_beads_fork(str(wt))
+
+    def test_removes_dolt_dir_and_runtime_files(self, tmp_path):
+        store = self._store(tmp_path)
+        wt = tmp_path / "worktree"
+        wt.mkdir()
+        beads = wt / ".beads"
+        beads.mkdir()
+        # Tracked content stays.
+        (beads / "issues.jsonl").write_text("[]")
+        (beads / "config.yaml").write_text("# config")
+        # Forked-dolt artefacts that should be removed.
+        (beads / "dolt").mkdir()
+        (beads / "dolt" / "data.bin").write_text("binary")
+        (beads / "embeddeddolt").mkdir()
+        (beads / "dolt-server.log").write_text("log")
+        (beads / "dolt-server.pid").write_text("99999")
+        (beads / "dolt-server.port").write_text("3306")
+        (beads / "dolt-server.lock").write_text("")
+
+        store._strip_worktree_beads_fork(str(wt))
+
+        # Tracked content preserved.
+        assert (beads / "issues.jsonl").exists()
+        assert (beads / "config.yaml").exists()
+        # All forked-dolt artefacts removed.
+        for entry in (
+            "dolt", "embeddeddolt", "dolt-server.log",
+            "dolt-server.pid", "dolt-server.port", "dolt-server.lock",
+        ):
+            assert not (beads / entry).exists(), f"{entry} should be gone"
+
+    def test_handles_missing_runtime_files(self, tmp_path):
+        store = self._store(tmp_path)
+        wt = tmp_path / "worktree"
+        wt.mkdir()
+        beads = wt / ".beads"
+        beads.mkdir()
+        # Only some of the forked-dolt artefacts present.
+        (beads / "embeddeddolt").mkdir()
+        (beads / "issues.jsonl").write_text("[]")
+        # No dolt-server.* at all — function should not raise.
+        store._strip_worktree_beads_fork(str(wt))
+        assert not (beads / "embeddeddolt").exists()
+        assert (beads / "issues.jsonl").exists()
+
+    def test_pid_kill_swallows_lookup_error(self, tmp_path, monkeypatch):
+        """If the pid in dolt-server.pid is no longer alive, we shouldn't
+        crash — just clean up the file."""
+        store = self._store(tmp_path)
+        wt = tmp_path / "worktree"
+        wt.mkdir()
+        beads = wt / ".beads"
+        beads.mkdir()
+        (beads / "dolt-server.pid").write_text("99999999")  # almost certainly dead
+
+        store._strip_worktree_beads_fork(str(wt))
+
+        assert not (beads / "dolt-server.pid").exists()

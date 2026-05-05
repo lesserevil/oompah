@@ -2143,6 +2143,17 @@ class Orchestrator:
                 log_dir, f"{issue.identifier}__{ts}.jsonl",
             )
 
+            # Compute the project's main beads directory so the agent's
+            # ``bd`` commands write to the orchestrator's source-of-truth DB,
+            # not the worktree's forked dolt. Falls back to None for the
+            # legacy single-project path (no project_id), in which case the
+            # agent's bd commands resolve normally from cwd.
+            beads_dir = None
+            if issue.project_id:
+                proj = self.project_store.get(issue.project_id)
+                if proj and proj.repo_path:
+                    beads_dir = os.path.join(proj.repo_path, ".beads")
+
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -2154,6 +2165,7 @@ class Orchestrator:
                 enabled_tools=base_tools,
                 model_max_context=provider.get_model_context(model),
                 log_path=agent_log_path,
+                beads_dir=beads_dir,
             )
             logger.info(
                 "Agent log for %s -> %s", issue.identifier, agent_log_path,
