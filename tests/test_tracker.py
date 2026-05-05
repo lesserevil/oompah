@@ -304,6 +304,154 @@ class TestCreateIssueInitialStatus:
 
 
 # ---------------------------------------------------------------------------
+# Candidate fetch / dispatch query (oompah-zlz_2-k5a)
+#
+# Regression coverage for the "Failed to fetch candidates: bd command timed
+# out: bd list --json" bug. The old implementation looped per-status and on
+# any TrackerError fell back to an unfiltered, unlimited 'bd list --json'
+# call, repeated once per active status — the heaviest possible query, run
+# N times. The fix collapses the loop into a single
+# 'bd list --status=<comma-list> --limit=0 --json' call and drops the
+# fallback.
+# ---------------------------------------------------------------------------
+
+
+class TestFetchCandidateIssues:
+    _SENTINEL = object()
+
+    def _tracker(self, active_states=_SENTINEL):
+        # Distinguish "default" from "explicit empty" — `or` would treat
+        # [] as falsy and pick the default, hiding bugs in the empty path.
+        if active_states is self._SENTINEL:
+            active_states = ["open", "in_progress"]
+        return BeadsTracker(
+            active_states=active_states,
+            terminal_states=["closed"],
+        )
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_single_call_with_comma_separated_status(self, mock_run_bd):
+        """One bd call covering every active state — no per-status loop."""
+        mock_run_bd.return_value = []
+        tracker = self._tracker(["open", "in_progress"])
+        tracker.fetch_candidate_issues()
+
+        assert mock_run_bd.call_count == 1
+        args = mock_run_bd.call_args_list[0].args[0]
+        assert args == [
+            "list",
+            "--status=open,in_progress",
+            "--limit=0",
+            "--json",
+        ]
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_single_active_state(self, mock_run_bd):
+        """Single-state config still uses --status filter (not --all)."""
+        mock_run_bd.return_value = []
+        tracker = self._tracker(["open"])
+        tracker.fetch_candidate_issues()
+        args = mock_run_bd.call_args_list[0].args[0]
+        assert args == ["list", "--status=open", "--limit=0", "--json"]
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_no_fallback_on_tracker_error(self, mock_run_bd):
+        """A TrackerError must propagate — no second 'bd list --json' call.
+
+        This is the regression for oompah-zlz_2-k5a: the old fallback ran
+        an unfiltered 'bd list --json' that timed out under contention,
+        spamming ERROR logs and starving dispatch.
+        """
+        from oompah.tracker import TrackerError
+
+        mock_run_bd.side_effect = TrackerError(
+            "bd command timed out: bd list --status=open,in_progress --json"
+        )
+        tracker = self._tracker(["open", "in_progress"])
+
+        try:
+            tracker.fetch_candidate_issues()
+        except TrackerError:
+            pass
+        else:
+            raise AssertionError("expected TrackerError to propagate")
+
+        # Exactly one bd call — no fallback to the heavier unfiltered query.
+        assert mock_run_bd.call_count == 1
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_no_active_states_short_circuits(self, mock_run_bd):
+        """An empty active_states config returns [] without hitting bd."""
+        tracker = self._tracker([])
+        result = tracker.fetch_candidate_issues()
+        assert result == []
+        mock_run_bd.assert_not_called()
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_filters_inactive_states_returned_by_bd(self, mock_run_bd):
+        """Defensively drop any rows whose state isn't in active_states.
+
+        Protects against a bd query that ignores the filter or returns
+        adjacent statuses by mistake.
+        """
+        mock_run_bd.return_value = [
+            {"id": "1", "identifier": "p-1", "title": "a", "status": "open",
+             "priority": 1, "created_at": "2025-01-01T00:00:00Z"},
+            {"id": "2", "identifier": "p-2", "title": "b", "status": "closed",
+             "priority": 0, "created_at": "2025-01-01T00:00:00Z"},
+            {"id": "3", "identifier": "p-3", "title": "c", "status": "in_progress",
+             "priority": 2, "created_at": "2025-01-01T00:00:00Z"},
+        ]
+        issues = self._tracker(["open", "in_progress"]).fetch_candidate_issues()
+        ids = {i.id for i in issues}
+        assert ids == {"1", "3"}
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_dedupes_by_id(self, mock_run_bd):
+        """Duplicate rows from bd are collapsed once."""
+        mock_run_bd.return_value = [
+            {"id": "1", "identifier": "p-1", "title": "a", "status": "open",
+             "priority": 1, "created_at": "2025-01-01T00:00:00Z"},
+            {"id": "1", "identifier": "p-1", "title": "a", "status": "open",
+             "priority": 1, "created_at": "2025-01-01T00:00:00Z"},
+        ]
+        issues = self._tracker(["open"]).fetch_candidate_issues()
+        assert [i.id for i in issues] == ["1"]
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_sorted_by_priority_then_created_then_identifier(self, mock_run_bd):
+        """Sort key: priority asc (None last), created_at asc, identifier asc."""
+        mock_run_bd.return_value = [
+            {"id": "a", "identifier": "p-2", "title": "later",  "status": "open",
+             "priority": 1, "created_at": "2025-02-01T00:00:00Z"},
+            {"id": "b", "identifier": "p-1", "title": "older",  "status": "open",
+             "priority": 1, "created_at": "2025-01-01T00:00:00Z"},
+            {"id": "c", "identifier": "p-3", "title": "p0",     "status": "open",
+             "priority": 0, "created_at": "2025-03-01T00:00:00Z"},
+            {"id": "d", "identifier": "p-4", "title": "noprio", "status": "open",
+             "created_at": "2025-01-01T00:00:00Z"},
+        ]
+        ordered = [i.id for i in self._tracker(["open"]).fetch_candidate_issues()]
+        # priority 0 first, then priority 1 (older first), then no-priority
+        assert ordered == ["c", "b", "a", "d"]
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_not_configured_propagates_without_log_spam(self, mock_run_bd):
+        """TrackerNotConfiguredError must bubble up unchanged (caller throttles)."""
+        from oompah.tracker import TrackerNotConfiguredError
+
+        mock_run_bd.side_effect = TrackerNotConfiguredError("no beads database found")
+        tracker = self._tracker(["open"])
+        try:
+            tracker.fetch_candidate_issues()
+        except TrackerNotConfiguredError:
+            pass
+        else:
+            raise AssertionError("expected TrackerNotConfiguredError to propagate")
+        assert mock_run_bd.call_count == 1
+
+
+# ---------------------------------------------------------------------------
 # Multimodal attachments (oompah-zlz.1)
 # ---------------------------------------------------------------------------
 
