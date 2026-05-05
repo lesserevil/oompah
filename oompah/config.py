@@ -228,8 +228,8 @@ class ServiceConfig:
     tracker_terminal_states: list[str] = field(
         default_factory=lambda: ["closed"]
     )
-    poll_interval_ms: int = 30000
-    full_sync_interval_ms: int = 30000  # 30 seconds — safety-net full sync
+    poll_interval_ms: int = 120000
+    full_sync_interval_ms: int = 120000  # 2 minutes — safety-net full sync
     workspace_root: str = ""
     hooks_after_create: str | None = None
     hooks_before_run: str | None = None
@@ -345,8 +345,8 @@ class ServiceConfig:
             tracker_terminal_states=_parse_state_list(
                 tracker.get("terminal_states"), ["closed"]
             ),
-            poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 30000),
-            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 30000),
+            poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 120000),
+            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 120000),
             workspace_root=ws_root,
             hooks_after_create=hooks.get("after_create"),
             hooks_before_run=hooks.get("before_run"),

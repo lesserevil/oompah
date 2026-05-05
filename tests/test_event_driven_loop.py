@@ -9,7 +9,7 @@ Covers:
 - request_refresh() posts a REFRESH_REQUESTED event
 - unpause() posts a REFRESH_REQUESTED event
 - _on_retry_timer() posts a RETRY_FIRED event
-- full_sync_interval_ms config field (default 30000)
+- full_sync_interval_ms config field (default 120000)
 - from_workflow parses full_sync_interval_ms
 """
 
@@ -116,14 +116,14 @@ class TestDispatchEvent:
 class TestFullSyncIntervalConfig:
     """full_sync_interval_ms has a sensible default and can be configured."""
 
-    def test_default_is_30000(self):
+    def test_default_is_120000(self):
         cfg = ServiceConfig()
-        assert cfg.full_sync_interval_ms == 30000
+        assert cfg.full_sync_interval_ms == 120000
 
     def test_from_workflow_default(self):
         wf = WorkflowDefinition(config={}, prompt_template="")
         cfg = ServiceConfig.from_workflow(wf)
-        assert cfg.full_sync_interval_ms == 30000
+        assert cfg.full_sync_interval_ms == 120000
 
     def test_from_workflow_custom(self):
         wf = WorkflowDefinition(
