@@ -1093,30 +1093,58 @@ class Orchestrator:
                 self.state.budget_exceeded = True
                 logger.warning("Budget limit exceeded (%.2f/%.2f), halting paid dispatch",
                              self.state.agent_totals.estimated_cost, self.config.budget_limit)
-            if self._would_dispatch_on_free_model(issue):
+            free_model = self._would_dispatch_on_free_model(issue)
+            if free_model:
                 self.state.free_tier_dispatches_this_window += 1
                 logger.info(
-                    "Budget exceeded but dispatching %s on free-tier model "
-                    "(spent=$%.2f limit=$%.2f)",
-                    issue.identifier,
+                    "Budget exceeded ($%.4f spent vs $%.4f limit) but dispatching"
+                    " %s on free-tier model %s",
                     self.state.agent_totals.estimated_cost,
                     self.config.budget_limit,
+                    issue.identifier,
+                    free_model,
                 )
                 return True
             return _reject("budget_exceeded_paid")
         return True
 
-    def _would_dispatch_on_free_model(self, issue: Issue) -> bool:
-        """True when the model that WOULD be used for this dispatch has an
-        explicit $0/$0 entry in its provider's model_costs. Used by the
-        budget gate to decide whether to bypass the over-budget cap.
+    def _would_dispatch_on_free_model(self, issue: Issue) -> str | bool:
+        """True (and returns the model name) when the model that WOULD be used
+        for this dispatch has an explicit $0/$0 entry in its provider's
+        model_costs. Used by the budget gate to decide whether to bypass the
+        over-budget cap.
 
-        Returns False on any resolution failure (no profile match, no
-        provider, no model) — the conservative choice when we can't tell
-        whether the dispatch would be free.
+        Returns the model name (truthy) when the would-be dispatch is
+        free-tier, or False on any resolution failure or when the model has
+        any cost. The conservative default (False) means unknown-cost models
+        are treated as paid so a misconfigured provider doesn't silently
+        bypass the budget cap.
+
+        Mirrors the profile resolution logic in _dispatch(), including the
+        default_first_dispatch path, so the budget bypass uses exactly the
+        same model selection path that dispatch would.
         """
         try:
-            profile = self._match_agent_profile(issue)
+            # Replicate profile resolution from _dispatch():
+            # Use the default catch-all profile on the first dispatch when
+            # default_first_dispatch is enabled; otherwise use the natural match.
+            profile: AgentProfile | None
+            is_first = (issue.id not in self.state.running and
+                        issue.id not in self.state.retry_attempts)
+            if (
+                self.config.default_first_dispatch
+                and is_first
+                and not self._has_explicit_handoff_label(issue)
+                and issue.issue_type != "epic"
+            ):
+                default_profile = self._get_default_catch_all_profile()
+                if default_profile is not None:
+                    profile = default_profile
+                else:
+                    profile = self._match_agent_profile(issue)
+            else:
+                profile = self._match_agent_profile(issue)
+
             if not profile:
                 return False
             provider = self._resolve_provider(profile)
@@ -1125,7 +1153,9 @@ class Orchestrator:
             model = self._resolve_model(profile, provider)
             if not model:
                 return False
-            return provider.is_model_explicitly_free(model)
+            if provider.is_model_explicitly_free(model):
+                return model  # truthy and carries the model name for logging
+            return False
         except Exception as exc:
             # Don't let the dispatch path crash on a budget-introspection bug.
             logger.debug("free-model resolution failed for %s: %s", issue.identifier, exc)
