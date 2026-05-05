@@ -1043,3 +1043,74 @@ class TestRecordGeneratedAttachments:
         orch._tracker_for_issue = MagicMock(return_value=tracker)
         orch._record_generated_attachments(str(wp), _make_issue("foo-1"))
         tracker.set_attachments.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _fetch_all_candidates timeout handling.
+# Covers oompah-zlz_2-5re: ``bd list --json`` against a slow project
+# (e.g. trickle) was timing out. The orchestrator logged that at ERROR,
+# which the error_watcher escalated into a fresh bug bead on every poll
+# tick — a feedback loop. Timeouts must log at WARNING, not ERROR.
+# ---------------------------------------------------------------------------
+
+class TestFetchAllCandidatesTimeout:
+    def test_timeout_logs_warning_not_error(self, tmp_path, caplog):
+        import logging as _logging
+        from oompah.tracker import TrackerTimeoutError
+
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        slow_tracker = MagicMock()
+        slow_tracker.fetch_candidate_issues.side_effect = TrackerTimeoutError(
+            "bd command timed out: bd list --status=open --json"
+        )
+        orch._tracker_for_project = MagicMock(return_value=slow_tracker)
+
+        with caplog.at_level(_logging.DEBUG, logger="oompah.orchestrator"):
+            result = orch._fetch_all_candidates()
+
+        # Tick continues with an empty backlog rather than crashing.
+        assert result == []
+
+        # The key contract: error_watcher only fires on ERROR, so we must
+        # NOT have logged at ERROR for a transient timeout.
+        error_records = [
+            r for r in caplog.records
+            if r.levelname == "ERROR"
+            and r.name.startswith("oompah.orchestrator")
+        ]
+        assert error_records == [], (
+            "TrackerTimeoutError must not be logged at ERROR — "
+            "the error_watcher would auto-file a duplicate bug bead "
+            "on every poll tick."
+        )
+        warning_records = [
+            r for r in caplog.records if r.levelname == "WARNING"
+        ]
+        assert any("timed out" in r.getMessage() for r in warning_records), (
+            "Expected a WARNING line mentioning the timeout."
+        )
+
+    def test_non_timeout_tracker_error_still_logs_error(self, tmp_path, caplog):
+        """Sanity: real (non-timeout) failures still log at ERROR."""
+        import logging as _logging
+        from oompah.tracker import TrackerError
+
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        broken_tracker = MagicMock()
+        broken_tracker.fetch_candidate_issues.side_effect = TrackerError(
+            "bd command failed (exit 1): something else"
+        )
+        orch._tracker_for_project = MagicMock(return_value=broken_tracker)
+
+        with caplog.at_level(_logging.DEBUG, logger="oompah.orchestrator"):
+            result = orch._fetch_all_candidates()
+
+        assert result == []
+        error_records = [
+            r for r in caplog.records
+            if r.levelname == "ERROR"
+            and r.name.startswith("oompah.orchestrator")
+        ]
+        assert error_records, "Generic TrackerError should still log ERROR"
