@@ -125,6 +125,8 @@ async def _run(
 
     # Start gh webhook forwarder for each project (subprocess lifecycle
     # managed by WebhookForwarder; independent of orchestrator).
+    # The status_callback is wired below once the orchestrator exists so
+    # forwarder-down state surfaces as a dashboard banner.
     webhook_forwarder = WebhookForwarder(project_store=project_store)
 
     # Pull latest code (git pull --ff-only) and beads state (bd dolt pull)
@@ -161,6 +163,30 @@ async def _run(
         logger.info("Booting paused (persisted state)")
 
     set_orchestrator(orchestrator)
+
+    # Wire forwarder health into the orchestrator's alerts list so the
+    # dashboard surfaces a degraded-mode banner whenever the gh-webhook
+    # extension is missing. Without this, an operator would only notice
+    # webhooks were silently failing after agents started missing work.
+    def _on_forwarder_status(status: dict) -> None:
+        # Drop any prior webhook_forwarder alert (idempotent re-arming)
+        orchestrator._alerts = [
+            a for a in orchestrator._alerts
+            if a.get("source") != "webhook_forwarder"
+        ]
+        if not status.get("available"):
+            detail = status.get("detail") or "gh-webhook extension unavailable"
+            orchestrator._alerts.append({
+                "level": "warning",
+                "source": "webhook_forwarder",
+                "message": (
+                    f"Webhooks degraded: {detail}. "
+                    "Install with `make install-gh-extensions`. "
+                    "Falling back to periodic full-sync (slower)."
+                ),
+            })
+
+    webhook_forwarder._status_callback = _on_forwarder_status
 
     # Start webhook forwarder (runs gh webhook forward per project)
     await webhook_forwarder.start()

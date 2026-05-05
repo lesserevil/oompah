@@ -4,7 +4,7 @@ PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
 PORT := 8080
 
-.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets
+.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions
 
 help:
 	@echo "oompah — make targets:"
@@ -18,6 +18,7 @@ help:
 	@echo "  test           Run the pytest suite"
 	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
 	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"
+	@echo "  install-gh-extensions  Install gh CLI extensions oompah needs (cli/gh-webhook). Idempotent."
 	@echo "  clean          Stop, then remove $(VENV), logs, pid file, and __pycache__ dirs"
 
 setup: $(VENV)/.uv-setup
@@ -86,3 +87,20 @@ install-hooks: setup
 
 check-secrets:
 	@scripts/check-secrets.sh --all
+
+# Install the gh CLI extensions oompah depends on. Currently just the
+# cli/gh-webhook extension used by WebhookForwarder to forward forge
+# webhook events to the local oompah server. Idempotent: skips
+# installation if the extension is already present.
+install-gh-extensions:
+	@if ! command -v gh >/dev/null 2>&1; then \
+		echo "ERROR: 'gh' CLI not found. Install from https://cli.github.com/ first."; \
+		exit 1; \
+	fi
+	@if gh webhook --help >/dev/null 2>&1; then \
+		echo "gh-webhook extension already installed."; \
+	else \
+		echo "Installing cli/gh-webhook extension..."; \
+		gh extension install cli/gh-webhook; \
+		echo "Done. Verify with: gh webhook --help"; \
+	fi
