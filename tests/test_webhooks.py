@@ -14,6 +14,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 import hashlib
 import hmac
 import json
@@ -769,3 +770,306 @@ class TestWebhookForwarderFullLifecycle:
         # Stop immediately — the task should cancel without error.
         await fwd.stop()
         assert fwd._task is None or fwd._task.done()
+
+
+# ---------------------------------------------------------------------------
+# Subprocess lifecycle — full start → exit → restart → cleanup
+# ---------------------------------------------------------------------------
+
+
+class TestForwarderProcessFullLifecycle:
+    """Full lifecycle tests for the gh webhook forward subprocess.
+
+    These tests mock asyncio.create_subprocess_exec to simulate a real gh
+    process: start succeeds, then either crashes (returncode != None) or
+    keeps running. The forwarder must restart a crashed process with
+    exponential backoff, and clean up gracefully on shutdown.
+    """
+
+    @pytest.fixture
+    def git_repo(self, tmp_path):
+        """Create a real git repository so _launch() passes its .git check."""
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+        return tmp_path
+
+    @pytest.mark.asyncio
+    async def test_process_start_and_immediate_exit(self, git_repo):
+        """Simulate gh exiting immediately — forwarder re-launches it.
+
+        Two calls to _check_and_restart are tested:
+        - First (process dead): terminate → sleep → re-launch, backoff doubles.
+        - Second (process alive, poll()=None): resets delay to base, no loop.
+        """
+        proj = _make_project(
+            repo_url="https://github.com/org/repo.git",
+            project_id="proj-1",
+            name="test-repo",
+        )
+        proj.repo_path = str(git_repo)
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store, poll_interval_s=100.0)
+        fwd._processes["proj-1"] = _ForwarderProcess(
+            "proj-1", "test-repo", str(git_repo),
+        )
+
+        # Simulate a process that has already exited.
+        class _ExitedProc:
+            pid = 12345
+            returncode = 1
+
+            def poll(self):
+                return 1  # indicates exited
+
+            def terminate(self):
+                pass
+
+            async def wait(self):
+                pass
+
+        fp = fwd._processes["proj-1"]
+        fp.process = _ExitedProc()
+        fp.restart_delay_s = 1.0  # already in backoff
+
+        # Mock process returned by _launch.
+        patch_proc = MagicMock()
+        patch_proc.pid = 99999
+        patch_proc.returncode = None
+        # poll()=None on the launched process simulates "still running"
+        patch_proc.poll = MagicMock(return_value=None)
+
+        with patch(
+            "asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=patch_proc,
+        ):
+            with patch.object(fwd, "_terminate", new_callable=AsyncMock) as mock_terminate:
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    # First _check_and_restart: process dead → terminate → sleep → re-launch.
+                    await fwd._check_and_restart(fp)
+
+                mock_terminate.assert_called_once_with("proj-1")
+
+        # After first call: backoff doubled and new process launched.
+        assert fp.restart_delay_s == 2.0  # 1.0 * 2, capped at 60
+        assert fp.restart_attempts == 1
+        assert fp.process is patch_proc
+
+        # Second _check_and_restart: process still alive (poll()=None).
+        # Reset delay to base, no further backoff growth.
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            await fwd._check_and_restart(fp)
+        assert fp.restart_delay_s == 1.0  # reset to base (_WEBHOOK_BASE_DELAY_S)
+        assert fp.restart_attempts == 1  # not incremented again
+
+    @pytest.mark.asyncio
+    async def test_exponential_backoff_capped_at_60s(self, git_repo):
+        """Restart delay doubles on exit but is capped at MAX_DELAY (60s)."""
+        proj = _make_project(
+            repo_url="https://github.com/org/repo.git",
+            project_id="proj-capped",
+            name="test-repo",
+        )
+        proj.repo_path = str(git_repo)
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+
+        fp = _ForwarderProcess("proj-capped", "test-repo", str(git_repo))
+        # Start at 30 so doubling gives exactly 60
+        fp.restart_delay_s = 30.0
+
+        class _CrashedProc:
+            pid = 1
+            returncode = 2
+
+            def poll(self):
+                return 2  # exited
+
+            def terminate(self):
+                pass
+
+            async def wait(self):
+                pass
+
+        fp.process = _CrashedProc()
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            await fwd._check_and_restart(fp)
+
+        # 30.0 * 2 = 60.0, capped at MIN(60.0, 60.0)
+        assert fp.restart_delay_s == 60.0
+        assert fp.restart_attempts == 1
+
+    @pytest.mark.asyncio
+    async def test_stop_terminates_all_tracked_processes(self, git_repo):
+        """Calling stop while processes are tracked cleans them all up."""
+        proj1 = _make_project(
+            repo_url="https://github.com/org/repo1.git",
+            project_id="proj-1",
+            name="repo1",
+        )
+        proj1.repo_path = str(git_repo)
+        proj2 = _make_project(
+            repo_url="https://github.com/org/repo2.git",
+            project_id="proj-2",
+            name="repo2",
+        )
+        proj2.repo_path = str(git_repo)
+        store = _FakeProjectStore([proj1, proj2])
+        fwd = WebhookForwarder(project_store=store)
+
+        await fwd.start()
+        # Manually register two processes
+        fp1 = _ForwarderProcess("proj-1", "repo1", str(git_repo))
+        fp2 = _ForwarderProcess("proj-2", "repo2", str(git_repo))
+
+        class _LiveProc:
+            pid = 1
+            returncode = None  # required by _terminate code path
+
+            def poll(self):
+                return None  # still running
+
+            def terminate(self):
+                pass  # no real process to terminate in test
+
+            async def wait(self):
+                pass  # no real process to wait on in test
+
+        fp1.process = _LiveProc()
+        fp2.process = _LiveProc()
+        fwd._processes["proj-1"] = fp1
+        fwd._processes["proj-2"] = fp2
+
+        await fwd.stop()
+        assert len(fwd._processes) == 0
+        assert fwd.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_polling_resume_when_forwarder_process_dies(self, git_repo):
+        """When a gh webhook forward process dies, polling detects the exit
+        and triggers a restart — verifying that the forwarder self-heals.
+
+        Flow:
+        1. First poll via _poll_and_restart: process alive, _launch registered.
+        2. Second poll: process dead, _terminate called, backoff applied,
+           _launch called again for restart (with _stopping reset).
+        """
+        proj = _make_project(
+            repo_url="https://github.com/org/repo.git",
+            project_id="proj-watch",
+            name="watched-repo",
+        )
+        proj.repo_path = str(git_repo)
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store, poll_interval_s=0.05)
+        fwd._stopping = True  # prevent _run_loop control; drive via _poll_and_restart
+
+        terminate_calls = []
+        launch_count = 0
+
+        class _SimulatedProc:
+            pid = 54321
+            _alive = True  # toggled False after first poll
+
+            def poll(self):
+                return None if _SimulatedProc._alive else 137
+
+            def terminate(self):
+                pass
+
+            async def wait(self):
+                pass
+
+        live_proc = _SimulatedProc()
+
+        async def mock_create_subprocess_exec(*args, **kwargs):
+            nonlocal launch_count
+            launch_count += 1
+            return live_proc
+
+        async def mock_terminate(pid):
+            terminate_calls.append(pid)
+
+        with patch(
+            "asyncio.create_subprocess_exec",
+            side_effect=mock_create_subprocess_exec,
+        ):
+            with patch.object(fwd, "_terminate", side_effect=mock_terminate):
+                # First poll cycle: process alive, _launch registered (fire-and-forget).
+                await fwd._poll_and_restart()
+                assert terminate_calls == []
+
+                # Kill the process before second poll cycle.
+                _SimulatedProc._alive = False
+
+                # Reset _stopping so restart runs: _terminate → sleep → _launch
+                fwd._stopping = False
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    await fwd._poll_and_restart()
+
+                # Restart fired: _terminate called for dead process, new gh launched.
+                assert "proj-watch" in terminate_calls
+                assert launch_count >= 2  # initial + at least one restart
+
+    @pytest.mark.asyncio
+    async def test_launch_without_git_directory_skipped(self, tmp_path):
+        """A process is not launched if repo_path exists but is not a git repo."""
+        proj = _make_project(
+            repo_url="https://github.com/org/not-git.git",
+            project_id="not-git",
+            name="Not a Git Repo",
+        )
+        proj.repo_path = str(tmp_path)  # exists, but no .git
+        # Ensure the directory is not a git directory
+        assert not os.path.isdir(os.path.join(str(tmp_path), ".git"))
+
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+
+        await fwd._poll_and_restart()
+        assert "not-git" in fwd._processes
+        # _launch is skipped; process never set
+        assert fwd._processes["not-git"].process is None
+
+    @pytest.mark.asyncio
+    async def test_check_and_restart_noops_when_no_process(self, tmp_path):
+        """When fp.process is None, _check_and_restart launches without crashing."""
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+        fp = _ForwarderProcess("test", "test", str(tmp_path))
+        assert fp.process is None  # pre-condition
+
+        mock_proc = MagicMock()
+        mock_proc.pid = 42
+
+        async def fake_launch(arg):
+            arg.process = mock_proc
+
+        with patch.object(fwd, "_launch", side_effect=fake_launch):
+            # Should not raise — just launch
+            await fwd._check_and_restart(fp)
+
+        assert fp.restart_attempts >= 1
+
+
+# ---------------------------------------------------------------------------
+# Fixture helpers (shared between classes)
+# ---------------------------------------------------------------------------
+
+
+def _FakeProjectStore(projects=None):
+    """Build a minimal ProjectStore for testing."""
+    class __Fake:
+        def __init__(self, projs):
+            self._map = {p.id: p for p in (projs or [])}
+
+        def list_all(self):
+            return list(self._map.values())
+
+        def get(self, pid):
+            return self._map.get(pid)
+
+    return __Fake(projects)
