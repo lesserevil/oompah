@@ -675,6 +675,11 @@ def _build_ssl_context() -> ssl.SSLContext:
     return ctx
 
 
+# Timeout for individual HTTP requests to the chat completions endpoint.
+# 600 seconds (10 minutes) accommodates slow deep-reasoning model inference.
+_HTTP_TIMEOUT = 600
+
+
 def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLContext) -> dict[str, Any]:
     """Blocking HTTP POST that returns parsed JSON.
 
@@ -686,7 +691,7 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
     """
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, context=ssl_ctx, timeout=300) as resp:
+        with urllib.request.urlopen(req, context=ssl_ctx, timeout=_HTTP_TIMEOUT) as resp:
             data = resp.read()
             return json.loads(data)
     except urllib.error.HTTPError as exc:
