@@ -1101,8 +1101,13 @@ function handleStateUpdate(state) {
   document.getElementById('agent-cost').textContent = '$' + (totals.estimated_cost || 0).toFixed(2);
   const budget = state.budget || {};
   if (budget.limit > 0) {
+    // Show "$<spent> / $<limit>/<window>" so the operator can see the
+    // rolling-window budget at a glance (e.g. "$1.23 / $50.00/hour").
+    // window is one of "hour"/"day"/"week" from the orchestrator's
+    // budget_window config; fall back to bare "$x / $y" if absent.
+    const win = budget.window ? '/' + budget.window : '';
     document.getElementById('agent-budget').textContent =
-      '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2);
+      '$' + (budget.spent || 0).toFixed(2) + ' / $' + budget.limit.toFixed(2) + win;
   }
 
   // Reviews + proposed-foci badges come from the WS state payload now.

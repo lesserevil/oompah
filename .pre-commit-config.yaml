@@ -1,0 +1,53 @@
+# Pre-commit hooks for oompah.
+#
+# Setup once per clone:
+#   make install-hooks
+#
+# Run manually on the staged diff:
+#   pre-commit run
+#
+# Run on the whole repo (e.g. before opening a PR):
+#   pre-commit run --all-files
+#
+# Three layers of secret defense, intentionally redundant:
+#   1. gitleaks — best-known scanner, comprehensive rule set, blocks
+#      anything matching its built-in patterns.
+#   2. detect-private-key — pre-commit-hooks built-in. Catches obvious
+#      PEM/RSA/DSA/EC blobs that gitleaks could miss with custom configs.
+#   3. local check-secrets.sh — anchors a do-not-commit-path list (.env,
+#      .oompah/*.json, *.netrc) so a literal `git add -f` of a known
+#      secret-bearing config still gets blocked.
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: gitleaks (paranoid)
+        # --redact: don't print secrets in stdout (safer for CI logs)
+        # --verbose: show what's being scanned
+        # --no-git: also scan unstaged content for ad-hoc audits
+        args: ["protect", "--redact", "--staged"]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        exclude: '\.beads/.*'
+      - id: end-of-file-fixer
+        exclude: '\.beads/.*'
+
+  - repo: local
+    hooks:
+      - id: oompah-secret-scan
+        name: oompah secret scan (paranoid layer)
+        entry: scripts/check-secrets.sh
+        language: script
+        # always_run lets this trigger on commits that touch zero files
+        # (rare, but possible with --allow-empty).
+        always_run: true
+        pass_filenames: false

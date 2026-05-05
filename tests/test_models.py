@@ -95,7 +95,7 @@ class TestModelProvider:
     def test_to_safe_dict_masks_key(self):
         mp = ModelProvider(
             id="prov-1", name="test", base_url="http://localhost",
-            api_key="sk-1234567890abcdefghijkl",
+            api_key="sk-1234567890abcdefghijkl",  # gitleaks:allow pragma: allowlist secret
         )
         safe = mp.to_safe_dict()
         assert "api_key" not in safe

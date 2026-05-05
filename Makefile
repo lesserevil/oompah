@@ -4,19 +4,21 @@ PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
 PORT := 8080
 
-.PHONY: help setup start stop restart graceful status logs test clean
+.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets
 
 help:
 	@echo "oompah — make targets:"
-	@echo "  setup     Install dependencies into $(VENV) (idempotent)"
-	@echo "  start     Start oompah on port $(PORT) in the background"
-	@echo "  stop      Stop the background oompah process"
-	@echo "  restart   Hard restart (stop + start) — use for orchestrator/agent changes"
-	@echo "  graceful  Drain running agents and restart in-place — use for cosmetic/template changes"
-	@echo "  status    Print PID + state JSON if running"
-	@echo "  logs      Tail $(LOG_FILE)"
-	@echo "  test      Run the pytest suite"
-	@echo "  clean     Stop, then remove $(VENV), logs, pid file, and __pycache__ dirs"
+	@echo "  setup          Install dependencies into $(VENV) (idempotent)"
+	@echo "  start          Start oompah on port $(PORT) in the background"
+	@echo "  stop           Stop the background oompah process"
+	@echo "  restart        Hard restart (stop + start) — use for orchestrator/agent changes"
+	@echo "  graceful       Drain running agents and restart in-place — use for cosmetic/template changes"
+	@echo "  status         Print PID + state JSON if running"
+	@echo "  logs           Tail $(LOG_FILE)"
+	@echo "  test           Run the pytest suite"
+	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
+	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"
+	@echo "  clean          Stop, then remove $(VENV), logs, pid file, and __pycache__ dirs"
 
 setup: $(VENV)/.uv-setup
 
@@ -74,3 +76,13 @@ clean: stop
 	rm -rf $(VENV) $(LOG_FILE) $(PID_FILE) oompah.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@echo "Cleaned up"
+
+install-hooks: setup
+	@echo "Installing pre-commit hooks..."
+	@uv pip install pre-commit
+	@$(VENV)/bin/pre-commit install
+	@echo "Pre-commit hooks installed. They run automatically on git commit."
+	@echo "To run manually: $(VENV)/bin/pre-commit run --all-files"
+
+check-secrets:
+	@scripts/check-secrets.sh --all
