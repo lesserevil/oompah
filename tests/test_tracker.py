@@ -98,6 +98,57 @@ class TestNormalizeIssue:
         issue = self._tracker()._normalize_issue(raw)
         assert issue.parent_id == "epic-001"
 
+    def test_branch_name_derived_from_identifier_when_missing(self):
+        """When branch_name is not in bd output, derive it from identifier.
+
+        This ensures WORKFLOW.md prompts show the correct branch name that
+        matches the git worktree created by projects.py. Hyphens are preserved
+        (matching _sanitize_identifier behavior in projects.py).
+        """
+        raw = {
+            "id": "1", "identifier": "oompah-zlz_2-7au",
+            "title": "Test issue",
+        }
+        issue = self._tracker()._normalize_issue(raw)
+        # branch_name should be the sanitized identifier (hyphens preserved)
+        assert issue.branch_name == "oompah-zlz_2-7au"
+
+    def test_branch_name_preserved_when_provided(self):
+        """When branch_name is present in bd output, use it as-is."""
+        raw = {
+            "id": "1",
+            "identifier": "issue-001",
+            "title": "Test issue",
+            "branch_name": "custom-branch-name",
+        }
+        issue = self._tracker()._normalize_issue(raw)
+        assert issue.branch_name == "custom-branch-name"
+
+    def test_branch_name_sanitization_replaces_special_chars(self):
+        """Identifier with special characters should be sanitized for branch name.
+
+        projects.py uses _sanitize_identifier to create branch names, so
+        the tracker must use the same logic to ensure consistency.
+        """
+        raw = {
+            "id": "1",
+            "identifier": "sq-3j2/special!chars@here",
+            "title": "Test issue",
+        }
+        issue = self._tracker()._normalize_issue(raw)
+        # Underscores should replace all non-alphanumeric chars except ._-
+        assert issue.branch_name == "sq-3j2_special_chars_here"
+
+    def test_branch_name_sanitization_preserves_allowed_chars(self):
+        """Allowed characters (., _, -) should be preserved in branch names."""
+        raw = {
+            "id": "1",
+            "identifier": "issue.1_with-dashes.and_underscores",
+            "title": "Test issue",
+        }
+        issue = self._tracker()._normalize_issue(raw)
+        assert issue.branch_name == "issue.1_with-dashes.and_underscores"
+
 
 class TestAddComment:
     """Tests for BeadsTracker.add_comment to ensure author='oompah' is always used."""
