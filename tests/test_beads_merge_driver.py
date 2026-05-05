@@ -417,7 +417,9 @@ class TestRobustness:
 
 def _make_git_repo(path: Path) -> None:
     """Create a minimal git repo with the beads-jsonl merge driver configured."""
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    # -b main forces the initial branch name regardless of the runner's
+    # init.defaultBranch config (Linux CI may default to "master").
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=path, check=True)
     subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, check=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
 
@@ -708,7 +710,8 @@ class TestDriverMissingFallback:
         repo = tmp_path / "repo"
         repo.mkdir()
 
-        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        # -b main forces the initial branch name (CI may default to "master").
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
         subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
         subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
 
