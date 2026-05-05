@@ -1,6 +1,6 @@
 # Submit Queue: Replacing the Strict `open_review` Gate
 
-**Status:** design / in-flight rollout
+**Status:** rollout complete (oompah: branch protection only; trickle: full merge queue)
 **Epic:** `oompah-zlz_2-btf`
 **Owner:** DevOps
 
@@ -100,10 +100,10 @@ Children of this epic:
 | Child issue | Title |
 | --- | --- |
 | `oompah-zlz_2-7fp` | Step 1: add `merge_group` CI triggers to oompah and trickle | ✅ Done |
-| `oompah-zlz_2-win` | Step 2: reduce `.beads/issues.jsonl` merge contention via custom git merge driver |
-| `oompah-zlz_2-pt4` | Step 3: soften `_project_has_open_review` to a configurable concurrency limit |
-| `oompah-zlz_2-d7o` | Step 4: update YOLO auto-merge to support enqueue mode for merge-queue-enabled projects |
-| `oompah-zlz_2-0c3` | Step 5: enable GitHub Merge Queue on `main` branches in oompah and trickle |
+| `oompah-zlz_2-win` | Step 2: reduce `.beads/issues.jsonl` merge contention via custom git merge driver | ✅ Done |
+| `oompah-zlz_2-pt4` | Step 3: soften `_project_has_open_review` to a configurable concurrency limit | ✅ Done |
+| `oompah-zlz_2-d7o` | Step 4: update YOLO auto-merge to support enqueue mode for merge-queue-enabled projects | ✅ Done |
+| `oompah-zlz_2-0c3` | Step 5: enable GitHub Merge Queue on `main` branches in oompah and trickle | ✅ Done (asymmetric — see below) |
 
 ### Step 1 — `merge_group` CI triggers (P0, prerequisite)
 
@@ -243,23 +243,156 @@ watchdog notifies on today.
 Validation: unit-test the orchestrator's branch with a fake provider;
 end-to-end test against a scratch repo with merge queue enabled.
 
-### Step 5 — Enable Merge Queue on `main` (P0)
+### Step 5 — Enable Merge Queue on `main` (P0) ✅ Done (asymmetric)
 
-Final, production-visible step. For each repo:
+Final, production-visible step. Bead: `oompah-zlz_2-0c3`. The
+operational details live in `docs/merge-queue-runbook.md`; this
+section captures the design decisions and what actually shipped.
 
-1. Settings → Branches → Branch protection rule for `main` →
-   "Require merge queue".
-2. Set "Maximum pull requests to build" = `5`,
-   "Minimum pull requests to merge" = `1`,
-   "Wait time to meet minimum" = `5 min`,
-   "Maximum pull requests to merge" = `5`.
-3. Set the merge method to `squash` to match today's behaviour.
-4. Verify required status checks include the `merge_group`-triggered
-   jobs from Step 1.
+#### Platform constraint discovered during rollout
 
-Rollback: untick "Require merge queue" — branch protection still works
-without it. Any PRs in flight at toggle time complete normally because
-the rule applies on the next merge attempt.
+**GitHub Merge Queue is only available on organization-owned
+repositories.** User-owned repos — even public ones on the free
+tier — return `422 Validation Failed: Invalid rule 'merge_queue':`
+when you POST a ruleset with a `merge_queue` rule. (The error
+message has an empty body after the colon — it's not a payload
+issue, it's a feature-gate.)
+
+Per <https://docs.github.com/.../managing-a-merge-queue> :
+"This feature is available for organization-owned public
+repositories on GitHub Free, GitHub Team, and GitHub Enterprise
+Cloud. Private repositories require GitHub Team or higher."
+
+The two repos in scope diverge:
+
+| Repo | Owner | Tier | Merge queue |
+| --- | --- | --- | --- |
+| `lesserevil/oompah` | user | free | ❌ unsupported |
+| `NVIDIA-Omniverse/trickle` | org | enterprise | ✅ supported |
+
+So the cutover is **asymmetric** by necessity:
+- **trickle** uses the **Rulesets API**
+  (`POST /repos/{owner}/{repo}/rulesets`) with a `merge_queue` rule
+  plus a `required_status_checks` rule, in active enforcement.
+- **oompah** falls back to the **legacy branch-protection API**
+  (`PUT /repos/{owner}/{repo}/branches/{branch}/protection`) which
+  exposes `required_status_checks` but not the `merge_queue` rule
+  type. Direct YOLO `merge_review` continues to be the merge path,
+  gated by branch protection on the merge attempt.
+
+This is operationally fine because trickle has the 60-min CI
+bottleneck the queue is designed to solve (≤ 1 PR / hour ceiling
+without it). Oompah's CI is ~3 min and direct serial merges are
+already fast enough that queue parallelism is not the binding
+constraint.
+
+The script `scripts/merge-queue-cutover.sh` dispatches between the
+two backends per repo via `repo_api_kind`, and is idempotent on
+both: re-running `apply` does a ruleset UPDATE for trickle (matching
+on the canonical name `submit-queue-main`) and a re-PUT of branch
+protection for oompah. To enable merge queue on oompah in the
+future, transfer the repo to an organization and the script's
+mapping flips to `ruleset` (the trickle-shaped payload would apply,
+re-tuned to oompah's CI).
+
+#### Per-repo settings
+
+CI wall time drives the values. Faster CI tolerates batching; slower CI
+must avoid it (a single flake ejects every PR sharing the batch, and
+the cost of re-running 60 min of trickle CI is high).
+
+| Setting | oompah (branch protection) | trickle (ruleset) |
+| --- | --- | --- |
+| Backend API | `PUT /branches/main/protection` | `POST /rulesets` |
+| `merge_method` | n/a — direct YOLO merge | `SQUASH` |
+| `max_entries_to_build` (build concurrency) | n/a | 3 |
+| `max_entries_to_merge` (batch size) | n/a | **1 — no batching** |
+| `min_entries_to_merge` | n/a | 1 |
+| `min_entries_to_merge_wait_minutes` | n/a | 5 |
+| `check_response_timeout_minutes` | n/a | 60 (≈ CI wall time) |
+| `grouping_strategy` | n/a | `ALLGREEN` |
+| Required status checks | `test (3.11)`, `test (3.12)`, `test (3.13)` | `lint`, `test-linux`, `smoke-deb`, `test-macos`, `test-windows`, `tier-a-unit`, `build-matrix`, `tier-b-linux`, `tier-b-windows`, `tier-b-macos` |
+| `enforce_admins` | `false` | n/a (rulesets bypass-actors instead) |
+| `allow_force_pushes` / `allow_deletions` | both `false` | enforced via `non_fast_forward`/`deletion` rules at the org-enterprise level |
+
+Tier-C trickle jobs are `schedule`/`workflow_dispatch` only and are
+**not** included; requiring them would stall every queued PR forever.
+
+`enforce_admins=false` on oompah is intentional: admin pushes (the
+orchestrator account, `lesserevil`) bypass the rule, which is required
+for post-merge `bd` sync commits and the orchestrator's
+emergency-rollback path. Non-admins still get gated.
+
+#### Cutover sequencing (for trickle)
+
+Two flips need to land within a short window of each other:
+
+1. **Orchestrator side** — set `Project.merge_queue_enabled = True`
+   on the trickle project (`/projects-manage` UI or
+   `PATCH /api/v1/projects/{project_id}`). This switches YOLO from
+   `merge_review` (direct `PUT /merge`) to `enqueue_review`
+   (`gh pr merge --auto --squash`). **For oompah, leave this
+   `False`** — direct merge is the only viable path on a user-owned
+   repo.
+2. **GitHub side** — apply the policy:
+   ```bash
+   gh auth switch --user lesserevil
+   scripts/merge-queue-cutover.sh apply --repo lesserevil/oompah
+   gh auth switch --user NVShawn
+   scripts/merge-queue-cutover.sh apply --repo NVIDIA-Omniverse/trickle
+   ```
+
+Either order is recoverable. If the ruleset goes first, in-flight YOLO
+direct-merge calls on trickle return HTTP 405 and
+`_watchdog_yolo_limbo` notifies. If the orchestrator flag goes first,
+`enqueue_review` simply enables auto-merge until the ruleset is
+applied. The oompah path doesn't have this asymmetry — branch
+protection only blocks the merge if status checks fail, which is the
+existing behavior YOLO already retries on.
+
+#### Status (rollout)
+
+- **trickle**: ruleset `submit-queue-main` (id `15997351`,
+  `enforcement: active`) applied with the per-repo settings table
+  above. Operator must flip `Project.merge_queue_enabled = True` on
+  trickle before the next YOLO PR opens to avoid a 405-then-watchdog
+  cycle.
+- **oompah**: branch protection PUT applied with required status checks
+  `test (3.11/3.12/3.13)` and `enforce_admins=false`. No merge queue —
+  see platform constraint above. Direct YOLO `merge_review` is the
+  merge path; do **not** flip `Project.merge_queue_enabled = True` on
+  oompah unless the repo is transferred to an org first.
+
+#### Rollback
+
+```bash
+scripts/merge-queue-cutover.sh rollback --repo OWNER/NAME
+```
+
+Trickle: deletes the ruleset; direct merge is restored. The
+orchestrator's `Project.merge_queue_enabled` flag is independent —
+flip that separately if you also want YOLO to go back to direct
+merges.
+
+Oompah: deletes the legacy branch protection on `main`. Direct merge
+remains the only path; CI gating is removed (so be sure you actually
+want this — usually the answer is no).
+
+#### Validation (acceptance criteria)
+
+These are tracked as separate beads because they require human
+oversight in real time:
+
+1. Open a benign test PR; confirm `gh pr merge --auto --squash` enqueues
+   it; confirm a `gh-readonly-queue/main/pr-N-…` ref appears with CI
+   running; confirm atomic squash-merge to `main`; confirm the linked
+   bead is labelled `merged` by `_label_bead_merged_from_merge_group`.
+2. Open a PR with intentionally broken code; confirm the queue ejects
+   the PR after speculative-CI failure with no merge; confirm the bead
+   is **not** labelled `merged`; confirm `_yolo_retry_ci` re-enqueues
+   on retryable failure modes.
+3. After ≥ 1 day stable, raise `Project.max_in_flight_prs` on trickle
+   from 1 to 3 to realize the parallel-throughput win.
 
 ## 5. Risk and rollback summary
 
@@ -292,3 +425,5 @@ review without cascading rollback.
   <https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#merge_group>
 - Existing gate: `oompah/orchestrator.py:881` (`_project_has_open_review`)
 - Existing YOLO merge: `oompah/scm.py:400` (`GitHubProvider.merge_review`)
+- Step 5 operator runbook: `docs/merge-queue-runbook.md`
+- Step 5 cutover script: `scripts/merge-queue-cutover.sh`

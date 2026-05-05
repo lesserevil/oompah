@@ -17,6 +17,7 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 - **Multimodal attachments** — drop images, audio, or PDFs onto an issue; agents with image-capable models receive them inline. With `allow_image_output` foci, agents can attach generated images back to the issue. Stored in the project repo via git LFS. See `docs/multimodal-attachments.md`.
 - **Forge webhook forwarding** — listens for PR/push events via `gh webhook forward` so reactions are near-realtime instead of waiting for the periodic full-sync. Requires the `cli/gh-webhook` extension; install with `make install-gh-extensions`. See `docs/webhook-forwarding.md`.
 - **Hot reload** — edit `WORKFLOW.md` and the service picks up changes without restart
+- **GitHub Merge Queue support** — projects with long CI can opt in to GitHub's merge queue so multiple in-flight YOLO PRs land safely. Set `Project.merge_queue_enabled=True` (per-project flag in `/projects-manage`) and apply the per-repo ruleset via `scripts/merge-queue-cutover.sh apply --repo OWNER/NAME`. See `docs/submit-queue.md` for the design and `docs/merge-queue-runbook.md` for operator procedures.
 
 ## Quick start
 
