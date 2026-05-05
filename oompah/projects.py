@@ -239,6 +239,7 @@ class ProjectStore:
     UPDATABLE_FIELDS = frozenset({
         "name", "repo_url", "branch", "git_user_name", "git_user_email",
         "yolo", "log_path", "webhook_secret", "access_token",
+        "last_webhook_received_at",
     })
 
     def update(self, project_id: str, **fields) -> Project | None:

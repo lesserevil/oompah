@@ -1,5 +1,7 @@
 """Tests for oompah.models."""
 
+from datetime import datetime, timezone
+
 from oompah.models import (
     AgentProfile,
     Issue,
@@ -44,6 +46,49 @@ class TestProject:
         assert p.branch == "main"
         assert p.git_user_name is None
         assert p.git_user_email is None
+        assert p.last_webhook_received_at is None
+
+    def test_last_webhook_received_at_default_none(self):
+        p = Project(id="p1", name="test", repo_url="https://x", repo_path="/tmp/x")
+        assert p.last_webhook_received_at is None
+
+    def test_to_dict_excludes_none_last_webhook_received_at(self):
+        p = Project(id="p1", name="test", repo_url="https://x", repo_path="/tmp/x")
+        d = p.to_dict()
+        assert "last_webhook_received_at" not in d
+
+    def test_to_dict_includes_last_webhook_received_at(self):
+        ts = datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+        p = Project(
+            id="p1", name="test", repo_url="https://x", repo_path="/tmp/x",
+            last_webhook_received_at=ts,
+        )
+        d = p.to_dict()
+        assert "last_webhook_received_at" in d
+        assert d["last_webhook_received_at"] == ts.isoformat()
+
+    def test_from_dict_last_webhook_received_at_iso(self):
+        d = {
+            "id": "p1", "name": "test", "repo_url": "https://x", "repo_path": "/tmp/x",
+            "last_webhook_received_at": "2025-06-01T12:00:00+00:00",
+        }
+        p = Project.from_dict(d)
+        assert p.last_webhook_received_at is not None
+        assert p.last_webhook_received_at == datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    def test_from_dict_last_webhook_received_at_none(self):
+        d = {"id": "p1", "name": "test", "repo_url": "https://x", "repo_path": "/tmp/x"}
+        p = Project.from_dict(d)
+        assert p.last_webhook_received_at is None
+
+    def test_from_dict_round_trip_with_last_webhook_received_at(self):
+        ts = datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+        original = Project(
+            id="p1", name="test", repo_url="https://x", repo_path="/tmp/x",
+            last_webhook_received_at=ts,
+        )
+        restored = Project.from_dict(original.to_dict())
+        assert restored.last_webhook_received_at == original.last_webhook_received_at
 
 
 class TestModelProvider:
