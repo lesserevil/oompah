@@ -26,12 +26,36 @@ from oompah.prompt import RenderedPrompt
 logger = logging.getLogger(__name__)
 
 
-class RateLimitError(Exception):
-    """Raised when the API returns 429 or 529 (overloaded)."""
+class RetryableError(Exception):
+    """Base for transient errors that ``_call_api`` should retry in-session.
+
+    Distinguishing these from permanent failures (4xx other than 429,
+    malformed payloads, etc.) lets us recover from a flaky LLM server
+    without tearing down the whole worker — which would otherwise force
+    the orchestrator's heavier-weight dispatch retry that rebuilds the
+    full conversation from scratch.
+    """
+
+
+class RateLimitError(RetryableError):
+    """Raised when the API returns 429 or 529 (overloaded). Honors
+    Retry-After when the server provides it; otherwise the caller picks
+    a backoff."""
 
     def __init__(self, message: str, retry_after: float = 0):
         super().__init__(message)
         self.retry_after = retry_after  # seconds; 0 means not specified
+
+
+class TransientServerError(RetryableError):
+    """Raised for 5xx responses, connection refused, timeouts, and other
+    network-level errors that are typically resolved by waiting a few
+    seconds and trying again. The wrapped HTTP code (when present) is
+    available as ``status_code`` for diagnostics."""
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -560,7 +584,14 @@ def _build_ssl_context() -> ssl.SSLContext:
 
 
 def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLContext) -> dict[str, Any]:
-    """Blocking HTTP POST that returns parsed JSON. Raises on HTTP/network errors."""
+    """Blocking HTTP POST that returns parsed JSON.
+
+    Raises a typed exception so the caller can decide whether to retry:
+    - :class:`RateLimitError` for 429/529 (honors Retry-After).
+    - :class:`TransientServerError` for 5xx and network-level failures.
+    - :class:`RuntimeError` for permanent failures (4xx other than 429),
+      malformed JSON, or anything else not worth retrying.
+    """
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, context=ssl_ctx, timeout=300) as resp:
@@ -584,11 +615,25 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
                 f"HTTP {exc.code} from {url}: {error_body}",
                 retry_after=retry_after,
             ) from exc
+        # 5xx: server-side problem — typically transient. Worth retrying
+        # the same call rather than tearing down the whole worker.
+        if 500 <= exc.code < 600:
+            raise TransientServerError(
+                f"HTTP {exc.code} from {url}: {error_body}",
+                status_code=exc.code,
+            ) from exc
+        # 4xx (other than 429): the request itself is wrong, retry won't help.
         raise RuntimeError(
             f"HTTP {exc.code} from {url}: {error_body}"
         ) from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"URL error for {url}: {exc.reason}") from exc
+        # Connection refused, timeouts, DNS failures, name not resolved,
+        # etc. — almost always transient (server restarting, brief network
+        # blip). Treat as retryable.
+        raise TransientServerError(
+            f"URL error for {url}: {exc.reason}",
+            status_code=None,
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -1151,6 +1196,27 @@ class ApiAgentSession:
                 delay = exc.retry_after if exc.retry_after > 0 else min(2 ** attempt * 5, 120)
                 logger.warning(
                     "Rate limited (attempt %d/%d), retrying in %.0fs: %s",
+                    attempt + 1, max_retries, delay, exc,
+                )
+                await asyncio.sleep(delay)
+            except TransientServerError as exc:
+                # 5xx, connection refused, network blip — retry with
+                # exponential backoff. Cheaper than failing back up to
+                # the orchestrator (which rebuilds the whole conversation
+                # on retry); preserves the agent's in-progress context.
+                self._log_event(
+                    "transient_error",
+                    attempt=attempt,
+                    status_code=exc.status_code,
+                    error=str(exc),
+                )
+                if attempt >= max_retries - 1:
+                    raise
+                # 1s, 2s, 4s, 8s, capped at 30s. Faster ramp than rate
+                # limits since 5xx/network blips usually clear quickly.
+                delay = min(2 ** attempt, 30)
+                logger.warning(
+                    "Transient server error (attempt %d/%d), retrying in %.0fs: %s",
                     attempt + 1, max_retries, delay, exc,
                 )
                 await asyncio.sleep(delay)

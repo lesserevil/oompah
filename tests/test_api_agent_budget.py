@@ -367,3 +367,194 @@ class TestAgentLogging:
         # Must not raise.
         result = asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
         assert result["choices"][0]["message"]["content"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# Transient-error retries: 5xx, connection refused, and other network blips
+# should be retried inside _call_api rather than killing the worker, which
+# would force the orchestrator's heavier-weight dispatch retry that
+# rebuilds the whole conversation.
+# ---------------------------------------------------------------------------
+
+import urllib.error as _ue
+
+
+class TestHttpPostClassification:
+    """_http_post must distinguish retryable from permanent failures."""
+
+    def test_5xx_raises_transient_server_error(self, monkeypatch):
+        from oompah.api_agent import _http_post, TransientServerError
+
+        class FakeReader:
+            def read(self):
+                return b"EngineCore boom"
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=500,
+                msg="Internal Server Error",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code == 500
+
+    def test_url_error_raises_transient_server_error(self, monkeypatch):
+        from oompah.api_agent import _http_post, TransientServerError
+
+        def fake_urlopen(*a, **kw):
+            raise _ue.URLError(reason="[Errno 61] Connection refused")
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code is None
+        assert "Connection refused" in str(excinfo.value)
+
+    def test_429_still_raises_rate_limit_error(self, monkeypatch):
+        from oompah.api_agent import _http_post, RateLimitError
+
+        class FakeReader:
+            def read(self):
+                return b"slow down"
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=429, msg="Too Many",
+                hdrs={"Retry-After": "5"}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(RateLimitError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.retry_after == 5.0
+
+    def test_4xx_other_than_429_is_permanent(self, monkeypatch):
+        from oompah.api_agent import _http_post, RetryableError
+
+        class FakeReader:
+            def read(self):
+                return b"bad request"
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=400, msg="Bad",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(Exception) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        # Must NOT be retryable — the request is wrong, retrying won't help.
+        assert not isinstance(excinfo.value, RetryableError), (
+            f"4xx must not be retryable: {excinfo.type}"
+        )
+
+
+class TestCallApiRetriesTransientErrors:
+    def test_succeeds_after_one_5xx(self, tmp_path, monkeypatch):
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        # First call raises 5xx, second succeeds.
+        responses = [
+            TransientServerError("HTTP 500 from x", status_code=500),
+            {"choices": [{"message": {"content": "ok"}}]},
+        ]
+
+        def fake_post(url, headers, body, ssl_ctx):
+            r = responses.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+        # Skip the real backoff sleeps to keep the test fast.
+        async def _noop_sleep(*_a, **_k):
+            return None
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", _noop_sleep)
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        result = asyncio.run(s._call_api([_msg("system"), _msg("user")]))
+        assert result["choices"][0]["message"]["content"] == "ok"
+        # Must have consumed both responses (1 failure + 1 success).
+        assert responses == []
+
+    def test_logs_transient_error_event(self, tmp_path, monkeypatch):
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        responses = [
+            TransientServerError("HTTP 502 from x", status_code=502),
+            {"choices": [{"message": {"content": "ok"}}]},
+        ]
+
+        def fake_post(url, headers, body, ssl_ctx):
+            r = responses.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+        async def _noop_sleep(*_a, **_k):
+            return None
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", _noop_sleep)
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        log_path = tmp_path / "agent.jsonl"
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+            log_path=str(log_path),
+        )
+        asyncio.run(s._call_api([_msg("system"), _msg("user")]))
+        records = [json.loads(l) for l in log_path.read_text().splitlines()]
+        kinds = [r["kind"] for r in records]
+        assert "transient_error" in kinds
+        te = next(r for r in records if r["kind"] == "transient_error")
+        assert te["status_code"] == 502
+
+    def test_raises_after_max_retries(self, tmp_path, monkeypatch):
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        # Always fail with 503.
+        def fake_post(url, headers, body, ssl_ctx):
+            raise TransientServerError("HTTP 503 from x", status_code=503)
+
+        async def _noop_sleep(*_a, **_k):
+            return None
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", _noop_sleep)
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with pytest.raises(TransientServerError):
+            asyncio.run(s._call_api([_msg("system"), _msg("user")]))
+
+    def test_permanent_runtime_error_not_retried(self, tmp_path, monkeypatch):
+        """4xx-other-than-429 (now bare RuntimeError) should propagate
+        immediately — retrying a bad-request payload is wasteful."""
+        from oompah.api_agent import ApiAgentSession
+
+        call_count = {"n": 0}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            call_count["n"] += 1
+            raise RuntimeError("HTTP 400 from x: bad request")
+
+        async def _noop_sleep(*_a, **_k):
+            return None
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", _noop_sleep)
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with pytest.raises(RuntimeError):
+            asyncio.run(s._call_api([_msg("system"), _msg("user")]))
+        # Exactly one call — no retries.
+        assert call_count["n"] == 1
