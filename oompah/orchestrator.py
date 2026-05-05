@@ -878,22 +878,43 @@ class Orchestrator:
         age = datetime.now(timezone.utc) - ts
         return age.total_seconds() <= 150
 
-    def _project_has_open_review(self, project_id: str | None) -> bool:
-        """Return True if the project has at least one open MR/PR.
+    def _count_open_reviews(self, project_id: str | None) -> int:
+        """Return the number of non-draft open MRs/PRs for a project.
 
-        Used to serialize dispatch: don't start a new agent for a project
-        that already has an open review waiting to merge, which would create
-        a second in-flight MR that could conflict with the first.
-
-        Only applies to projects (issues with a project_id). For legacy
-        issues without a project, this check is skipped.
+        Uses the per-tick reviews cache populated by ``_handle_review_check``.
+        Returns 0 for legacy issues that have no project_id.
         """
         if not project_id:
-            return False
+            return 0
         reviews_cache = getattr(self, "_reviews_cache", {})
         project_reviews = reviews_cache.get(project_id, [])
-        # Any non-draft open review counts as "in flight"
-        return any(not r.draft for r in project_reviews)
+        return sum(1 for r in project_reviews if not r.draft)
+
+    def _project_max_in_flight(self, project_id: str | None) -> int:
+        """Return the configured in-flight PR limit for a project.
+
+        Falls back to 1 (original single-in-flight behavior) when the
+        project is unknown or has no explicit override set.
+        """
+        if not project_id:
+            return 1
+        project = self.project_store.get(project_id)
+        if project is None:
+            return 1
+        raw = getattr(project, "max_in_flight_prs", 1)
+        try:
+            return max(1, int(raw))
+        except (TypeError, ValueError):
+            return 1
+
+    def _project_has_open_review(self, project_id: str | None) -> bool:
+        """Return True if the project is at or above its in-flight PR cap.
+
+        Thin compatibility wrapper around ``_count_open_reviews`` and
+        ``_project_max_in_flight``. Retained so callers (tests, subclasses)
+        that reference the old name continue to work unchanged.
+        """
+        return self._count_open_reviews(project_id) >= self._project_max_in_flight(project_id)
 
     def _should_dispatch_epic(self, issue: Issue) -> bool:
         """Check whether an epic should be dispatched for planning.
@@ -1075,13 +1096,19 @@ class Orchestrator:
                 if self._blocker_has_unmerged_pr(blocker):
                     # Blocker is closed but PR hasn't merged — still blocked
                     return _reject(f"blocker={blocker.id} unmerged_review")
-        # Serialize MR/PR fixes by project: if a project already has an open
-        # review (PR/MR), don't dispatch another agent to that project until the
-        # existing review is merged. This prevents multiple simultaneous merges
+        # Serialize MR/PR fixes by project: if a project has reached its
+        # configured in-flight PR cap, don't dispatch another agent until an
+        # existing review merges. This prevents multiple simultaneous merges
         # from conflicting with each other (each merge changes the target branch).
         # P0 issues bypass this check to ensure critical fixes are never blocked.
-        if not is_p0 and self._project_has_open_review(issue.project_id):
-            return _reject("open_review")
+        # The cap defaults to 1 (preserving the original single-in-flight
+        # behavior) and can be raised per-project via Project.max_in_flight_prs
+        # once GitHub Merge Queue is enabled for that repo.
+        if not is_p0:
+            n_open = self._count_open_reviews(issue.project_id)
+            limit = self._project_max_in_flight(issue.project_id)
+            if n_open >= limit:
+                return _reject(f"open_reviews_at_cap={n_open}/{limit}")
         # Budget circuit breaker — model-aware. When the window's spend has
         # exceeded the cap we still allow dispatch on models the provider
         # has explicitly priced at $0 (e.g. an internal-tier MiniMax). That
@@ -4060,6 +4087,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             ],
             "rate_limits": self.state.rate_limits,
             "projects": [p.to_dict() for p in self.project_store.list_all()],
+            "open_reviews_by_project": {
+                pid: self._count_open_reviews(pid)
+                for pid in (getattr(self, "_reviews_cache", None) or {})
+            },
             "alerts": list(self._alerts),
             "reviews_summary": self._reviews_summary(),
             "proposed_foci_count": self._proposed_foci_count(),

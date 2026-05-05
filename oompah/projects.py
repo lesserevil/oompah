@@ -239,7 +239,7 @@ class ProjectStore:
     UPDATABLE_FIELDS = frozenset({
         "name", "repo_url", "branch", "git_user_name", "git_user_email",
         "yolo", "log_path", "webhook_secret", "access_token",
-        "last_webhook_received_at",
+        "last_webhook_received_at", "max_in_flight_prs",
     })
 
     def update(self, project_id: str, **fields) -> Project | None:
@@ -276,6 +276,19 @@ class ProjectStore:
                 if not val:
                     raise ProjectError(f"'{key}' must not be empty")
                 fields[key] = val  # store trimmed value
+
+        # Validate max_in_flight_prs is a positive integer (floats are rejected)
+        if "max_in_flight_prs" in fields:
+            val = fields["max_in_flight_prs"]
+            if isinstance(val, float):
+                raise ProjectError("'max_in_flight_prs' must be a positive integer")
+            try:
+                val = int(val)
+            except (TypeError, ValueError):
+                raise ProjectError("'max_in_flight_prs' must be a positive integer")
+            if val < 1:
+                raise ProjectError("'max_in_flight_prs' must be >= 1")
+            fields["max_in_flight_prs"] = val
 
         for key, value in fields.items():
             setattr(project, key, value)

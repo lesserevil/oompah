@@ -132,6 +132,11 @@ class Project:
     # UTC timestamp of the most recent successful webhook delivery for this
     # project, updated every time a forge webhook (GitHub/GitLab) is received.
     last_webhook_received_at: datetime | None = None
+    # Maximum number of concurrent open (non-draft) PRs/MRs allowed for this
+    # project before dispatch is held. Default 1 preserves the original
+    # single-in-flight behavior. Raise per-project once GitHub Merge Queue
+    # (Step 5) is enabled and verified for that repo.
+    max_in_flight_prs: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -142,6 +147,7 @@ class Project:
             "branch": self.branch,
             "yolo": self.yolo,
             "lfs_available": self.lfs_available,
+            "max_in_flight_prs": self.max_in_flight_prs,
         }
         if self.git_user_name:
             d["git_user_name"] = self.git_user_name
@@ -183,6 +189,11 @@ class Project:
                     last_webhook_received_at = datetime.fromisoformat(str(raw))
                 except (ValueError, TypeError):
                     pass
+        raw_max = d.get("max_in_flight_prs", 1)
+        try:
+            max_in_flight_prs = max(1, int(raw_max))
+        except (ValueError, TypeError):
+            max_in_flight_prs = 1
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -197,6 +208,7 @@ class Project:
             access_token=d.get("access_token"),
             lfs_available=bool(d.get("lfs_available", False)),
             last_webhook_received_at=last_webhook_received_at,
+            max_in_flight_prs=max_in_flight_prs,
         )
 
 
