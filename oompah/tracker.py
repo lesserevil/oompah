@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import subprocess
 import time
@@ -35,6 +36,40 @@ DEFAULT_INITIAL_STATUS = "deferred"
 # DB is missing. Without this, every poll tick spends 5+ subprocess calls
 # (~150ms each) hitting the same "no beads database found" failure.
 _MISSING_DB_TTL_SECONDS = 60.0
+
+# Default subprocess timeout for ``bd`` commands. Beads is backed by Dolt
+# and a fresh sql-server start, a large issues table, or contention can push
+# even simple ``bd list`` calls past 30s. The previous 30s default surfaced
+# as auto-filed "[backend:tracker] bd command timed out" bug beads on every
+# slow tick (see oompah-zlz_2-3xm). 60s gives Dolt time to respond before we
+# treat the call as failed; override via OOMPAH_BD_TIMEOUT_SECONDS.
+_DEFAULT_BD_TIMEOUT_SECONDS = 60.0
+
+
+def _resolve_bd_timeout() -> float:
+    """Read the bd subprocess timeout from env, falling back to the default.
+
+    Resolved at call time (not import time) so tests and live config
+    changes are respected without restarting the process.
+    """
+    raw = os.environ.get("OOMPAH_BD_TIMEOUT_SECONDS")
+    if raw is None or not raw.strip():
+        return _DEFAULT_BD_TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid OOMPAH_BD_TIMEOUT_SECONDS=%r — using default %ss",
+            raw, _DEFAULT_BD_TIMEOUT_SECONDS,
+        )
+        return _DEFAULT_BD_TIMEOUT_SECONDS
+    if value <= 0:
+        logger.warning(
+            "OOMPAH_BD_TIMEOUT_SECONDS=%r must be > 0 — using default %ss",
+            raw, _DEFAULT_BD_TIMEOUT_SECONDS,
+        )
+        return _DEFAULT_BD_TIMEOUT_SECONDS
+    return value
 
 
 class TrackerError(Exception):
@@ -620,13 +655,6 @@ class BeadsTracker:
         """The last-known fingerprint, or None if never polled."""
         return self._last_fingerprint
 
-    # Default subprocess timeout for ``bd`` calls. Bumped from 30s to 60s
-    # because the unfiltered ``bd list --json`` fallback in
-    # ``fetch_candidate_issues`` dumps every issue and can exceed 30s on a
-    # busy database, producing a flood of duplicate "bd command timed out"
-    # bug beads via the error_watcher.
-    _DEFAULT_BD_TIMEOUT_SECONDS = 60
-
     def _run_bd(
         self, args: list[str], *, timeout: float | None = None,
     ) -> dict | list:
@@ -634,9 +662,12 @@ class BeadsTracker:
 
         Args:
             args: Arguments to pass after ``bd``.
-            timeout: Subprocess timeout in seconds. Defaults to
-                ``_DEFAULT_BD_TIMEOUT_SECONDS`` (60s). Override with a
-                larger value for known-heavy commands.
+            timeout: Subprocess timeout in seconds. When ``None`` (the
+                default), the value is resolved via
+                :func:`_resolve_bd_timeout` — which reads
+                ``OOMPAH_BD_TIMEOUT_SECONDS`` and falls back to
+                :data:`_DEFAULT_BD_TIMEOUT_SECONDS` (60s). Pass an
+                explicit value for known-heavy commands.
         """
         # Short-circuit if a recent call already proved the DB is missing.
         if self._missing_db_until and time.monotonic() < self._missing_db_until:
@@ -645,8 +676,11 @@ class BeadsTracker:
                 f"(cached for {int(self._missing_db_until - time.monotonic())}s)"
             )
         cmd = ["bd"] + args
+        # Explicit per-call timeout wins; otherwise honour the env-var
+        # (OOMPAH_BD_TIMEOUT_SECONDS) so operators can tune for slow
+        # dolt-sql-server setups without code changes.
         effective_timeout = (
-            timeout if timeout is not None else self._DEFAULT_BD_TIMEOUT_SECONDS
+            timeout if timeout is not None else _resolve_bd_timeout()
         )
         try:
             result = subprocess.run(
@@ -659,6 +693,12 @@ class BeadsTracker:
         except FileNotFoundError:
             raise TrackerError("bd command not found. Is beads installed?")
         except subprocess.TimeoutExpired:
+            # Use a dedicated subclass so the orchestrator and
+            # fetch_candidate_issues can distinguish a transient slow-DB
+            # condition from genuine tracker failures. The error_watcher
+            # only auto-files beads at ERROR level; this stays at WARNING
+            # to avoid a feedback loop of duplicate "bd list timed out"
+            # bug beads on every slow tick.
             raise TrackerTimeoutError(
                 f"bd command timed out: {' '.join(cmd)}"
             )
