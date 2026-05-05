@@ -812,6 +812,31 @@ class Orchestrator:
         )
         return count < limit
 
+    def is_webhook_healthy(self, project_id: str | None) -> bool:
+        """Return True if the project's webhook channel is healthy.
+
+        A project is considered webhook-healthy when the most recent webhook
+        delivery was received within the last 150 seconds (~2.5 minutes).
+        When healthy, forge polling for that project can be skipped because
+        webhooks serve as the primary signal for state changes.
+
+        When the timestamp is absent or stale, the polling loop falls back
+        to the periodic full-sync cadence as a safety net.
+        """
+        if not project_id:
+            return False
+        project = self.project_store.get(project_id)
+        if not project:
+            return False
+        ts = project.last_webhook_received_at
+        # If no webhook has ever been received, treat as unhealthy so we poll.
+        # Also guard against non-datetime types (e.g. MagicMock in tests).
+        if not ts or not isinstance(ts, datetime):
+            return False
+        # Fall back to polling if delivery is older than 150 seconds
+        age = datetime.now(timezone.utc) - ts
+        return age.total_seconds() <= 150
+
     def _project_has_open_review(self, project_id: str | None) -> bool:
         """Return True if the project has at least one open MR/PR.
 
@@ -1056,16 +1081,23 @@ class Orchestrator:
         self._blocker_state_cache = cache
 
     def _fetch_all_reviews(self) -> dict[str, list]:
-        """Fetch open reviews for all projects in parallel.
+        """Fetch open reviews for projects with stale or missing webhooks.
 
         Returns a dict of project_id -> list[ReviewRequest], cached for the
         entire tick so list_open_reviews is called at most once per project.
+
+        Projects with recent webhook deliveries (within 2.5 minutes) are
+        skipped — webhooks serve as the primary signal for those repos.
+        Stale-projects are polled to catch anything webhooks may have missed.
         """
         projects = self.project_store.list_all()
         if not projects:
             return {}
 
         def _fetch_for_project(project) -> tuple[str, list]:
+            # Skip polling for webhook-healthy projects
+            if self.is_webhook_healthy(project.id):
+                return (project.id, [])
             provider = detect_provider(project.repo_url, access_token=project.access_token)
             if not provider:
                 return (project.id, [])
@@ -1084,12 +1116,19 @@ class Orchestrator:
         return result
 
     def _fetch_all_merged_branches(self) -> set[str]:
-        """Fetch merged PR/MR branch names across all projects."""
+        """Fetch merged PR/MR branch names across projects with stale webhooks.
+
+        Projects with recent webhook deliveries (within 2.5 minutes) are
+        skipped — webhooks serve as the primary signal.
+        """
         projects = self.project_store.list_all()
         if not projects:
             return set()
 
         def _fetch_for_project(project) -> set[str]:
+            # Skip polling for webhook-healthy projects
+            if self.is_webhook_healthy(project.id):
+                return set()
             provider = detect_provider(project.repo_url, access_token=project.access_token)
             if not provider:
                 return set()
