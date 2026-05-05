@@ -106,20 +106,29 @@ def parse_github_webhook(
 ) -> WebhookEvent | None:
     """Parse a GitHub webhook payload into a WebhookEvent.
 
-    Only PR-related events are parsed (``pull_request``). Other event
-    types return ``None``.
+    Handles ``pull_request`` and ``push`` events. ``push`` events surface
+    direct commits to a branch (e.g. operators pushing chore commits to
+    main without a PR) — the tracked-branch advancing is the signal that
+    a source resync is needed. Other event types return ``None``.
 
     Args:
         event_type: Value of the ``X-GitHub-Event`` header.
         payload: Parsed JSON body.
 
     Returns:
-        A ``WebhookEvent`` for PR events, or ``None`` for non-PR events.
+        A ``WebhookEvent`` for PR/push events, or ``None`` for other events.
     """
-    if event_type != "pull_request":
-        logger.debug("Ignoring non-PR GitHub event: %s", event_type)
-        return None
+    if event_type == "pull_request":
+        return _parse_github_pr(event_type, payload)
+    if event_type == "push":
+        return _parse_github_push(event_type, payload)
+    logger.debug("Ignoring GitHub event: %s", event_type)
+    return None
 
+
+def _parse_github_pr(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
     action = payload.get("action", "")
     pr = payload.get("pull_request", {})
     if not pr:
@@ -143,6 +152,48 @@ def parse_github_webhook(
         author=user.get("login", ""),
         title=pr.get("title", ""),
         merged=bool(pr.get("merged", False)),
+        raw=payload,
+    )
+
+
+def _parse_github_push(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitHub ``push`` event into a WebhookEvent.
+
+    The pushed branch is recorded in ``target_branch`` (since "what branch
+    the push affected" is the closest semantic match in the existing
+    dataclass). Branch deletions (``deleted: true``) and tag pushes
+    (``refs/tags/*``) return ``None`` — neither requires a source resync.
+    """
+    if payload.get("deleted"):
+        return None
+    ref = payload.get("ref", "") or ""
+    if not ref.startswith("refs/heads/"):
+        return None
+    branch = ref[len("refs/heads/"):]
+
+    repo = payload.get("repository", {})
+    repo_slug = repo.get("full_name", "")
+
+    pusher = payload.get("pusher") or {}
+    sender = payload.get("sender") or {}
+    author = pusher.get("name") or sender.get("login", "")
+
+    head_commit = payload.get("head_commit") or {}
+    title = (head_commit.get("message") or "").splitlines()[0] if head_commit else ""
+
+    return WebhookEvent(
+        provider="github",
+        event_type=event_type,
+        action="pushed",
+        repo_slug=repo_slug,
+        review_id="",
+        source_branch="",
+        target_branch=branch,
+        author=author,
+        title=title,
+        merged=False,
         raw=payload,
     )
 

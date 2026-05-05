@@ -186,6 +186,44 @@ class TestGitHubWebhookEndpoint:
         assert resp.status_code == 200
         orch.request_refresh.assert_called_once()
 
+    def test_pr_merged_to_tracked_branch_triggers_sync(self, client_no_secret):
+        """A merged PR whose base is the project's tracked branch should
+        trigger source sync — the merge advanced origin/main."""
+        client, orch = client_no_secret
+        payload = _github_pr_payload(action="closed", merged=True, target="main")
+        resp = client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(payload),
+            headers={
+                "X-GitHub-Event": "pull_request",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        import time
+        for _ in range(50):
+            if orch.project_store.sync_project_sources.called:
+                break
+            time.sleep(0.02)
+        orch.project_store.sync_project_sources.assert_called_once_with("proj-gh1")
+
+    def test_pr_opened_does_not_trigger_sync(self, client_no_secret):
+        """An opened PR doesn't change origin/main yet — no sync needed."""
+        client, orch = client_no_secret
+        payload = _github_pr_payload(action="opened", merged=False)
+        resp = client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(payload),
+            headers={
+                "X-GitHub-Event": "pull_request",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        import time
+        time.sleep(0.1)
+        orch.project_store.sync_project_sources.assert_not_called()
+
     def test_valid_signature(self, client_with_secret):
         client, orch = client_with_secret
         payload = _github_pr_payload()
@@ -219,20 +257,53 @@ class TestGitHubWebhookEndpoint:
         assert "Invalid signature" in resp.json().get("error", "")
         orch.request_refresh.assert_not_called()
 
-    def test_push_event_ignored(self, client_no_secret):
+    def test_push_event_to_tracked_branch_triggers_sync(self, client_no_secret):
+        """Push to project's tracked branch (main) should fire a project-scoped
+        source sync — that's the whole point of the webhook integration."""
         client, orch = client_no_secret
         resp = client.post(
             "/api/v1/webhooks/github",
-            content=json.dumps({"ref": "refs/heads/main"}),
+            content=json.dumps({
+                "ref": "refs/heads/main",
+                "repository": {"full_name": "org/repo"},
+                "pusher": {"name": "alice"},
+                "head_commit": {"message": "chore: bump deps"},
+            }),
             headers={
                 "X-GitHub-Event": "push",
                 "Content-Type": "application/json",
             },
         )
         assert resp.status_code == 200
-        data = resp.json()
-        assert data["action"] == "ignored"
-        orch.request_refresh.assert_not_called()
+        # Refresh fires regardless of branch.
+        orch.request_refresh.assert_called()
+        # Sync starts in a thread; poll briefly for it to land.
+        import time
+        for _ in range(50):
+            if orch.project_store.sync_project_sources.called:
+                break
+            time.sleep(0.02)
+        orch.project_store.sync_project_sources.assert_called_once_with("proj-gh1")
+
+    def test_push_event_to_other_branch_no_sync(self, client_no_secret):
+        client, orch = client_no_secret
+        resp = client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps({
+                "ref": "refs/heads/feature-x",
+                "repository": {"full_name": "org/repo"},
+                "pusher": {"name": "alice"},
+            }),
+            headers={
+                "X-GitHub-Event": "push",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        # Give any spawned thread a moment to run, then assert it didn't.
+        import time
+        time.sleep(0.1)
+        orch.project_store.sync_project_sources.assert_not_called()
 
     def test_ping_event_ignored(self, client_no_secret):
         client, orch = client_no_secret

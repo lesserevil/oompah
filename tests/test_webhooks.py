@@ -245,9 +245,6 @@ class TestParseGitHubWebhook:
         assert event is not None
         assert event.action == "review_requested"
 
-    def test_non_pr_event_returns_none(self):
-        assert parse_github_webhook("push", {"ref": "refs/heads/main"}) is None
-
     def test_ping_event_returns_none(self):
         assert parse_github_webhook("ping", {"zen": "test"}) is None
 
@@ -269,6 +266,75 @@ class TestParseGitHubWebhook:
         event = parse_github_webhook("pull_request", payload)
         assert event is not None
         assert event.repo_slug == "other-org/other-repo"
+
+
+class TestParseGitHubPushWebhook:
+    """Tests for parse_github_webhook() handling of push events."""
+
+    def _push_payload(
+        self,
+        ref: str = "refs/heads/main",
+        repo_full_name: str = "org/repo",
+        deleted: bool = False,
+        head_message: str = "chore(beads): undefer all",
+        pusher_name: str = "octocat",
+    ) -> dict:
+        return {
+            "ref": ref,
+            "deleted": deleted,
+            "before": "0" * 40,
+            "after": "1" * 40,
+            "repository": {"full_name": repo_full_name},
+            "pusher": {"name": pusher_name, "email": "x@example.com"},
+            "sender": {"login": pusher_name},
+            "head_commit": {"message": head_message, "id": "1" * 40},
+        }
+
+    def test_push_to_main(self):
+        event = parse_github_webhook("push", self._push_payload())
+        assert event is not None
+        assert event.event_type == "push"
+        assert event.action == "pushed"
+        assert event.target_branch == "main"
+        assert event.source_branch == ""
+        assert event.review_id == ""
+        assert event.merged is False
+        assert event.author == "octocat"
+        assert event.title == "chore(beads): undefer all"
+        assert event.repo_slug == "org/repo"
+
+    def test_push_to_feature_branch(self):
+        event = parse_github_webhook("push", self._push_payload(ref="refs/heads/feature-x"))
+        assert event is not None
+        assert event.target_branch == "feature-x"
+
+    def test_push_branch_deletion_returns_none(self):
+        payload = self._push_payload(deleted=True)
+        assert parse_github_webhook("push", payload) is None
+
+    def test_push_tag_returns_none(self):
+        payload = self._push_payload(ref="refs/tags/v1.0")
+        assert parse_github_webhook("push", payload) is None
+
+    def test_push_multiline_message_takes_first_line_only(self):
+        payload = self._push_payload(head_message="first line\n\nbody continues here")
+        event = parse_github_webhook("push", payload)
+        assert event is not None
+        assert event.title == "first line"
+
+    def test_push_missing_head_commit(self):
+        payload = self._push_payload()
+        del payload["head_commit"]
+        event = parse_github_webhook("push", payload)
+        assert event is not None
+        assert event.title == ""
+
+    def test_push_falls_back_to_sender_when_pusher_missing(self):
+        payload = self._push_payload()
+        del payload["pusher"]
+        event = parse_github_webhook("push", payload)
+        assert event is not None
+        assert event.author == "octocat"
 
 
 # ---------------------------------------------------------------------------

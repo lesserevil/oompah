@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1912,6 +1913,56 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     if event.merged:
         orch.invalidate_merged_branches()
     orch.request_refresh()
+
+    # If the webhook signals that the project's tracked branch advanced
+    # (push to that branch, or PR merged into it), pull the latest source
+    # and beads state. Without this, new commits — including beads
+    # un-defers and direct chore pushes — only land on the local clone at
+    # the next service restart. Sync runs in a background thread so the
+    # webhook response stays fast.
+    if project and _webhook_advanced_tracked_branch(event, project):
+        threading.Thread(
+            target=_sync_project_after_webhook,
+            args=(orch, project.id, project.name),
+            name=f"webhook-sync-{project.name}",
+            daemon=True,
+        ).start()
+
+
+def _webhook_advanced_tracked_branch(event, project) -> bool:
+    """True when the webhook indicates ``project.branch`` advanced on origin.
+
+    Two cases:
+      * ``push`` events on the tracked branch (target_branch == project.branch).
+      * ``pull_request`` events with ``merged=True`` whose base branch is
+        the tracked branch.
+    """
+    branch = (project.branch or "").strip()
+    if not branch:
+        return False
+    if event.event_type == "push":
+        return event.target_branch == branch
+    if event.event_type == "pull_request" and event.merged:
+        return event.target_branch == branch
+    return False
+
+
+def _sync_project_after_webhook(
+    orch, project_id: str, project_name: str,
+) -> None:
+    """Pull source + beads for a single project after a relevant webhook.
+
+    Best-effort: any failure is logged but does not raise. The next
+    service restart's startup sync remains the safety net.
+    """
+    try:
+        status = orch.project_store.sync_project_sources(project_id)
+        logger.info(
+            "Webhook sync %s: git=%s beads=%s",
+            project_name, status.get("git", "?"), status.get("beads", "?"),
+        )
+    except Exception as exc:
+        logger.warning("Webhook sync failed for %s: %s", project_name, exc)
 
 
 @app.post("/api/v1/webhooks/github")
