@@ -274,6 +274,14 @@ class ServiceConfig:
     # estimated_cost is reset to zero. Default is "day" so a $50/day cap
     # actually means $50/day, not $50/process-lifetime.
     budget_window: str = "day"  # one of: "hour", "day", "week"
+    # When True, every issue's FIRST dispatch uses the catch-all "default"
+    # profile (no issue_type/keyword/priority constraints) and the
+    # provider's default_model, regardless of issue type/priority/keywords.
+    # On the first retry after a failure the issue escalates directly to the
+    # profile that _match_agent_profile() would have originally chosen, then
+    # continues up the hierarchy on subsequent failures.
+    # Default False: current behaviour (best-match profile on first dispatch).
+    default_first_dispatch: bool = False
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -337,6 +345,21 @@ class ServiceConfig:
 
         # Environment variables take precedence over WORKFLOW.md values.
         # Helper: env var > workflow yaml > default
+        def _env_bool(env_key: str, yaml_val: Any, default: bool) -> bool:
+            """Resolve a boolean config value: env var > YAML > default.
+
+            Env var strings "1", "true", "yes" (case-insensitive) are True;
+            "0", "false", "no" are False; other values fall back to yaml_val.
+            """
+            raw = os.environ.get(env_key)
+            if raw is not None:
+                return raw.strip().lower() in ("1", "true", "yes")
+            if yaml_val is None:
+                return default
+            if isinstance(yaml_val, bool):
+                return yaml_val
+            return str(yaml_val).strip().lower() in ("1", "true", "yes")
+
         def _env_int(env_key: str, yaml_val: Any, default: int) -> int:
             return _coerce_int(os.environ.get(env_key, yaml_val), default)
 
@@ -393,6 +416,11 @@ class ServiceConfig:
             budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),
             budget_window=_parse_budget_window(
                 _env_str("OOMPAH_BUDGET_WINDOW", agent.get("budget_window"), "day"),
+            ),
+            default_first_dispatch=_env_bool(
+                "OOMPAH_DEFAULT_FIRST_DISPATCH",
+                agent.get("default_first_dispatch"),
+                False,
             ),
         )
 
