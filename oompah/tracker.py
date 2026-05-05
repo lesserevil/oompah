@@ -5,12 +5,24 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from oompah.models import BlockerRef, Issue
+
+_SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+
+
+def _sanitize_identifier(identifier: str) -> str:
+    """Replace any character not in [A-Za-z0-9._-] with underscore.
+
+    This mirrors the branch-name sanitization done in projects.py so that
+    the normalized Issue.branch_name matches the actual git worktree branch.
+    """
+    return _SAFE_CHARS.sub("_", identifier)
 
 logger = logging.getLogger(__name__)
 
@@ -706,7 +718,11 @@ class BeadsTracker:
             state=state,
             issue_type=issue_type,
             parent_id=parent_id,
-            branch_name=raw.get("branch_name"),
+            # When branch_name is not present in bd output, derive it from the
+            # identifier. This matches the branch name that projects.py uses when
+            # creating the git worktree, so the WORKFLOW.md prompt renders
+            # the actual branch instead of empty backticks.
+            branch_name=raw.get("branch_name") or _sanitize_identifier(identifier),
             url=raw.get("url"),
             labels=labels,
             blocked_by=blocked_by,
