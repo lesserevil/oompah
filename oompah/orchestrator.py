@@ -3137,20 +3137,32 @@ class Orchestrator:
                         sess.total_tokens = int(u.get("total_tokens", 0) or 0)
                     self._notify_state_only()
 
-            # The prompt is a RenderedPrompt; ACP wants a single
-            # string. Concatenate text parts.
-            prompt_text = ""
-            if hasattr(prompt, "parts"):
-                prompt_text = "\n".join(
-                    p.text for p in prompt.parts if getattr(p, "text", None)
-                )
-            else:
-                prompt_text = str(prompt)
+            # RenderedPrompt has both `text` (canonical) and optional
+            # `parts` (OpenAI-style content array, only set when images
+            # are embedded). ACP/claude takes a single string, so use
+            # `text`. parts being None is the common case.
+            prompt_text = getattr(prompt, "text", None) or str(prompt)
+
+            # ACP-mode model selection: the per-issue model resolved
+            # against InferenceAPI (e.g. claude-sonnet-4-6, MiniMax)
+            # is not what claude CLI dispatches against — claude uses
+            # whichever model the operator's subscription / auth chose.
+            # Passing a non-claude model name (the MiniMax name slipped
+            # in via the default profile's model_role: fast) is a no-op
+            # at best, an error at worst. Only forward model names that
+            # look like Claude models; otherwise let the SDK pick the
+            # subscription default.
+            acp_model: str | None = None
+            if model and any(
+                marker in model.lower()
+                for marker in ("claude", "haiku", "sonnet", "opus")
+            ):
+                acp_model = model
 
             session = AcpAgentSession(
                 workspace_path=workspace_path,
                 prompt=prompt_text,
-                model=model if model != "default" else None,
+                model=acp_model,
                 max_turns=max_turns,
                 env={"BEADS_DIR": beads_dir} if beads_dir else None,
                 tool_catalog=tool_catalog,
