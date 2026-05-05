@@ -331,6 +331,15 @@ class AgentProfile:
     issue_types: list[str] = field(default_factory=list)
     min_priority: int | None = None
     max_priority: int | None = None
+    # Execution mode for this profile. Default is "auto": api if a
+    # provider resolves else cli (today's behavior). Explicit values:
+    # - "api"  forces the OpenAI-compatible chat completions path.
+    # - "cli"  forces the legacy subprocess + native streaming-JSON path.
+    # - "acp"  routes to ACP/Claude-Agent-SDK so calls bill against the
+    #          operator's claude subscription instead of the per-token
+    #          API meter. See docs/acp-agent.md / oompah-zlz_2-bcl.
+    # Invalid values fall back to "auto" with a warning at config load.
+    mode: str = "auto"
 
 
 @dataclass

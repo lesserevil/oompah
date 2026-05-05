@@ -513,6 +513,19 @@ class Orchestrator:
             self.config.full_sync_interval_ms,
             self.state.poll_interval_ms,
         )
+        # One-shot diagnostic: announce ACP-mode profiles so operators
+        # know the budget gate doesn't apply to them. Mirrors the
+        # existing rate-limit / budget startup logging.
+        acp_profiles = [
+            p.name for p in self.config.agent_profiles
+            if (p.mode or "auto").lower() == "acp"
+        ]
+        if acp_profiles:
+            logger.info(
+                "ACP profiles bypass budget tracking — calls are billed against "
+                "the active claude subscription, not by token. Profiles: %s",
+                ", ".join(acp_profiles),
+            )
 
         # Start the safety-net full-sync background task.
         full_sync_task = asyncio.create_task(
@@ -1109,6 +1122,14 @@ class Orchestrator:
             limit = self._project_max_in_flight(issue.project_id)
             if n_open >= limit:
                 return _reject(f"open_reviews_at_cap={n_open}/{limit}")
+        # ACP-mode profiles bypass the budget gate entirely — their
+        # per-token cost is billed against the operator's claude
+        # subscription, not the per-token API meter the budget tracks.
+        # Done BEFORE the cost-aware free-tier check so we don't pay
+        # the model-resolution cost when the answer is "subscription".
+        # See docs/acp-agent.md and bead oompah-zlz_2-bcl.
+        if self._would_dispatch_via_acp(issue):
+            return True
         # Budget circuit breaker — model-aware. When the window's spend has
         # exceeded the cap we still allow dispatch on models the provider
         # has explicitly priced at $0 (e.g. an internal-tier MiniMax). That
@@ -1134,6 +1155,23 @@ class Orchestrator:
                 return True
             return _reject("budget_exceeded_paid")
         return True
+
+    def _would_dispatch_via_acp(self, issue: Issue) -> bool:
+        """True if the agent profile this dispatch would use has
+        ``mode == "acp"``. The budget gate uses this to bypass the
+        cap for subscription-billed sessions; ACP dispatches don't
+        consume the per-token API meter that ``budget_limit`` tracks.
+
+        Conservative on resolution failure (returns False) so a
+        misconfigured profile cannot accidentally bypass the cap.
+        """
+        try:
+            profile = self._match_agent_profile(issue)
+            if not profile:
+                return False
+            return (getattr(profile, "mode", "auto") or "auto").lower() == "acp"
+        except Exception:
+            return False
 
     def _would_dispatch_on_free_model(self, issue: Issue) -> str | bool:
         """True (and returns the model name) when the model that WOULD be used
@@ -2592,13 +2630,47 @@ class Orchestrator:
         self._notify_observers()
 
     async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
-        """Worker: create workspace, build prompt, run agent turns."""
-        # Route to API agent if a provider can be resolved
+        """Worker: create workspace, build prompt, run agent turns.
+
+        Routing is keyed off ``profile.mode`` (default ``auto``):
+
+        * ``"acp"`` — Claude Agent SDK / claude CLI subprocess. Calls
+          bill against the operator's claude subscription, not the
+          per-token API meter. See ``oompah/acp_agent.py``.
+        * ``"api"`` — OpenAI-compatible chat completions. The
+          dispatcher asserts the profile resolves to a provider; if
+          not, falls through to cli with a warning.
+        * ``"cli"`` — legacy subprocess + native streaming-JSON path
+          (oompah/agent.py). No provider needed.
+        * ``"auto"`` (default) — preserves today's behavior: api if a
+          provider resolves, else cli.
+
+        Invalid mode strings get normalized to ``auto`` at config-load
+        time, so by the time we get here only the four valid values
+        are in play.
+        """
+        mode = (profile.mode if profile else "auto").lower()
+
+        if mode == "acp":
+            await self._run_acp_worker(issue, attempt, profile)
+            return
+
+        if mode == "cli":
+            await self._run_cli_worker(issue, attempt, profile)
+            return
+
+        # api or auto: prefer api when a provider resolves, else cli.
         if profile:
             provider = self._resolve_provider(profile)
             if provider:
                 await self._run_api_worker(issue, attempt, profile, provider)
                 return
+            if mode == "api":
+                logger.warning(
+                    "Profile %r is mode=api but provider did not resolve; "
+                    "falling through to cli for issue %s",
+                    profile.name, issue.identifier,
+                )
 
         await self._run_cli_worker(issue, attempt, profile)
 
@@ -2871,6 +2943,266 @@ class Orchestrator:
             exit_reason = "abnormal"
             error_msg = str(exc)
             logger.exception("API worker failed issue_id=%s", issue.id)
+        finally:
+            if not issue.project_id:
+                try:
+                    wp = self.workspace_mgr.workspace_path_for(issue.identifier)
+                    self.workspace_mgr.run_after_run(wp)
+                except Exception:
+                    pass
+            await self._on_worker_exit(issue.id, exit_reason, error_msg)
+
+    async def _run_acp_worker(
+        self, issue: Issue, attempt: int | None, profile: AgentProfile,
+    ) -> None:
+        """Worker that drives the bundled ``claude`` CLI via the Claude
+        Agent SDK so per-token costs bill against the operator's
+        Pro/Max subscription instead of the API meter.
+
+        Mirrors :meth:`_run_api_worker`'s structure: select focus,
+        resolve the (informational) provider+model, set up the worktree,
+        render the prompt, instantiate ``AcpAgentSession``, run the
+        task, emit completion via ``_on_worker_exit``. The big shape
+        differences:
+
+        * Token usage is reported by the SDK and rolled into
+          state.agent_totals at end-of-task, but ``estimated_cost`` is
+          not incremented for ACP sessions because the actual billing
+          happens against the subscription, not a per-token meter.
+        * The tool catalog comes from ``oompah/acp_tools.py``, which
+          wraps the same ``_exec_*`` helpers api_agent uses. This
+          keeps cd-guard / BEADS_DIR / shell-redirect in force.
+        * Permission prompts are auto-accepted via the SDK's
+          ``permission_mode="bypassPermissions"`` (mirrors
+          ``--dangerously-skip-permissions``); the audit trail goes
+          into per-agent JSONL via on_event.
+        """
+        from oompah.acp_agent import AcpAgentSession
+        from oompah.acp_tools import build_tool_catalog
+
+        exit_reason = "normal"
+        error_msg = None
+        max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
+
+        focus = await select_focus_async(issue, provider=None)
+        logger.info(
+            "Issue %s assigned focus: %s (%s)",
+            issue.identifier, focus.name, focus.role,
+        )
+
+        # Resolve a provider/model purely for diagnostic and prompt-render
+        # purposes — the SDK doesn't need a provider URL or API key, but
+        # the prompt template embeds the model name and our state response
+        # surfaces it for dashboard display.
+        provider = self._resolve_provider(profile, focus=focus)
+        model: str | None = None
+        if provider is not None:
+            model = self._resolve_model(profile, provider, focus=focus)
+        # Fallback model name when no provider is configured at all (e.g.
+        # CLI-only deployments running ACP). Use whatever the profile
+        # specifies; ultimately the SDK / claude CLI choose.
+        model = model or profile.model or "default"
+
+        capabilities = self._resolve_capabilities(provider, model) if provider else []
+
+        try:
+            def _setup_worker():
+                if issue.project_id:
+                    wp = self.project_store.create_worktree(
+                        issue.project_id, issue.identifier,
+                    )
+                else:
+                    workspace = self.workspace_mgr.create_for_issue(issue.identifier)
+                    wp = workspace.path
+                    self.workspace_mgr.run_before_run(wp)
+
+                self._post_comment(
+                    issue.identifier, f"Focus: {focus.role}",
+                    project_id=issue.project_id,
+                )
+                self._clear_handoff_labels(issue)
+
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    comments = tracker.fetch_comments(issue.identifier)
+                except Exception:
+                    comments = []
+                try:
+                    memories = tracker.fetch_memories()
+                except Exception:
+                    memories = {}
+
+                attachments = list(getattr(issue, "attachments", None) or [])
+                if attachments and issue.identifier:
+                    self._lfs_pull_attachments(wp, issue.identifier)
+
+                rendered = render_prompt(
+                    self._prompt_template, issue, attempt,
+                    comments=comments, focus_text=focus.render(),
+                    workspace_path=wp, memories=memories,
+                    attachments=attachments,
+                    capabilities=capabilities,
+                    project_root=wp,
+                )
+                return wp, rendered, attachments
+
+            loop = asyncio.get_event_loop()
+            workspace_path, prompt, _attachment_paths = await loop.run_in_executor(
+                self._tick_pool, _setup_worker,
+            )
+
+            running_entry = self.state.running.get(issue.id)
+            if running_entry:
+                running_entry.focus_name = focus.name
+                running_entry.focus_role = focus.role
+
+            beads_dir = None
+            if issue.project_id:
+                proj = self.project_store.get(issue.project_id)
+                if proj and proj.repo_path:
+                    beads_dir = os.path.join(proj.repo_path, ".beads")
+
+            # Per-dispatch JSONL log. Reuses api_agent's location convention.
+            log_dir = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
+                os.path.expanduser("~"), ".oompah", "agent-logs",
+            )
+            os.makedirs(log_dir, exist_ok=True)
+            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            agent_log_path = os.path.join(
+                log_dir, f"{issue.identifier}__{ts}.jsonl",
+            )
+            log_fp = open(agent_log_path, "a", encoding="utf-8")
+            logger.info(
+                "ACP agent log for %s -> %s (mode=acp model=%s)",
+                issue.identifier, agent_log_path, model,
+            )
+
+            # Update running entry session.
+            if issue.id in self.state.running:
+                self.state.running[issue.id].session = LiveSession(
+                    session_id=f"acp-{model}",
+                    thread_id="acp",
+                    turn_id="0",
+                    agent_pid=None,
+                    last_event="acp_started",
+                    last_timestamp=datetime.now(timezone.utc),
+                    last_message=f"ACP session: {model}",
+                )
+
+            tool_catalog = build_tool_catalog(
+                workspace_path,
+                beads_dir=beads_dir,
+                run_command_timeout_s=60,
+            )
+
+            def _on_event(ev) -> None:
+                """Capture ACP events to JSONL + the running session
+                state. Mirrors api_agent's on_activity callback."""
+                try:
+                    log_fp.write(json.dumps({
+                        "ts": datetime.fromtimestamp(
+                            ev.timestamp, timezone.utc,
+                        ).isoformat(),
+                        "kind": ev.event,
+                        "usage": ev.usage,
+                        "payload": ev.payload,
+                    }, default=str) + "\n")
+                    log_fp.flush()
+                except Exception:
+                    pass
+                if issue.id in self.state.running:
+                    sess = self.state.running[issue.id].session
+                    if sess:
+                        sess.last_event = ev.event
+                        sess.last_timestamp = datetime.fromtimestamp(
+                            ev.timestamp, timezone.utc,
+                        )
+                        msg = (ev.payload or {}).get("text") or ev.event
+                        sess.last_message = str(msg)[:200]
+                        u = ev.usage or {}
+                        sess.input_tokens = int(u.get("input_tokens", 0) or 0)
+                        sess.output_tokens = int(u.get("output_tokens", 0) or 0)
+                        sess.total_tokens = int(u.get("total_tokens", 0) or 0)
+                    self._notify_state_only()
+
+            # The prompt is a RenderedPrompt; ACP wants a single
+            # string. Concatenate text parts.
+            prompt_text = ""
+            if hasattr(prompt, "parts"):
+                prompt_text = "\n".join(
+                    p.text for p in prompt.parts if getattr(p, "text", None)
+                )
+            else:
+                prompt_text = str(prompt)
+
+            session = AcpAgentSession(
+                workspace_path=workspace_path,
+                prompt=prompt_text,
+                model=model if model != "default" else None,
+                max_turns=max_turns,
+                env={"BEADS_DIR": beads_dir} if beads_dir else None,
+                tool_catalog=tool_catalog,
+                on_event=_on_event,
+            )
+
+            try:
+                status = await session.run_task()
+            finally:
+                try:
+                    log_fp.close()
+                except Exception:
+                    pass
+
+            # Roll per-session counters into orchestrator totals. ACP
+            # sessions DON'T add to estimated_cost — that meter is for
+            # API-billed dispatches. Token totals still accumulate for
+            # observability / reporting.
+            self.state.agent_totals.input_tokens += session.input_tokens
+            self.state.agent_totals.output_tokens += session.output_tokens
+            self.state.agent_totals.total_tokens += session.total_tokens
+
+            if issue.id in self.state.running and self.state.running[issue.id].session:
+                s = self.state.running[issue.id].session
+                s.input_tokens = session.input_tokens
+                s.output_tokens = session.output_tokens
+                s.total_tokens = session.total_tokens
+                s.turn_count = session.turn_count
+                s.last_event = f"acp_{status}"
+
+            if status == "succeeded":
+                exit_reason = "normal"
+            elif status == "stalled":
+                exit_reason = "stalled"
+                error_msg = "ACP turn timeout exceeded"
+            elif status == "interrupted":
+                exit_reason = "interrupted"
+                error_msg = session.last_error
+            elif status == "failed":
+                exit_reason = "abnormal"
+                error_msg = session.last_error or "ACP session reported failure"
+            else:  # "errored"
+                exit_reason = "abnormal"
+                error_msg = session.last_error or "ACP session errored"
+
+            if status == "succeeded":
+                try:
+                    self._reap_oversize_outputs(workspace_path, issue)
+                except Exception as exc:
+                    logger.debug(
+                        "output reap failed for %s: %s", issue.identifier, exc,
+                    )
+                try:
+                    self._record_generated_attachments(workspace_path, issue)
+                except Exception as exc:
+                    logger.warning(
+                        "metadata writeback failed for %s: %s",
+                        issue.identifier, exc,
+                    )
+
+        except Exception as exc:
+            exit_reason = "abnormal"
+            error_msg = str(exc)
+            logger.exception("ACP worker failed issue_id=%s", issue.id)
         finally:
             if not issue.project_id:
                 try:
@@ -4082,6 +4414,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "provider_id": p.provider_id or (dp.id if (dp := self.provider_store.get_default()) else None),
                     "model": p.model,
                     "model_role": p.model_role,
+                    "mode": p.mode,
                 }
                 for p in self.config.agent_profiles
             ],

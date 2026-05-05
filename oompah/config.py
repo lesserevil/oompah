@@ -207,6 +207,23 @@ def _coerce_int(value: Any, default: int) -> int:
 
 
 _BUDGET_WINDOW_VALUES = ("hour", "day", "week")
+_PROFILE_MODE_VALUES = ("auto", "api", "cli", "acp")
+
+
+def _parse_profile_mode(value: Any) -> str:
+    """Normalize an AgentProfile.mode string to one of {auto,api,cli,acp}.
+    Falls back to "auto" on anything unrecognized so a typo doesn't
+    silently change dispatch routing."""
+    if value is None:
+        return "auto"
+    s = str(value).strip().lower()
+    if s in _PROFILE_MODE_VALUES:
+        return s
+    logger.warning(
+        "Unknown agent profile mode=%r; falling back to 'auto'. Valid: %s",
+        value, ", ".join(_PROFILE_MODE_VALUES),
+    )
+    return "auto"
 
 
 def _parse_budget_window(value: Any) -> str:
@@ -339,6 +356,7 @@ class ServiceConfig:
                 issue_types=[str(t) for t in (p.get("issue_types", []) or [])],
                 min_priority=_coerce_int(p.get("min_priority"), None) if p.get("min_priority") is not None else None,
                 max_priority=_coerce_int(p.get("max_priority"), None) if p.get("max_priority") is not None else None,
+                mode=_parse_profile_mode(p.get("mode")),
             ))
 
         budget_limit = float(agent.get("budget_limit", 0) or 0)
