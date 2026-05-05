@@ -979,12 +979,15 @@ class TestDispatchSerializationByProject:
 
 class TestBudgetWindowPersistence:
     """Tests for the rolling budget window: spend persists across restart
-    inside a window, resets at rollover, and resets on window-kind change."""
+    inside a window, resets at rollover, and resets on window-kind change.
+    Boundaries are calendar-aligned (top-of-hour, local midnight, Sunday
+    00:00) — see also TestBudgetWindowCalendarBoundaries."""
 
-    def _make_orchestrator(self, tmp_path, window: str = "day"):
+    def _make_orchestrator(self, tmp_path, window: str = "day", tz: str = "UTC"):
         cfg = ServiceConfig()
         cfg.budget_limit = 10.0
         cfg.budget_window = window
+        cfg.budget_timezone = tz
         project_store = MagicMock()
         project_store.list_all.return_value = []
         return Orchestrator(
@@ -1003,22 +1006,32 @@ class TestBudgetWindowPersistence:
         orch = self._make_orchestrator(tmp_path)
         assert orch._check_budget() is True
         assert orch.state.budget_window_start > 0
+        # Snapped to the previous calendar boundary, NOT to "now".
+        assert orch.state.budget_window_start == orch._previous_budget_boundary(
+            __import__("time").time()
+        )
 
-    def test_persisted_spend_restored_within_window(self, tmp_path):
+    def test_persisted_spend_restored_within_window(self, tmp_path, monkeypatch):
         # Seed state.json as if a prior run had already spent $4 with
-        # window_start 60s ago, in a "day" window.
+        # window_start at the top of the current hour, in an "hour" window.
+        # Use hour-window so the test is deterministic regardless of
+        # time-of-day (an hour boundary is always less than 1h ago).
         import json, time
+        fake_now = 1_700_000_000.0  # arbitrary fixed instant
+        monkeypatch.setattr(time, "time", lambda: fake_now)
+        # Top of the hour at fake_now.
+        snapped_start = fake_now - (fake_now % 3600)
         state_path = tmp_path / "state.json"
         with open(state_path, "w") as f:
             json.dump({
                 "estimated_cost": 4.0,
-                "budget_window_start": time.time() - 60,
-                "budget_window_kind": "day",
+                "budget_window_start": snapped_start,
+                "budget_window_kind": "hour",
             }, f)
-        orch = self._make_orchestrator(tmp_path)
+        orch = self._make_orchestrator(tmp_path, window="hour")
         # Spend should be carried forward.
         assert orch.state.agent_totals.estimated_cost == 4.0
-        assert orch.state.budget_window_kind == "day"
+        assert orch.state.budget_window_kind == "hour"
 
     def test_persisted_spend_dropped_when_window_kind_changed(self, tmp_path):
         # Operator switched window from week → hour. Don't carry the
@@ -1052,18 +1065,33 @@ class TestBudgetWindowPersistence:
         import time
         orch = self._make_orchestrator(tmp_path, window="hour")
         # Pretend we're 65 minutes into the hour window with $5 spent.
+        # That means we crossed at least one top-of-hour boundary, so a
+        # roll must fire.
         orch.state.agent_totals.estimated_cost = 5.0
         orch.state.budget_window_start = time.time() - 65 * 60
         orch.state.budget_window_kind = "hour"
         assert orch._check_budget() is True
-        # Rolled — spend reset, new window started.
+        # Rolled — spend reset, new window snapped to most-recent boundary.
         assert orch.state.agent_totals.estimated_cost == 0.0
-        assert (time.time() - orch.state.budget_window_start) < 5
+        # Snapped boundary is at most 1 hour in the past.
+        assert (time.time() - orch.state.budget_window_start) <= 3600
+        # And it equals the previous-boundary helper.
+        assert orch.state.budget_window_start == orch._previous_budget_boundary(
+            time.time()
+        )
 
-    def test_within_window_does_not_roll(self, tmp_path):
+    def test_within_window_does_not_roll(self, tmp_path, monkeypatch):
+        # Mock time so the test is deterministic regardless of where we
+        # are inside the wall-clock hour.
         import time
+        # Pick a fake now that is 30 min after a top-of-hour boundary so
+        # there's still 30 min left in the window.
+        fake_now = 1_700_000_000.0
+        boundary = fake_now - (fake_now % 3600)
+        fake_now = boundary + 30 * 60  # 30 min into the hour
+        monkeypatch.setattr(time, "time", lambda: fake_now)
         orch = self._make_orchestrator(tmp_path, window="hour")
-        start = time.time() - 30 * 60  # 30 min in, 30 to go
+        start = boundary  # snapped boundary, 30 min ago
         orch.state.agent_totals.estimated_cost = 5.0
         orch.state.budget_window_start = start
         orch.state.budget_window_kind = "hour"
@@ -1092,9 +1120,288 @@ class TestBudgetWindowPersistence:
         assert data["budget_window_kind"] == "day"
 
     def test_window_seconds_per_kind(self, tmp_path):
+        # Nominal window seconds — kept for display / dashboard purposes.
+        # Actual roll boundaries are calendar-aligned, not seconds-based.
         for kind, expected in (("hour", 3600), ("day", 86400), ("week", 604800)):
             orch = self._make_orchestrator(tmp_path, window=kind)
             assert orch._budget_window_seconds() == expected
+
+
+class TestBudgetWindowCalendarBoundaries:
+    """Calendar-aligned budget window rolls: top-of-hour, local midnight,
+    Sunday 00:00. Replaces the seconds-based rolling from the original
+    windowed-budget work — operators think in calendar terms, not in
+    "60 minutes after I happened to boot"."""
+
+    def _make_orchestrator(self, tmp_path, window: str, tz: str = "UTC"):
+        cfg = ServiceConfig()
+        cfg.budget_limit = 10.0
+        cfg.budget_window = window
+        cfg.budget_timezone = tz
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=cfg,
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def _ts(self, tz: str, year, month, day, hour=0, minute=0, second=0):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        return datetime(year, month, day, hour, minute, second,
+                        tzinfo=ZoneInfo(tz)).timestamp()
+
+    # ----- previous / next boundary correctness -----
+
+    def test_hour_boundary_previous_is_top_of_hour(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="hour", tz="UTC")
+        ts = self._ts("UTC", 2026, 5, 5, 14, 17, 23)
+        prev = orch._previous_budget_boundary(ts)
+        expected = self._ts("UTC", 2026, 5, 5, 14, 0, 0)
+        assert prev == expected
+
+    def test_hour_boundary_next_is_next_top_of_hour(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="hour", tz="UTC")
+        ts = self._ts("UTC", 2026, 5, 5, 14, 17, 23)
+        nxt = orch._next_budget_boundary(ts)
+        expected = self._ts("UTC", 2026, 5, 5, 15, 0, 0)
+        assert nxt == expected
+
+    def test_day_boundary_previous_is_midnight(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="day",
+                                       tz="America/Los_Angeles")
+        ts = self._ts("America/Los_Angeles", 2026, 5, 5, 14, 17, 23)
+        prev = orch._previous_budget_boundary(ts)
+        expected = self._ts("America/Los_Angeles", 2026, 5, 5, 0, 0, 0)
+        assert prev == expected
+
+    def test_day_boundary_next_is_next_midnight(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="day",
+                                       tz="America/Los_Angeles")
+        ts = self._ts("America/Los_Angeles", 2026, 5, 5, 14, 17, 23)
+        nxt = orch._next_budget_boundary(ts)
+        expected = self._ts("America/Los_Angeles", 2026, 5, 6, 0, 0, 0)
+        assert nxt == expected
+
+    def test_week_boundary_previous_is_sunday_midnight(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="week", tz="UTC")
+        # 2026-05-05 is a Tuesday. Most recent Sunday is 2026-05-03.
+        ts = self._ts("UTC", 2026, 5, 5, 14, 17, 23)
+        prev = orch._previous_budget_boundary(ts)
+        expected = self._ts("UTC", 2026, 5, 3, 0, 0, 0)
+        assert prev == expected
+
+    def test_week_boundary_when_today_is_sunday(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="week", tz="UTC")
+        # 2026-05-03 IS a Sunday — previous boundary is 2026-05-03 00:00,
+        # not 2026-04-26.
+        ts = self._ts("UTC", 2026, 5, 3, 14, 0, 0)
+        prev = orch._previous_budget_boundary(ts)
+        expected = self._ts("UTC", 2026, 5, 3, 0, 0, 0)
+        assert prev == expected
+
+    def test_week_boundary_when_today_is_saturday(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="week", tz="UTC")
+        # 2026-05-02 is a Saturday — previous boundary is 2026-04-26
+        # (the previous Sunday).
+        ts = self._ts("UTC", 2026, 5, 2, 23, 59, 0)
+        prev = orch._previous_budget_boundary(ts)
+        expected = self._ts("UTC", 2026, 4, 26, 0, 0, 0)
+        assert prev == expected
+        # Next boundary is the upcoming Sunday 2026-05-03 00:00.
+        nxt = orch._next_budget_boundary(ts)
+        assert nxt == self._ts("UTC", 2026, 5, 3, 0, 0, 0)
+
+    # ----- roll behaviour at exact boundaries -----
+
+    def test_hour_does_not_roll_just_before_boundary(self, tmp_path, monkeypatch):
+        import time
+        orch = self._make_orchestrator(tmp_path, window="hour", tz="UTC")
+        start = self._ts("UTC", 2026, 5, 5, 14, 0, 0)
+        orch.state.budget_window_start = start
+        orch.state.budget_window_kind = "hour"
+        orch.state.agent_totals.estimated_cost = 5.0
+        # 14:59:59 — same hour, must not roll.
+        monkeypatch.setattr(
+            time, "time",
+            lambda: self._ts("UTC", 2026, 5, 5, 14, 59, 59),
+        )
+        orch._roll_budget_window_if_due()
+        assert orch.state.agent_totals.estimated_cost == 5.0
+        assert orch.state.budget_window_start == start
+
+    def test_hour_rolls_at_exact_boundary(self, tmp_path, monkeypatch):
+        import time
+        orch = self._make_orchestrator(tmp_path, window="hour", tz="UTC")
+        start = self._ts("UTC", 2026, 5, 5, 14, 0, 0)
+        orch.state.budget_window_start = start
+        orch.state.budget_window_kind = "hour"
+        orch.state.agent_totals.estimated_cost = 5.0
+        # Half a second past 15:00:00 — boundary crossed.
+        monkeypatch.setattr(
+            time, "time",
+            lambda: self._ts("UTC", 2026, 5, 5, 15, 0, 0) + 0.5,
+        )
+        orch._roll_budget_window_if_due()
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert orch.state.budget_window_start == self._ts(
+            "UTC", 2026, 5, 5, 15, 0, 0,
+        )
+
+    def test_day_rolls_at_local_midnight(self, tmp_path, monkeypatch):
+        import time
+        tz = "America/Los_Angeles"
+        orch = self._make_orchestrator(tmp_path, window="day", tz=tz)
+        start = self._ts(tz, 2026, 5, 5, 14, 17, 0)
+        orch.state.budget_window_start = self._ts(tz, 2026, 5, 5, 0, 0, 0)
+        orch.state.budget_window_kind = "day"
+        orch.state.agent_totals.estimated_cost = 5.0
+        # 1 second past local midnight — must roll.
+        monkeypatch.setattr(
+            time, "time",
+            lambda: self._ts(tz, 2026, 5, 6, 0, 0, 1),
+        )
+        orch._roll_budget_window_if_due()
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert orch.state.budget_window_start == self._ts(tz, 2026, 5, 6, 0, 0, 0)
+
+    def test_week_rolls_at_sunday_midnight(self, tmp_path, monkeypatch):
+        import time
+        orch = self._make_orchestrator(tmp_path, window="week", tz="UTC")
+        # Sunday 2026-04-26 00:00 is the previous boundary.
+        orch.state.budget_window_start = self._ts("UTC", 2026, 4, 26, 0, 0, 0)
+        orch.state.budget_window_kind = "week"
+        orch.state.agent_totals.estimated_cost = 8.0
+        # Saturday 2026-05-02 23:59 — still within the window.
+        monkeypatch.setattr(
+            time, "time",
+            lambda: self._ts("UTC", 2026, 5, 2, 23, 59, 0),
+        )
+        orch._roll_budget_window_if_due()
+        assert orch.state.agent_totals.estimated_cost == 8.0
+        # Now Sunday 2026-05-03 00:00:01 — must roll.
+        monkeypatch.setattr(
+            time, "time",
+            lambda: self._ts("UTC", 2026, 5, 3, 0, 0, 1),
+        )
+        orch._roll_budget_window_if_due()
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert orch.state.budget_window_start == self._ts("UTC", 2026, 5, 3, 0, 0, 0)
+
+    # ----- DST -----
+
+    def test_day_boundary_handles_dst_spring_forward(self, tmp_path):
+        # 2026-03-08 in America/Los_Angeles: DST spring-forward at 02:00.
+        # Day boundary at 2026-03-08 00:00 PST and 2026-03-09 00:00 PDT
+        # must both be wall-clock midnights, not naive UTC arithmetic.
+        orch = self._make_orchestrator(tmp_path, window="day",
+                                       tz="America/Los_Angeles")
+        ts = self._ts("America/Los_Angeles", 2026, 3, 8, 12, 0, 0)
+        prev = orch._previous_budget_boundary(ts)
+        nxt = orch._next_budget_boundary(ts)
+        assert prev == self._ts("America/Los_Angeles", 2026, 3, 8, 0, 0, 0)
+        assert nxt == self._ts("America/Los_Angeles", 2026, 3, 9, 0, 0, 0)
+        # The window is 23 wall-clock hours (in seconds: 23*3600).
+        assert (nxt - prev) == 23 * 3600
+
+    def test_day_boundary_handles_dst_fall_back(self, tmp_path):
+        # 2026-11-01 in America/Los_Angeles: DST fall-back at 02:00 PDT
+        # → 01:00 PST. Day boundary at 2026-11-01 00:00 PDT and
+        # 2026-11-02 00:00 PST.
+        orch = self._make_orchestrator(tmp_path, window="day",
+                                       tz="America/Los_Angeles")
+        ts = self._ts("America/Los_Angeles", 2026, 11, 1, 12, 0, 0)
+        prev = orch._previous_budget_boundary(ts)
+        nxt = orch._next_budget_boundary(ts)
+        assert prev == self._ts("America/Los_Angeles", 2026, 11, 1, 0, 0, 0)
+        assert nxt == self._ts("America/Los_Angeles", 2026, 11, 2, 0, 0, 0)
+        # The window is 25 wall-clock hours.
+        assert (nxt - prev) == 25 * 3600
+
+    def test_week_boundary_spans_dst_transition(self, tmp_path):
+        # Week containing the spring-forward transition (2026-03-08).
+        # Sunday 2026-03-08 00:00 PST → Sunday 2026-03-15 00:00 PDT.
+        # That week is 7*24 - 1 = 167 hours long.
+        orch = self._make_orchestrator(tmp_path, window="week",
+                                       tz="America/Los_Angeles")
+        ts = self._ts("America/Los_Angeles", 2026, 3, 10, 12, 0, 0)
+        prev = orch._previous_budget_boundary(ts)
+        nxt = orch._next_budget_boundary(ts)
+        assert prev == self._ts("America/Los_Angeles", 2026, 3, 8, 0, 0, 0)
+        assert nxt == self._ts("America/Los_Angeles", 2026, 3, 15, 0, 0, 0)
+        assert (nxt - prev) == 167 * 3600
+
+    # ----- cold-start snapping -----
+
+    def test_cold_start_snaps_to_previous_boundary(self, tmp_path, monkeypatch):
+        # Boot at 14:17 with hour-window: persisted budget_window_start
+        # must be 14:00, not 14:17.
+        import time
+        orch = self._make_orchestrator(tmp_path, window="hour", tz="UTC")
+        fake_now = self._ts("UTC", 2026, 5, 5, 14, 17, 23)
+        monkeypatch.setattr(time, "time", lambda: fake_now)
+        orch._roll_budget_window_if_due()
+        snapped = self._ts("UTC", 2026, 5, 5, 14, 0, 0)
+        assert orch.state.budget_window_start == snapped
+        # And the persisted state file matches.
+        import json
+        with open(tmp_path / "state.json") as f:
+            data = json.load(f)
+        assert data["budget_window_start"] == snapped
+
+    def test_cold_start_day_snaps_to_local_midnight(self, tmp_path, monkeypatch):
+        import time
+        tz = "America/Los_Angeles"
+        orch = self._make_orchestrator(tmp_path, window="day", tz=tz)
+        fake_now = self._ts(tz, 2026, 5, 5, 14, 17, 23)
+        monkeypatch.setattr(time, "time", lambda: fake_now)
+        orch._roll_budget_window_if_due()
+        snapped = self._ts(tz, 2026, 5, 5, 0, 0, 0)
+        assert orch.state.budget_window_start == snapped
+
+    # ----- timezone resolution -----
+
+    def test_invalid_timezone_falls_back_to_utc_with_warning(self, tmp_path,
+                                                              caplog):
+        cfg = ServiceConfig()
+        cfg.budget_limit = 10.0
+        cfg.budget_window = "day"
+        cfg.budget_timezone = "Not/A/Real/Zone"
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        import logging
+        caplog.set_level(logging.WARNING, logger="oompah.orchestrator")
+        orch = Orchestrator(
+            config=cfg,
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        tz = orch._budget_tz()
+        assert str(tz.key) == "UTC"
+        assert any("Invalid OOMPAH_BUDGET_TIMEZONE" in r.message
+                   for r in caplog.records)
+
+    def test_explicit_iana_timezone_used(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, window="day",
+                                       tz="Europe/London")
+        assert str(orch._budget_tz().key) == "Europe/London"
+
+    # ----- snapshot integration -----
+
+    def test_window_remaining_seconds_uses_calendar_boundary(self, tmp_path,
+                                                              monkeypatch):
+        import time
+        orch = self._make_orchestrator(tmp_path, window="hour", tz="UTC")
+        # 14:30 — 30 min until 15:00 boundary.
+        monkeypatch.setattr(
+            time, "time",
+            lambda: self._ts("UTC", 2026, 5, 5, 14, 30, 0),
+        )
+        remaining = orch._budget_window_remaining_seconds()
+        assert remaining == 30 * 60
 
 
 class TestModelProviderFreeCheck:

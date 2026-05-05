@@ -108,6 +108,29 @@ class TestServiceConfig:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.budget_window == "week"
 
+    def test_budget_timezone_default_is_empty_for_auto_detect(self):
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        # Empty string means "auto-detect host's local timezone".
+        assert cfg.budget_timezone == ""
+
+    def test_budget_timezone_explicit_in_workflow(self):
+        wf = WorkflowDefinition(
+            config={"agent": {"budget_timezone": "America/Los_Angeles"}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.budget_timezone == "America/Los_Angeles"
+
+    def test_budget_timezone_env_overrides_workflow(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_BUDGET_TIMEZONE", "Europe/London")
+        wf = WorkflowDefinition(
+            config={"agent": {"budget_timezone": "America/Los_Angeles"}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.budget_timezone == "Europe/London"
+
     def test_from_workflow_custom(self):
         wf = WorkflowDefinition(
             config={

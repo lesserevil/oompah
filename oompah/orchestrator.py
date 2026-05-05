@@ -9,7 +9,8 @@ import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
 from typing import Any
 
@@ -170,11 +171,13 @@ class Orchestrator:
     def _restore_budget_state(self) -> None:
         """Restore persisted budget spend + window markers on startup.
 
-        If the persisted window has expired by the time we boot, drop the
-        spend (the new process opens a fresh window). If the persisted
-        window kind doesn't match the current config (operator changed
-        ``budget_window`` between runs), also drop. Otherwise carry spend
-        and window_start forward — that's the whole point of persistence.
+        If the persisted window has lapsed (the next calendar boundary
+        after ``persisted_start`` is at-or-before now) by the time we
+        boot, drop the spend (the new process opens a fresh window).
+        If the persisted window kind doesn't match the current config
+        (operator changed ``budget_window`` between runs), also drop.
+        Otherwise carry spend and window_start forward — that's the
+        whole point of persistence.
         """
         data = self._load_state()
         persisted_cost = float(data.get("estimated_cost", 0) or 0)
@@ -185,9 +188,9 @@ class Orchestrator:
             # Either no prior state, or operator switched the window kind.
             return
 
-        elapsed = time.time() - persisted_start
-        window_s = self._budget_window_seconds()
-        if elapsed >= window_s:
+        now = time.time()
+        next_boundary = self._next_budget_boundary(persisted_start)
+        if now >= next_boundary:
             # Old window already lapsed before we booted — start fresh.
             return
 
@@ -195,10 +198,12 @@ class Orchestrator:
         self.state.budget_window_start = persisted_start
         self.state.budget_window_kind = persisted_kind
         if persisted_cost > 0:
+            elapsed = now - persisted_start
+            remaining = next_boundary - now
             logger.info(
                 "Restored budget spend: $%.4f within %s window "
-                "(%.0fs elapsed of %ds)",
-                persisted_cost, persisted_kind, elapsed, window_s,
+                "(%.0fs elapsed, %.0fs until next boundary)",
+                persisted_cost, persisted_kind, elapsed, remaining,
             )
 
     def _save_state(self, **updates: object) -> None:
@@ -2151,30 +2156,173 @@ class Orchestrator:
         return self.state.agent_totals.estimated_cost < self.config.budget_limit
 
     def _budget_window_seconds(self) -> int:
-        """Window size in seconds for the configured budget_window."""
+        """Nominal window size in seconds for the configured budget_window.
+
+        Used for display only — the actual roll boundary is calendar-
+        aligned (top-of-hour / local midnight / Sunday 00:00) and may
+        differ on DST transition days when a "day" window is 23 or 25
+        wall-clock hours. See ``_next_budget_boundary``.
+        """
         return {
             "hour": 3600,
             "day": 86400,
             "week": 604800,
         }.get(self.config.budget_window, 86400)
 
-    def _roll_budget_window_if_due(self) -> None:
-        """If the active budget window has elapsed, reset spend to zero
-        and start a new window from now. Persists the new window start.
+    def _budget_tz(self) -> ZoneInfo:
+        """Resolve the timezone used to compute calendar boundaries.
 
-        No-op when the window hasn't elapsed yet, or when budget_limit
-        is unset (no limit, no rollover semantics).
+        Caches the result on first call. Order of precedence:
+        1. Explicit OOMPAH_BUDGET_TIMEZONE / config.budget_timezone (IANA).
+        2. Host's local timezone (from TZ env var or /etc/localtime).
+        3. UTC fallback.
+
+        Invalid IANA names log a warning and fall through to UTC.
+        """
+        cached = getattr(self, "_cached_budget_tz", None)
+        if cached is not None:
+            return cached
+        tz = self._resolve_budget_tz()
+        self._cached_budget_tz = tz
+        return tz
+
+    def _resolve_budget_tz(self) -> ZoneInfo:
+        """Compute (uncached) the configured ZoneInfo. See _budget_tz."""
+        name = (self.config.budget_timezone or "").strip()
+        if name:
+            try:
+                return ZoneInfo(name)
+            except ZoneInfoNotFoundError:
+                logger.warning(
+                    "Invalid OOMPAH_BUDGET_TIMEZONE=%r — falling back to UTC. "
+                    "Use IANA names like 'America/Los_Angeles' or 'UTC'.",
+                    name,
+                )
+                return ZoneInfo("UTC")
+        # No explicit value — auto-detect host local zone.
+        return self._detect_local_tz()
+
+    def _detect_local_tz(self) -> ZoneInfo:
+        """Best-effort detection of the host's IANA timezone.
+
+        Tries the TZ env var first (if it names a valid IANA zone), then
+        the /etc/localtime symlink (Linux/macOS), then falls back to UTC.
+        We avoid the ``tzlocal`` third-party package — operators who care
+        about a specific zone can set OOMPAH_BUDGET_TIMEZONE explicitly.
+        """
+        tz_env = (os.environ.get("TZ") or "").strip()
+        if tz_env:
+            try:
+                return ZoneInfo(tz_env)
+            except ZoneInfoNotFoundError:
+                pass
+        try:
+            link = os.path.realpath("/etc/localtime")
+            marker = "/zoneinfo/"
+            if marker in link:
+                iana = link.split(marker, 1)[1]
+                try:
+                    return ZoneInfo(iana)
+                except ZoneInfoNotFoundError:
+                    pass
+        except OSError:
+            pass
+        return ZoneInfo("UTC")
+
+    def _previous_budget_boundary(self, ts: float) -> float:
+        """Return the most-recent calendar boundary at-or-before ``ts``.
+
+        - hour: :00:00 of the current hour in the budget timezone.
+        - day:  00:00:00 of the current calendar date.
+        - week: 00:00:00 Sunday of the current week (Sunday-start).
+
+        Result is a Unix timestamp. Day/week boundaries are computed via
+        ``datetime.combine(..., tzinfo=tz)`` so DST transitions snap to
+        the wall-clock midnight in the configured zone.
+        """
+        tz = self._budget_tz()
+        now = datetime.fromtimestamp(ts, tz=tz)
+        kind = self.config.budget_window
+        if kind == "hour":
+            boundary = now.replace(minute=0, second=0, microsecond=0)
+        elif kind == "week":
+            # weekday() => Mon=0..Sun=6. We want Sunday 00:00 as the start.
+            # days_since_sunday: Sun=0, Mon=1, ..., Sat=6.
+            days_since_sunday = (now.weekday() + 1) % 7
+            sunday_date = (now - timedelta(days=days_since_sunday)).date()
+            boundary = datetime.combine(
+                sunday_date, datetime.min.time(), tzinfo=tz,
+            )
+        else:  # "day" (and any unknown value via the parser fallback)
+            boundary = datetime.combine(
+                now.date(), datetime.min.time(), tzinfo=tz,
+            )
+        return boundary.timestamp()
+
+    def _next_budget_boundary(self, ts: float) -> float:
+        """Return the first calendar boundary STRICTLY AFTER ``ts``."""
+        tz = self._budget_tz()
+        prev_ts = self._previous_budget_boundary(ts)
+        prev_dt = datetime.fromtimestamp(prev_ts, tz=tz)
+        kind = self.config.budget_window
+        if kind == "hour":
+            # +1 hour in UTC seconds. Hour boundaries on DST days are a
+            # known edge: the wall-clock "next :00" can be 0 or 2 hours
+            # away, but operators choosing hour windows tend to reset
+            # frequently enough that this is acceptable.
+            next_dt = prev_dt + timedelta(hours=1)
+        elif kind == "week":
+            next_date = prev_dt.date() + timedelta(days=7)
+            next_dt = datetime.combine(
+                next_date, datetime.min.time(), tzinfo=tz,
+            )
+        else:  # "day"
+            next_date = prev_dt.date() + timedelta(days=1)
+            next_dt = datetime.combine(
+                next_date, datetime.min.time(), tzinfo=tz,
+            )
+        next_ts = next_dt.timestamp()
+        # If `ts` happened to land exactly on a boundary, prev_ts == ts;
+        # next_ts is then strictly greater, which is what we want.
+        if next_ts <= ts:
+            # Defensive: shouldn't happen with sane inputs, but keep us
+            # monotonic so the roll loop terminates.
+            next_ts = ts + 1.0
+        return next_ts
+
+    def _budget_window_remaining_seconds(self, now_ts: float | None = None) -> float:
+        """Seconds from ``now`` (default: current time) until the next
+        calendar boundary. Used by the dashboard countdown."""
+        now = time.time() if now_ts is None else now_ts
+        next_boundary = self._next_budget_boundary(now)
+        return max(0.0, next_boundary - now)
+
+    def _roll_budget_window_if_due(self) -> None:
+        """If the active budget window has crossed its calendar boundary,
+        reset spend to zero and snap to the most-recent boundary. Persists
+        the new window start.
+
+        On a fresh boot with no persisted window, snap ``budget_window_start``
+        to the *previous* boundary — so spend already accrued in the
+        current calendar period is correctly attributed instead of starting
+        a new "hour" at 14:17:23.
+
+        No-op when ``budget_limit`` is unset (no limit, no rollover
+        semantics).
         """
         if self.config.budget_limit <= 0:
             return
-        window_s = self._budget_window_seconds()
         now = time.time()
         start = self.state.budget_window_start
-        # First call after a fresh boot with no persisted window — start now.
+        # First call after a fresh boot with no persisted window — snap
+        # to the most-recent boundary so the window is calendar-aligned
+        # from the very first dispatch.
         if start <= 0:
-            self.state.budget_window_start = now
+            snapped = self._previous_budget_boundary(now)
+            self.state.budget_window_start = snapped
+            self.state.budget_window_kind = self.config.budget_window
             self._save_state(
-                budget_window_start=now,
+                budget_window_start=snapped,
                 budget_window_kind=self.config.budget_window,
                 estimated_cost=self.state.agent_totals.estimated_cost,
             )
@@ -2184,8 +2332,9 @@ class Orchestrator:
         # as a fresh window — otherwise an in-flight day-window would carry
         # forward as a stale hour-window.
         if self.state.budget_window_kind != self.config.budget_window:
+            snapped = self._previous_budget_boundary(now)
             self.state.agent_totals.estimated_cost = 0.0
-            self.state.budget_window_start = now
+            self.state.budget_window_start = snapped
             self.state.budget_window_kind = self.config.budget_window
             self.state.free_tier_dispatches_this_window = 0
             logger.info(
@@ -2193,21 +2342,24 @@ class Orchestrator:
                 self.config.budget_window,
             )
             self._save_state(
-                budget_window_start=now,
+                budget_window_start=snapped,
                 budget_window_kind=self.config.budget_window,
                 estimated_cost=0.0,
             )
             return
-        if (now - start) >= window_s:
+        if now >= self._next_budget_boundary(start):
+            # Snap to the most-recent boundary (handles long sleeps where
+            # multiple windows lapsed without an intervening dispatch).
+            snapped = self._previous_budget_boundary(now)
             self.state.agent_totals.estimated_cost = 0.0
-            self.state.budget_window_start = now
+            self.state.budget_window_start = snapped
             self.state.free_tier_dispatches_this_window = 0
             logger.info(
-                "Budget window rolled (%s elapsed) — spent reset to $0",
+                "Budget window rolled (%s boundary crossed) — spent reset to $0",
                 self.config.budget_window,
             )
             self._save_state(
-                budget_window_start=now,
+                budget_window_start=snapped,
                 budget_window_kind=self.config.budget_window,
                 estimated_cost=0.0,
             )
@@ -4520,15 +4672,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "window": self.config.budget_window,
                 "window_seconds": self._budget_window_seconds(),
                 "window_start": self.state.budget_window_start,
-                "window_remaining_seconds": (
-                    max(
-                        0.0,
-                        self._budget_window_seconds()
-                        - (time.time() - self.state.budget_window_start),
-                    )
-                    if self.state.budget_window_start > 0
-                    else self._budget_window_seconds()
-                ),
+                # Seconds from "now" until the NEXT calendar boundary
+                # (top-of-hour / local midnight / Sunday 00:00). This is
+                # what dashboards should countdown against — not
+                # window_start + nominal_seconds, which can drift on DST
+                # transition days.
+                "window_remaining_seconds": self._budget_window_remaining_seconds(),
+                "window_timezone": str(self._budget_tz().key),
                 # True when the budget is exceeded but free-tier dispatches
                 # are still happening in the current window. Lets the
                 # dashboard show "exceeded but still working" instead of
