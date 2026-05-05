@@ -616,6 +616,7 @@ from oompah.tracker import (
     BeadsTracker as _BT,
     TrackerError as _TE,
     TrackerNotConfiguredError as _TNCE,
+    TrackerTimeoutError as _TTE,
 )
 
 
@@ -734,3 +735,119 @@ class TestMissingDbLogging:
         assert error_records == []
         warning_records = [r for r in caplog.records if r.levelname == "WARNING"]
         assert warning_records, "expected at least one WARNING on missing-DB"
+
+
+# ---------------------------------------------------------------------------
+# Timeout handling: TrackerTimeoutError + WARNING-only logs.
+# Covers oompah-zlz_2-sm5 (and 7 dupes): a slow ``bd list --json`` was
+# producing an ERROR log on every tick, which the error_watcher escalated
+# into fresh duplicate bug beads with title:
+#   [backend:tracker] Failed to fetch candidates: bd command timed out: bd list --json
+# ---------------------------------------------------------------------------
+
+
+class TestTimeoutHandling:
+    def test_run_bd_raises_timeout_subclass(self, monkeypatch):
+        def fake_run(*args, **kwargs):
+            raise _subprocess.TimeoutExpired(cmd=kwargs.get("cmd", ["bd"]), timeout=1)
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        with _pytest.raises(_TTE) as exc_info:
+            t._run_bd(["list", "--json"])
+        # Must also be a TrackerError so existing ``except TrackerError``
+        # callers still catch it.
+        assert isinstance(exc_info.value, _TE)
+        assert "bd list --json" in str(exc_info.value)
+
+    def test_default_timeout_is_60_seconds(self, monkeypatch):
+        captured = {}
+
+        def fake_run(*args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return _CompletedProcess(0, "[]", "")
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        t._run_bd(["list", "--json"])
+        # Bumped from 30s to 60s to give the heavy fallback path room.
+        assert captured["timeout"] == 60
+
+    def test_explicit_timeout_override(self, monkeypatch):
+        captured = {}
+
+        def fake_run(*args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return _CompletedProcess(0, "[]", "")
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        t._run_bd(["list", "--json"], timeout=5)
+        assert captured["timeout"] == 5
+
+
+class TestFetchCandidatesTimeoutLogging:
+    """The error_watcher only fires on ERROR-level records. Timeouts are
+    transient/environmental, so they MUST be logged at WARNING in
+    fetch_candidate_issues' fallback path — not ERROR — to avoid the
+    duplicate-bug-bead flood.
+    """
+
+    def test_timeout_in_fallback_logs_warning_not_error(
+        self, monkeypatch, caplog,
+    ):
+        def fake_run(*args, **kwargs):
+            # Both the status-filtered call and the unfiltered fallback
+            # time out — same root cause (busy DB).
+            raise _subprocess.TimeoutExpired(cmd=["bd"], timeout=1)
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        import logging as _logging
+        t = _BT(active_states=["open"], terminal_states=["closed"], cwd="/tmp/x")
+        with caplog.at_level(_logging.DEBUG, logger="oompah.tracker"):
+            with _pytest.raises(_TTE):
+                t.fetch_candidate_issues()
+        error_records = [
+            r for r in caplog.records
+            if r.levelname == "ERROR" and "Failed to fetch candidates" in r.getMessage()
+        ]
+        assert error_records == [], (
+            "timeouts must NOT log at ERROR (would auto-file a bug bead "
+            "every poll tick via error_watcher)"
+        )
+        warning_records = [
+            r for r in caplog.records
+            if r.levelname == "WARNING"
+            and "Failed to fetch candidates" in r.getMessage()
+        ]
+        assert warning_records, (
+            "expected exactly one WARNING describing the timeout fallback"
+        )
+
+    def test_non_timeout_failure_in_fallback_still_logs_error(
+        self, monkeypatch, caplog,
+    ):
+        # A *non*-timeout, non-missing-DB error in the fallback path is a
+        # real bug we want to capture — keep ERROR there.
+        responses = [
+            # Status-filtered call: generic failure.
+            _CompletedProcess(1, "", "Error: something else went wrong"),
+            # Fallback unfiltered call: same generic failure.
+            _CompletedProcess(1, "", "Error: something else went wrong"),
+        ]
+
+        def fake_run(*args, **kwargs):
+            return responses.pop(0)
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        import logging as _logging
+        t = _BT(active_states=["open"], terminal_states=["closed"], cwd="/tmp/x")
+        with caplog.at_level(_logging.DEBUG, logger="oompah.tracker"):
+            with _pytest.raises(_TE):
+                t.fetch_candidate_issues()
+        error_records = [
+            r for r in caplog.records
+            if r.levelname == "ERROR" and "Failed to fetch candidates" in r.getMessage()
+        ]
+        assert error_records, (
+            "non-timeout, non-missing-DB failures should still log at ERROR"
+        )
