@@ -61,6 +61,7 @@ def _make_project(project_id: str = "proj-1"):
     p.repo_url = "https://github.com/org/repo"
     p.repo_path = "/tmp/repo"
     p.name = "test-project"
+    p.paused = False  # default: not paused
     return p
 
 

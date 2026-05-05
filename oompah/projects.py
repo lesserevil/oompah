@@ -297,6 +297,7 @@ class ProjectStore:
         "name", "repo_url", "branch", "git_user_name", "git_user_email",
         "yolo", "log_path", "webhook_secret", "access_token",
         "last_webhook_received_at", "max_in_flight_prs", "merge_queue_enabled",
+        "paused",
     })
 
     def update(self, project_id: str, **fields) -> Project | None:

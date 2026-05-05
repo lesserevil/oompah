@@ -141,6 +141,12 @@ class Project:
     # instead of directly merging the PR.  Default False preserves today's
     # direct-merge behaviour.
     merge_queue_enabled: bool = False
+    # Per-project pause flag. When True, the orchestrator's _should_dispatch
+    # rejects every issue belonging to this project with reason
+    # "project_paused" — same idiom as the global pause but scoped to one
+    # repo. Composes with the global pause: a request is dispatchable only
+    # if neither the global nor the project's pause is set.
+    paused: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -153,6 +159,7 @@ class Project:
             "lfs_available": self.lfs_available,
             "max_in_flight_prs": self.max_in_flight_prs,
             "merge_queue_enabled": self.merge_queue_enabled,
+            "paused": self.paused,
         }
         if self.git_user_name:
             d["git_user_name"] = self.git_user_name
@@ -215,6 +222,7 @@ class Project:
             last_webhook_received_at=last_webhook_received_at,
             max_in_flight_prs=max_in_flight_prs,
             merge_queue_enabled=bool(d.get("merge_queue_enabled", False)),
+            paused=bool(d.get("paused", False)),
         )
 
 
