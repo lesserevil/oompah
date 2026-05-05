@@ -33,6 +33,7 @@ def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.co
     p.id = project_id
     p.repo_url = repo_url
     p.name = "test-project"
+    p.merge_queue_enabled = False  # default: direct-merge mode
     return p
 
 

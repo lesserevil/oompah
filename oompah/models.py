@@ -137,6 +137,10 @@ class Project:
     # single-in-flight behavior. Raise per-project once GitHub Merge Queue
     # (Step 5) is enabled and verified for that repo.
     max_in_flight_prs: int = 1
+    # When True, YOLO auto-merge calls enable_auto_merge (GitHub merge queue)
+    # instead of directly merging the PR.  Default False preserves today's
+    # direct-merge behaviour.
+    merge_queue_enabled: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -148,6 +152,7 @@ class Project:
             "yolo": self.yolo,
             "lfs_available": self.lfs_available,
             "max_in_flight_prs": self.max_in_flight_prs,
+            "merge_queue_enabled": self.merge_queue_enabled,
         }
         if self.git_user_name:
             d["git_user_name"] = self.git_user_name
@@ -209,6 +214,7 @@ class Project:
             lfs_available=bool(d.get("lfs_available", False)),
             last_webhook_received_at=last_webhook_received_at,
             max_in_flight_prs=max_in_flight_prs,
+            merge_queue_enabled=bool(d.get("merge_queue_enabled", False)),
         )
 
 

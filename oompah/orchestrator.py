@@ -1590,18 +1590,30 @@ class Orchestrator:
                     # Serialization: only one action per project per tick.
                     break
 
-                # Merge if CI passed or if there's no CI pipeline (empty status)
+                # Merge (or enqueue) if CI passed or if there's no CI pipeline (empty status)
                 ci_ok = review.ci_status in ("passed", "", None)
                 if ci_ok and not review.needs_rebase:
-                    logger.info("YOLO: auto-merging %s MR #%s (ci=%s)",
-                                project.name, review_id, review.ci_status)
-                    success, msg = provider.merge_review(slug, review_id)
-                    if success:
-                        logger.info("YOLO: merged %s MR #%s", project.name, review_id)
+                    merge_queue = getattr(project, "merge_queue_enabled", False)
+                    if merge_queue:
+                        logger.info("YOLO: enqueued for merge %s MR #%s (ci=%s)",
+                                    project.name, review_id, review.ci_status)
+                        success, msg = provider.enable_auto_merge(slug, review_id)
+                        if success:
+                            logger.info("YOLO: enqueued %s MR #%s", project.name, review_id)
+                        else:
+                            logger.warning("YOLO: enqueue failed for %s MR #%s: %s — dispatching conflict agent",
+                                           project.name, review_id, msg)
+                            self._yolo_notify_conflict(project, provider, slug, review_id)
                     else:
-                        logger.warning("YOLO: merge failed for %s MR #%s: %s — dispatching conflict agent",
-                                       project.name, review_id, msg)
-                        self._yolo_notify_conflict(project, provider, slug, review_id)
+                        logger.info("YOLO: auto-merging %s MR #%s (ci=%s)",
+                                    project.name, review_id, review.ci_status)
+                        success, msg = provider.merge_review(slug, review_id)
+                        if success:
+                            logger.info("YOLO: merged %s MR #%s", project.name, review_id)
+                        else:
+                            logger.warning("YOLO: merge failed for %s MR #%s: %s — dispatching conflict agent",
+                                           project.name, review_id, msg)
+                            self._yolo_notify_conflict(project, provider, slug, review_id)
                     # Serialization: only one action per project per tick.
                     break
 

@@ -1087,6 +1087,8 @@ async def api_update_project(project_id: str, request: Request):
                     status_code=400,
                 )
             fields["max_in_flight_prs"] = val
+        if "merge_queue_enabled" in body:
+            fields["merge_queue_enabled"] = bool(body["merge_queue_enabled"])
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
@@ -1945,14 +1947,28 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
             daemon=True,
         ).start()
 
+    # When GitHub's merge queue successfully dequeues a PR (merge_group
+    # destroyed + merged=True), label the corresponding bead as merged and
+    # trigger a source sync.  This is the queue-mode equivalent of the
+    # direct-merge path that fires on PR closed+merged webhooks.
+    if event.event_type == "merge_group" and event.merged and project:
+        threading.Thread(
+            target=_label_bead_merged_from_merge_group,
+            args=(orch, event, project),
+            name=f"merge-group-label-{project.name}",
+            daemon=True,
+        ).start()
+
 
 def _webhook_advanced_tracked_branch(event, project) -> bool:
     """True when the webhook indicates ``project.branch`` advanced on origin.
 
-    Two cases:
+    Three cases:
       * ``push`` events on the tracked branch (target_branch == project.branch).
       * ``pull_request`` events with ``merged=True`` whose base branch is
         the tracked branch.
+      * ``merge_group`` events with ``merged=True`` (queue dequeued
+        successfully), whose target_branch is the project's tracked branch.
     """
     branch = (project.branch or "").strip()
     if not branch:
@@ -1961,7 +1977,70 @@ def _webhook_advanced_tracked_branch(event, project) -> bool:
         return event.target_branch == branch
     if event.event_type == "pull_request" and event.merged:
         return event.target_branch == branch
+    if event.event_type == "merge_group" and event.merged:
+        return event.target_branch == branch
     return False
+
+
+def _label_bead_merged_from_merge_group(orch, event, project) -> None:
+    """Label the bead as merged when a merge_group destroyed event signals success.
+
+    The merge_group ``head_ref`` is ``gh-readonly-queue/<base>/<pr-identifier>``
+    where ``<pr-identifier>`` encodes the source branch name.  We parse out
+    the branch name and match it to a closed bead so it gets the ``merged``
+    label — the same outcome as today's direct-merge path.
+
+    This runs in a background thread (called from _handle_webhook_event).
+    """
+    if not project:
+        return
+    head_ref = (event.source_branch or "").strip()
+    if not head_ref:
+        return
+
+    # The head_ref looks like:
+    #   gh-readonly-queue/main/pr-123-<branch-name>
+    # We extract everything after the third "/" segment as the branch name
+    # prefix used to identify the bead.
+    parts = head_ref.split("/", 3)
+    if len(parts) < 4:
+        # Fallback: use the whole head_ref, which likely won't match but
+        # log a debug so operators can diagnose.
+        branch_name = head_ref
+        logger.debug(
+            "merge_group head_ref %r does not match expected pattern "
+            "gh-readonly-queue/<base>/<branch>; trying as-is",
+            head_ref,
+        )
+    else:
+        # parts[3] is something like "pr-42-oompah-zlz_2-xyz"
+        # The bead identifier follows "pr-<N>-" prefix.
+        tail = parts[3]
+        dash_parts = tail.split("-", 2)
+        if len(dash_parts) >= 3:
+            branch_name = dash_parts[2]
+        else:
+            branch_name = tail
+
+    try:
+        tracker = orch._tracker_for_project(project.id)
+        issue = tracker.fetch_issue_detail(branch_name)
+        if issue is None:
+            logger.debug(
+                "merge_group: no bead found for branch %r (head_ref=%r)",
+                branch_name, head_ref,
+            )
+            return
+        if "merged" not in issue.labels:
+            tracker.add_label(issue.identifier, "merged")
+            logger.info(
+                "merge_group: labelled %s as merged (head_ref=%r)",
+                issue.identifier, head_ref,
+            )
+    except Exception as exc:
+        logger.warning(
+            "merge_group: failed to label bead for head_ref %r: %s", head_ref, exc,
+        )
 
 
 def _sync_project_after_webhook(
