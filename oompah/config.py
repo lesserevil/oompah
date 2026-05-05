@@ -206,6 +206,25 @@ def _coerce_int(value: Any, default: int) -> int:
         return default
 
 
+_BUDGET_WINDOW_VALUES = ("hour", "day", "week")
+
+
+def _parse_budget_window(value: Any) -> str:
+    """Normalize a budget-window string to one of {hour, day, week}.
+    Falls back to "day" on anything unrecognized so a typo in WORKFLOW.md
+    doesn't silently disable the windowing."""
+    if value is None:
+        return "day"
+    s = str(value).strip().lower()
+    if s in _BUDGET_WINDOW_VALUES:
+        return s
+    logger.warning(
+        "Unknown budget_window=%r; falling back to 'day'. Valid: %s",
+        value, ", ".join(_BUDGET_WINDOW_VALUES),
+    )
+    return "day"
+
+
 def _parse_state_list(value: Any, default: list[str]) -> list[str]:
     """Parse a state list from string (comma-separated) or list."""
     if value is None:
@@ -250,6 +269,11 @@ class ServiceConfig:
     server_port: int | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     budget_limit: float = 0.0
+    # Rolling window over which budget_limit is enforced. Once the window
+    # elapses (counted from budget_window_start in service_state.json),
+    # estimated_cost is reset to zero. Default is "day" so a $50/day cap
+    # actually means $50/day, not $50/process-lifetime.
+    budget_window: str = "day"  # one of: "hour", "day", "week"
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -367,6 +391,9 @@ class ServiceConfig:
             server_port=server_port,
             agent_profiles=profiles,
             budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),
+            budget_window=_parse_budget_window(
+                _env_str("OOMPAH_BUDGET_WINDOW", agent.get("budget_window"), "day"),
+            ),
         )
 
 

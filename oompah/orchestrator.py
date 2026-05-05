@@ -116,6 +116,7 @@ class Orchestrator:
         # Bug fix: load persisted paused state from disk so it survives
         # service restarts. Previously _paused was always initialized to False.
         self._paused = self._load_paused_state()
+        self._restore_budget_state()
         self._restart_requested = False
         self._alerts: list[dict[str, str]] = []  # {"level": "warning", "message": "..."}
         self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
@@ -165,6 +166,40 @@ class Orchestrator:
     def _load_paused_state(self) -> bool:
         """Load persisted paused state from disk. Returns False if not found."""
         return bool(self._load_state().get("paused", False))
+
+    def _restore_budget_state(self) -> None:
+        """Restore persisted budget spend + window markers on startup.
+
+        If the persisted window has expired by the time we boot, drop the
+        spend (the new process opens a fresh window). If the persisted
+        window kind doesn't match the current config (operator changed
+        ``budget_window`` between runs), also drop. Otherwise carry spend
+        and window_start forward — that's the whole point of persistence.
+        """
+        data = self._load_state()
+        persisted_cost = float(data.get("estimated_cost", 0) or 0)
+        persisted_start = float(data.get("budget_window_start", 0) or 0)
+        persisted_kind = str(data.get("budget_window_kind", "") or "")
+
+        if persisted_start <= 0 or persisted_kind != self.config.budget_window:
+            # Either no prior state, or operator switched the window kind.
+            return
+
+        elapsed = time.time() - persisted_start
+        window_s = self._budget_window_seconds()
+        if elapsed >= window_s:
+            # Old window already lapsed before we booted — start fresh.
+            return
+
+        self.state.agent_totals.estimated_cost = persisted_cost
+        self.state.budget_window_start = persisted_start
+        self.state.budget_window_kind = persisted_kind
+        if persisted_cost > 0:
+            logger.info(
+                "Restored budget spend: $%.4f within %s window "
+                "(%.0fs elapsed of %ds)",
+                persisted_cost, persisted_kind, elapsed, window_s,
+            )
 
     def _save_state(self, **updates: object) -> None:
         """Persist service state to disk, merging with existing state."""
@@ -1904,10 +1939,86 @@ class Orchestrator:
                (output_tokens / 1000.0) * cost_out
 
     def _check_budget(self) -> bool:
-        """Return True if within budget, False if budget exceeded."""
+        """Return True if within budget, False if budget exceeded.
+
+        Rolls the budget window first: if more than ``budget_window``
+        has elapsed since ``budget_window_start``, ``estimated_cost`` is
+        reset to zero and the window restarts. Persisted across restarts
+        via ``service_state.json``.
+        """
         if self.config.budget_limit <= 0:
             return True  # no budget limit set
+        self._roll_budget_window_if_due()
         return self.state.agent_totals.estimated_cost < self.config.budget_limit
+
+    def _budget_window_seconds(self) -> int:
+        """Window size in seconds for the configured budget_window."""
+        return {
+            "hour": 3600,
+            "day": 86400,
+            "week": 604800,
+        }.get(self.config.budget_window, 86400)
+
+    def _roll_budget_window_if_due(self) -> None:
+        """If the active budget window has elapsed, reset spend to zero
+        and start a new window from now. Persists the new window start.
+
+        No-op when the window hasn't elapsed yet, or when budget_limit
+        is unset (no limit, no rollover semantics).
+        """
+        if self.config.budget_limit <= 0:
+            return
+        window_s = self._budget_window_seconds()
+        now = time.time()
+        start = self.state.budget_window_start
+        # First call after a fresh boot with no persisted window — start now.
+        if start <= 0:
+            self.state.budget_window_start = now
+            self._save_state(
+                budget_window_start=now,
+                budget_window_kind=self.config.budget_window,
+                estimated_cost=self.state.agent_totals.estimated_cost,
+            )
+            return
+        # If the configured window kind changed since the last save (e.g.
+        # operator switched from "day" to "hour" via env var), treat that
+        # as a fresh window — otherwise an in-flight day-window would carry
+        # forward as a stale hour-window.
+        if self.state.budget_window_kind != self.config.budget_window:
+            self.state.agent_totals.estimated_cost = 0.0
+            self.state.budget_window_start = now
+            self.state.budget_window_kind = self.config.budget_window
+            logger.info(
+                "Budget window kind changed to %r — resetting spent to $0",
+                self.config.budget_window,
+            )
+            self._save_state(
+                budget_window_start=now,
+                budget_window_kind=self.config.budget_window,
+                estimated_cost=0.0,
+            )
+            return
+        if (now - start) >= window_s:
+            self.state.agent_totals.estimated_cost = 0.0
+            self.state.budget_window_start = now
+            logger.info(
+                "Budget window rolled (%s elapsed) — spent reset to $0",
+                self.config.budget_window,
+            )
+            self._save_state(
+                budget_window_start=now,
+                budget_window_kind=self.config.budget_window,
+                estimated_cost=0.0,
+            )
+
+    def _persist_budget_state(self) -> None:
+        """Write the current spend + window markers to service_state.json
+        so a restart preserves spend within the active window."""
+        self._save_state(
+            estimated_cost=self.state.agent_totals.estimated_cost,
+            budget_window_start=self.state.budget_window_start,
+            budget_window_kind=self.config.budget_window,
+        )
 
     def _post_comment(self, identifier: str, text: str, author: str = "oompah",
                       project_id: str | None = None) -> None:
@@ -2562,6 +2673,10 @@ class Orchestrator:
             profile = self._get_profile_by_name(entry.agent_profile_name)
             if profile:
                 cost = self._estimate_cost(profile, entry.session.input_tokens, entry.session.output_tokens)
+                # Roll the window first so the increment lands in the
+                # right bucket — otherwise a worker that finishes 1ms
+                # after the day rollover would be charged to yesterday.
+                self._roll_budget_window_if_due()
                 self.state.agent_totals.estimated_cost += cost
                 self.state.cost_by_profile[entry.agent_profile_name] = \
                     self.state.cost_by_profile.get(entry.agent_profile_name, 0.0) + cost
@@ -2569,6 +2684,10 @@ class Orchestrator:
                 # Reset circuit breaker if we're back under budget
                 if self.state.budget_exceeded and self._check_budget():
                     self.state.budget_exceeded = False
+
+                # Persist updated spend so a restart inside the active
+                # window doesn't reset the counter to $0.
+                self._persist_budget_state()
 
         tokens_str = ""
         if entry.session and entry.session.total_tokens > 0:
@@ -3495,6 +3614,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "limit": self.config.budget_limit,
                 "spent": totals.estimated_cost,
                 "exceeded": self.state.budget_exceeded,
+                "window": self.config.budget_window,
+                "window_seconds": self._budget_window_seconds(),
+                "window_start": self.state.budget_window_start,
+                "window_remaining_seconds": (
+                    max(
+                        0.0,
+                        self._budget_window_seconds()
+                        - (time.time() - self.state.budget_window_start),
+                    )
+                    if self.state.budget_window_start > 0
+                    else self._budget_window_seconds()
+                ),
             },
             "agent_profiles": [
                 {

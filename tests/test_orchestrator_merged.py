@@ -970,3 +970,123 @@ class TestDispatchSerializationByProject:
             "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
         }
         assert orch._should_dispatch(issue) is True
+
+
+class TestBudgetWindowPersistence:
+    """Tests for the rolling budget window: spend persists across restart
+    inside a window, resets at rollover, and resets on window-kind change."""
+
+    def _make_orchestrator(self, tmp_path, window: str = "day"):
+        cfg = ServiceConfig()
+        cfg.budget_limit = 10.0
+        cfg.budget_window = window
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=cfg,
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_initial_budget_state_is_zero(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert orch.state.budget_window_start == 0.0
+
+    def test_first_check_initializes_window_start(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        assert orch._check_budget() is True
+        assert orch.state.budget_window_start > 0
+
+    def test_persisted_spend_restored_within_window(self, tmp_path):
+        # Seed state.json as if a prior run had already spent $4 with
+        # window_start 60s ago, in a "day" window.
+        import json, time
+        state_path = tmp_path / "state.json"
+        with open(state_path, "w") as f:
+            json.dump({
+                "estimated_cost": 4.0,
+                "budget_window_start": time.time() - 60,
+                "budget_window_kind": "day",
+            }, f)
+        orch = self._make_orchestrator(tmp_path)
+        # Spend should be carried forward.
+        assert orch.state.agent_totals.estimated_cost == 4.0
+        assert orch.state.budget_window_kind == "day"
+
+    def test_persisted_spend_dropped_when_window_kind_changed(self, tmp_path):
+        # Operator switched window from week → hour. Don't carry the
+        # old week's spend into the new hour window.
+        import json, time
+        state_path = tmp_path / "state.json"
+        with open(state_path, "w") as f:
+            json.dump({
+                "estimated_cost": 8.0,
+                "budget_window_start": time.time() - 60,
+                "budget_window_kind": "week",
+            }, f)
+        orch = self._make_orchestrator(tmp_path, window="hour")
+        assert orch.state.agent_totals.estimated_cost == 0.0
+
+    def test_persisted_spend_dropped_when_window_already_lapsed(self, tmp_path):
+        # Persisted window started 2 days ago in a "day" window — should
+        # NOT carry forward.
+        import json, time
+        state_path = tmp_path / "state.json"
+        with open(state_path, "w") as f:
+            json.dump({
+                "estimated_cost": 8.0,
+                "budget_window_start": time.time() - 2 * 86400,
+                "budget_window_kind": "day",
+            }, f)
+        orch = self._make_orchestrator(tmp_path, window="day")
+        assert orch.state.agent_totals.estimated_cost == 0.0
+
+    def test_window_rolls_over_resets_spend(self, tmp_path):
+        import time
+        orch = self._make_orchestrator(tmp_path, window="hour")
+        # Pretend we're 65 minutes into the hour window with $5 spent.
+        orch.state.agent_totals.estimated_cost = 5.0
+        orch.state.budget_window_start = time.time() - 65 * 60
+        orch.state.budget_window_kind = "hour"
+        assert orch._check_budget() is True
+        # Rolled — spend reset, new window started.
+        assert orch.state.agent_totals.estimated_cost == 0.0
+        assert (time.time() - orch.state.budget_window_start) < 5
+
+    def test_within_window_does_not_roll(self, tmp_path):
+        import time
+        orch = self._make_orchestrator(tmp_path, window="hour")
+        start = time.time() - 30 * 60  # 30 min in, 30 to go
+        orch.state.agent_totals.estimated_cost = 5.0
+        orch.state.budget_window_start = start
+        orch.state.budget_window_kind = "hour"
+        assert orch._check_budget() is True
+        # No rollover — spend and start preserved.
+        assert orch.state.agent_totals.estimated_cost == 5.0
+        assert orch.state.budget_window_start == start
+
+    def test_zero_budget_limit_disables_check(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        orch.config.budget_limit = 0.0
+        # Even with $1000 spent, no limit means always within budget.
+        orch.state.agent_totals.estimated_cost = 1000.0
+        assert orch._check_budget() is True
+
+    def test_persist_writes_estimated_cost(self, tmp_path):
+        import json
+        orch = self._make_orchestrator(tmp_path)
+        orch.state.agent_totals.estimated_cost = 2.5
+        orch.state.budget_window_start = 1000.0
+        orch._persist_budget_state()
+        with open(tmp_path / "state.json") as f:
+            data = json.load(f)
+        assert data["estimated_cost"] == 2.5
+        assert data["budget_window_start"] == 1000.0
+        assert data["budget_window_kind"] == "day"
+
+    def test_window_seconds_per_kind(self, tmp_path):
+        for kind, expected in (("hour", 3600), ("day", 86400), ("week", 604800)):
+            orch = self._make_orchestrator(tmp_path, window=kind)
+            assert orch._budget_window_seconds() == expected

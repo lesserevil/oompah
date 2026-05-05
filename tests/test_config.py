@@ -77,7 +77,36 @@ class TestServiceConfig:
         assert cfg.poll_interval_ms == 120000
         assert cfg.max_concurrent_agents == 10
         assert cfg.budget_limit == 0.0
+        # Default rolling window is "day" — picked because most operators
+        # think of $X/day rather than $X/process-lifetime.
+        assert cfg.budget_window == "day"
         assert cfg.workspace_root  # should have a default
+
+    def test_budget_window_explicit_in_workflow(self):
+        wf = WorkflowDefinition(
+            config={"agent": {"budget_window": "hour"}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.budget_window == "hour"
+
+    def test_budget_window_invalid_falls_back_to_day(self):
+        # A typo in WORKFLOW.md must not silently disable the windowing.
+        wf = WorkflowDefinition(
+            config={"agent": {"budget_window": "fortnight"}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.budget_window == "day"
+
+    def test_budget_window_env_overrides_workflow(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_BUDGET_WINDOW", "week")
+        wf = WorkflowDefinition(
+            config={"agent": {"budget_window": "hour"}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.budget_window == "week"
 
     def test_from_workflow_custom(self):
         wf = WorkflowDefinition(

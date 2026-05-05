@@ -354,4 +354,13 @@ class OrchestratorState:
     cost_by_profile: dict[str, float] = field(default_factory=dict)
     decompose_attempts: dict[str, int] = field(default_factory=dict)  # issue_id → decomposition attempt count
     budget_exceeded: bool = False
+    # Unix timestamp marking when the active budget window started.
+    # Persisted to service_state.json so a restart inside the window
+    # preserves spend rather than resetting to zero. <=0 means "not yet
+    # initialized" — the next budget check will set it to now().
+    budget_window_start: float = 0.0
+    # The budget_window kind (hour/day/week) the persisted state was
+    # written under. If config changes the kind, we treat that as a
+    # fresh window rather than carrying spend forward into the new bucket.
+    budget_window_kind: str = ""
     rate_limits: dict | None = None
