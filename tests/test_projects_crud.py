@@ -412,7 +412,8 @@ class TestProjectStoreUpdatableFields:
     def test_updatable_fields_are_correct(self):
         expected = {"name", "repo_url", "branch", "git_user_name",
                     "git_user_email", "yolo", "log_path", "webhook_secret",
-                    "access_token", "last_webhook_received_at"}
+                    "access_token", "last_webhook_received_at",
+                    "max_in_flight_prs"}
         assert ProjectStore.UPDATABLE_FIELDS == expected
 
     def test_id_is_not_updatable(self):

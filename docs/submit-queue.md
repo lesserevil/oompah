@@ -155,45 +155,65 @@ Two complementary fixes:
 Validation: synthesize two branches that each add a different bead,
 merge them, expect zero conflict markers.
 
-### Step 3 — Soften `_project_has_open_review` (P1)
+### Step 3 — Soften `_project_has_open_review` (P1) ✅ Done
 
 Replace the binary "any open PR ⇒ reject" with a per-project
 configurable ceiling.
 
-```python
-def _project_inflight_limit(self, project_id: str | None) -> int:
-    project = self.project_store.get(project_id)
-    return (project and project.max_inflight_reviews) \
-           or self.config.default_max_inflight_reviews \
-           or 1   # backwards-compatible default
-```
+**Implementation** (shipped in `oompah-zlz_2-pt4`):
 
 ```python
-def _project_has_open_review(self, project_id: str | None) -> bool:
-    inflight = sum(1 for r in self._reviews_cache.get(project_id, []) if not r.draft)
-    return inflight >= self._project_inflight_limit(project_id)
+def _count_open_reviews(self, project_id: str | None) -> int:
+    """Return number of non-draft open MRs/PRs for a project."""
+    if not project_id:
+        return 0
+    reviews_cache = getattr(self, "_reviews_cache", {})
+    return sum(1 for r in reviews_cache.get(project_id, []) if not r.draft)
+
+def _project_max_in_flight(self, project_id: str | None) -> int:
+    """Return the configured in-flight PR limit (default 1)."""
+    project = self.project_store.get(project_id)
+    if project is None:
+        return 1
+    return max(1, project.max_in_flight_prs)
 ```
+
+Dispatch check (in `_should_dispatch`):
+
+```python
+n_open = self._count_open_reviews(issue.project_id)
+limit = self._project_max_in_flight(issue.project_id)
+if not is_p0 and n_open >= limit:
+    return _reject(f"open_reviews_at_cap={n_open}/{limit}")
+```
+
+The old `_project_has_open_review` is retained as a thin compat
+wrapper: `return self._count_open_reviews(pid) >= self._project_max_in_flight(pid)`.
 
 Configuration surface:
 
-- New `.env` knob: `OOMPAH_DEFAULT_MAX_INFLIGHT_REVIEWS=1` (default
-  preserves current behaviour).
-- Per-project override exposed via the dashboard / project model
-  (`Project.max_inflight_reviews: int | None`).
+- Per-project field `Project.max_in_flight_prs: int = 1` (default
+  preserves current single-in-flight behavior).
+- Editable via the Projects management UI (`/projects-manage`) and
+  the `PATCH /api/v1/projects/{project_id}` endpoint.
+- The `/api/v1/state` response includes `max_in_flight_prs` per project
+  (in the `projects` array) and a `open_reviews_by_project` map with
+  current counts, so the dashboard can surface capacity vs. usage.
 
 Recommended values once the rest of the rollout is in place:
 
-| Project | Recommended `max_inflight_reviews` | Rationale |
+| Project | Recommended `max_in_flight_prs` | Rationale |
 | --- | --- | --- |
 | oompah | 3 | CI is fast; pure throughput win. |
 | trickle | 4–6 | 60-min CI; queue absorbs the variance. |
 
-The function name `_project_has_open_review` is preserved for caller
-compatibility — only its semantics change ("is the project at the
-inflight ceiling").
+**Important:** Only raise `max_in_flight_prs` above 1 *after* Step 5
+(Merge Queue enabled). With a plain branch protection rule, concurrent
+PRs will race at merge time and the second one will fail CI or produce a
+conflict. The UI shows a warning to reinforce this.
 
-Validation: unit-test the predicate with synthetic review caches at
-0/1/2/3 PRs against limits 1 and 3.
+Validation: unit-tests cover default=1, cap=3 at 0/1/2/3 open reviews,
+P0 bypass, and per-project independence.
 
 ### Step 4 — YOLO auto-merge → enqueue (P1)
 

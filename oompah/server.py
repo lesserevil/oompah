@@ -1070,6 +1070,23 @@ async def api_update_project(project_id: str, request: Request):
                 fields[key] = body[key]
         if "yolo" in body:
             fields["yolo"] = bool(body["yolo"])
+        if "max_in_flight_prs" in body:
+            raw = body["max_in_flight_prs"]
+            try:
+                val = int(raw)
+            except (TypeError, ValueError):
+                return JSONResponse(
+                    {"error": {"code": "validation",
+                               "message": "max_in_flight_prs must be a positive integer"}},
+                    status_code=400,
+                )
+            if val < 1:
+                return JSONResponse(
+                    {"error": {"code": "validation",
+                               "message": "max_in_flight_prs must be >= 1"}},
+                    status_code=400,
+                )
+            fields["max_in_flight_prs"] = val
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
