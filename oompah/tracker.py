@@ -52,6 +52,17 @@ class TrackerNotConfiguredError(TrackerError):
     """
 
 
+class TrackerTimeoutError(TrackerError):
+    """Raised when a ``bd`` subprocess exceeds its timeout.
+
+    Treated as transient/environmental (busy DB, slow disk, large dump)
+    rather than a bug in the codebase. Callers should log at WARNING and
+    let the next poll tick retry; the error_watcher only escalates ERROR
+    records into fresh bug beads, so demoting the level here prevents the
+    flood of duplicate "bd command timed out" beads we used to see.
+    """
+
+
 class BeadsTracker:
     """Issue tracker client backed by the bd (beads) CLI."""
 
@@ -106,6 +117,13 @@ class BeadsTracker:
         except TrackerNotConfiguredError:
             # Already logged at WARNING in _run_bd; bubble up so the
             # caller skips this project's dispatch for the tick.
+            raise
+        except TrackerTimeoutError as exc:
+            # Transient/environmental (busy DB, slow disk, large dump) —
+            # log at WARNING so the error_watcher does NOT auto-file a
+            # duplicate bug bead every poll tick. Re-raise so the
+            # orchestrator skips this project for the tick.
+            logger.warning("Failed to fetch candidates: %s", exc)
             raise
         except TrackerError as exc:
             logger.error("Failed to fetch candidates: %s", exc)
@@ -582,8 +600,24 @@ class BeadsTracker:
         """The last-known fingerprint, or None if never polled."""
         return self._last_fingerprint
 
-    def _run_bd(self, args: list[str]) -> dict | list:
-        """Run a bd command and parse JSON output."""
+    # Default subprocess timeout for ``bd`` calls. Bumped from 30s to 60s
+    # because the unfiltered ``bd list --json`` fallback in
+    # ``fetch_candidate_issues`` dumps every issue and can exceed 30s on a
+    # busy database, producing a flood of duplicate "bd command timed out"
+    # bug beads via the error_watcher.
+    _DEFAULT_BD_TIMEOUT_SECONDS = 60
+
+    def _run_bd(
+        self, args: list[str], *, timeout: float | None = None,
+    ) -> dict | list:
+        """Run a bd command and parse JSON output.
+
+        Args:
+            args: Arguments to pass after ``bd``.
+            timeout: Subprocess timeout in seconds. Defaults to
+                ``_DEFAULT_BD_TIMEOUT_SECONDS`` (60s). Override with a
+                larger value for known-heavy commands.
+        """
         # Short-circuit if a recent call already proved the DB is missing.
         if self._missing_db_until and time.monotonic() < self._missing_db_until:
             raise TrackerNotConfiguredError(
@@ -591,18 +625,23 @@ class BeadsTracker:
                 f"(cached for {int(self._missing_db_until - time.monotonic())}s)"
             )
         cmd = ["bd"] + args
+        effective_timeout = (
+            timeout if timeout is not None else self._DEFAULT_BD_TIMEOUT_SECONDS
+        )
         try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=effective_timeout,
                 cwd=self.cwd,
             )
         except FileNotFoundError:
             raise TrackerError("bd command not found. Is beads installed?")
         except subprocess.TimeoutExpired:
-            raise TrackerError(f"bd command timed out: {' '.join(cmd)}")
+            raise TrackerTimeoutError(
+                f"bd command timed out: {' '.join(cmd)}"
+            )
 
         if result.returncode != 0:
             stderr = result.stderr.strip()

@@ -36,7 +36,12 @@ from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.scm import detect_provider, extract_repo_slug
-from oompah.tracker import BeadsTracker, TrackerError, TrackerNotConfiguredError
+from oompah.tracker import (
+    BeadsTracker,
+    TrackerError,
+    TrackerNotConfiguredError,
+    TrackerTimeoutError,
+)
 from oompah.workspace import WorkspaceError, WorkspaceManager
 
 import json
@@ -825,6 +830,11 @@ class Orchestrator:
                 # Already logged at WARNING in tracker._run_bd; treat as
                 # an empty backlog this tick.
                 return []
+            except TrackerTimeoutError as exc:
+                # Transient — log at WARNING so the error_watcher does
+                # not auto-file a duplicate bug bead every tick.
+                logger.warning("Tracker fetch timed out: %s", exc)
+                return []
             except TrackerError as exc:
                 logger.error("Tracker fetch failed: %s", exc)
                 return []
@@ -839,6 +849,13 @@ class Orchestrator:
             except TrackerNotConfiguredError:
                 # Project's tracker isn't initialized — environmental.
                 # Already warned in _run_bd; skip this project for the tick.
+                return []
+            except TrackerTimeoutError as exc:
+                # Transient — log at WARNING so the error_watcher does
+                # not auto-file a duplicate bug bead every tick.
+                logger.warning(
+                    "Fetch timed out for project %s: %s", project.name, exc,
+                )
                 return []
             except (TrackerError, ProjectError) as exc:
                 logger.error("Fetch failed for project %s: %s", project.name, exc)
