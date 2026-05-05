@@ -731,8 +731,14 @@ class Orchestrator:
                 return
 
             logger.info("Auto-update: %d new commit(s) on origin/main, pulling and restarting", count)
+            # --autostash handles the routine case where ``bd`` has
+            # written to .beads/issues.jsonl since the last commit.
+            # Without it, ``--ff-only`` refuses with "Your local changes
+            # would be overwritten by merge" and surfaces a UI alert
+            # every poll. --ff-only still refuses if origin has actually
+            # diverged (i.e. real merge required).
             pull = subprocess.run(
-                ["git", "pull", "--ff-only", "origin", "main"],
+                ["git", "pull", "--ff-only", "--autostash", "origin", "main"],
                 cwd=repo_dir, capture_output=True, text=True, timeout=60,
             )
             if pull.returncode != 0:
