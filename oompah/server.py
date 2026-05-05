@@ -1887,6 +1887,12 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     if project:
         payload["project_id"] = project.id
         payload["project_name"] = project.name
+        # Record the timestamp of this webhook delivery on the project so
+        # callers can track the last-seen delivery time per-project.
+        now = datetime.now(timezone.utc)
+        orch.project_store.update(
+            project.id, last_webhook_received_at=now,
+        )
 
     orch.event_bus.emit(EventType.FORGE_WEBHOOK_RECEIVED, payload)
     logger.info(

@@ -129,6 +129,9 @@ class Project:
     # True when `git lfs install` succeeded for this clone. When False, the
     # attachments feature is silently disabled for this project.
     lfs_available: bool = False
+    # UTC timestamp of the most recent successful webhook delivery for this
+    # project, updated every time a forge webhook (GitHub/GitLab) is received.
+    last_webhook_received_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -150,6 +153,8 @@ class Project:
             d["webhook_secret"] = self.webhook_secret
         if self.access_token:
             d["access_token"] = self.access_token
+        if self.last_webhook_received_at:
+            d["last_webhook_received_at"] = self.last_webhook_received_at.isoformat()
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -168,6 +173,16 @@ class Project:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Project:
+        last_webhook_received_at: datetime | None = None
+        raw = d.get("last_webhook_received_at")
+        if raw:
+            if isinstance(raw, datetime):
+                last_webhook_received_at = raw
+            else:
+                try:
+                    last_webhook_received_at = datetime.fromisoformat(str(raw))
+                except (ValueError, TypeError):
+                    pass
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -181,6 +196,7 @@ class Project:
             webhook_secret=d.get("webhook_secret"),
             access_token=d.get("access_token"),
             lfs_available=bool(d.get("lfs_available", False)),
+            last_webhook_received_at=last_webhook_received_at,
         )
 
 

@@ -6,6 +6,7 @@ Covers:
 - EventBus emission on webhook receipt
 - Cache invalidation and refresh triggering
 - Missing headers, invalid payloads
+- last_webhook_received_at timestamp tracking per project
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -32,6 +34,9 @@ def _make_mock_orchestrator(projects=None, webhook_secret=None):
     orch = MagicMock()
     orch.event_bus = EventBus()
     orch.request_refresh = MagicMock()
+    # Mock project_store.update so tests can assert on last_webhook_received_at
+    orch.project_store = MagicMock()
+    orch.project_store.update = MagicMock()
 
     if projects is None:
         projects = [
@@ -303,6 +308,26 @@ class TestGitHubWebhookEndpoint:
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
         orch.request_refresh.assert_called_once()
+
+    def test_last_webhook_received_at_updated_on_pr(self, client_no_secret):
+        """Webhook receipt for a matched project updates last_webhook_received_at."""
+        client, orch = client_no_secret
+        payload = _github_pr_payload(action="opened")
+        resp = client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(payload),
+            headers={
+                "X-GitHub-Event": "pull_request",
+                "X-GitHub-Delivery": "test-delivery-123",
+                "Content-Type": "application/json",
+            },
+        )
+        assert resp.status_code == 200
+        # project_store.update should have been called with last_webhook_received_at.
+        orch.project_store.update.assert_called()
+        call_kwargs = orch.project_store.update.call_args[1]
+        assert "last_webhook_received_at" in call_kwargs
+        assert isinstance(call_kwargs["last_webhook_received_at"], datetime)
 
 
 # ---------------------------------------------------------------------------
