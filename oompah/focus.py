@@ -600,10 +600,15 @@ async def _select_focus_llm(
     from oompah.api_agent import _http_post, _build_ssl_context
 
     prompt = _build_triage_prompt(issue, foci)
+    # Thinking models (e.g. MiniMax-M2.7) burn output budget on the
+    # chain-of-thought trace and return content="" / null when the budget
+    # runs out before the answer is emitted. 1024 leaves room for reasoning
+    # plus the "name: reasoning" answer. Triage is one-shot per issue and
+    # cached, so the extra tokens are negligible cost.
     payload = {
         "model": provider.default_model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 128,
+        "max_tokens": 1024,
         "temperature": 0.0,
     }
     body = json.dumps(payload).encode("utf-8")
