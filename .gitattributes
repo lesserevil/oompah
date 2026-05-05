@@ -1,0 +1,12 @@
+# Register the custom merge driver for the beads issue store.
+# The driver merges by issue id (last-writer-wins per id) and deduplicates
+# comments by their id field so that parallel-branch changes to non-overlapping
+# issues resolve automatically without human intervention.
+#
+# The driver must be installed in the local git config before it takes effect:
+#   git config merge.beads-jsonl.driver \
+#     './scripts/beads-merge.sh %A %O %B'
+#
+# oompah/projects.py calls _install_beads_merge_driver() automatically when a
+# project is cloned, so agent worktrees pick this up without manual setup.
+.beads/issues.jsonl merge=beads-jsonl
