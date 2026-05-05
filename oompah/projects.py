@@ -16,6 +16,59 @@ from oompah.models import Project
 logger = logging.getLogger(__name__)
 
 
+def _install_beads_merge_driver(repo_path: str) -> bool:
+    """Register the beads-jsonl custom merge driver in ``repo_path``'s local
+    git config.  Idempotent — safe to call on every ``project.create()``.
+
+    The driver resolves conflicts in ``.beads/issues.jsonl`` by merging per
+    issue id (last-writer-wins on updated_at) so that parallel-branch changes
+    to non-overlapping issues apply cleanly with no human input.
+
+    The ``.gitattributes`` file at the repo root must already contain::
+
+        .beads/issues.jsonl merge=beads-jsonl
+
+    This function configures the *driver* half::
+
+        git config merge.beads-jsonl.driver './scripts/beads-merge.sh %A %O %B'
+        git config merge.beads-jsonl.name   'Beads JSONL issue-id merge driver'
+
+    Returns ``True`` when the driver was installed (or was already installed
+    with the same value), ``False`` on any error so callers can degrade
+    gracefully.
+    """
+    driver_cmd = "./scripts/beads-merge.sh %A %O %B"
+    driver_name = "Beads JSONL issue-id merge driver"
+    try:
+        # Check whether the driver is already configured with the right value.
+        r = subprocess.run(
+            ["git", "config", "--local", "merge.beads-jsonl.driver"],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip() == driver_cmd:
+            logger.debug("beads-jsonl merge driver already configured in %s", repo_path)
+            return True
+
+        subprocess.run(
+            ["git", "config", "merge.beads-jsonl.driver", driver_cmd],
+            cwd=repo_path,
+            capture_output=True, text=True, check=True, timeout=5,
+        )
+        subprocess.run(
+            ["git", "config", "merge.beads-jsonl.name", driver_name],
+            cwd=repo_path,
+            capture_output=True, text=True, check=True, timeout=5,
+        )
+        logger.info("Installed beads-jsonl merge driver in %s", repo_path)
+        return True
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        logger.warning(
+            "Failed to install beads-jsonl merge driver in %s: %s", repo_path, exc,
+        )
+        return False
+
+
 def _bootstrap_lfs(repo_path: str) -> bool:
     """Run `git lfs install --local` in ``repo_path`` and write the
     attachments .gitattributes. Idempotent.
@@ -214,6 +267,10 @@ class ProjectStore:
         # Bootstrap git LFS for the multimodal attachments feature.
         # Always idempotent; degrades gracefully when git lfs is missing.
         lfs_available = _bootstrap_lfs(repo_path)
+
+        # Install the custom beads-jsonl merge driver so that parallel-branch
+        # changes to .beads/issues.jsonl resolve automatically.  Idempotent.
+        _install_beads_merge_driver(repo_path)
 
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
