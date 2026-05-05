@@ -298,6 +298,7 @@ class AcpAgentSession:
             "SlashCommand",
             "Task",
             "TodoWrite",
+            "ToolSearch",
             "WebFetch",
             "WebSearch",
             "Write",

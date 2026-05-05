@@ -437,7 +437,8 @@ class TestCanUseToolStrictAllowlist:
         # additions — that's the point of the test, to surface drift.
         for builtin in ("Bash", "BashOutput", "Edit", "Glob", "Grep",
                         "KillShell", "NotebookEdit", "Read", "Task",
-                        "TodoWrite", "WebFetch", "WebSearch", "Write"):
+                        "TodoWrite", "ToolSearch", "WebFetch",
+                        "WebSearch", "Write"):
             assert builtin in denied, f"missing {builtin!r} in disallowed_tools"
 
     def test_oompah_tool_allowed(self):
