@@ -98,6 +98,7 @@ async def _run(
     from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
     from oompah.server import app, set_orchestrator
+    from oompah.webhooks import WebhookForwarder
 
     # Load initial workflow
     try:
@@ -121,6 +122,10 @@ async def _run(
     # Create orchestrator with shared stores
     provider_store = ProviderStore()
     project_store = ProjectStore()
+
+    # Start gh webhook forwarder for each project (subprocess lifecycle
+    # managed by WebhookForwarder; independent of orchestrator).
+    webhook_forwarder = WebhookForwarder(project_store=project_store)
 
     # Pull latest code (git pull --ff-only) and beads state (bd dolt pull)
     # for every configured project BEFORE the orchestrator starts dispatching.
@@ -156,6 +161,9 @@ async def _run(
         logger.info("Booting paused (persisted state)")
 
     set_orchestrator(orchestrator)
+
+    # Start webhook forwarder (runs gh webhook forward per project)
+    await webhook_forwarder.start()
 
     # Start workflow file watcher
     async def _watch_workflow():
@@ -205,6 +213,7 @@ async def _run(
     finally:
         wants_restart = orchestrator.wants_restart
         await orchestrator.stop()
+        await webhook_forwarder.stop()
         watch_task.cancel()
         if server:
             server.should_exit = True

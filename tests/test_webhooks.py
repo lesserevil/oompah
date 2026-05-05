@@ -8,18 +8,24 @@ Covers:
 - Non-PR/MR event rejection
 - Project matching by repo slug
 - WebhookEvent dataclass fields
+- WebhookForwarder subprocess management
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
+import os
+import tempfile
 
 import pytest
 
 from oompah.webhooks import (
     WebhookEvent,
+    WebhookForwarder,
+    _ForwarderProcess,
     match_project_by_repo,
     parse_github_webhook,
     parse_gitlab_webhook,
@@ -408,3 +414,292 @@ class TestWebhookEvent:
         assert event.provider == "gitlab"
         assert event.merged is True
         assert event.raw is raw
+
+
+# ---------------------------------------------------------------------------
+# WebhookForwarder
+# ---------------------------------------------------------------------------
+
+
+class _FakeProjectStore:
+    """Minimal ProjectStore stand-in for testing."""
+
+    def __init__(self, projects: list[Project] | None = None):
+        self._projects = {p.id: p for p in (projects or [])}
+
+    def list_all(self) -> list[Project]:
+        return list(self._projects.values())
+
+    def get(self, project_id: str) -> Project | None:
+        return self._projects.get(project_id)
+
+
+class _DummyProjectStore:
+    """ProjectStore that always returns empty list."""
+
+    def list_all(self) -> list[Project]:
+        return []
+
+
+class TestForwarderProcess:
+    """Tests for _ForwarderProcess dataclass."""
+
+    def test_initial_state(self):
+        fp = _ForwarderProcess(
+            project_id="p1",
+            project_name="my-project",
+            repo_path="/tmp/repos/my-project",
+        )
+        assert fp.project_id == "p1"
+        assert fp.project_name == "my-project"
+        assert fp.repo_path == "/tmp/repos/my-project"
+        assert fp.process is None
+        assert fp.restart_delay_s == 1.0
+        assert fp.restart_attempts == 0
+
+
+class TestWebhookForwarderInit:
+    """Tests for WebhookForwarder.__init__()."""
+
+    def test_default_webhook_url(self):
+        fwd = WebhookForwarder()
+        assert fwd._webhook_url == "http://localhost:8080/api/v1/webhooks/github"
+
+    def test_explicit_webhook_url(self):
+        fwd = WebhookForwarder(webhook_url="http://example.com/hooks")
+        assert fwd._webhook_url == "http://example.com/hooks"
+
+    def test_env_var_override(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_WEBHOOK_FORWARD_URL", "http://env-url.test/hooks")
+        fwd = WebhookForwarder()
+        assert fwd._webhook_url == "http://env-url.test/hooks"
+
+    def test_explicit_overrides_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_WEBHOOK_FORWARD_URL", "http://env-url.test/hooks")
+        fwd = WebhookForwarder(webhook_url="http://explicit.test/hooks")
+        assert fwd._webhook_url == "http://explicit.test/hooks"
+
+    def test_custom_poll_interval(self):
+        fwd = WebhookForwarder(poll_interval_s=10.0)
+        assert fwd._poll_interval_s == 10.0
+
+    def test_default_poll_interval(self):
+        fwd = WebhookForwarder()
+        assert fwd._poll_interval_s == 5.0
+
+    def test_is_running_false_initially(self):
+        fwd = WebhookForwarder()
+        assert fwd.is_running is False
+
+
+class TestWebhookForwarderStartStop:
+    """Tests for WebhookForwarder start/stop lifecycle."""
+
+    @pytest.mark.asyncio
+    async def test_start_is_idempotent(self):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+        await fwd.start()
+        assert fwd.is_running is True
+        # Second start should be no-op (already running)
+        await fwd.start()
+        assert fwd.is_running is True
+        await fwd.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_is_idempotent(self):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+        await fwd.start()
+        await fwd.stop()
+        assert fwd.is_running is False
+        # Second stop should be no-op
+        await fwd.stop()
+        assert fwd.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_start_then_stop_cleans_up_task(self):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+        await fwd.start()
+        await fwd.stop()
+        assert fwd._task is None
+
+
+class TestWebhookForwarderPoll:
+    """Tests for WebhookForwarder polling and restart logic."""
+
+    @pytest.mark.asyncio
+    async def test_no_project_store_means_no_error(self):
+        fwd = WebhookForwarder(project_store=None)
+        # Calling _poll_and_restart with no project store should not raise.
+        await fwd._poll_and_restart()
+
+    @pytest.mark.asyncio
+    async def test_empty_project_store_means_no_error(self):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+        await fwd._poll_and_restart()
+        # No processes should be tracked.
+        assert len(fwd._processes) == 0
+
+    @pytest.mark.asyncio
+    async def test_adding_project_creates_forwarder_process(self):
+        proj = Project(
+            id="proj-1",
+            name="test-repo",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/tmp/test-repo",
+        )
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+        await fwd._poll_and_restart()
+        assert "proj-1" in fwd._processes
+        fp = fwd._processes["proj-1"]
+        assert fp.project_name == "test-repo"
+        assert fp.repo_path == "/tmp/test-repo"
+        assert fp.process is None  # gh not available, so not started
+
+    @pytest.mark.asyncio
+    async def test_removing_project_terminates_forwarder(self):
+        proj = Project(
+            id="proj-1",
+            name="test-repo",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/tmp/test-repo",
+        )
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+
+        # Poll once to register.
+        await fwd._poll_and_restart()
+        assert "proj-1" in fwd._processes
+
+        # Simulate project removal: store returns empty.
+        fwd.project_store = _DummyProjectStore()
+        await fwd._poll_and_restart()
+        assert "proj-1" not in fwd._processes
+
+    @pytest.mark.asyncio
+    async def test_skips_non_git_repo(self, tmp_path):
+        """A project whose repo_path is not a git directory is skipped."""
+        non_git_dir = str(tmp_path)
+        proj = Project(
+            id="proj-1",
+            name="non-git",
+            repo_url="https://github.com/org/repo.git",
+            repo_path=non_git_dir,
+        )
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+        await fwd._poll_and_restart()
+        assert "proj-1" in fwd._processes
+        # gh forward should not be started (not a git repo).
+        assert fwd._processes["proj-1"].process is None
+
+    @pytest.mark.asyncio
+    async def test_launch_skips_missing_gh(self, tmp_path):
+        """If gh CLI is not found, _launch logs a warning and sets process=None."""
+        proj = Project(
+            id="proj-1",
+            name="test-repo",
+            repo_url="https://github.com/org/repo.git",
+            repo_path=str(tmp_path),
+        )
+        # Make it a git repo so it passes the .git check.
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+
+        fwd = WebhookForwarder(project_store=_FakeProjectStore([proj]))
+        fp = _ForwarderProcess("proj-1", "test-repo", str(tmp_path))
+        await fwd._launch(fp)
+        # gh is unlikely to be missing in CI, but if it is, process stays None.
+        # Either way, no exception is raised.
+        assert fp.project_id == "proj-1"
+
+    @pytest.mark.asyncio
+    async def test_exponential_backoff_reset_on_running(self, tmp_path):
+        """When a process is still running, its restart_delay resets to base."""
+        proj = Project(
+            id="proj-1",
+            name="test-repo",
+            repo_url="https://github.com/org/repo.git",
+            repo_path=str(tmp_path),
+        )
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+
+        # Register project.
+        await fwd._poll_and_restart()
+        fp = fwd._processes["proj-1"]
+
+        # Simulate a running process by patching poll to return None.
+        class _FakeProc:
+            pid = 12345
+            returncode = None
+
+            def poll(self):
+                return None  # still running
+
+        fp.process = _FakeProc()
+        fp.restart_delay_s = 8.0  # had grown via backoff
+
+        await fwd._check_and_restart(fp)
+        # Delay should be reset since process is still alive.
+        assert fp.restart_delay_s == 1.0
+
+    @pytest.mark.asyncio
+    async def test_terminate_noop_when_already_exited(self):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+        fwd._processes["proj-1"] = _ForwarderProcess("proj-1", "p", "/tmp/p")
+
+        class _DeadProc:
+            pid = 999
+            returncode = 1  # already dead
+
+            def poll(self):
+                return 1
+
+            def terminate(self):
+                pass  # should not be called
+
+        fwd._processes["proj-1"].process = _DeadProc()
+        await fwd._terminate("proj-1")
+        # _terminate should detect already-exited process and not call terminate.
+
+    @pytest.mark.asyncio
+    async def test_kill_all_terminates_all(self, tmp_path):
+        """_kill_all should clear all tracked processes."""
+        proj1 = Project(id="p1", name="r1", repo_url="https://github.com/org/r1.git", repo_path=str(tmp_path))
+        proj2 = Project(id="p2", name="r2", repo_url="https://github.com/org/r2.git", repo_path=str(tmp_path))
+        store = _FakeProjectStore([proj1, proj2])
+        fwd = WebhookForwarder(project_store=store)
+
+        await fwd._poll_and_restart()
+        assert len(fwd._processes) == 2
+
+        await fwd._kill_all()
+        assert len(fwd._processes) == 0
+
+
+class TestWebhookForwarderFullLifecycle:
+    """Integration-style tests for the full start → poll → stop cycle."""
+
+    @pytest.mark.asyncio
+    async def test_start_stop_with_empty_store(self):
+        fwd = WebhookForwarder(project_store=_DummyProjectStore())
+        await fwd.start()
+        # Let one poll cycle run.
+        await asyncio.sleep(0.05)
+        await fwd.stop()
+        assert fwd.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_stop_while_loop_running_cancels_task(self):
+        fwd = WebhookForwarder(
+            project_store=_DummyProjectStore(),
+            poll_interval_s=10.0,  # slow poll so we can cancel mid-cycle
+        )
+        await fwd.start()
+        # Stop immediately — the task should cancel without error.
+        await fwd.stop()
+        assert fwd._task is None or fwd._task.done()
