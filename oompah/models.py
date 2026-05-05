@@ -232,6 +232,17 @@ class ModelProvider:
         costs = self.model_costs.get(model, {})
         return (costs.get("cost_per_1k_input", 0.0), costs.get("cost_per_1k_output", 0.0))
 
+    def is_model_explicitly_free(self, model: str) -> bool:
+        """True only when the model has an explicit model_costs entry whose
+        input AND output costs are both 0. Models missing from model_costs
+        are conservatively treated as paid (False) so a misconfigured
+        provider doesn't accidentally bypass the budget cap."""
+        if not model or model not in self.model_costs:
+            return False
+        entry = self.model_costs[model] or {}
+        return (entry.get("cost_per_1k_input", -1) == 0
+                and entry.get("cost_per_1k_output", -1) == 0)
+
     def get_model_context(self, model: str) -> int | None:
         """Return the configured max context window for ``model`` or None."""
         v = self.model_contexts.get(model)
@@ -360,6 +371,12 @@ class OrchestratorState:
     cost_by_profile: dict[str, float] = field(default_factory=dict)
     decompose_attempts: dict[str, int] = field(default_factory=dict)  # issue_id → decomposition attempt count
     budget_exceeded: bool = False
+    # Counter for dispatches that bypassed an over-budget gate because the
+    # would-be model was explicitly $0/token. Reset whenever the budget
+    # window rolls. Surfaced as `budget.free_tier_active` in the state
+    # response so the dashboard can show "exceeded but still working on
+    # free tier" rather than appearing dead.
+    free_tier_dispatches_this_window: int = 0
     # Unix timestamp marking when the active budget window started.
     # Persisted to service_state.json so a restart inside the window
     # preserves spend rather than resetting to zero. <=0 means "not yet

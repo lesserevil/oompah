@@ -1082,14 +1082,54 @@ class Orchestrator:
         # P0 issues bypass this check to ensure critical fixes are never blocked.
         if not is_p0 and self._project_has_open_review(issue.project_id):
             return _reject("open_review")
-        # Budget circuit breaker
+        # Budget circuit breaker — model-aware. When the window's spend has
+        # exceeded the cap we still allow dispatch on models the provider
+        # has explicitly priced at $0 (e.g. an internal-tier MiniMax). That
+        # way an over-budget orchestrator continues chewing through cheap
+        # work while paid escalations queue for the next window. See bead
+        # oompah-zlz_2-fvt for the full rationale.
         if not self._check_budget():
             if not self.state.budget_exceeded:
                 self.state.budget_exceeded = True
-                logger.warning("Budget limit exceeded (%.2f/%.2f), halting dispatch",
+                logger.warning("Budget limit exceeded (%.2f/%.2f), halting paid dispatch",
                              self.state.agent_totals.estimated_cost, self.config.budget_limit)
-            return _reject("budget_exceeded")
+            if self._would_dispatch_on_free_model(issue):
+                self.state.free_tier_dispatches_this_window += 1
+                logger.info(
+                    "Budget exceeded but dispatching %s on free-tier model "
+                    "(spent=$%.2f limit=$%.2f)",
+                    issue.identifier,
+                    self.state.agent_totals.estimated_cost,
+                    self.config.budget_limit,
+                )
+                return True
+            return _reject("budget_exceeded_paid")
         return True
+
+    def _would_dispatch_on_free_model(self, issue: Issue) -> bool:
+        """True when the model that WOULD be used for this dispatch has an
+        explicit $0/$0 entry in its provider's model_costs. Used by the
+        budget gate to decide whether to bypass the over-budget cap.
+
+        Returns False on any resolution failure (no profile match, no
+        provider, no model) — the conservative choice when we can't tell
+        whether the dispatch would be free.
+        """
+        try:
+            profile = self._match_agent_profile(issue)
+            if not profile:
+                return False
+            provider = self._resolve_provider(profile)
+            if not provider:
+                return False
+            model = self._resolve_model(profile, provider)
+            if not model:
+                return False
+            return provider.is_model_explicitly_free(model)
+        except Exception as exc:
+            # Don't let the dispatch path crash on a budget-introspection bug.
+            logger.debug("free-model resolution failed for %s: %s", issue.identifier, exc)
+            return False
 
     def _pre_resolve_blockers(self, candidates: list[Issue]) -> None:
         """Pre-resolve unknown blocker states into the cache (blocking, runs in thread).
@@ -2014,6 +2054,7 @@ class Orchestrator:
             self.state.agent_totals.estimated_cost = 0.0
             self.state.budget_window_start = now
             self.state.budget_window_kind = self.config.budget_window
+            self.state.free_tier_dispatches_this_window = 0
             logger.info(
                 "Budget window kind changed to %r — resetting spent to $0",
                 self.config.budget_window,
@@ -2027,6 +2068,7 @@ class Orchestrator:
         if (now - start) >= window_s:
             self.state.agent_totals.estimated_cost = 0.0
             self.state.budget_window_start = now
+            self.state.free_tier_dispatches_this_window = 0
             logger.info(
                 "Budget window rolled (%s elapsed) — spent reset to $0",
                 self.config.budget_window,
@@ -3963,6 +4005,17 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     )
                     if self.state.budget_window_start > 0
                     else self._budget_window_seconds()
+                ),
+                # True when the budget is exceeded but free-tier dispatches
+                # are still happening in the current window. Lets the
+                # dashboard show "exceeded but still working" instead of
+                # appearing dead.
+                "free_tier_active": (
+                    self.state.budget_exceeded
+                    and self.state.free_tier_dispatches_this_window > 0
+                ),
+                "free_tier_dispatches_this_window": (
+                    self.state.free_tier_dispatches_this_window
                 ),
             },
             "agent_profiles": [

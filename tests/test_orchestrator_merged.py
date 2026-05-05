@@ -1090,3 +1090,155 @@ class TestBudgetWindowPersistence:
         for kind, expected in (("hour", 3600), ("day", 86400), ("week", 604800)):
             orch = self._make_orchestrator(tmp_path, window=kind)
             assert orch._budget_window_seconds() == expected
+
+
+class TestModelProviderFreeCheck:
+    """Tests for ModelProvider.is_model_explicitly_free — distinguishes
+    'not in map' from 'in map with zeros' so the budget bypass is
+    conservative."""
+
+    def test_free_when_explicit_zero_zero(self):
+        from oompah.models import ModelProvider
+        p = ModelProvider(
+            id="p", name="t", base_url="http://x",
+            model_costs={"freemodel": {"cost_per_1k_input": 0, "cost_per_1k_output": 0}},
+        )
+        assert p.is_model_explicitly_free("freemodel") is True
+
+    def test_paid_when_any_nonzero(self):
+        from oompah.models import ModelProvider
+        p = ModelProvider(
+            id="p", name="t", base_url="http://x",
+            model_costs={"sonnet": {"cost_per_1k_input": 0.003, "cost_per_1k_output": 0.015}},
+        )
+        assert p.is_model_explicitly_free("sonnet") is False
+
+    def test_paid_when_only_input_zero(self):
+        from oompah.models import ModelProvider
+        p = ModelProvider(
+            id="p", name="t", base_url="http://x",
+            model_costs={"weird": {"cost_per_1k_input": 0, "cost_per_1k_output": 0.001}},
+        )
+        # Both must be zero — output-only zero still counts as paid.
+        assert p.is_model_explicitly_free("weird") is False
+
+    def test_missing_model_treated_as_paid(self):
+        from oompah.models import ModelProvider
+        p = ModelProvider(
+            id="p", name="t", base_url="http://x",
+            model_costs={"known": {"cost_per_1k_input": 0, "cost_per_1k_output": 0}},
+        )
+        # Conservative — no entry means unknown pricing, not free.
+        assert p.is_model_explicitly_free("unknown-model") is False
+
+    def test_empty_model_costs_map(self):
+        from oompah.models import ModelProvider
+        p = ModelProvider(id="p", name="t", base_url="http://x")
+        assert p.is_model_explicitly_free("any-model") is False
+
+    def test_empty_model_string(self):
+        from oompah.models import ModelProvider
+        p = ModelProvider(
+            id="p", name="t", base_url="http://x",
+            model_costs={"x": {"cost_per_1k_input": 0, "cost_per_1k_output": 0}},
+        )
+        assert p.is_model_explicitly_free("") is False
+        assert p.is_model_explicitly_free(None) is False  # type: ignore
+
+
+class TestBudgetGateFreeTierBypass:
+    """Tests for the budget cap's zero-cost-model bypass in _should_dispatch."""
+
+    def _make_orchestrator(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.providers import ProviderStore
+        from oompah.models import ModelProvider, AgentProfile
+        from unittest.mock import MagicMock
+
+        cfg = ServiceConfig()
+        cfg.budget_limit = 10.0
+        cfg.agent_profiles = [
+            AgentProfile(name="default", command="claude", model_role="fast"),
+        ]
+        # Single provider with both a free and a paid model.
+        prov = ModelProvider(
+            id="prov-1", name="TestProvider", base_url="http://test",
+            models=["free-model", "paid-model"],
+            model_roles={"fast": "free-model", "standard": "paid-model"},
+            model_costs={
+                "free-model": {"cost_per_1k_input": 0, "cost_per_1k_output": 0},
+                "paid-model": {"cost_per_1k_input": 0.005, "cost_per_1k_output": 0.025},
+            },
+        )
+        # Pass a path to a nonexistent file so ProviderStore doesn't
+        # auto-load the real .oompah/providers.json from the cwd.
+        provider_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        provider_store._providers = {prov.id: prov}
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=cfg, workflow_path="WORKFLOW.md",
+            provider_store=provider_store, project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def _force_over_budget(self, orch):
+        orch.state.agent_totals.estimated_cost = 999.0
+        orch.state.budget_window_start = __import__("time").time()
+        orch.state.budget_window_kind = "day"
+
+    def test_free_model_dispatched_when_over_budget(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-1", state="open")
+        self._force_over_budget(orch)
+        assert orch._should_dispatch(issue) is True
+        assert orch.state.free_tier_dispatches_this_window == 1
+        assert orch.state.budget_exceeded is True
+
+    def test_paid_model_rejected_when_over_budget(self, tmp_path):
+        # Override the AgentProfile to route to a paid model.
+        from oompah.models import AgentProfile
+        orch = self._make_orchestrator(tmp_path)
+        orch.config.agent_profiles = [AgentProfile(name="standard", command="claude", model_role="standard")]
+        issue = _make_issue("feat-2", state="open")
+        self._force_over_budget(orch)
+        assert orch._should_dispatch(issue) is False
+        assert orch.state.free_tier_dispatches_this_window == 0
+
+    def test_under_budget_paid_model_dispatched(self, tmp_path):
+        from oompah.models import AgentProfile
+        orch = self._make_orchestrator(tmp_path)
+        orch.config.agent_profiles = [AgentProfile(name="standard", command="claude", model_role="standard")]
+        issue = _make_issue("feat-3", state="open")
+        # Default state — under budget. Dispatch should pass.
+        assert orch._should_dispatch(issue) is True
+
+    def test_window_roll_resets_free_tier_counter(self, tmp_path):
+        import time
+        orch = self._make_orchestrator(tmp_path)
+        orch.config.budget_window = "hour"
+        orch.state.free_tier_dispatches_this_window = 5
+        # Force window start way in the past.
+        orch.state.budget_window_start = time.time() - 7200  # 2h ago
+        orch.state.budget_window_kind = "hour"
+        orch.state.agent_totals.estimated_cost = 999.0
+        # _check_budget rolls; rollover must zero the free-tier counter.
+        orch._roll_budget_window_if_due()
+        assert orch.state.free_tier_dispatches_this_window == 0
+        assert orch.state.agent_totals.estimated_cost == 0.0
+
+    def test_unknown_model_costs_treated_as_paid(self, tmp_path):
+        # Profile resolves to a model that's not in the provider's
+        # model_costs map. Conservative: rejected.
+        from oompah.models import AgentProfile
+        orch = self._make_orchestrator(tmp_path)
+        orch.config.agent_profiles = [
+            AgentProfile(name="x", command="claude", model="model-not-in-costs"),
+        ]
+        # Add the model to the provider's `models` list so resolution finds it.
+        prov = orch.provider_store.get("prov-1")
+        prov.models.append("model-not-in-costs")
+        prov.default_model = "model-not-in-costs"
+        issue = _make_issue("feat-4", state="open")
+        self._force_over_budget(orch)
+        assert orch._should_dispatch(issue) is False
