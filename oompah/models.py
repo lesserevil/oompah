@@ -335,6 +335,12 @@ class RunningEntry:
     focus_name: str = ""
     focus_role: str = ""
     activity_log: list[Any] = field(default_factory=list)
+    # When default_first_dispatch is True, this stores the profile name that
+    # _match_agent_profile() would have chosen for the issue, so the first
+    # retry can jump straight to it instead of walking up from "default".
+    # None means either the flag was off, or the issue was already on its
+    # natural profile (retry path).
+    natural_profile_name: str | None = None
 
 
 @dataclass

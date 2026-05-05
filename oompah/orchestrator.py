@@ -1692,6 +1692,32 @@ class Orchestrator:
                 return higher
         return None
 
+    def _next_profile_for_retry(self, entry: "RunningEntry") -> tuple[AgentProfile | None, str]:
+        """Compute the next profile for a retry, respecting default_first_dispatch semantics.
+
+        When ``default_first_dispatch`` is enabled and the issue was first
+        dispatched on the default catch-all profile (i.e. ``entry.natural_profile_name``
+        is set), the first retry jumps straight to the naturally-matched profile
+        rather than escalating one step up from ``default``.
+
+        Returns (profile, escalated_profile_name_or_empty):
+        - profile: the AgentProfile to use for the retry (may be None if same)
+        - escalated_profile_name: non-empty when a specific profile should be
+          passed as ``override_profile`` to the next _dispatch call.
+        """
+        if self.config.default_first_dispatch and entry.natural_profile_name:
+            # First retry after a default_first_dispatch run: jump to the
+            # natural profile (what _match_agent_profile would have returned).
+            natural = self._get_profile_by_name(entry.natural_profile_name)
+            if natural:
+                return natural, natural.name
+            # Profile no longer exists — fall through to normal escalation
+
+        # Normal escalation: walk up the hierarchy from current profile
+        current_profile = self._get_profile_by_name(entry.agent_profile_name)
+        escalated = self._escalate_profile(current_profile, entry.issue)
+        return escalated, escalated.name if escalated else ""
+
     def _record_generated_attachments(self, workspace_path: str, issue: Issue) -> None:
         """Write agent-generated outputs into the issue's
         ``oompah.attachments`` metadata.
@@ -2044,6 +2070,36 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to clear handoff labels on %s: %s", issue.identifier, exc)
 
+    def _is_first_dispatch(self, issue: Issue, attempt: int | None,
+                           override_profile: str | None) -> bool:
+        """Return True if this is the very first dispatch of an issue.
+
+        First dispatch means: no retry attempt number, no explicit profile
+        override (i.e. not coming from a retry timer), and the issue hasn't
+        been seen in the running set before.
+        """
+        return attempt is None and override_profile is None
+
+    def _has_explicit_handoff_label(self, issue: Issue) -> bool:
+        """Return True if the issue carries a needs:* label (explicit user routing)."""
+        return any(label.startswith("needs:") for label in (issue.labels or []))
+
+    def _get_default_catch_all_profile(self) -> AgentProfile | None:
+        """Return the catch-all profile (no issue_type / keyword / priority constraints).
+
+        This is the profile with the name 'default', or the first profile
+        found that has no constraints if 'default' doesn't exist.
+        """
+        # Prefer the profile explicitly named "default"
+        explicit = self._get_profile_by_name("default")
+        if explicit:
+            return explicit
+        # Fall back to the first profile with no constraints at all
+        for p in self.config.agent_profiles:
+            if not p.issue_types and not p.keywords and p.min_priority is None and p.max_priority is None:
+                return p
+        return None
+
     async def _dispatch(self, issue: Issue, attempt: int | None,
                         override_profile: str | None = None) -> None:
         """Dispatch a worker for an issue."""
@@ -2060,13 +2116,43 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             return
         self.state.reject_streak.pop(issue.id, None)
+
+        # Resolve profile and compute natural_profile_name for default_first_dispatch.
+        natural_profile_name: str | None = None
+
         # Use escalated profile if provided, otherwise match normally
         if override_profile:
             profile = self._get_profile_by_name(override_profile)
             if not profile:
                 profile = self._match_agent_profile(issue)
+        elif (
+            self.config.default_first_dispatch
+            and self._is_first_dispatch(issue, attempt, override_profile)
+            and not self._has_explicit_handoff_label(issue)
+            and issue.issue_type != "epic"  # epics keep existing routing
+        ):
+            # default_first_dispatch: use the catch-all profile on first dispatch,
+            # but remember what the "natural" profile would be so the first retry
+            # can jump straight to it instead of walking up from "default".
+            default_profile = self._get_default_catch_all_profile()
+            natural_matched = self._match_agent_profile(issue)
+            if default_profile is None:
+                # No default catch-all found — fall back to normal matching
+                profile = natural_matched
+            elif natural_matched and natural_matched.name != (default_profile.name if default_profile else ""):
+                # Natural profile differs from default — record it for escalation
+                profile = default_profile
+                natural_profile_name = natural_matched.name
+                logger.info(
+                    "default_first_dispatch: using profile=%s for %s (natural=%s)",
+                    profile.name, issue.identifier, natural_profile_name,
+                )
+            else:
+                # Natural match IS the default, or no natural match — no change
+                profile = default_profile if default_profile else natural_matched
         else:
             profile = self._match_agent_profile(issue)
+
         profile_name = profile.name if profile else "default"
 
         logger.info(
@@ -2141,6 +2227,7 @@ class Orchestrator:
             retry_attempt=attempt or 0,
             started_at=now,
             agent_profile_name=profile_name,
+            natural_profile_name=natural_profile_name,
         )
 
         # Post dispatch comment in thread to avoid blocking event loop
@@ -2788,8 +2875,7 @@ class Orchestrator:
                             self.state.completed.add(issue_id)
                         else:
                             # Try to escalate to a stronger profile before retrying
-                            current_profile = self._get_profile_by_name(entry.agent_profile_name)
-                            escalated = self._escalate_profile(current_profile, entry.issue)
+                            escalated, escalated_name = self._next_profile_for_retry(entry)
                             if escalated:
                                 delay = self._backoff_delay(reopen_count)
                                 self._post_comment(
@@ -2805,7 +2891,7 @@ class Orchestrator:
                                     identifier=entry.identifier,
                                     delay_ms=delay,
                                     error="completed_without_closing",
-                                    escalated_profile=escalated.name,
+                                    escalated_profile=escalated_name,
                                 )
                                 logger.info("Escalating %s from %s to %s after completing without closing (%d/%d)",
                                             entry.identifier, entry.agent_profile_name, escalated.name,
@@ -2869,14 +2955,14 @@ class Orchestrator:
             else:
                 # Track stall/failure count for escalation
                 escalated = None
+                escalated_name = ""
                 if reason == "stalled":
                     self.state.stall_counts[issue_id] = self.state.stall_counts.get(issue_id, 0) + 1
                     stall_count = self.state.stall_counts[issue_id]
 
                 # Escalate on both stalled and max_turns once threshold is met
                 if next_attempt >= self.config.escalate_after_attempts:
-                    current_profile = self._get_profile_by_name(entry.agent_profile_name)
-                    escalated = self._escalate_profile(current_profile, entry.issue)
+                    escalated, escalated_name = self._next_profile_for_retry(entry)
 
                 if escalated:
                     if reason == "stalled":
@@ -2904,7 +2990,7 @@ class Orchestrator:
                     identifier=entry.identifier,
                     delay_ms=delay,
                     error=error or reason,
-                    escalated_profile=escalated.name if escalated else None,
+                    escalated_profile=escalated_name or None,
                 )
                 logger.info(
                     "Worker %s issue_id=%s issue_identifier=%s retrying_in_ms=%d",
@@ -3596,6 +3682,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         return {
             "generated_at": now.isoformat(),
             "paused": self._paused,
+            "config": {
+                "default_first_dispatch": self.config.default_first_dispatch,
+            },
             "counts": {
                 "running": len(running_rows),
                 "retrying": len(retry_rows),

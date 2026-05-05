@@ -31,3 +31,8 @@ oompah = "oompah.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["oompah"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
