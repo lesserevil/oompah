@@ -351,6 +351,33 @@ Rollback: untick "Require merge queue" — branch protection still works
 without it. Any PRs in flight at toggle time complete normally because
 the rule applies on the next merge attempt.
 
+### Operator visibility — `/reviews` queue column
+
+Once the merge queue is live, each PR moves through several states
+that are not represented by the legacy `ci_status` / `has_conflicts`
+columns. The `/reviews` page (`oompah/templates/reviews.html`) renders
+a per-PR **Queue** chip, derived in JavaScript from
+`auto_merge_enabled`, `mergeable_state`, `ci_status`, `has_conflicts`,
+and `draft`. Hovering the chip surfaces the raw `mergeable_state` and
+`auto_merge_enabled` values for unambiguous diagnostics.
+
+| Chip                       | Meaning                                                                              | Operator action                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `in queue`                 | `auto_merge_enabled=true` and GitHub has accepted the PR into the merge queue        | none — wait for `merge_group` CI                                               |
+| `ready`                    | CI passed, no `auto_merge` yet — oompah's YOLO watchdog will enqueue on next tick    | none — passive                                                                 |
+| `blocked: needs config`    | `mergeable_state=blocked` with no `auto_merge` — usually `allow_auto_merge` is off or a required check is missing | flip the repo's "Allow auto-merge" toggle, or fix the missing required check   |
+| `behind base`              | `mergeable_state=behind` — branch needs a rebase before the queue will accept it     | use the inline **Rebase** button, or wait for the queue to merge the leader   |
+| `conflict`                 | `has_conflicts=true` or `mergeable_state=dirty`                                      | use the inline **Resolve Conflicts** button (notifies the bead's agent)       |
+| `draft`                    | PR is still a draft                                                                  | none — author closes draft when ready                                          |
+| `ci pending`               | `ci_status=pending`                                                                  | none — passive                                                                 |
+| `ci failed`                | `ci_status=failed`                                                                   | use the inline **Retry** button (reopens the bead so the agent can fix CI)    |
+
+The chip column is sortable via the **Sort** dropdown above the list.
+"Queue status" sort is the fastest way to spot a `blocked: needs config`
+storm caused by a bad ruleset — they group together at the top of the
+list (rank 2) so the operator can fix the repo-level config once
+instead of clicking through each PR.
+
 ## 5. Risk and rollback summary
 
 | Step | Failure mode | Detection | Rollback |
