@@ -1729,6 +1729,20 @@ class Orchestrator:
                     continue
                 review_id = review.id
 
+                # Conflict check FIRST — before the auto_merge_enabled
+                # idempotency guard. A PR enqueued for auto-merge can
+                # go DIRTY when another PR lands with overlapping files,
+                # and the queue then sits forever waiting for manual
+                # conflict resolution. We must dispatch a conflict agent
+                # in that case even though auto_merge is "enabled" —
+                # GitHub will never make progress on a DIRTY queued PR.
+                # (oompah-zlz_2-l81)
+                if review.has_conflicts:
+                    logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
+                                project.name, review_id)
+                    self._yolo_notify_conflict(project, provider, slug, review_id)
+                    continue
+
                 # Idempotency guard: if GitHub auto-merge is already
                 # enabled on this PR, the merge queue is handling it.
                 # Don't re-dispatch the GraphQL mutation every tick — at
@@ -1740,12 +1754,6 @@ class Orchestrator:
                         "YOLO: %s MR #%s already enqueued (auto_merge_enabled=true) — skipping",
                         project.name, review_id,
                     )
-                    continue
-
-                if review.has_conflicts:
-                    logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
-                                project.name, review_id)
-                    self._yolo_notify_conflict(project, provider, slug, review_id)
                     continue
 
                 if review.ci_status == "failed":

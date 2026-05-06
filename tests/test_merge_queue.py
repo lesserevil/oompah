@@ -580,6 +580,83 @@ class TestYoloEnqueueMode:
         # PR #9 skipped (already enqueued); PR #10 enqueued this tick.
         provider.enable_auto_merge.assert_called_once_with("org/repo", "10")
 
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_auto_merge_enabled_dirty_pr_dispatches_conflict_agent(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """A PR enqueued for auto-merge that has gone DIRTY (e.g.
+        another PR landed first with overlapping files) must dispatch
+        a conflict agent — NOT be skipped by the auto_merge_enabled
+        idempotency guard. GitHub will sit on a DIRTY queued PR
+        forever waiting for manual conflict resolution.
+        (oompah-zlz_2-l81 — fixes regression of oompah-zlz_2-8rb)"""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "16",
+                    ci_status="passed",
+                    auto_merge_enabled=True,
+                    has_conflicts=True,
+                    mergeable_state="dirty",
+                )
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # MUST dispatch a conflict agent so the merge-conflict bead is
+        # filed; MUST NOT call enable_auto_merge (already enqueued)
+        # or merge_review (would fail anyway on a DIRTY PR).
+        orch._yolo_notify_conflict.assert_called_once_with(
+            project, provider, "org/repo", "16"
+        )
+        provider.enable_auto_merge.assert_not_called()
+        provider.merge_review.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_auto_merge_enabled_clean_pr_still_skipped(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """An auto-merge-enabled PR with NO conflicts must still be
+        skipped — GitHub is handling it. We're only changing the
+        DIRTY behavior, not the common-case idempotency. (oompah-zlz_2-l81)"""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "17",
+                    ci_status="passed",
+                    auto_merge_enabled=True,
+                    has_conflicts=False,
+                    mergeable_state="clean",
+                )
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # Clean enqueued PR → no action; idempotency guard fires.
+        orch._yolo_notify_conflict.assert_not_called()
+        provider.enable_auto_merge.assert_not_called()
+        provider.merge_review.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # YOLO merge-failure classifier (oompah-zlz_2-btf.2)

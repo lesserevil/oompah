@@ -673,10 +673,14 @@ class TestGitHubReviewQueueState:
             "never auto-merged so their mergeable state is irrelevant"
         )
 
-    def test_list_open_reviews_skips_detail_fetch_for_auto_merge(self):
-        """Auto-merge enabled means GitHub is already handling it — the
-        merge queue (or auto-merge feature) will compute mergeability
-        when it actually tries to merge. Skip the extra GET."""
+    def test_list_open_reviews_detail_fetch_for_auto_merge(self):
+        """Auto-merge enabled PRs MUST still get DETAIL-fetched: a PR
+        that's enqueued for auto-merge can go DIRTY when another PR
+        lands first with overlapping files. GitHub will then sit
+        forever waiting for manual conflict resolution. Without the
+        detail fetch, has_conflicts stays False and the YOLO loop
+        never dispatches a merge-conflict agent. (oompah-zlz_2-l81,
+        regression of oompah-zlz_2-8rb)"""
         list_pr, detail_pr = self._list_endpoint_payload(
             number=20,
             auto_merge={"enabled_by": {"login": "bob"}},
@@ -687,14 +691,19 @@ class TestGitHubReviewQueueState:
         )
         reviews = provider.list_open_reviews("x/y")
         assert reviews[0].auto_merge_enabled is True
-        assert detail_calls == [], (
-            "auto-merge-enabled PRs must not trigger an extra DETAIL "
-            "fetch — GitHub is already handling the merge"
+        assert detail_calls, (
+            "auto-merge-enabled PRs must trigger a DETAIL fetch so "
+            "we detect post-enqueue DIRTY state (oompah-zlz_2-l81)"
         )
+        # Detail returned clean → has_conflicts stays False.
+        assert reviews[0].has_conflicts is False
+        assert reviews[0].mergeable_state == "clean"
 
-    def test_list_open_reviews_skips_detail_fetch_for_merge_queued(self):
-        """Same logic as auto_merge: a PR in the merge queue is being
-        handled by GitHub. No need to compute mergeability here."""
+    def test_list_open_reviews_detail_fetch_for_merge_queued(self):
+        """A PR in the merge queue must also get DETAIL-fetched. Same
+        rationale as auto-merge: an enqueued PR can go DIRTY after
+        another PR lands, and the queue then waits indefinitely.
+        (oompah-zlz_2-l81)"""
         list_pr, detail_pr = self._list_endpoint_payload(
             number=21, auto_merge=None,
             mergeable=False, mergeable_state="dirty",
@@ -704,9 +713,46 @@ class TestGitHubReviewQueueState:
         )
         reviews = provider.list_open_reviews("x/y")
         assert reviews[0].auto_merge_enabled is True
-        assert detail_calls == [], (
-            "PRs in the merge queue must not trigger DETAIL fetch — "
-            "GitHub is already handling the merge"
+        assert detail_calls, (
+            "merge-queued PRs must trigger a DETAIL fetch so we "
+            "detect post-enqueue DIRTY state (oompah-zlz_2-l81)"
+        )
+        # Detail returned dirty → has_conflicts must be True so the
+        # YOLO loop files a merge-conflict bead.
+        assert reviews[0].has_conflicts is True
+        assert reviews[0].mergeable_state == "dirty"
+
+    def test_list_open_reviews_auto_merge_dirty_after_enqueue(self):
+        """The exact trickle PR #16 scenario: a PR was enqueued for
+        auto-merge, then another PR landed first with overlapping
+        files. mergeable=CONFLICTING / mergeStateStatus=DIRTY,
+        autoMerge still on. oompah must detect has_conflicts=True so
+        the existing _yolo_notify_conflict pipeline files a P0
+        merge-conflict bead. (oompah-zlz_2-l81)"""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=16,
+            auto_merge={"enabled_by": {"login": "bob"},
+                        "merge_method": "MERGE"},
+            mergeable=False, mergeable_state="dirty",
+        )
+        provider, detail_calls = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr,
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert len(reviews) == 1
+        review = reviews[0]
+        assert review.auto_merge_enabled is True, (
+            "auto-merge stays on while the PR sits stuck in the queue"
+        )
+        assert review.has_conflicts is True, (
+            "DIRTY auto-merge PR must report has_conflicts=True so "
+            "_yolo_notify_conflict fires and files a merge-conflict bead"
+        )
+        assert review.needs_rebase is True
+        assert review.mergeable_state == "dirty"
+        assert detail_calls, (
+            "the fix is gated on this DETAIL call happening for "
+            "auto-merge PRs — without it has_conflicts stays False"
         )
 
     def test_list_open_reviews_detail_http_error_falls_back_safely(self):
@@ -758,8 +804,9 @@ class TestGitHubReviewQueueState:
         assert reviews[0].mergeable_state == "unknown"
 
     def test_list_open_reviews_detail_fetch_per_pr(self):
-        """Multi-PR list: each non-auto-merging non-draft PR gets its
-        own DETAIL fetch."""
+        """Multi-PR list: each non-draft PR gets its own DETAIL fetch
+        (auto-merging PRs are NOT skipped since post-enqueue DIRTY
+        must be detected — oompah-zlz_2-l81)."""
         list_pr_a, detail_pr_a = self._list_endpoint_payload(
             number=24, auto_merge=None, mergeable=False,
             mergeable_state="dirty",
@@ -795,6 +842,5 @@ class TestGitHubReviewQueueState:
         assert by_id["24"].has_conflicts is True
         assert by_id["25"].has_conflicts is False
         assert len(detail_calls) == 2, (
-            "each non-draft non-auto-merging PR must trigger one "
-            "DETAIL fetch"
+            "each non-draft PR must trigger one DETAIL fetch"
         )

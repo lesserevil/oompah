@@ -524,15 +524,22 @@ class GitHubProvider(SCMProvider):
             # The LIST endpoint omits these fields, so without this
             # call has_conflicts is silently always False and the
             # YOLO loop never dispatches a merge-conflict agent for
-            # genuinely DIRTY PRs. Skip drafts (we don't act on them)
-            # and auto-merge / merge-queue PRs (GitHub is already
-            # handling them, no decision to make). For a typical
-            # project with <10 open PRs and most queued, this is 3-5
-            # extra GETs per review_check tick — well below rate-limit
-            # pressure, and we already pay one GET per PR for CI
-            # status. (oompah-zlz_2-8rb)
+            # genuinely DIRTY PRs. Skip drafts (we don't act on them).
+            #
+            # We DO fetch detail for auto-merge / merge-queued PRs even
+            # though GitHub is "handling" them: an enqueued PR can go
+            # DIRTY after another PR lands first (overlapping files),
+            # and the queue will then sit forever waiting for manual
+            # conflict resolution. Without this fetch, has_conflicts
+            # stays False and we never file a merge-conflict bead.
+            # See oompah-zlz_2-l81 (regression of oompah-zlz_2-8rb).
+            #
+            # Cost: one GET per non-draft open PR per review_check tick
+            # — bounded by max_in_flight_prs × N projects, well below
+            # rate-limit pressure. We already pay one GET per PR for
+            # CI status anyway.
             pr_draft = bool(pr.get("draft", False))
-            if pr_num and not pr_draft and not auto_merge_enabled:
+            if pr_num and not pr_draft:
                 detail = self._fetch_pr_mergeable_detail(repo, pr_num)
                 if detail is not None:
                     detail_mergeable, detail_state_raw = detail
