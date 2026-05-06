@@ -302,6 +302,59 @@ class TestCreateIssueInitialStatus:
         # Only the create call, no update needed
         assert mock_run_bd.call_count == 1
 
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_with_labels_passed_to_bd(self, mock_run_bd):
+        """When labels= is supplied, --labels=a,b is passed to bd create."""
+        mock_run_bd.return_value = {
+            "id": "test-6", "title": "Labeled", "status": "open", "priority": 0,
+        }
+
+        tracker = self._tracker()
+        tracker.create_issue(
+            title="Labeled",
+            initial_status="open",
+            labels=["ci-fix", "urgent"],
+        )
+
+        # Only the create call (initial_status='open' skips update)
+        assert mock_run_bd.call_count == 1
+        args = mock_run_bd.call_args_list[0][0][0]
+        assert "--labels=ci-fix,urgent" in args
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_with_parent_passed_to_bd(self, mock_run_bd):
+        """When parent= is supplied, --parent=<id> is passed to bd create."""
+        mock_run_bd.return_value = {
+            "id": "test-7", "title": "Child", "status": "open", "priority": 0,
+        }
+
+        tracker = self._tracker()
+        tracker.create_issue(
+            title="Child",
+            initial_status="open",
+            parent="parent-001",
+        )
+
+        assert mock_run_bd.call_count == 1
+        args = mock_run_bd.call_args_list[0][0][0]
+        assert "--parent=parent-001" in args
+
+    @patch.object(BeadsTracker, "_run_bd")
+    def test_create_without_labels_or_parent_omits_flags(self, mock_run_bd):
+        """When neither labels nor parent are supplied, no --labels / --parent
+        flags are added to bd create."""
+        mock_run_bd.return_value = {
+            "id": "test-8", "title": "Plain", "status": "open", "priority": 2,
+        }
+
+        tracker = self._tracker()
+        tracker.create_issue(title="Plain", initial_status="open")
+
+        assert mock_run_bd.call_count == 1
+        args = mock_run_bd.call_args_list[0][0][0]
+        assert not any(a.startswith("--labels=") for a in args)
+        assert not any(a.startswith("--parent=") for a in args)
+
 
 # ---------------------------------------------------------------------------
 # Candidate fetch / dispatch query (oompah-zlz_2-k5a)

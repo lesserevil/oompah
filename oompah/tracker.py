@@ -195,6 +195,8 @@ class BeadsTracker:
         description: str | None = None,
         priority: int | None = None,
         initial_status: str | None = None,
+        labels: list[str] | None = None,
+        parent: str | None = None,
     ) -> Issue:
         """Create a new issue via bd create and return the normalized Issue.
 
@@ -208,12 +210,21 @@ class BeadsTracker:
                 Pass a different value (e.g. "open") to bypass the
                 backlog, which is used by workflows like merge-conflict
                 resolution that need immediate dispatch.
+            labels: Optional list of labels to attach at creation. Passed
+                as a single comma-separated --labels argument to bd create.
+            parent: Optional parent issue ID to create the new issue as a
+                hierarchical child of (passed as --parent). Useful for
+                filing sibling/follow-up beads under an existing epic.
         """
         args = ["create", f"--title={title}", f"--type={issue_type}", "--json"]
         if description:
             args.append(f"--description={description}")
         if priority is not None:
             args.append(f"--priority={priority}")
+        if labels:
+            args.append(f"--labels={','.join(labels)}")
+        if parent:
+            args.append(f"--parent={parent}")
         raw = self._run_bd(args)
         if isinstance(raw, dict):
             issue = self._normalize_issue(raw)

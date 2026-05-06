@@ -2081,7 +2081,78 @@ class Orchestrator:
                     kind="ci-fix",
                 )
                 return
-            # Don't re-file if already open/in_progress with ci-fix label
+            # If the matched bead is an epic with children, the dispatcher
+            # will never dispatch it (epics-with-children are gated out of
+            # both regular dispatch and epic-planner dispatch). Relabeling
+            # such an epic as ci-fix would silently strand the work
+            # forever — that was the original p4y bug. File a sibling
+            # task bead under the epic instead so an agent actually gets
+            # dispatched against the CI failure. See oompah-zlz_2-p4y and
+            # oompah-zlz_2-cd5 (idempotency-via-sibling-presence).
+            #
+            # IMPORTANT: this check runs BEFORE the
+            # already-labeled-ci-fix early-exit below. Without that
+            # ordering, an epic that was relabeled ci-fix in a previous
+            # YOLO cycle (legacy state, or operator action) would
+            # short-circuit forever and never produce a sibling bead —
+            # which is exactly the bug oompah-zlz_2-cd5 fixes.
+            if issue.issue_type == "epic":
+                children = self._fetch_epic_children(issue)
+                if children:
+                    # Idempotency: if there's already an OPEN/IN_PROGRESS
+                    # ci-fix sibling under this epic, a fix is already in
+                    # flight — don't file a duplicate. CLOSED siblings
+                    # from previous attempts don't count (treat as
+                    # finished and file a new one).
+                    existing_sibling = next(
+                        (
+                            c for c in children
+                            if c.state.strip().lower() in ("open", "in_progress")
+                            and "ci-fix" in (c.labels or [])
+                        ),
+                        None,
+                    )
+                    if existing_sibling is not None:
+                        logger.debug(
+                            "YOLO: ci-fix sibling %s already open under "
+                            "epic %s — skipping duplicate",
+                            existing_sibling.identifier, issue.identifier,
+                        )
+                        return
+                    sibling_title = (
+                        f"CI fix: PR #{review.id} on branch {source_branch}"
+                    )
+                    sibling_description = (
+                        f"YOLO: CI tests failed on MR #{review.id} "
+                        f"(branch {source_branch}). The branch's primary "
+                        f"bead {issue.identifier} is an epic with "
+                        f"{len(children)} children and won't be dispatched. "
+                        "This sibling bead carries the actual fix work.\n\n"
+                        "Fix the failing tests so this MR can merge. "
+                        "Do NOT rewrite the feature — only fix test failures. "
+                        "IMPORTANT: Paths in CI logs are not trustworthy. "
+                        "Run tests locally to get accurate paths and errors."
+                    )
+                    sibling = tracker.create_issue(
+                        title=sibling_title,
+                        issue_type="task",
+                        description=sibling_description,
+                        priority=0,
+                        labels=["ci-fix"],
+                        parent=issue.identifier,
+                        initial_status="open",
+                    )
+                    logger.info(
+                        "YOLO: filed sibling ci-fix bead %s under epic %s "
+                        "for MR #%s",
+                        sibling.identifier, issue.identifier, review.id,
+                    )
+                    return
+            # Non-epic / childless-epic path: keep the existing
+            # relabel-or-skip behavior. The early-exit below is the
+            # original idempotency guard — for non-epic beads, a
+            # ci-fix label genuinely means "a fix is already in flight"
+            # because the bead itself can be dispatched.
             state_lower = issue.state.strip().lower()
             if state_lower in ("open", "in_progress") and "ci-fix" in issue.labels:
                 return
