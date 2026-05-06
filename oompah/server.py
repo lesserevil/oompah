@@ -1392,9 +1392,18 @@ async def api_list_reviews():
             for entry in orch.state.running.values()
             if entry.issue
         }
+        # oompah-zlz_2-btf.2: surface YOLO repo-config errors on each PR
+        # so the dashboard / per-PR detail can show why YOLO can't merge.
+        repo_config_errors = getattr(orch, "_yolo_repo_config_errors", {}) or {}
         for item in reviews:
             r = item.get("review", {})
             item["agent_active"] = r.get("source_branch", "") in active_branches
+            err = repo_config_errors.get(
+                (item.get("project_id", ""), str(r.get("id", "")))
+            )
+            if err:
+                item["repo_config_error"] = err.get("msg", "")
+                item["repo_config_error_fingerprint"] = err.get("fingerprint", "")
         _api_cache.set("reviews:all", reviews, ttl_ms=10000)
         return JSONResponse(reviews)
     except Exception as exc:
