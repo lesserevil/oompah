@@ -844,3 +844,342 @@ class TestGitHubReviewQueueState:
         assert len(detail_calls) == 2, (
             "each non-draft PR must trigger one DETAIL fetch"
         )
+
+
+class TestGitHubPRDetailCache:
+    """Per-PR DETAIL fetch result cache (oompah-zlz_2-aza).
+
+    The 8rb fix adds a per-PR DETAIL fetch on every review_check tick
+    so the YOLO loop sees real has_conflicts/mergeable_state. Without
+    caching, this re-fetches identical state every poll cycle and can
+    push a single review_check tick to 60+ seconds. The cache keyed on
+    (repo, pr_num) → (head_sha, updated_at, mergeable, mergeable_state)
+    means steady-state ticks make zero DETAIL calls; first tick after
+    a PR push pays one DETAIL fetch (cache miss because head_sha or
+    updated_at changed).
+    """
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _pr_payload(self, **overrides):
+        base = {
+            "number": 11,
+            "title": "Test PR",
+            "html_url": "https://github.com/x/y/pull/11",
+            "user": {"login": "alice"},
+            "head": {"ref": "feat", "sha": "deadbeef"},
+            "base": {"ref": "main"},
+            "created_at": "2026-05-01T00:00:00Z",
+            "updated_at": "2026-05-01T00:00:00Z",
+            "body": "",
+            "labels": [],
+            "draft": False,
+            "additions": 1,
+            "deletions": 0,
+            "mergeable": True,
+            "mergeable_state": "clean",
+            "auto_merge": None,
+        }
+        base.update(overrides)
+        return base
+
+    def _make_provider(self, pr_payloads_by_num, detail_calls):
+        """Build a provider whose LIST endpoint returns the given PRs and
+        whose DETAIL endpoint returns the same PR by number, recording
+        every DETAIL call into ``detail_calls``.
+
+        Re-evaluates ``pr_payloads_by_num`` on every call so tests can
+        mutate the dict between ticks to simulate state changes.
+        """
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls"):
+                # Re-snapshot the PR list on every call so test mutations
+                # to ``pr_payloads_by_num`` between ticks propagate.
+                # GitHub's LIST endpoint omits mergeable/mergeable_state,
+                # so we strip those fields from the LIST view to match
+                # real-world behavior.
+                list_view = []
+                for pr in pr_payloads_by_num.values():
+                    list_view.append({
+                        k: v for k, v in pr.items()
+                        if k not in ("mergeable", "mergeable_state")
+                    })
+                return self._FakeResponse(list_view)
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                detail_calls.append(path)
+                pr_num = path.rsplit("/", 1)[-1]
+                return self._FakeResponse(pr_payloads_by_num[pr_num])
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        provider._graphql = lambda q, v=None: self._FakeResponse(
+            {"data": {"repository": {"mergeQueue": None}}}
+        )
+        return provider
+
+    def setup_method(self):
+        # Class-level cache must be cleared between tests so they don't
+        # cross-pollute. Production code does NOT need to do this — the
+        # cache is meant to persist across review_check ticks.
+        GitHubProvider._pr_detail_cache.clear()
+
+    def test_steady_state_zero_detail_fetches_on_repeated_tick(self):
+        """First tick fetches DETAIL once; subsequent ticks with no
+        change to head_sha or updated_at fetch zero times."""
+        pr = self._pr_payload(number=11, mergeable=True,
+                              mergeable_state="clean")
+        detail_calls: list[str] = []
+        provider = self._make_provider({"11": pr}, detail_calls)
+
+        # First tick — cache miss.
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].mergeable_state == "clean"
+        assert len(detail_calls) == 1, (
+            "first tick must DETAIL-fetch (cache miss)"
+        )
+
+        # Second tick with identical PR state — cache hit.
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].mergeable_state == "clean"
+        assert len(detail_calls) == 1, (
+            "second tick must NOT DETAIL-fetch (cache hit on same "
+            "head_sha + updated_at)"
+        )
+
+        # Third tick — still cached.
+        provider.list_open_reviews("x/y")
+        assert len(detail_calls) == 1
+
+    def test_cache_invalidated_on_head_sha_change(self):
+        """A new commit on the PR branch changes head.sha → DETAIL
+        re-fetch."""
+        pr_v1 = self._pr_payload(
+            number=11, head={"ref": "feat", "sha": "aaaa1111"},
+            mergeable=True, mergeable_state="clean",
+        )
+        pr_v2 = self._pr_payload(
+            number=11, head={"ref": "feat", "sha": "bbbb2222"},
+            mergeable=True, mergeable_state="clean",
+        )
+        # Mutate the dict the provider returns between ticks.
+        current = {"11": pr_v1}
+        detail_calls: list[str] = []
+        provider = self._make_provider(current, detail_calls)
+
+        provider.list_open_reviews("x/y")
+        assert len(detail_calls) == 1
+
+        # Push a new commit → head.sha changes.
+        current["11"] = pr_v2
+        provider.list_open_reviews("x/y")
+        assert len(detail_calls) == 2, (
+            "head.sha change must invalidate cache and trigger DETAIL"
+        )
+
+    def test_cache_invalidated_on_updated_at_change(self):
+        """A PR going DIRTY after another PR lands keeps head.sha
+        unchanged but bumps updated_at — must re-fetch DETAIL so the
+        YOLO loop sees the new mergeable_state. (Acceptance criterion:
+        'a PR that goes DIRTY (head_sha unchanged, updated_at bump)
+        still gets re-fetched'.)"""
+        pr_clean = self._pr_payload(
+            number=11, head={"ref": "feat", "sha": "deadbeef"},
+            updated_at="2026-05-01T00:00:00Z",
+            mergeable=True, mergeable_state="clean",
+        )
+        pr_dirty = self._pr_payload(
+            number=11, head={"ref": "feat", "sha": "deadbeef"},
+            updated_at="2026-05-01T00:05:00Z",
+            mergeable=False, mergeable_state="dirty",
+        )
+        current = {"11": pr_clean}
+        detail_calls: list[str] = []
+        provider = self._make_provider(current, detail_calls)
+
+        # Tick 1: clean.
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].has_conflicts is False
+        assert len(detail_calls) == 1
+
+        # Tick 2: same head.sha but updated_at bumped → re-fetch.
+        current["11"] = pr_dirty
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].has_conflicts is True, (
+            "DIRTY transition must propagate even when head_sha is "
+            "unchanged — that's how post-enqueue conflicts surface"
+        )
+        assert reviews[0].mergeable_state == "dirty"
+        assert len(detail_calls) == 2, (
+            "updated_at change must invalidate cache"
+        )
+
+    def test_cache_eviction_on_pr_close(self):
+        """When a PR drops out of the LIST response (closed/merged),
+        its cache entry must be evicted so closed-then-reopened PRs
+        don't return stale state. Open PR for the same repo keeps its
+        cache entry."""
+        pr_a = self._pr_payload(number=11, mergeable=True,
+                                mergeable_state="clean")
+        pr_b = self._pr_payload(number=12, mergeable=True,
+                                mergeable_state="clean")
+        current = {"11": pr_a, "12": pr_b}
+        detail_calls: list[str] = []
+        provider = self._make_provider(current, detail_calls)
+
+        # Tick 1: both PRs cached.
+        provider.list_open_reviews("x/y")
+        assert len(detail_calls) == 2
+        assert ("x/y", "11") in GitHubProvider._pr_detail_cache
+        assert ("x/y", "12") in GitHubProvider._pr_detail_cache
+
+        # Tick 2: PR #11 closed → list returns only #12.
+        del current["11"]
+        provider.list_open_reviews("x/y")
+        # #11 was evicted; #12 was a cache hit.
+        assert ("x/y", "11") not in GitHubProvider._pr_detail_cache, (
+            "closed PR must be evicted from cache"
+        )
+        assert ("x/y", "12") in GitHubProvider._pr_detail_cache, (
+            "still-open PR must remain cached"
+        )
+        assert len(detail_calls) == 2, (
+            "tick 2 must NOT DETAIL-fetch — only the eviction happens"
+        )
+
+    def test_cache_eviction_does_not_touch_other_repos(self):
+        """list_open_reviews on repo A must not evict entries for repo
+        B, even though B's PRs aren't in A's LIST response."""
+        pr_a = self._pr_payload(number=11, mergeable=True,
+                                mergeable_state="clean")
+        pr_b = self._pr_payload(number=99, mergeable=True,
+                                mergeable_state="clean")
+
+        # Pre-populate cache with an entry from a different repo.
+        GitHubProvider._pr_detail_cache[("other/repo", "99")] = (
+            "deadbeef", "2026-05-01T00:00:00Z", True, "clean",
+        )
+
+        detail_calls: list[str] = []
+        provider = self._make_provider({"11": pr_a}, detail_calls)
+        provider.list_open_reviews("x/y")
+
+        # The unrelated cache entry for other/repo must NOT be evicted.
+        assert ("other/repo", "99") in GitHubProvider._pr_detail_cache, (
+            "eviction must be scoped per-repo — other repos untouched"
+        )
+        assert ("x/y", "11") in GitHubProvider._pr_detail_cache
+
+    def test_cache_shared_across_provider_instances(self):
+        """The orchestrator creates a fresh GitHubProvider on every
+        review_check tick (see _fetch_all_reviews). The cache MUST
+        therefore be class-level, not per-instance, or it would always
+        be empty on the next tick.
+        """
+        pr = self._pr_payload(number=11, mergeable=True,
+                              mergeable_state="clean")
+        # Two provider instances representing two consecutive ticks.
+        detail_calls: list[str] = []
+        provider_tick1 = self._make_provider({"11": pr}, detail_calls)
+        provider_tick2 = self._make_provider({"11": pr}, detail_calls)
+
+        provider_tick1.list_open_reviews("x/y")
+        assert len(detail_calls) == 1
+
+        # Different instance, same data — cache must hit.
+        provider_tick2.list_open_reviews("x/y")
+        assert len(detail_calls) == 1, (
+            "cache must be shared across instances (orchestrator "
+            "creates a fresh GitHubProvider every tick)"
+        )
+
+    def test_cache_miss_when_detail_fetch_failed(self):
+        """A failed DETAIL fetch must NOT pin a stale value in the
+        cache — the next tick must retry. (Otherwise we'd have
+        has_conflicts=False stuck until the PR is pushed again.)"""
+        list_pr = {
+            "number": 11,
+            "title": "Test",
+            "html_url": "https://github.com/x/y/pull/11",
+            "user": {"login": "alice"},
+            "head": {"ref": "feat", "sha": "deadbeef"},
+            "base": {"ref": "main"},
+            "created_at": "2026-05-01T00:00:00Z",
+            "updated_at": "2026-05-01T00:00:00Z",
+            "body": "",
+            "labels": [],
+            "draft": False,
+            "additions": 0,
+            "deletions": 0,
+            "auto_merge": None,
+        }
+        detail_calls: list[str] = []
+        provider = GitHubProvider(access_token="t")
+        # First call fails (HTTP 500), second call succeeds.
+        responses = [
+            self._FakeResponse({}, status_code=500),
+            self._FakeResponse(self._pr_payload(
+                number=11, mergeable=False, mergeable_state="dirty",
+            )),
+        ]
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls"):
+                return self._FakeResponse([list_pr])
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                detail_calls.append(path)
+                return responses[len(detail_calls) - 1]
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        provider._graphql = lambda q, v=None: self._FakeResponse(
+            {"data": {"repository": {"mergeQueue": None}}}
+        )
+
+        # Tick 1: DETAIL fetch fails → no cache entry written.
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].has_conflicts is False  # falls back to LIST default
+        assert ("x/y", "11") not in GitHubProvider._pr_detail_cache, (
+            "failed DETAIL fetch must NOT populate cache"
+        )
+
+        # Tick 2: retry succeeds → conflict detected, cache populated.
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].has_conflicts is True
+        assert ("x/y", "11") in GitHubProvider._pr_detail_cache
+        assert len(detail_calls) == 2, (
+            "next tick after a failed fetch must retry DETAIL"
+        )
+
+    def test_drafts_never_cached_or_fetched(self):
+        """Draft PRs skip DETAIL entirely — must not pollute the cache
+        either."""
+        pr = self._pr_payload(number=11, draft=True,
+                              mergeable=False, mergeable_state="dirty")
+        detail_calls: list[str] = []
+        provider = self._make_provider({"11": pr}, detail_calls)
+
+        provider.list_open_reviews("x/y")
+        assert detail_calls == []
+        assert ("x/y", "11") not in GitHubProvider._pr_detail_cache, (
+            "draft PRs must not populate cache"
+        )
+
+        # Even on a second tick, no fetch and no cache entry.
+        provider.list_open_reviews("x/y")
+        assert detail_calls == []
