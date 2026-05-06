@@ -146,77 +146,159 @@ class TestProjectMergeQueueEnabled:
 
 @pytest.mark.skipif(not _SCM_AVAILABLE, reason="httpx not installed")
 class TestGitHubEnableAutoMerge:
-    """GitHubProvider.enable_auto_merge POSTs to the auto-merge endpoint."""
+    """GitHubProvider.enable_auto_merge uses the GraphQL enablePullRequestAutoMerge mutation.
+
+    The previous implementation POSTed to the non-existent REST URL
+    ``/repos/{repo}/pulls/{N}/auto-merge`` and 404'd unconditionally
+    (bead oompah-zlz_2-d9v). These tests mock both the REST PR-lookup
+    (to fetch ``node_id``) and the GraphQL mutation response.
+    """
 
     class _FakeResponse:
-        def __init__(self, status_code: int, text: str = ""):
+        def __init__(self, status_code: int, text: str = "", payload: dict | None = None):
             self.status_code = status_code
             self.text = text
+            self._payload = payload if payload is not None else {}
 
         def json(self):
-            return {}
+            return self._payload
 
-    def _provider_with_response(self, status_code: int, text: str = ""):
+    def _make_provider(
+        self,
+        *,
+        pr_status: int = 200,
+        pr_payload: dict | None = None,
+        gql_status: int = 200,
+        gql_payload: dict | None = None,
+    ):
+        """Build a GitHubProvider with both _api (PR lookup) and _graphql (mutation) mocked."""
         from oompah.scm import GitHubProvider
         provider = GitHubProvider(access_token="t")
         provider._api = MagicMock(
-            return_value=self._FakeResponse(status_code, text)
+            return_value=self._FakeResponse(
+                pr_status,
+                payload=pr_payload if pr_payload is not None else {"node_id": "PR_kwDOABCD123"},
+            )
+        )
+        provider._graphql = MagicMock(
+            return_value=self._FakeResponse(
+                gql_status,
+                payload=gql_payload if gql_payload is not None else {
+                    "data": {"enablePullRequestAutoMerge": {"pullRequest": {"autoMergeRequest": {"enabledAt": "2026-05-06T01:00:00Z"}}}}
+                },
+            )
         )
         return provider
 
-    def test_success_200(self):
-        from oompah.scm import GitHubProvider
-        provider = self._provider_with_response(200)
+    def test_success(self):
+        provider = self._make_provider()
         ok, msg = provider.enable_auto_merge("org/repo", "42")
         assert ok is True
         assert "auto-merge" in msg.lower()
 
-    def test_success_201(self):
-        provider = self._provider_with_response(201)
-        ok, msg = provider.enable_auto_merge("org/repo", "42")
-        assert ok is True
-
-    def test_failure_405_method_not_allowed(self):
-        provider = self._provider_with_response(405, "Method Not Allowed")
+    def test_pr_lookup_failure_returns_error(self):
+        provider = self._make_provider(pr_status=404, pr_payload={})
         ok, msg = provider.enable_auto_merge("org/repo", "42")
         assert ok is False
-        assert "405" in msg or "not allowed" in msg.lower()
+        assert "PR lookup" in msg
+        assert "404" in msg
+        # Must not attempt the GraphQL mutation if the PR can't be found.
+        provider._graphql.assert_not_called()
 
-    def test_failure_other_http_error(self):
-        provider = self._provider_with_response(422, "Unprocessable Entity")
+    def test_missing_node_id_returns_error(self):
+        provider = self._make_provider(pr_payload={"id": 1})
         ok, msg = provider.enable_auto_merge("org/repo", "42")
         assert ok is False
-        assert "422" in msg
+        assert "node_id" in msg
 
-    def test_http_exception_returns_failure(self):
+    def test_pr_lookup_http_exception(self):
         import httpx
         from oompah.scm import GitHubProvider
         provider = GitHubProvider(access_token="t")
         provider._api = MagicMock(side_effect=httpx.HTTPError("connection refused"))
+        provider._graphql = MagicMock()
         ok, msg = provider.enable_auto_merge("org/repo", "42")
         assert ok is False
-        assert "connection refused" in msg.lower() or "Failed" in msg
+        assert "connection refused" in msg.lower() or "lookup" in msg.lower()
+        provider._graphql.assert_not_called()
 
-    def test_posts_to_auto_merge_endpoint(self):
-        from oompah.scm import GitHubProvider
-        provider = GitHubProvider(access_token="t")
-        provider._api = MagicMock(
-            return_value=self._FakeResponse(200)
-        )
-        provider.enable_auto_merge("org/repo", "42")
-        call_args = provider._api.call_args
-        assert call_args[0][0] == "POST"
-        assert "/repos/org/repo/pulls/42/auto-merge" in call_args[0][1]
+    def test_graphql_http_error(self):
+        provider = self._make_provider(gql_status=500)
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "500" in msg
+        assert "GraphQL" in msg
 
-    def test_uses_squash_merge_method(self):
-        from oompah.scm import GitHubProvider
-        provider = GitHubProvider(access_token="t")
-        provider._api = MagicMock(
-            return_value=self._FakeResponse(200)
+    def test_graphql_http_exception(self):
+        import httpx
+        provider = self._make_provider()
+        provider._graphql = MagicMock(side_effect=httpx.HTTPError("EOF"))
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "GraphQL" in msg or "eof" in msg.lower()
+
+    def test_repo_disallows_auto_merge(self):
+        """allow_auto_merge=false on the repo surfaces a distinct error message."""
+        provider = self._make_provider(
+            gql_payload={
+                "errors": [
+                    {"message": "Pull request Auto merge is not allowed for this repository"}
+                ]
+            },
         )
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "allow_auto_merge=true" in msg
+        assert "org/repo" in msg
+
+    def test_pr_already_mergeable(self):
+        """PR in 'clean' status is already mergeable — auto-merge can't attach."""
+        provider = self._make_provider(
+            gql_payload={
+                "errors": [
+                    {"message": "Pull request is in clean status"}
+                ]
+            },
+        )
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "already mergeable" in msg.lower()
+
+    def test_generic_graphql_error(self):
+        provider = self._make_provider(
+            gql_payload={"errors": [{"message": "Unexpected error"}]},
+        )
+        ok, msg = provider.enable_auto_merge("org/repo", "42")
+        assert ok is False
+        assert "Unexpected error" in msg
+
+    def test_does_not_use_legacy_rest_endpoint(self):
+        """Regression: the broken REST URL must NEVER be called.
+
+        See bead oompah-zlz_2-d9v: POST /repos/{repo}/pulls/{N}/auto-merge is
+        not a real GitHub REST endpoint and 404s unconditionally.
+        """
+        provider = self._make_provider()
         provider.enable_auto_merge("org/repo", "42")
-        call_kwargs = provider._api.call_args[1]
-        assert call_kwargs.get("json", {}).get("merge_method") == "squash"
+        # Only call to _api should be the GET PR lookup.
+        for c in provider._api.call_args_list:
+            method = c[0][0]
+            path = c[0][1]
+            assert not (
+                method == "POST" and "/auto-merge" in path
+            ), f"legacy broken REST URL called: {method} {path}"
+
+    def test_calls_graphql_mutation_with_squash(self):
+        provider = self._make_provider()
+        provider.enable_auto_merge("org/repo", "42")
+        provider._graphql.assert_called_once()
+        args, kwargs = provider._graphql.call_args
+        # First positional arg is the mutation string.
+        assert "enablePullRequestAutoMerge" in args[0]
+        # Second positional arg (or kwarg) is variables.
+        variables = args[1] if len(args) > 1 else kwargs.get("variables", {})
+        assert variables["mergeMethod"] == "SQUASH"
+        assert variables["pullRequestId"] == "PR_kwDOABCD123"
 
 
 # ---------------------------------------------------------------------------
