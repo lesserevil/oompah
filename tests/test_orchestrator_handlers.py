@@ -779,6 +779,50 @@ class TestTickDelegation:
 
         orch._notify_observers.assert_called_once()
 
+    def test_tick_runs_watchdog(self, tmp_path):
+        """_tick() invokes _maybe_run_watchdog after the other handlers."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+
+        orch._maybe_run_watchdog.assert_called_once_with()
+
+    def test_tick_runs_watchdog_in_executor(self, tmp_path):
+        """_maybe_run_watchdog is offloaded to the tick thread pool instead of
+        running inline on the event loop (oompah-zlz_2-2op)."""
+        import threading
+
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+
+        main_thread_id = threading.get_ident()
+        observed_thread_ids: list[int] = []
+
+        def _watchdog():
+            observed_thread_ids.append(threading.get_ident())
+
+        orch._maybe_run_watchdog = _watchdog
+
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+
+        assert len(observed_thread_ids) == 1
+        # Must NOT run on the event loop thread
+        assert observed_thread_ids[0] != main_thread_id
+
 
 # ---------------------------------------------------------------------------
 # Handler isolation: each handler is independently callable
