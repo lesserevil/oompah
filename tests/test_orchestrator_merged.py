@@ -1014,6 +1014,193 @@ class TestYoloRetryCi:
         # NO sibling bead is created
         tracker.create_issue.assert_not_called()
 
+    def test_feature_with_children_creates_sibling_bead(self, tmp_path):
+        """oompah-zlz_2-gf9: a type=feature bead with children — the live
+        trickle-rl5 case — must take the sibling-bead path because the
+        dispatcher's blocker chain gates it identically to an epic.
+        Without this, p4y/cd5's fix is silently bypassed for any
+        feature bead created by epic_planner (which stamps as feature)."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        # Live trickle-rl5: type=feature, 7 children, branch matches.
+        feature = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="feature",
+            labels=[],
+            branch_name="trickle-rl5",
+        )
+        children = [_make_issue(f"trickle-c{i}", state="open") for i in range(7)]
+        tracker = self._attach_tracker(orch, project, feature, children=children)
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # Existing relabel path must NOT fire — feature-with-children
+        # behaves identically to epic-with-children at the dispatcher.
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+        # Sibling bead is filed under the feature parent.
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["issue_type"] == "task"
+        assert kwargs["priority"] == 0
+        assert kwargs["labels"] == ["ci-fix"]
+        assert kwargs["parent"] == "trickle-rl5"
+        assert kwargs["initial_status"] == "open"
+        # Description should mention the parent's actual type (feature).
+        desc = kwargs["description"]
+        assert "trickle-rl5" in desc
+        assert "type=feature" in desc
+        assert "Fix the failing tests" in desc
+
+    def test_already_labeled_feature_with_children_still_files_sibling(self, tmp_path):
+        """oompah-zlz_2-gf9 + cd5: feature-with-children already labeled
+        ci-fix (the recurring trickle-rl5 state) MUST NOT short-circuit.
+        Sibling-presence is the idempotency signal, not the parent's
+        own ci-fix label."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        feature = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="feature",
+            labels=["ci-fix"],  # ← state after p4y's old code re-labeled it
+            branch_name="trickle-rl5",
+        )
+        # No ci-fix sibling exists — fix is NOT in flight.
+        children = [_make_issue(f"trickle-c{i}", state="open") for i in range(7)]
+        tracker = self._attach_tracker(orch, project, feature, children=children)
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # The early-exit guard MUST be bypassed for feature-with-children.
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        # Sibling is filed despite the parent's stale ci-fix label.
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["labels"] == ["ci-fix"]
+        assert kwargs["parent"] == "trickle-rl5"
+
+    def test_task_with_children_creates_sibling_bead(self, tmp_path):
+        """oompah-zlz_2-gf9: rare but possible — a type=task bead that
+        ended up with children. Children block dispatch via the blocker
+        chain, so file a sibling rather than relabeling."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        task = Issue(
+            id="proj-task-parent",
+            identifier="proj-task-parent",
+            title="Parent task with children",
+            description="A task that grew children.",
+            state="open",
+            issue_type="task",
+            labels=[],
+            branch_name="feat-task-parent",
+        )
+        children = [_make_issue("proj-c1", state="open")]
+        tracker = self._attach_tracker(orch, project, task, children=children)
+
+        review = _make_review("11", source_branch="feat-task-parent",
+                              ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["issue_type"] == "task"
+        assert kwargs["parent"] == "proj-task-parent"
+        assert kwargs["labels"] == ["ci-fix"]
+        # Description should reflect the parent's actual type.
+        assert "type=task" in kwargs["description"]
+
+    def test_bug_with_children_creates_sibling_bead(self, tmp_path):
+        """oompah-zlz_2-gf9: type=bug with children — same gate. The
+        dispatcher's blocker chain doesn't care about issue_type."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        bug = Issue(
+            id="proj-bug-parent",
+            identifier="proj-bug-parent",
+            title="Parent bug with children",
+            description="A bug that grew children.",
+            state="open",
+            issue_type="bug",
+            labels=[],
+            branch_name="fix-bug-parent",
+        )
+        children = [_make_issue("proj-c1", state="open")]
+        tracker = self._attach_tracker(orch, project, bug, children=children)
+
+        review = _make_review("12", source_branch="fix-bug-parent",
+                              ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["parent"] == "proj-bug-parent"
+        assert "type=bug" in kwargs["description"]
+
+    def test_feature_with_open_ci_fix_sibling_does_not_duplicate(self, tmp_path):
+        """oompah-zlz_2-gf9: idempotency-by-sibling-presence applies to
+        any parent-with-children, not just type=epic. A type=feature
+        parent with an open ci-fix sibling already in flight must not
+        spawn a duplicate."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        feature = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="feature",
+            labels=[],
+            branch_name="trickle-rl5",
+        )
+        existing_sibling = _make_issue(
+            "trickle-cifix-1", state="open", labels=["ci-fix"],
+        )
+        other_children = [_make_issue(f"trickle-c{i}", state="open") for i in range(3)]
+        tracker = self._attach_tracker(
+            orch, project, feature,
+            children=[existing_sibling, *other_children],
+        )
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
 
 class TestProjectHasOpenReview:
     """Tests for _project_has_open_review dispatch gating."""
