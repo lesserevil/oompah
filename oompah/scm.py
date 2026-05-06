@@ -250,6 +250,122 @@ class GitHubProvider(SCMProvider):
         except httpx.HTTPError:
             return False
 
+    def _list_merge_queue_pr_numbers(self, repo: str) -> set[int]:
+        """Return PR numbers currently in the repo's merge queue.
+
+        Once a PR enters the merge queue, GitHub clears its REST
+        ``auto_merge`` field to null even though the queue is actively
+        merging it. Without an explicit merge-queue lookup, the YOLO
+        idempotency check in ``_yolo_review_actions_sync`` would treat
+        the queued PR as un-enqueued and re-call ``enable_auto_merge``
+        every tick. (oompah-zlz_2-btf.4)
+
+        Cost: one GraphQL request per repo per ``list_open_reviews``
+        call (not per PR). Returns an empty set on any failure or when
+        the repo has no merge queue configured. The empty set is also
+        the right answer for repos without merge queue, so callers can
+        treat it as a no-op.
+        """
+        owner, sep, name = repo.partition("/")
+        if not (owner and sep and name):
+            return set()
+        query = (
+            "query($owner: String!, $name: String!) { "
+            "repository(owner: $owner, name: $name) { "
+            "mergeQueue { entries(first: 100) { nodes { "
+            "pullRequest { number } "
+            "} } } "
+            "} }"
+        )
+        try:
+            gql = self._graphql(query, {"owner": owner, "name": name})
+        except httpx.HTTPError as exc:
+            logger.debug(
+                "GitHub merge-queue lookup failed for %s: %s", repo, exc,
+            )
+            return set()
+        if gql.status_code != 200:
+            logger.debug(
+                "GitHub merge-queue lookup %s: HTTP %d", repo, gql.status_code,
+            )
+            return set()
+        try:
+            body = gql.json()
+        except (json.JSONDecodeError, ValueError):
+            return set()
+        # Surface GraphQL-level errors at debug only — repo without merge
+        # queue returns mergeQueue=null, not an error, so this path is
+        # only for genuinely broken queries / permission issues.
+        errors = body.get("errors") or []
+        if errors:
+            logger.debug(
+                "GitHub merge-queue GraphQL errors for %s: %s",
+                repo, errors,
+            )
+            return set()
+        repo_obj = (body.get("data") or {}).get("repository") or {}
+        queue_obj = repo_obj.get("mergeQueue") or {}
+        # mergeQueue is null when the repo has no merge queue configured.
+        if not queue_obj:
+            return set()
+        nodes = (queue_obj.get("entries") or {}).get("nodes") or []
+        out: set[int] = set()
+        for entry in nodes:
+            if not isinstance(entry, dict):
+                continue
+            pr = entry.get("pullRequest") or {}
+            number = pr.get("number") if isinstance(pr, dict) else None
+            try:
+                if number is not None:
+                    out.add(int(number))
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    def _is_pr_in_merge_queue(self, repo: str, review_id: str) -> bool:
+        """Return True when the given PR is currently in the merge queue.
+
+        Used by ``get_review`` (single-PR fetch) where pulling the entire
+        merge queue would be wasteful. One GraphQL call. Returns False
+        on any failure — failure modes are indistinguishable from
+        "not queued" from the caller's perspective.
+        """
+        owner, sep, name = repo.partition("/")
+        if not (owner and sep and name):
+            return False
+        try:
+            number = int(str(review_id))
+        except (TypeError, ValueError):
+            return False
+        query = (
+            "query($owner: String!, $name: String!, $number: Int!) { "
+            "repository(owner: $owner, name: $name) { "
+            "pullRequest(number: $number) { isInMergeQueue } "
+            "} }"
+        )
+        try:
+            gql = self._graphql(
+                query,
+                {"owner": owner, "name": name, "number": number},
+            )
+        except httpx.HTTPError as exc:
+            logger.debug(
+                "GitHub isInMergeQueue lookup failed for %s#%s: %s",
+                repo, review_id, exc,
+            )
+            return False
+        if gql.status_code != 200:
+            return False
+        try:
+            body = gql.json()
+        except (json.JSONDecodeError, ValueError):
+            return False
+        if body.get("errors"):
+            return False
+        repo_obj = (body.get("data") or {}).get("repository") or {}
+        pr_obj = repo_obj.get("pullRequest") or {}
+        return bool(pr_obj.get("isInMergeQueue"))
+
     def _fetch_ci_status(self, repo: str, sha: str) -> str:
         """Fetch combined CI status for a commit SHA."""
         try:
@@ -310,6 +426,17 @@ class GitHubProvider(SCMProvider):
         for pr_num, sha in sha_map.items():
             ci_statuses[pr_num] = self._fetch_ci_status(repo, sha)
 
+        # Single GraphQL call to learn which PRs are currently in the
+        # merge queue. Once a PR enters the queue, GitHub clears its
+        # REST ``auto_merge`` field even though the queue is actively
+        # merging it — without this lookup the YOLO idempotency check
+        # would treat queued PRs as un-enqueued. (oompah-zlz_2-btf.4)
+        # Skip the call when the page returned no PRs at all (no PRs
+        # ⇒ none can be queued).
+        merge_queue_prs: set[int] = (
+            self._list_merge_queue_pr_numbers(repo) if data else set()
+        )
+
         results = []
         for pr in data:
             author = pr.get("user", {})
@@ -326,10 +453,17 @@ class GitHubProvider(SCMProvider):
             has_conflicts = mergeable is False
             rebase_needed = merge_state == "BEHIND" or has_conflicts
 
-            # Auto-merge state — set when the PR has been enqueued via
-            # GitHub's auto-merge feature (which the merge queue uses).
-            # GitHub returns auto_merge=null when not enabled and an
-            # object with enabled_by != null when enabled.
+            # Auto-merge state — set when GitHub will merge this PR
+            # automatically once it's ready. Two distinct paths populate
+            # this:
+            #   * ``auto_merge`` non-null → the PR has the auto-merge
+            #     feature turned on (still pre-queue).
+            #   * PR number appears in the repo's merge queue → GitHub
+            #     has already taken over and will merge it; the
+            #     ``auto_merge`` field is cleared once the queue takes
+            #     over, so we must consult the merge queue separately.
+            # Without the merge-queue arm, YOLO would re-call
+            # ``enable_auto_merge`` every tick for every queued PR.
             auto_merge_obj = pr.get("auto_merge")
             auto_merge_enabled = bool(
                 auto_merge_obj
@@ -338,6 +472,12 @@ class GitHubProvider(SCMProvider):
             )
 
             pr_num = str(pr.get("number", ""))
+            try:
+                pr_num_int = int(pr.get("number") or 0)
+            except (TypeError, ValueError):
+                pr_num_int = 0
+            if pr_num_int and pr_num_int in merge_queue_prs:
+                auto_merge_enabled = True
             results.append(ReviewRequest(
                 id=pr_num,
                 title=pr.get("title", ""),
@@ -397,12 +537,24 @@ class GitHubProvider(SCMProvider):
         author_login = author.get("login", "") if isinstance(author, dict) else str(author)
 
         merge_state_raw = pr.get("mergeable_state") or ""
+        # Two paths can mark a PR as auto-merge-enabled:
+        #   1. ``auto_merge`` non-null — the auto-merge feature is on
+        #      (still pre-queue).
+        #   2. The PR is in the repo's merge queue — GitHub clears
+        #      ``auto_merge`` once the queue takes over, so we have
+        #      to ask GraphQL directly. (oompah-zlz_2-btf.4)
+        # Skip the second call when path 1 is already true to keep
+        # ``get_review`` cheap for the common case.
         auto_merge_obj = pr.get("auto_merge")
         auto_merge_enabled = bool(
             auto_merge_obj
             and isinstance(auto_merge_obj, dict)
             and auto_merge_obj.get("enabled_by")
         )
+        if not auto_merge_enabled:
+            review_id_str = str(pr.get("number", ""))
+            if review_id_str and self._is_pr_in_merge_queue(repo, review_id_str):
+                auto_merge_enabled = True
 
         return ReviewRequest(
             id=str(pr.get("number", "")),
