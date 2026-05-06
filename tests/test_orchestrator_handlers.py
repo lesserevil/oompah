@@ -384,6 +384,86 @@ class TestHandleDispatchNeeded:
         # Higher priority (lower number) should be dispatched first
         assert dispatched_order == ["feat-a", "feat-b"]
 
+    def test_select_dispatchable_runs_in_executor(self, tmp_path):
+        """The sort+filter pass runs via run_in_executor so it doesn't block uvicorn.
+
+        Regression test for oompah-zlz_2-nvr: previously _sort_for_dispatch and
+        the per-issue _should_dispatch loop ran inline in the async coroutine,
+        causing 33-53s GET / hangs during heavy ticks.
+        """
+        orch = _make_orchestrator(tmp_path)
+        candidates = [_make_issue("feat-1", state="open")]
+        orch._fetch_all_candidates = MagicMock(return_value=candidates)
+        orch._pre_resolve_blockers = MagicMock()
+        orch._reset_orphaned_in_progress = MagicMock()
+        orch._plan_open_epics = MagicMock(return_value=[])
+        orch._auto_close_completed_epics = MagicMock()
+        orch._dispatch = AsyncMock()
+
+        # Track whether _select_dispatchable was invoked from a worker thread
+        # (i.e. via run_in_executor) rather than the asyncio event-loop thread.
+        import threading
+        main_thread_id = threading.get_ident()
+        called_thread_ids: list[int] = []
+
+        original_select = orch._select_dispatchable
+
+        def tracking_select(cands):
+            called_thread_ids.append(threading.get_ident())
+            return original_select(cands)
+
+        orch._select_dispatchable = tracking_select
+
+        asyncio.run(orch._handle_dispatch_needed())
+
+        # _select_dispatchable was called once, on a worker thread (not the
+        # event loop thread). If this fails, the change has regressed and
+        # the bd CLI calls inside _should_dispatch will block uvicorn again.
+        assert len(called_thread_ids) == 1
+        assert called_thread_ids[0] != main_thread_id
+
+    def test_reset_orphaned_in_progress_runs_in_executor(self, tmp_path):
+        """_reset_orphaned_in_progress runs in the executor pool, not inline.
+
+        Regression test for oompah-zlz_2-nvr: orphan detection issues bd
+        update calls and would re-block uvicorn if it ran on the event loop.
+        """
+        orch = _make_orchestrator(tmp_path)
+        candidates = [_make_issue("feat-1", state="in_progress")]
+        orch._fetch_all_candidates = MagicMock(return_value=candidates)
+        orch._pre_resolve_blockers = MagicMock()
+        orch._plan_open_epics = MagicMock(return_value=[])
+        orch._auto_close_completed_epics = MagicMock()
+
+        import threading
+        main_thread_id = threading.get_ident()
+        seen_thread_ids: list[int] = []
+
+        def tracking_reset(cands):
+            seen_thread_ids.append(threading.get_ident())
+
+        orch._reset_orphaned_in_progress = tracking_reset
+
+        asyncio.run(orch._handle_dispatch_needed())
+
+        # _reset_orphaned_in_progress was called once, on a worker thread.
+        assert len(seen_thread_ids) == 1
+        assert seen_thread_ids[0] != main_thread_id
+
+    def test_select_dispatchable_filters_and_sorts(self, tmp_path):
+        """_select_dispatchable returns sort_for_dispatch(candidates) filtered by _should_dispatch."""
+        orch = _make_orchestrator(tmp_path)
+        a = _make_issue("feat-a", state="open", priority=2)
+        b = _make_issue("feat-b", state="open", priority=1)  # higher priority
+        c = _make_issue("feat-c", state="open", priority=0)  # highest priority
+        # _should_dispatch rejects 'feat-a'
+        orch._should_dispatch = MagicMock(side_effect=lambda i: i.identifier != "feat-a")
+
+        result = orch._select_dispatchable([a, b, c])
+
+        # Sorted by priority, with feat-a filtered out
+        assert [i.identifier for i in result] == ["feat-c", "feat-b"]
+
 
 # ---------------------------------------------------------------------------
 # _handle_yolo_review
