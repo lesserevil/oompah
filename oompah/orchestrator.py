@@ -260,6 +260,15 @@ class Orchestrator:
         # so identical errors don't spam the log every tick. Keyed on the
         # fingerprint string. (oompah-zlz_2-btf.2)
         self._logged_repo_config_fingerprints: set[str] = set()
+        # YOLO orphan-branch recovery beads: keyed by
+        # (project_id, review_id_str, kind) where kind in
+        # {"merge-conflict", "ci-fix"} → bead identifier created as the
+        # manual-recovery hook for a PR whose source branch doesn't
+        # match any existing bead. Used for idempotency so the YOLO
+        # loop doesn't file a fresh duplicate bead every tick for the
+        # same orphan PR. Cleared when the review leaves the cache.
+        # (oompah-zlz_2-975)
+        self._yolo_orphan_recovery_beads: dict[tuple[str, str, str], str] = {}
         # Merged-branches cache: persists across ticks, invalidated by webhooks
         self._merged_branches_dirty: bool = True  # start dirty to force first fetch
 
@@ -1910,6 +1919,101 @@ class Orchestrator:
         stale = [k for k in self._yolo_repo_config_errors if k not in live_keys]
         for k in stale:
             self._yolo_repo_config_errors.pop(k, None)
+        # Also prune orphan-recovery bead bookkeeping (oompah-zlz_2-975).
+        # Key shape is (project_id, review_id, kind); strip the kind to
+        # check liveness against (project_id, review_id) pairs.
+        stale_orphan = [
+            k for k in self._yolo_orphan_recovery_beads
+            if (k[0], k[1]) not in live_keys
+        ]
+        for k in stale_orphan:
+            self._yolo_orphan_recovery_beads.pop(k, None)
+
+    def _file_orphan_recovery_bead(
+        self,
+        project,
+        tracker,
+        review_id: str,
+        source_branch: str,
+        kind: str,
+    ) -> None:
+        """File a recovery bead for a PR whose branch matches no bead.
+
+        Used by ``_yolo_notify_conflict`` and ``_yolo_retry_ci`` when
+        ``fetch_issue_detail(source_branch)`` returns ``None``. Without
+        this, an orphan PR (branch with no attaching bead) would sit
+        DIRTY/FAILED forever because the YOLO escalation has nothing to
+        relabel/reopen. The bead's identifier won't match the branch —
+        that's fine: it's the work item, not the branch source. The
+        focus matcher routes via the label.
+
+        ``kind`` is one of ``"merge-conflict"`` or ``"ci-fix"`` and
+        controls the title/description/label. Idempotent: the
+        ``(project_id, review_id, kind)`` tuple is tracked in
+        ``self._yolo_orphan_recovery_beads`` so a second YOLO fire on
+        the same orphan PR will not file a duplicate.
+        (oompah-zlz_2-975)
+        """
+        if kind not in ("merge-conflict", "ci-fix"):
+            logger.error("Unknown orphan recovery bead kind: %s", kind)
+            return
+        key = (project.id, str(review_id), kind)
+        if key in self._yolo_orphan_recovery_beads:
+            logger.debug(
+                "YOLO: orphan recovery bead already filed for %s MR #%s (%s): %s",
+                project.name, review_id, kind,
+                self._yolo_orphan_recovery_beads[key],
+            )
+            return
+        if kind == "merge-conflict":
+            title = f"merge conflict on PR #{review_id} ({source_branch})"
+            description = (
+                f"YOLO: conflict detected on MR #{review_id} "
+                f"(branch {source_branch}) but no bead matches the "
+                f"branch name. This bead is the manual recovery — "
+                f"work directly on the branch. Rebase the branch onto "
+                f"the target and resolve conflicts."
+            )
+            label = "merge-conflict"
+        else:  # ci-fix
+            title = f"fix CI on PR #{review_id} ({source_branch})"
+            description = (
+                f"YOLO: CI failure detected on MR #{review_id} "
+                f"(branch {source_branch}) but no bead matches the "
+                f"branch name. This bead is the manual recovery — "
+                f"work directly on the branch. Fix the failing tests "
+                f"so this MR can merge. Do NOT rewrite the feature — "
+                f"only fix test failures. IMPORTANT: Paths in CI logs "
+                f"are not trustworthy. Run tests locally to get "
+                f"accurate paths and errors."
+            )
+            label = "ci-fix"
+        try:
+            new_issue = tracker.create_issue(
+                title=title,
+                issue_type="task",
+                description=description,
+                priority=0,
+                initial_status="open",
+            )
+        except Exception as exc:
+            logger.warning(
+                "YOLO: failed to file orphan recovery bead for %s MR #%s (%s): %s",
+                project.name, review_id, kind, exc,
+            )
+            return
+        try:
+            tracker.add_label(new_issue.identifier, label)
+        except Exception as exc:
+            logger.warning(
+                "YOLO: filed orphan recovery bead %s but failed to add %s label: %s",
+                new_issue.identifier, label, exc,
+            )
+        self._yolo_orphan_recovery_beads[key] = new_issue.identifier
+        logger.info(
+            "YOLO: filed orphan recovery bead %s for %s MR #%s (%s, branch %s)",
+            new_issue.identifier, project.name, review_id, kind, source_branch,
+        )
 
     def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
         """Notify the bead about a merge conflict (YOLO mode)."""
@@ -1924,6 +2028,13 @@ class Orchestrator:
             tracker = self._tracker_for_project(project.id)
             issue = tracker.fetch_issue_detail(source_branch)
             if not issue:
+                # Orphan branch: no bead matches. File a recovery bead so
+                # the YOLO escalation chain isn't a silent dead-end.
+                # (oompah-zlz_2-975)
+                self._file_orphan_recovery_bead(
+                    project, tracker, str(review_id), source_branch,
+                    kind="merge-conflict",
+                )
                 return
             # Don't re-notify if already open/in_progress with merge-conflict label,
             # but ensure we clear the completed set so it can be re-dispatched.
@@ -1962,6 +2073,13 @@ class Orchestrator:
             tracker = self._tracker_for_project(project.id)
             issue = tracker.fetch_issue_detail(source_branch)
             if not issue:
+                # Orphan branch: no bead matches. File a recovery bead so
+                # the YOLO escalation chain isn't a silent dead-end.
+                # (oompah-zlz_2-975)
+                self._file_orphan_recovery_bead(
+                    project, tracker, str(review.id), source_branch,
+                    kind="ci-fix",
+                )
                 return
             # Don't re-file if already open/in_progress with ci-fix label
             state_lower = issue.state.strip().lower()

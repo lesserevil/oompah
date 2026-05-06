@@ -1238,3 +1238,212 @@ class TestFetchAllCandidatesTimeout:
             and r.name.startswith("oompah.orchestrator")
         ]
         assert error_records, "Generic TrackerError should still log ERROR"
+
+
+# ---------------------------------------------------------------------------
+# YOLO orphan-branch recovery (oompah-zlz_2-975)
+#
+# When _yolo_notify_conflict / _yolo_retry_ci look up a bead by source
+# branch and find none, they previously silently exited — leaving the
+# PR DIRTY/FAILED forever with no escalation. Both must now file a
+# fresh recovery bead so the YOLO chain doesn't dead-end.
+# ---------------------------------------------------------------------------
+
+class TestYoloOrphanBranchRecovery:
+    """Branch with no matching bead must trigger a recovery-bead filing."""
+
+    def _make_review_request(self, review_id="30", source_branch="trickle-c0w",
+                              target_branch="main", has_conflicts=True,
+                              ci_status="passed"):
+        return ReviewRequest(
+            id=review_id,
+            title=f"PR #{review_id}",
+            url=f"https://github.com/org/repo/pull/{review_id}",
+            author="alice",
+            state="open",
+            source_branch=source_branch,
+            target_branch=target_branch,
+            created_at="2025-01-01",
+            updated_at="2025-01-02",
+            ci_status=ci_status,
+            has_conflicts=has_conflicts,
+        )
+
+    # --- _yolo_notify_conflict orphan branch ---
+
+    def test_notify_conflict_files_recovery_bead_when_no_bead_matches(self, tmp_path):
+        project = _make_project(yolo=True)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.get_review.return_value = self._make_review_request(
+            review_id="30", source_branch="trickle-c0w",
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None  # orphan branch
+        new_bead = MagicMock()
+        new_bead.identifier = "trickle-rec1"
+        tracker.create_issue.return_value = new_bead
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_notify_conflict(project, provider, "org/repo", "30")
+
+        # New bead created
+        assert tracker.create_issue.call_count == 1
+        kwargs = tracker.create_issue.call_args.kwargs
+        # Title must reference both PR number and branch for operator audit
+        assert "30" in kwargs["title"]
+        assert "trickle-c0w" in kwargs["title"]
+        assert kwargs["priority"] == 0
+        assert kwargs["initial_status"] == "open"
+        # Label must be merge-conflict so the focus matcher routes correctly
+        tracker.add_label.assert_called_once_with("trickle-rec1", "merge-conflict")
+
+        # Bookkeeping records the bead so a second call doesn't re-file
+        assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_beads
+
+    def test_notify_conflict_idempotent_for_same_orphan_pr(self, tmp_path):
+        """Second YOLO fire on the same orphan PR must NOT file a duplicate."""
+        project = _make_project(yolo=True)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.get_review.return_value = self._make_review_request(
+            review_id="30", source_branch="trickle-c0w",
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        new_bead = MagicMock()
+        new_bead.identifier = "trickle-rec1"
+        tracker.create_issue.return_value = new_bead
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_notify_conflict(project, provider, "org/repo", "30")
+        orch._yolo_notify_conflict(project, provider, "org/repo", "30")
+
+        # Only one bead filed across two YOLO fires
+        assert tracker.create_issue.call_count == 1
+
+    def test_notify_conflict_existing_bead_path_unchanged(self, tmp_path):
+        """When the branch DOES match a bead, behavior is unchanged: no new bead filed."""
+        project = _make_project(yolo=True)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.get_review.return_value = self._make_review_request(
+            review_id="30", source_branch="trickle-real",
+        )
+
+        tracker = MagicMock()
+        existing = MagicMock()
+        existing.state = "closed"
+        existing.labels = []
+        existing.identifier = "trickle-real"
+        existing.id = "trickle-real"
+        tracker.fetch_issue_detail.return_value = existing
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_notify_conflict(project, provider, "org/repo", "30")
+
+        # Existing path: relabel + reopen, NO new bead
+        tracker.create_issue.assert_not_called()
+        # add_comment + update_issue (reopen with merge-conflict label) hit
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once()
+
+    # --- _yolo_retry_ci orphan branch ---
+
+    def test_retry_ci_files_recovery_bead_when_no_bead_matches(self, tmp_path):
+        project = _make_project(yolo=True)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        review = self._make_review_request(
+            review_id="42", source_branch="orphan-ci-branch",
+            has_conflicts=False, ci_status="failed",
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        new_bead = MagicMock()
+        new_bead.identifier = "trickle-rec2"
+        tracker.create_issue.return_value = new_bead
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_retry_ci(project, review)
+
+        assert tracker.create_issue.call_count == 1
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert "42" in kwargs["title"]
+        assert "orphan-ci-branch" in kwargs["title"]
+        assert kwargs["priority"] == 0
+        assert kwargs["initial_status"] == "open"
+        # ci-fix label routes to the CI-fix focus
+        tracker.add_label.assert_called_once_with("trickle-rec2", "ci-fix")
+
+        # Bookkeeping: keyed under (project_id, review_id, "ci-fix")
+        assert (project.id, "42", "ci-fix") in orch._yolo_orphan_recovery_beads
+
+    def test_retry_ci_idempotent_for_same_orphan_pr(self, tmp_path):
+        project = _make_project(yolo=True)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        review = self._make_review_request(
+            review_id="42", source_branch="orphan-ci-branch",
+            has_conflicts=False, ci_status="failed",
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        new_bead = MagicMock()
+        new_bead.identifier = "trickle-rec2"
+        tracker.create_issue.return_value = new_bead
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_retry_ci(project, review)
+        orch._yolo_retry_ci(project, review)
+
+        assert tracker.create_issue.call_count == 1
+
+    def test_retry_ci_existing_bead_path_unchanged(self, tmp_path):
+        project = _make_project(yolo=True)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        review = self._make_review_request(
+            review_id="42", source_branch="real-ci-branch",
+            has_conflicts=False, ci_status="failed",
+        )
+
+        tracker = MagicMock()
+        existing = MagicMock()
+        existing.state = "closed"
+        existing.labels = []
+        existing.identifier = "real-ci-branch"
+        existing.id = "real-ci-branch"
+        tracker.fetch_issue_detail.return_value = existing
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_retry_ci(project, review)
+
+        # Existing path: relabel + reopen, NO new bead
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_called_once()
+        tracker.add_comment.assert_called_once()
+
+    # --- prune cleans up orphan-recovery bookkeeping when PR is gone ---
+
+    def test_prune_drops_orphan_recovery_for_disappeared_review(self, tmp_path):
+        project = _make_project(yolo=True)
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        # Seed bookkeeping for two PRs
+        orch._yolo_orphan_recovery_beads[(project.id, "30", "merge-conflict")] = "rec-1"
+        orch._yolo_orphan_recovery_beads[(project.id, "42", "ci-fix")] = "rec-2"
+
+        # Cache only contains PR #30 — #42 has been merged/closed
+        live_review = self._make_review_request(review_id="30")
+        orch._prune_stale_repo_config_errors({project.id: [live_review]})
+
+        assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_beads
+        assert (project.id, "42", "ci-fix") not in orch._yolo_orphan_recovery_beads
