@@ -1207,6 +1207,7 @@ function updateReviewsBadge(summary) {
   const needsAttention = summary.needs_attention || 0;
   const total = summary.total || 0;
   const yoloPending = summary.yolo_pending || 0;
+  const queued = summary.queued || 0;
   if (needsAttention > 0) {
     // Red: conflicts or failed CI need human action.
     countEl.textContent = needsAttention;
@@ -1219,8 +1220,20 @@ function updateReviewsBadge(summary) {
     // they block other dispatch in the project until then, so show them.
     countEl.textContent = total;
     countEl.style.color = 'var(--blue, #58a6ff)';
-    el.querySelector('.reviews-label').textContent =
-      (yoloPending === total) ? 'auto-merging' : 'reviews waiting';
+    let label;
+    if (yoloPending === total && queued === total && total > 0) {
+      // Every yolo PR is already in the GitHub merge queue.
+      label = 'in queue';
+    } else if (yoloPending === total && queued > 0) {
+      // Mix of queued and awaiting-enqueue yolo PRs.
+      label = queued + ' in queue, ' + (yoloPending - queued) + ' awaiting enqueue';
+    } else if (yoloPending === total) {
+      // All yolo, none queued yet — watchdog hasn't dispatched.
+      label = (total === 1) ? 'awaiting enqueue' : 'auto-merging';
+    } else {
+      label = 'reviews waiting';
+    }
+    el.querySelector('.reviews-label').textContent = label;
     el.style.display = '';
   } else {
     el.style.display = 'none';

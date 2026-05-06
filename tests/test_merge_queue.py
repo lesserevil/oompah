@@ -67,6 +67,8 @@ def _make_review(
     has_conflicts: bool = False,
     needs_rebase: bool = False,
     draft: bool = False,
+    auto_merge_enabled: bool = False,
+    mergeable_state: str = "",
 ):
     from oompah.scm import ReviewRequest
     return ReviewRequest(
@@ -83,6 +85,8 @@ def _make_review(
         has_conflicts=has_conflicts,
         needs_rebase=needs_rebase,
         draft=draft,
+        auto_merge_enabled=auto_merge_enabled,
+        mergeable_state=mergeable_state,
     )
 
 
@@ -517,6 +521,126 @@ class TestYoloEnqueueMode:
         orch._yolo_review_actions_sync()
 
         provider.enable_auto_merge.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_skips_already_enqueued_pr(self, mock_slug, mock_detect, tmp_path):
+        """Idempotency: when auto_merge is already enabled, do NOT call enable_auto_merge again.
+
+        Once GitHub has accepted the PR into the merge queue (auto_merge.enabled_by != null),
+        the watchdog must skip it — re-dispatching the GraphQL mutation every tick is at best
+        noise, and a future API version could double-enqueue or revoke the existing
+        auto-merge. (oompah-zlz_2-btf.1, GAP 2)
+        """
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [_make_review("9", ci_status="passed",
+                                       auto_merge_enabled=True)]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.enable_auto_merge.assert_not_called()
+        provider.merge_review.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_enqueued_pr_does_not_block_subsequent_pr(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """An already-enqueued PR is `continue`d (not `break`ed) so that a
+        following non-enqueued PR can still be processed in the same tick."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("9", ci_status="passed", auto_merge_enabled=True),
+                _make_review("10", ci_status="passed", auto_merge_enabled=False),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # PR #9 skipped (already enqueued); PR #10 enqueued this tick.
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "10")
+
+
+# ---------------------------------------------------------------------------
+# _reviews_summary: queued count surfaces queue state to the dashboard
+# ---------------------------------------------------------------------------
+
+
+class TestReviewsSummaryQueued:
+    """The dashboard's reviews_summary must surface a 'queued' count
+    (auto_merge_enabled yolo PRs) so the operator can see whether a yolo PR
+    is already in GitHub's merge queue or just awaiting enqueue.
+    (oompah-zlz_2-btf.1, GAP 3)"""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_queued_count_is_zero_when_no_pr_enqueued(self, tmp_path):
+        project = _make_project(merge_queue_enabled=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [_make_review("1", ci_status="passed",
+                                       auto_merge_enabled=False)]
+        }
+        summary = orch._reviews_summary()
+        assert summary["total"] == 1
+        assert summary["yolo_pending"] == 1
+        assert summary["queued"] == 0
+
+    def test_queued_count_matches_enqueued_pr_count(self, tmp_path):
+        project = _make_project(merge_queue_enabled=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("1", ci_status="passed", auto_merge_enabled=True),
+                _make_review("2", ci_status="passed", auto_merge_enabled=True),
+                _make_review("3", ci_status="passed", auto_merge_enabled=False),
+            ]
+        }
+        summary = orch._reviews_summary()
+        assert summary["total"] == 3
+        assert summary["yolo_pending"] == 3
+        assert summary["queued"] == 2
+
+    def test_queued_only_counts_yolo_projects(self, tmp_path):
+        """A non-yolo project's auto_merge_enabled PR shouldn't bump the
+        queued counter — operators only enable auto-merge through yolo."""
+        non_yolo = _make_project(project_id="p-non", yolo=False)
+        orch = self._make_orchestrator(tmp_path, projects=[non_yolo])
+        orch._reviews_cache = {
+            non_yolo.id: [_make_review("1", ci_status="passed",
+                                        auto_merge_enabled=True)]
+        }
+        summary = orch._reviews_summary()
+        assert summary["total"] == 1
+        assert summary["yolo_pending"] == 0
+        assert summary["queued"] == 0
 
 
 # ---------------------------------------------------------------------------

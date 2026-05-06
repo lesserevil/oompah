@@ -54,6 +54,12 @@ class ReviewRequest:
     deletions: int = 0
     needs_rebase: bool = False
     has_conflicts: bool = False
+    # GitHub merge-queue / auto-merge state. Populated from the GitHub
+    # pull-request API (``auto_merge`` and ``mergeable_state``). Both are
+    # left at their defaults for GitLab — GitLab merge trains are a
+    # separate feature not adopted in this rollout.
+    auto_merge_enabled: bool = False
+    mergeable_state: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +81,8 @@ class ReviewRequest:
             "deletions": self.deletions,
             "needs_rebase": self.needs_rebase,
             "has_conflicts": self.has_conflicts,
+            "auto_merge_enabled": self.auto_merge_enabled,
+            "mergeable_state": self.mergeable_state,
         }
 
 
@@ -313,9 +321,21 @@ class GitHubProvider(SCMProvider):
 
             # mergeable/merge state require individual PR fetch — use what's available
             mergeable = pr.get("mergeable")
-            merge_state = (pr.get("mergeable_state") or "").upper()
+            merge_state_raw = pr.get("mergeable_state") or ""
+            merge_state = merge_state_raw.upper()
             has_conflicts = mergeable is False
             rebase_needed = merge_state == "BEHIND" or has_conflicts
+
+            # Auto-merge state — set when the PR has been enqueued via
+            # GitHub's auto-merge feature (which the merge queue uses).
+            # GitHub returns auto_merge=null when not enabled and an
+            # object with enabled_by != null when enabled.
+            auto_merge_obj = pr.get("auto_merge")
+            auto_merge_enabled = bool(
+                auto_merge_obj
+                and isinstance(auto_merge_obj, dict)
+                and auto_merge_obj.get("enabled_by")
+            )
 
             pr_num = str(pr.get("number", ""))
             results.append(ReviewRequest(
@@ -337,6 +357,8 @@ class GitHubProvider(SCMProvider):
                 deletions=pr.get("deletions", 0),
                 needs_rebase=rebase_needed,
                 has_conflicts=has_conflicts,
+                auto_merge_enabled=auto_merge_enabled,
+                mergeable_state=merge_state_raw,
             ))
         return results
 
@@ -374,6 +396,14 @@ class GitHubProvider(SCMProvider):
         author = pr.get("user", {})
         author_login = author.get("login", "") if isinstance(author, dict) else str(author)
 
+        merge_state_raw = pr.get("mergeable_state") or ""
+        auto_merge_obj = pr.get("auto_merge")
+        auto_merge_enabled = bool(
+            auto_merge_obj
+            and isinstance(auto_merge_obj, dict)
+            and auto_merge_obj.get("enabled_by")
+        )
+
         return ReviewRequest(
             id=str(pr.get("number", "")),
             title=pr.get("title", ""),
@@ -389,6 +419,8 @@ class GitHubProvider(SCMProvider):
             draft=pr.get("draft", False),
             additions=pr.get("additions", 0),
             deletions=pr.get("deletions", 0),
+            auto_merge_enabled=auto_merge_enabled,
+            mergeable_state=merge_state_raw,
         )
 
     def create_review(
