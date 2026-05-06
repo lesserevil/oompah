@@ -68,6 +68,27 @@
     .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
     .loading { text-align: center; padding: 3rem; color: var(--text-muted); }
     .error-msg { text-align: center; padding: 2rem; color: var(--red); }
+    /* Queue status column — surfaces auto_merge_enabled / mergeable_state per PR.
+       Order matches dashboard reviews-badge intent so operators see the same
+       vocabulary on hover/inspection (oompah-zlz_2-btf.3). */
+    .queue-status { display: inline-block; font-size: 0.65rem; font-weight: 700;
+      padding: 0.1rem 0.45rem; border-radius: 8px; text-transform: uppercase;
+      letter-spacing: 0.02em; cursor: help; }
+    .queue-status.queue-in-queue { background: rgba(63, 185, 80, 0.18); color: var(--green); }
+    .queue-status.queue-ready { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .queue-status.queue-blocked-config { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+    .queue-status.queue-behind { background: rgba(226, 179, 64, 0.15); color: var(--yellow); }
+    .queue-status.queue-conflict { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+    .queue-status.queue-draft { background: rgba(125, 133, 144, 0.2); color: var(--text-muted); }
+    .queue-status.queue-ci-pending { background: rgba(226, 179, 64, 0.15); color: var(--yellow); }
+    .queue-status.queue-ci-failed { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+    .queue-status.queue-unknown { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
+    /* Sort selector */
+    .sort-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.85rem;
+      font-size: 0.75rem; color: var(--text-muted); }
+    .sort-bar select { background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.4rem;
+      font-size: 0.75rem; }
   </style>
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -111,6 +132,13 @@
 
   <div class="content">
     <div class="summary-bar" id="summary-bar"></div>
+    <div class="sort-bar" id="sort-bar" style="display:none;">
+      <label for="sort-select">Sort:</label>
+      <select id="sort-select" onchange="onSortChange()">
+        <option value="default">Default (project, recency)</option>
+        <option value="queue">Queue status</option>
+      </select>
+    </div>
     <div id="reviews-container"><div class="loading">Loading reviews...</div></div>
   </div>
 
@@ -154,17 +182,80 @@ async function loadReviews() {
   }
 }
 
+// Cache the most recent /api/v1/reviews payload so the sort selector
+// can re-render without a network round trip.
+let _lastReviewsData = [];
+
 function renderReviews(data) {
+  _lastReviewsData = data;
   const container = document.getElementById('reviews-container');
   const summaryBar = document.getElementById('summary-bar');
+  const sortBar = document.getElementById('sort-bar');
 
   if (data.length === 0) {
     container.innerHTML = '<div class="empty-state">No open reviews.</div>';
     summaryBar.innerHTML = '';
+    if (sortBar) sortBar.style.display = 'none';
+    return;
+  }
+  if (sortBar) sortBar.style.display = '';
+
+  const sortMode = (document.getElementById('sort-select') || {}).value || 'default';
+
+  // Summary (always over the unfiltered set)
+  const totalReviews = data.length;
+  const drafts = data.filter(d => d.review.draft).length;
+  const conflicts = data.filter(d => d.review.has_conflicts).length;
+  const queued = data.filter(d => d.review.auto_merge_enabled).length;
+  let summaryHtml = '<span>Open: <strong>' + totalReviews + '</strong></span>';
+  if (queued > 0) summaryHtml += '<span style="color:var(--green);">In queue: <strong>' + queued + '</strong></span>';
+  if (conflicts > 0) summaryHtml += '<span style="color:var(--red);">Conflicts: <strong>' + conflicts + '</strong></span>';
+  if (drafts > 0) summaryHtml += '<span>Drafts: <strong>' + drafts + '</strong></span>';
+
+  let html = '';
+  if (sortMode === 'queue') {
+    // Flat list, sorted by queue rank then by project for stable grouping
+    // within a status. Project header still shown so operators don't lose
+    // multi-repo context.
+    const rows = data.map(item => ({
+      item,
+      qs: deriveQueueStatus(item.review || {}),
+    }));
+    rows.sort((a, b) => {
+      if (a.qs.sortRank !== b.qs.sortRank) return a.qs.sortRank - b.qs.sortRank;
+      const an = (a.item.project_name || '').toLowerCase();
+      const bn = (b.item.project_name || '').toLowerCase();
+      if (an !== bn) return an < bn ? -1 : 1;
+      const at = a.item.review && a.item.review.created_at ? a.item.review.created_at : '';
+      const bt = b.item.review && b.item.review.created_at ? b.item.review.created_at : '';
+      return bt.localeCompare(at);
+    });
+    summaryHtml += '<span>Sorted by: <strong>queue status</strong></span>';
+    summaryBar.innerHTML = summaryHtml;
+
+    let currentLabel = null;
+    for (const row of rows) {
+      if (row.qs.label !== currentLabel) {
+        currentLabel = row.qs.label;
+        html += '<div class="project-header" style="margin-top:1.25rem;">'
+          + '<span class="queue-status ' + row.qs.cls + '">' + esc(currentLabel) + '</span>'
+          + '</div>';
+      }
+      const review = row.item.review;
+      review.agent_active = row.item.agent_active || false;
+      const provider = row.item.provider;
+      const providerLabel = provider === 'github' ? 'GitHub' : 'GitLab';
+      const card = renderReviewCard(review, provider, row.item.project_id);
+      // Inline project name on each card since we no longer group by project.
+      const projectChip = ' <span style="color:var(--text-muted);font-size:0.7rem;">'
+        + esc(row.item.project_name) + ' · ' + providerLabel + '</span>';
+      html += card.replace('<span class="review-id">', projectChip + '<span class="review-id">');
+    }
+    container.innerHTML = html;
     return;
   }
 
-  // Group by project
+  // Default: group by project
   const byProject = {};
   for (const item of data) {
     const key = item.project_name;
@@ -173,20 +264,10 @@ function renderReviews(data) {
     review.agent_active = item.agent_active || false;
     byProject[key].reviews.push(review);
   }
-
-  // Summary
-  const totalReviews = data.length;
-  const drafts = data.filter(d => d.review.draft).length;
-  const conflicts = data.filter(d => d.review.has_conflicts).length;
   const projectCount = Object.keys(byProject).length;
-  let summaryHtml = '<span>Open: <strong>' + totalReviews + '</strong></span>';
-  if (conflicts > 0) summaryHtml += '<span style="color:var(--red);">Conflicts: <strong>' + conflicts + '</strong></span>';
-  if (drafts > 0) summaryHtml += '<span>Drafts: <strong>' + drafts + '</strong></span>';
   summaryHtml += '<span>Projects: <strong>' + projectCount + '</strong></span>';
   summaryBar.innerHTML = summaryHtml;
 
-  // Render by project
-  let html = '';
   for (const [projectName, group] of Object.entries(byProject)) {
     const providerClass = 'provider-' + group.provider;
     const providerLabel = group.provider === 'github' ? 'GitHub' : 'GitLab';
@@ -205,6 +286,73 @@ function renderReviews(data) {
   }
 
   container.innerHTML = html;
+}
+
+const SORT_STORAGE_KEY = 'oompah_reviews_sort';
+
+function onSortChange() {
+  const sel = document.getElementById('sort-select');
+  if (!sel) return;
+  try { localStorage.setItem(SORT_STORAGE_KEY, sel.value); } catch (e) {}
+  renderReviews(_lastReviewsData);
+}
+
+function _restoreSortPreference() {
+  const sel = document.getElementById('sort-select');
+  if (!sel) return;
+  try {
+    const saved = localStorage.getItem(SORT_STORAGE_KEY);
+    if (saved) sel.value = saved;
+  } catch (e) {}
+}
+
+// deriveQueueStatus — translates per-PR queue fields into a friendly
+// label + CSS class + inline title-bar emoji. Order of checks is the
+// AC priority order from oompah-zlz_2-btf.3 so the most actionable
+// state wins (e.g. a 'conflict' PR with auto_merge_enabled is shown
+// as 'conflict', not 'in queue').
+function deriveQueueStatus(r) {
+  const ms = (r && r.mergeable_state) ? String(r.mergeable_state).toLowerCase() : '';
+  const ci = (r && r.ci_status) ? String(r.ci_status).toLowerCase() : '';
+  const ame = !!(r && r.auto_merge_enabled);
+  const draft = !!(r && r.draft);
+  const conflicts = !!(r && r.has_conflicts);
+
+  // 1. Conflicts always win — operator must rebase/resolve.
+  if (conflicts || ms === 'dirty') {
+    return {label: 'conflict', cls: 'queue-conflict', emoji: '⚠', sortRank: 0};
+  }
+  // 2. Draft PRs are intentional, but not eligible for queue.
+  if (draft || ms === 'draft') {
+    return {label: 'draft', cls: 'queue-draft', emoji: '📝', sortRank: 7};
+  }
+  // 3. Already accepted into the GitHub merge queue.
+  if (ame && (ms === 'clean' || ms === 'unstable' || ms === 'behind' || ms === '')) {
+    return {label: 'in queue', cls: 'queue-in-queue', emoji: '⏳', sortRank: 5};
+  }
+  // 4. Behind base (rebase needed) — visible regardless of auto-merge.
+  if (ms === 'behind') {
+    return {label: 'behind base', cls: 'queue-behind', emoji: '↻', sortRank: 3};
+  }
+  // 5. CI signal beats raw mergeable_state for the remaining cases.
+  if (ci === 'failed') {
+    return {label: 'ci failed', cls: 'queue-ci-failed', emoji: '✗', sortRank: 1};
+  }
+  if (ci === 'pending') {
+    return {label: 'ci pending', cls: 'queue-ci-pending', emoji: '◐', sortRank: 4};
+  }
+  // 6. mergeable_state=blocked + no auto_merge means GitHub is rejecting
+  //    enqueue — usually allow_auto_merge is off or a required check is
+  //    missing. Surface as actionable.
+  if (!ame && ms === 'blocked') {
+    return {label: 'blocked: needs config', cls: 'queue-blocked-config', emoji: '⚠', sortRank: 2};
+  }
+  // 7. CI passed, no auto_merge yet — yolo will enqueue next tick.
+  if (!ame && (ms === 'clean' || ms === 'unstable') && ci === 'passed') {
+    return {label: 'ready', cls: 'queue-ready', emoji: '✓', sortRank: 6};
+  }
+  // 8. Anything else (has_hooks, unknown, missing fields) — show raw or n/a.
+  return {label: ms || '—', cls: 'queue-unknown', emoji: '', sortRank: 8};
 }
 
 function renderReviewCard(r, provider, projectId) {
@@ -259,17 +407,30 @@ function renderReviewCard(r, provider, projectId) {
     reviewersHtml = '<span>Reviewers: ' + r.reviewers.map(v => esc(v)).join(', ') + '</span>';
   }
 
+  // Queue status — derive once, surface as a chip on the meta row and
+  // a small emoji prefix next to the title. Tooltip shows the raw
+  // GitHub mergeable_state plus auto_merge_enabled for diagnostics.
+  const qs = deriveQueueStatus(r);
+  const qsTooltip = 'mergeable_state=' + (r.mergeable_state || '(empty)') +
+    ', auto_merge_enabled=' + (r.auto_merge_enabled ? 'true' : 'false');
+  const queueChipHtml = '<span class="queue-status ' + qs.cls + '" title="' +
+    esc(qsTooltip) + '">' + esc(qs.label) + '</span>';
+  const queueEmojiHtml = qs.emoji
+    ? ' <span title="' + esc(qsTooltip) + '" style="cursor:help;">' + esc(qs.emoji) + '</span>'
+    : '';
+
   return `
     <div class="review-card ${r.has_conflicts ? 'has-conflicts' : r.needs_rebase ? 'needs-rebase' : ''}">
       <div class="review-header">
         <div class="review-title">
-          <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+          <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>${queueEmojiHtml}
           ${draftHtml}${agentHtml}${rebaseHtml}${labelsHtml}
           <span class="review-id">${idPrefix}${esc(r.id)}</span>
         </div>
         ${diffHtml}
       </div>
       <div class="review-meta">
+        ${queueChipHtml}
         <span>${esc(r.author)}</span>
         <span class="branch-info">${esc(r.source_branch)} &rarr; ${esc(r.target_branch)}</span>
         ${ciHtml}
@@ -402,6 +563,7 @@ async function filterReviewsByProject(data) {
   return data.filter(item => item.project_id === pid);
 }
 
+_restoreSortPreference();
 loadReviews();
 initProjectSelector();
 </script>
