@@ -1205,15 +1205,29 @@ function updateReviewsBadge(summary) {
   const countEl = document.getElementById('reviews-count');
   if (!summary) { el.style.display = 'none'; return; }
   const needsAttention = summary.needs_attention || 0;
+  const needsRepoConfig = summary.needs_repo_config || 0;
   const total = summary.total || 0;
   const yoloPending = summary.yolo_pending || 0;
   const queued = summary.queued || 0;
-  if (needsAttention > 0) {
+  if (needsRepoConfig > 0) {
+    // Red: GitHub repo settings need adjustment (auto-merge, branch
+    // protection, etc.). Operator must fix — no agent can resolve this.
+    // Takes precedence over conflicts/CI-failures because a repo-config
+    // error blocks every PR in that project; clearing it unblocks
+    // everything else. (oompah-zlz_2-btf.2)
+    countEl.textContent = needsRepoConfig;
+    countEl.style.color = 'var(--red, #f85149)';
+    const label = el.querySelector('.reviews-label');
+    label.textContent = (needsRepoConfig === 1) ? 'needs repo config' : 'need repo config';
+    el.title = 'GitHub repo settings need adjustment — auto-merge or branch protection. Click to view per-PR details.';
+    el.style.display = '';
+  } else if (needsAttention > 0) {
     // Red: conflicts or failed CI need human action.
     countEl.textContent = needsAttention;
     countEl.style.color = 'var(--red, #f85149)';
     el.querySelector('.reviews-label').textContent =
       (summary.conflicts > 0) ? 'need resolution' : 'CI failures';
+    el.title = '';
     el.style.display = '';
   } else if (total > 0) {
     // Blue: open PRs in flight. Yolo PRs auto-merge once CI clears, but
@@ -1234,6 +1248,7 @@ function updateReviewsBadge(summary) {
       label = 'reviews waiting';
     }
     el.querySelector('.reviews-label').textContent = label;
+    el.title = '';
     el.style.display = '';
   } else {
     el.style.display = 'none';

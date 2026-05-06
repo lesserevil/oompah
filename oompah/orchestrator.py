@@ -83,6 +83,101 @@ class DispatchEvent:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
+# ---------------------------------------------------------------------------
+# YOLO merge-failure classification (oompah-zlz_2-btf.2)
+#
+# When ``enable_auto_merge`` (queue mode) or ``merge_review`` (direct mode)
+# returns ``(False, msg)``, we need to decide what to do. The previous
+# behavior dispatched a P0 conflict-resolution agent for ANY failure, which
+# is wrong for repo-configuration errors (e.g. the GitHub repo-level
+# "Allow auto-merge" toggle is disabled): no amount of code changes on the
+# branch will fix that. Spinning up an agent for those is pure waste.
+#
+# We classify into three buckets:
+#   - "config":    operator-action errors (repo settings). Log + surface
+#                  to dashboard, do NOT dispatch an agent.
+#   - "conflict":  real merge conflict on the branch. Dispatch as before.
+#   - "transient": rate limits, 5xx, network blips. Log a warning and
+#                  retry next cycle. Don't dispatch.
+# ---------------------------------------------------------------------------
+
+# Substrings whose presence in the SCM error message indicates a repo-level
+# configuration problem the operator must fix. Lower-case; matched
+# case-insensitively against the message body.
+_REPO_CONFIG_ERROR_SUBSTRINGS: tuple[str, ...] = (
+    "auto-merge not allowed",
+    "auto-merge is not enabled",
+    "auto merge is not allowed",
+    "set allow_auto_merge=true",
+    "allow_auto_merge",
+    "auto_merge_method",
+    "branch protection",
+    "required status checks are not satisfied",  # branch protection blocking
+    "required reviews are not satisfied",
+    "merge commits are not allowed",
+    "squash merging is not allowed",
+    "rebase merging is not allowed",
+)
+
+# Substrings indicating a real merge conflict on the branch (agent-action).
+_CONFLICT_ERROR_SUBSTRINGS: tuple[str, ...] = (
+    "merge conflict",
+    "not mergeable",
+    "merge conflicts",
+    "has conflicts",
+    "branch is not up to date",  # not strictly a conflict, but agent-fixable
+)
+
+
+def _classify_yolo_merge_error(msg: str) -> str:
+    """Classify a failure message from enable_auto_merge / merge_review.
+
+    Returns one of:
+        "config"    — repo configuration error (operator must fix)
+        "conflict"  — merge conflict (dispatch resolution agent)
+        "transient" — anything else (rate limit, transient API error)
+
+    Classification is intentionally substring-based and conservative.
+    Unknown errors fall into "transient" so we err on the side of
+    NOT spawning a doomed agent. If a new GitHub error surfaces a real
+    conflict but isn't matched here, the consequence is one extra retry
+    next tick — far cheaper than a misclassified agent dispatch.
+    """
+    if not msg:
+        return "transient"
+    haystack = msg.lower()
+
+    # Config errors first — explicit repo-settings keywords win over
+    # anything else (e.g. "auto-merge not allowed" doesn't mean conflict).
+    for needle in _REPO_CONFIG_ERROR_SUBSTRINGS:
+        if needle in haystack:
+            return "config"
+
+    # 404 from the GitHub auto-merge endpoint with auto-merge keywords:
+    # the feature isn't enabled on the repo. Same root cause as config.
+    if "404" in haystack and ("auto-merge" in haystack or "auto_merge" in haystack):
+        return "config"
+
+    for needle in _CONFLICT_ERROR_SUBSTRINGS:
+        if needle in haystack:
+            return "conflict"
+
+    return "transient"
+
+
+def _yolo_error_fingerprint(project_id: str, msg: str) -> str:
+    """Stable fingerprint of (project_id, normalized error message).
+
+    Used to deduplicate identical repo-config errors across ticks so the
+    log shows one line per (project, error) pair instead of one per tick
+    per affected PR. Normalization strips runs of whitespace and lower-
+    cases the message.
+    """
+    import hashlib
+    normalized = " ".join((msg or "").lower().split())
+    return hashlib.sha1(f"{project_id}|{normalized}".encode("utf-8")).hexdigest()[:12]
+
+
 class Orchestrator:
     """Owns the poll tick, dispatch decisions, and in-memory runtime state."""
 
@@ -155,6 +250,15 @@ class Orchestrator:
         self._last_candidates: list[Issue] = []
         self._orphan_reset_counts: dict[str, int] = {}
         self._yolo_limbo_ticks: dict[str, int] = {}
+        # YOLO repo-config errors: keyed by (project_id, review_id) →
+        # {"msg": str, "fingerprint": str}. Surfaced in reviews_summary
+        # and the /api/v1/reviews payload; cleared when the review
+        # disappears from the cache. (oompah-zlz_2-btf.2)
+        self._yolo_repo_config_errors: dict[tuple[str, str], dict[str, str]] = {}
+        # De-dup table for already-logged repo-config error fingerprints
+        # so identical errors don't spam the log every tick. Keyed on the
+        # fingerprint string. (oompah-zlz_2-btf.2)
+        self._logged_repo_config_fingerprints: set[str] = set()
         # Merged-branches cache: persists across ticks, invalidated by webhooks
         self._merged_branches_dirty: bool = True  # start dirty to force first fetch
 
@@ -1661,20 +1765,24 @@ class Orchestrator:
                         success, msg = provider.enable_auto_merge(slug, review_id)
                         if success:
                             logger.info("YOLO: enqueued %s MR #%s", project.name, review_id)
+                            self._clear_repo_config_error(project.id, str(review_id))
                         else:
-                            logger.warning("YOLO: enqueue failed for %s MR #%s: %s — dispatching conflict agent",
-                                           project.name, review_id, msg)
-                            self._yolo_notify_conflict(project, provider, slug, review_id)
+                            self._handle_yolo_merge_failure(
+                                project, provider, slug, review_id, msg,
+                                operation="enqueue",
+                            )
                     else:
                         logger.info("YOLO: auto-merging %s MR #%s (ci=%s)",
                                     project.name, review_id, review.ci_status)
                         success, msg = provider.merge_review(slug, review_id)
                         if success:
                             logger.info("YOLO: merged %s MR #%s", project.name, review_id)
+                            self._clear_repo_config_error(project.id, str(review_id))
                         else:
-                            logger.warning("YOLO: merge failed for %s MR #%s: %s — dispatching conflict agent",
-                                           project.name, review_id, msg)
-                            self._yolo_notify_conflict(project, provider, slug, review_id)
+                            self._handle_yolo_merge_failure(
+                                project, provider, slug, review_id, msg,
+                                operation="merge",
+                            )
                     # Serialization: only one action per project per tick.
                     break
 
@@ -1682,6 +1790,97 @@ class Orchestrator:
                 logger.debug("YOLO: skipping %s MR #%s branch=%s (ci=%s, conflicts=%s, needs_rebase=%s)",
                              project.name, review_id, review.source_branch,
                              review.ci_status, review.has_conflicts, review.needs_rebase)
+
+        # End-of-tick cleanup: drop tracked repo-config errors for any
+        # PR that has disappeared from the per-tick reviews cache (PR
+        # was merged, closed, or otherwise resolved).
+        self._prune_stale_repo_config_errors(reviews_cache)
+
+    def _handle_yolo_merge_failure(
+        self, project, provider, slug: str, review_id, msg: str,
+        *, operation: str,
+    ) -> None:
+        """Classify and handle a failed YOLO enqueue/merge call.
+
+        oompah-zlz_2-btf.2: route operator-action errors (repo config)
+        away from the conflict-resolution path so we don't dispatch
+        doomed agents for problems no agent can fix.
+        """
+        review_id_str = str(review_id)
+        kind = _classify_yolo_merge_error(msg or "")
+
+        if kind == "config":
+            fingerprint = _yolo_error_fingerprint(project.id, msg or "")
+            # Track this PR as needing operator action — surfaces in
+            # reviews_summary and the /api/v1/reviews payload.
+            self._yolo_repo_config_errors[(project.id, review_id_str)] = {
+                "msg": msg or "",
+                "fingerprint": fingerprint,
+                "operation": operation,
+            }
+            # Deduplicated ERROR log: one line per (project, error)
+            # pair, not per tick per PR.
+            if fingerprint not in self._logged_repo_config_fingerprints:
+                self._logged_repo_config_fingerprints.add(fingerprint)
+                logger.error(
+                    "YOLO: %s blocked on %s MR #%s by repo configuration (operator must fix): %s "
+                    "[fingerprint=%s] — NOT dispatching agent (no code change can resolve this)",
+                    operation, project.name, review_id, msg, fingerprint,
+                )
+            else:
+                logger.debug(
+                    "YOLO: %s still blocked on %s MR #%s by repo config (fingerprint=%s) — suppressing log",
+                    operation, project.name, review_id, fingerprint,
+                )
+            return
+
+        # Anything else: clear any stale repo-config record for this PR
+        # (the operator may have just fixed the toggle, and the next
+        # error is a real conflict / transient issue).
+        self._clear_repo_config_error(project.id, review_id_str)
+
+        if kind == "conflict":
+            logger.warning(
+                "YOLO: %s failed for %s MR #%s: %s — dispatching conflict agent",
+                operation, project.name, review_id, msg,
+            )
+            self._yolo_notify_conflict(project, provider, slug, review_id)
+            return
+
+        # Transient: log a warning and let the next tick retry.
+        # No agent dispatch — that would be wasteful for rate-limit /
+        # network blips that resolve themselves.
+        logger.warning(
+            "YOLO: %s failed for %s MR #%s (transient): %s — will retry next tick",
+            operation, project.name, review_id, msg,
+        )
+
+    def _clear_repo_config_error(self, project_id: str, review_id: str) -> None:
+        """Drop any tracked repo-config error for (project, review).
+
+        Called on successful enqueue/merge or when the failure mode
+        changes (config → conflict). The associated fingerprint is
+        intentionally NOT removed from ``_logged_repo_config_fingerprints``
+        — that set is purely a per-process log dedup; re-logging on a
+        process restart is fine.
+        """
+        self._yolo_repo_config_errors.pop((project_id, review_id), None)
+
+    def _prune_stale_repo_config_errors(self, reviews_cache: dict) -> None:
+        """Drop tracked repo-config errors for PRs no longer in the cache.
+
+        A review disappears from the cache when the PR is merged, closed,
+        or otherwise removed by a webhook. Without this prune, the
+        ``needs_repo_config`` count in ``_reviews_summary`` could stay
+        elevated forever for a PR that's already been resolved.
+        """
+        live_keys: set[tuple[str, str]] = set()
+        for project_id, reviews in reviews_cache.items():
+            for r in reviews or []:
+                live_keys.add((project_id, str(r.id)))
+        stale = [k for k in self._yolo_repo_config_errors if k not in live_keys]
+        for k in stale:
+            self._yolo_repo_config_errors.pop(k, None)
 
     def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
         """Notify the bead about a merge conflict (YOLO mode)."""
@@ -4783,12 +4982,24 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     conflicts += 1
                 elif getattr(r, "ci_status", None) == "failed":
                     ci_failures += 1
+        # oompah-zlz_2-btf.2: count PRs whose YOLO enqueue is blocked on
+        # a repo-level configuration toggle. Only count entries whose
+        # review still appears in this tick's cache so a closed PR
+        # doesn't keep inflating the badge.
+        live_keys = set()
+        for project_id, reviews in reviews_cache.items():
+            for r in reviews or []:
+                live_keys.add((project_id, str(getattr(r, "id", ""))))
+        repo_config_errors = getattr(self, "_yolo_repo_config_errors", {}) or {}
+        needs_repo_config = sum(1 for k in repo_config_errors if k in live_keys)
+
         return {
             "total": total,
             "yolo_pending": yolo_pending,
             "queued": queued,
             "conflicts": conflicts,
             "ci_failures": ci_failures,
+            "needs_repo_config": needs_repo_config,
             "needs_attention": conflicts + ci_failures,
         }
 

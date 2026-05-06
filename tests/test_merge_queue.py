@@ -410,14 +410,18 @@ class TestYoloEnqueueMode:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_queue_mode_failed_enqueue_dispatches_conflict(
+    def test_queue_mode_conflict_failure_dispatches_conflict_agent(
         self, mock_slug, mock_detect, tmp_path
     ):
-        """When enable_auto_merge fails, conflict agent is dispatched (same as direct-mode merge failure)."""
+        """A real merge-conflict failure dispatches the conflict-resolution agent.
+
+        oompah-zlz_2-btf.2: only true conflicts go through
+        _yolo_notify_conflict — config errors and transient errors do not.
+        """
         project = _make_project(merge_queue_enabled=True)
 
         provider = MagicMock()
-        provider.enable_auto_merge.return_value = (False, "405 Method Not Allowed")
+        provider.enable_auto_merge.return_value = (False, "Pull request is not mergeable: merge conflict in foo.py")
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
@@ -575,6 +579,392 @@ class TestYoloEnqueueMode:
 
         # PR #9 skipped (already enqueued); PR #10 enqueued this tick.
         provider.enable_auto_merge.assert_called_once_with("org/repo", "10")
+
+
+# ---------------------------------------------------------------------------
+# YOLO merge-failure classifier (oompah-zlz_2-btf.2)
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyYoloMergeError:
+    """The classifier distinguishes operator-action errors (repo config)
+    from agent-action errors (merge conflict) and unknown failures
+    (transient). Misclassification dispatches doomed conflict agents,
+    so the test matrix is intentionally broad."""
+
+    def test_config_error_repo_allow_auto_merge(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        # Real GitHub error from the bug report.
+        msg = (
+            "Auto-merge not allowed by repo (set allow_auto_merge=true on "
+            "NVIDIA-Omniverse/trickle): Auto merge is not allowed for this repository"
+        )
+        assert _classify_yolo_merge_error(msg) == "config"
+
+    def test_config_error_auto_merge_is_not_enabled(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert (
+            _classify_yolo_merge_error(
+                "Pull request auto-merge is not enabled for this repository"
+            )
+            == "config"
+        )
+
+    def test_config_error_branch_protection(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert (
+            _classify_yolo_merge_error(
+                "Branch protection rules block this merge"
+            )
+            == "config"
+        )
+
+    def test_config_error_404_with_auto_merge_keyword(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert (
+            _classify_yolo_merge_error(
+                "404 Not Found on auto-merge endpoint"
+            )
+            == "config"
+        )
+
+    def test_conflict_error_merge_conflict(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert (
+            _classify_yolo_merge_error(
+                "Merge conflict in src/foo.py"
+            )
+            == "conflict"
+        )
+
+    def test_conflict_error_not_mergeable(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert (
+            _classify_yolo_merge_error("Pull request is not mergeable")
+            == "conflict"
+        )
+
+    def test_transient_error_405(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert (
+            _classify_yolo_merge_error("405 Method Not Allowed")
+            == "transient"
+        )
+
+    def test_transient_error_rate_limit(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert (
+            _classify_yolo_merge_error("API rate limit exceeded")
+            == "transient"
+        )
+
+    def test_transient_empty_message(self):
+        from oompah.orchestrator import _classify_yolo_merge_error
+        assert _classify_yolo_merge_error("") == "transient"
+        assert _classify_yolo_merge_error(None) == "transient"  # type: ignore[arg-type]
+
+    def test_config_takes_precedence_when_both_keywords_present(self):
+        """If a message mentions both auto-merge config and 'conflicts',
+        classify as config — fixing the toggle is the correct first move."""
+        from oompah.orchestrator import _classify_yolo_merge_error
+        msg = "Auto-merge not allowed by repo. Status: has conflicts."
+        assert _classify_yolo_merge_error(msg) == "config"
+
+    def test_acceptance_criteria_five_samples(self):
+        """Acceptance criterion from the issue: five sample messages
+        classify as 3 config / 1 conflict / 1 transient."""
+        from oompah.orchestrator import _classify_yolo_merge_error
+        samples = [
+            ("Auto-merge not allowed by repo", "config"),
+            ("Auto merge is not allowed for this repository", "config"),
+            ("Pull request auto-merge is not enabled", "config"),
+            ("Merge conflict in foo.py", "conflict"),
+            ("502 Bad Gateway", "transient"),
+        ]
+        results = [_classify_yolo_merge_error(m) for m, _ in samples]
+        expected = [k for _, k in samples]
+        assert results == expected
+        assert results.count("config") == 3
+        assert results.count("conflict") == 1
+        assert results.count("transient") == 1
+
+
+class TestYoloMergeFailureRouting:
+    """Verify _yolo_review_actions_sync routes failures correctly:
+    config errors don't dispatch conflict agents, conflicts do, transient
+    errors don't (and don't reopen the bead)."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_config_error_does_not_reopen_bead_or_dispatch_conflict(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Bug fix oompah-zlz_2-btf.2: a config error must NOT call
+        _yolo_notify_conflict and must NOT reopen the bead — those
+        burn agent budget on a problem only the operator can fix."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (
+            False,
+            "Auto merge is not allowed for this repository",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # The provider was called, but no conflict notification fired.
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "42")
+        orch._yolo_notify_conflict.assert_not_called()
+        # And the orchestrator records the error for the dashboard.
+        assert (project.id, "42") in orch._yolo_repo_config_errors
+        entry = orch._yolo_repo_config_errors[(project.id, "42")]
+        assert "auto merge is not allowed" in entry["msg"].lower()
+        assert entry["fingerprint"]
+        assert entry["operation"] == "enqueue"
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_conflict_error_dispatches_conflict_agent(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Conflict messages preserve the existing behavior — dispatch."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (
+            False, "Pull request is not mergeable: merge conflict",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        orch._yolo_notify_conflict.assert_called_once_with(
+            project, provider, "org/repo", "42",
+        )
+        # Conflicts are NOT recorded as repo-config errors.
+        assert (project.id, "42") not in orch._yolo_repo_config_errors
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_transient_error_does_not_dispatch_conflict(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """A transient error (rate limit, 5xx) should log a warning and
+        retry next tick — NOT dispatch a conflict-resolution agent."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (False, "502 Bad Gateway")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        orch._yolo_notify_conflict.assert_not_called()
+        assert (project.id, "42") not in orch._yolo_repo_config_errors
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_config_error_logged_once_per_fingerprint(
+        self, mock_slug, mock_detect, tmp_path, caplog
+    ):
+        """Acceptance criterion: identical config errors collapse to one
+        log entry, not one-per-tick-per-PR."""
+        import logging
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        msg = "Auto merge is not allowed for this repository"
+        provider.enable_auto_merge.return_value = (False, msg)
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        # Two PRs in the cache, both hit the same config error.
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("42", ci_status="passed"),
+                _make_review("43", ci_status="passed"),
+            ]
+        }
+
+        # First tick: the loop only acts on one PR per project per tick
+        # (serialization), but we want to verify the de-dup mechanism.
+        # Force-process both PRs by calling the helper directly twice.
+        with caplog.at_level(logging.ERROR, logger="oompah.orchestrator"):
+            orch._handle_yolo_merge_failure(
+                project, provider, "org/repo", "42", msg, operation="enqueue",
+            )
+            orch._handle_yolo_merge_failure(
+                project, provider, "org/repo", "43", msg, operation="enqueue",
+            )
+
+        # Both PRs are recorded.
+        assert (project.id, "42") in orch._yolo_repo_config_errors
+        assert (project.id, "43") in orch._yolo_repo_config_errors
+        # But only one ERROR log line — the second was deduped.
+        error_records = [
+            r for r in caplog.records
+            if r.levelno >= logging.ERROR
+            and "blocked on" in r.getMessage()
+        ]
+        assert len(error_records) == 1, (
+            f"Expected 1 deduplicated ERROR, got {len(error_records)}: "
+            f"{[r.getMessage() for r in error_records]}"
+        )
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_successful_enqueue_clears_existing_repo_config_error(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Once the operator fixes the toggle and the next enqueue
+        succeeds, the recorded error must clear so the dashboard
+        badge stops showing 'needs repo config'."""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_repo_config_errors[(project.id, "42")] = {
+            "msg": "Auto merge is not allowed", "fingerprint": "abc",
+            "operation": "enqueue",
+        }
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        assert (project.id, "42") not in orch._yolo_repo_config_errors
+
+    def test_prune_drops_errors_for_closed_prs(self, tmp_path):
+        """When a PR disappears from the per-tick cache (closed, merged
+        externally), its repo-config error must be pruned so the
+        dashboard count doesn't stay elevated forever."""
+        project = _make_project(merge_queue_enabled=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        # Two PRs tracked.
+        orch._yolo_repo_config_errors[(project.id, "42")] = {
+            "msg": "x", "fingerprint": "f1", "operation": "enqueue",
+        }
+        orch._yolo_repo_config_errors[(project.id, "43")] = {
+            "msg": "x", "fingerprint": "f1", "operation": "enqueue",
+        }
+        # Only PR #42 is still open this tick.
+        live_cache = {project.id: [_make_review("42", ci_status="passed")]}
+
+        orch._prune_stale_repo_config_errors(live_cache)
+
+        assert (project.id, "42") in orch._yolo_repo_config_errors
+        assert (project.id, "43") not in orch._yolo_repo_config_errors
+
+
+class TestReviewsSummaryNeedsRepoConfig:
+    """The dashboard's reviews_summary must surface a 'needs_repo_config'
+    count so the badge can warn the operator that a repo toggle is
+    blocking YOLO merges. (oompah-zlz_2-btf.2)"""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_needs_repo_config_zero_when_no_errors(self, tmp_path):
+        project = _make_project(merge_queue_enabled=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+        summary = orch._reviews_summary()
+        assert summary["needs_repo_config"] == 0
+
+    def test_needs_repo_config_counts_tracked_errors(self, tmp_path):
+        project = _make_project(merge_queue_enabled=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("42", ci_status="passed"),
+                _make_review("43", ci_status="passed"),
+            ]
+        }
+        orch._yolo_repo_config_errors[(project.id, "42")] = {
+            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+        }
+        orch._yolo_repo_config_errors[(project.id, "43")] = {
+            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+        }
+        summary = orch._reviews_summary()
+        assert summary["needs_repo_config"] == 2
+
+    def test_needs_repo_config_excludes_stale_entries(self, tmp_path):
+        """Entry for a PR that's no longer in the cache must NOT count
+        toward needs_repo_config (so the badge clears once the PR is
+        closed/merged)."""
+        project = _make_project(merge_queue_enabled=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        # Only PR #42 is in this tick's cache.
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")]
+        }
+        # But errors are tracked for both #42 and stale #43.
+        orch._yolo_repo_config_errors[(project.id, "42")] = {
+            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+        }
+        orch._yolo_repo_config_errors[(project.id, "43")] = {
+            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+        }
+        summary = orch._reviews_summary()
+        assert summary["needs_repo_config"] == 1
 
 
 # ---------------------------------------------------------------------------
