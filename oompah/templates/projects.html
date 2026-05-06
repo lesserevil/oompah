@@ -189,6 +189,18 @@ async function loadProjects() {
         <span class="field-label">Dispatch:</span>
         <span class="field-value" style="color:${p.paused ? '#d29922' : 'var(--green)'}">${p.paused ? 'Paused — orchestrator will not dispatch new agents to this project' : 'Active'}</span>
       </div>
+      <div class="field-row">
+        <span class="field-label">Test Command:</span>
+        <span class="field-value">${p.test_command ? '<code>' + esc(p.test_command) + '</code>' : '<em style="color:var(--text-muted);font-style:italic;">not set — agent infers</em>'}</span>
+      </div>
+      ${p.test_command_full ? `<div class="field-row">
+        <span class="field-label">Test Command (full):</span>
+        <span class="field-value"><code>${esc(p.test_command_full)}</code></span>
+      </div>` : ''}
+      ${(p.test_skip_paths && p.test_skip_paths.length) ? `<div class="field-row">
+        <span class="field-label">Skip paths:</span>
+        <span class="field-value">${esc(p.test_skip_paths.join(', '))}</span>
+      </div>` : ''}
       <div class="field-row" style="margin-top:0.75rem;">
         <button class="btn-edit" onclick="toggleEditForm('${esc(p.id)}')">Edit</button>
         ${p.paused
@@ -229,6 +241,18 @@ async function loadProjects() {
         <div class="form-group">
           <label>Max in-flight PRs (default: 1 — only raise when GitHub Merge Queue is enabled for this repo)</label>
           <input type="number" id="edit-max-in-flight-prs-${esc(p.id)}" value="${esc(String(p.max_in_flight_prs || 1))}" min="1" step="1">
+        </div>
+        <div class="form-group">
+          <label>Test Command (pre-push verification — agents run this exact command instead of inferring)</label>
+          <input type="text" id="edit-test-command-${esc(p.id)}" value="${esc(p.test_command || '')}" placeholder="e.g. cargo test --workspace --lib">
+        </div>
+        <div class="form-group">
+          <label>Test Command Full (optional, broader pre-merge-queue coverage)</label>
+          <input type="text" id="edit-test-command-full-${esc(p.id)}" value="${esc(p.test_command_full || '')}" placeholder="e.g. cargo test --workspace">
+        </div>
+        <div class="form-group">
+          <label>Test Skip Paths (optional, comma-separated globs to exclude flaky/hardware/network tests)</label>
+          <input type="text" id="edit-test-skip-paths-${esc(p.id)}" value="${esc((p.test_skip_paths || []).join(', '))}" placeholder="e.g. tests/integration/*, tests/hw/*">
         </div>
         <div id="edit-error-${esc(p.id)}" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
         <div class="form-actions">
@@ -350,11 +374,20 @@ async function saveProject(id) {
     errEl.style.display = 'block';
     return;
   }
+  const testCommand = document.getElementById('edit-test-command-' + id).value.trim();
+  const testCommandFull = document.getElementById('edit-test-command-full-' + id).value.trim();
+  const testSkipPathsRaw = document.getElementById('edit-test-skip-paths-' + id).value.trim();
+  const testSkipPaths = testSkipPathsRaw
+    ? testSkipPathsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
+    : [];
   const body = {name, branch, max_in_flight_prs: maxInFlightPrs};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;
   body.log_path = logPath || null;
+  body.test_command = testCommand || null;
+  body.test_command_full = testCommandFull || null;
+  body.test_skip_paths = testSkipPaths;
   // Token semantics: leaving the field blank keeps the existing value untouched;
   // typing "clear" removes it; any other value replaces it.
   if (accessToken === 'clear') {

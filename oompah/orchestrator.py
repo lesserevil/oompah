@@ -3189,6 +3189,9 @@ class Orchestrator:
         # Used by the prompt renderer to decide whether to embed
         # attachments inline or only mention them in the text body.
         capabilities = self._resolve_capabilities(provider, model)
+        project_obj = (
+            self.project_store.get(issue.project_id) if issue.project_id else None
+        )
 
         try:
             # Run blocking setup work in thread to avoid blocking event loop
@@ -3226,11 +3229,12 @@ class Orchestrator:
 
                 rendered = render_prompt(
                     self._prompt_template, issue, attempt,
-                    comments=comments, focus_text=focus.render(),
+                    comments=comments, focus_text=focus.render(project_obj),
                     workspace_path=wp, memories=memories,
                     attachments=attachments,
                     capabilities=capabilities,
                     project_root=wp,
+                    project=project_obj,
                 )
                 return wp, rendered, attachments
 
@@ -3462,6 +3466,9 @@ class Orchestrator:
         model = model or profile.model or "default"
 
         capabilities = self._resolve_capabilities(provider, model) if provider else []
+        project_obj = (
+            self.project_store.get(issue.project_id) if issue.project_id else None
+        )
 
         try:
             def _setup_worker():
@@ -3496,11 +3503,12 @@ class Orchestrator:
 
                 rendered = render_prompt(
                     self._prompt_template, issue, attempt,
-                    comments=comments, focus_text=focus.render(),
+                    comments=comments, focus_text=focus.render(project_obj),
                     workspace_path=wp, memories=memories,
                     attachments=attachments,
                     capabilities=capabilities,
                     project_root=wp,
+                    project=project_obj,
                 )
                 return wp, rendered, attachments
 
@@ -3841,13 +3849,20 @@ class Orchestrator:
                 except Exception:
                     cli_memories = {}
 
+                cli_project_obj = (
+                    self.project_store.get(issue.project_id)
+                    if issue.project_id else None
+                )
+
                 for turn_number in range(1, max_turns + 1):
                     # Build prompt
                     if turn_number == 1:
                         prompt = render_prompt(
                             self._prompt_template, current_issue, attempt,
-                            comments=cli_comments, focus_text=cli_focus.render(),
+                            comments=cli_comments,
+                            focus_text=cli_focus.render(cli_project_obj),
                             workspace_path=workspace_path, memories=cli_memories,
+                            project=cli_project_obj,
                         )
                     else:
                         prompt = build_continuation_prompt(

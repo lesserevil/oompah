@@ -1091,6 +1091,30 @@ async def api_update_project(project_id: str, request: Request):
             fields["merge_queue_enabled"] = bool(body["merge_queue_enabled"])
         if "paused" in body:
             fields["paused"] = bool(body["paused"])
+        # test_command / test_command_full: accept string or null. ProjectStore
+        # normalizes whitespace and treats empty strings as None.
+        for key in ("test_command", "test_command_full"):
+            if key in body:
+                val = body[key]
+                if val is not None and not isinstance(val, str):
+                    return JSONResponse(
+                        {"error": {"code": "validation",
+                                   "message": f"{key} must be a string or null"}},
+                        status_code=400,
+                    )
+                fields[key] = val
+        if "test_skip_paths" in body:
+            val = body["test_skip_paths"]
+            if val is None:
+                fields["test_skip_paths"] = []
+            elif isinstance(val, list) and all(isinstance(x, str) for x in val):
+                fields["test_skip_paths"] = val
+            else:
+                return JSONResponse(
+                    {"error": {"code": "validation",
+                               "message": "test_skip_paths must be a list of strings or null"}},
+                    status_code=400,
+                )
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(

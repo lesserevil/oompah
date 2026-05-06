@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from oompah.models import Issue
+from oompah.models import Issue, Project
 
 logger = logging.getLogger(__name__)
 
@@ -110,24 +110,98 @@ class Focus:
             allow_image_output=bool(d.get("allow_image_output", False)),
         )
 
-    def render(self) -> str:
-        """Render this focus as prompt text."""
+    def render(self, project: Project | None = None) -> str:
+        """Render this focus as prompt text.
+
+        When ``project`` has a configured ``test_command``, every literal
+        "Run tests" instruction in the focus's ``must_do`` list is rewritten
+        to name that exact command so the agent does not have to infer the
+        right test target from repo layout. The same command is appended as
+        a hint when the focus has no explicit test step but the project
+        has one configured. ``test_command_full`` and ``test_skip_paths``
+        are surfaced as supplementary hints.
+        """
         lines = [
             f"## Your Role: {self.role}",
             "",
             self.description,
         ]
-        if self.must_do:
+        must_do = self._materialize_must_do(project)
+        if must_do:
             lines.append("")
             lines.append("### You MUST:")
-            for item in self.must_do:
+            for item in must_do:
                 lines.append(f"- {item}")
         if self.must_not_do:
             lines.append("")
             lines.append("### You must NOT:")
             for item in self.must_not_do:
                 lines.append(f"- {item}")
+        # Append project-level test guidance whenever the project has
+        # a configured test_command. This applies to ALL focuses so the
+        # agent always sees the project's preferred command instead of
+        # inferring one from the repo layout. Avoid duplicating the
+        # message if a must_do bullet already names the command.
+        if project is not None and project.test_command:
+            extras: list[str] = []
+            already_mentioned = any(
+                project.test_command in item for item in must_do
+            )
+            if not already_mentioned:
+                extras.append(
+                    f"For pre-push verification, run `{project.test_command}` "
+                    "(this project's configured test_command). Do not infer "
+                    "a different test target."
+                )
+            if project.test_command_full:
+                extras.append(
+                    f"For broader pre-merge-queue coverage, "
+                    f"`{project.test_command_full}` is also configured."
+                )
+            if project.test_skip_paths:
+                extras.append(
+                    "Skip these flaky/hardware/network paths during testing: "
+                    + ", ".join(project.test_skip_paths)
+                )
+            if extras:
+                lines.append("")
+                lines.append("### Project Test Configuration")
+                for item in extras:
+                    lines.append(f"- {item}")
         return "\n".join(lines)
+
+    def _materialize_must_do(self, project: Project | None) -> list[str]:
+        """Return must_do with project test_command substituted where applicable.
+
+        When ``project.test_command`` is set, replace any generic
+        "Run tests..." bullet with a concrete "Run <test_command>..." line.
+        Returns a copy; never mutates ``self.must_do``.
+        """
+        if project is None or not project.test_command:
+            return list(self.must_do)
+        cmd = project.test_command
+        out: list[str] = []
+        for item in self.must_do:
+            stripped = item.strip()
+            low = stripped.lower()
+            # Match bullets that start with "Run tests" / "Run the tests"
+            # — these are the ambiguous ones the issue calls out.
+            if low.startswith("run tests") or low.startswith("run the tests"):
+                # Preserve the rest of the original sentence (e.g. " ... to
+                # verify nothing is broken") so callers keep their context.
+                rest = stripped.split(None, 2)
+                # rest[0]="Run", rest[1]="tests"|"the", rest[2]=remainder
+                if len(rest) >= 3 and rest[1].lower() == "the":
+                    # "Run the tests <rest>" → keep the part after "tests"
+                    after = rest[2].split(None, 1)
+                    tail = after[1] if len(after) > 1 else ""
+                else:
+                    tail = rest[2] if len(rest) >= 3 else ""
+                tail = (" " + tail.strip()) if tail.strip() else ""
+                out.append(f"Run `{cmd}`{tail}")
+            else:
+                out.append(item)
+        return out
 
 
 # -- Built-in focus library --
