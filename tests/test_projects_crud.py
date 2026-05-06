@@ -413,7 +413,8 @@ class TestProjectStoreUpdatableFields:
         expected = {"name", "repo_url", "branch", "git_user_name",
                     "git_user_email", "yolo", "log_path", "webhook_secret",
                     "access_token", "last_webhook_received_at",
-                    "max_in_flight_prs", "merge_queue_enabled", "paused"}
+                    "max_in_flight_prs", "merge_queue_enabled", "paused",
+                    "test_command", "test_command_full", "test_skip_paths"}
         assert ProjectStore.UPDATABLE_FIELDS == expected
 
     def test_id_is_not_updatable(self):
@@ -602,3 +603,231 @@ class TestProjectAccessTokenAPI:
         )
         # Token should remain at its initial value
         assert self.store.get("proj-tokapi").access_token == "ghp_initial_token_value"
+
+
+class TestProjectStoreTestCommand:
+    """Tests for the per-project test_command / test_command_full / test_skip_paths fields."""
+
+    @pytest.fixture(autouse=True)
+    def store(self, tmp_path):
+        path = str(tmp_path / "projects.json")
+        self.store = ProjectStore(
+            path=path, repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(
+            id="proj-tc",
+            name="tc-repo",
+            repo_url="https://github.com/org/tc.git",
+            repo_path=str(tmp_path / "repos" / "tc"),
+            branch="main",
+        )
+        self.store._projects[p.id] = p
+        self.store._save()
+        return self.store
+
+    def test_default_values(self):
+        p = self.store.get("proj-tc")
+        assert p.test_command is None
+        assert p.test_command_full is None
+        assert p.test_skip_paths == []
+
+    def test_update_test_command(self):
+        updated = self.store.update("proj-tc", test_command="cargo test --workspace --lib")
+        assert updated.test_command == "cargo test --workspace --lib"
+
+    def test_update_test_command_full(self):
+        updated = self.store.update("proj-tc", test_command_full="cargo test --workspace")
+        assert updated.test_command_full == "cargo test --workspace"
+
+    def test_update_test_skip_paths(self):
+        updated = self.store.update(
+            "proj-tc",
+            test_skip_paths=["tests/hw/*", "tests/integration/*"],
+        )
+        assert updated.test_skip_paths == ["tests/hw/*", "tests/integration/*"]
+
+    def test_clear_test_command(self):
+        self.store.update("proj-tc", test_command="make test")
+        cleared = self.store.update("proj-tc", test_command=None)
+        assert cleared.test_command is None
+
+    def test_empty_string_treated_as_none(self):
+        cleared = self.store.update("proj-tc", test_command="   ")
+        assert cleared.test_command is None
+
+    def test_test_command_trimmed(self):
+        updated = self.store.update("proj-tc", test_command="  make test  ")
+        assert updated.test_command == "make test"
+
+    def test_test_skip_paths_filters_empty(self):
+        updated = self.store.update(
+            "proj-tc",
+            test_skip_paths=["tests/hw/*", "  ", "tests/integration/*"],
+        )
+        assert updated.test_skip_paths == ["tests/hw/*", "tests/integration/*"]
+
+    def test_test_skip_paths_none_becomes_empty_list(self):
+        self.store.update("proj-tc", test_skip_paths=["a"])
+        cleared = self.store.update("proj-tc", test_skip_paths=None)
+        assert cleared.test_skip_paths == []
+
+    def test_test_skip_paths_rejects_non_list(self):
+        with pytest.raises(ProjectError, match="must be a list"):
+            self.store.update("proj-tc", test_skip_paths="not-a-list")
+
+    def test_test_skip_paths_rejects_non_string_items(self):
+        with pytest.raises(ProjectError, match="must be strings"):
+            self.store.update("proj-tc", test_skip_paths=["ok", 42])
+
+    def test_test_command_rejects_non_string(self):
+        with pytest.raises(ProjectError, match="must be a string"):
+            self.store.update("proj-tc", test_command=["bad"])
+
+    def test_round_trip_through_to_dict(self):
+        self.store.update(
+            "proj-tc",
+            test_command="make test",
+            test_command_full="make test-all",
+            test_skip_paths=["a", "b"],
+        )
+        d = self.store.get("proj-tc").to_dict()
+        assert d["test_command"] == "make test"
+        assert d["test_command_full"] == "make test-all"
+        assert d["test_skip_paths"] == ["a", "b"]
+        rebuilt = Project.from_dict(d)
+        assert rebuilt.test_command == "make test"
+        assert rebuilt.test_command_full == "make test-all"
+        assert rebuilt.test_skip_paths == ["a", "b"]
+
+    def test_persistence_across_reload(self, tmp_path):
+        self.store.update(
+            "proj-tc",
+            test_command="cargo test --workspace --lib",
+            test_skip_paths=["tests/hw/*"],
+        )
+        store2 = ProjectStore(
+            path=self.store.path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        loaded = store2.get("proj-tc")
+        assert loaded.test_command == "cargo test --workspace --lib"
+        assert loaded.test_skip_paths == ["tests/hw/*"]
+
+    def test_unset_fields_omitted_from_to_dict(self):
+        p = self.store.get("proj-tc")
+        d = p.to_dict()
+        # Unset values should not appear in the persisted dict.
+        assert "test_command" not in d
+        assert "test_command_full" not in d
+        # Empty list also omitted.
+        assert "test_skip_paths" not in d
+
+
+class TestProjectAPITestCommand:
+    """Integration tests for the test_command fields via the PATCH endpoint."""
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path):
+        from unittest.mock import MagicMock
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(
+            id="proj-tcapi",
+            name="tcapi-repo",
+            repo_url="https://github.com/org/tcapi.git",
+            repo_path=str(tmp_path / "repos" / "tcapi"),
+            branch="main",
+        )
+        store._projects[p.id] = p
+        store._save()
+
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+        old_orch = srv._orchestrator
+        srv._orchestrator = orch
+        self.client = TestClient(app)
+        self.store = store
+        yield self.client
+        srv._orchestrator = old_orch
+
+    def test_patch_test_command(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_command": "cargo test --workspace --lib"},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tcapi").test_command == "cargo test --workspace --lib"
+
+    def test_patch_clears_test_command_with_null(self):
+        self.store.update("proj-tcapi", test_command="make test")
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_command": None},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tcapi").test_command is None
+
+    def test_patch_test_command_full(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_command_full": "cargo test --workspace"},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tcapi").test_command_full == "cargo test --workspace"
+
+    def test_patch_test_skip_paths(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_skip_paths": ["tests/hw/*", "tests/integration/*"]},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tcapi").test_skip_paths == [
+            "tests/hw/*", "tests/integration/*",
+        ]
+
+    def test_patch_test_command_invalid_type(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_command": 42},
+        )
+        assert res.status_code == 400
+        assert "must be a string" in res.json()["error"]["message"]
+
+    def test_patch_test_skip_paths_invalid_type(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_skip_paths": "not-a-list"},
+        )
+        assert res.status_code == 400
+
+    def test_patch_test_skip_paths_null_clears(self):
+        self.store.update("proj-tcapi", test_skip_paths=["a", "b"])
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_skip_paths": None},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tcapi").test_skip_paths == []
+
+    def test_patch_test_command_visible_in_response(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tcapi",
+            json={"test_command": "make test"},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body.get("test_command") == "make test"

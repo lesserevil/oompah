@@ -649,3 +649,99 @@ class TestEpicPlannerFocus:
         score_with = score_focus(focus, issue_with_draft)
         score_without = score_focus(focus, issue_without_draft)
         assert score_with > score_without, "draft label should increase the epic_planner score"
+
+
+class TestFocusRenderWithProject:
+    """Tests for Focus.render(project=) — per-project test_command injection."""
+
+    def _merge_conflict_focus(self):
+        for f in BUILTIN_FOCI:
+            if f.name == "merge_conflict":
+                return f
+        raise AssertionError("merge_conflict focus not found")
+
+    def _make_project(self, **kwargs):
+        from oompah.models import Project
+        defaults = dict(id="p", name="n", repo_url="u", repo_path="/tmp/x")
+        defaults.update(kwargs)
+        return Project(**defaults)
+
+    def test_render_without_project_unchanged(self):
+        """Backwards-compat: no project -> behaves like the old render()."""
+        focus = self._merge_conflict_focus()
+        out_no_arg = focus.render()
+        out_none = focus.render(None)
+        assert out_no_arg == out_none
+        # The original generic 'Run tests' line is still present.
+        assert "Run tests after resolving all conflicts" in out_no_arg
+        # And no Project Test Configuration block.
+        assert "Project Test Configuration" not in out_no_arg
+
+    def test_render_with_test_command_replaces_run_tests(self):
+        focus = self._merge_conflict_focus()
+        project = self._make_project(test_command="cargo test --workspace --lib")
+        out = focus.render(project)
+        # The generic line should be gone, replaced with the explicit one.
+        assert "Run tests after resolving all conflicts" not in out
+        assert "Run `cargo test --workspace --lib`" in out
+        # The original tail (purpose) is preserved.
+        assert "verify nothing is broken" in out
+
+    def test_render_with_test_command_no_run_tests_bullet_appends_block(self):
+        """Focus that doesn't have a 'Run tests' bullet still gets a hint block."""
+        from oompah.focus import Focus
+        focus = Focus(
+            name="custom", role="Custom",
+            description="Do a thing.",
+            must_do=["Implement the thing"],
+        )
+        project = self._make_project(test_command="make test")
+        out = focus.render(project)
+        assert "Project Test Configuration" in out
+        assert "make test" in out
+        assert "configured test_command" in out
+
+    def test_render_does_not_double_mention_test_command(self):
+        """When a must_do bullet already names the command, no duplicate hint."""
+        from oompah.focus import Focus
+        focus = Focus(
+            name="custom", role="Custom",
+            description="Do a thing.",
+            must_do=["Run tests to verify"],
+        )
+        project = self._make_project(test_command="make test")
+        out = focus.render(project)
+        # The must_do line is rewritten with the command.
+        assert "Run `make test` to verify" in out
+        # But the extras hint is suppressed since the command appears already.
+        assert "configured test_command" not in out
+
+    def test_render_with_test_command_full(self):
+        focus = self._merge_conflict_focus()
+        project = self._make_project(
+            test_command="make test",
+            test_command_full="make test-all",
+        )
+        out = focus.render(project)
+        assert "make test-all" in out
+        assert "broader pre-merge-queue coverage" in out
+
+    def test_render_with_test_skip_paths(self):
+        focus = self._merge_conflict_focus()
+        project = self._make_project(
+            test_command="make test",
+            test_skip_paths=["tests/hw/*", "tests/integration/*"],
+        )
+        out = focus.render(project)
+        assert "tests/hw/*" in out
+        assert "tests/integration/*" in out
+        assert "Skip" in out
+
+    def test_render_no_test_command_no_changes(self):
+        """Project without test_command behaves like project=None."""
+        focus = self._merge_conflict_focus()
+        project = self._make_project()
+        # default test_command is None; no test_command_full or skip paths
+        out = focus.render(project)
+        assert "Run tests after resolving all conflicts" in out
+        assert "Project Test Configuration" not in out

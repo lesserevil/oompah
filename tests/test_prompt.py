@@ -293,3 +293,72 @@ class TestCapabilityFallbackIntegration:
         )
         # No "not sent" note when everything embedded.
         assert "not sent" not in out.text
+
+
+class TestRenderPromptProjectArg:
+    """Tests for render_prompt(project=) and the project.* template var."""
+
+    def _make_project(self, **kwargs):
+        from oompah.models import Project
+        defaults = dict(id="p", name="myproj", repo_url="u",
+                        repo_path="/tmp/x", branch="main")
+        defaults.update(kwargs)
+        return Project(**defaults)
+
+    def test_template_sees_project_test_command(self):
+        issue = _make_issue()
+        project = self._make_project(test_command="cargo test --workspace --lib")
+        template = "cmd={{ project.test_command }} name={{ project.name }}"
+        out = render_prompt(template, issue, project=project)
+        assert "cmd=cargo test --workspace --lib" in out
+        assert "name=myproj" in out
+
+    def test_template_test_command_empty_when_unset(self):
+        issue = _make_issue()
+        project = self._make_project()
+        template = "cmd=[{{ project.test_command }}]"
+        out = render_prompt(template, issue, project=project)
+        assert "cmd=[]" in out
+
+    def test_template_when_no_project_arg(self):
+        """Without a project arg, project.* still resolves to empty values."""
+        issue = _make_issue()
+        template = "cmd=[{{ project.test_command }}] name=[{{ project.name }}]"
+        out = render_prompt(template, issue)
+        assert "cmd=[]" in out
+        assert "name=[]" in out
+
+    def test_workflow_template_test_command_block(self):
+        """Mimics the WORKFLOW.md conditional block to ensure the template
+        includes the project.test_command when set."""
+        issue = _make_issue()
+        project = self._make_project(test_command="make test")
+        template = (
+            '{% if project.test_command != "" %}'
+            'CMD: `{{ project.test_command }}`'
+            '{% endif %}'
+        )
+        out = render_prompt(template, issue, project=project)
+        assert "CMD: `make test`" in out
+
+    def test_workflow_template_test_command_block_omitted(self):
+        issue = _make_issue()
+        project = self._make_project()  # no test_command
+        template = (
+            '{% if project.test_command != "" %}'
+            'CMD: `{{ project.test_command }}`'
+            '{% endif %}'
+            'tail'
+        )
+        out = render_prompt(template, issue, project=project)
+        assert "CMD" not in out
+        assert "tail" in out
+
+    def test_test_skip_paths_iterable_in_template(self):
+        issue = _make_issue()
+        project = self._make_project(
+            test_skip_paths=["tests/hw/*", "tests/integration/*"],
+        )
+        template = "skip:{% for p in project.test_skip_paths %}[{{ p }}]{% endfor %}"
+        out = render_prompt(template, issue, project=project)
+        assert "skip:[tests/hw/*][tests/integration/*]" in out

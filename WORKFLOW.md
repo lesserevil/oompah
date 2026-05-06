@@ -159,6 +159,13 @@ bd remember "tests require a running postgres; use make test-deps" --key test-se
 - Bug fixes must include a test that reproduces the bug
 - Run tests before committing to verify they pass
 - Follow existing test patterns in the project's test directory
+{% if project.test_command != "" %}
+**This project's pre-push verification command:** `{{ project.test_command }}`
+
+Use this exact command — do not infer a different test target from the repo layout.
+{% if project.test_command_full != "" %}For broader pre-merge-queue coverage, `{{ project.test_command_full }}` is also configured.
+{% endif %}{% if project.test_skip_paths.size > 0 %}Skip these paths during testing: {{ project.test_skip_paths | join: ", " }}.
+{% endif %}{% endif %}
 
 ## Git Workflow
 

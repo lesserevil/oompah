@@ -147,6 +147,22 @@ class Project:
     # repo. Composes with the global pause: a request is dispatchable only
     # if neither the global nor the project's pause is set.
     paused: bool = False
+    # Per-project pre-push verification command. When set, agents (especially
+    # the merge_conflict focus) run this exact command instead of inferring a
+    # test target from repo layout. Example: "cargo test --workspace --lib"
+    # for a Rust workspace where --workspace alone would pull in flaky
+    # platform-specific or network-dependent crates.  When None/empty, the
+    # agent falls back to its prior best-guess inference.
+    test_command: str | None = None
+    # Optional broader pre-merge-queue verification command. Used when an
+    # agent wants more coverage than test_command before a final push (e.g.
+    # integration tests). When None/empty, agents only see test_command.
+    test_command_full: str | None = None
+    # Optional glob-style paths to exclude from testing (e.g. flaky,
+    # hardware-dependent, or network-dependent suites). Surfaced to agents
+    # as a hint; agents are responsible for honoring it. Empty list = no
+    # exclusions.
+    test_skip_paths: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -173,6 +189,12 @@ class Project:
             d["access_token"] = self.access_token
         if self.last_webhook_received_at:
             d["last_webhook_received_at"] = self.last_webhook_received_at.isoformat()
+        if self.test_command:
+            d["test_command"] = self.test_command
+        if self.test_command_full:
+            d["test_command_full"] = self.test_command_full
+        if self.test_skip_paths:
+            d["test_skip_paths"] = list(self.test_skip_paths)
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -206,6 +228,17 @@ class Project:
             max_in_flight_prs = max(1, int(raw_max))
         except (ValueError, TypeError):
             max_in_flight_prs = 1
+        raw_skip = d.get("test_skip_paths") or []
+        if isinstance(raw_skip, list):
+            test_skip_paths = [str(p) for p in raw_skip if str(p).strip()]
+        else:
+            test_skip_paths = []
+        raw_test_command = d.get("test_command")
+        test_command = str(raw_test_command).strip() if raw_test_command else None
+        raw_test_command_full = d.get("test_command_full")
+        test_command_full = (
+            str(raw_test_command_full).strip() if raw_test_command_full else None
+        )
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -223,6 +256,9 @@ class Project:
             max_in_flight_prs=max_in_flight_prs,
             merge_queue_enabled=bool(d.get("merge_queue_enabled", False)),
             paused=bool(d.get("paused", False)),
+            test_command=test_command or None,
+            test_command_full=test_command_full or None,
+            test_skip_paths=test_skip_paths,
         )
 
 

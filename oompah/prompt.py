@@ -11,7 +11,7 @@ from typing import Any
 
 from liquid import Environment as LiquidEnvironment
 
-from oompah.models import Issue
+from oompah.models import Issue, Project
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,30 @@ class RenderedPrompt:
     text: str
     parts: list[dict[str, Any]] | None = None
     elided: list[str] = field(default_factory=list)
+
+
+def _project_to_template_vars(project: Project | None) -> dict[str, Any]:
+    """Convert a Project to a dict for Liquid template rendering.
+
+    Always returns a dict so templates can do ``{% if project.test_command %}``
+    even when no project was passed (every value is the empty string / empty
+    list in that case).
+    """
+    if project is None:
+        return {
+            "name": "",
+            "branch": "",
+            "test_command": "",
+            "test_command_full": "",
+            "test_skip_paths": [],
+        }
+    return {
+        "name": project.name or "",
+        "branch": project.branch or "",
+        "test_command": project.test_command or "",
+        "test_command_full": project.test_command_full or "",
+        "test_skip_paths": list(project.test_skip_paths or []),
+    }
 
 
 def _issue_to_template_vars(issue: Issue) -> dict[str, Any]:
@@ -100,6 +124,7 @@ def render_prompt(
     attachments: list[str] | None = None,
     capabilities: list[str] | None = None,
     project_root: str | None = None,
+    project: Project | None = None,
 ) -> str | RenderedPrompt:
     """Render a Liquid prompt template with issue and attempt variables.
 
@@ -160,6 +185,7 @@ def render_prompt(
             for k, v in (memories or {}).items()
         ],
         "attachments": template_attachments,
+        "project": _project_to_template_vars(project),
     }
 
     try:

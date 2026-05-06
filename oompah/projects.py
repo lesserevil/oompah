@@ -297,7 +297,7 @@ class ProjectStore:
         "name", "repo_url", "branch", "git_user_name", "git_user_email",
         "yolo", "log_path", "webhook_secret", "access_token",
         "last_webhook_received_at", "max_in_flight_prs", "merge_queue_enabled",
-        "paused",
+        "paused", "test_command", "test_command_full", "test_skip_paths",
     })
 
     def update(self, project_id: str, **fields) -> Project | None:
@@ -334,6 +334,39 @@ class ProjectStore:
                 if not val:
                     raise ProjectError(f"'{key}' must not be empty")
                 fields[key] = val  # store trimmed value
+
+        # Normalize test_command / test_command_full: trim, treat empty as None.
+        for key in ("test_command", "test_command_full"):
+            if key in fields:
+                val = fields[key]
+                if val is None:
+                    fields[key] = None
+                else:
+                    if not isinstance(val, str):
+                        raise ProjectError(f"'{key}' must be a string or null")
+                    s = val.strip()
+                    fields[key] = s or None
+
+        # Normalize test_skip_paths: must be a list of non-empty strings.
+        if "test_skip_paths" in fields:
+            val = fields["test_skip_paths"]
+            if val is None:
+                fields["test_skip_paths"] = []
+            elif isinstance(val, list):
+                cleaned = []
+                for item in val:
+                    if not isinstance(item, str):
+                        raise ProjectError(
+                            "'test_skip_paths' entries must be strings"
+                        )
+                    s = item.strip()
+                    if s:
+                        cleaned.append(s)
+                fields["test_skip_paths"] = cleaned
+            else:
+                raise ProjectError(
+                    "'test_skip_paths' must be a list of strings"
+                )
 
         # Validate max_in_flight_prs is a positive integer (floats are rejected)
         if "max_in_flight_prs" in fields:
