@@ -258,7 +258,13 @@ class TestGitHubReviewQueueState:
         def json(self):
             return self._payload
 
-    def _provider(self, list_payload=None, get_payload=None):
+    def _provider(
+        self,
+        list_payload=None,
+        get_payload=None,
+        merge_queue_prs=(),
+        in_merge_queue=False,
+    ):
         provider = GitHubProvider(access_token="t")
 
         def fake_api(method, path, **kwargs):
@@ -274,6 +280,39 @@ class TestGitHubReviewQueueState:
             raise AssertionError(f"unexpected call: {path}")
 
         provider._api = fake_api
+
+        # Stub GraphQL: the merge-queue list lookup (list_open_reviews) and
+        # the per-PR isInMergeQueue lookup (get_review) both go through
+        # _graphql. Distinguish by the variable shape: list-mode uses
+        # only owner/name, single-PR mode also includes "number".
+        list_nodes = [
+            {"pullRequest": {"number": int(n)}} for n in merge_queue_prs
+        ]
+        list_payload_gql = {
+            "data": {
+                "repository": {
+                    "mergeQueue": (
+                        {"entries": {"nodes": list_nodes}}
+                        if list_nodes else None
+                    )
+                }
+            }
+        }
+        single_payload_gql = {
+            "data": {
+                "repository": {
+                    "pullRequest": {"isInMergeQueue": bool(in_merge_queue)}
+                }
+            }
+        }
+
+        def fake_graphql(query, variables=None):
+            variables = variables or {}
+            if "number" in variables:
+                return self._FakeResponse(single_payload_gql)
+            return self._FakeResponse(list_payload_gql)
+
+        provider._graphql = fake_graphql
         return provider
 
     def _pr_payload(self, **overrides):
@@ -338,3 +377,153 @@ class TestGitHubReviewQueueState:
         assert review is not None
         assert review.auto_merge_enabled is False
         assert review.mergeable_state == "clean"
+
+    # ------------------------------------------------------------------
+    # Merge queue: when GitHub takes a PR over from auto-merge into the
+    # repo merge queue, the REST ``auto_merge`` field is cleared back to
+    # null. The provider must still surface ``auto_merge_enabled=True``
+    # so the YOLO idempotency guard fires and we don't re-enqueue every
+    # tick. (oompah-zlz_2-btf.4)
+    # ------------------------------------------------------------------
+
+    def test_list_open_reviews_in_merge_queue_marks_auto_merge_enabled(self):
+        # PR #11 is in the merge queue but its auto_merge field is null
+        # (GitHub clears it once the queue takes over).
+        pr = self._pr_payload(number=11, auto_merge=None,
+                              mergeable_state="clean")
+        provider = self._provider(list_payload=[pr], merge_queue_prs=[11])
+        reviews = provider.list_open_reviews("x/y")
+        assert len(reviews) == 1
+        assert reviews[0].auto_merge_enabled is True, (
+            "PR in merge queue must report auto_merge_enabled=True "
+            "even when REST auto_merge is null"
+        )
+
+    def test_list_open_reviews_not_in_merge_queue_stays_disabled(self):
+        # PR not in the queue and auto_merge=null → still disabled.
+        pr = self._pr_payload(number=11, auto_merge=None,
+                              mergeable_state="clean")
+        provider = self._provider(list_payload=[pr], merge_queue_prs=[])
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].auto_merge_enabled is False
+
+    def test_list_open_reviews_merge_queue_only_marks_matching_pr(self):
+        pr11 = self._pr_payload(number=11, auto_merge=None)
+        pr12 = self._pr_payload(number=12, auto_merge=None)
+        # Only PR #11 is in the queue. PR #12 must remain disabled.
+        provider = self._provider(
+            list_payload=[pr11, pr12], merge_queue_prs=[11],
+        )
+        reviews = provider.list_open_reviews("x/y")
+        # Order in response mirrors the GitHub list order.
+        by_id = {r.id: r for r in reviews}
+        assert by_id["11"].auto_merge_enabled is True
+        assert by_id["12"].auto_merge_enabled is False
+
+    def test_list_open_reviews_skips_merge_queue_call_when_no_prs(self):
+        """Empty PR list ⇒ no merge-queue lookup (no PRs can be queued)."""
+        graphql_calls: list[dict] = []
+        provider = self._provider(list_payload=[])
+
+        def tracking_graphql(query, variables=None):
+            graphql_calls.append({"query": query, "variables": variables})
+            return self._FakeResponse({"data": {"repository": {"mergeQueue": None}}})
+
+        provider._graphql = tracking_graphql
+        provider.list_open_reviews("x/y")
+        assert graphql_calls == [], (
+            "no GraphQL request should be issued when the LIST endpoint "
+            "returns zero open PRs"
+        )
+
+    def test_list_open_reviews_repo_without_merge_queue(self):
+        """mergeQueue=null in the GraphQL response is the success path
+        for repos without a merge queue — not an error."""
+        pr = self._pr_payload(number=11, auto_merge=None)
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls"):
+                return self._FakeResponse([pr])
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        provider._graphql = lambda q, v=None: self._FakeResponse(
+            {"data": {"repository": {"mergeQueue": None}}}
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].auto_merge_enabled is False
+
+    def test_list_open_reviews_merge_queue_graphql_error_is_safe(self):
+        """A GraphQL failure must not blow up list_open_reviews — the
+        worst case is a re-enqueue-every-tick (the original bug), not a
+        crash that hides every other open PR."""
+        pr = self._pr_payload(number=11, auto_merge=None)
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls"):
+                return self._FakeResponse([pr])
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        provider._graphql = lambda q, v=None: self._FakeResponse(
+            {"errors": [{"message": "boom"}]}
+        )
+        reviews = provider.list_open_reviews("x/y")
+        # No crash, default behaviour: empty queue ⇒ auto_merge_enabled=False
+        assert reviews[0].auto_merge_enabled is False
+
+    def test_get_review_in_merge_queue_marks_auto_merge_enabled(self):
+        # PR has auto_merge=null but is in the merge queue.
+        pr = self._pr_payload(auto_merge=None, mergeable_state="clean")
+        provider = self._provider(get_payload=pr, in_merge_queue=True)
+        review = provider.get_review("x/y", "11")
+        assert review is not None
+        assert review.auto_merge_enabled is True
+
+    def test_get_review_not_in_merge_queue_stays_disabled(self):
+        pr = self._pr_payload(auto_merge=None, mergeable_state="clean")
+        provider = self._provider(get_payload=pr, in_merge_queue=False)
+        review = provider.get_review("x/y", "11")
+        assert review is not None
+        assert review.auto_merge_enabled is False
+
+    def test_get_review_with_auto_merge_skips_queue_lookup(self):
+        """When auto_merge is already populated we don't pay for an
+        extra isInMergeQueue GraphQL call — the result is already
+        True."""
+        pr = self._pr_payload(
+            auto_merge={"enabled_by": {"login": "bob"}},
+            mergeable_state="clean",
+        )
+        graphql_calls: list[dict] = []
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if "/pulls/" in path:
+                return self._FakeResponse(pr)
+            raise AssertionError(f"unexpected call: {path}")
+
+        def tracking_graphql(query, variables=None):
+            graphql_calls.append({"query": query, "variables": variables})
+            return self._FakeResponse(
+                {"data": {"repository": {"pullRequest": {"isInMergeQueue": True}}}}
+            )
+
+        provider._api = fake_api
+        provider._graphql = tracking_graphql
+        review = provider.get_review("x/y", "11")
+        assert review.auto_merge_enabled is True
+        assert graphql_calls == [], (
+            "isInMergeQueue lookup must be skipped when auto_merge is "
+            "already populated (it's already True)"
+        )
