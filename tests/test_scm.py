@@ -213,6 +213,7 @@ class TestReviewRequest:
             author="alice", state="open", source_branch="fix-typo",
             target_branch="main", created_at="2025-01-01", updated_at="2025-01-02",
             needs_rebase=True, has_conflicts=True, draft=True,
+            auto_merge_enabled=True, mergeable_state="blocked",
         )
         d = rr.to_dict()
         assert d["id"] == "42"
@@ -220,6 +221,8 @@ class TestReviewRequest:
         assert d["has_conflicts"] is True
         assert d["draft"] is True
         assert d["source_branch"] == "fix-typo"
+        assert d["auto_merge_enabled"] is True
+        assert d["mergeable_state"] == "blocked"
 
     def test_defaults(self):
         rr = ReviewRequest(
@@ -234,3 +237,104 @@ class TestReviewRequest:
         assert rr.has_conflicts is False
         assert rr.additions == 0
         assert rr.deletions == 0
+        assert rr.auto_merge_enabled is False
+        assert rr.mergeable_state == ""
+
+
+# ---------------------------------------------------------------------------
+# GitHub PR parsing: queue/auto-merge state
+# ---------------------------------------------------------------------------
+
+
+class TestGitHubReviewQueueState:
+    """list_open_reviews and get_review must populate auto_merge_enabled
+    and mergeable_state from the GitHub PR API response."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider(self, list_payload=None, get_payload=None):
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls") and list_payload is not None:
+                return self._FakeResponse(list_payload)
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                return self._FakeResponse(get_payload or {})
+            # Stub out CI status calls so list_open_reviews doesn't blow up.
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        return provider
+
+    def _pr_payload(self, **overrides):
+        base = {
+            "number": 11,
+            "title": "Test PR",
+            "html_url": "https://github.com/x/y/pull/11",
+            "user": {"login": "alice"},
+            "head": {"ref": "feat", "sha": "deadbeef"},
+            "base": {"ref": "main"},
+            "created_at": "2026-05-01T00:00:00Z",
+            "updated_at": "2026-05-01T00:00:00Z",
+            "body": "",
+            "labels": [],
+            "draft": False,
+            "additions": 1,
+            "deletions": 0,
+            "mergeable": True,
+            "mergeable_state": "clean",
+            "auto_merge": None,
+        }
+        base.update(overrides)
+        return base
+
+    def test_list_open_reviews_auto_merge_enabled(self):
+        pr = self._pr_payload(auto_merge={"enabled_by": {"login": "bob"},
+                                          "merge_method": "SQUASH"})
+        provider = self._provider(list_payload=[pr])
+        reviews = provider.list_open_reviews("x/y")
+        assert len(reviews) == 1
+        assert reviews[0].auto_merge_enabled is True
+        assert reviews[0].mergeable_state == "clean"
+
+    def test_list_open_reviews_auto_merge_disabled(self):
+        pr = self._pr_payload(auto_merge=None, mergeable_state="blocked")
+        provider = self._provider(list_payload=[pr])
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].auto_merge_enabled is False
+        assert reviews[0].mergeable_state == "blocked"
+
+    def test_list_open_reviews_auto_merge_no_enabled_by(self):
+        # Defensive: GitHub spec says enabled_by is set when active, but
+        # if it ever returns an empty/null enabled_by we treat as disabled.
+        pr = self._pr_payload(auto_merge={"enabled_by": None})
+        provider = self._provider(list_payload=[pr])
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].auto_merge_enabled is False
+
+    def test_get_review_auto_merge_enabled(self):
+        pr = self._pr_payload(auto_merge={"enabled_by": {"login": "bob"}},
+                              mergeable_state="behind")
+        provider = self._provider(get_payload=pr)
+        review = provider.get_review("x/y", "11")
+        assert review is not None
+        assert review.auto_merge_enabled is True
+        assert review.mergeable_state == "behind"
+
+    def test_get_review_auto_merge_disabled(self):
+        pr = self._pr_payload(auto_merge=None)
+        provider = self._provider(get_payload=pr)
+        review = provider.get_review("x/y", "11")
+        assert review is not None
+        assert review.auto_merge_enabled is False
+        assert review.mergeable_state == "clean"

@@ -1625,6 +1625,19 @@ class Orchestrator:
                     continue
                 review_id = review.id
 
+                # Idempotency guard: if GitHub auto-merge is already
+                # enabled on this PR, the merge queue is handling it.
+                # Don't re-dispatch the GraphQL mutation every tick — at
+                # best it's a no-op API call, at worst a future API
+                # version could double-enqueue or revoke the existing
+                # auto-merge. (oompah-zlz_2-btf.1)
+                if getattr(review, "auto_merge_enabled", False):
+                    logger.debug(
+                        "YOLO: %s MR #%s already enqueued (auto_merge_enabled=true) — skipping",
+                        project.name, review_id,
+                    )
+                    continue
+
                 if review.has_conflicts:
                     logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
                                 project.name, review_id)
@@ -4749,6 +4762,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         yolo_ids = {p.id for p in self.project_store.list_all() if getattr(p, "yolo", False)}
         total = 0
         yolo_pending = 0
+        queued = 0
         conflicts = 0
         ci_failures = 0
         for project_id, reviews in reviews_cache.items():
@@ -4759,6 +4773,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 total += 1
                 if project_id in yolo_ids:
                     yolo_pending += 1
+                    # Of those, count how many GitHub has already accepted into
+                    # its merge queue (auto_merge enabled). The remainder are
+                    # still awaiting enqueue by oompah's YOLO watchdog.
+                    if getattr(r, "auto_merge_enabled", False):
+                        queued += 1
                     continue
                 if getattr(r, "has_conflicts", False):
                     conflicts += 1
@@ -4767,6 +4786,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         return {
             "total": total,
             "yolo_pending": yolo_pending,
+            "queued": queued,
             "conflicts": conflicts,
             "ci_failures": ci_failures,
             "needs_attention": conflicts + ci_failures,
