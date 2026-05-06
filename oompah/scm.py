@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import urllib.parse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -204,6 +205,27 @@ def _resolve_gitlab_token(hostname: str = "gitlab.com") -> str | None:
 
 class GitHubProvider(SCMProvider):
     """GitHub implementation using the REST API via httpx."""
+
+    # Class-level cache of per-PR DETAIL fetch results (oompah-zlz_2-aza).
+    #
+    # The orchestrator's review_check tick creates a fresh ``GitHubProvider``
+    # for every project on every tick (see ``_fetch_all_reviews`` in
+    # ``orchestrator.py``), so a per-instance cache would be cleared every
+    # poll cycle and never produce a hit. Sharing the cache at the class
+    # level lets us amortise the per-PR DETAIL fetch across ticks while
+    # still being correctly invalidated whenever GitHub reports a new
+    # ``head.sha`` or ``updated_at`` on the cheap LIST endpoint.
+    #
+    # Key   : (repo_full_name, pr_num_str)
+    # Value : (head_sha, updated_at, mergeable, mergeable_state_raw)
+    #
+    # ``mergeable`` is True/False/None (None = GitHub still computing).
+    # ``mergeable_state_raw`` is GitHub's lower-case string ("clean",
+    # "dirty", "behind", "blocked", "unknown", or "").
+    _pr_detail_cache: dict[
+        tuple[str, str], tuple[str, str, bool | None, str]
+    ] = {}
+    _pr_detail_cache_lock: threading.Lock = threading.Lock()
 
     def __init__(self, access_token: str | None = None) -> None:
         # When an explicit token is provided (e.g. from project config), skip
@@ -474,6 +496,10 @@ class GitHubProvider(SCMProvider):
         )
 
         results = []
+        # Track PR numbers seen in this LIST response so we can evict
+        # cache entries for PRs that were closed/merged since last tick
+        # (oompah-zlz_2-aza).
+        seen_pr_nums: set[str] = set()
         for pr in data:
             author = pr.get("user", {})
             author_login = author.get("login", "") if isinstance(author, dict) else str(author)
@@ -513,6 +539,8 @@ class GitHubProvider(SCMProvider):
             )
 
             pr_num = str(pr.get("number", ""))
+            if pr_num:
+                seen_pr_nums.add(pr_num)
             try:
                 pr_num_int = int(pr.get("number") or 0)
             except (TypeError, ValueError):
@@ -534,13 +562,47 @@ class GitHubProvider(SCMProvider):
             # stays False and we never file a merge-conflict bead.
             # See oompah-zlz_2-l81 (regression of oompah-zlz_2-8rb).
             #
-            # Cost: one GET per non-draft open PR per review_check tick
-            # — bounded by max_in_flight_prs × N projects, well below
-            # rate-limit pressure. We already pay one GET per PR for
-            # CI status anyway.
+            # Cost amortisation (oompah-zlz_2-aza): we cache the
+            # DETAIL result keyed on (repo, pr_num) and invalidate it
+            # whenever GitHub's cheap LIST endpoint reports a new
+            # ``head.sha`` or ``updated_at`` for the PR. Both fields
+            # change exactly when mergeable_state can change (new
+            # commit, base bump, queue transition, label/check flip),
+            # so a steady-state poll with no PR changes performs
+            # **zero** DETAIL fetches per tick. First tick after a PR
+            # push pays one DETAIL fetch (cache miss).
             pr_draft = bool(pr.get("draft", False))
             if pr_num and not pr_draft:
-                detail = self._fetch_pr_mergeable_detail(repo, pr_num)
+                list_head_sha = pr.get("head", {}).get("sha", "") or ""
+                list_updated_at = pr.get("updated_at", "") or ""
+                cache_key = (repo, pr_num)
+                cached_detail: tuple[bool | None, str] | None = None
+                with self._pr_detail_cache_lock:
+                    cached = self._pr_detail_cache.get(cache_key)
+                if (
+                    cached is not None
+                    and cached[0] == list_head_sha
+                    and cached[1] == list_updated_at
+                ):
+                    cached_detail = (cached[2], cached[3])
+
+                if cached_detail is not None:
+                    detail = cached_detail
+                else:
+                    detail = self._fetch_pr_mergeable_detail(repo, pr_num)
+                    if detail is not None:
+                        # Populate cache on successful fetch only.
+                        # Fetch failures fall through to LIST defaults
+                        # below — caching the failure would pin
+                        # has_conflicts=False until the next push.
+                        with self._pr_detail_cache_lock:
+                            self._pr_detail_cache[cache_key] = (
+                                list_head_sha,
+                                list_updated_at,
+                                detail[0],
+                                detail[1] or "",
+                            )
+
                 if detail is not None:
                     detail_mergeable, detail_state_raw = detail
                     detail_state = (detail_state_raw or "").upper()
@@ -579,6 +641,19 @@ class GitHubProvider(SCMProvider):
                 auto_merge_enabled=auto_merge_enabled,
                 mergeable_state=merge_state_raw,
             ))
+
+        # Evict cache entries for PRs in this repo that were not in
+        # the LIST response (closed, merged, or moved out of "open").
+        # Per-repo eviction — leaves entries for other repos alone.
+        # (oompah-zlz_2-aza)
+        with self._pr_detail_cache_lock:
+            stale = [
+                key for key in self._pr_detail_cache
+                if key[0] == repo and key[1] not in seen_pr_nums
+            ]
+            for key in stale:
+                self._pr_detail_cache.pop(key, None)
+
         return results
 
     def list_merged_branches(self, repo: str) -> set[str]:
