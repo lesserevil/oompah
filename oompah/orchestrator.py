@@ -735,8 +735,16 @@ class Orchestrator:
         yolo_ms, archive_ms, merged_ms = await self._handle_yolo_review()
         t4 = time.monotonic()
 
-        # 5b. Watchdog: detect and fix stuck issues (periodic, lightweight)
-        self._maybe_run_watchdog()
+        # 5b. Watchdog: detect and fix stuck issues (periodic, lightweight).
+        # Offloaded to the tick thread pool to keep the event loop unblocked —
+        # the four sub-checks iterate _last_candidates and may issue bd CLI
+        # calls per stuck issue, which can block 200ms-2s. Safe because
+        # watchdog runs after all other tick handlers have settled, so the
+        # shared mutable state it reads (state.completed, _orphan_reset_counts,
+        # _last_candidates) is not being concurrently written.
+        await asyncio.get_event_loop().run_in_executor(
+            self._tick_pool, self._maybe_run_watchdog
+        )
 
         total_ms = (t4 - t0) * 1000
         if total_ms > 2000:
