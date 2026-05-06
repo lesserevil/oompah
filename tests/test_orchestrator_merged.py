@@ -684,6 +684,337 @@ class TestYoloReviewSerializationByProject:
         provider.merge_review.assert_not_called()
 
 
+class TestYoloRetryCi:
+    """Tests for _yolo_retry_ci epic-with-children escalation
+    (oompah-zlz_2-p4y) and the idempotency-by-sibling-presence fix
+    (oompah-zlz_2-cd5).
+
+    When a PR's source_branch matches an epic that already has children,
+    relabeling the epic as ci-fix would silently strand the work — the
+    dispatcher refuses to dispatch epics-with-children. The fix is to file
+    a sibling task bead under the epic instead, so an agent actually runs.
+
+    Idempotency: don't file a duplicate sibling bead when one is already
+    open under the epic. Closed siblings from previous attempts don't
+    count — file a new one.
+
+    For non-epic beads (or childless epics) the existing relabel-or-skip
+    behavior is preserved, including the original early-exit on
+    already-labeled beads.
+    """
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def _attach_tracker(self, orch, project, issue, children=None):
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        # Mock the orchestrator's child fetch helper directly so the test
+        # doesn't need to reach into tracker.fetch_children.
+        orch._fetch_epic_children = MagicMock(return_value=list(children or []))
+        # Returned issue from create_issue (used only for logging)
+        created = MagicMock()
+        created.identifier = "proj-newchild"
+        tracker.create_issue.return_value = created
+        orch._project_trackers[project.id] = tracker
+        return tracker
+
+    def test_epic_with_children_creates_sibling_bead(self, tmp_path):
+        """PR matched against a parent epic → new sibling bead is created
+        instead of relabeling the epic."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        epic = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="epic",
+            labels=[],
+            branch_name="trickle-rl5",
+        )
+        # Seven children, mirroring the live trickle PR #23 case.
+        children = [_make_issue(f"trickle-c{i}", state="open") for i in range(7)]
+        tracker = self._attach_tracker(orch, project, epic, children=children)
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # Existing relabel path must NOT fire on the epic
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+        # A sibling task bead must be created, parented to the epic, with
+        # ci-fix label and P0, in the open state (not deferred backlog).
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["issue_type"] == "task"
+        assert kwargs["priority"] == 0
+        assert kwargs["labels"] == ["ci-fix"]
+        assert kwargs["parent"] == "trickle-rl5"
+        assert kwargs["initial_status"] == "open"
+        assert "PR #23" in kwargs["title"]
+        assert "trickle-rl5" in kwargs["title"]
+        # Description should mention the parent epic and dispatch hint
+        desc = kwargs["description"]
+        assert "trickle-rl5" in desc
+        assert "epic" in desc
+        assert "Fix the failing tests" in desc
+
+    def test_already_labeled_epic_with_children_still_files_sibling(self, tmp_path):
+        """oompah-zlz_2-cd5: an epic-with-children that is ALREADY labeled
+        ci-fix (legacy from before p4y, or operator-applied) MUST NOT
+        short-circuit — it should still file a sibling bead because the
+        epic itself never produced a dispatch."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        epic = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="epic",
+            labels=["ci-fix"],  # ← legacy label residue (the original bug state)
+            branch_name="trickle-rl5",
+        )
+        # Children exist but NONE of them carry ci-fix — no sibling fix
+        # is in flight, despite the epic itself being labeled.
+        children = [_make_issue(f"trickle-c{i}", state="open") for i in range(7)]
+        tracker = self._attach_tracker(orch, project, epic, children=children)
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # The early-exit guard MUST be bypassed for epic-with-children.
+        # No relabel of the epic itself.
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+        # A sibling bead is still filed — the label on the epic alone is
+        # NOT a valid idempotency signal for epics.
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["labels"] == ["ci-fix"]
+        assert kwargs["parent"] == "trickle-rl5"
+
+    def test_epic_with_open_ci_fix_sibling_does_not_duplicate(self, tmp_path):
+        """oompah-zlz_2-cd5: when an open ci-fix sibling already exists
+        under the epic, do NOT file a duplicate. Sibling-presence is the
+        idempotency signal, not the epic's own label."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        epic = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="epic",
+            labels=[],
+            branch_name="trickle-rl5",
+        )
+        # One existing open ci-fix sibling — fix already in flight.
+        existing_sibling = _make_issue(
+            "trickle-cifix-1", state="open", labels=["ci-fix"],
+        )
+        other_children = [_make_issue(f"trickle-c{i}", state="open") for i in range(3)]
+        tracker = self._attach_tracker(
+            orch, project, epic,
+            children=[existing_sibling, *other_children],
+        )
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # No new sibling is filed — the open ci-fix sibling already
+        # carries the in-flight fix work.
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    def test_epic_with_in_progress_ci_fix_sibling_does_not_duplicate(self, tmp_path):
+        """In-progress siblings count for idempotency just like open ones —
+        the agent has already picked up the work."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        epic = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="epic",
+            labels=[],
+            branch_name="trickle-rl5",
+        )
+        in_progress_sibling = _make_issue(
+            "trickle-cifix-2", state="in_progress", labels=["ci-fix"],
+        )
+        tracker = self._attach_tracker(
+            orch, project, epic, children=[in_progress_sibling],
+        )
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        tracker.create_issue.assert_not_called()
+
+    def test_epic_with_closed_ci_fix_sibling_files_new_sibling(self, tmp_path):
+        """oompah-zlz_2-cd5: a CLOSED ci-fix sibling is a previous attempt
+        that finished — file a NEW sibling, since this is a fresh CI
+        failure."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        epic = Issue(
+            id="trickle-rl5",
+            identifier="trickle-rl5",
+            title="CI-Speed plan",
+            description="Make CI faster",
+            state="open",
+            issue_type="epic",
+            labels=[],
+            branch_name="trickle-rl5",
+        )
+        # Previous ci-fix sibling completed (closed). Doesn't count.
+        old_sibling = _make_issue(
+            "trickle-cifix-old", state="closed", labels=["ci-fix"],
+        )
+        other = _make_issue("trickle-c1", state="open")
+        tracker = self._attach_tracker(
+            orch, project, epic, children=[old_sibling, other],
+        )
+
+        review = _make_review("23", source_branch="trickle-rl5", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # A NEW sibling is filed despite the closed ci-fix predecessor.
+        tracker.create_issue.assert_called_once()
+        kwargs = tracker.create_issue.call_args.kwargs
+        assert kwargs["labels"] == ["ci-fix"]
+        assert kwargs["parent"] == "trickle-rl5"
+
+    def test_non_epic_bead_keeps_relabel_behavior(self, tmp_path):
+        """PR matched against a non-epic bead → existing behavior preserved
+        (relabel + reopen, no sibling created)."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        bead = Issue(
+            id="proj-task1",
+            identifier="proj-task1",
+            title="Task",
+            description="A task with a body so the dispatcher accepts it.",
+            state="closed",  # closed so we exercise the reopen path
+            issue_type="task",
+            labels=[],
+            branch_name="feat-task1",
+        )
+        tracker = self._attach_tracker(orch, project, bead, children=[])
+
+        review = _make_review("42", source_branch="feat-task1", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # Existing relabel path fires: status=open, priority=0, label=ci-fix
+        tracker.update_issue.assert_called_once()
+        update_kwargs = tracker.update_issue.call_args.kwargs
+        assert update_kwargs.get("status") == "open"
+        assert update_kwargs.get("priority") == "0"
+        assert update_kwargs.get("add-label") == "ci-fix"
+        # Comment is added to the existing bead
+        tracker.add_comment.assert_called_once()
+        # NO sibling bead is created
+        tracker.create_issue.assert_not_called()
+
+    def test_non_epic_already_labeled_returns_early(self, tmp_path):
+        """oompah-zlz_2-cd5: non-epic bead already labeled ci-fix → unchanged
+        (returns early as before; the original idempotency guard still
+        applies for non-epic / childless-epic beads)."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        bead = Issue(
+            id="proj-task1",
+            identifier="proj-task1",
+            title="Task",
+            description="Task body.",
+            state="open",
+            issue_type="task",
+            labels=["ci-fix"],  # already labeled — fix in flight
+            branch_name="feat-task1",
+        )
+        tracker = self._attach_tracker(orch, project, bead, children=[])
+
+        review = _make_review("42", source_branch="feat-task1", ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # Idempotency: nothing happens — the in-flight fix continues.
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.create_issue.assert_not_called()
+
+    def test_childless_epic_keeps_relabel_behavior(self, tmp_path):
+        """PR matched against a childless epic → existing behavior preserved
+        (relabel — epic-planner can pick it up). No sibling bead."""
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        epic = Issue(
+            id="proj-empty-epic",
+            identifier="proj-empty-epic",
+            title="Empty epic",
+            description="An epic that has not been planned yet.",
+            state="open",
+            issue_type="epic",
+            labels=[],
+            branch_name="feat-empty-epic",
+        )
+        tracker = self._attach_tracker(orch, project, epic, children=[])
+
+        review = _make_review("99", source_branch="feat-empty-epic",
+                              ci_status="failed")
+
+        orch._yolo_retry_ci(project, review)
+
+        # Existing relabel path fires (epic-planner will pick it up)
+        tracker.update_issue.assert_called_once()
+        tracker.add_comment.assert_called_once()
+        # NO sibling bead is created
+        tracker.create_issue.assert_not_called()
+
+
 class TestProjectHasOpenReview:
     """Tests for _project_has_open_review dispatch gating."""
 
