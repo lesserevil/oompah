@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -1353,6 +1354,7 @@ class Orchestrator:
                 and is_first
                 and not self._has_explicit_handoff_label(issue)
                 and issue.issue_type != "epic"
+                and not self._is_safety_critical_issue(issue)
             ):
                 default_profile = self._get_default_catch_all_profile()
                 if default_profile is not None:
@@ -2890,6 +2892,34 @@ class Orchestrator:
         """Return True if the issue carries a needs:* label (explicit user routing)."""
         return any(label.startswith("needs:") for label in (issue.labels or []))
 
+    def _is_safety_critical_issue(self, issue: Issue) -> bool:
+        """Return True if this issue requires safety-critical handling that must
+        bypass cost optimizations like default_first_dispatch.
+
+        Currently this is only the merge_conflict focus — rebase work has a
+        high blast radius (force-pushes, dropped commits, blind ours/theirs
+        accepts) and the merge_conflict Focus must_not_do rails exist
+        specifically to mitigate that. Running such issues on the catch-all
+        "default" profile first means the safety rails come too late: if the
+        cheap-profile dispatch produces a bad-but-CI-passing rebase, the bead
+        closes without the specialist ever running. See oompah-zlz_2-2sd.
+
+        Detection mirrors the merge_conflict Focus's labels and keywords
+        (oompah/focus.py:289-314). We check labels/keywords directly rather
+        than running select_focus to keep this fast and deterministic — and
+        to avoid taking the LLM-triage path during the dispatch decision.
+        """
+        labels = {l.lower() for l in (issue.labels or [])}
+        if "merge-conflict" in labels:
+            return True
+        # Also match the merge_conflict Focus keywords (whole-word, case-insensitive)
+        # so beads that describe the work but lack the label still get the carve-out.
+        text = f"{issue.title or ''} {issue.description or ''}".lower()
+        for kw in ("merge conflict", "rebase conflict", "resolve conflict"):
+            if re.search(r"\b" + re.escape(kw) + r"\b", text):
+                return True
+        return False
+
     def _get_default_catch_all_profile(self) -> AgentProfile | None:
         """Return the catch-all profile (no issue_type / keyword / priority constraints).
 
@@ -2936,6 +2966,7 @@ class Orchestrator:
             and self._is_first_dispatch(issue, attempt, override_profile)
             and not self._has_explicit_handoff_label(issue)
             and issue.issue_type != "epic"  # epics keep existing routing
+            and not self._is_safety_critical_issue(issue)  # merge-conflict: skip cost opt
         ):
             # default_first_dispatch: use the catch-all profile on first dispatch,
             # but remember what the "natural" profile would be so the first retry
