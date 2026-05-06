@@ -243,6 +243,96 @@ watchdog notifies on today.
 Validation: unit-test the orchestrator's branch with a fake provider;
 end-to-end test against a scratch repo with merge queue enabled.
 
+#### Known issue: `POST /auto-merge` returns HTTP 404
+
+**Status:** open — tracked in `oompah-zlz_2-d9v`. Documented here so
+operators can recognise and recover from it; not yet patched in
+`oompah/scm.py`.
+
+The current `GitHubProvider.enable_auto_merge` implementation calls
+`POST /repos/{owner}/{repo}/pulls/{N}/auto-merge`. **That URL does not
+exist in the GitHub REST API**, so the call returns
+`HTTP 404 Not Found` for every PR regardless of repo or PR state.
+Hand-verified against `NVIDIA-Omniverse/trickle`:
+
+```bash
+$ gh auth switch --user NVShawn
+$ gh api -X POST /repos/NVIDIA-Omniverse/trickle/pulls/9/auto-merge -f merge_method=squash
+{"message":"Not Found","documentation_url":"https://docs.github.com/rest","status":"404"}
+```
+
+GitHub's auto-merge feature is only exposed via the GraphQL
+`enablePullRequestAutoMerge` mutation (which the `gh pr merge --auto`
+CLI wraps) — there is no REST equivalent at any path. The Step 4
+design above prescribes exactly this (`gh pr merge --auto --squash` or
+the GraphQL mutation); the REST shortcut in the current code was a
+divergence from the design and never worked end-to-end.
+
+There is also a repo-level prerequisite that is independent of the
+URL bug: `allow_auto_merge` must be `true` on the target repo.
+Inspect with:
+
+```bash
+gh api repos/OWNER/NAME --jq .allow_auto_merge
+# false on NVIDIA-Omniverse/trickle as of 2026-05-06
+```
+
+If it is `false`, even a corrected GraphQL call would fail until an
+admin enables it (Settings → General → Pull Requests → "Allow
+auto-merge", or `gh api -X PATCH repos/OWNER/NAME -f allow_auto_merge=true`).
+
+##### Symptoms in oompah logs
+
+```
+YOLO: enqueued for merge trickle MR #9 (ci=passed)
+YOLO: enqueue failed for trickle MR #9: Failed to enable auto-merge: HTTP 404 ...
+                                                                        — dispatching conflict agent
+```
+
+The `_yolo_notify_conflict` fallback fires every tick on every YOLO PR
+that reaches the merge step, so the bead's tracker sees a flood of
+spurious "merge conflict" comments. Recognise this case by the literal
+404 in the logged failure message; an actual merge conflict surfaces
+through `review.has_conflicts == True`, not through the enqueue call's
+return value.
+
+##### Operator workaround (until the code fix lands)
+
+Choose **one** of the following, in increasing order of cost:
+
+1. **Manually enqueue the affected PR.** Use the supported CLI path:
+   ```bash
+   gh auth switch --user NVShawn
+   gh api -X PATCH repos/NVIDIA-Omniverse/trickle -f allow_auto_merge=true
+   gh pr merge <PR-number> --auto --squash --repo NVIDIA-Omniverse/trickle
+   ```
+   The PR enters the merge queue normally; oompah's `_yolo_notify_conflict`
+   fallback will keep retrying until the queue lands the merge, but the
+   PR makes forward progress.
+
+2. **Roll back the orchestrator flag.** Flip
+   `Project.merge_queue_enabled` back to `False` for the affected
+   project so YOLO returns to the direct-merge path:
+   ```bash
+   curl -X PATCH http://localhost:8080/api/v1/projects/proj-3e4e9214 \
+        -H 'Content-Type: application/json' \
+        -d '{"merge_queue_enabled": false}'
+   ```
+   Direct `PUT /merge` will then return HTTP 405 against a merge-queue
+   ruleset (the original Step 4 motivation), so this is only viable if
+   the GitHub-side ruleset is also rolled back — see
+   `scripts/merge-queue-cutover.sh rollback --repo OWNER/NAME` (lives
+   on branch `oompah-zlz_2-0c3`; not yet on `main`).
+
+3. **Disable YOLO mode for the project.** Last resort: clear the
+   project's YOLO setting and let normal review/merge flow in.
+
+The ruleset, the `allow_auto_merge` repo setting, and
+`Project.merge_queue_enabled` form a triangle — flipping any one of
+them out of agreement breaks the loop. The cleanest fix is the code
+change tracked in `oompah-zlz_2-d9v`; the workarounds above keep the
+project moving in the meantime.
+
 ### Step 5 — Enable Merge Queue on `main` (P0)
 
 Final, production-visible step. For each repo:
@@ -268,7 +358,7 @@ the rule applies on the next merge attempt.
 | 1 | Workflow doesn't run on merge_group ref | First queued PR hangs in "Pending" | Revert workflow change (single commit) |
 | 2 | Merge driver mis-merges JSONL | `bd validate` flags duplicate ids in CI | Remove `.gitattributes` line; resolve manually |
 | 3 | Concurrency raised too high; conflict storm | Spike in YOLO conflict notifications | Lower `OOMPAH_DEFAULT_MAX_INFLIGHT_REVIEWS` to `1` (live; no deploy) |
-| 4 | Enqueue path broken on a provider | YOLO PRs sit open without merging | Flip per-project `merge_queue_enabled=False`; reverts to direct merge |
+| 4 | Enqueue path broken on a provider | YOLO PRs sit open without merging; logs show repeated `HTTP 404` from `enable_auto_merge` and a flood of `_yolo_notify_conflict` comments on the bead | Flip per-project `merge_queue_enabled=False` (with matching GitHub-side ruleset rollback) or manually enqueue with `gh pr merge --auto --squash <N>`. See Step 4 → Known issue: `POST /auto-merge` returns HTTP 404 |
 | 5 | Merge queue itself broken (GH outage) | All PRs stall in queue | Disable "Require merge queue" in branch protection |
 
 Each step is independently reversible and can ship behind its own
