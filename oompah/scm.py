@@ -425,7 +425,32 @@ class GitHubProvider(SCMProvider):
         return payload.get("mergeable"), payload.get("mergeable_state") or ""
 
     def _fetch_ci_status(self, repo: str, sha: str) -> str:
-        """Fetch combined CI status for a commit SHA."""
+        """Fetch combined CI status for a commit SHA.
+
+        Reconciles two GitHub endpoints:
+
+        * ``/commits/{sha}/status`` — legacy combined-status (Travis,
+          CircleCI, third-party integrations, ad-hoc commit statuses).
+        * ``/commits/{sha}/check-runs`` — modern GitHub Actions and
+          GitHub Apps that emit check-runs.
+
+        A repo that runs all its real CI through GitHub Actions can
+        still have one or more legacy commit-status entries hanging
+        around (a removed Travis hook, a misconfigured external
+        validator, an old branch-protection requirement). When such a
+        stale legacy entry is in state="failure", the combined-status
+        rollup returns state="failure" even though every modern
+        check-run is green.
+
+        The previous short-circuit (``state == "failure" -> "failed"``)
+        caused YOLO to log "auto-retrying failed CI" every poll tick
+        for actually-passing PRs. Now: if the legacy verdict is
+        failure but check-runs are all clean (success / neutral /
+        skipped), the modern check-runs win and we return "passed".
+        If check-runs cannot be inspected (HTTP error, empty payload,
+        non-200), we fall back to the legacy verdict so we still flag
+        actually-failing PRs. (oompah-zlz_2-c91)
+        """
         try:
             r = self._api("GET", f"/repos/{repo}/commits/{sha}/status")
             if r.status_code != 200:
@@ -437,12 +462,17 @@ class GitHubProvider(SCMProvider):
             # commit-status was reported. Repos that use GitHub Actions only
             # return state="pending" with total_count=0, which would otherwise
             # mask all-green check-runs.
+            legacy_failure = False
             if total > 0:
                 if state == "success":
                     return "passed"
                 if state == "failure" or state == "error":
-                    return "failed"
-                if state == "pending":
+                    # Don't short-circuit. The legacy entry may be stale
+                    # while modern check-runs are all green. Fall through
+                    # to the check-runs endpoint and let it override only
+                    # if it has a clean verdict.
+                    legacy_failure = True
+                elif state == "pending":
                     return "pending"
             # Also check check-runs (GitHub Actions use this instead of status)
             cr = self._api("GET", f"/repos/{repo}/commits/{sha}/check-runs",
@@ -454,8 +484,16 @@ class GitHubProvider(SCMProvider):
                     if "failure" in conclusions or "timed_out" in conclusions:
                         return "failed"
                     if all(c in ("success", "neutral", "skipped") for c in conclusions if c):
+                        # All modern check-runs are clean. If we got
+                        # here from a legacy "failure" verdict, the
+                        # legacy commit-status entry is stale; trust
+                        # the modern check-runs instead.
                         return "passed"
                     return "pending"
+            # No usable check-runs response. If legacy reported failure,
+            # honor it — there's no modern signal to override it.
+            if legacy_failure:
+                return "failed"
         except (httpx.HTTPError, json.JSONDecodeError):
             pass
         return ""

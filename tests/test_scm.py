@@ -192,11 +192,57 @@ class TestFetchCiStatus:
         assert provider._fetch_ci_status("o/r", "deadbeef") == "passed"
 
     def test_legacy_failure_short_circuits(self):
+        # When combined-status reports failure but there are no modern
+        # check-runs to override it, the legacy verdict still wins —
+        # we have no other signal to trust.
         provider = self._provider_with_responses(
             {"state": "failure", "total_count": 1},
             {"check_runs": []},
         )
         assert provider._fetch_ci_status("o/r", "deadbeef") == "failed"
+
+    def test_legacy_failure_overridden_by_clean_check_runs(self):
+        # Regression for oompah-zlz_2-c91: a stale legacy commit-status
+        # entry reports failure on a repo whose modern GitHub Actions
+        # check-runs are all green. Before the fix, _fetch_ci_status
+        # short-circuited to "failed" and YOLO logged
+        # "auto-retrying failed CI on trickle MR #23" every tick for
+        # actually-passing PRs. Now: when legacy state=failure but
+        # check-runs are all clean (including SKIPPED / NEUTRAL),
+        # the modern check-runs override the stale legacy verdict.
+        provider = self._provider_with_responses(
+            {"state": "failure", "total_count": 1},
+            {"check_runs": [
+                {"conclusion": "success", "status": "completed"},
+                {"conclusion": "success", "status": "completed"},
+                {"conclusion": "skipped", "status": "completed"},
+                {"conclusion": "neutral", "status": "completed"},
+            ]},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "passed"
+
+    def test_legacy_failure_with_failing_check_run_stays_failed(self):
+        # Both endpoints agree the PR is broken — return failed.
+        provider = self._provider_with_responses(
+            {"state": "failure", "total_count": 1},
+            {"check_runs": [
+                {"conclusion": "success", "status": "completed"},
+                {"conclusion": "failure", "status": "completed"},
+            ]},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "failed"
+
+    def test_legacy_failure_with_pending_check_run_returns_pending(self):
+        # Modern check-runs are still in progress — wait for them
+        # rather than honoring the (possibly stale) legacy failure.
+        provider = self._provider_with_responses(
+            {"state": "failure", "total_count": 1},
+            {"check_runs": [
+                {"conclusion": None, "status": "in_progress"},
+                {"conclusion": "success", "status": "completed"},
+            ]},
+        )
+        assert provider._fetch_ci_status("o/r", "deadbeef") == "pending"
 
     def test_no_statuses_and_no_check_runs_returns_empty(self):
         provider = self._provider_with_responses(
