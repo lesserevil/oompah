@@ -219,6 +219,19 @@ class GitHubProvider(SCMProvider):
         url = f"https://api.github.com{path}"
         return _get_http_client().request(method, url, headers=self._headers(), **kwargs)
 
+    def _graphql(self, query: str, variables: dict | None = None) -> httpx.Response:
+        """POST a GraphQL query/mutation to GitHub's GraphQL endpoint.
+
+        Used for features (notably auto-merge enablement) that GitHub
+        exposes only via GraphQL, not REST.
+        """
+        payload: dict = {"query": query, "variables": variables or {}}
+        return _get_http_client().post(
+            "https://api.github.com/graphql",
+            headers=self._headers(),
+            json=payload,
+        )
+
     def provider_name(self) -> str:
         return "github"
 
@@ -444,23 +457,80 @@ class GitHubProvider(SCMProvider):
     def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
         """Enable auto-merge on a GitHub PR (enqueue mode).
 
-        Uses the GitHub REST API ``PATCH /repos/{repo}/pulls/{pr}/auto_merge``
-        endpoint.  When the repo has a merge queue enabled, the platform
-        automatically enqueues the PR once auto-merge is set.
+        GitHub's auto-merge feature is exposed **only via GraphQL** —
+        there is no REST endpoint for it. The previous implementation
+        POSTed to ``/repos/{repo}/pulls/{N}/auto-merge`` and got an
+        unconditional HTTP 404 because that path does not exist (see
+        bead oompah-zlz_2-d9v). This implementation:
+
+        1. Looks up the PR's GraphQL ``node_id`` via REST.
+        2. Calls the ``enablePullRequestAutoMerge`` GraphQL mutation.
+
+        Repo prerequisite: the target repo must have
+        ``allow_auto_merge=true`` set; otherwise GitHub returns
+        ``Pull request Auto merge is not allowed for this repository``
+        and this method reports that distinctly so operators can flip
+        the repo flag.
         """
+        # --- Step 1: fetch the PR to get its GraphQL node_id ---
         try:
-            r = self._api(
-                "POST",
-                f"/repos/{repo}/pulls/{review_id}/auto-merge",
-                json={"merge_method": "squash"},
-            )
-            if r.status_code in (200, 201):
-                return True, "Auto-merge enabled on PR"
-            if r.status_code == 405:
-                return False, f"Auto-merge not allowed: HTTP 405 (merge queue may not be enabled or PR is not ready)"
-            return False, f"Failed to enable auto-merge: HTTP {r.status_code} {r.text[:300]}"
+            pr_resp = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
         except httpx.HTTPError as exc:
-            return False, f"Failed to enable auto-merge: {exc}"
+            return False, f"Failed to enable auto-merge: PR lookup error: {exc}"
+        if pr_resp.status_code != 200:
+            return False, (
+                f"Failed to enable auto-merge: PR lookup HTTP "
+                f"{pr_resp.status_code} {pr_resp.text[:200]}"
+            )
+        try:
+            pr_body = pr_resp.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return False, f"Failed to enable auto-merge: PR lookup JSON error: {exc}"
+        node_id = pr_body.get("node_id")
+        if not node_id:
+            return False, "Failed to enable auto-merge: PR response missing node_id"
+
+        # --- Step 2: enablePullRequestAutoMerge GraphQL mutation ---
+        mutation = (
+            "mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) { "
+            "enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, "
+            "mergeMethod: $mergeMethod}) { "
+            "pullRequest { autoMergeRequest { enabledAt } } "
+            "} "
+            "}"
+        )
+        try:
+            gql = self._graphql(
+                mutation,
+                {"pullRequestId": node_id, "mergeMethod": "SQUASH"},
+            )
+        except httpx.HTTPError as exc:
+            return False, f"Failed to enable auto-merge: GraphQL error: {exc}"
+        if gql.status_code != 200:
+            return False, (
+                f"Failed to enable auto-merge: GraphQL HTTP "
+                f"{gql.status_code} {gql.text[:200]}"
+            )
+        try:
+            body = gql.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return False, f"Failed to enable auto-merge: GraphQL JSON error: {exc}"
+
+        errors = body.get("errors") or []
+        if errors:
+            msg = "; ".join(str(e.get("message", "")) for e in errors).strip("; ")
+            low = msg.lower()
+            # Repo missing allow_auto_merge=true.
+            if "auto merge is not allowed" in low or "auto-merge is not allowed" in low:
+                return False, (
+                    f"Auto-merge not allowed by repo (set allow_auto_merge=true on "
+                    f"{repo}): {msg}"
+                )
+            # PR is already mergeable — auto-merge can't attach to it.
+            if "clean status" in low:
+                return False, f"Auto-merge rejected (PR already mergeable): {msg}"
+            return False, f"Failed to enable auto-merge: {msg}"
+        return True, "Auto-merge enabled on PR"
 
 
 class GitLabProvider(SCMProvider):
