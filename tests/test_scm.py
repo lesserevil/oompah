@@ -445,6 +445,10 @@ class TestGitHubReviewQueueState:
         def fake_api(method, path, **kwargs):
             if path.endswith("/pulls"):
                 return self._FakeResponse([pr])
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                # Per-PR DETAIL fetch added for mergeable/mergeable_state
+                # detection (oompah-zlz_2-8rb).
+                return self._FakeResponse(pr)
             if path.endswith("/status"):
                 return self._FakeResponse({"state": "success", "total_count": 1})
             if path.endswith("/check-runs"):
@@ -468,6 +472,10 @@ class TestGitHubReviewQueueState:
         def fake_api(method, path, **kwargs):
             if path.endswith("/pulls"):
                 return self._FakeResponse([pr])
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                # Per-PR DETAIL fetch added for mergeable/mergeable_state
+                # detection (oompah-zlz_2-8rb).
+                return self._FakeResponse(pr)
             if path.endswith("/status"):
                 return self._FakeResponse({"state": "success", "total_count": 1})
             if path.endswith("/check-runs"):
@@ -526,4 +534,267 @@ class TestGitHubReviewQueueState:
         assert graphql_calls == [], (
             "isInMergeQueue lookup must be skipped when auto_merge is "
             "already populated (it's already True)"
+        )
+
+    # ------------------------------------------------------------------
+    # mergeable / mergeable_state DETAIL fetch (oompah-zlz_2-8rb).
+    #
+    # The /pulls?state=open LIST endpoint never populates ``mergeable``
+    # or ``mergeable_state`` — those are only on per-PR DETAIL fetches.
+    # Without a DETAIL call the list-payload parser silently produces
+    # has_conflicts=False / needs_rebase=False for every PR, even when
+    # GitHub considers the PR DIRTY. The fix is a per-PR DETAIL fetch
+    # for non-draft PRs that aren't already auto-merging or queued.
+    # ------------------------------------------------------------------
+
+    def _list_endpoint_payload(self, **detail_overrides):
+        """Build a list-endpoint payload that mirrors GitHub's behavior:
+        ``mergeable``/``mergeable_state`` are stripped entirely (they
+        only exist on the DETAIL endpoint).
+        """
+        # Detail-endpoint payload defines the *real* state.
+        detail = self._pr_payload(**detail_overrides)
+        # List-endpoint copy: same fields minus the absent ones.
+        list_pr = {k: v for k, v in detail.items()
+                   if k not in ("mergeable", "mergeable_state")}
+        return list_pr, detail
+
+    def _provider_with_distinct_list_and_detail(
+        self, list_pr, detail_pr, merge_queue_prs=()
+    ):
+        """A provider whose LIST endpoint returns a payload missing
+        mergeable/mergeable_state (matching real GitHub behavior) and
+        whose per-PR DETAIL endpoint returns the full payload.
+        """
+        provider = GitHubProvider(access_token="t")
+        detail_calls: list[str] = []
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls"):
+                return self._FakeResponse([list_pr])
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                detail_calls.append(path)
+                return self._FakeResponse(detail_pr)
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+
+        list_nodes = [
+            {"pullRequest": {"number": int(n)}} for n in merge_queue_prs
+        ]
+        list_payload_gql = {
+            "data": {
+                "repository": {
+                    "mergeQueue": (
+                        {"entries": {"nodes": list_nodes}}
+                        if list_nodes else None
+                    )
+                }
+            }
+        }
+        provider._graphql = lambda q, v=None: self._FakeResponse(list_payload_gql)
+        return provider, detail_calls
+
+    def test_list_open_reviews_detects_dirty_via_detail_fetch(self):
+        """The whole point of oompah-zlz_2-8rb: a DIRTY PR must report
+        has_conflicts=True so the YOLO loop dispatches a conflict agent.
+        The list endpoint omits mergeable/mergeable_state, so this can
+        only come from a per-PR DETAIL fetch."""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=16, auto_merge=None, mergeable=False,
+            mergeable_state="dirty",
+        )
+        provider, detail_calls = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr,
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert len(reviews) == 1
+        review = reviews[0]
+        assert review.has_conflicts is True
+        assert review.needs_rebase is True
+        assert review.mergeable_state == "dirty"
+        assert detail_calls, (
+            "list_open_reviews must fetch per-PR detail to learn "
+            "mergeable/mergeable_state when LIST endpoint omits them"
+        )
+
+    def test_list_open_reviews_detects_behind_via_detail_fetch(self):
+        """A clean-but-behind PR must report needs_rebase=True even
+        though has_conflicts is False — this drives the rebase path."""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=17, auto_merge=None, mergeable=True,
+            mergeable_state="behind",
+        )
+        provider, _ = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr,
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert len(reviews) == 1
+        assert reviews[0].has_conflicts is False
+        assert reviews[0].needs_rebase is True
+        assert reviews[0].mergeable_state == "behind"
+
+    def test_list_open_reviews_clean_pr_via_detail_fetch(self):
+        """A clean PR must report has_conflicts=False / needs_rebase=False."""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=18, auto_merge=None, mergeable=True,
+            mergeable_state="clean",
+        )
+        provider, _ = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr,
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].has_conflicts is False
+        assert reviews[0].needs_rebase is False
+        assert reviews[0].mergeable_state == "clean"
+
+    def test_list_open_reviews_skips_detail_fetch_for_drafts(self):
+        """Draft PRs are never YOLO-targets, so detail-fetch is a waste
+        of an API call. Verify we skip it."""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=19, auto_merge=None, mergeable=False,
+            mergeable_state="dirty", draft=True,
+        )
+        provider, detail_calls = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr,
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert len(reviews) == 1
+        assert reviews[0].draft is True
+        # Drafts skip the detail call: has_conflicts stays at the LIST
+        # default (False) because we didn't bother asking GitHub.
+        assert reviews[0].has_conflicts is False
+        assert detail_calls == [], (
+            "draft PRs must not trigger an extra DETAIL fetch — they're "
+            "never auto-merged so their mergeable state is irrelevant"
+        )
+
+    def test_list_open_reviews_skips_detail_fetch_for_auto_merge(self):
+        """Auto-merge enabled means GitHub is already handling it — the
+        merge queue (or auto-merge feature) will compute mergeability
+        when it actually tries to merge. Skip the extra GET."""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=20,
+            auto_merge={"enabled_by": {"login": "bob"}},
+            mergeable=True, mergeable_state="clean",
+        )
+        provider, detail_calls = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr,
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].auto_merge_enabled is True
+        assert detail_calls == [], (
+            "auto-merge-enabled PRs must not trigger an extra DETAIL "
+            "fetch — GitHub is already handling the merge"
+        )
+
+    def test_list_open_reviews_skips_detail_fetch_for_merge_queued(self):
+        """Same logic as auto_merge: a PR in the merge queue is being
+        handled by GitHub. No need to compute mergeability here."""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=21, auto_merge=None,
+            mergeable=False, mergeable_state="dirty",
+        )
+        provider, detail_calls = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr, merge_queue_prs=[21],
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].auto_merge_enabled is True
+        assert detail_calls == [], (
+            "PRs in the merge queue must not trigger DETAIL fetch — "
+            "GitHub is already handling the merge"
+        )
+
+    def test_list_open_reviews_detail_http_error_falls_back_safely(self):
+        """A failed DETAIL fetch must not blow up list_open_reviews —
+        we keep the list-payload defaults (has_conflicts=False) and
+        carry on."""
+        list_pr, _ = self._list_endpoint_payload(
+            number=22, auto_merge=None, mergeable=False,
+            mergeable_state="dirty",
+        )
+        provider = GitHubProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls"):
+                return self._FakeResponse([list_pr])
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                return self._FakeResponse({}, status_code=500)
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        provider._graphql = lambda q, v=None: self._FakeResponse(
+            {"data": {"repository": {"mergeQueue": None}}}
+        )
+        reviews = provider.list_open_reviews("x/y")
+        # No crash; falls back to LIST defaults — has_conflicts stays
+        # False. The orchestrator polls again next tick so we'll
+        # eventually catch the conflict.
+        assert len(reviews) == 1
+        assert reviews[0].has_conflicts is False
+
+    def test_list_open_reviews_detail_mergeable_none_keeps_default(self):
+        """If GitHub hasn't computed mergeable yet (returns None on
+        DETAIL too), don't flap has_conflicts to True. ``None`` is not
+        a conflict — it's 'still computing'."""
+        list_pr, detail_pr = self._list_endpoint_payload(
+            number=23, auto_merge=None, mergeable=None,
+            mergeable_state="unknown",
+        )
+        provider, _ = self._provider_with_distinct_list_and_detail(
+            list_pr, detail_pr,
+        )
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].has_conflicts is False
+        assert reviews[0].needs_rebase is False
+        assert reviews[0].mergeable_state == "unknown"
+
+    def test_list_open_reviews_detail_fetch_per_pr(self):
+        """Multi-PR list: each non-auto-merging non-draft PR gets its
+        own DETAIL fetch."""
+        list_pr_a, detail_pr_a = self._list_endpoint_payload(
+            number=24, auto_merge=None, mergeable=False,
+            mergeable_state="dirty",
+        )
+        list_pr_b, detail_pr_b = self._list_endpoint_payload(
+            number=25, auto_merge=None, mergeable=True,
+            mergeable_state="clean",
+        )
+        provider = GitHubProvider(access_token="t")
+        detail_calls: list[str] = []
+
+        details_by_num = {"24": detail_pr_a, "25": detail_pr_b}
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/pulls"):
+                return self._FakeResponse([list_pr_a, list_pr_b])
+            if "/pulls/" in path and "/status" not in path and "/check-runs" not in path:
+                detail_calls.append(path)
+                pr_num = path.rsplit("/", 1)[-1]
+                return self._FakeResponse(details_by_num.get(pr_num, {}))
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "success", "total_count": 1})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": []})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        provider._graphql = lambda q, v=None: self._FakeResponse(
+            {"data": {"repository": {"mergeQueue": None}}}
+        )
+        reviews = provider.list_open_reviews("x/y")
+        by_id = {r.id: r for r in reviews}
+        assert by_id["24"].has_conflicts is True
+        assert by_id["25"].has_conflicts is False
+        assert len(detail_calls) == 2, (
+            "each non-draft non-auto-merging PR must trigger one "
+            "DETAIL fetch"
         )

@@ -366,6 +366,42 @@ class GitHubProvider(SCMProvider):
         pr_obj = repo_obj.get("pullRequest") or {}
         return bool(pr_obj.get("isInMergeQueue"))
 
+    def _fetch_pr_mergeable_detail(
+        self, repo: str, pr_num: str
+    ) -> tuple[bool | None, str] | None:
+        """Fetch a single PR's detail to read ``mergeable`` and
+        ``mergeable_state``.
+
+        The /pulls?state=open LIST endpoint never populates these
+        fields — GitHub only computes them on the per-PR DETAIL endpoint
+        (see oompah-zlz_2-8rb). list_open_reviews calls this helper for
+        every non-draft PR that GitHub isn't already auto-merging, so
+        the watchdog and YOLO conflict-agent dispatch see a real signal
+        instead of always-False.
+
+        Returns:
+            (mergeable, mergeable_state_raw) on success, where
+            ``mergeable`` is True/False/None (None = GitHub is still
+            computing it asynchronously) and ``mergeable_state_raw`` is
+            the lower-case string GitHub returns ("clean", "dirty",
+            "behind", "blocked", "unknown", or "").
+
+            None if the detail fetch failed entirely (HTTP error, JSON
+            decode error, non-200). Callers should preserve their
+            existing list-payload values in that case rather than
+            falsely flipping ``has_conflicts`` to False.
+        """
+        if not pr_num:
+            return None
+        try:
+            r = self._api("GET", f"/repos/{repo}/pulls/{pr_num}")
+            if r.status_code != 200:
+                return None
+            payload = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError):
+            return None
+        return payload.get("mergeable"), payload.get("mergeable_state") or ""
+
     def _fetch_ci_status(self, repo: str, sha: str) -> str:
         """Fetch combined CI status for a commit SHA."""
         try:
@@ -446,7 +482,12 @@ class GitHubProvider(SCMProvider):
             reviewers = [r.get("login", "") for r in (pr.get("requested_reviewers") or [])
                          if isinstance(r, dict)]
 
-            # mergeable/merge state require individual PR fetch — use what's available
+            # mergeable/mergeable_state are NEVER populated on the
+            # /pulls?state=open LIST endpoint — GitHub only fills them
+            # on per-PR DETAIL fetches. We read them defensively here in
+            # case GitHub ever changes that, but treat them as absent
+            # by default. The real values are filled below via
+            # _fetch_pr_mergeable_detail. (oompah-zlz_2-8rb)
             mergeable = pr.get("mergeable")
             merge_state_raw = pr.get("mergeable_state") or ""
             merge_state = merge_state_raw.upper()
@@ -478,6 +519,37 @@ class GitHubProvider(SCMProvider):
                 pr_num_int = 0
             if pr_num_int and pr_num_int in merge_queue_prs:
                 auto_merge_enabled = True
+
+            # Per-PR DETAIL fetch to populate mergeable / mergeable_state.
+            # The LIST endpoint omits these fields, so without this
+            # call has_conflicts is silently always False and the
+            # YOLO loop never dispatches a merge-conflict agent for
+            # genuinely DIRTY PRs. Skip drafts (we don't act on them)
+            # and auto-merge / merge-queue PRs (GitHub is already
+            # handling them, no decision to make). For a typical
+            # project with <10 open PRs and most queued, this is 3-5
+            # extra GETs per review_check tick — well below rate-limit
+            # pressure, and we already pay one GET per PR for CI
+            # status. (oompah-zlz_2-8rb)
+            pr_draft = bool(pr.get("draft", False))
+            if pr_num and not pr_draft and not auto_merge_enabled:
+                detail = self._fetch_pr_mergeable_detail(repo, pr_num)
+                if detail is not None:
+                    detail_mergeable, detail_state_raw = detail
+                    detail_state = (detail_state_raw or "").upper()
+                    # Preserve the list-payload state only when the
+                    # detail call returned an empty string (rare; would
+                    # mean GitHub itself reported no state). When detail
+                    # gives us a real value, trust it.
+                    if detail_state_raw:
+                        merge_state_raw = detail_state_raw
+                    # ``mergeable`` may be ``None`` if GitHub hasn't
+                    # finished computing it yet — leave the default
+                    # has_conflicts=False in that case rather than
+                    # flapping every tick.
+                    has_conflicts = detail_mergeable is False
+                    rebase_needed = detail_state == "BEHIND" or has_conflicts
+
             results.append(ReviewRequest(
                 id=pr_num,
                 title=pr.get("title", ""),
