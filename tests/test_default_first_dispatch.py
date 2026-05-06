@@ -580,6 +580,160 @@ class TestDispatchWithDefaultFirstDispatch:
         # Epic should route to "deep" (which includes epic in issue_types)
         assert "deep" in dispatched_profile
 
+    def test_flag_on_merge_conflict_label_bypasses_default_first(self, tmp_path):
+        """With flag=True, beads carrying the 'merge-conflict' label bypass the
+        cost optimization (oompah-zlz_2-2sd). The merge_conflict Focus has strict
+        must_not_do rails (no squash, no blind ours/theirs, no force-push to main)
+        that the default profile cannot enforce on its own — so we want the
+        natural specialist on the FIRST dispatch, not after a bounce.
+        """
+        orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
+        # Bug-typed bead with the merge-conflict label — like the trickle-dhr
+        # bead from the issue's live evidence.
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["merge-conflict"],
+            description="Resolve merge conflicts on PR #16",
+        )
+        dispatched_profile = []
+
+        async def capture(issue, attempt, profile):
+            dispatched_profile.append(profile.name if profile else "none")
+
+        orch._run_worker = capture
+
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        # Carve-out: merge-conflict beads must NOT be routed to default first.
+        assert "default" not in dispatched_profile, (
+            "merge-conflict bead was dispatched on default profile — "
+            "default_first_dispatch carve-out failed"
+        )
+        # They get the natural match (deep for type=bug in our test profile set).
+        assert "deep" in dispatched_profile
+
+    def test_flag_on_merge_conflict_label_does_not_store_natural_profile(self, tmp_path):
+        """When the merge-conflict carve-out fires, natural_profile_name stays None
+        because we dispatched on the natural profile directly — there is no
+        escalation jump pending.
+        """
+        orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
+        issue = _make_issue(issue_type="bug", labels=["merge-conflict"])
+
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        entry = orch.state.running.get(issue.id)
+        assert entry is not None
+        assert entry.agent_profile_name == "deep"
+        # No escalation pending — we already dispatched on the natural profile
+        assert entry.natural_profile_name is None
+
+    def test_flag_on_merge_conflict_keyword_bypasses_default_first(self, tmp_path):
+        """A bead without the label but whose title/description matches the
+        merge_conflict Focus keywords also bypasses the cost optimization.
+        Detection mirrors the Focus's keyword set so users describing the work
+        in plain English still get the safety rails.
+        """
+        orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
+        issue = _make_issue(
+            issue_type="bug",
+            labels=[],  # no label — only the keyword should trigger
+            description="Need to rebase conflict on the feature branch.",
+        )
+        dispatched_profile = []
+
+        async def capture(issue, attempt, profile):
+            dispatched_profile.append(profile.name if profile else "none")
+
+        orch._run_worker = capture
+
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        assert "default" not in dispatched_profile
+        assert "deep" in dispatched_profile
+
+    def test_flag_on_unrelated_bug_is_unaffected(self, tmp_path):
+        """Sanity check: the carve-out is narrow. A normal bug without
+        merge-conflict label/keywords still uses default_first_dispatch.
+        """
+        orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["needs-investigation"],
+            description="Login fails when password contains a unicode char.",
+        )
+        dispatched_profile = []
+
+        async def capture(issue, attempt, profile):
+            dispatched_profile.append(profile.name if profile else "none")
+
+        orch._run_worker = capture
+
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        # Normal bug still uses default first
+        assert "default" in dispatched_profile
+        assert "deep" not in dispatched_profile
+
+
+# ---------------------------------------------------------------------------
+# _is_safety_critical_issue helper — direct unit tests
+# ---------------------------------------------------------------------------
+
+class TestIsSafetyCriticalIssue:
+    """Unit tests for _is_safety_critical_issue (oompah-zlz_2-2sd)."""
+
+    def test_label_match(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(labels=["merge-conflict"])
+        assert orch._is_safety_critical_issue(issue) is True
+
+    def test_label_match_case_insensitive(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(labels=["Merge-Conflict"])
+        assert orch._is_safety_critical_issue(issue) is True
+
+    def test_keyword_match_in_title(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(description="")
+        issue.title = "Resolve merge conflict on PR #16"
+        assert orch._is_safety_critical_issue(issue) is True
+
+    def test_keyword_match_in_description(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(description="Need to rebase conflict on this branch")
+        assert orch._is_safety_critical_issue(issue) is True
+
+    def test_no_match_for_unrelated_bug(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(
+            issue_type="bug",
+            description="Login fails for unicode passwords",
+        )
+        assert orch._is_safety_critical_issue(issue) is False
+
+    def test_no_match_for_substring_only(self, tmp_path):
+        """Whole-word matching: 'merging' or 'preconflict' should not match."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(
+            description="Investigate preconflict detection in merging policy.",
+        )
+        assert orch._is_safety_critical_issue(issue) is False
+
+    def test_no_match_for_empty_issue(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(description="")
+        issue.title = ""
+        issue.labels = []
+        assert orch._is_safety_critical_issue(issue) is False
+
+    def test_no_match_for_none_labels(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(description="")
+        issue.title = ""
+        issue.labels = None
+        assert orch._is_safety_critical_issue(issue) is False
+
 
 # ---------------------------------------------------------------------------
 # get_snapshot() — exposes flag in state
