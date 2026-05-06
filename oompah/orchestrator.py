@@ -811,13 +811,19 @@ class Orchestrator:
             self._tick_pool, self._pre_resolve_blockers, candidates
         )
 
-        # Sort and dispatch regular (non-epic) issues
-        sorted_issues = self._sort_for_dispatch(candidates)
-        for issue in sorted_issues:
+        # Run the entire sort + filter pass in a worker thread so the bd
+        # CLI calls inside _should_dispatch (label/blocker resolution at
+        # ~150ms each) don't block uvicorn's event loop. Returns the
+        # final ordered list of issues that passed _should_dispatch; the
+        # async loop below only yields once per actual dispatch — no sync
+        # work between yields. See bead oompah-zlz_2-nvr.
+        ready = await loop.run_in_executor(
+            self._tick_pool, self._select_dispatchable, candidates
+        )
+        for issue in ready:
             if self._available_slots() <= 0:
                 break
-            if self._should_dispatch(issue):
-                await self._dispatch(issue, attempt=None)
+            await self._dispatch(issue, attempt=None)
 
         # Dispatch epic planning agents for open epics without children
         epics_to_plan = await loop.run_in_executor(
@@ -829,12 +835,17 @@ class Orchestrator:
             await self._dispatch(epic, attempt=None)
 
         # Auto-close epics whose children are all done
-        await asyncio.get_event_loop().run_in_executor(
+        await loop.run_in_executor(
             self._tick_pool, self._auto_close_completed_epics, candidates
         )
 
-        # Reset orphaned in_progress issues (no agent, no retry)
-        self._reset_orphaned_in_progress(candidates)
+        # Reset orphaned in_progress issues (no agent, no retry).
+        # Runs in the executor because orphan detection issues bd update
+        # calls — keeping it inline would re-introduce the very same
+        # event-loop blocking this bead is fixing.
+        await loop.run_in_executor(
+            self._tick_pool, self._reset_orphaned_in_progress, candidates
+        )
 
     async def _handle_yolo_review(self) -> tuple[float, float, float]:
         """Run YOLO merge actions, auto-archive, and merged-issue labeling.
@@ -2016,6 +2027,22 @@ class Orchestrator:
             created = issue.created_at or datetime.max.replace(tzinfo=timezone.utc)
             return (pri, created, issue.identifier)
         return sorted(issues, key=sort_key)
+
+    def _select_dispatchable(self, candidates: list[Issue]) -> list[Issue]:
+        """Sort candidates and filter via _should_dispatch.
+
+        Designed to be called via run_in_executor from _handle_dispatch_needed
+        so the bd CLI calls inside _should_dispatch (label/blocker resolution
+        at ~150ms each) run off the asyncio event loop, keeping uvicorn
+        responsive during heavy ticks. See bead oompah-zlz_2-nvr.
+
+        Returns the issues that pass _should_dispatch in priority/age order.
+        The async caller is still responsible for re-checking _available_slots
+        in its dispatch loop because slot count drops with each successful
+        dispatch.
+        """
+        sorted_issues = self._sort_for_dispatch(candidates)
+        return [issue for issue in sorted_issues if self._should_dispatch(issue)]
 
     def _match_agent_profile(self, issue: Issue) -> AgentProfile | None:
         """Select the best agent profile for an issue based on matching rules.
