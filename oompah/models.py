@@ -180,7 +180,15 @@ class Project:
     #   epics still dispatch concurrently up to ``max_in_flight_prs``.
     #
     # Unknown / invalid values fall back to "flat" with no migration.
-    epic_strategy: str = "flat"
+    #
+    # Dataclass default is "stacked" so newly-created projects get the
+    # merge-train semantics out of the box (fewer merges to main, no
+    # inter-child conflicts on main, single epic→main PR per epic).
+    # Existing projects whose persisted dict has no epic_strategy field
+    # still default to "flat" via from_dict's fallback below — that
+    # back-compat is intentional, only newly-constructed Project()
+    # instances pick up "stacked".
+    epic_strategy: str = "stacked"
 
     def to_dict(self) -> dict[str, Any]:
         d = {
