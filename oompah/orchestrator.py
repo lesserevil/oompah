@@ -2082,10 +2082,16 @@ class Orchestrator:
         - Has merge conflicts → trigger conflict resolution
         - CI failed → re-file ticket to fix tests
 
-        **Serialization**: only one action is taken per project per tick.
-        This prevents multiple simultaneous merges from conflicting with each
-        other — each merge changes the target branch, so subsequent PRs must
-        be rebased before they can merge cleanly.
+        **Serialization**: only one *merge/enqueue* action is taken per
+        project per tick. This prevents multiple simultaneous merges from
+        conflicting with each other — each merge changes the target branch,
+        so subsequent PRs must be rebased before they can merge cleanly.
+
+        Conflict-path (has_conflicts) and ci-failed (retry_ci) dispatches
+        are NOT serialized — they're pure idempotent tracker writes and
+        all matching PRs in iteration order get acted on in a single tick.
+        Serializing them caused starvation of older PRs when GitHub
+        returned PRs in created_at DESC order (oompah-zlz_2-8b9).
         """
         reviews_cache = getattr(self, "_reviews_cache", {})
         for project in self.project_store.list_all():
@@ -2130,8 +2136,13 @@ class Orchestrator:
                     logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
                                 project.name, review_id)
                     self._yolo_retry_ci(project, review)
-                    # Serialization: only one action per project per tick.
-                    break
+                    # ci-fix relabel is an idempotent tracker write — no
+                    # reason to serialize across PRs in this tick.
+                    # Using `break` here starves conflict-path and
+                    # additional ci-failed dispatches for older PRs that
+                    # come LATER in iteration order (GitHub returns PRs
+                    # in created_at DESC order). (oompah-zlz_2-8b9)
+                    continue
 
                 # Idempotency guard: if GitHub auto-merge is already
                 # enabled on this PR AND CI is not failing, the merge

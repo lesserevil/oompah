@@ -514,10 +514,13 @@ class TestYoloReviewSerializationByProject:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_only_one_ci_retry_per_project_per_tick(
+    def test_ci_retry_dispatches_for_each_failed_pr(
         self, mock_slug, mock_detect, tmp_path
     ):
-        """When multiple PRs have failed CI, only retry the first one per tick."""
+        """When multiple PRs have failed CI, each gets a ci-retry dispatch (no serialization).
+        ci-fix relabel is an idempotent tracker write — no reason to serialize across PRs.
+        Using break starved conflict-path and additional ci-failed dispatches for older PRs
+        that come later in iteration order. (oompah-zlz_2-8b9)"""
         project = _make_project()
         project.yolo = True
 
@@ -538,9 +541,104 @@ class TestYoloReviewSerializationByProject:
 
         orch._yolo_review_actions_sync()
 
-        # Only one CI retry should have been attempted
+        # Both CI retries should have been attempted (continue, not break)
+        assert orch._yolo_retry_ci.call_count == 2
+        review_ids = [call[0][1].id for call in orch._yolo_retry_ci.call_args_list]
+        assert review_ids == ["1", "2"]
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_ci_failed_does_not_starve_later_conflict_dispatches(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """A ci-failed PR earlier in iteration order MUST NOT block conflict-path
+        dispatches for older PRs that come later. Reproduces the live bug where
+        GitHub returns PRs in created_at DESC order: a recent ci=failed PR caused
+        `break`, starving conflict checks for older DIRTY PRs every tick.
+        (oompah-zlz_2-8b9)"""
+        project = _make_project()
+        project.yolo = True
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_retry_ci = MagicMock()
+        orch._yolo_notify_conflict = MagicMock()
+
+        # Mock tracker (used by _yolo_notify_conflict)
+        mock_tracker = MagicMock()
+        mock_issue = MagicMock()
+        mock_issue.state = "closed"
+        mock_issue.labels = []
+        mock_issue.identifier = "test-001"
+        mock_issue.id = "test-001"
+        mock_tracker.fetch_issue_detail.return_value = mock_issue
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Iteration order mimics live trickle:
+        #   recent ci=failed first, older DIRTY PRs after.
+        reviews = [
+            _make_review("44", source_branch="feat-recent", ci_status="failed"),
+            _make_review("43", source_branch="feat-newer-dirty", has_conflicts=True),
+            _make_review("36", source_branch="feat-old-dirty", has_conflicts=True),
+        ]
+        orch._reviews_cache = {project.id: reviews}
+
+        orch._yolo_review_actions_sync()
+
+        # ci-failed PR triggers retry_ci
         assert orch._yolo_retry_ci.call_count == 1
-        assert orch._yolo_retry_ci.call_args[0][1].id == "1"
+        assert orch._yolo_retry_ci.call_args[0][1].id == "44"
+
+        # BOTH older DIRTY PRs must reach _yolo_notify_conflict
+        assert orch._yolo_notify_conflict.call_count == 2
+        conflict_ids = [call[0][3] for call in orch._yolo_notify_conflict.call_args_list]
+        assert conflict_ids == ["43", "36"]
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_two_ci_failed_plus_dirty_all_escalate_in_one_tick(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Acceptance criterion: two failed-CI PRs + one DIRTY PR → all three
+        escalated in one tick. (oompah-zlz_2-8b9)"""
+        project = _make_project()
+        project.yolo = True
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_retry_ci = MagicMock()
+        orch._yolo_notify_conflict = MagicMock()
+
+        mock_tracker = MagicMock()
+        mock_issue = MagicMock()
+        mock_issue.state = "closed"
+        mock_issue.labels = []
+        mock_issue.identifier = "test-001"
+        mock_issue.id = "test-001"
+        mock_tracker.fetch_issue_detail.return_value = mock_issue
+        orch._project_trackers[project.id] = mock_tracker
+
+        reviews = [
+            _make_review("10", source_branch="feat-a", ci_status="failed"),
+            _make_review("9", source_branch="feat-b", ci_status="failed"),
+            _make_review("8", source_branch="feat-c", has_conflicts=True),
+        ]
+        orch._reviews_cache = {project.id: reviews}
+
+        orch._yolo_review_actions_sync()
+
+        assert orch._yolo_retry_ci.call_count == 2
+        retry_ids = [call[0][1].id for call in orch._yolo_retry_ci.call_args_list]
+        assert retry_ids == ["10", "9"]
+
+        assert orch._yolo_notify_conflict.call_count == 1
+        assert orch._yolo_notify_conflict.call_args[0][3] == "8"
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
