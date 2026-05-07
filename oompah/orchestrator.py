@@ -1531,8 +1531,15 @@ class Orchestrator:
                 return _reject("no_slots")
             if not self._per_state_available(issue.state):
                 return _reject("per_state_limit")
-        # Blocker rule for "open"/"todo" state
-        if state_norm in ("open", "todo"):
+        # Blocker rule for "open"/"todo" state — bypassed for P0.
+        # P0 work is critical and is allowed to run even when its
+        # declared blockers are non-terminal or have unmerged PRs.
+        # Rationale: a P0 ci-fix on its own branch doesn't actually
+        # depend on an upstream PR landing — its branch state is
+        # independent. The `human-only` and `asking_question` label
+        # gates above still apply and remain the operator's escape
+        # hatch when a P0 must wait for a human. (oompah-zlz_2-dyi)
+        if not is_p0 and state_norm in ("open", "todo"):
             terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
             for blocker in issue.blocked_by:
                 blocker_state = (blocker.state or "").strip().lower()
