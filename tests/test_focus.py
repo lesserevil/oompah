@@ -150,6 +150,68 @@ class TestSelectFocus:
         focus = select_focus(issue)
         assert focus.name != "merge_conflict"
 
+    def test_ci_fix_focus_selected_by_label(self):
+        """A bead with label='ci-fix' should be matched to the ci_fix focus."""
+        issue = _make_issue(title="Some failing tests", labels=["ci-fix"])
+        focus = select_focus(issue)
+        assert focus.name == "ci_fix"
+
+    def test_ci_fix_focus_high_priority_beats_other_matches(self):
+        """ci_fix focus should win over other matches via priority=100."""
+        issue = _make_issue(
+            title="Fix a bug in the login flow",
+            labels=["ci-fix"],
+            issue_type="bug",
+        )
+        focus = select_focus(issue)
+        assert focus.name == "ci_fix"
+
+    def test_ci_fix_focus_must_not_do_blocks_new_branch_and_pr(self):
+        """The ci_fix focus's must_not_do prevents creating a new branch / PR.
+
+        This is the exact constraint that the issue (oompah-zlz_2-0pr) was
+        filed to encode: trickle-icl agent created a new branch and opened
+        PR #32 instead of pushing to trickle-rl5.
+        """
+        ci_fix_focus = next(f for f in BUILTIN_FOCI if f.name == "ci_fix")
+        rails = " ".join(ci_fix_focus.must_not_do).lower()
+        assert "new branch" in rails, "ci_fix must forbid creating a new branch"
+        assert "new pull request" in rails, "ci_fix must forbid opening a new PR"
+
+    def test_ci_fix_focus_must_do_includes_checkout_existing_branch(self):
+        """The ci_fix focus's must_do should direct the agent to identify
+        and check out the existing branch from the bead body — this is
+        what makes 'branch trickle-rl5' in the bead translate into the
+        right git checkout call.
+        """
+        ci_fix_focus = next(f for f in BUILTIN_FOCI if f.name == "ci_fix")
+        steps = " ".join(ci_fix_focus.must_do).lower()
+        assert "existing branch" in steps
+        assert "git checkout" in steps
+        # Force-push guidance — ci_fix branches typically need --force-with-lease
+        assert "--force-with-lease" in steps
+
+    def test_ci_fix_focus_render_preserves_branch_instruction(self):
+        """When rendered, the focus prompt should still tell the agent to
+        check out the existing branch identified in the bead body. The
+        bead body containing 'branch trickle-rl5' will be substituted into
+        <branch> by the agent following the focus instructions.
+        """
+        ci_fix_focus = next(f for f in BUILTIN_FOCI if f.name == "ci_fix")
+        rendered = ci_fix_focus.render()
+        assert "<branch>" in rendered
+        assert "git checkout" in rendered.lower()
+        assert "do not create a new branch" in rendered.lower()
+
+    def test_ci_fix_focus_priority_matches_merge_conflict(self):
+        """Both safety-critical foci share priority=100 so neither wins
+        a tie over the other on a bead that somehow matches both — and
+        both decisively beat keyword/label-only matches from other foci.
+        """
+        ci_fix_focus = next(f for f in BUILTIN_FOCI if f.name == "ci_fix")
+        merge_conflict_focus = next(f for f in BUILTIN_FOCI if f.name == "merge_conflict")
+        assert ci_fix_focus.priority == merge_conflict_focus.priority == 100
+
 
 class TestFocusRender:
     def test_render_contains_role(self):
