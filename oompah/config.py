@@ -305,6 +305,15 @@ class ServiceConfig:
     # continues up the hierarchy on subsequent failures.
     # Default False: current behaviour (best-match profile on first dispatch).
     default_first_dispatch: bool = False
+    # Focus-override history window: how far back the deterministic
+    # score_focus() looks for operator-override events when boosting /
+    # dampening foci based on past similar issues. The window is the
+    # broader of N days OR N most-recent events — whichever lets more
+    # events through. Tunable so a project with bursty triage activity
+    # can keep a longer/larger window without noise. See child B of the
+    # focus-override epic (oompah-zlz_2-z22) for design details.
+    focus_override_window_days: int = 30
+    focus_override_window_count: int = 50
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -448,6 +457,16 @@ class ServiceConfig:
                 "OOMPAH_DEFAULT_FIRST_DISPATCH",
                 agent.get("default_first_dispatch"),
                 False,
+            ),
+            focus_override_window_days=_env_int(
+                "OOMPAH_FOCUS_OVERRIDE_WINDOW_DAYS",
+                agent.get("focus_override_window_days"),
+                30,
+            ),
+            focus_override_window_count=_env_int(
+                "OOMPAH_FOCUS_OVERRIDE_WINDOW_COUNT",
+                agent.get("focus_override_window_count"),
+                50,
             ),
         )
 

@@ -3219,6 +3219,33 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
+    def _load_focus_override_history(self, project_id: str | None) -> list[dict[str, Any]]:
+        """Load the focus-override history for the project that owns ``issue``.
+
+        Reads ``focus-override-*`` bd memories from the project's tracker
+        (or the global tracker when project_id is unknown) and returns
+        the configured window of events (most-recent first). Failures
+        return ``[]`` — the deterministic scorer keeps working when the
+        memories store is unreachable.
+        """
+        from oompah.focus import load_override_history
+        try:
+            tracker = (
+                self._tracker_for_project(project_id) if project_id else self.tracker
+            )
+        except Exception as exc:
+            logger.debug(
+                "Focus override history: tracker unavailable for project_id=%r (%s)",
+                project_id, exc,
+            )
+            return []
+        return load_override_history(
+            tracker,
+            project_id=project_id,
+            window_days=self.config.focus_override_window_days,
+            window_count=self.config.focus_override_window_count,
+        )
+
     def persist_override_event(self, event: dict[str, Any], project_id: str | None = None) -> None:
         """Persist a focus-override event via ``bd remember`` for cross-session audit.
 
@@ -3865,22 +3892,32 @@ class Orchestrator:
         # docs/agentic-focus-triage.md. The async variant tries an LLM
         # call against the provider's default_model and falls back to
         # the deterministic scorer on any failure.
+        override_history = self._load_focus_override_history(issue.project_id)
         if override_focus:
             all_foci = load_foci()
             focus = next((f for f in all_foci if f.name == override_focus), None)
             if focus is None:
                 # Fallback: shouldn't happen if endpoint validated, but be safe
-                focus = await select_focus_async(issue, provider=provider)
+                focus = await select_focus_async(
+                    issue, provider=provider,
+                    override_history=override_history,
+                )
                 logger.warning("override_focus=%r not found; fell back to triage for %s",
                                 override_focus, issue.identifier)
             else:
-                original_focus = await select_focus_async(issue, provider=provider)
+                original_focus = await select_focus_async(
+                    issue, provider=provider,
+                    override_history=override_history,
+                )
                 logger.info(
                     "Focus overridden by operator for %s: %s (replaced triage pick %s)",
                     issue.identifier, focus.name, original_focus.name,
                 )
         else:
-            focus = await select_focus_async(issue, provider=provider)
+            focus = await select_focus_async(
+                issue, provider=provider,
+                override_history=override_history,
+            )
         logger.info("Issue %s assigned focus: %s (%s)",
                     issue.identifier, focus.name, focus.role)
 
@@ -4180,21 +4217,31 @@ class Orchestrator:
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
+        override_history = self._load_focus_override_history(issue.project_id)
         if override_focus:
             all_foci = load_foci()
             focus = next((f for f in all_foci if f.name == override_focus), None)
             if focus is None:
-                focus = await select_focus_async(issue, provider=None)
+                focus = await select_focus_async(
+                    issue, provider=None,
+                    override_history=override_history,
+                )
                 logger.warning("override_focus=%r not found; fell back to triage for %s",
                                 override_focus, issue.identifier)
             else:
-                original_focus = await select_focus_async(issue, provider=None)
+                original_focus = await select_focus_async(
+                    issue, provider=None,
+                    override_history=override_history,
+                )
                 logger.info(
                     "Focus overridden by operator for %s: %s (replaced triage pick %s)",
                     issue.identifier, focus.name, original_focus.name,
                 )
         else:
-            focus = await select_focus_async(issue, provider=None)
+            focus = await select_focus_async(
+                issue, provider=None,
+                override_history=override_history,
+            )
         logger.info(
             "Issue %s assigned focus: %s (%s)",
             issue.identifier, focus.name, focus.role,
@@ -4565,21 +4612,22 @@ class Orchestrator:
                 current_issue = issue
 
                 # Select focus tailored to this issue
+                cli_override_history = self._load_focus_override_history(issue.project_id)
                 if override_focus:
                     all_foci = load_foci()
                     cli_focus = next((f for f in all_foci if f.name == override_focus), None)
                     if cli_focus is None:
-                        cli_focus = select_focus(issue)
+                        cli_focus = select_focus(issue, override_history=cli_override_history)
                         logger.warning("override_focus=%r not found; fell back to triage for %s",
                                         override_focus, issue.identifier)
                     else:
-                        original_cli_focus = select_focus(issue)
+                        original_cli_focus = select_focus(issue, override_history=cli_override_history)
                         logger.info(
                             "Focus overridden by operator for %s: %s (replaced triage pick %s)",
                             issue.identifier, cli_focus.name, original_cli_focus.name,
                         )
                 else:
-                    cli_focus = select_focus(issue)
+                    cli_focus = select_focus(issue, override_history=cli_override_history)
                 logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, cli_focus.name, cli_focus.role)
                 self._post_comment(issue.identifier, f"Focus: {cli_focus.role}",
                                    project_id=issue.project_id)

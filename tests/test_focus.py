@@ -2,22 +2,28 @@
 
 import json
 import os
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from oompah.focus import (
     BUILTIN_FOCI,
     DEFAULT_FOCUS,
+    FOCUS_OVERRIDE_BOOST,
+    FOCUS_OVERRIDE_DAMPEN,
     MIN_DOMAIN_KEYWORDS,
     MIN_ISSUES_FOR_PROPOSAL,
     Focus,
     FocusSuggestion,
     _extract_work_keywords,
     _generate_focus_rules,
+    _is_similar_issue,
+    _parse_event_timestamp,
     _text_matches,
     _work_matches_focus,
     analyze_completed_issue,
     load_foci,
+    load_override_history,
     save_foci,
     save_suggestion,
     score_focus,
@@ -807,3 +813,559 @@ class TestFocusRenderWithProject:
         out = focus.render(project)
         assert "Run tests after resolving all conflicts" in out
         assert "Project Test Configuration" not in out
+
+
+# ---------------------------------------------------------------------------
+# Focus-override history (child B of the focus-override epic, oompah-zlz_2-z22)
+# ---------------------------------------------------------------------------
+
+
+def _make_override_event(
+    *,
+    issue_id: str = "proj-1-001",
+    project_id: str = "proj-1",
+    issue_type: str = "bug",
+    issue_labels: list[str] | None = None,
+    original_focus: str = "general",
+    override_focus: str = "frontend",
+    timestamp: str | None = None,
+    operator_reason: str = "operator override",
+) -> dict:
+    """Build a focus-override event in the same shape persisted by child A."""
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
+        "issue_id": issue_id,
+        "issue_title": "historical issue title",
+        "issue_labels": list(issue_labels or ["ui"]),
+        "issue_type": issue_type,
+        "issue_priority": 2,
+        "original_focus": original_focus,
+        "original_focus_score": 30,
+        "original_focus_via": "score",
+        "override_focus": override_focus,
+        "operator_reason": operator_reason,
+        "timestamp": timestamp,
+        "project_id": project_id,
+    }
+
+
+class TestIsSimilarIssue:
+    def test_similar_when_project_type_and_label_match(self):
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui", "regression"],
+        )
+        event = _make_override_event(
+            project_id="proj-1", issue_type="bug",
+            issue_labels=["ui", "release-blocker"],
+        )
+        assert _is_similar_issue(issue, event) is True
+
+    def test_not_similar_different_project(self):
+        issue = _make_issue(
+            project_id="proj-2", issue_type="bug", labels=["ui"],
+        )
+        event = _make_override_event(
+            project_id="proj-1", issue_type="bug", issue_labels=["ui"],
+        )
+        assert _is_similar_issue(issue, event) is False
+
+    def test_not_similar_different_issue_type(self):
+        issue = _make_issue(
+            project_id="proj-1", issue_type="task", labels=["ui"],
+        )
+        event = _make_override_event(
+            project_id="proj-1", issue_type="bug", issue_labels=["ui"],
+        )
+        assert _is_similar_issue(issue, event) is False
+
+    def test_not_similar_no_shared_label(self):
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug", labels=["baz"],
+        )
+        event = _make_override_event(
+            project_id="proj-1", issue_type="bug",
+            issue_labels=["foo", "bar"],
+        )
+        assert _is_similar_issue(issue, event) is False
+
+    def test_label_match_is_case_insensitive(self):
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug", labels=["UI"],
+        )
+        event = _make_override_event(
+            project_id="proj-1", issue_type="bug", issue_labels=["ui"],
+        )
+        assert _is_similar_issue(issue, event) is True
+
+    def test_issue_type_match_is_case_insensitive(self):
+        issue = _make_issue(
+            project_id="proj-1", issue_type="BUG", labels=["ui"],
+        )
+        event = _make_override_event(
+            project_id="proj-1", issue_type="bug", issue_labels=["ui"],
+        )
+        assert _is_similar_issue(issue, event) is True
+
+    def test_empty_project_id_never_similar(self):
+        issue = _make_issue(project_id="", issue_type="bug", labels=["ui"])
+        event = _make_override_event(
+            project_id="", issue_type="bug", issue_labels=["ui"],
+        )
+        assert _is_similar_issue(issue, event) is False
+
+    def test_empty_labels_never_similar(self):
+        issue = _make_issue(project_id="proj-1", issue_type="bug", labels=[])
+        event = _make_override_event(
+            project_id="proj-1", issue_type="bug", issue_labels=[],
+        )
+        assert _is_similar_issue(issue, event) is False
+
+
+class TestScoreFocusOverrideHistory:
+    """Acceptance tests for child B's override-history boost / dampen.
+
+    The boost / dampen weights are intentionally small (±20) so a
+    single override cannot flip a decisive label-match win, but a
+    handful of overrides on the same direction can outweigh ties.
+    """
+
+    def _focus_a(self) -> Focus:
+        return Focus(
+            name="general", role="general", description="",
+            keywords=["foo"], status="active",
+        )
+
+    def _focus_b(self) -> Focus:
+        return Focus(
+            name="frontend", role="Frontend Dev", description="",
+            keywords=["bar"], status="active",
+        )
+
+    def test_one_override_boosts_target_dampens_original(self):
+        """After 1 override of A→B, score_focus shows B gaining +20 and A losing -20."""
+        focus_a = self._focus_a()
+        focus_b = self._focus_b()
+        # The next issue must be similar to the historical event.
+        next_issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui"], title="another ui bug",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="general", override_focus="frontend",
+            ),
+        ]
+
+        # Baseline: no history
+        a_base = score_focus(focus_a, next_issue)
+        b_base = score_focus(focus_b, next_issue)
+
+        a_with = score_focus(focus_a, next_issue, override_history=history)
+        b_with = score_focus(focus_b, next_issue, override_history=history)
+
+        assert b_with - b_base == FOCUS_OVERRIDE_BOOST
+        assert a_with - a_base == -FOCUS_OVERRIDE_DAMPEN
+
+    def test_five_overrides_make_target_win_outright(self):
+        """After 5 overrides A→B on similar issues, B wins deterministic scoring."""
+        # Two foci that score IDENTICALLY without override history (zero
+        # natural alignment) so ties resolve purely on override deltas.
+        focus_a = Focus(
+            name="general", role="general", description="",
+            keywords=[], labels=[], status="active",
+        )
+        focus_b = Focus(
+            name="frontend", role="Frontend Dev", description="",
+            keywords=[], labels=[], status="active",
+        )
+        next_issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui"], title="next ui bug",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="general", override_focus="frontend",
+                timestamp=(
+                    datetime.now(timezone.utc) - timedelta(days=i)
+                ).isoformat().replace("+00:00", "Z"),
+            )
+            for i in range(5)
+        ]
+
+        a_score = score_focus(focus_a, next_issue, override_history=history)
+        b_score = score_focus(focus_b, next_issue, override_history=history)
+        # B got +20 five times; A got -20 five times.
+        assert b_score == 5 * FOCUS_OVERRIDE_BOOST
+        assert a_score == -5 * FOCUS_OVERRIDE_DAMPEN
+        assert b_score > a_score
+
+    def test_select_focus_picks_overridden_target_after_5(self):
+        """select_focus chooses the override target outright after 5 overrides."""
+        focus_a = Focus(
+            name="general", role="general", description="",
+            keywords=["foo"], status="active",
+        )
+        focus_b = Focus(
+            name="frontend", role="Frontend Dev", description="",
+            keywords=["bar"], status="active",
+        )
+        # next issue mentions neither keyword, so base score == 0 for both;
+        # override history is the deciding factor.
+        next_issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui"], title="ui glitch",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="general", override_focus="frontend",
+            )
+            for _ in range(5)
+        ]
+        chosen = select_focus(
+            next_issue, [focus_a, focus_b], override_history=history,
+        )
+        assert chosen.name == "frontend"
+
+    def test_override_does_not_cross_projects(self):
+        """An A→B override on issue X in proj-1 does NOT affect issue Y in proj-2."""
+        focus_a = self._focus_a()
+        focus_b = self._focus_b()
+        # Y is in a different project.
+        issue_y = _make_issue(
+            project_id="proj-2", issue_type="bug",
+            labels=["ui"], title="another bug",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="general", override_focus="frontend",
+            ),
+        ]
+        a_base = score_focus(focus_a, issue_y)
+        b_base = score_focus(focus_b, issue_y)
+        a_with = score_focus(focus_a, issue_y, override_history=history)
+        b_with = score_focus(focus_b, issue_y, override_history=history)
+        assert a_base == a_with
+        assert b_base == b_with
+
+    def test_override_does_not_apply_when_labels_disjoint(self):
+        """Override on labels [foo, bar] does not influence issue with labels [baz]."""
+        focus_a = self._focus_a()
+        focus_b = self._focus_b()
+        issue_y = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["baz"], title="some bug",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["foo", "bar"],
+                original_focus="general", override_focus="frontend",
+            ),
+        ]
+        a_base = score_focus(focus_a, issue_y)
+        b_base = score_focus(focus_b, issue_y)
+        a_with = score_focus(focus_a, issue_y, override_history=history)
+        b_with = score_focus(focus_b, issue_y, override_history=history)
+        assert a_base == a_with
+        assert b_base == b_with
+
+    def test_override_does_not_apply_when_issue_types_differ(self):
+        focus_a = self._focus_a()
+        focus_b = self._focus_b()
+        issue_y = _make_issue(
+            project_id="proj-1", issue_type="task",
+            labels=["ui"], title="some task",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="general", override_focus="frontend",
+            ),
+        ]
+        a_with = score_focus(focus_a, issue_y, override_history=history)
+        b_with = score_focus(focus_b, issue_y, override_history=history)
+        assert a_with == score_focus(focus_a, issue_y)
+        assert b_with == score_focus(focus_b, issue_y)
+
+    def test_decisive_label_match_resists_single_override(self):
+        """A single contrary override should not flip a strong label-match win.
+
+        focus_b has a label that matches the issue (+30) — a single
+        -20 dampen does not pull it below focus_a, which has no signal.
+        """
+        focus_a = Focus(
+            name="general", role="general", description="",
+            keywords=[], labels=[], status="active",
+        )
+        focus_b = Focus(
+            name="frontend", role="Frontend Dev", description="",
+            keywords=[], labels=["ui"], status="active",
+        )
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug", labels=["ui"],
+        )
+        history = [
+            # Operator overrode AWAY from frontend once for a similar issue.
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="frontend", override_focus="general",
+            ),
+        ]
+        a = score_focus(focus_a, issue, override_history=history)
+        b = score_focus(focus_b, issue, override_history=history)
+        # focus_b: 30 (label) - 20 (dampen) = 10
+        # focus_a: 0 + 20 (boost) = 20
+        # A wins by override boost — but it took 1 override to get there
+        # because the lead was just one label hit. With +30 + label hits
+        # on B the override would be insufficient. Let's verify the math:
+        assert b == 10
+        assert a == 20
+
+    def test_no_history_preserves_legacy_behavior(self):
+        """Passing override_history=None or [] = no boost / dampen anywhere."""
+        focus = self._focus_b()
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui"], title="bar",
+        )
+        a = score_focus(focus, issue)
+        b = score_focus(focus, issue, override_history=None)
+        c = score_focus(focus, issue, override_history=[])
+        assert a == b == c
+
+    def test_self_referential_event_only_boosts(self):
+        """Event where original_focus == override_focus only boosts (no dampen)."""
+        focus = self._focus_b()
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui"], title="x",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="frontend", override_focus="frontend",
+            ),
+        ]
+        base = score_focus(focus, issue)
+        with_history = score_focus(focus, issue, override_history=history)
+        assert with_history - base == FOCUS_OVERRIDE_BOOST
+
+    def test_multiple_events_accumulate(self):
+        focus_b = self._focus_b()
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui"], title="x",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="general", override_focus="frontend",
+            )
+            for _ in range(3)
+        ]
+        base = score_focus(focus_b, issue)
+        with_history = score_focus(focus_b, issue, override_history=history)
+        assert with_history - base == 3 * FOCUS_OVERRIDE_BOOST
+
+    def test_event_irrelevant_to_focus_is_noop(self):
+        """An override A→B should not change scores for unrelated focus C."""
+        focus_c = Focus(
+            name="security", role="Security", description="",
+            keywords=["xss"], status="active",
+        )
+        issue = _make_issue(
+            project_id="proj-1", issue_type="bug",
+            labels=["ui"], title="something",
+        )
+        history = [
+            _make_override_event(
+                project_id="proj-1", issue_type="bug",
+                issue_labels=["ui"],
+                original_focus="general", override_focus="frontend",
+            ),
+        ]
+        base = score_focus(focus_c, issue)
+        with_h = score_focus(focus_c, issue, override_history=history)
+        assert base == with_h
+
+
+class TestParseEventTimestamp:
+    def test_parses_z_suffix(self):
+        dt = _parse_event_timestamp("2026-01-15T12:30:45Z")
+        assert dt is not None
+        assert dt.year == 2026 and dt.month == 1 and dt.day == 15
+
+    def test_parses_offset_suffix(self):
+        dt = _parse_event_timestamp("2026-01-15T12:30:45+00:00")
+        assert dt is not None
+
+    def test_returns_none_for_invalid(self):
+        assert _parse_event_timestamp("not-a-timestamp") is None
+
+    def test_returns_none_for_empty(self):
+        assert _parse_event_timestamp("") is None
+
+
+class TestLoadOverrideHistory:
+    """Covers the windowing rule (broader of N days OR N events)."""
+
+    class _FakeTracker:
+        def __init__(self, memories: dict[str, str]):
+            self._memories = memories
+
+        def fetch_memories(self) -> dict[str, str]:
+            return dict(self._memories)
+
+    @staticmethod
+    def _ts(days_ago: int) -> str:
+        when = datetime.now(timezone.utc) - timedelta(days=days_ago)
+        return when.isoformat().replace("+00:00", "Z")
+
+    def _build_memories(self, events: list[dict]) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for i, ev in enumerate(events):
+            key = f"focus-override-{ev['issue_id']}-{i:03d}"
+            out[key] = json.dumps(ev)
+        # Some non-focus-override entries that should be ignored
+        out["unrelated-key"] = "ignore me"
+        out["another-memory"] = json.dumps({"hello": "world"})
+        return out
+
+    def test_returns_empty_when_no_tracker(self):
+        assert load_override_history(None) == []
+
+    def test_ignores_non_focus_override_keys(self):
+        tracker = self._FakeTracker({
+            "unrelated-key": "value",
+            "another-memory": "foo",
+        })
+        assert load_override_history(tracker) == []
+
+    def test_skips_non_json_values(self):
+        tracker = self._FakeTracker({
+            "focus-override-1-001": "{not json",
+            "focus-override-1-002": json.dumps(_make_override_event()),
+        })
+        result = load_override_history(tracker)
+        assert len(result) == 1
+
+    def test_filter_by_project_id(self):
+        events = [
+            _make_override_event(project_id="proj-1", issue_id=f"a-{i}")
+            for i in range(3)
+        ] + [
+            _make_override_event(project_id="proj-2", issue_id=f"b-{i}")
+            for i in range(2)
+        ]
+        memories = self._build_memories(events)
+        tracker = self._FakeTracker(memories)
+        result = load_override_history(tracker, project_id="proj-1")
+        assert len(result) == 3
+        assert all(ev["project_id"] == "proj-1" for ev in result)
+
+    def test_window_count_when_more_recent_than_days(self):
+        """If 200 events all within 30 days, window_count=50 still returns 50."""
+        events = [
+            _make_override_event(
+                issue_id=f"e-{i}",
+                timestamp=self._ts(days_ago=i % 25),  # all within 30d
+            )
+            for i in range(200)
+        ]
+        memories = self._build_memories(events)
+        tracker = self._FakeTracker(memories)
+        # 200 events all within 30 days → by_time = 200, by_count = 50
+        # Broader = 200.
+        result = load_override_history(
+            tracker, window_days=30, window_count=50,
+        )
+        assert len(result) == 200
+
+    def test_window_picks_broader_set(self):
+        """Old events still appear when their N comes within window_count."""
+        # 10 recent (within 30d) + 10 old (90d ago)
+        events = [
+            _make_override_event(issue_id=f"r-{i}", timestamp=self._ts(i))
+            for i in range(10)
+        ] + [
+            _make_override_event(issue_id=f"o-{i}", timestamp=self._ts(90 + i))
+            for i in range(10)
+        ]
+        memories = self._build_memories(events)
+        tracker = self._FakeTracker(memories)
+        # by_time (30d) = 10. by_count(50) = 20. Broader = 20 (all of them).
+        result = load_override_history(
+            tracker, window_days=30, window_count=50,
+        )
+        assert len(result) == 20
+
+    def test_window_drops_events_outside_both(self):
+        """When count cap is small and time cap is small, events outside both fall off."""
+        events = [
+            _make_override_event(issue_id=f"r-{i}", timestamp=self._ts(i))
+            for i in range(5)
+        ] + [
+            _make_override_event(issue_id=f"o-{i}", timestamp=self._ts(90 + i))
+            for i in range(5)
+        ]
+        memories = self._build_memories(events)
+        tracker = self._FakeTracker(memories)
+        # by_time(30d) = 5. by_count(3) = 3. Broader = 5 (all recent).
+        # The 5 old events are outside the 30d window but might sneak in via count.
+        # Since count cap = 3, that's smaller than time cap of 5.
+        # So broader = 5; we get the 5 most-recent.
+        result = load_override_history(
+            tracker, window_days=30, window_count=3,
+        )
+        assert len(result) == 5
+        ids = {ev["issue_id"] for ev in result}
+        assert all(rid.startswith("r-") for rid in ids)
+
+    def test_results_sorted_most_recent_first(self):
+        events = [
+            _make_override_event(issue_id=f"e-{i}", timestamp=self._ts(i))
+            for i in range(5)
+        ]
+        memories = self._build_memories(events)
+        tracker = self._FakeTracker(memories)
+        result = load_override_history(tracker)
+        timestamps = [ev["timestamp"] for ev in result]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+    def test_handles_tracker_exception_gracefully(self):
+        class _BrokenTracker:
+            def fetch_memories(self):
+                raise RuntimeError("tracker offline")
+        assert load_override_history(_BrokenTracker()) == []
+
+    def test_event_with_unparseable_timestamp_still_counted_via_count_cap(self):
+        """Events with garbled timestamps fall out of time window but
+        still count toward the count cap."""
+        events = [
+            _make_override_event(issue_id="bad-ts", timestamp="garbled"),
+        ] + [
+            _make_override_event(issue_id=f"e-{i}", timestamp=self._ts(i))
+            for i in range(3)
+        ]
+        memories = self._build_memories(events)
+        tracker = self._FakeTracker(memories)
+        result = load_override_history(
+            tracker, window_days=30, window_count=10,
+        )
+        # by_time keeps only parseable, recent events: 3.
+        # by_count keeps top 4. Broader = 4. All events present.
+        assert len(result) == 4

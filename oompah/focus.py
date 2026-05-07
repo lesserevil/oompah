@@ -506,8 +506,184 @@ def _text_matches(text: str, keywords: list[str]) -> int:
     return count
 
 
-def score_focus(focus: Focus, issue: Issue) -> int:
-    """Score how well a focus matches an issue. Higher = better fit."""
+# ---------------------------------------------------------------------------
+# Focus-override history (child B of the focus-override epic)
+# ---------------------------------------------------------------------------
+#
+# The deterministic ``score_focus`` consumes operator-override events
+# persisted by child A (oompah-zlz_2-8yt) so that future similar issues
+# get routed correctly without re-overriding.
+#
+# Storage model: ``bd remember`` keys named
+# ``focus-override-<issue_id>-<safe_ts>`` with JSON values shaped like
+# ``{issue_id, issue_title, issue_labels, issue_type, issue_priority,
+#   original_focus, original_focus_score, original_focus_via,
+#   override_focus, operator_reason, timestamp, project_id}``.
+#
+# The boost / dampen weights are deliberately small — +20 is enough to
+# swing a tie or a close-call but not enough to flip a decisive
+# label-match win (label matches are +30 each, keyword hits +10 each).
+
+FOCUS_OVERRIDE_BOOST = 20
+FOCUS_OVERRIDE_DAMPEN = 20
+
+
+def _is_similar_issue(issue: Issue, event: dict[str, Any]) -> bool:
+    """Return True when the historical override event applies to ``issue``.
+
+    Similarity floor (deliberately broad — operator overrides are rare):
+        1. Same project_id.
+        2. Same issue_type (case-insensitive).
+        3. At least one shared label (case-insensitive).
+
+    All three conditions must hold for the event to influence ``issue``.
+    """
+    # 1. project_id
+    event_pid = event.get("project_id") or ""
+    issue_pid = issue.project_id or ""
+    if not event_pid or not issue_pid or event_pid != issue_pid:
+        return False
+
+    # 2. issue_type
+    event_type = (event.get("issue_type") or "").strip().lower()
+    issue_type = (issue.issue_type or "").strip().lower()
+    if not event_type or not issue_type or event_type != issue_type:
+        return False
+
+    # 3. shared label (case-insensitive)
+    event_labels = {
+        str(l).strip().lower()
+        for l in (event.get("issue_labels") or [])
+        if str(l).strip()
+    }
+    issue_labels = {
+        str(l).strip().lower()
+        for l in (issue.labels or [])
+        if str(l).strip()
+    }
+    if not event_labels or not issue_labels:
+        return False
+    return bool(event_labels & issue_labels)
+
+
+def _parse_event_timestamp(ts: str) -> Any:
+    """Parse an ISO-8601 timestamp from an override event into a datetime.
+
+    Returns None on parse failure so callers can skip / treat as
+    unbounded-old. Accepts both ``...Z`` and ``...+00:00`` suffixes.
+    """
+    from datetime import datetime, timezone
+    if not ts:
+        return None
+    s = ts.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def load_override_history(
+    tracker: Any,
+    *,
+    project_id: str | None = None,
+    window_days: int = 30,
+    window_count: int = 50,
+    now: Any = None,
+) -> list[dict[str, Any]]:
+    """Load focus-override events from a tracker's bd memories.
+
+    Returns the most-recent ``window_count`` events OR every event within
+    the last ``window_days`` — whichever is broader. Events are returned
+    most-recent first (sorted by timestamp).
+
+    The window-broader rule means: a quiet project gets more historical
+    context (the last 50 even if they span a year), while a bursty
+    project gets every recent event (everything in the last 30 days even
+    if there are 200 of them). Tune via ServiceConfig.focus_override_*.
+
+    On any tracker failure the function returns an empty list — never
+    raises — so the deterministic scorer keeps working.
+    """
+    from datetime import datetime, timedelta, timezone
+    if tracker is None:
+        return []
+    try:
+        memories = tracker.fetch_memories()
+    except Exception as exc:
+        logger.debug("load_override_history: fetch_memories failed: %s", exc)
+        return []
+    if not isinstance(memories, dict):
+        return []
+
+    events: list[dict[str, Any]] = []
+    for key, value in memories.items():
+        if not isinstance(key, str) or not key.startswith("focus-override-"):
+            continue
+        if not isinstance(value, str):
+            continue
+        try:
+            event = json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        if project_id and event.get("project_id") != project_id:
+            continue
+        events.append(event)
+
+    # Sort most-recent first
+    events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+
+    # Apply windowing: keep the broader of [last N days] OR [last N events].
+    if now is None:
+        now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=max(0, window_days))
+
+    by_count = events[:max(0, window_count)]
+    by_time = []
+    for ev in events:
+        ts = _parse_event_timestamp(ev.get("timestamp", ""))
+        if ts is None:
+            # Unparseable timestamp: be conservative, exclude from
+            # time-window set so old/garbled entries can't sneak in.
+            continue
+        if ts >= cutoff:
+            by_time.append(ev)
+
+    # Broader = larger set; preserve order (most-recent first) by
+    # walking the already-sorted ``events`` and unioning.
+    keep_count = max(len(by_count), len(by_time))
+    return events[:keep_count]
+
+
+def score_focus(
+    focus: Focus,
+    issue: Issue,
+    *,
+    override_history: list[dict[str, Any]] | None = None,
+) -> int:
+    """Score how well a focus matches an issue. Higher = better fit.
+
+    When ``override_history`` is provided, each historical override event
+    that targets a "similar" issue (see :func:`_is_similar_issue`) shifts
+    the score by ±``FOCUS_OVERRIDE_BOOST`` (default 20):
+
+    * If the operator chose ``focus`` for a similar past issue, +20 per
+      matching event.
+    * If the deterministic scorer / LLM previously picked ``focus`` but
+      the operator overrode it away, -20 per matching event.
+
+    Net effect: foci the operator has historically chosen for
+    similar-shaped issues win the deterministic score; foci the operator
+    has historically rejected lose ground. The deltas are small enough
+    that a single override won't flip a decisive label-match win, but
+    five matching overrides will outweigh most ties.
+    """
     score = 0
 
     # Handoff label: "needs:<focus_name>" is an explicit routing directive
@@ -543,10 +719,37 @@ def score_focus(focus: Focus, issue: Issue) -> int:
     if score > 0:
         score += focus.priority
 
+    # Override-history boost / dampen — applied AFTER the base score so
+    # that even a focus with score==0 from keyword/label/type can earn
+    # ground via consistent operator routing on similar issues, and
+    # symmetrically a focus with a small lead can be dampened by past
+    # rejections.
+    if override_history:
+        for event in override_history:
+            if not isinstance(event, dict):
+                continue
+            if not _is_similar_issue(issue, event):
+                continue
+            override_target = (event.get("override_focus") or "").strip()
+            original_target = (event.get("original_focus") or "").strip()
+            if override_target and override_target.lower() == focus.name.lower():
+                score += FOCUS_OVERRIDE_BOOST
+            elif (
+                original_target
+                and original_target.lower() == focus.name.lower()
+                and override_target.lower() != focus.name.lower()
+            ):
+                score -= FOCUS_OVERRIDE_DAMPEN
+
     return score
 
 
-def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
+def select_focus(
+    issue: Issue,
+    foci: list[Focus] | None = None,
+    *,
+    override_history: list[dict[str, Any]] | None = None,
+) -> Focus:
     """Select the best-matching active focus for an issue.
 
     Only foci with status='active' are considered.
@@ -555,6 +758,9 @@ def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
         issue: The issue to match.
         foci: Optional list of foci to consider. If None, uses the full
               library (user foci + builtins).
+        override_history: Optional list of focus-override events (see
+            :func:`load_override_history`). When provided, each event
+            shifts ``score_focus`` by ±20 for similar past issues.
 
     Returns:
         The best-matching Focus, or DEFAULT_FOCUS if nothing scores above 0.
@@ -568,7 +774,7 @@ def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
     for focus in foci:
         if focus.status != "active":
             continue
-        s = score_focus(focus, issue)
+        s = score_focus(focus, issue, override_history=override_history)
         if s > best_score:
             best_score = s
             best_focus = focus
@@ -750,6 +956,8 @@ async def select_focus_async(
     issue: Issue,
     foci: list[Focus] | None = None,
     provider: Any = None,
+    *,
+    override_history: list[dict[str, Any]] | None = None,
 ) -> Focus:
     """LLM-augmented focus selection. Falls back to deterministic
     :func:`select_focus` on any failure or when no provider is given.
@@ -758,6 +966,10 @@ async def select_focus_async(
         1. ``needs:<focus>`` label short-circuit.
         2. LLM triage via ``provider.default_model`` (cached by content).
         3. Deterministic ``score_focus`` ranking (same as :func:`select_focus`).
+
+    ``override_history`` is forwarded to the deterministic scorer so the
+    +20 / -20 boost / dampen still applies on the fallback path AND in
+    the LLM sanity check (a hallucination guard at step 2).
     """
     if foci is None:
         foci = load_foci()
@@ -812,7 +1024,7 @@ async def select_focus_async(
                 # Sanity check D: score must be > 0 (catch hallucinated
                 # but plausible-looking names that have zero alignment
                 # with the issue's keywords/labels/type).
-                d_score = score_focus(picked, issue)
+                d_score = score_focus(picked, issue, override_history=override_history)
                 if d_score > 0:
                     logger.info(
                         "Focus selected for %s: %s (via=llm score=%d reasoning=%r)",
@@ -826,7 +1038,7 @@ async def select_focus_async(
                 )
 
     # Step 3: deterministic fallback.
-    return select_focus(issue, foci)
+    return select_focus(issue, foci, override_history=override_history)
 
 
 def load_foci(path: str | None = None) -> list[Focus]:
