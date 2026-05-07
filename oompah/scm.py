@@ -633,13 +633,22 @@ class GitHubProvider(SCMProvider):
                         # Fetch failures fall through to LIST defaults
                         # below — caching the failure would pin
                         # has_conflicts=False until the next push.
-                        with self._pr_detail_cache_lock:
-                            self._pr_detail_cache[cache_key] = (
-                                list_head_sha,
-                                list_updated_at,
-                                detail[0],
-                                detail[1] or "",
-                            )
+                        #
+                        # 'unknown' means GitHub hasn't finished computing
+                        # mergeable_state yet (typical for fresh PRs and
+                        # queue transitions). Don't cache it: head_sha
+                        # and updated_at don't change while GitHub
+                        # computes, so a cached 'unknown' would pin the
+                        # UI to that label until the next push. Re-fetch
+                        # next tick — typically resolves in 1-2 polls.
+                        if (detail[1] or "").lower() != "unknown":
+                            with self._pr_detail_cache_lock:
+                                self._pr_detail_cache[cache_key] = (
+                                    list_head_sha,
+                                    list_updated_at,
+                                    detail[0],
+                                    detail[1] or "",
+                                )
 
                 if detail is not None:
                     detail_mergeable, detail_state_raw = detail

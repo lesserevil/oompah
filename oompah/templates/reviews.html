@@ -163,9 +163,11 @@ function timeAgo(dateStr) {
   return days + 'd ago';
 }
 
-async function loadReviews() {
+async function loadReviews(silent = false) {
   const container = document.getElementById('reviews-container');
-  container.innerHTML = '<div class="loading">Loading reviews...</div>';
+  if (!silent) {
+    container.innerHTML = '<div class="loading">Loading reviews...</div>';
+  }
 
   try {
     const res = await fetch('/api/v1/reviews');
@@ -178,7 +180,9 @@ async function loadReviews() {
     const data = await res.json();
     renderReviews(data);
   } catch(e) {
-    container.innerHTML = '<div class="error-msg">Failed to load reviews: ' + esc(e.message) + '</div>';
+    if (!silent) {
+      container.innerHTML = '<div class="error-msg">Failed to load reviews: ' + esc(e.message) + '</div>';
+    }
   }
 }
 
@@ -327,7 +331,9 @@ function deriveQueueStatus(r) {
     return {label: 'draft', cls: 'queue-draft', emoji: '📝', sortRank: 7};
   }
   // 3. Already accepted into the GitHub merge queue.
-  if (ame && (ms === 'clean' || ms === 'unstable' || ms === 'behind' || ms === '')) {
+  //    'unknown' = GitHub still computing mergeable; for queued PRs treat
+  //    same as '' since the queue is already handling it.
+  if (ame && (ms === 'clean' || ms === 'unstable' || ms === 'behind' || ms === '' || ms === 'unknown')) {
     return {label: 'in queue', cls: 'queue-in-queue', emoji: '⏳', sortRank: 5};
   }
   // 4. Behind base (rebase needed) — visible regardless of auto-merge.
@@ -351,7 +357,12 @@ function deriveQueueStatus(r) {
   if (!ame && (ms === 'clean' || ms === 'unstable') && ci === 'passed') {
     return {label: 'ready', cls: 'queue-ready', emoji: '✓', sortRank: 6};
   }
-  // 8. Anything else (has_hooks, unknown, missing fields) — show raw or n/a.
+  // 8. Anything else (has_hooks, missing fields) — show raw or n/a.
+  //    'unknown' = GitHub still computing; render as '—' rather than the
+  //    confusing literal "unknown" (oompah-zlz_2-aza follow-up).
+  if (ms === 'unknown') {
+    return {label: '—', cls: 'queue-unknown', emoji: '', sortRank: 8};
+  }
   return {label: ms || '—', cls: 'queue-unknown', emoji: '', sortRank: 8};
 }
 
@@ -566,6 +577,28 @@ async function filterReviewsByProject(data) {
 _restoreSortPreference();
 loadReviews();
 initProjectSelector();
+
+// Auto-refresh every 30s without flicker. Pause when the tab is hidden
+// to avoid hammering the slow /api/v1/reviews endpoint while no one's
+// looking; refresh immediately when the tab becomes visible again.
+const REVIEWS_REFRESH_MS = 30000;
+let _reviewsTimer = null;
+function startReviewsAutoRefresh() {
+  if (_reviewsTimer) return;
+  _reviewsTimer = setInterval(() => loadReviews(true), REVIEWS_REFRESH_MS);
+}
+function stopReviewsAutoRefresh() {
+  if (_reviewsTimer) { clearInterval(_reviewsTimer); _reviewsTimer = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopReviewsAutoRefresh();
+  } else {
+    loadReviews(true);
+    startReviewsAutoRefresh();
+  }
+});
+startReviewsAutoRefresh();
 </script>
 </body>
 </html>

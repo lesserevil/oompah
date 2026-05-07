@@ -29,6 +29,13 @@ agent:
     - name: default
       provider_id: prov-infapi-01
       model_role: fast
+      # ACP mode: route through claude_agent_sdk so per-token cost is
+      # billed against the operator's claude subscription instead of
+      # the per-token API meter. Combined with
+      # OOMPAH_DEFAULT_FIRST_DISPATCH=true this routes every first
+      # dispatch through the subscription. Escalations still go to
+      # quick/standard/deep (mode=auto) which fall back to the
+      # api_agent path if ACP fails. See docs/acp-agent.md.
       mode: acp
 ---
 
