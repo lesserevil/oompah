@@ -88,14 +88,14 @@ def _make_orch(tmp_path, projects=None):
 
 
 class TestProjectEpicStrategyField:
-    def test_default_is_flat(self):
+    def test_default_is_stacked(self):
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
-        assert p.epic_strategy == "flat"
+        assert p.epic_strategy == "stacked"
 
     def test_to_dict_includes_default(self):
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
         d = p.to_dict()
-        assert d["epic_strategy"] == "flat"
+        assert d["epic_strategy"] == "stacked"
 
     def test_to_dict_round_trip(self):
         p = Project(

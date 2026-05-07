@@ -960,6 +960,10 @@
       <select id="project-filter" onchange="saveProjectFilter(); refreshBoard()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
         <option value="">All Projects</option>
       </select>
+      <label id="hide-merged-toggle" title="Hide closed beads that have the 'merged' label" style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
+        <input type="checkbox" id="hide-merged-checkbox" onchange="toggleHideMerged()" style="margin:0;cursor:pointer;">
+        <span id="hide-merged-label">Hide merged: ON (0 hidden)</span>
+      </label>
       <button onclick="openCreateDialog()">+ Create</button>
       <button onclick="window.location='/projects-manage'">Projects</button>
       <button onclick="window.location='/providers'">Providers</button>
@@ -1327,6 +1331,75 @@ function saveProjectFilter() {
   }
 }
 
+// --- Hide merged toggle ---------------------------------------------------
+// Render-time filter that hides closed beads with the 'merged' label.
+// State is persisted in localStorage('oompah_hide_merged') as 'on'|'off'.
+// Default: ON (the historical merged set is rarely useful for routine ops).
+let _hideMergedHiddenCount = 0;
+
+function isHideMergedOn() {
+  const v = localStorage.getItem('oompah_hide_merged');
+  // Default ON: missing key counts as 'on'
+  return v !== 'off';
+}
+
+function setHideMergedLabel() {
+  const labelEl = document.getElementById('hide-merged-label');
+  if (!labelEl) return;
+  const onOff = isHideMergedOn() ? 'ON' : 'OFF';
+  labelEl.textContent = `Hide merged: ${onOff} (${_hideMergedHiddenCount} hidden)`;
+}
+
+function initHideMergedToggle() {
+  const cb = document.getElementById('hide-merged-checkbox');
+  if (cb) cb.checked = isHideMergedOn();
+  setHideMergedLabel();
+}
+
+function toggleHideMerged() {
+  const cb = document.getElementById('hide-merged-checkbox');
+  if (cb) {
+    localStorage.setItem('oompah_hide_merged', cb.checked ? 'on' : 'off');
+  }
+  setHideMergedLabel();
+  // Re-render with current data
+  if (boardData) renderBoard(boardData);
+}
+
+// Returns true when this issue should be hidden by the "Hide merged" toggle.
+// Filter rule: state === 'closed' AND labels includes 'merged'.
+function isHiddenByMergedFilter(issue) {
+  if (!issue) return false;
+  const state = (issue.state || '').trim().toLowerCase();
+  if (state !== 'closed') return false;
+  const labels = issue.labels || [];
+  return labels.includes('merged');
+}
+
+// Strip closed+merged beads from a grouped {state: [issues]} payload.
+// Mutates a shallow copy of `data` and updates _hideMergedHiddenCount.
+function applyHideMergedFilter(data) {
+  if (!isHideMergedOn()) {
+    _hideMergedHiddenCount = 0;
+    return data;
+  }
+  let hidden = 0;
+  const filtered = {};
+  for (const [state, issues] of Object.entries(data)) {
+    const kept = [];
+    for (const issue of issues) {
+      if (isHiddenByMergedFilter(issue)) {
+        hidden += 1;
+      } else {
+        kept.push(issue);
+      }
+    }
+    filtered[state] = kept;
+  }
+  _hideMergedHiddenCount = hidden;
+  return filtered;
+}
+
 function filterByProject(data) {
   const sel = document.getElementById('project-filter');
   const pid = sel ? sel.value : '';
@@ -1476,12 +1549,21 @@ function renderBoard(data) {
   if (editingState) {
     _pendingBoardData = data;
     // Still update the in-memory data so other lookups stay current
+    // (unfiltered — toggling Hide merged off must be able to recover
+    // the merged-closed beads without refetching).
     boardData = data;
     allIssuesFlat = flattenIssues(data);
     return;
   }
 
+  // Keep the unfiltered payload as boardData so re-renders triggered by
+  // the Hide-merged toggle, swimlane collapse, view-mode flip, etc. can
+  // recover hidden beads without an extra fetch.
   boardData = data;
+  // Apply the render-time Hide-merged filter. This is purely cosmetic —
+  // /api/v1/issues and WebSocket pushes still carry the full set.
+  data = applyHideMergedFilter(data);
+  setHideMergedLabel();
   allIssuesFlat = flattenIssues(data);
   _pendingBoardData = null;
   const board = document.getElementById('board');
@@ -2541,6 +2623,7 @@ function _wireAttachmentDropZone(root, identifier) {
 }
 
 // Initial load via WebSocket (falls back to REST if WS fails)
+initHideMergedToggle();
 connectWebSocket();
 </script>
 
