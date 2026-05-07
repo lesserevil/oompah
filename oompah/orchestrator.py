@@ -3865,22 +3865,36 @@ class Orchestrator:
         # docs/agentic-focus-triage.md. The async variant tries an LLM
         # call against the provider's default_model and falls back to
         # the deterministic scorer on any failure.
+        # Surface operator override-history to the LLM triage prompt
+        # (oompah-zlz_2-saj). Per-project — events are not shared across
+        # projects to avoid cross-project bleed.
+        triage_tracker = self._tracker_for_issue(issue)
+        triage_project_id = issue.project_id
         if override_focus:
             all_foci = load_foci()
             focus = next((f for f in all_foci if f.name == override_focus), None)
             if focus is None:
                 # Fallback: shouldn't happen if endpoint validated, but be safe
-                focus = await select_focus_async(issue, provider=provider)
+                focus = await select_focus_async(
+                    issue, provider=provider,
+                    tracker=triage_tracker, project_id=triage_project_id,
+                )
                 logger.warning("override_focus=%r not found; fell back to triage for %s",
                                 override_focus, issue.identifier)
             else:
-                original_focus = await select_focus_async(issue, provider=provider)
+                original_focus = await select_focus_async(
+                    issue, provider=provider,
+                    tracker=triage_tracker, project_id=triage_project_id,
+                )
                 logger.info(
                     "Focus overridden by operator for %s: %s (replaced triage pick %s)",
                     issue.identifier, focus.name, original_focus.name,
                 )
         else:
-            focus = await select_focus_async(issue, provider=provider)
+            focus = await select_focus_async(
+                issue, provider=provider,
+                tracker=triage_tracker, project_id=triage_project_id,
+            )
         logger.info("Issue %s assigned focus: %s (%s)",
                     issue.identifier, focus.name, focus.role)
 
@@ -4180,21 +4194,35 @@ class Orchestrator:
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
+        # Surface operator override-history to the LLM triage prompt
+        # (oompah-zlz_2-saj). Per-project — events are not shared across
+        # projects to avoid cross-project bleed.
+        triage_tracker = self._tracker_for_issue(issue)
+        triage_project_id = issue.project_id
         if override_focus:
             all_foci = load_foci()
             focus = next((f for f in all_foci if f.name == override_focus), None)
             if focus is None:
-                focus = await select_focus_async(issue, provider=None)
+                focus = await select_focus_async(
+                    issue, provider=None,
+                    tracker=triage_tracker, project_id=triage_project_id,
+                )
                 logger.warning("override_focus=%r not found; fell back to triage for %s",
                                 override_focus, issue.identifier)
             else:
-                original_focus = await select_focus_async(issue, provider=None)
+                original_focus = await select_focus_async(
+                    issue, provider=None,
+                    tracker=triage_tracker, project_id=triage_project_id,
+                )
                 logger.info(
                     "Focus overridden by operator for %s: %s (replaced triage pick %s)",
                     issue.identifier, focus.name, original_focus.name,
                 )
         else:
-            focus = await select_focus_async(issue, provider=None)
+            focus = await select_focus_async(
+                issue, provider=None,
+                tracker=triage_tracker, project_id=triage_project_id,
+            )
         logger.info(
             "Issue %s assigned focus: %s (%s)",
             issue.identifier, focus.name, focus.role,

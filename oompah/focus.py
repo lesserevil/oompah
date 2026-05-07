@@ -36,6 +36,12 @@ _triage_cache: dict[str, tuple[str, str]] = {}
 # call genuinely hangs beyond 60s the deterministic scorer takes over.
 _TRIAGE_TIMEOUT_S = 60.0
 
+# Maximum number of recent override events to surface in the triage prompt
+# as few-shot operator-correction examples. Each entry is ~300-500 tokens,
+# so 10 events adds ~3-5K tokens — acceptable for the small models used in
+# triage. Tune lower if prompt size becomes a problem.
+_DEFAULT_OVERRIDE_HISTORY_N = 10
+
 DEFAULT_FOCI_PATH = ".oompah/foci.json"
 
 
@@ -597,12 +603,74 @@ def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
 # 4. Anything else that fails (bad provider, timeout, empty output,
 #    unknown name, network error) → fall back to deterministic top.
 
-def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
+def _format_override_corrections_section(
+    overrides: list[dict[str, Any]],
+) -> str:
+    """Format recent override events as a few-shot 'Operator corrections' section.
+
+    Each event dict is expected to have the shape persisted by
+    ``Orchestrator.persist_override_event`` (see ``oompah-zlz_2-8yt``):
+    ``issue_title``, ``issue_labels``, ``issue_type``, ``original_focus``,
+    ``override_focus``, and optionally ``operator_reason``.
+
+    Truncates issue_title to ~80 chars per entry to keep the section
+    bounded. Ignores malformed entries silently — best-effort context.
+    """
+    if not overrides:
+        return ""
+
+    bullets: list[str] = []
+    for event in overrides:
+        if not isinstance(event, dict):
+            continue
+        title = (event.get("issue_title") or "").strip()
+        if len(title) > 80:
+            title = title[:77] + "..."
+        labels = event.get("issue_labels") or []
+        if not isinstance(labels, list):
+            labels = []
+        labels_repr = "[" + ",".join(str(label) for label in labels) + "]"
+        issue_type = event.get("issue_type") or "task"
+        original_focus = event.get("original_focus") or "?"
+        override_focus = event.get("override_focus") or "?"
+        reason = (event.get("operator_reason") or "").strip()
+
+        bullet = (
+            f"- On issue '{title}' (labels={labels_repr}, type={issue_type}), "
+            f"operator chose focus={override_focus} instead of "
+            f"triage-suggested {original_focus}."
+        )
+        if reason:
+            # Quote the reason to make it visually distinct as operator text.
+            bullet += f" Reason: \"{reason}\""
+        bullets.append(bullet)
+
+    if not bullets:
+        return ""
+
+    return (
+        "## Operator corrections (recent overrides)\n\n"
+        "The operator has previously overridden triage decisions on similar "
+        "issues. Take these into account.\n\n"
+        + "\n\n".join(bullets)
+    )
+
+
+def _build_triage_prompt(
+    issue: Issue,
+    foci: list[Focus],
+    override_history: list[dict[str, Any]] | None = None,
+) -> str:
     """Render the triage prompt for the LLM.
 
     Output format the LLM is asked to follow:
         ``<focus_name>: <one-line reasoning>``
     Alternatively, ``default`` alone if no listed focus is a good fit.
+
+    When ``override_history`` is non-empty, an "Operator corrections"
+    section is appended after the SPECIALISTS / ISSUE block but BEFORE
+    the TASK instruction, so the model interprets it as additional
+    in-context evidence rather than as part of the response format.
     """
     description = (issue.description or "").strip()
     if len(description) > 1500:
@@ -622,7 +690,7 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
             f"    typical work: {must_do}"
         )
 
-    return (
+    base = (
         "You are routing an engineering issue to the best-fit specialist.\n\n"
         "ISSUE\n"
         f"  identifier: {issue.identifier}\n"
@@ -634,6 +702,15 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
         f"    {description}\n\n"
         "SPECIALISTS\n  "
         + "\n  ".join(spec_lines) + "\n\n"
+    )
+
+    overrides_section = _format_override_corrections_section(
+        override_history or [],
+    )
+    if overrides_section:
+        base += overrides_section + "\n\n"
+
+    base += (
         "TASK\n"
         "Pick the single best-fit specialist by name and give a short reason.\n"
         "Output exactly one line in the format `name: reasoning`.\n"
@@ -641,6 +718,54 @@ def _build_triage_prompt(issue: Issue, foci: list[Focus]) -> str:
         "`default: reasoning`.\n"
         "Do NOT add prose, quotes, or explanations beyond the single line."
     )
+    return base
+
+
+def _fetch_recent_overrides(
+    tracker: Any,
+    project_id: str | None = None,
+    limit: int = _DEFAULT_OVERRIDE_HISTORY_N,
+) -> list[dict[str, Any]]:
+    """Fetch the most recent focus-override events for a project.
+
+    Reads ``focus-override-*`` keys from the tracker's memory store
+    (see ``Orchestrator.persist_override_event``) and returns up to
+    ``limit`` parsed events sorted most-recent first. Filters by
+    ``project_id`` when provided.
+
+    Returns ``[]`` on any error — override history is best-effort
+    decoration, not load-bearing for triage correctness.
+    """
+    if tracker is None:
+        return []
+    try:
+        memories = tracker.fetch_memories()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("override-history fetch failed: %s", exc)
+        return []
+    if not isinstance(memories, dict):
+        return []
+
+    events: list[dict[str, Any]] = []
+    for key, value in memories.items():
+        if not isinstance(key, str) or not key.startswith("focus-override-"):
+            continue
+        try:
+            event = json.loads(value) if isinstance(value, str) else None
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        if project_id is not None and event.get("project_id") != project_id:
+            continue
+        events.append(event)
+
+    # Sort most-recent first by timestamp string (ISO 8601 sorts
+    # lexically). Entries missing timestamps fall to the back.
+    events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+    if limit is not None and limit >= 0:
+        events = events[:limit]
+    return events
 
 
 def _parse_triage_response(content: str) -> tuple[str | None, str]:
@@ -668,8 +793,18 @@ def _parse_triage_response(content: str) -> tuple[str | None, str]:
     return line.strip().strip("`'\"").lower() or None, ""
 
 
-def _triage_cache_key(issue: Issue, foci: list[Focus]) -> str:
-    """Stable hash of the inputs that affect the LLM's decision."""
+def _triage_cache_key(
+    issue: Issue,
+    foci: list[Focus],
+    override_history: list[dict[str, Any]] | None = None,
+) -> str:
+    """Stable hash of the inputs that affect the LLM's decision.
+
+    The cache key incorporates a fingerprint of the override-history
+    entries so that triage decisions are re-computed when new operator
+    corrections land — otherwise the cache would stick to a pre-override
+    answer for the same issue text.
+    """
     content = "|".join([
         issue.id or "",
         issue.title or "",
@@ -682,11 +817,22 @@ def _triage_cache_key(issue: Issue, foci: list[Focus]) -> str:
         f"{f.name}:{(f.description or '')[:120]}:{','.join(sorted(f.keywords or []))}"
         for f in foci if f.status == "active"
     ))
-    return hashlib.sha256((content + "||" + foci_sig).encode("utf-8")).hexdigest()
+    overrides_sig = ""
+    if override_history:
+        overrides_sig = "|".join(
+            f"{e.get('issue_id', '')}:{e.get('override_focus', '')}:{e.get('timestamp', '')}"
+            for e in override_history
+        )
+    return hashlib.sha256(
+        (content + "||" + foci_sig + "||" + overrides_sig).encode("utf-8"),
+    ).hexdigest()
 
 
 async def _select_focus_llm(
-    issue: Issue, foci: list[Focus], provider: Any,
+    issue: Issue,
+    foci: list[Focus],
+    provider: Any,
+    override_history: list[dict[str, Any]] | None = None,
 ) -> tuple[str | None, str]:
     """Call the provider's default_model to pick a focus.
 
@@ -704,7 +850,7 @@ async def _select_focus_llm(
     # (api_agent imports prompt which imports models — keep the dep DAG flat).
     from oompah.api_agent import _http_post, _build_ssl_context
 
-    prompt = _build_triage_prompt(issue, foci)
+    prompt = _build_triage_prompt(issue, foci, override_history=override_history)
     # Thinking models (e.g. MiniMax-M2.7) burn output budget on the
     # chain-of-thought trace and return content="" / null when the budget
     # runs out before the answer is emitted. 1024 leaves room for reasoning
@@ -750,6 +896,9 @@ async def select_focus_async(
     issue: Issue,
     foci: list[Focus] | None = None,
     provider: Any = None,
+    tracker: Any = None,
+    project_id: str | None = None,
+    override_history_limit: int = _DEFAULT_OVERRIDE_HISTORY_N,
 ) -> Focus:
     """LLM-augmented focus selection. Falls back to deterministic
     :func:`select_focus` on any failure or when no provider is given.
@@ -758,12 +907,19 @@ async def select_focus_async(
         1. ``needs:<focus>`` label short-circuit.
         2. LLM triage via ``provider.default_model`` (cached by content).
         3. Deterministic ``score_focus`` ranking (same as :func:`select_focus`).
+
+    When ``tracker`` is supplied, recent operator override events are
+    fetched and surfaced in the LLM prompt as a few-shot "Operator
+    corrections" section. Pass ``project_id`` to scope the events to a
+    single project (recommended). Falls through cleanly when there is
+    no override history yet.
     """
     if foci is None:
         foci = load_foci()
     active_foci = [f for f in foci if f.status == "active"]
 
-    # Step 1: explicit handoff label wins.
+    # Step 1: explicit handoff label wins. Skip override-history fetch
+    # since the LLM is not consulted on this path.
     if issue.labels:
         wanted = None
         for label in issue.labels:
@@ -781,13 +937,24 @@ async def select_focus_async(
 
     # Step 2: LLM triage.
     if provider is not None and active_foci:
-        cache_key = _triage_cache_key(issue, active_foci)
+        # Fetch operator override history (best-effort) for in-context
+        # few-shot examples. Per-project to avoid cross-project bleed.
+        override_history: list[dict[str, Any]] = []
+        if tracker is not None:
+            override_history = _fetch_recent_overrides(
+                tracker,
+                project_id=project_id,
+                limit=override_history_limit,
+            )
+
+        cache_key = _triage_cache_key(issue, active_foci, override_history)
         cached = _triage_cache.get(cache_key)
         if cached is not None:
             name, reasoning = cached
         else:
             name, reasoning = await _select_focus_llm(
                 issue, active_foci, provider,
+                override_history=override_history,
             )
             if name is not None:
                 _triage_cache[cache_key] = (name, reasoning)
