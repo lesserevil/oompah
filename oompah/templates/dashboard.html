@@ -1121,6 +1121,39 @@ function handleStateUpdate(state) {
   // Render running agent chips
   const container = document.getElementById('running-agents');
   const running = state.running || [];
+
+  // Optimistic dispatch update: when a state push contains a newly-running
+  // agent, mark the matching issue as in_progress locally and re-render the
+  // board immediately. This compensates for the throttled "issues" push
+  // (oompah/server.py _ISSUES_THROTTLE_MS=3000), which can otherwise lag the
+  // open->in_progress card movement up to 3s behind the agent-bar chip.
+  // We only optimistically update on dispatch (newly-added running entries);
+  // we do not speculate when an entry is removed because we don't know if
+  // the agent succeeded, failed, or is being retried — the next throttled
+  // "issues" push will set the correct final state.
+  const previousRunningIds = new Set(
+    lastRunningAgents.map(r => r.issue_identifier).filter(Boolean)
+  );
+  const newDispatchIds = running
+    .map(r => r.issue_identifier)
+    .filter(id => id && !previousRunningIds.has(id));
+  if (newDispatchIds.length > 0) {
+    for (const id of newDispatchIds) {
+      optimisticUpdates[id] = {
+        state: 'in_progress',
+        priority: undefined,
+        expiry: Date.now() + 10000,  // 10s window matches updateIssue()
+      };
+    }
+    // Re-render the board to apply the optimistic in_progress state
+    // immediately. applyOptimisticOverrides() (called inside renderBoard)
+    // moves the issue between columns and self-clears once the server
+    // confirms via the next "issues" push.
+    if (boardData && Object.keys(boardData).length > 0) {
+      renderBoard(boardData);
+    }
+  }
+
   lastRunningAgents = running;
   if (running.length === 0) {
     container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
