@@ -1620,14 +1620,37 @@ class Orchestrator:
         cap for subscription-billed sessions; ACP dispatches don't
         consume the per-token API meter that ``budget_limit`` tracks.
 
+        Mirrors the safety-critical ACP-routing carve-out in
+        ``_dispatch`` (oompah-zlz_2-lfy): when a merge-conflict /
+        ci-fix bead would otherwise resolve to a non-ACP profile but
+        an ACP profile is configured, the dispatcher swaps to ACP —
+        so the budget gate must agree, otherwise an over-budget
+        orchestrator would reject a dispatch that would actually be
+        subscription-billed.
+
         Conservative on resolution failure (returns False) so a
         misconfigured profile cannot accidentally bypass the cap.
         """
         try:
             profile = self._match_agent_profile(issue)
-            if not profile:
-                return False
-            return (getattr(profile, "mode", "auto") or "auto").lower() == "acp"
+            if self._profile_is_acp(profile):
+                return True
+            # Safety-critical ACP-routing parity with _dispatch.
+            # Mirrors the conditions there so the budget gate's view
+            # of "would this dispatch via ACP?" matches what
+            # _dispatch will actually choose. We don't have the
+            # attempt / override_profile here — the budget gate runs
+            # for first dispatches and doesn't see retries (those
+            # take override_profile and are handled elsewhere) — so
+            # treating the candidate as a first dispatch is correct.
+            if (
+                not self._has_explicit_handoff_label(issue)
+                and issue.issue_type != "epic"
+                and self._is_safety_critical_issue(issue)
+                and self._find_acp_profile() is not None
+            ):
+                return True
+            return False
         except Exception:
             return False
 
@@ -3502,6 +3525,50 @@ class Orchestrator:
                 return p
         return None
 
+    @staticmethod
+    def _profile_is_acp(profile: AgentProfile | None) -> bool:
+        """Return True iff *profile* is configured for ACP-mode dispatch.
+
+        Centralizes the (mode or 'auto').lower() == 'acp' check used in
+        several places — kept here so future tweaks (alias names, env
+        overrides) only land in one spot.
+        """
+        if profile is None:
+            return False
+        return (getattr(profile, "mode", "auto") or "auto").lower() == "acp"
+
+    def _find_acp_profile(self) -> AgentProfile | None:
+        """Return the first configured profile whose ``mode`` is ``acp``.
+
+        Used by the safety-critical carve-out (oompah-zlz_2-lfy): when a
+        merge-conflict / ci-fix bead is dispatched outside the
+        default_first_dispatch path AND the natural-resolved profile
+        does NOT have mode=acp, we'd rather route the dispatch through
+        an ACP profile (typically ``default``) so per-token billing
+        flows through the operator's claude subscription instead of the
+        per-token API meter — which on 2026-05-07 went hard 429 on
+        trickle-6zi after _is_safety_critical_issue carved out
+        default_first_dispatch.
+
+        Preference order:
+        1. The profile explicitly named ``default`` if it has mode=acp
+           (matches what default_first_dispatch already prefers).
+        2. Any other profile with mode=acp, in declaration order.
+
+        Returns None when no ACP profile is configured (legacy /
+        api-only deployments). Callers must handle that case by
+        falling back to the natural profile.
+        """
+        # Prefer "default" so the carve-out behaves consistently with
+        # default_first_dispatch's catch-all selection.
+        named_default = self._get_profile_by_name("default")
+        if self._profile_is_acp(named_default):
+            return named_default
+        for p in self.config.agent_profiles:
+            if self._profile_is_acp(p):
+                return p
+        return None
+
     async def _dispatch(self, issue: Issue, attempt: int | None,
                         override_profile: str | None = None) -> None:
         """Dispatch a worker for an issue."""
@@ -3555,6 +3622,49 @@ class Orchestrator:
                 profile = default_profile if default_profile else natural_matched
         else:
             profile = self._match_agent_profile(issue)
+            # Safety-critical ACP preservation (oompah-zlz_2-lfy):
+            # The default_first_dispatch carve-out for merge-conflict /
+            # ci-fix beads is intentional (we want the specialist focus's
+            # safety rails on the FIRST dispatch). Side effect: in
+            # setups where only the ``default`` profile has mode=acp,
+            # carving out also strands the dispatch on the per-token
+            # api_agent path, which is what blew up trickle-6zi on
+            # 2026-05-07 (HTTP 429 token-rate-limit cascade).
+            #
+            # Fix: when the carve-out fires (i.e. a safety-critical
+            # bead routed via natural matching) AND the natural-matched
+            # profile is NOT ACP, swap to the first ACP profile we can
+            # find. Focus selection is independent of profile (label-
+            # /keyword-driven), so the merge_conflict / ci_fix Focus's
+            # must_not_do rails still apply unchanged.
+            #
+            # Only fires for first dispatch on a safety-critical bead
+            # without an explicit needs:* handoff label or override.
+            # Retries / escalations keep their existing routing — we
+            # don't want to second-guess the escalation hierarchy.
+            if (
+                self._is_first_dispatch(issue, attempt, override_profile)
+                and not self._has_explicit_handoff_label(issue)
+                and issue.issue_type != "epic"
+                and self._is_safety_critical_issue(issue)
+                and not self._profile_is_acp(profile)
+            ):
+                acp_profile = self._find_acp_profile()
+                if acp_profile is not None and (
+                    profile is None or acp_profile.name != profile.name
+                ):
+                    natural_name = profile.name if profile else "<none>"
+                    natural_profile_name = natural_name if profile else None
+                    logger.info(
+                        "safety_critical_acp_routing: using profile=%s for %s "
+                        "(natural=%s, labels=%s) — carve-out kept ACP routing "
+                        "to avoid per-token rate limits",
+                        acp_profile.name,
+                        issue.identifier,
+                        natural_name,
+                        sorted(issue.labels or []),
+                    )
+                    profile = acp_profile
 
         profile_name = profile.name if profile else "default"
 

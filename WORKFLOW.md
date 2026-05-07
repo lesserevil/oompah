@@ -29,6 +29,7 @@ agent:
     - name: default
       provider_id: prov-infapi-01
       model_role: fast
+      mode: acp
 ---
 
 You are an autonomous coding agent working on issue **{{ issue.identifier }}**. Your worktree is already checked out on branch `{{ issue.branch_name }}` — start working from the current directory; do not `cd` elsewhere.
