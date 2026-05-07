@@ -298,6 +298,7 @@ class ProjectStore:
         "yolo", "log_path", "webhook_secret", "access_token",
         "last_webhook_received_at", "max_in_flight_prs", "merge_queue_enabled",
         "paused", "test_command", "test_command_full", "test_skip_paths",
+        "epic_strategy",
     })
 
     def update(self, project_id: str, **fields) -> Project | None:
@@ -367,6 +368,23 @@ class ProjectStore:
                 raise ProjectError(
                     "'test_skip_paths' must be a list of strings"
                 )
+
+        # Validate epic_strategy is one of the three allowed modes.
+        if "epic_strategy" in fields:
+            val = fields["epic_strategy"]
+            if val is None:
+                fields["epic_strategy"] = "flat"
+            else:
+                if not isinstance(val, str):
+                    raise ProjectError(
+                        "'epic_strategy' must be one of: flat, stacked, shared"
+                    )
+                norm = val.strip().lower()
+                if norm not in ("flat", "stacked", "shared"):
+                    raise ProjectError(
+                        "'epic_strategy' must be one of: flat, stacked, shared"
+                    )
+                fields["epic_strategy"] = norm
 
         # Validate max_in_flight_prs is a positive integer (floats are rejected)
         if "max_in_flight_prs" in fields:
@@ -519,6 +537,210 @@ class ProjectStore:
             raise ProjectError(f"Unknown project: {project_id}")
         sanitized = _sanitize_identifier(issue_identifier)
         return os.path.join(self.worktree_root, _sanitize_identifier(project.name), sanitized)
+
+    def epic_worktree_path_for(self, project_id: str, epic_identifier: str) -> str:
+        """Path used for the shared epic worktree under epic_strategy='shared'.
+
+        Lives at ``<worktree_root>/<project>/epic-<epic_identifier>`` so it
+        can never collide with a per-bead worktree (which uses just the
+        bead identifier). The branch name on the worktree mirrors the
+        directory name (also ``epic-<epic_identifier>``).
+        """
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        sanitized = _sanitize_identifier(epic_identifier)
+        return os.path.join(
+            self.worktree_root,
+            _sanitize_identifier(project.name),
+            f"epic-{sanitized}",
+        )
+
+    def epic_branch_name(self, epic_identifier: str) -> str:
+        """Branch name used for the shared epic branch (shared/stacked modes).
+
+        Must match :meth:`epic_worktree_path_for`'s last segment so that
+        ``git worktree add`` and ``git push`` see the same name.
+        """
+        return f"epic-{_sanitize_identifier(epic_identifier)}"
+
+    def create_epic_worktree(self, project_id: str, epic_identifier: str) -> str:
+        """Create or reuse a shared epic worktree (for ``epic_strategy='shared'``
+        and the long-lived epic branch under ``epic_strategy='stacked'``).
+
+        The worktree path is ``<worktree_root>/<project>/epic-<epic_id>``
+        and the branch is ``epic-<epic_id>``. Idempotent: if the worktree
+        already exists it is repaired (fetch, hard reset only if it sits
+        on the wrong branch — keeps in-flight commits from previous
+        agents on the shared branch).
+        """
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+
+        wt_path = self.epic_worktree_path_for(project_id, epic_identifier)
+        branch_name = self.epic_branch_name(epic_identifier)
+
+        if os.path.isdir(wt_path):
+            logger.info("Epic worktree already exists path=%s", wt_path)
+            self._prepare_existing_epic_worktree(wt_path, branch_name, project)
+            return wt_path
+
+        os.makedirs(os.path.dirname(wt_path), exist_ok=True)
+
+        # Fetch latest from remote before creating the worktree so we
+        # pick up an existing remote epic branch from a prior session.
+        try:
+            subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=project.repo_path,
+                capture_output=True, text=True, timeout=60,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass  # best-effort
+
+        # Prefer to attach to an existing origin branch (so a previous
+        # session's epic work is preserved). Fall back to creating a new
+        # branch off the project's default branch.
+        remote_ref = f"origin/{branch_name}"
+        try:
+            r = subprocess.run(
+                ["git", "rev-parse", "--verify", remote_ref],
+                cwd=project.repo_path,
+                capture_output=True, text=True, timeout=10,
+            )
+            remote_exists = r.returncode == 0
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            remote_exists = False
+
+        try:
+            if remote_exists:
+                subprocess.run(
+                    ["git", "worktree", "add", "-B", branch_name,
+                     wt_path, remote_ref],
+                    cwd=project.repo_path,
+                    capture_output=True, text=True, check=True, timeout=30,
+                )
+            else:
+                base = f"origin/{project.branch}"
+                subprocess.run(
+                    ["git", "worktree", "add", "-b", branch_name, wt_path, base],
+                    cwd=project.repo_path,
+                    capture_output=True, text=True, check=True, timeout=30,
+                )
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.strip()[:500] if exc.stderr else ""
+            # Branch exists locally but no remote — reuse the existing branch
+            if "already exists" in stderr:
+                try:
+                    subprocess.run(
+                        ["git", "worktree", "add", wt_path, branch_name],
+                        cwd=project.repo_path,
+                        capture_output=True, text=True, check=True, timeout=30,
+                    )
+                except subprocess.CalledProcessError as exc2:
+                    stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
+                    raise ProjectError(f"git worktree add failed: {stderr2}")
+            else:
+                raise ProjectError(f"git worktree add failed: {stderr}")
+        except subprocess.TimeoutExpired:
+            raise ProjectError("git worktree add timed out")
+
+        # Set git identity on the worktree from project config (mirrors
+        # create_worktree() so child agents use the same author).
+        if project.git_user_name:
+            try:
+                subprocess.run(
+                    ["git", "config", "user.name", project.git_user_name],
+                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                )
+            except Exception:
+                pass
+        if project.git_user_email:
+            try:
+                subprocess.run(
+                    ["git", "config", "user.email", project.git_user_email],
+                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                )
+            except Exception:
+                pass
+
+        self._disable_worktree_hooks(wt_path)
+        self._strip_worktree_beads_fork(wt_path)
+        logger.info("Epic worktree created path=%s branch=%s", wt_path, branch_name)
+        return wt_path
+
+    def _prepare_existing_epic_worktree(
+        self, wt_path: str, branch_name: str, project: Project,
+    ) -> None:
+        """Soft-prepare an existing epic worktree for reuse.
+
+        Unlike ``_prepare_existing_worktree`` (which hard-resets the
+        per-bead worktree), this one preserves any in-flight commits on
+        the shared epic branch so a previous child's work isn't lost.
+        We still fetch, ensure the branch is checked out, and disable
+        hooks; we do NOT ``git reset --hard`` or ``git clean``.
+        """
+        def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                cmd, cwd=wt_path, capture_output=True, text=True, timeout=30, **kw,
+            )
+
+        try:
+            _run(["git", "fetch", "origin"])
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
+
+        try:
+            r = _run(["git", "symbolic-ref", "--short", "HEAD"])
+            current_branch = r.stdout.strip() if r.returncode == 0 else ""
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            current_branch = ""
+
+        if current_branch != branch_name:
+            try:
+                _run(["git", "checkout", branch_name], check=True)
+                logger.info(
+                    "Checked out epic branch %s in worktree %s",
+                    branch_name, wt_path,
+                )
+            except subprocess.CalledProcessError as exc:
+                logger.warning(
+                    "Failed to checkout epic branch %s in %s: %s",
+                    branch_name, wt_path,
+                    exc.stderr.strip()[:200] if exc.stderr else "",
+                )
+
+        self._disable_worktree_hooks(wt_path)
+        self._strip_worktree_beads_fork(wt_path)
+
+    def remove_epic_worktree(self, project_id: str, epic_identifier: str) -> None:
+        """Remove the shared epic worktree (used after the epic→main PR
+        merges or when the operator deletes a project).
+
+        Mirrors :meth:`remove_worktree` but with the epic-named directory
+        and a tolerant fall-through when the worktree no longer exists.
+        """
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+
+        wt_path = self.epic_worktree_path_for(project_id, epic_identifier)
+        if not os.path.isdir(wt_path):
+            return
+
+        try:
+            subprocess.run(
+                ["git", "worktree", "remove", wt_path, "--force"],
+                cwd=project.repo_path,
+                capture_output=True, text=True, check=True, timeout=30,
+            )
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.strip()[:500] if exc.stderr else ""
+            raise ProjectError(f"git worktree remove failed: {stderr}")
+        except subprocess.TimeoutExpired:
+            raise ProjectError("git worktree remove timed out")
+        logger.info("Epic worktree removed path=%s", wt_path)
 
     def create_worktree(self, project_id: str, issue_identifier: str) -> str:
         project = self._projects.get(project_id)

@@ -856,6 +856,15 @@ class Orchestrator:
             self._tick_pool, self._auto_close_completed_epics, candidates
         )
 
+        # Open the epic→main PR for stacked/shared epics whose children
+        # are all closed. Cheap — only walks ``candidates`` plus a fetch
+        # of children per active epic. Only acts on epics where the
+        # project's epic_strategy is 'stacked' or 'shared'; flat is a
+        # no-op (today's behavior).
+        await loop.run_in_executor(
+            self._tick_pool, self._open_epic_main_prs, candidates
+        )
+
         # Reset orphaned in_progress issues (no agent, no retry).
         # Runs in the executor because orphan detection issues bd update
         # calls — keeping it inline would re-introduce the very same
@@ -1058,6 +1067,26 @@ class Orchestrator:
         project_reviews = reviews_cache.get(project_id, [])
         return sum(1 for r in project_reviews if not r.draft)
 
+    def _epic_in_flight_count(self, parent_id: str) -> int:
+        """Number of running OR claimed children that share ``parent_id``.
+
+        Used by the shared-mode dispatch gate to enforce serial child
+        dispatch within a single epic worktree. Counts any
+        running/claimed child whose ``parent_id`` matches the given
+        epic identifier — the orchestrator already keeps these in
+        ``state.running`` and ``state.claimed`` (the ID half).
+
+        Returns 0 when the parent_id is empty.
+        """
+        if not parent_id:
+            return 0
+        n = 0
+        for entry in self.state.running.values():
+            other = entry.issue
+            if other and (other.parent_id or "") == parent_id:
+                n += 1
+        return n
+
     def _project_max_in_flight(self, project_id: str | None) -> int:
         """Return the configured in-flight PR limit for a project.
 
@@ -1156,6 +1185,98 @@ class Orchestrator:
             logger.debug("Failed to fetch children for epic %s: %s", epic.identifier, exc)
             return []
 
+    def _project_epic_strategy(self, project_id: str | None) -> str:
+        """Return the project's epic_strategy ('flat'/'stacked'/'shared').
+
+        Falls back to 'flat' (today's behavior) when the project is
+        unknown or the field is missing — so legacy projects.json
+        without the field continue to work unchanged.
+        """
+        if not project_id:
+            return "flat"
+        project = self.project_store.get(project_id)
+        if not project:
+            return "flat"
+        strategy = (getattr(project, "epic_strategy", None) or "flat").strip().lower()
+        if strategy not in ("flat", "stacked", "shared"):
+            return "flat"
+        return strategy
+
+    def _resolve_parent_epic(self, issue: Issue) -> Issue | None:
+        """Resolve a child issue's parent epic, or None when this issue has
+        no parent or the parent is not an epic.
+
+        Used by the stacked/shared epic_strategy paths to pick the epic
+        branch name (stacked) or shared worktree (shared). Returns None
+        for top-level issues (parent_id is None) and for issues whose
+        parent is not type=epic (we only special-case epic→child).
+        """
+        parent_id = (issue.parent_id or "").strip()
+        if not parent_id:
+            return None
+        try:
+            tracker = self._tracker_for_issue(issue)
+            parent = tracker.fetch_issue_detail(parent_id)
+        except Exception as exc:
+            logger.debug(
+                "Failed to fetch parent epic %s for child %s: %s",
+                parent_id, issue.identifier, exc,
+            )
+            return None
+        if not parent:
+            return None
+        if (parent.issue_type or "").strip().lower() != "epic":
+            return None
+        # Carry the project_id over from the child for downstream
+        # consumers that rely on it (the parent record may have it set
+        # already, but be defensive).
+        if not parent.project_id and issue.project_id:
+            parent.project_id = issue.project_id
+        return parent
+
+    def _create_workspace_for_issue(
+        self, issue: Issue,
+    ) -> tuple[str, Issue | None]:
+        """Resolve and create the workspace path used to dispatch ``issue``.
+
+        Returns ``(workspace_path, epic_for_shared_mode)``. The second
+        element is non-None only when the project's epic_strategy is
+        'shared' AND the issue is a child of an epic — in which case
+        callers know to commit/push on the shared epic branch instead
+        of the per-bead branch.
+
+        Fall-through behavior:
+        - epic_strategy='flat': always per-bead worktree (today's
+          behavior).
+        - epic_strategy='stacked': per-bead worktree (children PR
+          against the epic branch, but each agent still gets its own
+          working copy).
+        - epic_strategy='shared': children of an epic share the epic's
+          worktree; non-children fall back to per-bead.
+
+        The shared-mode epic worktree is created via
+        ``project_store.create_epic_worktree``, which is idempotent
+        (does NOT hard-reset existing in-flight work).
+        """
+        if not issue.project_id:
+            workspace = self.workspace_mgr.create_for_issue(issue.identifier)
+            self.workspace_mgr.run_before_run(workspace.path)
+            return workspace.path, None
+
+        strategy = self._project_epic_strategy(issue.project_id)
+        if strategy == "shared":
+            parent_epic = self._resolve_parent_epic(issue)
+            if parent_epic is not None:
+                wp = self.project_store.create_epic_worktree(
+                    issue.project_id, parent_epic.identifier,
+                )
+                return wp, parent_epic
+
+        wp = self.project_store.create_worktree(
+            issue.project_id, issue.identifier,
+        )
+        return wp, None
+
     def _auto_close_completed_epics(self, candidates: list[Issue]) -> None:
         """Auto-close epics whose children are all in terminal states.
 
@@ -1206,6 +1327,141 @@ class Orchestrator:
             if self._should_dispatch_epic(issue):
                 epics_to_plan.append(issue)
         return epics_to_plan
+
+    def _open_epic_main_prs(self, candidates: list[Issue]) -> int:
+        """Open epic→main PRs for stacked/shared epics whose children are
+        all closed.
+
+        Walks ``candidates`` looking for active epics on a project whose
+        ``epic_strategy`` is 'stacked' or 'shared'. For each such epic:
+
+        * If it has no children, skip (nothing has been done — wait for
+          the planner).
+        * If any child is NOT in a terminal state (open, in_progress,
+          deferred, blocked, ...), skip — mid-flight children DELAY the
+          push (acceptance criteria explicit edge case).
+        * If a PR with source ``epic-<identifier>`` already exists, skip
+          — idempotent.
+        * Otherwise: push the epic branch and open a single
+          source=``epic-<identifier>``, base=``project.branch`` PR with
+          the epic's title and description.
+
+        Returns the number of PRs opened.
+        """
+        terminal_norms = {
+            s.strip().lower() for s in self.config.tracker_terminal_states
+        }
+        opened = 0
+        for issue in candidates:
+            if issue.issue_type != "epic":
+                continue
+            state_norm = (issue.state or "").strip().lower()
+            if state_norm in terminal_norms:
+                continue  # epic itself is closed; closing logic owns this
+            project_id = issue.project_id
+            if not project_id:
+                continue
+            strategy = self._project_epic_strategy(project_id)
+            if strategy not in ("stacked", "shared"):
+                continue
+
+            children = self._fetch_epic_children(issue)
+            if not children:
+                continue  # nothing to roll up yet
+
+            # All children must be in a terminal state. open / in_progress /
+            # deferred / blocked all DELAY the push (per the acceptance
+            # criteria). This intentionally treats deferred or blocked as
+            # incomplete — operator action required to advance them.
+            all_terminal = all(
+                (c.state or "").strip().lower() in terminal_norms
+                for c in children
+            )
+            if not all_terminal:
+                continue
+
+            project = self.project_store.get(project_id)
+            if not project or not project.repo_url:
+                continue
+            provider = detect_provider(
+                project.repo_url, access_token=project.access_token,
+            )
+            if provider is None:
+                continue
+            slug = extract_repo_slug(project.repo_url)
+            epic_branch = self.project_store.epic_branch_name(issue.identifier)
+
+            # Idempotency: if a review already exists with this source
+            # branch, do nothing.
+            reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
+            already_open = any(
+                r.source_branch == epic_branch and not r.draft for r in reviews
+            )
+            if already_open:
+                continue
+
+            # Push the epic branch from the shared epic worktree (shared
+            # mode) or from the project's main repo path (stacked mode —
+            # children's PRs already pushed their commits to the epic
+            # branch on the remote).
+            try:
+                self._push_epic_branch(project, issue.identifier)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to push epic branch %s for epic %s: %s",
+                    epic_branch, issue.identifier, exc,
+                )
+                continue
+
+            title = (
+                f"{issue.identifier}: {issue.title}"
+                if issue.title else f"Epic {issue.identifier}"
+            )
+            description = issue.description or ""
+            try:
+                result = provider.create_review(
+                    slug, title, epic_branch,
+                    target_branch=project.branch,
+                    description=description,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to create epic→main PR for %s on %s: %s",
+                    issue.identifier, project.name, exc,
+                )
+                continue
+
+            if result is None:
+                logger.warning(
+                    "Failed to create epic→main PR for %s on %s "
+                    "(provider returned None)",
+                    issue.identifier, project.name,
+                )
+                continue
+
+            logger.info(
+                "Opened epic→main PR for %s on %s (review #%s, source=%s)",
+                issue.identifier, project.name, result.id, epic_branch,
+            )
+            opened += 1
+        return opened
+
+    def _push_epic_branch(self, project, epic_identifier: str) -> None:
+        """Push the shared epic branch from the local repo to origin.
+
+        Best-effort: subprocess errors propagate so the caller can log
+        and skip PR creation for this tick.
+        """
+        epic_branch = self.project_store.epic_branch_name(epic_identifier)
+        # The branch lives on the project's main repo (stacked mode
+        # children pushed there) or the shared epic worktree (shared
+        # mode). Either way ``git push origin <branch>`` from the main
+        # clone is sufficient because git knows about all worktrees.
+        subprocess.run(
+            ["git", "push", "origin", epic_branch],
+            cwd=project.repo_path,
+            capture_output=True, text=True, check=True, timeout=60,
+        )
 
     def _should_dispatch(self, issue: Issue) -> bool:
         def _reject(reason: str) -> bool:
@@ -1303,6 +1559,20 @@ class Orchestrator:
             limit = self._project_max_in_flight(issue.project_id)
             if n_open >= limit:
                 return _reject(f"open_reviews_at_cap={n_open}/{limit}")
+        # epic_strategy=='shared' serializes child dispatch within an epic.
+        # Multiple children share one worktree+branch and we don't have an
+        # in-worktree coordination protocol yet (out of scope per the bead),
+        # so only one child of a given epic can be in flight at a time.
+        # Multiple epics still dispatch in parallel up to max_in_flight_prs.
+        # P0 children bypass this check.
+        if not is_p0 and issue.parent_id:
+            strategy = self._project_epic_strategy(issue.project_id)
+            if strategy == "shared":
+                in_flight = self._epic_in_flight_count(issue.parent_id)
+                if in_flight >= 1:
+                    return _reject(
+                        f"shared_epic_busy={issue.parent_id} count={in_flight}"
+                    )
         # ACP-mode profiles bypass the budget gate entirely — their
         # per-token cost is billed against the operator's claude
         # subscription, not the per-token API meter the budget tracks.
@@ -1673,7 +1943,19 @@ class Orchestrator:
         return fixed
 
     def _ensure_review_exists(self, entry: RunningEntry, project_id: str | None) -> None:
-        """Create a review (PR/MR) if the agent pushed a branch but none exists."""
+        """Create a review (PR/MR) if the agent pushed a branch but none exists.
+
+        Honors the project's ``epic_strategy``:
+
+        * ``flat`` (default) — branch is the bead identifier; PR targets main.
+        * ``stacked`` — for a child of an epic, the PR's *base* is the
+          epic's branch (``epic-<epic_identifier>``) instead of main, so
+          all children stack on the epic and the operator gets one
+          combined epic→main PR at the end.
+        * ``shared`` — children commit directly to the shared epic branch.
+          NO per-child PR is created here (the epic→main PR is the only
+          one). Top-level beads in shared mode behave like flat.
+        """
         if not project_id:
             return
         project = self.project_store.get(project_id)
@@ -1683,7 +1965,32 @@ class Orchestrator:
         if not provider:
             return
         slug = extract_repo_slug(project.repo_url)
+
+        strategy = self._project_epic_strategy(project_id)
+        # Resolve parent epic only for issues that have one. For top-level
+        # beads (no parent_id), strategy/parent treatment doesn't matter.
+        parent_epic: Issue | None = None
+        if entry.issue and entry.issue.parent_id and strategy in ("stacked", "shared"):
+            parent_epic = self._resolve_parent_epic(entry.issue)
+
+        # Shared mode: child commits live on the shared epic branch and
+        # the only PR is the epic→main PR. Skip per-child review creation.
+        if strategy == "shared" and parent_epic is not None:
+            logger.debug(
+                "Skip per-child review for %s: epic_strategy=shared "
+                "(child shares branch with epic %s)",
+                entry.identifier, parent_epic.identifier,
+            )
+            return
+
         branch = entry.identifier  # branch is named after the issue
+        # Stacked mode: the child PR targets the epic branch instead of main.
+        target_branch = project.branch
+        if strategy == "stacked" and parent_epic is not None:
+            target_branch = self.project_store.epic_branch_name(
+                parent_epic.identifier,
+            )
+
         # Check if a review already exists for this branch
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
         for r in reviews:
@@ -1692,13 +1999,19 @@ class Orchestrator:
         # Create the review
         try:
             title = f"{entry.identifier}: {entry.issue.title}" if entry.issue else entry.identifier
-            result = provider.create_review(slug, title, branch)
+            result = provider.create_review(
+                slug, title, branch, target_branch=target_branch,
+            )
             if result:
-                logger.info("Auto-created review for %s on %s (review #%s)",
-                            entry.identifier, project.name, result.id)
+                logger.info(
+                    "Auto-created review for %s on %s (review #%s, base=%s)",
+                    entry.identifier, project.name, result.id, target_branch,
+                )
             else:
-                logger.warning("Failed to create review for %s on %s",
-                               entry.identifier, project.name)
+                logger.warning(
+                    "Failed to create review for %s on %s (base=%s)",
+                    entry.identifier, project.name, target_branch,
+                )
         except Exception as exc:
             logger.warning("Error creating review for %s: %s", entry.identifier, exc)
 
@@ -3442,14 +3755,10 @@ class Orchestrator:
         try:
             # Run blocking setup work in thread to avoid blocking event loop
             def _setup_worker():
-                # Create workspace
-                if issue.project_id:
-                    wp = self.project_store.create_worktree(
-                        issue.project_id, issue.identifier)
-                else:
-                    workspace = self.workspace_mgr.create_for_issue(issue.identifier)
-                    wp = workspace.path
-                    self.workspace_mgr.run_before_run(wp)
+                # Resolve workspace via the epic_strategy-aware helper:
+                # under epic_strategy='shared' a child of an epic uses
+                # the shared epic worktree; otherwise per-bead path.
+                wp, _epic = self._create_workspace_for_issue(issue)
 
                 self._post_comment(issue.identifier, f"Focus: {focus.role}",
                                    project_id=issue.project_id)
@@ -3718,14 +4027,8 @@ class Orchestrator:
 
         try:
             def _setup_worker():
-                if issue.project_id:
-                    wp = self.project_store.create_worktree(
-                        issue.project_id, issue.identifier,
-                    )
-                else:
-                    workspace = self.workspace_mgr.create_for_issue(issue.identifier)
-                    wp = workspace.path
-                    self.workspace_mgr.run_before_run(wp)
+                # Resolve workspace via the epic_strategy-aware helper.
+                wp, _epic = self._create_workspace_for_issue(issue)
 
                 self._post_comment(
                     issue.identifier, f"Focus: {focus.role}",
@@ -4028,14 +4331,10 @@ class Orchestrator:
         max_turns = profile.max_turns if profile and profile.max_turns else self.config.max_turns
 
         try:
-            # Create workspace: use project worktree if available, else legacy
-            if issue.project_id:
-                workspace_path = self.project_store.create_worktree(
-                    issue.project_id, issue.identifier)
-            else:
-                workspace = self.workspace_mgr.create_for_issue(issue.identifier)
-                workspace_path = workspace.path
-                self.workspace_mgr.run_before_run(workspace_path)
+            # Resolve workspace via the epic_strategy-aware helper:
+            # under epic_strategy='shared' a child of an epic uses
+            # the shared epic worktree; otherwise per-bead path.
+            workspace_path, _epic = self._create_workspace_for_issue(issue)
 
             # Start agent session
             session = AgentSession(

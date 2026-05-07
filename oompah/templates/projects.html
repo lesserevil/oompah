@@ -186,6 +186,11 @@ async function loadProjects() {
         </label>
       </div>
       <div class="field-row">
+        <span class="field-label">Epic Strategy:</span>
+        <span class="field-value"><code>${esc(p.epic_strategy || 'flat')}</code></span>
+        <span style="font-size:0.7rem;color:var(--text-muted);margin-left:0.5rem;">(controls how children of an epic relate to branches and CI)</span>
+      </div>
+      <div class="field-row">
         <span class="field-label">Dispatch:</span>
         <span class="field-value" style="color:${p.paused ? '#d29922' : 'var(--green)'}">${p.paused ? 'Paused — orchestrator will not dispatch new agents to this project' : 'Active'}</span>
       </div>
@@ -253,6 +258,23 @@ async function loadProjects() {
         <div class="form-group">
           <label>Test Skip Paths (optional, comma-separated globs to exclude flaky/hardware/network tests)</label>
           <input type="text" id="edit-test-skip-paths-${esc(p.id)}" value="${esc((p.test_skip_paths || []).join(', '))}" placeholder="e.g. tests/integration/*, tests/hw/*">
+        </div>
+        <div class="form-group">
+          <label>Epic Strategy (controls how children of an epic relate to branches and CI)</label>
+          <div style="display:flex;flex-direction:column;gap:0.4rem;font-size:0.8rem;">
+            <label style="cursor:pointer;display:flex;align-items:flex-start;gap:0.4rem;">
+              <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="flat" ${(p.epic_strategy || 'flat') === 'flat' ? 'checked' : ''}>
+              <span><strong>flat</strong> (default) — every bead, including epic children, gets its own worktree off main. Each PR targets main; CI runs per child PR; merge queue serializes the merges.</span>
+            </label>
+            <label style="cursor:pointer;display:flex;align-items:flex-start;gap:0.4rem;">
+              <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="stacked" ${p.epic_strategy === 'stacked' ? 'checked' : ''}>
+              <span><strong>stacked</strong> — every bead gets its own worktree, but children of an epic open their PR against the epic's branch. CI runs on each child PR; once all children land, the orchestrator pushes the epic branch and opens a single epic→main PR.</span>
+            </label>
+            <label style="cursor:pointer;display:flex;align-items:flex-start;gap:0.4rem;">
+              <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="shared" ${p.epic_strategy === 'shared' ? 'checked' : ''}>
+              <span><strong>shared</strong> — each epic gets ONE worktree and ONE branch shared by all of its children. Children commit directly to the epic branch (no per-child PRs, no per-child CI). Children dispatch SERIALLY within an epic; multiple epics still run in parallel up to the in-flight cap. Trade: loses intra-epic parallelism in exchange for fewer merges, fewer CI runs, no inter-child conflicts on main.</span>
+            </label>
+          </div>
         </div>
         <div id="edit-error-${esc(p.id)}" style="color:var(--red);font-size:0.8rem;margin-bottom:0.5rem;display:none;"></div>
         <div class="form-actions">
@@ -380,7 +402,12 @@ async function saveProject(id) {
   const testSkipPaths = testSkipPathsRaw
     ? testSkipPathsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
     : [];
-  const body = {name, branch, max_in_flight_prs: maxInFlightPrs};
+  // Read the chosen epic_strategy from the radio group. Default to "flat"
+  // when no radio is selected (defensive — should not happen because one
+  // radio is always pre-checked).
+  const epicStrategyEl = document.querySelector('input[name="edit-epic-strategy-' + id + '"]:checked');
+  const epicStrategy = epicStrategyEl ? epicStrategyEl.value : 'flat';
+  const body = {name, branch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;

@@ -163,6 +163,24 @@ class Project:
     # as a hint; agents are responsible for honoring it. Empty list = no
     # exclusions.
     test_skip_paths: list[str] = field(default_factory=list)
+    # Per-project strategy controlling how children of an epic relate to
+    # branches and CI. See bead oompah-zlz_2-amd for the full design.
+    #
+    # * "flat" (default) — preserves today's behavior: every bead gets
+    #   its own worktree off main, each PR targets main, CI runs per
+    #   child PR, merge queue serializes the merges.
+    # * "stacked" — every bead gets its own worktree, but children of
+    #   an epic create their PR against the epic's branch (not main).
+    #   Once all children land on the epic branch, the orchestrator
+    #   pushes it and opens an epic→main PR.
+    # * "shared" — each epic gets ONE shared worktree and ONE shared
+    #   branch; child beads commit directly to the epic branch (no
+    #   per-child PRs, no per-child CI). Children dispatch SERIALLY
+    #   within an epic (one agent at a time per epic worktree); multiple
+    #   epics still dispatch concurrently up to ``max_in_flight_prs``.
+    #
+    # Unknown / invalid values fall back to "flat" with no migration.
+    epic_strategy: str = "flat"
 
     def to_dict(self) -> dict[str, Any]:
         d = {
@@ -195,6 +213,11 @@ class Project:
             d["test_command_full"] = self.test_command_full
         if self.test_skip_paths:
             d["test_skip_paths"] = list(self.test_skip_paths)
+        # Always emit epic_strategy so dashboards can render the current
+        # mode without back-compat guessing. Default "flat" is included
+        # so an upgraded server writing an existing projects.json file
+        # surfaces the field on disk.
+        d["epic_strategy"] = self.epic_strategy
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -239,6 +262,17 @@ class Project:
         test_command_full = (
             str(raw_test_command_full).strip() if raw_test_command_full else None
         )
+        raw_epic_strategy = d.get("epic_strategy", "flat")
+        epic_strategy = (
+            str(raw_epic_strategy).strip().lower()
+            if raw_epic_strategy
+            else "flat"
+        )
+        if epic_strategy not in ("flat", "stacked", "shared"):
+            # Unknown value (e.g. typo in projects.json) → fail safe to
+            # the default. No migration; the operator can re-pick from
+            # the UI radio group.
+            epic_strategy = "flat"
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -259,6 +293,7 @@ class Project:
             test_command=test_command or None,
             test_command_full=test_command_full or None,
             test_skip_paths=test_skip_paths,
+            epic_strategy=epic_strategy,
         )
 
 

@@ -1115,6 +1115,20 @@ async def api_update_project(project_id: str, request: Request):
                                "message": "test_skip_paths must be a list of strings or null"}},
                     status_code=400,
                 )
+        if "epic_strategy" in body:
+            val = body["epic_strategy"]
+            if val is None:
+                fields["epic_strategy"] = "flat"
+            elif isinstance(val, str) and val.strip().lower() in (
+                "flat", "stacked", "shared",
+            ):
+                fields["epic_strategy"] = val.strip().lower()
+            else:
+                return JSONResponse(
+                    {"error": {"code": "validation",
+                               "message": "epic_strategy must be one of: flat, stacked, shared"}},
+                    status_code=400,
+                )
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
