@@ -3129,26 +3129,39 @@ class Orchestrator:
         """Return True if this issue requires safety-critical handling that must
         bypass cost optimizations like default_first_dispatch.
 
-        Currently this is only the merge_conflict focus — rebase work has a
-        high blast radius (force-pushes, dropped commits, blind ours/theirs
-        accepts) and the merge_conflict Focus must_not_do rails exist
-        specifically to mitigate that. Running such issues on the catch-all
-        "default" profile first means the safety rails come too late: if the
-        cheap-profile dispatch produces a bad-but-CI-passing rebase, the bead
-        closes without the specialist ever running. See oompah-zlz_2-2sd.
+        Two foci qualify today:
+          * merge_conflict — rebase work has a high blast radius (force-pushes,
+            dropped commits, blind ours/theirs accepts).
+          * ci_fix — CI-fix work must push to the existing PR's branch, NOT
+            cut a new branch and open a new PR. The ci_fix Focus's must_not_do
+            rails ('Create a new branch...', 'Open a new pull request') are
+            precisely what stops the failure mode in oompah-zlz_2-0pr (bead
+            trickle-icl → PR #32 against main instead of pushing to
+            trickle-rl5).
 
-        Detection mirrors the merge_conflict Focus's labels and keywords
-        (oompah/focus.py:289-314). We check labels/keywords directly rather
-        than running select_focus to keep this fast and deterministic — and
-        to avoid taking the LLM-triage path during the dispatch decision.
+        Running such issues on the catch-all "default" profile first means
+        the safety rails come too late: if the cheap-profile dispatch
+        produces a bad-but-CI-passing change, the bead closes without the
+        specialist ever running. See oompah-zlz_2-2sd and oompah-zlz_2-0pr.
+
+        Detection mirrors each Focus's labels and keywords. We check
+        labels/keywords directly rather than running select_focus to keep
+        this fast and deterministic — and to avoid taking the LLM-triage
+        path during the dispatch decision.
         """
         labels = {l.lower() for l in (issue.labels or [])}
-        if "merge-conflict" in labels:
+        if "merge-conflict" in labels or "ci-fix" in labels:
             return True
-        # Also match the merge_conflict Focus keywords (whole-word, case-insensitive)
+        # Also match each Focus's keywords (whole-word, case-insensitive)
         # so beads that describe the work but lack the label still get the carve-out.
         text = f"{issue.title or ''} {issue.description or ''}".lower()
-        for kw in ("merge conflict", "rebase conflict", "resolve conflict"):
+        for kw in (
+            # merge_conflict keywords
+            "merge conflict", "rebase conflict", "resolve conflict",
+            # ci_fix keywords
+            "ci fix", "ci-fix", "failed ci", "fix ci", "failing tests",
+            "tier-", "matrix-verify", "github actions failure",
+        ):
             if re.search(r"\b" + re.escape(kw) + r"\b", text):
                 return True
         return False
@@ -4602,7 +4615,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """Build the prompt for the decomposition planner."""
         from oompah.focus import BUILTIN_FOCI
         foci_text = "\n".join(f"- {f.name}: {f.role}" for f in BUILTIN_FOCI
-                              if f.name not in ("epic_planner", "merge_conflict"))
+                              if f.name not in ("epic_planner", "merge_conflict", "ci_fix"))
         comments_text = "\n".join(
             f"- {c.get('author', '?')} ({c.get('created_at', '?')}): {c.get('text', '')}"
             for c in (comments or [])

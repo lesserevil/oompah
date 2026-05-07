@@ -652,6 +652,52 @@ class TestDispatchWithDefaultFirstDispatch:
         assert "default" not in dispatched_profile
         assert "deep" in dispatched_profile
 
+    def test_flag_on_ci_fix_label_bypasses_default_first(self, tmp_path):
+        """With flag=True, beads carrying the 'ci-fix' label bypass the
+        cost optimization (oompah-zlz_2-0pr). The ci_fix Focus has strict
+        must_not_do rails (no new branch, no new PR) that the default
+        profile cannot enforce on its own — so we want the natural
+        specialist on the FIRST dispatch, not after a bounce.
+        """
+        orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
+        # Bug-typed bead with the ci-fix label — like the trickle-icl
+        # bead from the issue's live evidence.
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI failures on PR #23 (branch trickle-rl5)",
+        )
+        dispatched_profile = []
+
+        async def capture(issue, attempt, profile):
+            dispatched_profile.append(profile.name if profile else "none")
+
+        orch._run_worker = capture
+
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        assert "default" not in dispatched_profile, (
+            "ci-fix bead was dispatched on default profile — "
+            "default_first_dispatch carve-out failed"
+        )
+        # They get the natural match (deep for type=bug in our test profile set).
+        assert "deep" in dispatched_profile
+
+    def test_flag_on_ci_fix_label_does_not_store_natural_profile(self, tmp_path):
+        """Mirror of the merge-conflict test: when the ci-fix carve-out
+        fires, natural_profile_name stays None because we dispatched on
+        the natural profile directly — there is no escalation jump pending.
+        """
+        orch = self._make_orch_with_mocks(tmp_path, default_first_dispatch=True)
+        issue = _make_issue(issue_type="bug", labels=["ci-fix"])
+
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        entry = orch.state.running.get(issue.id)
+        assert entry is not None
+        assert entry.agent_profile_name == "deep"
+        assert entry.natural_profile_name is None
+
     def test_flag_on_unrelated_bug_is_unaffected(self, tmp_path):
         """Sanity check: the carve-out is narrow. A normal bug without
         merge-conflict label/keywords still uses default_first_dispatch.
@@ -733,6 +779,32 @@ class TestIsSafetyCriticalIssue:
         issue.title = ""
         issue.labels = None
         assert orch._is_safety_critical_issue(issue) is False
+
+    def test_ci_fix_label_match(self, tmp_path):
+        """oompah-zlz_2-0pr: ci-fix beads should be safety-critical too."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(labels=["ci-fix"])
+        assert orch._is_safety_critical_issue(issue) is True
+
+    def test_ci_fix_label_match_case_insensitive(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(labels=["CI-Fix"])
+        assert orch._is_safety_critical_issue(issue) is True
+
+    def test_ci_fix_keyword_match_in_description(self, tmp_path):
+        """A bead describing CI failure work without the label still matches."""
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(
+            description="The tier-c-windows-nvidia job is failing on PR #23.",
+        )
+        assert orch._is_safety_critical_issue(issue) is True
+
+    def test_ci_fix_keyword_match_failing_tests(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue(
+            description="The PR has failing tests in matrix-verify on Windows.",
+        )
+        assert orch._is_safety_critical_issue(issue) is True
 
 
 # ---------------------------------------------------------------------------

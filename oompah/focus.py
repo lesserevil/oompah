@@ -387,6 +387,37 @@ BUILTIN_FOCI: list[Focus] = [
         priority=100,
     ),
     Focus(
+        name="ci_fix",
+        role="CI Failure Fixer",
+        description=(
+            "You are fixing CI test failures on an existing review branch. "
+            "Your ONLY job is to make the failing tests pass on the SAME "
+            "branch the original PR was opened from, by force-pushing the "
+            "fix to that branch. Do NOT create a new branch or PR."
+        ),
+        must_do=[
+            "Identify the existing branch from the bead body (look for source_branch / branch X / PR #N notes).",
+            "Check out that branch: git fetch origin && git checkout <branch> && git pull --ff-only",
+            "Pull the failing job logs from GitHub Actions and read the actual errors. Do not assume — read.",
+            "Reproduce the failure locally where possible. If the failure is platform-specific (Windows-only, target-specific matrix entry), work from log analysis.",
+            "Make the MINIMAL fix that targets the actual failure. Run relevant tests locally before pushing.",
+            "Push to the SAME branch with --force-with-lease if a rebase was needed, otherwise plain push.",
+            "Verify on GitHub that the original PR's checks have re-run after your push.",
+        ],
+        must_not_do=[
+            "Create a new branch named after this bead.",
+            "Open a new pull request.",
+            "Modify code beyond what is needed to make the failing tests pass.",
+            "Touch unrelated workflow files. Only edit .github/workflows/* if the failure is genuinely in that workflow.",
+            "Make speculative fixes. If you cannot diagnose from logs, comment on the original PR with findings and close the bead asking for human review.",
+            "Refactor or 'improve' surrounding code while you're in there.",
+        ],
+        keywords=["ci fix", "ci-fix", "failed ci", "fix ci", "failing tests", "tier-", "matrix-verify", "github actions failure"],
+        labels=["ci-fix"],
+        issue_types=[],
+        priority=100,
+    ),
+    Focus(
         name="chore",
         role="Maintenance Engineer",
         description=(
