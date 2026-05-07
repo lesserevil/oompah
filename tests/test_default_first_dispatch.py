@@ -961,3 +961,479 @@ class TestNeedsLabelDoesNotAffectProfile:
         orch = _make_orchestrator(tmp_path, default_first_dispatch=True)
         issue = _make_issue(labels=["bug", "priority:high", "ci-fix"])
         assert orch._has_explicit_handoff_label(issue) is False
+
+
+# ---------------------------------------------------------------------------
+# Safety-critical ACP routing (oompah-zlz_2-lfy)
+# ---------------------------------------------------------------------------
+
+def _make_profiles_with_acp_default() -> list[AgentProfile]:
+    """Profile set where ONLY the 'default' profile has mode='acp'.
+
+    Mirrors the trickle WORKFLOW.md setup that produced the live
+    incident on 2026-05-07: the safety-critical carve-out skipped
+    default_first_dispatch and routed trickle-6zi through the
+    api-mode 'standard' profile, which then hit token-rate-limit
+    cascades. With the lfy fix, carved-out beads should land on
+    the ACP-enabled 'default' profile instead.
+    """
+    return [
+        AgentProfile(
+            name="quick",
+            command="cli",
+            model_role="fast",
+            issue_types=["chore"],
+            keywords=["typo", "cleanup"],
+            max_priority=4,
+        ),
+        AgentProfile(
+            name="standard",
+            command="cli",
+            model_role="standard",
+            issue_types=["task", "feature"],
+        ),
+        AgentProfile(
+            name="deep",
+            command="cli",
+            model_role="deep",
+            issue_types=["bug", "epic"],
+            keywords=["security", "architecture", "refactor", "critical"],
+        ),
+        AgentProfile(
+            name="default",
+            command="cli",
+            model_role="fast",
+            mode="acp",
+        ),
+    ]
+
+
+def _make_profiles_all_acp() -> list[AgentProfile]:
+    """Profile set where every profile has mode='acp'.
+
+    Used to verify the carve-out is a no-op when the natural-resolved
+    profile already has mode=acp — the issue's "carve-out + ACP
+    natural → unchanged" regression case.
+    """
+    return [
+        AgentProfile(
+            name="default",
+            command="cli",
+            model_role="fast",
+            mode="acp",
+        ),
+        AgentProfile(
+            name="standard",
+            command="cli",
+            model_role="standard",
+            issue_types=["task", "feature"],
+            mode="acp",
+        ),
+        AgentProfile(
+            name="deep",
+            command="cli",
+            model_role="deep",
+            issue_types=["bug", "epic"],
+            keywords=["security", "critical"],
+            mode="acp",
+        ),
+    ]
+
+
+def _make_profiles_no_acp() -> list[AgentProfile]:
+    """Profile set with NO ACP profile at all.
+
+    The carve-out must fall through unchanged: no swap, no log line,
+    natural profile dispatches as before.
+    """
+    return [
+        AgentProfile(name="default", command="cli", model_role="fast"),
+        AgentProfile(
+            name="standard", command="cli", model_role="standard",
+            issue_types=["task", "feature"],
+        ),
+        AgentProfile(
+            name="deep", command="cli", model_role="deep",
+            issue_types=["bug", "epic"], keywords=["critical"],
+        ),
+    ]
+
+
+class TestFindAcpProfile:
+    """Unit tests for the _find_acp_profile() helper."""
+
+    def test_returns_default_when_default_is_acp(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.config.agent_profiles = _make_profiles_with_acp_default()
+        result = orch._find_acp_profile()
+        assert result is not None
+        assert result.name == "default"
+
+    def test_returns_first_acp_when_default_is_not_acp(self, tmp_path):
+        """When 'default' isn't ACP but another profile is, return that one."""
+        orch = _make_orchestrator(tmp_path)
+        orch.config.agent_profiles = [
+            AgentProfile(name="default", command="cli"),
+            AgentProfile(name="alt", command="cli", mode="acp"),
+            AgentProfile(name="other", command="cli", mode="acp"),
+        ]
+        result = orch._find_acp_profile()
+        assert result is not None
+        assert result.name == "alt"  # first ACP profile in declaration order
+
+    def test_returns_none_when_no_acp_profile(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.config.agent_profiles = _make_profiles_no_acp()
+        result = orch._find_acp_profile()
+        assert result is None
+
+    def test_returns_none_when_no_profiles(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.config.agent_profiles = []
+        result = orch._find_acp_profile()
+        assert result is None
+
+    def test_profile_is_acp_helper(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        assert Orchestrator._profile_is_acp(
+            AgentProfile(name="x", command="c", mode="acp")
+        ) is True
+        assert Orchestrator._profile_is_acp(
+            AgentProfile(name="x", command="c", mode="api")
+        ) is False
+        # Default value 'auto' is not ACP
+        assert Orchestrator._profile_is_acp(
+            AgentProfile(name="x", command="c")
+        ) is False
+        assert Orchestrator._profile_is_acp(None) is False
+        # Case insensitive (mode is normalized at config-load, but be
+        # defensive).
+        assert Orchestrator._profile_is_acp(
+            AgentProfile(name="x", command="c", mode="ACP")
+        ) is True
+
+
+class TestSafetyCriticalAcpRouting:
+    """Tests for the safety-critical ACP-routing carve-out (oompah-zlz_2-lfy).
+
+    Acceptance criteria:
+    - merge-conflict / ci-fix bead with non-ACP natural → ACP profile
+    - merge-conflict / ci-fix bead with ACP natural → unchanged
+    - non-carved-out bead → default_first_dispatch behavior preserved
+    - Telemetry: log line includes both ACP profile name AND natural profile name
+    """
+
+    def _make_orch_with_mocks(
+        self, tmp_path, default_first_dispatch: bool = True,
+        profiles: list[AgentProfile] | None = None,
+    ):
+        orch = _make_orchestrator(
+            tmp_path, default_first_dispatch=default_first_dispatch
+        )
+        if profiles is not None:
+            orch.config.agent_profiles = profiles
+        orch.tracker = MagicMock()
+        orch.tracker.update_issue = MagicMock()
+        orch.tracker.add_comment = MagicMock()
+        orch.tracker.fetch_issue_states_by_ids = MagicMock(return_value=[])
+        orch._tracker_for_issue = MagicMock(return_value=orch.tracker)
+        orch._post_comment = MagicMock()
+        orch._run_worker = AsyncMock()
+        return orch
+
+    def test_carve_out_with_non_acp_natural_swaps_to_acp(self, tmp_path):
+        """Live evidence case: trickle-6zi with label=ci-fix on a profile
+        set where only 'default' has mode=acp. Natural match for type=bug
+        is 'deep' (api mode); the lfy fix swaps to 'default' (acp).
+        """
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_with_acp_default(),
+        )
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI failures on PR #23",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        assert "default" in dispatched, (
+            "safety-critical bead with non-ACP natural profile was NOT "
+            "routed to the ACP profile — lfy fix didn't fire"
+        )
+        assert "deep" not in dispatched
+
+        # natural_profile_name preserved for telemetry / first-retry escalation
+        entry = orch.state.running.get(issue.id)
+        assert entry is not None
+        assert entry.agent_profile_name == "default"
+        assert entry.natural_profile_name == "deep"
+
+    def test_carve_out_with_merge_conflict_label(self, tmp_path):
+        """Same routing for the other carve-out trigger."""
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_with_acp_default(),
+        )
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["merge-conflict"],
+            description="Resolve merge conflicts on PR #16",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        assert "default" in dispatched
+        entry = orch.state.running.get(issue.id)
+        assert entry.natural_profile_name == "deep"
+
+    def test_carve_out_with_acp_natural_unchanged(self, tmp_path):
+        """Regression: when the natural-resolved profile is already ACP
+        (e.g. all profiles have mode=acp), the carve-out must NOT swap
+        to a different ACP profile. Otherwise we'd silently re-route
+        every safety-critical dispatch to whichever ACP profile sits
+        first — defeating per-issue model selection.
+        """
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_all_acp(),
+        )
+        # Natural match for type=bug is 'deep' (which already has mode=acp).
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI on PR #99",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        # Should dispatch on the natural ACP profile, NOT swap to 'default'
+        assert "deep" in dispatched
+        assert "default" not in dispatched
+
+        entry = orch.state.running.get(issue.id)
+        assert entry is not None
+        assert entry.agent_profile_name == "deep"
+        # No natural_profile_name pending — we already dispatched on the
+        # natural pick, no escalation jump is queued.
+        assert entry.natural_profile_name is None
+
+    def test_carve_out_with_no_acp_profile_falls_through(self, tmp_path):
+        """When no ACP profile is configured, the carve-out is a no-op:
+        the dispatch proceeds on the natural-resolved (non-ACP) profile.
+        Legacy / api-only deployments must continue to work.
+        """
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_no_acp(),
+        )
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI on PR #1",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        # Dispatches on the natural match for type=bug → 'deep'
+        assert "deep" in dispatched
+        entry = orch.state.running.get(issue.id)
+        assert entry.agent_profile_name == "deep"
+        # No swap happened, so natural_profile_name stays None
+        assert entry.natural_profile_name is None
+
+    def test_non_carved_out_bead_is_unaffected(self, tmp_path):
+        """A regular bug (no merge-conflict / ci-fix label) still uses
+        default_first_dispatch normally — the lfy fix only kicks in
+        for safety-critical beads.
+        """
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_with_acp_default(),
+        )
+        issue = _make_issue(
+            issue_type="bug",
+            description="Login fails for unicode passwords",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        # default_first_dispatch picks 'default' (the catch-all) and
+        # records 'deep' as the natural — same as before lfy.
+        assert "default" in dispatched
+        entry = orch.state.running.get(issue.id)
+        assert entry.agent_profile_name == "default"
+        assert entry.natural_profile_name == "deep"
+
+    def test_carve_out_logs_both_profile_names(self, tmp_path, caplog):
+        """Telemetry: the swap log line must include both the ACP profile
+        name AND the natural profile name so escalation history is
+        auditable. Mirrors the existing default_first_dispatch log shape.
+        """
+        import logging
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_with_acp_default(),
+        )
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI on PR #7",
+        )
+
+        with caplog.at_level(logging.INFO, logger="oompah.orchestrator"):
+            asyncio.run(orch._dispatch(issue, attempt=None))
+
+        msgs = [r.getMessage() for r in caplog.records]
+        swap_lines = [m for m in msgs if "safety_critical_acp_routing" in m]
+        assert swap_lines, (
+            "expected a 'safety_critical_acp_routing' INFO log when the "
+            "carve-out swap fires"
+        )
+        line = swap_lines[0]
+        assert "default" in line, "ACP profile name not in log"
+        assert "deep" in line, "natural profile name not in log"
+        assert "ci-fix" in line, "labels not in log (telemetry)"
+
+    def test_carve_out_skipped_when_default_first_dispatch_off(self, tmp_path):
+        """When default_first_dispatch is OFF entirely, the lfy fix
+        should still apply on first dispatch — the carve-out logic is
+        about safety-critical beads, not the default_first_dispatch
+        flag. Verify this regression: a flag=False operator should
+        still get ACP routing for ci-fix / merge-conflict beads.
+        """
+        orch = self._make_orch_with_mocks(
+            tmp_path,
+            default_first_dispatch=False,
+            profiles=_make_profiles_with_acp_default(),
+        )
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI on PR #11",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        # Even with flag=False, safety-critical beads route to ACP
+        assert "default" in dispatched
+        entry = orch.state.running.get(issue.id)
+        assert entry.agent_profile_name == "default"
+        assert entry.natural_profile_name == "deep"
+
+    def test_retry_does_not_swap_to_acp(self, tmp_path):
+        """A retry (attempt > 0 OR override_profile set) must NOT trigger
+        the safety-critical ACP swap. The escalation hierarchy decides
+        what to dispatch on retry, and we don't want to silently divert
+        the operator's escalation choice to the ACP profile.
+        """
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_with_acp_default(),
+        )
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI on PR #11",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        # Simulate a retry: override_profile=deep, attempt=1
+        asyncio.run(orch._dispatch(issue, attempt=1, override_profile="deep"))
+
+        # Should use the explicit override, not swap to 'default'
+        assert "deep" in dispatched
+        assert "default" not in dispatched
+
+    def test_explicit_handoff_label_skips_swap(self, tmp_path):
+        """needs:* label means explicit user routing — don't override it
+        with the ACP swap. The ACP carve-out only fires when no explicit
+        handoff is set.
+        """
+        orch = self._make_orch_with_mocks(
+            tmp_path, profiles=_make_profiles_with_acp_default(),
+        )
+        # needs:test label + ci-fix label
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix", "needs:test"],
+            description="CI failures",
+        )
+        dispatched = []
+
+        async def capture(issue, attempt, profile):
+            dispatched.append(profile.name if profile else None)
+
+        orch._run_worker = capture
+        asyncio.run(orch._dispatch(issue, attempt=None))
+
+        # needs:* wins → the natural deep profile, NOT the default ACP swap
+        assert "deep" in dispatched
+        assert "default" not in dispatched
+
+    def test_would_dispatch_via_acp_agrees_with_dispatch(self, tmp_path):
+        """The budget gate's ``_would_dispatch_via_acp`` must agree with
+        what ``_dispatch`` will actually choose. Otherwise an over-
+        budget orchestrator would reject a dispatch that would in fact
+        go through the subscription-billed ACP path.
+        """
+        orch = _make_orchestrator(tmp_path, default_first_dispatch=True)
+        orch.config.agent_profiles = _make_profiles_with_acp_default()
+
+        # Safety-critical bead whose natural profile (deep) is non-ACP.
+        # Dispatch will swap to 'default' (mode=acp), so the gate must
+        # report True.
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI on PR #2",
+        )
+        assert orch._would_dispatch_via_acp(issue) is True
+
+        # Non-safety-critical: no swap → natural is deep (api) → False
+        regular = _make_issue(
+            issue_type="bug",
+            description="Login fails for unicode passwords",
+        )
+        assert orch._would_dispatch_via_acp(regular) is False
+
+    def test_would_dispatch_via_acp_no_acp_profile(self, tmp_path):
+        """Without any ACP profile, even safety-critical beads return
+        False — there's no ACP path to bypass the budget through.
+        """
+        orch = _make_orchestrator(tmp_path)
+        orch.config.agent_profiles = _make_profiles_no_acp()
+        issue = _make_issue(
+            issue_type="bug",
+            labels=["ci-fix"],
+            description="Fix CI",
+        )
+        assert orch._would_dispatch_via_acp(issue) is False
