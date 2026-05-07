@@ -89,6 +89,11 @@ def _make_orch(tmp_path, projects=None):
 
 class TestProjectEpicStrategyField:
     def test_default_is_stacked(self):
+        # Default for newly-created Project objects is "stacked"
+        # (changed from "flat" so new projects get merge-train semantics
+        # out of the box; pre-existing projects on disk retain their value
+        # and from_dict still falls back to "flat" when the field is entirely
+        # missing from a pre-amd projects.json — see test_from_dict_back_compat_when_missing).
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
         assert p.epic_strategy == "stacked"
 
