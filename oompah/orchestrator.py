@@ -1329,7 +1329,7 @@ class Orchestrator:
         return epics_to_plan
 
     def _open_epic_main_prs(self, candidates: list[Issue]) -> int:
-        """Open epic→main PRs for stacked/shared epics whose children are
+        """Open epic completion PRs for stacked/shared epics whose children are
         all closed.
 
         Walks ``candidates`` looking for active epics on a project whose
@@ -1343,8 +1343,15 @@ class Orchestrator:
         * If a PR with source ``epic-<identifier>`` already exists, skip
           — idempotent.
         * Otherwise: push the epic branch and open a single
-          source=``epic-<identifier>``, base=``project.branch`` PR with
-          the epic's title and description.
+          source=``epic-<identifier>`` PR targeting the resolved branch:
+
+          - For top-level epics (no parent epic, or non-shared strategy):
+            targets ``project.branch`` (typically ``main``).
+          - For nested epics in ``shared`` mode (the epic itself has a
+            parent epic): targets the parent epic's branch. This creates
+            a multi-level merge chain where child epic B's PR targets
+            parent A's branch; A's PR targets main only when ALL of A's
+            direct children (including sub-epic B) are terminal.
 
         Returns the number of PRs opened.
         """
@@ -1413,6 +1420,11 @@ class Orchestrator:
                 )
                 continue
 
+            # Resolve the target branch: for nested epics in shared mode,
+            # the child epic's PR targets its parent's branch rather than main.
+            # For top-level epics (or non-shared strategies), targets project.branch.
+            target_branch = self._resolve_epic_target_branch(issue, project)
+
             title = (
                 f"{issue.identifier}: {issue.title}"
                 if issue.title else f"Epic {issue.identifier}"
@@ -1421,30 +1433,53 @@ class Orchestrator:
             try:
                 result = provider.create_review(
                     slug, title, epic_branch,
-                    target_branch=project.branch,
+                    target_branch=target_branch,
                     description=description,
                 )
             except Exception as exc:
                 logger.warning(
-                    "Failed to create epic→main PR for %s on %s: %s",
-                    issue.identifier, project.name, exc,
+                    "Failed to create epic PR for %s on %s (target=%s): %s",
+                    issue.identifier, project.name, target_branch, exc,
                 )
                 continue
 
             if result is None:
                 logger.warning(
-                    "Failed to create epic→main PR for %s on %s "
+                    "Failed to create epic PR for %s on %s (target=%s) "
                     "(provider returned None)",
-                    issue.identifier, project.name,
+                    issue.identifier, project.name, target_branch,
                 )
                 continue
 
             logger.info(
-                "Opened epic→main PR for %s on %s (review #%s, source=%s)",
-                issue.identifier, project.name, result.id, epic_branch,
+                "Opened epic PR for %s on %s (review #%s, source=%s, target=%s)",
+                issue.identifier, project.name, result.id, epic_branch, target_branch,
             )
             opened += 1
         return opened
+
+    def _resolve_epic_target_branch(self, epic: Issue, project) -> str:
+        """Resolve the target branch for an epic's completion PR.
+
+        For nested epics in ``shared`` mode: if ``epic`` has a parent epic P,
+        the completion PR should target P's branch (``epic-<P.identifier>``)
+        rather than ``main``. This gives Linux-kernel-style multi-level merge
+        trains where each sub-epic lands on its parent's branch before the
+        top-level epic lands on main.
+
+        For all other cases (top-level epic, non-shared mode, or no parent
+        epic), the PR targets ``project.branch`` (typically ``main``).
+
+        Only fires for ``epic_strategy='shared'`` — stacked mode is handled
+        differently (per-child PRs already target the parent's branch
+        directly, no "completion PR" intermediary is needed).
+        """
+        strategy = self._project_epic_strategy(epic.project_id)
+        if strategy == "shared":
+            parent_epic = self._resolve_parent_epic(epic)
+            if parent_epic is not None:
+                return self.project_store.epic_branch_name(parent_epic.identifier)
+        return project.branch
 
     def _push_epic_branch(self, project, epic_identifier: str) -> None:
         """Push the shared epic branch from the local repo to origin.
