@@ -421,7 +421,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="bug")
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -437,7 +437,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="bug")
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -479,7 +479,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="bug")
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -497,7 +497,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="bug", labels=["needs:test"])
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -515,7 +515,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="bug")
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -568,7 +568,7 @@ class TestDispatchWithDefaultFirstDispatch:
         issue = _make_issue(issue_type="epic")
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -597,7 +597,7 @@ class TestDispatchWithDefaultFirstDispatch:
         )
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -642,7 +642,7 @@ class TestDispatchWithDefaultFirstDispatch:
         )
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -669,7 +669,7 @@ class TestDispatchWithDefaultFirstDispatch:
         )
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -710,7 +710,7 @@ class TestDispatchWithDefaultFirstDispatch:
         )
         dispatched_profile = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched_profile.append(profile.name if profile else "none")
 
         orch._run_worker = capture
@@ -1156,7 +1156,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
@@ -1186,7 +1186,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
@@ -1214,7 +1214,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
@@ -1246,7 +1246,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
@@ -1273,7 +1273,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
@@ -1334,7 +1334,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
@@ -1362,7 +1362,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture
@@ -1389,7 +1389,7 @@ class TestSafetyCriticalAcpRouting:
         )
         dispatched = []
 
-        async def capture(issue, attempt, profile):
+        async def capture(issue, attempt, profile, **kwargs):
             dispatched.append(profile.name if profile else None)
 
         orch._run_worker = capture

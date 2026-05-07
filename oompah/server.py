@@ -28,7 +28,7 @@ from oompah.webhooks import (
 )
 from oompah.focus import (
     BUILTIN_FOCI, DEFAULT_FOCUS, Focus, FocusSuggestion,
-    load_foci, load_suggestions, save_foci, score_focus,
+    load_foci, load_suggestions, save_foci, score_focus, select_focus,
     update_suggestion_status,
 )
 from oompah.cache import TTLCache
@@ -1393,6 +1393,167 @@ async def api_update_focus_suggestion(name: str, request: Request):
         {"error": {"code": "not_found", "message": f"Suggestion '{name}' not found"}},
         status_code=404,
     )
+
+
+@app.post("/api/v1/agents/{identifier}/override-focus")
+async def api_override_focus(identifier: str, request: Request):
+    """Override the focus for a running agent.
+
+    Body: { "focus_name": "<string>", "reason": "<optional operator note>" }
+
+    1. Looks up running entry for identifier — 404 if not running.
+    2. Validates focus_name against known foci — 400 if unknown.
+    3. Kills the running agent.
+    4. Persists an override event to bd memories.
+    5. Re-dispatches the issue with override_focus set.
+    6. Returns 202 with expected re-dispatch info.
+    """
+    import json as _json
+    try:
+        orch = _get_orchestrator()
+        body = await request.json()
+        focus_name = (body.get("focus_name") or "").strip()
+        reason = (body.get("reason") or "").strip()
+
+        if not focus_name:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "focus_name is required"}},
+                status_code=400,
+            )
+
+        # 1. Find running entry
+        running_entry = None
+        running_issue_id = None
+        for issue_id, entry in list(orch.state.running.items()):
+            if entry.identifier == identifier:
+                running_entry = entry
+                running_issue_id = issue_id
+                break
+
+        if running_entry is None:
+            return JSONResponse(
+                {"error": {"code": "not_running", "message": "agent not running"}},
+                status_code=404,
+            )
+
+        # 2. Validate focus_name
+        all_foci = load_foci()
+        target_focus = next((f for f in all_foci if f.name == focus_name), None)
+        if target_focus is None:
+            known = [f.name for f in all_foci]
+            return JSONResponse(
+                {"error": {"code": "unknown_focus", "message": f"Unknown focus: {focus_name!r}. Known: {known}"}},
+                status_code=400,
+            )
+
+        # Capture issue + original focus info before killing
+        issue = running_entry.issue
+        original_focus_name = running_entry.focus_name or ""
+        original_focus_score = score_focus(select_focus(issue), issue) if issue else 0
+        original_focus_via = "llm"  # best-effort; exact via not stored in RunningEntry
+
+        # 3. Kill the running agent
+        await orch._terminate_running(running_issue_id, cleanup_workspace=False)
+
+        # 4. Persist override event
+        now_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        override_event = {
+            "issue_id": issue.identifier if issue else identifier,
+            "issue_title": issue.title if issue else "",
+            "issue_labels": list(issue.labels or []) if issue else [],
+            "issue_type": issue.issue_type if issue else "",
+            "issue_priority": issue.priority if issue else 0,
+            "original_focus": original_focus_name,
+            "original_focus_score": original_focus_score,
+            "original_focus_via": original_focus_via,
+            "override_focus": focus_name,
+            "operator_reason": reason,
+            "timestamp": now_ts,
+            "project_id": issue.project_id if issue else "",
+        }
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(
+            _api_thread_pool,
+            lambda: orch.persist_override_event(
+                override_event,
+                project_id=issue.project_id if issue else None,
+            ),
+        )
+
+        # 5. Re-dispatch with override_focus
+        await orch._dispatch(issue, attempt=None, override_focus=focus_name)
+
+        # 6. Return 202
+        return JSONResponse(
+            {
+                "ok": True,
+                "identifier": identifier,
+                "override_focus": focus_name,
+                "timestamp": now_ts,
+            },
+            status_code=202,
+        )
+    except RuntimeError as exc:
+        if "not initialized" in str(exc):
+            return JSONResponse({"error": {"code": "no_orchestrator", "message": str(exc)}}, status_code=503)
+        logger.error("Override focus error: %s", exc)
+        return JSONResponse({"error": {"code": "override_failed", "message": str(exc)}}, status_code=500)
+    except Exception as exc:
+        logger.error("Override focus error: %s", exc)
+        return JSONResponse({"error": {"code": "override_failed", "message": str(exc)}}, status_code=500)
+
+
+@app.get("/api/v1/foci/override-history")
+async def api_focus_override_history(project_id: str | None = None, limit: int = 50):
+    """Return persisted focus-override events, most recent first.
+
+    Query params:
+      project_id — filter to events for a specific project (optional)
+      limit      — max number of events to return (default 50)
+    """
+    import json as _json
+    from oompah.tracker import TrackerError
+    try:
+        orch = _get_orchestrator()
+        # Fetch memories from the appropriate tracker
+        if project_id:
+            try:
+                tracker = orch._tracker_for_project(project_id)
+            except Exception:
+                tracker = orch.tracker
+        else:
+            tracker = orch.tracker
+
+        try:
+            memories = tracker.fetch_memories()
+        except TrackerError:
+            memories = {}
+
+        # Filter to focus-override keys and parse JSON values
+        events = []
+        for key, value in memories.items():
+            if not key.startswith("focus-override-"):
+                continue
+            try:
+                event = _json.loads(value)
+                # If filtering by project_id, apply it
+                if project_id and event.get("project_id") != project_id:
+                    continue
+                events.append(event)
+            except (_json.JSONDecodeError, TypeError):
+                continue
+
+        # Sort most-recent first by timestamp
+        events.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+        return JSONResponse(events[:limit])
+    except RuntimeError as exc:
+        if "not initialized" in str(exc):
+            return JSONResponse({"error": {"code": "no_orchestrator", "message": str(exc)}}, status_code=503)
+        logger.error("Override history error: %s", exc)
+        return JSONResponse({"error": {"code": "history_failed", "message": str(exc)}}, status_code=500)
+    except Exception as exc:
+        logger.error("Override history error: %s", exc)
+        return JSONResponse({"error": {"code": "history_failed", "message": str(exc)}}, status_code=500)
 
 
 @app.get("/api/v1/budget")

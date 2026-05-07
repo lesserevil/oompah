@@ -3219,6 +3219,27 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
+    def persist_override_event(self, event: dict[str, Any], project_id: str | None = None) -> None:
+        """Persist a focus-override event via ``bd remember`` for cross-session audit.
+
+        Uses a stable key ``focus-override-<issue_id>-<timestamp>`` so
+        override events are individually addressable and queryable via
+        ``bd memories focus-override``.
+        """
+        import json as _json
+        issue_id = event.get("issue_id", "unknown")
+        timestamp = event.get("timestamp", datetime.now(timezone.utc).isoformat())
+        # Sanitize for a key: strip non-alphanumeric except dash
+        safe_ts = timestamp.replace(":", "").replace(".", "").replace("Z", "").replace("+", "")
+        key = f"focus-override-{issue_id}-{safe_ts}"
+        value = _json.dumps(event)
+        try:
+            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            tracker._run_bd(["remember", value, f"--key={key}"])
+            logger.info("Persisted focus override event key=%s", key)
+        except Exception as exc:
+            logger.warning("Failed to persist focus override event: %s", exc)
+
     # ------------------------------------------------------------------
     # Per-task cost telemetry
     # ------------------------------------------------------------------
@@ -3592,7 +3613,8 @@ class Orchestrator:
         return None
 
     async def _dispatch(self, issue: Issue, attempt: int | None,
-                        override_profile: str | None = None) -> None:
+                        override_profile: str | None = None,
+                        override_focus: str | None = None) -> None:
         """Dispatch a worker for an issue."""
         # Belt-and-suspenders: the regular dispatch loop already checks
         # _paused via _should_dispatch, but the retry path
@@ -3750,7 +3772,7 @@ class Orchestrator:
 
         now = datetime.now(timezone.utc)
         worker_task = asyncio.create_task(
-            self._run_worker(issue, attempt, profile),
+            self._run_worker(issue, attempt, profile, override_focus=override_focus),
             name=f"worker-{issue.identifier}",
         )
 
@@ -3785,7 +3807,8 @@ class Orchestrator:
         })
         self._notify_observers()
 
-    async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
+    async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None,
+                          override_focus: str | None = None) -> None:
         """Worker: create workspace, build prompt, run agent turns.
 
         Routing is keyed off ``profile.mode`` (default ``auto``):
@@ -3808,18 +3831,18 @@ class Orchestrator:
         mode = (profile.mode if profile else "auto").lower()
 
         if mode == "acp":
-            await self._run_acp_worker(issue, attempt, profile)
+            await self._run_acp_worker(issue, attempt, profile, override_focus=override_focus)
             return
 
         if mode == "cli":
-            await self._run_cli_worker(issue, attempt, profile)
+            await self._run_cli_worker(issue, attempt, profile, override_focus=override_focus)
             return
 
         # api or auto: prefer api when a provider resolves, else cli.
         if profile:
             provider = self._resolve_provider(profile)
             if provider:
-                await self._run_api_worker(issue, attempt, profile, provider)
+                await self._run_api_worker(issue, attempt, profile, provider, override_focus=override_focus)
                 return
             if mode == "api":
                 logger.warning(
@@ -3828,9 +3851,10 @@ class Orchestrator:
                     profile.name, issue.identifier,
                 )
 
-        await self._run_cli_worker(issue, attempt, profile)
+        await self._run_cli_worker(issue, attempt, profile, override_focus=override_focus)
 
-    async def _run_api_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile, provider) -> None:
+    async def _run_api_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile, provider,
+                               override_focus: str | None = None) -> None:
         """Worker using the OpenAI-compatible API agent."""
         exit_reason = "normal"
         error_msg = None
@@ -3841,7 +3865,22 @@ class Orchestrator:
         # docs/agentic-focus-triage.md. The async variant tries an LLM
         # call against the provider's default_model and falls back to
         # the deterministic scorer on any failure.
-        focus = await select_focus_async(issue, provider=provider)
+        if override_focus:
+            all_foci = load_foci()
+            focus = next((f for f in all_foci if f.name == override_focus), None)
+            if focus is None:
+                # Fallback: shouldn't happen if endpoint validated, but be safe
+                focus = await select_focus_async(issue, provider=provider)
+                logger.warning("override_focus=%r not found; fell back to triage for %s",
+                                override_focus, issue.identifier)
+            else:
+                original_focus = await select_focus_async(issue, provider=provider)
+                logger.info(
+                    "Focus overridden by operator for %s: %s (replaced triage pick %s)",
+                    issue.identifier, focus.name, original_focus.name,
+                )
+        else:
+            focus = await select_focus_async(issue, provider=provider)
         logger.info("Issue %s assigned focus: %s (%s)",
                     issue.identifier, focus.name, focus.role)
 
@@ -4110,6 +4149,7 @@ class Orchestrator:
 
     async def _run_acp_worker(
         self, issue: Issue, attempt: int | None, profile: AgentProfile,
+        override_focus: str | None = None,
     ) -> None:
         """Worker that drives the bundled ``claude`` CLI via the Claude
         Agent SDK so per-token costs bill against the operator's
@@ -4140,7 +4180,21 @@ class Orchestrator:
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
-        focus = await select_focus_async(issue, provider=None)
+        if override_focus:
+            all_foci = load_foci()
+            focus = next((f for f in all_foci if f.name == override_focus), None)
+            if focus is None:
+                focus = await select_focus_async(issue, provider=None)
+                logger.warning("override_focus=%r not found; fell back to triage for %s",
+                                override_focus, issue.identifier)
+            else:
+                original_focus = await select_focus_async(issue, provider=None)
+                logger.info(
+                    "Focus overridden by operator for %s: %s (replaced triage pick %s)",
+                    issue.identifier, focus.name, original_focus.name,
+                )
+        else:
+            focus = await select_focus_async(issue, provider=None)
         logger.info(
             "Issue %s assigned focus: %s (%s)",
             issue.identifier, focus.name, focus.role,
@@ -4462,7 +4516,8 @@ class Orchestrator:
                     pass
             await self._on_worker_exit(issue.id, exit_reason, error_msg)
 
-    async def _run_cli_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
+    async def _run_cli_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None,
+                               override_focus: str | None = None) -> None:
         """Worker using CLI subprocess (original behavior)."""
         exit_reason = "normal"
         error_msg = None
@@ -4510,7 +4565,21 @@ class Orchestrator:
                 current_issue = issue
 
                 # Select focus tailored to this issue
-                cli_focus = select_focus(issue)
+                if override_focus:
+                    all_foci = load_foci()
+                    cli_focus = next((f for f in all_foci if f.name == override_focus), None)
+                    if cli_focus is None:
+                        cli_focus = select_focus(issue)
+                        logger.warning("override_focus=%r not found; fell back to triage for %s",
+                                        override_focus, issue.identifier)
+                    else:
+                        original_cli_focus = select_focus(issue)
+                        logger.info(
+                            "Focus overridden by operator for %s: %s (replaced triage pick %s)",
+                            issue.identifier, cli_focus.name, original_cli_focus.name,
+                        )
+                else:
+                    cli_focus = select_focus(issue)
                 logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, cli_focus.name, cli_focus.role)
                 self._post_comment(issue.identifier, f"Focus: {cli_focus.role}",
                                    project_id=issue.project_id)

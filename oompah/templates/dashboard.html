@@ -2125,6 +2125,21 @@ async function openActivityPanel(identifier) {
   titleEl.textContent = title;
   titleEl.dataset.identifier = identifier;
   document.getElementById('activity-overlay').classList.add('open');
+
+  // Populate focus meta row
+  const metaEl = document.getElementById('activity-meta');
+  const focusNameEl = document.getElementById('activity-focus-name');
+  if (agent && agent.focus_name) {
+    focusNameEl.textContent = agent.focus_role || agent.focus_name;
+    metaEl.style.display = 'flex';
+    // Populate focus override dropdown
+    await _populateFocusOverrideSelect(identifier);
+  } else {
+    metaEl.style.display = 'none';
+  }
+  // Reset override UI state
+  cancelFocusOverride(null);
+
   await refreshActivity(identifier);
   // Only poll if WebSocket is not connected
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -2136,6 +2151,74 @@ function closeActivityPanel() {
   const el = document.getElementById('activity-overlay');
   if (el) el.classList.remove('open');
   if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
+  cancelFocusOverride(null);
+}
+
+async function _populateFocusOverrideSelect(identifier) {
+  const sel = document.getElementById('focus-override-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- select focus --</option>';
+  try {
+    const res = await fetch('/api/v1/foci');
+    if (!res.ok) return;
+    const foci = await res.json();
+    const active = foci.filter(f => f.status === 'active');
+    active.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.name;
+      opt.textContent = f.role || f.name;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+function toggleFocusOverride(e) {
+  if (e) e.preventDefault();
+  const controls = document.getElementById('focus-override-controls');
+  if (!controls) return;
+  const isVisible = controls.style.display === 'inline-flex';
+  controls.style.display = isVisible ? 'none' : 'inline-flex';
+  const toggle = document.getElementById('focus-override-toggle');
+  if (toggle) toggle.style.display = isVisible ? 'inline' : 'none';
+}
+
+function cancelFocusOverride(e) {
+  if (e) e.preventDefault();
+  const controls = document.getElementById('focus-override-controls');
+  if (controls) controls.style.display = 'none';
+  const toggle = document.getElementById('focus-override-toggle');
+  if (toggle) toggle.style.display = 'inline';
+}
+
+async function applyFocusOverride() {
+  const titleEl = document.getElementById('activity-title');
+  const identifier = titleEl ? titleEl.dataset.identifier : null;
+  if (!identifier) return;
+  const sel = document.getElementById('focus-override-select');
+  const focusName = sel ? sel.value : '';
+  if (!focusName) {
+    alert('Please select a focus first.');
+    return;
+  }
+  // Find the display name for confirmation
+  const optText = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : focusName;
+  const confirmed = confirm('Restart this agent on the ' + optText + ' focus? Current run will be terminated.');
+  if (!confirmed) return;
+  try {
+    const res = await fetch('/api/v1/agents/' + encodeURIComponent(identifier) + '/override-focus', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({focus_name: focusName}),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Override failed: ' + (data.error ? data.error.message : res.status));
+      return;
+    }
+    closeActivityPanel();
+  } catch(e) {
+    alert('Override request failed: ' + e);
+  }
 }
 
 function renderActivityEntry(a) {
@@ -2700,6 +2783,19 @@ connectWebSocket();
     <div class="activity-header">
       <h3 id="activity-title">Agent Activity</h3>
       <button onclick="closeActivityPanel()">&times;</button>
+    </div>
+    <div class="activity-meta" id="activity-meta" style="display:none; padding: 0.6rem 1.25rem; border-bottom: 1px solid var(--border); font-size: 0.78rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+      <span style="color: var(--text-muted);">Focus:</span>
+      <span id="activity-focus-name" style="color: var(--accent); font-weight: 600;"></span>
+      <span id="focus-override-section" style="display:inline-flex; align-items:center; gap:0.4rem; margin-left:0.5rem;">
+        <a href="#" id="focus-override-toggle" onclick="toggleFocusOverride(event)" style="color: var(--text-muted); font-size: 0.72rem; text-decoration: underline;">Override</a>
+        <span id="focus-override-controls" style="display:none; align-items:center; gap:0.35rem;">
+          <select id="focus-override-select" style="font-size:0.75rem; background: var(--surface-2, #1c2128); color: var(--text); border: 1px solid var(--border); border-radius:4px; padding:2px 4px;">
+          </select>
+          <button id="focus-override-apply" onclick="applyFocusOverride()" style="font-size:0.72rem; padding:2px 8px; background:var(--accent); color:#fff; border:none; border-radius:4px; cursor:pointer;">Apply</button>
+          <a href="#" onclick="cancelFocusOverride(event)" style="color:var(--text-muted); font-size:0.72rem; text-decoration:underline;">Cancel</a>
+        </span>
+      </span>
     </div>
     <div class="activity-body" id="activity-body">
       <div style="color: var(--text-muted); text-align: center; padding: 2rem;">Loading...</div>
