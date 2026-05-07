@@ -657,6 +657,90 @@ class TestYoloEnqueueMode:
         provider.enable_auto_merge.assert_not_called()
         provider.merge_review.assert_not_called()
 
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_auto_merge_enabled_failed_ci_dispatches_retry_ci(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """A PR with auto_merge_enabled=True AND ci_status='failed' must
+        dispatch a ci-fix agent — NOT be skipped by the
+        auto_merge_enabled idempotency guard. GitHub's auto-merge means
+        "merge when ready" — a PR with failing CI will never become
+        ready on its own. Without this dispatch, YOLO silently sits on
+        a failing auto-merge-enabled PR forever.
+        (oompah-zlz_2-wjz — fixes regression of oompah-zlz_2-btf.1)"""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_retry_ci = MagicMock()
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "44",
+                    ci_status="failed",
+                    auto_merge_enabled=True,
+                    has_conflicts=False,
+                )
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # MUST dispatch a ci-fix agent so the failing tests get fixed;
+        # MUST NOT call enable_auto_merge or merge_review (already
+        # enqueued, can't merge a failing PR), MUST NOT dispatch
+        # conflict agent (no conflicts).
+        orch._yolo_retry_ci.assert_called_once()
+        assert orch._yolo_retry_ci.call_args[0][0] is project
+        assert orch._yolo_retry_ci.call_args[0][1].id == "44"
+        orch._yolo_notify_conflict.assert_not_called()
+        provider.enable_auto_merge.assert_not_called()
+        provider.merge_review.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_auto_merge_enabled_passed_ci_no_extra_enqueue_call(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Regression: an auto-merge-enabled PR with ci_status='passed'
+        must remain silently skipped — the idempotency guard from
+        btf.1 must still fire for the common-case where GitHub's
+        merge queue is genuinely handling the PR. (oompah-zlz_2-wjz
+        scope check)"""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_retry_ci = MagicMock()
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "45",
+                    ci_status="passed",
+                    auto_merge_enabled=True,
+                    has_conflicts=False,
+                )
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # No extra GraphQL enable_auto_merge call, no merge_review,
+        # no ci-fix dispatch, no conflict dispatch — pure idempotency.
+        provider.enable_auto_merge.assert_not_called()
+        provider.merge_review.assert_not_called()
+        orch._yolo_retry_ci.assert_not_called()
+        orch._yolo_notify_conflict.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # YOLO merge-failure classifier (oompah-zlz_2-btf.2)

@@ -2116,25 +2116,36 @@ class Orchestrator:
                     self._yolo_notify_conflict(project, provider, slug, review_id)
                     continue
 
-                # Idempotency guard: if GitHub auto-merge is already
-                # enabled on this PR, the merge queue is handling it.
-                # Don't re-dispatch the GraphQL mutation every tick — at
-                # best it's a no-op API call, at worst a future API
-                # version could double-enqueue or revoke the existing
-                # auto-merge. (oompah-zlz_2-btf.1)
-                if getattr(review, "auto_merge_enabled", False):
-                    logger.debug(
-                        "YOLO: %s MR #%s already enqueued (auto_merge_enabled=true) — skipping",
-                        project.name, review_id,
-                    )
-                    continue
-
+                # CI-failure check BEFORE the auto_merge_enabled
+                # idempotency guard. `auto_merge_enabled=True` means
+                # GitHub will merge the PR "when it's ready" — it stays
+                # True even when CI is currently failing. GitHub will
+                # never make the PR ready on its own in that case, and
+                # a failing PR with auto_merge requested is exactly the
+                # scenario that needs a ci-fix agent. Without this
+                # ordering, btf.1's idempotency skip silently swallows
+                # all ci_status=='failed' dispatches for the
+                # auto_merge_enabled subset. (oompah-zlz_2-wjz)
                 if review.ci_status == "failed":
                     logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
                                 project.name, review_id)
                     self._yolo_retry_ci(project, review)
                     # Serialization: only one action per project per tick.
                     break
+
+                # Idempotency guard: if GitHub auto-merge is already
+                # enabled on this PR AND CI is not failing, the merge
+                # queue is handling it. Don't re-dispatch the GraphQL
+                # mutation every tick — at best it's a no-op API call,
+                # at worst a future API version could double-enqueue or
+                # revoke the existing auto-merge. (oompah-zlz_2-btf.1,
+                # scope refined by oompah-zlz_2-wjz)
+                if getattr(review, "auto_merge_enabled", False):
+                    logger.debug(
+                        "YOLO: %s MR #%s already enqueued (auto_merge_enabled=true) — skipping",
+                        project.name, review_id,
+                    )
+                    continue
 
                 # Merge (or enqueue) if CI passed or if there's no CI pipeline (empty status)
                 ci_ok = review.ci_status in ("passed", "", None)
