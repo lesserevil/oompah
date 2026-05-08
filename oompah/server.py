@@ -57,6 +57,30 @@ def _load_template(name: str) -> str:
 
 app = FastAPI(title="oompah", version="0.1.0")
 
+# Serve static assets (favicon, etc.) from oompah/static/
+from fastapi.staticfiles import StaticFiles
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+if _STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/favicon.ico")
+@app.get("/favicon.svg")
+async def favicon():
+    """Serve the SVG favicon at both /favicon.ico and /favicon.svg.
+
+    Browsers request /favicon.ico by default; modern browsers will accept
+    an SVG response there as long as the Content-Type is correct.
+    """
+    fav = _STATIC_DIR / "favicon.svg"
+    if not fav.is_file():
+        return Response(status_code=404)
+    return Response(
+        content=fav.read_bytes(),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
 # Global provider store
 _provider_store = ProviderStore()
 
