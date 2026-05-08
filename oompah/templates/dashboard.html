@@ -1501,8 +1501,16 @@ function _computeInFlightShowSet(allIssues) {
 }
 
 // Strip beads that aren't part of any in-flight tree from a grouped
-// {state: [issues]} payload. Mutates a shallow copy of `data` and
-// updates _hideMergedHiddenCount.
+// {state: [issues]} payload — but ONLY from the 'closed' column.
+// Open/in_progress/deferred columns ALWAYS pass through unchanged so the
+// operator never loses backlog visibility. The toggle's job is to declutter
+// the wall of done work in the closed column (which can balloon to 400+
+// entries), not to mask active work.
+//
+// The hidden-count label only reflects hidden CLOSED beads. We still need
+// _computeInFlightShowSet over the full (project-filtered) tree because the
+// closed-column decision depends on epic-subtree visibility (closed beads
+// stay visible if any ancestor epic has an in-flight subtree).
 function applyHideMergedFilter(data) {
   if (!isHideMergedOn()) {
     _hideMergedHiddenCount = 0;
@@ -1516,6 +1524,12 @@ function applyHideMergedFilter(data) {
   let hidden = 0;
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
+    // Only filter the closed column. Other columns pass through unchanged so
+    // backlog (deferred) and active work (open/in_progress) are always visible.
+    if (state.toLowerCase() !== 'closed') {
+      filtered[state] = issues;
+      continue;
+    }
     const kept = [];
     for (const issue of issues) {
       if (showSet.has(issue.id)) kept.push(issue);
