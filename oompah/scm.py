@@ -12,6 +12,7 @@ import logging
 import os
 import subprocess
 import threading
+import time
 import urllib.parse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -203,6 +204,28 @@ def _resolve_gitlab_token(hostname: str = "gitlab.com") -> str | None:
     return None
 
 
+def _read_pr_detail_cache_ttl() -> float:
+    """Read OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS env var, default 60s.
+
+    The TTL bounds how long a cache entry can survive without being
+    re-fetched, even if its (head_sha, updated_at) key still matches
+    the LIST view. See ``GitHubProvider._pr_detail_cache`` for the
+    rationale (oompah-zlz_2-1of).
+
+    Non-positive or unparseable values fall back to the 60s default.
+    """
+    raw = os.environ.get("OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS")
+    if raw is None:
+        return 60.0
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 60.0
+    if value <= 0:
+        return 60.0
+    return value
+
+
 class GitHubProvider(SCMProvider):
     """GitHub implementation using the REST API via httpx."""
 
@@ -217,15 +240,27 @@ class GitHubProvider(SCMProvider):
     # ``head.sha`` or ``updated_at`` on the cheap LIST endpoint.
     #
     # Key   : (repo_full_name, pr_num_str)
-    # Value : (head_sha, updated_at, mergeable, mergeable_state_raw)
+    # Value : (head_sha, updated_at, mergeable, mergeable_state_raw,
+    #          entry_time_monotonic)
     #
     # ``mergeable`` is True/False/None (None = GitHub still computing).
     # ``mergeable_state_raw`` is GitHub's lower-case string ("clean",
     # "dirty", "behind", "blocked", "unknown", or "").
+    # ``entry_time_monotonic`` is ``time.monotonic()`` at write time and
+    # is consulted against ``_PR_DETAIL_CACHE_TTL_SECONDS`` for a TTL
+    # fallback (oompah-zlz_2-1of). The TTL exists because GitHub does
+    # NOT always bump ``updated_at`` when it asynchronously recomputes
+    # mergeable_state after a base-branch commit lands — a cached
+    # "clean" entry could otherwise survive forever even though the PR
+    # has gone DIRTY.
     _pr_detail_cache: dict[
-        tuple[str, str], tuple[str, str, bool | None, str]
+        tuple[str, str], tuple[str, str, bool | None, str, float]
     ] = {}
     _pr_detail_cache_lock: threading.Lock = threading.Lock()
+    # TTL fallback for cache freshness. Read once at class-definition
+    # time; tests override by assigning to the class attribute.
+    # Configurable via OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS env var.
+    _PR_DETAIL_CACHE_TTL_SECONDS: float = _read_pr_detail_cache_ttl()
 
     def __init__(self, access_token: str | None = None) -> None:
         # When an explicit token is provided (e.g. from project config), skip
@@ -617,10 +652,22 @@ class GitHubProvider(SCMProvider):
                 cached_detail: tuple[bool | None, str] | None = None
                 with self._pr_detail_cache_lock:
                     cached = self._pr_detail_cache.get(cache_key)
+                # TTL fallback (oompah-zlz_2-1of): even when the
+                # (head_sha, updated_at) key matches, force a re-fetch
+                # if the cache entry is older than
+                # ``_PR_DETAIL_CACHE_TTL_SECONDS``. GitHub recomputes
+                # mergeable_state asynchronously when the BASE branch
+                # moves and does NOT always bump the PR's ``updated_at``
+                # — without a TTL, an enqueued auto-merge PR can stay
+                # cached as ``mergeable_state='clean'`` indefinitely
+                # while GitHub's true state has flipped to DIRTY.
+                ttl = self._PR_DETAIL_CACHE_TTL_SECONDS
+                now_monotonic = time.monotonic()
                 if (
                     cached is not None
                     and cached[0] == list_head_sha
                     and cached[1] == list_updated_at
+                    and (now_monotonic - cached[4]) <= ttl
                 ):
                     cached_detail = (cached[2], cached[3])
 
@@ -648,6 +695,7 @@ class GitHubProvider(SCMProvider):
                                     list_updated_at,
                                     detail[0],
                                     detail[1] or "",
+                                    time.monotonic(),
                                 )
 
                 if detail is not None:

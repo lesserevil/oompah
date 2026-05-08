@@ -1,13 +1,61 @@
 """Tests for oompah.scm."""
 
+import os
+import time
+from unittest import mock
+
 from oompah.scm import (
     ReviewRequest,
+    _read_pr_detail_cache_ttl,
     _truncate,
     detect_provider,
     extract_repo_slug,
     GitHubProvider,
     GitLabProvider,
 )
+
+
+class TestReadPrDetailCacheTtl:
+    """``_read_pr_detail_cache_ttl()`` reads
+    ``OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS`` with a 60-second default and
+    falls back safely on bad values (oompah-zlz_2-1of)."""
+
+    def test_default_when_env_unset(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS", None)
+            assert _read_pr_detail_cache_ttl() == 60.0
+
+    def test_reads_env_var(self):
+        with mock.patch.dict(
+            os.environ, {"OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS": "30"}
+        ):
+            assert _read_pr_detail_cache_ttl() == 30.0
+
+    def test_accepts_floats(self):
+        with mock.patch.dict(
+            os.environ, {"OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS": "12.5"}
+        ):
+            assert _read_pr_detail_cache_ttl() == 12.5
+
+    def test_garbage_falls_back_to_default(self):
+        with mock.patch.dict(
+            os.environ, {"OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS": "not-a-number"}
+        ):
+            assert _read_pr_detail_cache_ttl() == 60.0
+
+    def test_zero_falls_back_to_default(self):
+        # A zero TTL would mean "never cache" — that's not a useful
+        # configuration; treat it as a misconfiguration.
+        with mock.patch.dict(
+            os.environ, {"OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS": "0"}
+        ):
+            assert _read_pr_detail_cache_ttl() == 60.0
+
+    def test_negative_falls_back_to_default(self):
+        with mock.patch.dict(
+            os.environ, {"OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS": "-5"}
+        ):
+            assert _read_pr_detail_cache_ttl() == 60.0
 
 
 class TestExtractRepoSlug:
@@ -1071,6 +1119,116 @@ class TestGitHubPRDetailCache:
             "updated_at change must invalidate cache"
         )
 
+    def test_cache_stale_by_ttl_triggers_refetch(self):
+        """A cache entry whose (head_sha, updated_at) still matches but
+        whose ``entry_time`` is older than the TTL must trigger a
+        DETAIL re-fetch on the next tick. (Acceptance criterion for
+        oompah-zlz_2-1of: GitHub does NOT always bump ``updated_at``
+        when async-recomputing mergeable_state after a base-branch
+        commit, so the (head_sha, updated_at) key alone is not a
+        reliable freshness signal.)"""
+        pr = self._pr_payload(
+            number=11, head={"ref": "feat", "sha": "deadbeef"},
+            updated_at="2026-05-01T00:00:00Z",
+            mergeable=True, mergeable_state="clean",
+        )
+        current = {"11": pr}
+        detail_calls: list[str] = []
+        provider = self._make_provider(current, detail_calls)
+
+        # Tick 1 — populate cache.
+        provider.list_open_reviews("x/y")
+        assert len(detail_calls) == 1
+        assert ("x/y", "11") in GitHubProvider._pr_detail_cache
+
+        # Simulate the cache entry being older than the TTL by rewriting
+        # its entry_time backwards. (We do this rather than monkeypatch
+        # ``time.monotonic`` so the test is deterministic and fast.)
+        ttl = GitHubProvider._PR_DETAIL_CACHE_TTL_SECONDS
+        head_sha, updated_at, mergeable, state, _ = (
+            GitHubProvider._pr_detail_cache[("x/y", "11")]
+        )
+        GitHubProvider._pr_detail_cache[("x/y", "11")] = (
+            head_sha, updated_at, mergeable, state,
+            time.monotonic() - (ttl + 1.0),
+        )
+
+        # Now flip the live PR state to DIRTY without bumping
+        # head.sha or updated_at — exactly the case that motivates the
+        # TTL fallback (GitHub recomputed mergeable async after another
+        # PR landed on main).
+        current["11"] = self._pr_payload(
+            number=11, head={"ref": "feat", "sha": "deadbeef"},
+            updated_at="2026-05-01T00:00:00Z",
+            mergeable=False, mergeable_state="dirty",
+        )
+
+        # Tick 2 — cache must NOT be honored (stale by TTL) → refetch
+        # detects the new DIRTY state.
+        reviews = provider.list_open_reviews("x/y")
+        assert reviews[0].has_conflicts is True, (
+            "TTL-stale cache entry must be refetched and reflect the "
+            "new DIRTY state — that's the whole point of the fallback"
+        )
+        assert reviews[0].mergeable_state == "dirty"
+        assert len(detail_calls) == 2, (
+            "TTL expiry must trigger a DETAIL re-fetch even when the "
+            "(head_sha, updated_at) key matches"
+        )
+
+    def test_cache_fresh_within_ttl_still_hits(self):
+        """A cache entry whose key matches AND whose ``entry_time`` is
+        within the TTL window must still hit (no DETAIL fetch). This
+        guards against accidentally over-invalidating and undoing the
+        amortisation the cache exists for."""
+        pr = self._pr_payload(
+            number=11, head={"ref": "feat", "sha": "deadbeef"},
+            updated_at="2026-05-01T00:00:00Z",
+            mergeable=True, mergeable_state="clean",
+        )
+        current = {"11": pr}
+        detail_calls: list[str] = []
+        provider = self._make_provider(current, detail_calls)
+
+        # Tick 1 — populate cache.
+        provider.list_open_reviews("x/y")
+        assert len(detail_calls) == 1
+
+        # Tick 2 — same entry, well within the TTL — must be a hit.
+        provider.list_open_reviews("x/y")
+        assert len(detail_calls) == 1, (
+            "fresh entry under TTL must NOT trigger a DETAIL fetch"
+        )
+
+    def test_cache_ttl_configurable_via_class_attribute(self):
+        """``_PR_DETAIL_CACHE_TTL_SECONDS`` is a class attribute so
+        operators can tune it via the OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS
+        env var (read at import time) and tests can override it
+        in-process. Setting it to a tiny value forces every tick to
+        re-fetch."""
+        original_ttl = GitHubProvider._PR_DETAIL_CACHE_TTL_SECONDS
+        try:
+            GitHubProvider._PR_DETAIL_CACHE_TTL_SECONDS = 0.0001
+
+            pr = self._pr_payload(
+                number=11, mergeable=True, mergeable_state="clean",
+            )
+            detail_calls: list[str] = []
+            provider = self._make_provider({"11": pr}, detail_calls)
+
+            provider.list_open_reviews("x/y")
+            assert len(detail_calls) == 1
+
+            # Sleep slightly longer than the (tiny) TTL.
+            time.sleep(0.005)
+
+            provider.list_open_reviews("x/y")
+            assert len(detail_calls) == 2, (
+                "with a near-zero TTL every tick must re-fetch"
+            )
+        finally:
+            GitHubProvider._PR_DETAIL_CACHE_TTL_SECONDS = original_ttl
+
     def test_cache_eviction_on_pr_close(self):
         """When a PR drops out of the LIST response (closed/merged),
         its cache entry must be evicted so closed-then-reopened PRs
@@ -1113,8 +1271,11 @@ class TestGitHubPRDetailCache:
                                 mergeable_state="clean")
 
         # Pre-populate cache with an entry from a different repo.
+        # 5th tuple element is ``time.monotonic()`` for the TTL
+        # fallback (oompah-zlz_2-1of).
         GitHubProvider._pr_detail_cache[("other/repo", "99")] = (
             "deadbeef", "2026-05-01T00:00:00Z", True, "clean",
+            time.monotonic(),
         )
 
         detail_calls: list[str] = []
