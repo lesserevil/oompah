@@ -2293,6 +2293,11 @@ const _AGENT_LOG_METADATA_SUMMARY_PATTERNS = [
   // acp_result — anchored to whole-string so real model speech that
   // happens to start with one of these words isn't accidentally hidden
   /^(completed|success|in_progress|stop_sequence|max_turns|cancelled)(\s+\(error\))?(\s+cost=\$\d+(\.\d+)?)?$/,
+  // Raw event-name-as-summary entries from before kind_map's default
+  // was changed from 'message' to 'other'. Old entries fell through
+  // with kind='message' and summary equal to the literal event name
+  // (e.g. "acp_permission_grant"). Filter those out too.
+  /^acp_[a-z_]+$/,
 ];
 
 function _isMetadataMessage(a) {

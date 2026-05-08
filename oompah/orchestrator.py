@@ -4772,6 +4772,11 @@ class Orchestrator:
                 # readable speech only. Give them distinct kinds so the
                 # client allowlist can include 'message' alone and still
                 # show speech without the metadata noise.
+                #
+                # Default fallback must NOT be 'message' — any unmapped
+                # event would otherwise leak through the Verbose:OFF
+                # filter masquerading as model speech. 'other' is opaque
+                # to the filter (still visible in Verbose:ON).
                 kind_map = {
                     "acp_text": "message",
                     "acp_thinking": "thinking",
@@ -4779,11 +4784,13 @@ class Orchestrator:
                     "acp_tool_result": "tool_result",
                     "acp_session_start": "session",
                     "acp_result": "session",
+                    "acp_permission_grant": "permission",
+                    "acp_permission_deny": "permission",
                     "acp_assistant_error": "error",
                     "acp_session_error": "error",
                     "acp_turn_timeout": "error",
                 }
-                activity_kind = kind_map.get(ev.event, "message")
+                activity_kind = kind_map.get(ev.event, "other")
 
                 if ev.event == "acp_tool_use":
                     tool_name = payload.get("tool", "?")
