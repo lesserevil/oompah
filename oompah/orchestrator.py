@@ -4765,13 +4765,20 @@ class Orchestrator:
                 #    the UI already renders for api_agent runs. Keeping
                 #    the same kinds means no template changes needed.
                 payload = ev.payload or {}
+                # Only `acp_text` (actual model speech) maps to 'message'.
+                # Session start/result events are metadata-shaped (JSON-ish
+                # blobs in the detail field) and should NOT be hidden by
+                # the dashboard's Verbose:OFF filter that targets human-
+                # readable speech only. Give them distinct kinds so the
+                # client allowlist can include 'message' alone and still
+                # show speech without the metadata noise.
                 kind_map = {
                     "acp_text": "message",
                     "acp_thinking": "thinking",
                     "acp_tool_use": "tool_call",
                     "acp_tool_result": "tool_result",
-                    "acp_session_start": "message",
-                    "acp_result": "message",
+                    "acp_session_start": "session",
+                    "acp_result": "session",
                     "acp_assistant_error": "error",
                     "acp_session_error": "error",
                     "acp_turn_timeout": "error",
