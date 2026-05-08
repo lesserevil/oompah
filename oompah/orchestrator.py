@@ -44,6 +44,17 @@ from oompah.tracker import (
     TrackerTimeoutError,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
+from oompah.yolo_watchdog import (
+    CoverageRecord,
+    WatchdogPattern,
+    YoloActionRecord,
+    is_already_mergeable_error,
+    count_consecutive_already_mergeable,
+    make_action_history,
+    make_coverage_history,
+    run_all_detectors,
+    D4_ALREADY_MERGEABLE_THRESHOLD,
+)
 
 import json
 import os
@@ -269,6 +280,36 @@ class Orchestrator:
         # same orphan PR. Cleared when the review leaves the cache.
         # (oompah-zlz_2-975)
         self._yolo_orphan_recovery_beads: dict[tuple[str, str, str], str] = {}
+        # YOLO watchdog state (oompah-zlz_2-jg4) — see oompah/yolo_watchdog.py.
+        # _yolo_action_history: bounded deque of YoloActionRecord — every
+        # YOLO action attempt (success or failure) is appended here so
+        # detectors can scan for recurring patterns.
+        self._yolo_action_history = make_action_history()
+        # _yolo_coverage_history: bounded deque of CoverageRecord — one
+        # entry per (tick, project) capturing how many reviews the loop
+        # considered vs how many were available, for D2's starvation
+        # detector.
+        self._yolo_coverage_history = make_coverage_history()
+        # _yolo_watchdog_filed: idempotency map. Keyed on
+        # WatchdogPattern.pattern_key → identifier of the filed bead.
+        # Cleared per (project, review) when the PR's situation
+        # resolves (action succeeds or PR closes).
+        self._yolo_watchdog_filed: dict[str, str] = {}
+        # _yolo_watchdog_d2_warned: per-project set of pattern_keys
+        # we've already logged a D2 WARNING for in the current run of
+        # consecutive starved ticks. Cleared as soon as a project has a
+        # tick with full coverage. Prevents log spam on persistent
+        # starvation.
+        self._yolo_watchdog_d2_warned: set[str] = set()
+        # _yolo_tick_counter: monotonic per-process counter, incremented
+        # once per _yolo_review_actions_sync call. Detectors use this
+        # to determine "consecutive ticks" semantics.
+        self._yolo_tick_counter: int = 0
+        # _yolo_already_mergeable_switched: set of (project_id, review_id)
+        # for which the orchestrator has switched from enable_auto_merge
+        # to direct merge_review (D4 strategy switch). Cleared when the
+        # PR resolves (success or no longer in cache).
+        self._yolo_already_mergeable_switched: set[tuple[str, str]] = set()
         # Merged-branches cache: persists across ticks, invalidated by webhooks
         self._merged_branches_dirty: bool = True  # start dirty to force first fetch
 
@@ -2127,8 +2168,19 @@ class Orchestrator:
         all matching PRs in iteration order get acted on in a single tick.
         Serializing them caused starvation of older PRs when GitHub
         returned PRs in created_at DESC order (oompah-zlz_2-8b9).
+
+        **Watchdog (oompah-zlz_2-jg4)**: every action attempt (success
+        or failure) is recorded in ``self._yolo_action_history`` so the
+        watchdog detectors can identify recurring no-progress patterns
+        and file P0 escalation beads. Per-project loop-coverage stats
+        are recorded in ``self._yolo_coverage_history`` for D2.
         """
         reviews_cache = getattr(self, "_reviews_cache", {})
+        # Bump the tick counter once per call — detectors use it to
+        # determine "consecutive ticks" semantics.
+        self._yolo_tick_counter += 1
+        tick = self._yolo_tick_counter
+
         for project in self.project_store.list_all():
             if not project.yolo:
                 continue
@@ -2138,9 +2190,17 @@ class Orchestrator:
             slug = extract_repo_slug(project.repo_url)
             reviews = reviews_cache.get(project.id, [])
 
+            # Loop-coverage tracking for D2.
+            considered = 0
+            actions_fired = 0
+            considered_ids: set[str] = set()
+            non_draft_total = sum(1 for r in reviews if not r.draft)
+
             for review in reviews:
                 if review.draft:
                     continue
+                considered += 1
+                considered_ids.add(str(review.id))
                 review_id = review.id
 
                 # Conflict check FIRST — before the auto_merge_enabled
@@ -2155,6 +2215,11 @@ class Orchestrator:
                     logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
                                 project.name, review_id)
                     self._yolo_notify_conflict(project, provider, slug, review_id)
+                    self._record_yolo_action(
+                        project.id, str(review_id), "notify_conflict",
+                        "success", "", tick=tick,
+                    )
+                    actions_fired += 1
                     continue
 
                 # CI-failure check BEFORE the auto_merge_enabled
@@ -2171,6 +2236,11 @@ class Orchestrator:
                     logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
                                 project.name, review_id)
                     self._yolo_retry_ci(project, review)
+                    self._record_yolo_action(
+                        project.id, str(review_id), "retry_ci",
+                        "success", "", tick=tick,
+                    )
+                    actions_fired += 1
                     # ci-fix relabel is an idempotent tracker write — no
                     # reason to serialize across PRs in this tick.
                     # Using `break` here starves conflict-path and
@@ -2191,23 +2261,80 @@ class Orchestrator:
                         "YOLO: %s MR #%s already enqueued (auto_merge_enabled=true) — skipping",
                         project.name, review_id,
                     )
+                    # Treat "already enqueued" as a successful enqueue
+                    # outcome for watchdog purposes — clears any prior
+                    # consecutive-failure run and prevents D1 from
+                    # firing on PRs GitHub is already handling.
+                    self._record_yolo_action(
+                        project.id, str(review_id), "enqueue",
+                        "success", "", tick=tick,
+                    )
                     continue
 
                 # Merge (or enqueue) if CI passed or if there's no CI pipeline (empty status)
                 ci_ok = review.ci_status in ("passed", "", None)
                 if ci_ok and not review.needs_rebase:
                     merge_queue = getattr(project, "merge_queue_enabled", False)
-                    if merge_queue:
+                    # D4 strategy switch: if this PR has hit
+                    # "PR already mergeable" enough times, skip the
+                    # auto-merge attempt and try direct merge instead.
+                    # (oompah-zlz_2-jg4)
+                    switch_key = (project.id, str(review_id))
+                    use_direct_merge_fallback = (
+                        merge_queue and switch_key in self._yolo_already_mergeable_switched
+                    )
+                    if merge_queue and not use_direct_merge_fallback:
                         logger.info("YOLO: enqueued for merge %s MR #%s (ci=%s)",
                                     project.name, review_id, review.ci_status)
                         success, msg = provider.enable_auto_merge(slug, review_id)
                         if success:
                             logger.info("YOLO: enqueued %s MR #%s", project.name, review_id)
                             self._clear_repo_config_error(project.id, str(review_id))
+                            self._record_yolo_action(
+                                project.id, str(review_id), "enqueue",
+                                "success", "", tick=tick,
+                            )
+                            self._clear_already_mergeable_switch(project.id, str(review_id))
                         else:
+                            self._record_yolo_action(
+                                project.id, str(review_id), "enqueue",
+                                "failure", msg or "", tick=tick,
+                            )
+                            # D4: check whether to switch strategy now.
+                            self._maybe_switch_to_direct_merge(
+                                project.id, str(review_id),
+                            )
                             self._handle_yolo_merge_failure(
                                 project, provider, slug, review_id, msg,
                                 operation="enqueue",
+                            )
+                    elif use_direct_merge_fallback:
+                        logger.info(
+                            "YOLO: direct merge fallback (already-mergeable loop) on %s MR #%s",
+                            project.name, review_id,
+                        )
+                        success, msg = provider.merge_review(slug, review_id)
+                        if success:
+                            logger.info(
+                                "YOLO: direct-merge fallback succeeded for %s MR #%s",
+                                project.name, review_id,
+                            )
+                            self._clear_repo_config_error(project.id, str(review_id))
+                            self._record_yolo_action(
+                                project.id, str(review_id),
+                                "merge_after_already_mergeable",
+                                "success", "", tick=tick,
+                            )
+                            self._clear_already_mergeable_switch(project.id, str(review_id))
+                        else:
+                            self._record_yolo_action(
+                                project.id, str(review_id),
+                                "merge_after_already_mergeable",
+                                "failure", msg or "", tick=tick,
+                            )
+                            self._handle_yolo_merge_failure(
+                                project, provider, slug, review_id, msg,
+                                operation="merge",
                             )
                     else:
                         logger.info("YOLO: auto-merging %s MR #%s (ci=%s)",
@@ -2216,11 +2343,20 @@ class Orchestrator:
                         if success:
                             logger.info("YOLO: merged %s MR #%s", project.name, review_id)
                             self._clear_repo_config_error(project.id, str(review_id))
+                            self._record_yolo_action(
+                                project.id, str(review_id), "merge",
+                                "success", "", tick=tick,
+                            )
                         else:
+                            self._record_yolo_action(
+                                project.id, str(review_id), "merge",
+                                "failure", msg or "", tick=tick,
+                            )
                             self._handle_yolo_merge_failure(
                                 project, provider, slug, review_id, msg,
                                 operation="merge",
                             )
+                    actions_fired += 1
                     # Serialization: only one action per project per tick.
                     break
 
@@ -2229,10 +2365,34 @@ class Orchestrator:
                              project.name, review_id, review.source_branch,
                              review.ci_status, review.has_conflicts, review.needs_rebase)
 
+            # Per-project end-of-loop instrumentation (D2).
+            missing_ids = sorted({
+                str(r.id) for r in reviews
+                if not r.draft and str(r.id) not in considered_ids
+            })
+            logger.info(
+                "YOLO iteration: project=%s considered=%d/%d actions=%d",
+                project.name, considered, non_draft_total, actions_fired,
+            )
+            self._yolo_coverage_history.append(CoverageRecord(
+                tick=tick,
+                project_id=project.id,
+                considered=considered,
+                total=non_draft_total,
+                actions=actions_fired,
+                missing_review_ids=missing_ids,
+            ))
+
         # End-of-tick cleanup: drop tracked repo-config errors for any
         # PR that has disappeared from the per-tick reviews cache (PR
         # was merged, closed, or otherwise resolved).
         self._prune_stale_repo_config_errors(reviews_cache)
+        # Watchdog: clear cached watchdog-bead refs for PRs that are no
+        # longer in the cache (PR closed/merged) so future recurrences
+        # can re-file. Then run all detectors and file beads / log
+        # warnings as appropriate.
+        self._prune_stale_watchdog_state(reviews_cache)
+        self._run_yolo_watchdog(reviews_cache)
 
     def _handle_yolo_merge_failure(
         self, project, provider, slug: str, review_id, msg: str,
@@ -2328,6 +2488,296 @@ class Orchestrator:
         ]
         for k in stale_orphan:
             self._yolo_orphan_recovery_beads.pop(k, None)
+
+    # ------------------------------------------------------------------
+    # YOLO watchdog (oompah-zlz_2-jg4)
+    # ------------------------------------------------------------------
+
+    def _record_yolo_action(
+        self,
+        project_id: str,
+        review_id: str,
+        action_type: str,
+        outcome: str,
+        error_msg: str,
+        *,
+        tick: int,
+    ) -> None:
+        """Append a YoloActionRecord to the action history.
+
+        Called on every YOLO action attempt — success or failure.
+        Successful attempts implicitly clear D1's consecutive-failure
+        run for that (project, review, action) tuple.
+
+        Also clears any cached watchdog-bead reference for this
+        (project, review) on success: when a PR's situation resolves,
+        future recurrences should be able to re-file.
+        """
+        record = YoloActionRecord(
+            project_id=project_id,
+            review_id=review_id,
+            action_type=action_type,
+            outcome=outcome,
+            error_msg=error_msg,
+            tick=tick,
+            timestamp=time.time(),
+        )
+        self._yolo_action_history.append(record)
+        if outcome == "success":
+            self._clear_watchdog_filed_for_review(project_id, review_id)
+
+    def _clear_watchdog_filed_for_review(self, project_id: str, review_id: str) -> None:
+        """Drop watchdog-bead cache entries for one (project, review).
+
+        Called when an action on the PR succeeds — the PR has made
+        progress, so any prior watchdog beads were resolved (or will
+        be) and a future recurrence should re-file freshly.
+        """
+        keys_to_drop = [
+            k for k in self._yolo_watchdog_filed
+            if k.startswith(f"d1:{project_id}:{review_id}:")
+            or k == f"d4:{project_id}:{review_id}"
+            or k.startswith(f"d3:{project_id}:{review_id}:")
+        ]
+        for k in keys_to_drop:
+            self._yolo_watchdog_filed.pop(k, None)
+
+    def _maybe_switch_to_direct_merge(self, project_id: str, review_id: str) -> None:
+        """D4: switch strategy from auto-merge to direct merge.
+
+        Called after an enqueue failure. If the consecutive
+        "PR already mergeable" failure run for this PR has reached
+        ``D4_ALREADY_MERGEABLE_THRESHOLD``, mark the PR for
+        direct-merge fallback on subsequent ticks.
+        """
+        run = count_consecutive_already_mergeable(
+            self._yolo_action_history, project_id, review_id,
+            action_type="enqueue",
+        )
+        if run >= D4_ALREADY_MERGEABLE_THRESHOLD:
+            key = (project_id, review_id)
+            if key not in self._yolo_already_mergeable_switched:
+                self._yolo_already_mergeable_switched.add(key)
+                logger.warning(
+                    "YOLO watchdog: switching to direct-merge fallback for "
+                    "%s MR #%s after %d consecutive 'already mergeable' "
+                    "failures",
+                    project_id, review_id, run,
+                )
+
+    def _clear_already_mergeable_switch(self, project_id: str, review_id: str) -> None:
+        """Clear D4 strategy-switch state on a successful action."""
+        self._yolo_already_mergeable_switched.discard((project_id, review_id))
+
+    def _prune_stale_watchdog_state(self, reviews_cache: dict) -> None:
+        """Drop watchdog state for PRs that have left the cache.
+
+        When a PR closes/merges and disappears from the cache:
+        * Drop strategy-switch flags so future recurrences re-evaluate.
+        * Drop filed-watchdog-bead refs so future recurrences re-file.
+        * Drop the PR's action history entries so detectors don't keep
+          re-firing on a closed PR's stale failure run.
+        * Drop d2-warned project keys when a project no longer has
+          starvation (handled in the warning emission).
+        """
+        live_pairs: set[tuple[str, str]] = set()
+        for project_id, reviews in reviews_cache.items():
+            for r in reviews or []:
+                live_pairs.add((project_id, str(r.id)))
+
+        stale_switches = [
+            k for k in self._yolo_already_mergeable_switched
+            if k not in live_pairs
+        ]
+        for k in stale_switches:
+            self._yolo_already_mergeable_switched.discard(k)
+
+        # Drop D1/D4 watchdog-bead refs for PRs no longer in cache.
+        # D2 keys are project-scoped and stay until the warning clears
+        # naturally on a coverage tick.
+        stale_filed: list[str] = []
+        for key in self._yolo_watchdog_filed:
+            if key.startswith("d2:"):
+                continue
+            # key format: "<detector>:<project_id>:<review_id>[:rest]"
+            parts = key.split(":", 3)
+            if len(parts) < 3:
+                continue
+            project_id, review_id = parts[1], parts[2]
+            if (project_id, review_id) not in live_pairs:
+                stale_filed.append(key)
+        for k in stale_filed:
+            self._yolo_watchdog_filed.pop(k, None)
+
+        # Drop action-history entries for PRs no longer in cache so
+        # detectors don't keep firing on a closed PR's stale run. The
+        # deque maxlen will eventually evict them, but explicit pruning
+        # here keeps the watchdog tight.
+        if self._yolo_action_history:
+            kept = [
+                r for r in self._yolo_action_history
+                if (r.project_id, r.review_id) in live_pairs
+            ]
+            if len(kept) != len(self._yolo_action_history):
+                self._yolo_action_history.clear()
+                self._yolo_action_history.extend(kept)
+
+    def _build_incoherent_prs_for_d3(self, reviews_cache: dict) -> list[dict]:
+        """Build the D3 incoherent-PR list for the watchdog.
+
+        For each PR in the cache:
+        * If has_conflicts=True or ci_status=='failed', verify a matching
+          recovery bead exists. If we previously filed an orphan-
+          recovery bead AND that bead is now closed AND the PR still
+          shows the failing condition, the bead-PR pair is incoherent.
+          Reset the orphan-recovery cache entry (so the next tick
+          re-files) and record an entry for the watchdog to escalate.
+        """
+        incoherent: list[dict] = []
+        for project in self.project_store.list_all():
+            reviews = reviews_cache.get(project.id, [])
+            try:
+                tracker = self._tracker_for_project(project.id)
+            except Exception:  # noqa: BLE001 — best-effort coherence check
+                continue
+            for review in reviews:
+                if review.draft:
+                    continue
+                review_id = str(review.id)
+                source_branch = review.source_branch or ""
+                if review.has_conflicts:
+                    kind = "merge-conflict"
+                elif review.ci_status == "failed":
+                    kind = "ci-fix"
+                else:
+                    continue
+                key = (project.id, review_id, kind)
+                bead_id = self._yolo_orphan_recovery_beads.get(key)
+                if not bead_id:
+                    # We haven't filed an orphan-recovery bead — the
+                    # standard YOLO path is responsible for handling
+                    # this PR. D3 only fires when a recovery bead WAS
+                    # filed but is now closed without resolving.
+                    continue
+                # Check: is the orphan-recovery bead still open?
+                try:
+                    issue = tracker.fetch_issue_detail(bead_id)
+                except Exception:  # noqa: BLE001
+                    continue
+                if not issue:
+                    # Bead disappeared entirely — reset the cache.
+                    self._yolo_orphan_recovery_beads.pop(key, None)
+                    incoherent.append({
+                        "project_id": project.id,
+                        "review_id": review_id,
+                        "kind": kind,
+                        "source_branch": source_branch,
+                        "reason": (
+                            f"recovery bead {bead_id} no longer exists; "
+                            "PR still in failing state"
+                        ),
+                    })
+                    continue
+                state_lower = issue.state.strip().lower()
+                terminal = {s.lower() for s in self.config.tracker_terminal_states}
+                if state_lower in terminal:
+                    # Bead closed but PR still failing — reset cache so
+                    # the next tick refiles a fresh recovery bead.
+                    self._yolo_orphan_recovery_beads.pop(key, None)
+                    incoherent.append({
+                        "project_id": project.id,
+                        "review_id": review_id,
+                        "kind": kind,
+                        "source_branch": source_branch,
+                        "reason": (
+                            f"recovery bead {bead_id} is closed (state={issue.state}) "
+                            f"but PR still has {kind} condition"
+                        ),
+                    })
+        return incoherent
+
+    def _run_yolo_watchdog(self, reviews_cache: dict) -> None:
+        """Run all detectors and file beads / log warnings."""
+        # Build helper lookup of project_id → name for nicer titles.
+        project_lookup = {}
+        try:
+            for p in self.project_store.list_all():
+                project_lookup[p.id] = p.name
+        except Exception:  # noqa: BLE001 — fallback to ids
+            pass
+
+        incoherent = self._build_incoherent_prs_for_d3(reviews_cache)
+
+        patterns = run_all_detectors(
+            history=list(self._yolo_action_history),
+            coverage_history=list(self._yolo_coverage_history),
+            incoherent_prs=incoherent,
+            project_lookup=project_lookup,
+        )
+
+        # Track which projects had a D2 hit this tick — used to clear
+        # the d2-warned flag on projects that recovered.
+        d2_hit_projects: set[str] = set()
+
+        for pattern in patterns:
+            if pattern.severity == "warning":
+                if pattern.detector == "d2":
+                    d2_hit_projects.add(pattern.project_id)
+                    if pattern.pattern_key not in self._yolo_watchdog_d2_warned:
+                        self._yolo_watchdog_d2_warned.add(pattern.pattern_key)
+                        logger.warning(
+                            "YOLO watchdog D2: %s\n%s",
+                            pattern.title, pattern.body,
+                        )
+                continue
+
+            # P0 bead-filing patterns (D1, D3, D4).
+            if pattern.pattern_key in self._yolo_watchdog_filed:
+                # Already filed for this pattern. Idempotent skip.
+                continue
+            try:
+                self._file_watchdog_bead(pattern)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "YOLO watchdog: failed to file bead for %s: %s",
+                    pattern.pattern_key, exc,
+                )
+
+        # Clear D2-warned flags for projects that didn't hit this tick —
+        # i.e. the starvation has resolved. A future recurrence will re-warn.
+        d2_keys_to_drop = [
+            k for k in self._yolo_watchdog_d2_warned
+            if k.startswith("d2:") and k not in {f"d2:{p}" for p in d2_hit_projects}
+        ]
+        for k in d2_keys_to_drop:
+            self._yolo_watchdog_d2_warned.discard(k)
+
+    def _file_watchdog_bead(self, pattern: WatchdogPattern) -> None:
+        """File a P0 bead for a watchdog pattern and stamp the idempotency cache."""
+        try:
+            tracker = self._tracker_for_project(pattern.project_id)
+        except ProjectError as exc:
+            logger.warning(
+                "YOLO watchdog: cannot get tracker for %s: %s",
+                pattern.project_id, exc,
+            )
+            return
+        labels = list(pattern.labels)
+        new_issue = tracker.create_issue(
+            title=pattern.title,
+            issue_type="task",
+            description=pattern.body,
+            priority=0,
+            labels=labels,
+            initial_status="open",
+        )
+        self._yolo_watchdog_filed[pattern.pattern_key] = new_issue.identifier
+        logger.error(
+            "YOLO watchdog: filed P0 bead %s for pattern %s "
+            "(project=%s review=%s detector=%s)",
+            new_issue.identifier, pattern.pattern_key,
+            pattern.project_id, pattern.review_id, pattern.detector,
+        )
 
     def _file_orphan_recovery_bead(
         self,

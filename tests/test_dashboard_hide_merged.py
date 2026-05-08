@@ -92,10 +92,11 @@ class TestToolbarUI:
 
     def test_toggle_label_starts_with_hide_merged_text(self, html: str):
         assert 'id="hide-merged-label"' in html
-        # The default text should follow the documented format
-        assert "Hide merged: ON (0 hidden)" in html or re.search(
-            r'id="hide-merged-label"[^>]*>\s*Hide merged:', html
-        ), "hide-merged-label span must show 'Hide merged: ...' default text"
+        # The default text should follow the documented format. The toggle
+        # was renamed "Hide merged" → "In-flight only" in commit 09d8b6d.
+        assert "In-flight only: ON (0 hidden)" in html or re.search(
+            r'id="hide-merged-label"[^>]*>\s*In-flight only:', html
+        ), "hide-merged-label span must show 'In-flight only: ...' default text"
 
     def test_toggle_lives_inside_toolbar(self, html: str):
         # Toolbar div precedes the toggle in the DOM
@@ -137,21 +138,28 @@ class TestFilterHelper:
         )
 
     def test_filter_checks_closed_state(self, script: str):
-        body = _extract_function(script, "isHiddenByMergedFilter")
+        # As of commit 09d8b6d, isHiddenByMergedFilter delegates to
+        # _isIndividuallyInFlight, which is where the closed-state check lives.
+        body = _extract_function(script, "_isIndividuallyInFlight")
         assert "'closed'" in body or '"closed"' in body, (
-            "isHiddenByMergedFilter must check state === 'closed'"
+            "_isIndividuallyInFlight must check state === 'closed'"
         )
 
     def test_filter_checks_merged_label(self, script: str):
-        body = _extract_function(script, "isHiddenByMergedFilter")
-        assert "'merged'" in body or '"merged"' in body, (
-            "isHiddenByMergedFilter must check labels for 'merged'"
+        # As of commit 09d8b6d, the filter no longer keys off the 'merged'
+        # label — it uses has_open_review on closed beads instead. Verify the
+        # in-flight predicate references has_open_review.
+        body = _extract_function(script, "_isIndividuallyInFlight")
+        assert "has_open_review" in body, (
+            "_isIndividuallyInFlight must check has_open_review for closed beads"
         )
 
     def test_filter_handles_missing_labels(self, script: str):
-        body = _extract_function(script, "isHiddenByMergedFilter")
-        assert re.search(r"labels\s*\|\|\s*\[\s*\]", body), (
-            "isHiddenByMergedFilter must guard against missing labels via '|| []'"
+        # As of commit 09d8b6d, the filter is state/has_open_review-based and
+        # does not consult labels. Guard against missing state instead.
+        body = _extract_function(script, "_isIndividuallyInFlight")
+        assert re.search(r"issue\.state\s*\|\|\s*['\"]\s*['\"]", body), (
+            "_isIndividuallyInFlight must guard against missing state via 'issue.state || \"\"'"
         )
 
     def test_apply_filter_short_circuits_when_off(self, script: str):
@@ -212,8 +220,8 @@ class TestCounter:
 
     def test_label_format(self, script: str):
         body = _extract_function(script, "setHideMergedLabel")
-        # Format: "Hide merged: <ON|OFF> (<N> hidden)"
-        assert "Hide merged:" in body, "Counter must use 'Hide merged:' prefix"
+        # Format: "In-flight only: <ON|OFF> (<N> hidden)" since commit 09d8b6d.
+        assert "In-flight only:" in body, "Counter must use 'In-flight only:' prefix"
         assert "hidden" in body, "Counter must contain the word 'hidden'"
 
     def test_label_contains_on_off_state(self, script: str):
