@@ -2280,14 +2280,37 @@ function closeActivityPanel() {
   _activityEntries = [];
 }
 
+// Patterns for entries we should hide even if kind='message' — these
+// are session-metadata events whose detail field is JSON. Old entries
+// (recorded before the orchestrator's kind_map was split into
+// 'session' / 'message' on 2026-05-08) have kind='message' for both
+// real model speech and session metadata; we filter on summary text
+// to catch them regardless. New entries use kind='session' and the
+// allowlist already excludes them.
+const _AGENT_LOG_METADATA_SUMMARY_PATTERNS = [
+  // acp_session_start
+  /^ACP session: model=/,
+  // acp_result — anchored to whole-string so real model speech that
+  // happens to start with one of these words isn't accidentally hidden
+  /^(completed|success|in_progress|stop_sequence|max_turns|cancelled)(\s+\(error\))?(\s+cost=\$\d+(\.\d+)?)?$/,
+];
+
+function _isMetadataMessage(a) {
+  const s = a.summary || '';
+  return _AGENT_LOG_METADATA_SUMMARY_PATTERNS.some(re => re.test(s));
+}
+
 function renderActivityEntry(a) {
   const summary = a.summary || '';
   const verbose = isAgentLogVerbose();
 
   if (!verbose) {
     // Compact mode: only message-kind entries appear, full text inline,
-    // no header pills, no expand/collapse.
+    // no header pills, no expand/collapse. Also reject 'message' entries
+    // whose summary matches metadata patterns (back-compat for entries
+    // recorded before the kind_map split).
     if (!_AGENT_LOG_MESSAGE_KINDS.includes(a.kind)) return null;
+    if (_isMetadataMessage(a)) return null;
     const detail = a.detail && a.detail.trim().length > 0 ? a.detail : '';
     // Prefer the longer of (detail, summary) so the operator sees the
     // full message — summary is truncated to 200 chars in oompah/api_agent.py.
