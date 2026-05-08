@@ -1399,46 +1399,108 @@ function toggleHideMerged() {
   if (boardData) renderBoard(boardData);
 }
 
-// Returns true when this issue should be hidden by the "In-flight only" toggle.
-// Filter rule: hide closed/deferred beads whose work is fully done.
-//   - Hide: state is closed AND no open PR (has_open_review=false) — work landed or abandoned
-//   - Hide: state is deferred — explicitly on hold, not in flight
-//   - Show: state is open or in_progress (active work, possibly pre-PR)
-//   - Show: state is closed AND has_open_review=true (PR still in queue/CI)
-function isHiddenByMergedFilter(issue) {
+// "In-flight" predicate for a single bead, judged on its own state alone:
+//   - state open or in_progress → in flight
+//   - state closed with has_open_review=true → in flight (PR queued/CI)
+//   - everything else (closed without PR, deferred, etc) → NOT in flight
+function _isIndividuallyInFlight(issue) {
   if (!issue) return false;
   const state = (issue.state || '').trim().toLowerCase();
-  if (state === 'open' || state === 'in_progress') return false;
-  if (state === 'closed') {
-    // Closed bead is "in flight" only if its PR is still open
-    return !issue.has_open_review;
-  }
-  // deferred / blocked / anything else terminal → hide
-  return true;
+  if (state === 'open' || state === 'in_progress') return true;
+  if (state === 'closed' && issue.has_open_review) return true;
+  return false;
 }
 
-// Strip closed+merged beads from a grouped {state: [issues]} payload.
-// Mutates a shallow copy of `data` and updates _hideMergedHiddenCount.
+// Compute the set of issue ids to KEEP under the "In-flight only" filter.
+// An id is kept if either:
+//   1. It's individually in flight (open/in_progress, or closed-with-open-PR), OR
+//   2. Any of its ancestors (parent epic, grandparent epic, ...) has an
+//      in-flight descendant somewhere in its subtree.
+// The second rule means: when an epic has any active work below it, show
+// the epic AND every descendant in its subtree, including children whose
+// own work is already merged. This preserves the "epic group" view.
+function _computeInFlightShowSet(allIssues) {
+  const byId = {};
+  const childrenById = {};
+  for (const i of allIssues) {
+    byId[i.id] = i;
+    if (i.parent_id) {
+      (childrenById[i.parent_id] = childrenById[i.parent_id] || []).push(i.id);
+    }
+  }
+  // Memoized "does this id's subtree (including itself) contain any
+  // individually-in-flight bead?"
+  const subtreeInFlight = Object.create(null);
+  function hasInFlightSubtree(id, stack) {
+    if (id in subtreeInFlight) return subtreeInFlight[id];
+    if (stack.has(id)) return false; // cycle guard
+    stack.add(id);
+    const issue = byId[id];
+    if (!issue) { subtreeInFlight[id] = false; stack.delete(id); return false; }
+    if (_isIndividuallyInFlight(issue)) {
+      subtreeInFlight[id] = true; stack.delete(id); return true;
+    }
+    for (const cid of (childrenById[id] || [])) {
+      if (hasInFlightSubtree(cid, stack)) {
+        subtreeInFlight[id] = true; stack.delete(id); return true;
+      }
+    }
+    subtreeInFlight[id] = false; stack.delete(id);
+    return false;
+  }
+  for (const id of Object.keys(byId)) hasInFlightSubtree(id, new Set());
+
+  const show = new Set();
+  for (const issue of allIssues) {
+    if (_isIndividuallyInFlight(issue)) {
+      show.add(issue.id);
+      continue;
+    }
+    // Walk up the parent chain; show if any ancestor has in-flight subtree
+    let cur = issue;
+    const seen = new Set();
+    while (cur && cur.parent_id && !seen.has(cur.parent_id)) {
+      seen.add(cur.parent_id);
+      if (subtreeInFlight[cur.parent_id]) { show.add(issue.id); break; }
+      cur = byId[cur.parent_id];
+    }
+  }
+  return show;
+}
+
+// Strip beads that aren't part of any in-flight tree from a grouped
+// {state: [issues]} payload. Mutates a shallow copy of `data` and
+// updates _hideMergedHiddenCount.
 function applyHideMergedFilter(data) {
   if (!isHideMergedOn()) {
     _hideMergedHiddenCount = 0;
     return data;
   }
+  // Flatten to compute the show-set across the entire (project-filtered) tree.
+  const allIssues = [];
+  for (const issues of Object.values(data)) for (const i of issues) allIssues.push(i);
+  const showSet = _computeInFlightShowSet(allIssues);
+
   let hidden = 0;
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
     const kept = [];
     for (const issue of issues) {
-      if (isHiddenByMergedFilter(issue)) {
-        hidden += 1;
-      } else {
-        kept.push(issue);
-      }
+      if (showSet.has(issue.id)) kept.push(issue);
+      else hidden += 1;
     }
     filtered[state] = kept;
   }
   _hideMergedHiddenCount = hidden;
   return filtered;
+}
+
+// Backwards-compatible alias used by other call sites that expect a
+// single-issue predicate. Note: this only checks the issue itself; it
+// does NOT consider epic-subtree visibility (use applyHideMergedFilter
+// for the full filter logic).
+function isHiddenByMergedFilter(issue) {
+  return !_isIndividuallyInFlight(issue);
 }
 
 function filterByProject(data) {
