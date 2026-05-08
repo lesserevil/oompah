@@ -463,10 +463,15 @@ class TestYoloEnqueueMode:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_queue_mode_serializes_one_action_per_tick(
+    def test_queue_mode_enqueues_all_qualified_prs_in_one_tick(
         self, mock_slug, mock_detect, tmp_path
     ):
-        """Queue mode also serializes to one action per project per tick."""
+        """Queue mode does NOT serialize: GitHub's merge queue handles
+        ordering, so all qualified CI-passed PRs get enqueued in one
+        YOLO tick. Previously (oompah-zlz_2-grw), the loop broke after
+        the first enqueue, forcing PRs to be enqueued one-per-tick which
+        also starved later conflict-path / ci-failed dispatches when an
+        enqueue failed. (oompah-zlz_2-grw — fix B)"""
         project = _make_project(merge_queue_enabled=True)
 
         provider = MagicMock()
@@ -485,8 +490,166 @@ class TestYoloEnqueueMode:
 
         orch._yolo_review_actions_sync()
 
-        assert provider.enable_auto_merge.call_count == 1
-        provider.enable_auto_merge.assert_called_once_with("org/repo", "1")
+        assert provider.enable_auto_merge.call_count == 3
+        provider.enable_auto_merge.assert_has_calls([
+            call("org/repo", "1"),
+            call("org/repo", "2"),
+            call("org/repo", "3"),
+        ])
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_failed_enqueue_does_not_starve_later_prs(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """A FAILED enqueue must NOT break the YOLO loop: subsequent
+        PRs in the iteration must still be checked (and conflict-path /
+        ci-failed dispatches must still fire for them).
+
+        Live evidence (2026-05-08): #59 ci=passed mergeable=CLEAN
+        enqueue→FAIL("Pull request is in clean status") starved #58
+        and #56 (has_conflicts=True) from ever reaching
+        _yolo_notify_conflict. (oompah-zlz_2-grw — fix A)"""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (
+            False,
+            "Auto-merge rejected (PR already mergeable): Pull request "
+            "is in clean status",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [
+                # First PR: enqueue will fail (transient).
+                _make_review("59", ci_status="passed"),
+                # Older PRs: have_conflicts=True — must reach
+                # _yolo_notify_conflict despite #59's failure.
+                _make_review("58", ci_status="passed", has_conflicts=True),
+                _make_review("56", ci_status="passed", has_conflicts=True),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # First PR was attempted (and failed).
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "59")
+        # BOTH older DIRTY PRs must reach the conflict-resolution path —
+        # this is the regression fix.
+        assert orch._yolo_notify_conflict.call_count == 2
+        conflict_ids = [c[0][3] for c in orch._yolo_notify_conflict.call_args_list]
+        assert conflict_ids == ["58", "56"]
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_queue_mode_failed_then_successful_enqueue_in_one_tick(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Two non-queued PRs (queue mode), first fails enqueue → second
+        still gets enqueued in the same tick. (oompah-zlz_2-grw — fix A
+        + fix B combined acceptance criterion)"""
+        project = _make_project(merge_queue_enabled=True)
+
+        provider = MagicMock()
+        # First call fails, second call succeeds.
+        provider.enable_auto_merge.side_effect = [
+            (False, "transient error"),
+            (True, "enqueued"),
+        ]
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("100", ci_status="passed"),
+                _make_review("101", ci_status="passed"),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # Both PRs attempted in the same tick — fix A (failed enqueue
+        # does not break) AND fix B (successful enqueue does not break).
+        assert provider.enable_auto_merge.call_count == 2
+        provider.enable_auto_merge.assert_has_calls([
+            call("org/repo", "100"),
+            call("org/repo", "101"),
+        ])
+        # Neither has_conflicts so no conflict notification.
+        orch._yolo_notify_conflict.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_direct_mode_successful_merge_still_breaks_loop(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Regression: in direct-merge mode (merge_queue_enabled=False),
+        a SUCCESSFUL merge MUST still break the loop — the target
+        branch changed and subsequent PRs need rebasing first. This
+        preserves the genuine race protection that fix B does NOT
+        relax. (oompah-zlz_2-grw acceptance criterion)"""
+        project = _make_project(merge_queue_enabled=False)
+
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("1", ci_status="passed"),
+                _make_review("2", ci_status="passed"),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # Only the FIRST PR gets merged this tick. The second PR will
+        # be picked up next tick after it rebases.
+        assert provider.merge_review.call_count == 1
+        provider.merge_review.assert_called_once_with("org/repo", "1")
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_direct_mode_failed_merge_does_not_starve_later_prs(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """In direct-merge mode, a FAILED merge does NOT change the
+        target branch and so MUST NOT break the loop — subsequent PRs
+        must still be checked, including conflict-path dispatches for
+        DIRTY older PRs. Same starvation pattern as queue mode.
+        (oompah-zlz_2-grw — fix A)"""
+        project = _make_project(merge_queue_enabled=False)
+
+        provider = MagicMock()
+        provider.merge_review.return_value = (False, "transient 502 Bad Gateway")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._reviews_cache = {
+            project.id: [
+                _make_review("70", ci_status="passed"),
+                _make_review("69", ci_status="passed", has_conflicts=True),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # Failed merge attempted on first PR.
+        provider.merge_review.assert_called_once_with("org/repo", "70")
+        # Older DIRTY PR still reaches conflict resolution.
+        orch._yolo_notify_conflict.assert_called_once_with(
+            project, provider, "org/repo", "69"
+        )
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
