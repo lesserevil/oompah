@@ -337,6 +337,7 @@ function renderProviders() {
       ` : '<div class="provider-detail" style="margin-top:0.3rem;">No models configured</div>'}
       <div class="provider-actions">
         <button onclick="editProvider('${esc(p.id)}')">Edit</button>
+        <button onclick="autoPopulateContexts('${esc(p.id)}', this)" title="Try the provider's /v1/models for max_model_len; fall back to OpenRouter">Auto-populate contexts</button>
         <button class="btn-danger" onclick="deleteProvider('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
       </div>
     </div>
@@ -405,6 +406,43 @@ function syncDefaultModelSelect(currentVal) {
   });
   if (currentVal && dialogModels.includes(currentVal)) {
     sel.value = currentVal;
+  }
+}
+
+async function autoPopulateContexts(providerId, btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Detecting…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/v1/providers/' + encodeURIComponent(providerId) + '/auto-populate-contexts', {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Error: ' + (data.error?.message || JSON.stringify(data)));
+      return;
+    }
+    const lines = [];
+    if ((data.resolved_via_upstream || []).length) {
+      lines.push('From provider /v1/models (max_model_len): ' + data.resolved_via_upstream.length);
+    }
+    if ((data.resolved_via_openrouter || []).length) {
+      lines.push('From OpenRouter catalog: ' + data.resolved_via_openrouter.length);
+    }
+    if ((data.preserved || []).length) {
+      lines.push('Preserved (already set): ' + data.preserved.length);
+    }
+    if ((data.unresolved || []).length) {
+      lines.push('Unresolved (set manually): ' + data.unresolved.join(', '));
+    }
+    alert(lines.length ? lines.join('\n') : 'No models to resolve.');
+    // Reload so the UI shows the new contexts
+    await loadProviders();
+  } catch (e) {
+    alert('Failed: ' + e.message);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
   }
 }
 

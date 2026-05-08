@@ -995,6 +995,222 @@ async def api_fetch_models(req: Request):
         return JSONResponse({"error": str(e), "models": []}, status_code=502)
 
 
+# Cache of OpenRouter's model catalog (id → context_length). Refreshed
+# at most once per process; the catalog is several hundred entries and
+# rarely changes within a single oompah session.
+_openrouter_context_cache: dict[str, int] | None = None
+
+
+def _fetch_openrouter_contexts() -> dict[str, int]:
+    """Fetch and cache OpenRouter's model catalog as {model_id: context_length}.
+
+    Used as the fallback path for context-size auto-population when a
+    provider's /v1/models response doesn't expose max_model_len. Returns
+    an empty dict on error (caller treats as "no fallback available").
+    """
+    global _openrouter_context_cache
+    if _openrouter_context_cache is not None:
+        return _openrouter_context_cache
+    import urllib.request, ssl
+    try:
+        rq = urllib.request.Request("https://openrouter.ai/api/v1/models")
+        rq.add_header("User-Agent", "oompah/0.1")
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(rq, timeout=10, context=ctx) as resp:
+            body = json.loads(resp.read().decode())
+        out: dict[str, int] = {}
+        for m in body.get("data") or []:
+            mid = m.get("id")
+            ctx_len = m.get("context_length")
+            if mid and isinstance(ctx_len, int) and ctx_len > 0:
+                out[mid] = ctx_len
+        _openrouter_context_cache = out
+        return out
+    except Exception:
+        _openrouter_context_cache = {}
+        return {}
+
+
+def _normalize_model_for_openrouter(model_id: str) -> list[str]:
+    """Return candidate keys to look up in OpenRouter's catalog.
+
+    Provider-specific model names sometimes differ from OpenRouter's
+    `vendor/model` namespace. Try a few normalizations: exact id,
+    bare model name (last path segment), and the bare name with common
+    vendor prefixes.
+    """
+    candidates = [model_id]
+    # Strip vendor prefix variants: "azure/anthropic/claude-sonnet-4-6" → also try "anthropic/claude-sonnet-4-6"
+    parts = model_id.split("/")
+    if len(parts) >= 2:
+        candidates.append("/".join(parts[-2:]))
+    if len(parts) >= 1:
+        candidates.append(parts[-1])
+    # de-dup, preserve order
+    seen: set[str] = set()
+    out: list[str] = []
+    for c in candidates:
+        if c and c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def _bare_model_key(name: str) -> str:
+    """Reduce a model id (full or bare) to a comparable key.
+
+    Strips vendor path prefix, lowercases, and normalizes dash/dot
+    variations in version numbers (``claude-sonnet-4-6`` →
+    ``claude.sonnet.4.6``). Used for fuzzy matching against
+    OpenRouter's catalog where the bare-name conventions diverge from
+    the upstream provider's (e.g., we use ``claude-sonnet-4-6``,
+    OpenRouter has ``anthropic/claude-sonnet-4.6``).
+    """
+    bare = name.split("/")[-1]
+    # Drop trailing :free or similar tags
+    bare = bare.split(":")[0]
+    return bare.replace("-", ".").lower()
+
+
+def _lookup_openrouter(model_id: str, openrouter: dict[str, int]) -> int | None:
+    """Best-effort match of a provider's model_id against OpenRouter's catalog.
+
+    Two passes:
+      1. Exact-key match against any path-stripped variant of model_id.
+      2. Fuzzy match: scan the catalog for any entry whose bare-name
+         (vendor stripped, dash↔dot normalized, lower-cased) equals
+         the target's bare-name. First match wins.
+
+    Returns the catalog entry's context_length, or None if no match.
+    """
+    # Pass 1: exact-key candidates
+    for key in _normalize_model_for_openrouter(model_id):
+        if key in openrouter:
+            return openrouter[key]
+    # Pass 2: fuzzy bare-name match
+    target = _bare_model_key(model_id)
+    for or_id, ctx in openrouter.items():
+        if _bare_model_key(or_id) == target:
+            return ctx
+    return None
+
+
+@app.post("/api/v1/providers/{provider_id}/auto-populate-contexts")
+async def api_auto_populate_contexts(provider_id: str):
+    """Auto-populate `model_contexts` for a provider.
+
+    Strategy per model:
+      1. Fetch the provider's own /v1/models endpoint and look for
+         `max_model_len` (vLLM-served openai-compatible endpoints
+         include this field per model entry).
+      2. On miss, fall back to OpenRouter's /api/v1/models catalog
+         (https://openrouter.ai/api/v1/models) and match by
+         normalized id.
+
+    Existing entries in `model_contexts` are preserved; this endpoint
+    only fills in missing entries (won't overwrite operator-set values).
+
+    Returns a summary including which models were resolved by each path
+    and which couldn't be resolved at all (operator must set those by
+    hand).
+    """
+    import asyncio, urllib.request, ssl
+
+    provider = _provider_store.get(provider_id)
+    if not provider:
+        return JSONResponse(
+            {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+            status_code=404,
+        )
+
+    base_url = (provider.base_url or "").rstrip("/")
+    api_key = provider.api_key or ""
+
+    # Step 1: pull /v1/models with full record (not just IDs) so we can read max_model_len
+    upstream_error: str | None = None
+
+    def _fetch_models() -> list[dict]:
+        nonlocal upstream_error
+        if not base_url:
+            upstream_error = "no base_url on provider"
+            return []
+        url = f"{base_url}/models"
+        rq = urllib.request.Request(url)
+        rq.add_header("User-Agent", "oompah/0.1")
+        if api_key:
+            rq.add_header("Authorization", f"Bearer {api_key}")
+        ctx = ssl.create_default_context()
+        try:
+            with urllib.request.urlopen(rq, timeout=10, context=ctx) as resp:
+                body = json.loads(resp.read().decode())
+        except Exception as exc:
+            upstream_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("auto-populate: upstream fetch %s failed: %s", url, exc)
+            return []
+        if isinstance(body, dict) and isinstance(body.get("data"), list):
+            return [m for m in body["data"] if isinstance(m, dict)]
+        if isinstance(body, list):
+            return [m for m in body if isinstance(m, dict)]
+        return []
+
+    upstream_models = await asyncio.to_thread(_fetch_models)
+    upstream_by_id = {m.get("id"): m for m in upstream_models if m.get("id")}
+    logger.info(
+        "auto-populate %s: upstream fetched %d model(s); error=%s",
+        provider_id, len(upstream_models), upstream_error,
+    )
+
+    openrouter = await asyncio.to_thread(_fetch_openrouter_contexts)
+
+    resolved_via_upstream: list[str] = []
+    resolved_via_openrouter: list[str] = []
+    unresolved: list[str] = []
+    preserved: list[str] = []
+
+    new_contexts: dict[str, int] = dict(provider.model_contexts or {})
+
+    for model_id in (provider.models or []):
+        if model_id in new_contexts and new_contexts[model_id] > 0:
+            preserved.append(model_id)
+            continue
+
+        # Step 1: upstream max_model_len
+        m = upstream_by_id.get(model_id) or {}
+        upstream_ctx = m.get("max_model_len")
+        if isinstance(upstream_ctx, int) and upstream_ctx > 0:
+            new_contexts[model_id] = upstream_ctx
+            resolved_via_upstream.append(model_id)
+            continue
+
+        # Step 2: openrouter (exact + fuzzy bare-name match)
+        found = _lookup_openrouter(model_id, openrouter)
+        if found:
+            new_contexts[model_id] = found
+            resolved_via_openrouter.append(model_id)
+            continue
+
+        unresolved.append(model_id)
+
+    # Persist
+    if new_contexts != (provider.model_contexts or {}):
+        _provider_store.update(provider_id, model_contexts=new_contexts)
+
+    return JSONResponse({
+        "ok": True,
+        "provider_id": provider_id,
+        "model_contexts": new_contexts,
+        "resolved_via_upstream": resolved_via_upstream,
+        "resolved_via_openrouter": resolved_via_openrouter,
+        "unresolved": unresolved,
+        "preserved": preserved,
+        "diagnostics": {
+            "upstream_models_fetched": len(upstream_models),
+            "upstream_error": upstream_error,
+            "openrouter_catalog_size": len(openrouter),
+        },
+    })
+
+
 # --- Project API ---
 
 
