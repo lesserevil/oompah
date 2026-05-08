@@ -138,6 +138,95 @@ class TestDeriveQueueStatusJS:
 
 
 # ---------------------------------------------------------------------------
+# (2b) Rule-level static checks (oompah-zlz_2-j5f)
+# ---------------------------------------------------------------------------
+
+
+class TestRule3IncludesBlocked:
+    """Static-pattern guards for the oompah-zlz_2-j5f fix.
+
+    Rule 3 in deriveQueueStatus must alias mergeable_state='blocked' to
+    'in queue' when auto_merge_enabled is True (the default state of a
+    queued PR while the queue processes its synthetic merge_group commit).
+
+    Rule 6 must NOT change: !auto_merge_enabled && blocked remains
+    'blocked: needs config' (the genuinely actionable case).
+    """
+
+    def test_rule3_condition_includes_blocked_keyword(self, html: str):
+        """The 'in queue' branch's condition must mention 'blocked' so
+        that auto_merge_enabled + mergeable_state=blocked -> in queue."""
+        # Find the function body so we don't accidentally pick up the
+        # rule-6 condition or unrelated CSS.
+        match = re.search(
+            r"function deriveQueueStatus\(.*?\)\s*\{(.*?)\n\}",
+            html, re.DOTALL,
+        )
+        assert match, "could not extract deriveQueueStatus() body"
+        body = match.group(1)
+
+        # Locate the rule-3 if-block: it returns the 'in queue' label.
+        # The condition contains nested parens
+        # `if (ame && (ms === 'clean' || ...))`, so we use a non-greedy
+        # `.*?` that explicitly allows parens up to the 'in queue' return.
+        rule3 = re.search(
+            r"if\s*\(\s*ame\s*&&.*?\}\s*;\s*\}",
+            body, re.DOTALL,
+        )
+        assert rule3, (
+            "rule 3 (the 'in queue' branch keyed on auto_merge_enabled) "
+            "could not be located in deriveQueueStatus()"
+        )
+        rule3_text = rule3.group(0)
+        assert "in queue" in rule3_text, (
+            "regex did not anchor on the 'in queue' branch — extracted "
+            f"text was:\n{rule3_text}"
+        )
+        assert "'blocked'" in rule3_text or '"blocked"' in rule3_text, (
+            "Rule 3 must include mergeable_state='blocked' as an alias for "
+            "'in queue' (oompah-zlz_2-j5f). Without this, queued PRs whose "
+            "GitHub-internal mergeable_state is 'blocked' render as the "
+            "misleading raw label 'blocked'."
+        )
+
+    def test_rule6_blocked_needs_config_unchanged(self, html: str):
+        """Rule 6 (the !ame blocked case) must remain the actionable
+        'blocked: needs config' label — that surface area is operator-fix
+        territory (allow_auto_merge off, missing required check, etc.)."""
+        match = re.search(
+            r"function deriveQueueStatus\(.*?\)\s*\{(.*?)\n\}",
+            html, re.DOTALL,
+        )
+        body = match.group(1)
+        rule6 = re.search(
+            r"if\s*\(\s*!ame\s*&&\s*ms\s*===\s*['\"]blocked['\"]\s*\)\s*\{[^}]*label:\s*['\"]blocked: needs config['\"]",
+            body, re.DOTALL,
+        )
+        assert rule6, (
+            "rule 6 (!auto_merge_enabled && mergeable_state==='blocked' -> "
+            "'blocked: needs config') must remain in deriveQueueStatus() — "
+            "this is the legitimately actionable case for operators."
+        )
+
+    def test_rule3_and_rule6_together_disambiguate_blocked(self, html: str):
+        """Cross-check: 'blocked' must appear in BOTH rule 3 (ame branch,
+        aliased to 'in queue') AND rule 6 (!ame branch, 'blocked: needs
+        config'). Either alone would cause regressions."""
+        match = re.search(
+            r"function deriveQueueStatus\(.*?\)\s*\{(.*?)\n\}",
+            html, re.DOTALL,
+        )
+        body = match.group(1)
+
+        # Two distinct quoted-blocked occurrences inside the function body.
+        blocked_hits = re.findall(r"ms\s*===\s*['\"]blocked['\"]", body)
+        assert len(blocked_hits) >= 2, (
+            f"deriveQueueStatus() should test ms==='blocked' in both rule 3 "
+            f"(ame branch) and rule 6 (!ame branch); found {len(blocked_hits)}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # (3) Sort selector wired into the template
 # ---------------------------------------------------------------------------
 
@@ -201,10 +290,19 @@ _CASES = [
     ({"auto_merge_enabled": True, "mergeable_state": "clean"}, "in queue"),
     ({"auto_merge_enabled": True, "mergeable_state": "behind"}, "in queue"),
     ({"auto_merge_enabled": True, "mergeable_state": ""}, "in queue"),
+    ({"auto_merge_enabled": True, "mergeable_state": "unknown"}, "in queue"),
+    # oompah-zlz_2-j5f: a queued PR's default mergeable_state is 'blocked'
+    # ("you can't directly merge — the queue is handling it"). It must
+    # render as 'in queue', NOT as the actionable 'blocked: needs config'.
+    ({"auto_merge_enabled": True, "mergeable_state": "blocked"}, "in queue"),
     ({"auto_merge_enabled": False, "mergeable_state": "behind"}, "behind base"),
     ({"ci_status": "failed", "mergeable_state": "blocked"}, "ci failed"),
     ({"ci_status": "pending", "mergeable_state": "unknown"}, "ci pending"),
+    # Rule 6 must remain unchanged: auto_merge_enabled=False + blocked
+    # is the genuinely actionable case (allow_auto_merge=off, missing
+    # required check, etc.) and must surface as 'blocked: needs config'.
     ({"mergeable_state": "blocked"}, "blocked: needs config"),
+    ({"auto_merge_enabled": False, "mergeable_state": "blocked"}, "blocked: needs config"),
     ({"ci_status": "passed", "mergeable_state": "clean"}, "ready"),
     ({"ci_status": "passed", "mergeable_state": "unstable"}, "ready"),
     ({}, "—"),
