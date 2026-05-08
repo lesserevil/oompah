@@ -844,6 +844,37 @@
     }
     .activity-entry.expanded .activity-detail { display: block; }
 
+    /* Verbose-toggle bar at the top of the activity body */
+    .activity-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.15);
+      flex-shrink: 0;
+    }
+    .activity-toolbar label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .activity-toolbar input[type="checkbox"] { margin: 0; cursor: pointer; }
+    /* Compact (verbose=OFF) message entry — full text inline, no toggle, no pills */
+    .activity-entry-compact {
+      padding: 0.35rem 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      cursor: default;
+    }
+    .activity-entry-compact:last-child { border-bottom: none; }
+
     /* Create dialog */
     .dialog-overlay {
       display: none;
@@ -2181,6 +2212,44 @@ async function refreshBoard() {
 
 // --- Agent activity panel ---
 let activityPollTimer = null;
+// Cached activity entries for the currently-open panel. Used by the
+// Verbose toggle to re-render without a network round-trip and by
+// handleActivityPush to keep the cache in sync with what the server pushes.
+let _activityEntries = [];
+// Allowlist of activity kinds that count as "human-readable speech" in
+// Verbose=OFF mode. Audited from oompah/orchestrator.py kind_map and
+// oompah/api_agent.py _emit calls — `message` covers acp_text (model
+// speech), acp_session_start, acp_result, and api_agent's own message
+// emits ("Agent finished", "Task cancelled", etc.).
+const _AGENT_LOG_MESSAGE_KINDS = ['message'];
+
+function isAgentLogVerbose() {
+  const v = localStorage.getItem('oompah_agent_log_verbose');
+  // Default ON: missing key counts as 'on'
+  return v !== 'off';
+}
+
+function setAgentLogVerboseLabel() {
+  const labelEl = document.getElementById('activity-verbose-label');
+  if (!labelEl) return;
+  labelEl.textContent = 'Verbose: ' + (isAgentLogVerbose() ? 'ON' : 'OFF');
+}
+
+function initAgentLogVerboseToggle() {
+  const cb = document.getElementById('activity-verbose-checkbox');
+  if (cb) cb.checked = isAgentLogVerbose();
+  setAgentLogVerboseLabel();
+}
+
+function toggleAgentLogVerbose() {
+  const cb = document.getElementById('activity-verbose-checkbox');
+  if (cb) {
+    localStorage.setItem('oompah_agent_log_verbose', cb.checked ? 'on' : 'off');
+  }
+  setAgentLogVerboseLabel();
+  // Re-render the panel from the cached entries — no network call.
+  renderActivityList(_activityEntries);
+}
 
 async function openActivityPanel(identifier) {
   const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
@@ -2195,6 +2264,7 @@ async function openActivityPanel(identifier) {
   titleEl.textContent = title;
   titleEl.dataset.identifier = identifier;
   document.getElementById('activity-overlay').classList.add('open');
+  initAgentLogVerboseToggle();
   await refreshActivity(identifier);
   // Only poll if WebSocket is not connected
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -2206,16 +2276,33 @@ function closeActivityPanel() {
   const el = document.getElementById('activity-overlay');
   if (el) el.classList.remove('open');
   if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
+  _activityEntries = [];
 }
 
 function renderActivityEntry(a) {
   const summary = a.summary || '';
+  const verbose = isAgentLogVerbose();
+
+  if (!verbose) {
+    // Compact mode: only message-kind entries appear, full text inline,
+    // no header pills, no expand/collapse.
+    if (!_AGENT_LOG_MESSAGE_KINDS.includes(a.kind)) return null;
+    const detail = a.detail && a.detail.trim().length > 0 ? a.detail : '';
+    // Prefer the longer of (detail, summary) so the operator sees the
+    // full message — summary is truncated to 200 chars in oompah/api_agent.py.
+    const text = (detail.length > summary.length ? detail : summary) || '(empty message)';
+    const div = document.createElement('div');
+    div.className = 'activity-entry-compact';
+    div.textContent = text;
+    return div;
+  }
+
+  // Verbose mode: existing behavior — collapsed row with kind/turn/summary
+  // header and click-to-expand body containing the full detail.
   const detail = a.detail && a.detail.trim().length > 0 ? a.detail : null;
-  // Expanded body shows the detail if present, otherwise the full unwrapped summary
   const expandedContent = detail ? detail : summary;
 
   const div = document.createElement('div');
-  // All entries start collapsed; clicking toggles expanded state
   div.className = 'activity-entry';
   div.addEventListener('click', () => div.classList.toggle('expanded'));
 
@@ -2230,14 +2317,54 @@ function renderActivityEntry(a) {
   return div;
 }
 
+// Render the full panel body from a list of cached entries, applying
+// the current Verbose toggle state. Used by both refreshActivity (after
+// fetching from the server) and toggleAgentLogVerbose (re-render from
+// cache, no network).
+function renderActivityList(entries) {
+  const body = document.getElementById('activity-body');
+  if (!body) return;
+  if (!entries || entries.length === 0) {
+    body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No activity yet...</div>';
+    return;
+  }
+  body.innerHTML = '';
+  let rendered = 0;
+  for (const a of entries) {
+    const node = renderActivityEntry(a);
+    if (node) {
+      body.appendChild(node);
+      rendered++;
+    }
+  }
+  if (rendered === 0) {
+    // All entries were filtered out (Verbose OFF + no message-kind entries yet).
+    body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No messages yet — toggle Verbose ON to see tool calls.</div>';
+  }
+  body.scrollTop = body.scrollHeight;
+}
+
 function handleActivityPush(identifier, entry) {
   // Only update if the activity panel is open for this agent
   const overlay = document.getElementById('activity-overlay');
   if (!overlay || !overlay.classList.contains('open')) return;
   const titleEl = document.getElementById('activity-title');
   if (titleEl.dataset.identifier !== identifier) return;
+  // Keep the cache in sync so toggling Verbose can re-render without a fetch.
+  _activityEntries.push(entry);
   const body = document.getElementById('activity-body');
-  body.appendChild(renderActivityEntry(entry));
+  const node = renderActivityEntry(entry);
+  if (!node) {
+    // Entry is filtered out under the current Verbose state — keep it
+    // in the cache; it will appear if the operator toggles Verbose ON.
+    return;
+  }
+  // If the body still has a placeholder (no real entries yet), clear it
+  // before appending so the placeholder doesn't sit above the new entry.
+  if (body.querySelector('.activity-entry, .activity-entry-compact') === null) {
+    body.innerHTML = '';
+  }
+  body.appendChild(node);
   body.scrollTop = body.scrollHeight;
 }
 
@@ -2245,17 +2372,9 @@ async function refreshActivity(identifier) {
   try {
     const res = await fetch('/api/v1/agents/' + encodeURIComponent(identifier) + '/activity');
     const data = await res.json();
-    const body = document.getElementById('activity-body');
     const entries = data.activity || [];
-    if (entries.length === 0) {
-      body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No activity yet...</div>';
-      return;
-    }
-    body.innerHTML = '';
-    for (const a of entries) {
-      body.appendChild(renderActivityEntry(a));
-    }
-    body.scrollTop = body.scrollHeight;
+    _activityEntries = entries;
+    renderActivityList(entries);
   } catch(e) {}
 }
 
@@ -2770,6 +2889,12 @@ connectWebSocket();
     <div class="activity-header">
       <h3 id="activity-title">Agent Activity</h3>
       <button onclick="closeActivityPanel()">&times;</button>
+    </div>
+    <div class="activity-toolbar" title="Verbose ON shows every entry (tool calls, permissions, etc) with click-to-expand. Verbose OFF shows only the agent's own messages, full text inline.">
+      <label>
+        <input type="checkbox" id="activity-verbose-checkbox" onchange="toggleAgentLogVerbose()">
+        <span id="activity-verbose-label">Verbose: ON</span>
+      </label>
     </div>
     <div class="activity-body" id="activity-body">
       <div style="color: var(--text-muted); text-align: center; padding: 2rem;">Loading...</div>
