@@ -170,7 +170,12 @@ def _on_agent_activity(identifier: str, entry) -> None:
 
 
 def _fetch_and_serialize_issues(orch) -> dict[str, list]:
-    """Fetch all issues and serialize — runs in thread pool to avoid blocking."""
+    """Fetch all issues and serialize — runs in thread pool to avoid blocking.
+
+    Mirrors the entry shape produced by ``api_issues`` (the GET endpoint)
+    so the WebSocket push path and the initial-load fetch path produce
+    interchangeable payloads. If you add a field to one, add it here too.
+    """
     all_issues = _fetch_all_issues(orch, None)
 
     # Build a map for parent child counts — any issue that has children gets counts
@@ -190,6 +195,12 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             if child_state in parents[issue.parent_id]:
                 parents[issue.parent_id][child_state] += 1
 
+    # Snapshot of source-branches with currently-open (unmerged) PRs so
+    # we can flag in-flight beads. Mirrors api_issues; both paths read
+    # from the orchestrator's _unmerged_review_branches cache populated
+    # in _handle_review_check.
+    unmerged_branches: set[str] = set(getattr(orch, "_unmerged_review_branches", set()) or set())
+
     result: dict[str, list] = {}
     for issue in all_issues:
         if "archive:yes" in issue.labels:
@@ -197,6 +208,8 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         state = issue.state.strip().lower()
         if state not in result:
             result[state] = []
+        branch = issue.branch_name or issue.identifier
+        has_open_review = branch in unmerged_branches if branch else False
         entry = {
             "id": issue.id,
             "identifier": issue.identifier,
@@ -208,6 +221,8 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
             "project_id": issue.project_id,
+            "branch_name": issue.branch_name,
+            "has_open_review": has_open_review,
             "attachments": list(getattr(issue, "attachments", []) or []),
         }
         if issue.id in parents:
