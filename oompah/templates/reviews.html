@@ -333,7 +333,10 @@ function deriveQueueStatus(r) {
   // 3. Already accepted into the GitHub merge queue.
   //    'unknown' = GitHub still computing mergeable; for queued PRs treat
   //    same as '' since the queue is already handling it.
-  if (ame && (ms === 'clean' || ms === 'unstable' || ms === 'behind' || ms === '' || ms === 'unknown')) {
+  //    'blocked' = GitHub's "you can't directly merge — the queue is
+  //    handling it"; default state of a queued PR until the queue's
+  //    synthetic merge_group commit passes CI (oompah-zlz_2-j5f).
+  if (ame && (ms === 'clean' || ms === 'unstable' || ms === 'behind' || ms === '' || ms === 'unknown' || ms === 'blocked')) {
     return {label: 'in queue', cls: 'queue-in-queue', emoji: '⏳', sortRank: 5};
   }
   // 4. Behind base (rebase needed) — visible regardless of auto-merge.
