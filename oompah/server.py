@@ -377,6 +377,12 @@ async def api_issues(request: Request):
                 if child_state in epics[issue.parent_id]:
                     epics[issue.parent_id][child_state] += 1
 
+        # Build a quick set of branch names with open (unmerged) reviews
+        # so we can flag issues whose work is still in flight on a PR.
+        # Falls back to empty set if the orchestrator hasn't done its
+        # first review_check tick yet.
+        unmerged_branches: set[str] = set(getattr(orch, "_unmerged_review_branches", set()) or set())
+
         result: dict[str, list] = {}
         for issue in all_issues:
             # Hide archived issues
@@ -385,6 +391,14 @@ async def api_issues(request: Request):
             state = issue.state.strip().lower()
             if state not in result:
                 result[state] = []
+            # has_open_review: True when this issue's branch is among the
+            # source branches of currently-open (unmerged) PRs across the
+            # project's tracked forge reviews. The dashboard's "show
+            # in-flight only" filter uses this to hide closed beads whose
+            # work has fully landed (no PR open) while keeping closed
+            # beads whose PR is still in queue/CI.
+            branch = issue.branch_name or issue.identifier
+            has_open_review = branch in unmerged_branches if branch else False
             entry = {
                 "id": issue.id,
                 "identifier": issue.identifier,
@@ -396,6 +410,8 @@ async def api_issues(request: Request):
                 "issue_type": issue.issue_type,
                 "parent_id": issue.parent_id,
                 "project_id": issue.project_id,
+                "branch_name": issue.branch_name,
+                "has_open_review": has_open_review,
             }
             if issue.id in epics:
                 entry["children_counts"] = epics[issue.id]
