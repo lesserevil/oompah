@@ -531,6 +531,68 @@ class TestHttpPostClassification:
         assert "URL error" in str(excinfo.value)
         assert "Socket error" not in str(excinfo.value)
 
+    def test_oserror_during_resp_read_raises_transient_server_error(self, monkeypatch):
+        """oompah-zlz_2-bsg: the actual production failure mode is OSError
+        raised during ``resp.read()`` AFTER ``urlopen`` has already
+        returned, not from ``urlopen`` itself. The previous test
+        (``test_socket_not_connected_raises_transient_server_error``)
+        only simulates ``urlopen`` raising — this test simulates a
+        successful ``urlopen`` with a response object whose ``.read()``
+        raises ENOTCONN, which is what happens when the remote tears
+        down the TLS connection mid-stream on macOS. The OSError handler
+        must catch it just the same."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+            def read(self):
+                # Real production scenario: urlopen returned, the with
+                # block entered, then resp.read() blew up because the
+                # peer closed the TLS connection mid-stream.
+                raise OSError(57, "Socket is not connected")
+
+        def fake_urlopen(*a, **kw):
+            return FakeResponse()
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code is None
+        assert "Errno 57" in str(excinfo.value)
+        assert "Socket is not connected" in str(excinfo.value)
+        # Must use the "Socket error" prefix from the OSError branch,
+        # not "URL error" — proves the right handler caught it.
+        assert "Socket error" in str(excinfo.value)
+
+    def test_oserror_during_with_exit_raises_transient_server_error(self, monkeypatch):
+        """Adjacent edge case: ``resp.read()`` succeeds and ``json.loads``
+        succeeds, but the context manager's ``__exit__`` raises OSError
+        when closing the connection (the peer already tore it down).
+        This OSError ALSO must be caught and wrapped, otherwise it
+        propagates raw out of ``_http_post`` and shows up as
+        ``ApiAgentSession.run_task failed: [Errno 57] Socket is not
+        connected`` — exactly the bug-report shape that triggered
+        oompah-zlz_2-bsg."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                # Connection close on a torn-down socket. macOS ENOTCONN.
+                raise OSError(57, "Socket is not connected")
+            def read(self):
+                return b'{"choices": []}'
+
+        def fake_urlopen(*a, **kw):
+            return FakeResponse()
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert "Errno 57" in str(excinfo.value)
+
 
 class TestCallApiRetriesTransientErrors:
     def test_succeeds_after_one_5xx(self, tmp_path, monkeypatch):
