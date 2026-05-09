@@ -1236,6 +1236,35 @@ class ApiAgentSession:
                 error=str(exc),
                 activity=activity,
             )
+        except OSError as exc:
+            # Defense-in-depth (oompah-zlz_2-bpa): the canonical fix for
+            # raw socket errors lives in ``_http_post`` (ovt: ENOTCONN /
+            # ECONNRESET / EPIPE wrapped as TransientServerError so the
+            # 5-retry loop in ``_call_api`` can recover). If a raw OSError
+            # ever leaks past those retries — either because retries are
+            # exhausted on a sustained outage or because some new code
+            # path bypasses ``_http_post`` — keep the bare ``[Errno N]``
+            # repr out of the log line so error_watcher fingerprints
+            # cleanly into a single "transport_error" bead instead of
+            # duplicating the historic '[Errno 57] Socket is not
+            # connected' title pattern that ovt already fixed at the
+            # source.
+            msg = (
+                f"transport_error: [Errno {exc.errno}] "
+                f"{exc.strerror or exc}"
+            )
+            _emit(turns, "error", msg)
+            logger.error("ApiAgentSession.run_task transport_error: %s", msg)
+            return ApiAgentResult(
+                status="failed",
+                input_tokens=total_input,
+                output_tokens=total_output,
+                total_tokens=total_tokens,
+                turns=turns,
+                last_message=last_message,
+                error=msg,
+                activity=activity,
+            )
         except Exception as exc:
             _emit(turns, "error", str(exc))
             logger.error("ApiAgentSession.run_task failed: %s", exc)
