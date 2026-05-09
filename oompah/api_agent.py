@@ -1236,6 +1236,33 @@ class ApiAgentSession:
                 error=str(exc),
                 activity=activity,
             )
+        except TransientServerError as exc:
+            # _call_api's 5-attempt retry loop exhausted on a transient
+            # 5xx / network-level failure (ENOTCONN/ECONNRESET/EPIPE
+            # wrapped by _http_post, connection refused, DNS blip, etc.).
+            # Log at WARNING — not ERROR — so the error_watcher does not
+            # auto-file duplicate bug beads for transient errors the
+            # orchestrator already handles by re-dispatching the worker.
+            # Mirrors the RateLimitError handler above and the
+            # TrackerTimeoutError WARNING pattern in oompah/tracker.py.
+            # Note: TransientServerError does NOT inherit from OSError —
+            # the dedicated OSError handler below is the bpa
+            # defense-in-depth path for raw OSErrors that bypass the
+            # _http_post wrap entirely.
+            _emit(turns, "error", str(exc))
+            logger.warning(
+                "ApiAgentSession.run_task transient_error: %s", exc,
+            )
+            return ApiAgentResult(
+                status="failed",
+                input_tokens=total_input,
+                output_tokens=total_output,
+                total_tokens=total_tokens,
+                turns=turns,
+                last_message=last_message,
+                error=str(exc),
+                activity=activity,
+            )
         except OSError as exc:
             # Defense-in-depth (oompah-zlz_2-bpa): the canonical fix for
             # raw socket errors lives in ``_http_post`` (ovt: ENOTCONN /
