@@ -963,3 +963,174 @@ class TestRunTaskOSErrorRecovery:
             )
             for r in api_records
         ), [r.getMessage() for r in api_records]
+
+
+# ---------------------------------------------------------------------------
+# TransientServerError → WARNING coverage (oompah-zlz_2-amx).
+#
+# After ovt's fix, raw OSErrors hitting _http_post are wrapped as
+# TransientServerError so _call_api's 5-retry loop can recover. When all
+# 5 retries fail, the wrapped TransientServerError propagates up to
+# run_task. Without a dedicated handler it falls through to the broad
+# `except Exception` — logging at ERROR and tripping error_watcher into
+# auto-filing a duplicate bug bead for what is, by definition, a
+# known-transient network failure the orchestrator already retries.
+#
+# These tests assert the dedicated TransientServerError handler logs at
+# WARNING (not ERROR), matching the RateLimitError precedent above it
+# and the TrackerTimeoutError pattern in oompah/tracker.py.
+# ---------------------------------------------------------------------------
+
+class TestRunTaskTransientServerErrorHandler:
+    """Verifies that TransientServerError (which is NOT a subclass of
+    OSError, so bpa's OSError handler doesn't catch it) is downgraded
+    to WARNING in run_task so error_watcher does not file beads."""
+
+    def test_transient_server_error_returns_failed(self, tmp_path, monkeypatch):
+        """Exhausted retries on a transient error must produce a clean
+        'failed' result — never raise."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        async def fake_call_api(self_, messages):
+            raise TransientServerError(
+                "Socket error for http://x: [Errno 57] Socket is not connected",
+                status_code=None,
+            )
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        result = asyncio.run(s.run_task("hello"))
+        assert result.status == "failed"
+        assert "Errno 57" in (result.error or "")
+        assert "Socket error" in (result.error or "")
+
+    def test_transient_server_error_logs_warning_not_error(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """The dedicated TransientServerError handler must log at
+        WARNING — not ERROR — so the error_watcher (which only files
+        beads for ERROR+ records) does not auto-file duplicate bug
+        beads on every exhausted-retry transient failure."""
+        import logging
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        async def fake_call_api(self_, messages):
+            raise TransientServerError(
+                "Socket error for http://x: [Errno 57] Socket is not connected",
+                status_code=None,
+            )
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with caplog.at_level(logging.DEBUG, logger="oompah.api_agent"):
+            asyncio.run(s.run_task("hello"))
+
+        api_records = [
+            r for r in caplog.records if r.name == "oompah.api_agent"
+        ]
+        # MUST NOT log the historic bead-triggering 'failed: ' phrasing
+        # at ERROR — the catch-all `except Exception` would otherwise
+        # match our new handler's logger record verbatim.
+        bead_triggering = [
+            r for r in api_records
+            if r.levelno >= logging.ERROR
+            and r.getMessage().startswith("ApiAgentSession.run_task failed: ")
+        ]
+        assert not bead_triggering, (
+            f"transient errors must not log at ERROR with the historic "
+            f"'run_task failed:' phrasing: {[r.getMessage() for r in bead_triggering]}"
+        )
+        # MUST log at WARNING with a transient-tagged signature.
+        warning_records = [
+            r for r in api_records
+            if r.levelno == logging.WARNING
+            and "transient_error" in r.getMessage()
+        ]
+        assert warning_records, (
+            "TransientServerError must be logged at WARNING with a "
+            "'transient_error' signature in run_task"
+        )
+
+    def test_transient_server_error_does_not_match_oserror_handler(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """Regression guard: TransientServerError doesn't inherit from
+        OSError, so bpa's OSError handler must NOT swallow it. If it
+        did, the message would carry the 'transport_error:' prefix
+        (bpa's tag) instead of the 'transient_error' tag we want for
+        retry-exhausted server failures."""
+        import logging
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        async def fake_call_api(self_, messages):
+            raise TransientServerError("HTTP 503 from x", status_code=503)
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with caplog.at_level(logging.DEBUG, logger="oompah.api_agent"):
+            asyncio.run(s.run_task("hello"))
+
+        api_records = [
+            r for r in caplog.records if r.name == "oompah.api_agent"
+        ]
+        # Must NOT have the bpa OSError-handler 'transport_error:' tag.
+        transport_records = [
+            r for r in api_records
+            if "transport_error" in r.getMessage()
+        ]
+        assert not transport_records, (
+            f"TransientServerError must hit the dedicated handler, not bpa's "
+            f"OSError handler: {[r.getMessage() for r in transport_records]}"
+        )
+
+    def test_rate_limit_error_unaffected(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """Regression guard: the existing RateLimitError handler still
+        wins over the new TransientServerError handler (both are
+        RetryableError subclasses)."""
+        import logging
+        from oompah.api_agent import ApiAgentSession, RateLimitError
+
+        async def fake_call_api(self_, messages):
+            raise RateLimitError("HTTP 429 from x", retry_after=10)
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with caplog.at_level(logging.DEBUG, logger="oompah.api_agent"):
+            result = asyncio.run(s.run_task("hello"))
+
+        # Status differentiates the two: RateLimitError → 'rate_limited',
+        # TransientServerError → 'failed'. If the order were wrong, this
+        # would surface as a 'failed' result.
+        assert result.status == "rate_limited"
+        api_records = [
+            r for r in caplog.records if r.name == "oompah.api_agent"
+        ]
+        assert any(
+            "rate limited" in r.getMessage().lower() for r in api_records
+        ), [r.getMessage() for r in api_records]
