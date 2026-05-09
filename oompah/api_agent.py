@@ -731,6 +731,21 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
             f"URL error for {url}: {exc.reason}",
             status_code=None,
         ) from exc
+    except OSError as exc:
+        # Raw socket-level errors that leak through urllib unwrapped —
+        # most commonly during ``resp.read()`` after ``urlopen`` has
+        # already returned. macOS reports ENOTCONN (errno 57, "Socket is
+        # not connected") when the remote tears down the TLS connection
+        # mid-stream; Linux equivalents include ECONNRESET (104) and
+        # EPIPE (32). These are transient — the next request opens a
+        # fresh socket — so retry rather than failing the whole task.
+        # Note: ``urllib.error.URLError`` is a subclass of ``OSError``,
+        # so this handler runs only for plain OSErrors that escaped the
+        # URLError wrapping (the more-specific branch above wins first).
+        raise TransientServerError(
+            f"Socket error for {url}: [Errno {exc.errno}] {exc.strerror or exc}",
+            status_code=None,
+        ) from exc
 
 
 # ---------------------------------------------------------------------------

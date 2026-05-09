@@ -464,6 +464,73 @@ class TestHttpPostClassification:
             f"4xx must not be retryable: {excinfo.type}"
         )
 
+    def test_socket_not_connected_raises_transient_server_error(self, monkeypatch):
+        """oompah-zlz_2-ovt: macOS Errno 57 (ENOTCONN, "Socket is not
+        connected") raised by the OS during ``resp.read()`` after
+        ``urlopen`` returned must be wrapped as TransientServerError so
+        the existing retry loop kicks in instead of failing the whole
+        agent task on a transient socket blip."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        def fake_urlopen(*a, **kw):
+            # Plain OSError, NOT urllib.error.URLError. URLError is a
+            # subclass of OSError, but the bug is that a *raw* OSError
+            # raised by the socket layer (e.g. during resp.read()) is
+            # NOT wrapped in URLError and therefore escapes the URLError
+            # handler.
+            raise OSError(57, "Socket is not connected")
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code is None
+        # Errno is preserved so operators can correlate logs with OS
+        # errors. The full bug-report message is reconstructable.
+        assert "Errno 57" in str(excinfo.value)
+        assert "Socket is not connected" in str(excinfo.value)
+
+    def test_connection_reset_raises_transient_server_error(self, monkeypatch):
+        """ConnectionResetError (errno 104, ECONNRESET on Linux) is a
+        subclass of OSError and is the Linux cousin of the macOS
+        ENOTCONN bug. It must also be retryable."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        def fake_urlopen(*a, **kw):
+            raise ConnectionResetError(104, "Connection reset by peer")
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code is None
+        assert "Connection reset" in str(excinfo.value)
+
+    def test_broken_pipe_raises_transient_server_error(self, monkeypatch):
+        """BrokenPipeError (EPIPE, errno 32) is also an OSError subclass
+        and must be retryable for the same reason."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        def fake_urlopen(*a, **kw):
+            raise BrokenPipeError(32, "Broken pipe")
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError):
+            _http_post("http://x", {}, b"{}", None)
+
+    def test_url_error_still_wins_over_oserror_handler(self, monkeypatch):
+        """URLError extends OSError, but the URLError handler must run
+        first (more specific). The new OSError handler must NOT shadow
+        the existing URLError contract — connection-refused failures
+        should still surface 'URL error' phrasing for log-grep
+        compatibility."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        def fake_urlopen(*a, **kw):
+            raise _ue.URLError(reason="[Errno 61] Connection refused")
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        # The URLError branch tags the message with "URL error", not
+        # "Socket error". Order-of-handlers regression guard.
+        assert "URL error" in str(excinfo.value)
+        assert "Socket error" not in str(excinfo.value)
+
 
 class TestCallApiRetriesTransientErrors:
     def test_succeeds_after_one_5xx(self, tmp_path, monkeypatch):
