@@ -820,3 +820,146 @@ class TestExecuteToolForwardsEnvOverrides:
             env_overrides={"BEADS_DIR": "/x"},
         )
         assert "f.txt" in result
+
+
+# ---------------------------------------------------------------------------
+# End-to-end transport-error coverage (oompah-zlz_2-bpa, follow-up to ovt).
+#
+# ovt fixed _http_post to wrap raw OSErrors as TransientServerError so the
+# 5-attempt retry loop in _call_api can recover. These tests assert the
+# *end-to-end* contract from run_task's perspective: no matter where a raw
+# OSError leaks from, run_task must return an ApiAgentResult (never raise),
+# and the error message must be a clearer "Socket error..." / "transport_error..."
+# string instead of the bare "[Errno 57] Socket is not connected" repr that
+# used to auto-trigger duplicate beads via the error_watcher fingerprint.
+# ---------------------------------------------------------------------------
+
+class TestRunTaskOSErrorRecovery:
+    """Verifies the public contract of ApiAgentSession.run_task under raw
+    socket-level errors. The historic failure (oompah-zlz_2-ovt) was that
+    an OSError(57) leaked from _http_post -> _call_api -> run_task, where
+    only the broad ``except Exception`` caught it — logging the bare
+    ``[Errno 57] Socket is not connected`` string and tripping the
+    error_watcher into filing a duplicate bead each time."""
+
+    def test_oserror_from_http_post_retries_and_wraps(self, tmp_path, monkeypatch):
+        """ovt-path end-to-end: when ``urllib.request.urlopen`` raises
+        OSError(57) every time (the original bug pattern), the real
+        ``_http_post`` wraps it as TransientServerError, ``_call_api``
+        retries ``max_retries`` times with backoff, and ``run_task``
+        ultimately returns a ``failed`` result whose error contains
+        'Socket error' (NOT the bare '[Errno 57]' that originally
+        slipped past the URLError handler)."""
+        from oompah.api_agent import ApiAgentSession
+
+        call_count = {"n": 0}
+
+        def fake_urlopen(*a, **kw):
+            call_count["n"] += 1
+            # Plain OSError, not URLError — the macOS ENOTCONN pattern
+            # that originally escaped _http_post's URLError handler.
+            raise OSError(57, "Socket is not connected")
+
+        async def _noop_sleep(*_a, **_k):
+            return None
+
+        # Keep the real _http_post so we exercise its OSError wrapper.
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", _noop_sleep)
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        # run_task should NEVER raise — always return a result.
+        result = asyncio.run(s.run_task("hello"))
+
+        # OSError -> _http_post's OSError wrapper -> TransientServerError
+        # -> _call_api retries max_retries (=5) times.
+        assert call_count["n"] == 5, (
+            f"expected 5 retries, saw {call_count['n']}"
+        )
+        # Final result is a clean failure record, not an unhandled raise.
+        assert result.status == "failed"
+        # Error message uses the wrapped form ("Socket error for ...:
+        # [Errno 57] Socket is not connected"), NOT the bare OSError repr
+        # that the error_watcher historically fingerprinted into the
+        # duplicate-bead loop.
+        assert "Socket error" in (result.error or ""), result.error
+        assert "Errno 57" in (result.error or ""), result.error
+
+    def test_run_task_defense_in_depth_for_leaked_oserror(self, tmp_path, monkeypatch):
+        """bpa-path defense-in-depth: if a raw OSError EVER reaches
+        run_task's outer try/except (e.g. some new code path bypasses
+        _http_post in the future), the dedicated ``except OSError``
+        handler must produce a 'transport_error: ...' message instead of
+        falling through to the broad ``except Exception`` and re-emitting
+        the historic bare '[Errno 57] Socket is not connected' title."""
+        from oompah.api_agent import ApiAgentSession
+
+        async def fake_call_api(self_, messages):
+            # Simulate an OSError that bypasses _http_post entirely
+            # (the wrap-as-TransientServerError defense doesn't apply).
+            raise OSError(57, "Socket is not connected")
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        result = asyncio.run(s.run_task("hello"))
+
+        assert result.status == "failed"
+        # The dedicated OSError handler tags the message with the
+        # 'transport_error:' prefix so error_watcher fingerprints into a
+        # *single* bead category instead of duplicating per-occurrence.
+        assert result.error is not None
+        assert result.error.startswith("transport_error:"), result.error
+        assert "Errno 57" in result.error
+
+    def test_run_task_oserror_logs_via_distinct_logger_signature(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """The new OSError handler must NOT use the historic
+        'ApiAgentSession.run_task failed: [Errno 57]...' log signature
+        that the error_watcher already filed beads for — otherwise
+        production keeps duplicating the same bead. The 'transport_error'
+        signature is intentionally distinct so the watcher fingerprints
+        into a fresh, single bead."""
+        import logging
+        from oompah.api_agent import ApiAgentSession
+
+        async def fake_call_api(self_, messages):
+            raise OSError(57, "Socket is not connected")
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with caplog.at_level(logging.ERROR, logger="oompah.api_agent"):
+            asyncio.run(s.run_task("hello"))
+
+        api_records = [
+            r for r in caplog.records if r.name == "oompah.api_agent"
+            and r.levelno >= logging.ERROR
+        ]
+        # Exactly one error log line from the OSError branch.
+        assert len(api_records) >= 1
+        # The dedicated handler uses 'transport_error', not the historic
+        # 'failed: [Errno 57] Socket is not connected' phrasing.
+        assert any(
+            "transport_error" in r.getMessage() for r in api_records
+        ), [r.getMessage() for r in api_records]
+        assert not any(
+            r.getMessage().startswith(
+                "ApiAgentSession.run_task failed: [Errno"
+            )
+            for r in api_records
+        ), [r.getMessage() for r in api_records]
