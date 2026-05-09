@@ -964,6 +964,64 @@ class TestRunTaskOSErrorRecovery:
             for r in api_records
         ), [r.getMessage() for r in api_records]
 
+    def test_run_task_oserror_log_does_not_double_transport_error_prefix(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """hp2 regression guard (oompah-zlz_2-hp2): the OSError-handler
+        log line must contain ``transport_error:`` exactly once. Before
+        the cleanup, the format string ``"ApiAgentSession.run_task
+        transport_error: %s"`` was paired with a ``msg`` argument that
+        already started with ``transport_error: ...``, so the rendered
+        record read ``"... transport_error: transport_error: [Errno 57]
+        ..."``. The doubling didn't break fingerprinting (error_watcher
+        normalisation strips numbers but keeps the prefix), but it was
+        inconsistent with the rate_limited / transient_error log
+        patterns and made grepping production logs ambiguous.
+
+        Note: ``result.error`` (the user-facing field) intentionally
+        keeps the ``transport_error:`` prefix — the cleanup only
+        touches the log line."""
+        import logging
+        from oompah.api_agent import ApiAgentSession
+
+        async def fake_call_api(self_, messages):
+            raise OSError(57, "Socket is not connected")
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with caplog.at_level(logging.ERROR, logger="oompah.api_agent"):
+            result = asyncio.run(s.run_task("hello"))
+
+        # result.error keeps the prefix (descriptive for the dashboard).
+        assert result.error is not None
+        assert result.error.startswith("transport_error:"), result.error
+
+        # Log line must contain 'transport_error' exactly once.
+        api_error_records = [
+            r for r in caplog.records
+            if r.name == "oompah.api_agent" and r.levelno >= logging.ERROR
+        ]
+        oserror_records = [
+            r for r in api_error_records
+            if "transport_error" in r.getMessage()
+        ]
+        assert oserror_records, (
+            f"expected at least one transport_error log record; got "
+            f"{[r.getMessage() for r in api_error_records]}"
+        )
+        for r in oserror_records:
+            occurrences = r.getMessage().count("transport_error")
+            assert occurrences == 1, (
+                f"transport_error must appear exactly once in the log "
+                f"record; saw {occurrences} in {r.getMessage()!r}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # TransientServerError → WARNING coverage (oompah-zlz_2-amx).

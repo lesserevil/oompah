@@ -1276,12 +1276,20 @@ class ApiAgentSession:
             # duplicating the historic '[Errno 57] Socket is not
             # connected' title pattern that ovt already fixed at the
             # source.
-            msg = (
-                f"transport_error: [Errno {exc.errno}] "
-                f"{exc.strerror or exc}"
-            )
+            #
+            # hp2 cleanup (oompah-zlz_2-hp2): split the user-facing
+            # ``msg`` (which keeps the ``transport_error:`` prefix so
+            # ``result.error`` and the activity panel are descriptive)
+            # from the log args (which carry only ``[Errno N] strerror``
+            # so the format string's existing ``transport_error:`` prefix
+            # doesn't render twice — matching the rate_limited /
+            # transient_error log patterns above).
+            detail = f"[Errno {exc.errno}] {exc.strerror or exc}"
+            msg = f"transport_error: {detail}"
             _emit(turns, "error", msg)
-            logger.error("ApiAgentSession.run_task transport_error: %s", msg)
+            logger.error(
+                "ApiAgentSession.run_task transport_error: %s", detail,
+            )
             return ApiAgentResult(
                 status="failed",
                 input_tokens=total_input,
