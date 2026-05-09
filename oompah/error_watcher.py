@@ -38,9 +38,28 @@ _MAX_FINGERPRINTS = 500
 
 @dataclass
 class _ErrorRecord:
-    """Tracks when we last created a bead for a given error fingerprint."""
+    """Tracks when we last created a bead for a given error fingerprint.
+
+    ``bead_id`` and ``issue_id`` are populated when ``report_error`` is
+    called with an ``issue_id``; they let the orchestrator auto-close the
+    bead when the originating issue's retry path succeeds.
+    """
     fingerprint: str
     last_created: float = 0.0
+    bead_id: str | None = None
+    issue_id: str | None = None
+
+
+# Window during which a retry-success can auto-close a previously filed
+# error bead.  Beads older than this stay deferred (operator must
+# inspect manually).
+_AUTO_CLOSE_WINDOW_SECONDS = 1800  # 30 minutes
+
+# After report_error fires for a fingerprint, we wait at least this long
+# before allowing auto-close on it.  Without this guard, a successful
+# retry on issue A could close a bead whose same-fingerprint failure is
+# still actively firing on issue B.
+_AUTO_CLOSE_QUIET_SECONDS = 60
 
 
 class ErrorWatcher:
@@ -76,6 +95,7 @@ class ErrorWatcher:
         *,
         detail: str | None = None,
         priority: int = 2,
+        issue_id: str | None = None,
     ) -> str | None:
         """Report an error and create a bead if not a duplicate.
 
@@ -84,6 +104,10 @@ class ErrorWatcher:
             message: Short error summary (used for title + fingerprinting).
             detail: Longer description / stack trace.
             priority: Bead priority (0=critical, 4=backlog). Default 2.
+            issue_id: Optional id of the issue whose run triggered this
+                error. When supplied, the watcher links the resulting
+                bead to the issue so :meth:`auto_close_for_issue` can
+                close it once the issue's retry path succeeds.
 
         Returns:
             The bead identifier if one was created, None if deduplicated.
@@ -93,6 +117,14 @@ class ErrorWatcher:
         now = time.monotonic()
         record = self._seen.get(fp)
         if record and (now - record.last_created) < _DEDUP_WINDOW_SECONDS:
+            # Refresh last_created so the recent-error guard in
+            # auto_close_for_issue treats this fingerprint as still
+            # actively firing.  Also remember the originating issue if
+            # the previous record didn't have one (so subsequent
+            # success can auto-close the existing bead).
+            record.last_created = now
+            if issue_id and not record.issue_id:
+                record.issue_id = issue_id
             return None
 
         # Evict old entries if we're at capacity
@@ -114,16 +146,125 @@ class ErrorWatcher:
                 priority=priority,
                 initial_status="deferred",
             )
-            self._seen[fp] = _ErrorRecord(fingerprint=fp, last_created=now)
+            self._seen[fp] = _ErrorRecord(
+                fingerprint=fp,
+                last_created=now,
+                bead_id=issue.identifier,
+                issue_id=issue_id,
+            )
             logger.info(
-                "Created error bead %s for [%s] %s",
+                "Created error bead %s for [%s] %s%s",
                 issue.identifier, source, message[:80],
+                f" (issue={issue_id})" if issue_id else "",
             )
             return issue.identifier
         except Exception as exc:
             # Don't let error tracking errors cascade
             logger.debug("Failed to create error bead: %s", exc)
             return None
+
+    def auto_close_for_issue(
+        self,
+        issue_id: str,
+        *,
+        issue_identifier: str | None = None,
+        resolution_link: str | None = None,
+        max_age_seconds: float = _AUTO_CLOSE_WINDOW_SECONDS,
+        quiet_seconds: float = _AUTO_CLOSE_QUIET_SECONDS,
+    ) -> list[str]:
+        """Auto-close every error bead linked to ``issue_id``.
+
+        Called by the orchestrator after a worker run finishes
+        successfully *via the retry path* (attempt > 0).  Each matching
+        record's bead is closed with a "retry succeeded; transient"
+        reason and popped from ``_seen`` so that a future error with
+        the same fingerprint will create a fresh bead.
+
+        Records are skipped if:
+
+        * ``last_created`` is older than ``max_age_seconds`` — the
+          bead is too stale to be plausibly the same incident.
+        * ``last_created`` is younger than ``quiet_seconds`` — the
+          fingerprint is still actively firing (likely on another
+          issue), so closing it would be premature.
+
+        Args:
+            issue_id: id of the originating issue that just succeeded.
+            issue_identifier: human-readable identifier (e.g.
+                ``oompah-zlz_2-hp2``) used for log messages and
+                resolution comments.  Falls back to ``issue_id``.
+            resolution_link: optional URL or identifier of the
+                successful run / commit / PR; mentioned in the
+                resolution comment posted on each closed bead.
+            max_age_seconds: age cutoff (default 30 min).
+            quiet_seconds: minimum time since the most recent
+                fingerprint hit before auto-close is allowed (default
+                60 s).
+
+        Returns:
+            List of bead identifiers that were auto-closed.
+        """
+        if not issue_id:
+            return []
+
+        now = time.monotonic()
+        closed: list[str] = []
+        ident = issue_identifier or issue_id
+
+        # Snapshot keys first because we mutate _seen inside the loop.
+        for fp in list(self._seen.keys()):
+            record = self._seen.get(fp)
+            if record is None or record.issue_id != issue_id:
+                continue
+            if not record.bead_id:
+                # No bead was ever filed for this record; nothing to close.
+                continue
+            age = now - record.last_created
+            if age > max_age_seconds:
+                continue
+            if age < quiet_seconds:
+                # Fingerprint is still fresh — likely still firing on
+                # another issue.  Skip this round; if the same issue
+                # exits successfully again later (or the operator
+                # intervenes), the dedup window will have moved on.
+                continue
+
+            bead_id = record.bead_id
+            comment_body = (
+                "Auto-closed by error_watcher: the originating issue "
+                f"({ident}) recovered via retry."
+            )
+            if resolution_link:
+                comment_body += f" Resolution: {resolution_link}"
+            try:
+                # Post a comment first so the audit trail survives close.
+                try:
+                    self._tracker.add_comment(bead_id, comment_body)
+                except Exception as exc:  # pragma: no cover - best effort
+                    logger.debug(
+                        "Could not post resolution comment on %s: %s",
+                        bead_id, exc,
+                    )
+                self._tracker.close_issue(
+                    bead_id,
+                    reason="retry succeeded; transient (auto-closed by error_watcher)",
+                )
+                logger.info(
+                    "Auto-closed transient error bead %s (issue=%s resolved)",
+                    bead_id, ident,
+                )
+                closed.append(bead_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to auto-close error bead %s for issue %s: %s",
+                    bead_id, ident, exc,
+                )
+                continue
+            # Drop the record so a fresh occurrence of the same
+            # fingerprint will produce a new bead.
+            self._seen.pop(fp, None)
+
+        return closed
 
     def _fingerprint(self, source: str, message: str) -> str:
         """Create a stable fingerprint for deduplication.
@@ -171,11 +312,17 @@ class _BeadLoggingHandler(logging.Handler):
             # Use module name as more specific source
             source = f"backend:{record.module}"
             priority = 1 if record.levelno >= logging.CRITICAL else 2
+            # Callers may attach context via ``logger.error(..., extra={
+            # "issue_id": <id>})`` to tie the resulting bead to the
+            # issue whose run produced the error.  This lets the
+            # orchestrator auto-close the bead on retry success.
+            issue_id = getattr(record, "issue_id", None)
             self._watcher.report_error(
                 source=source,
                 message=message,
                 detail=detail,
                 priority=priority,
+                issue_id=issue_id,
             )
         except Exception:
             # Never let handler errors propagate

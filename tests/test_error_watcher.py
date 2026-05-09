@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import tempfile
 import time
@@ -155,6 +156,203 @@ class TestErrorWatcher:
         call_kwargs = tracker.create_issue.call_args
         title = call_kwargs.kwargs.get("title", "")
         assert len(title) <= 200
+
+
+# ---------------------------------------------------------------------------
+# Tests for issue-aware error tracking + retry-success auto-close
+# (oompah-zlz_2-0nc)
+# ---------------------------------------------------------------------------
+
+
+class TestErrorWatcherAutoClose:
+    """Verify ErrorWatcher.report_error/auto_close_for_issue behavior."""
+
+    def _make_watcher(self, bead_id: str = "oompah-test-001"):
+        tracker = MagicMock()
+        issue = MagicMock()
+        issue.identifier = bead_id
+        tracker.create_issue.return_value = issue
+        watcher = ErrorWatcher(tracker)
+        return watcher, tracker
+
+    def test_report_error_with_issue_id_records_link(self):
+        watcher, tracker = self._make_watcher()
+        bead = watcher.report_error(
+            "backend:worker",
+            "transient errno 57",
+            issue_id="orig-issue-123",
+        )
+        assert bead == "oompah-test-001"
+        # Find the seen record and verify the link.
+        records = list(watcher._seen.values())
+        assert len(records) == 1
+        rec = records[0]
+        assert rec.issue_id == "orig-issue-123"
+        assert rec.bead_id == "oompah-test-001"
+
+    def test_auto_close_with_no_issue_id_does_nothing(self):
+        watcher, tracker = self._make_watcher()
+        # No issue_id passed → record has no link.
+        watcher.report_error("backend:worker", "transient errno 57")
+        # Force the record old enough to bypass the quiet window.
+        for rec in watcher._seen.values():
+            rec.last_created -= 120
+        closed = watcher.auto_close_for_issue("orig-issue-123")
+        assert closed == []
+        tracker.close_issue.assert_not_called()
+
+    def test_auto_close_after_retry_success(self):
+        """fingerprint+issue_id, retry success → auto-closed."""
+        watcher, tracker = self._make_watcher(bead_id="oompah-test-001")
+        watcher.report_error(
+            "backend:worker",
+            "transient errno 57",
+            issue_id="orig-issue-123",
+        )
+        # Step the clock past the 60s quiet window so auto-close fires.
+        for rec in watcher._seen.values():
+            rec.last_created -= 120
+        closed = watcher.auto_close_for_issue(
+            "orig-issue-123",
+            issue_identifier="oompah-zlz_2-orig",
+        )
+        assert closed == ["oompah-test-001"]
+        # close_issue called with reason
+        tracker.close_issue.assert_called_once()
+        args, kwargs = tracker.close_issue.call_args
+        assert args[0] == "oompah-test-001"
+        assert "retry succeeded" in kwargs.get("reason", "")
+        # Record popped so a future error will create a fresh bead.
+        assert not watcher._seen
+
+    def test_auto_close_only_targets_matching_issue(self):
+        """Only beads tied to the matching issue_id get closed."""
+        watcher, tracker = self._make_watcher()
+        # Two different beads, two different issues.
+        bead_a = MagicMock(); bead_a.identifier = "oompah-bead-A"
+        bead_b = MagicMock(); bead_b.identifier = "oompah-bead-B"
+        tracker.create_issue.side_effect = [bead_a, bead_b]
+        watcher.report_error("backend:a", "first error", issue_id="issue-A")
+        watcher.report_error("backend:b", "second error", issue_id="issue-B")
+        # Move both records out of the quiet window
+        for rec in watcher._seen.values():
+            rec.last_created -= 120
+        closed = watcher.auto_close_for_issue("issue-A")
+        assert closed == ["oompah-bead-A"]
+        # Only A was closed; B remains in _seen
+        remaining_beads = {r.bead_id for r in watcher._seen.values()}
+        assert remaining_beads == {"oompah-bead-B"}
+
+    def test_no_recovery_keeps_bead_deferred(self):
+        """fingerprint+issue_id, no recovery → stays deferred."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error(
+            "backend:worker",
+            "permanent failure",
+            issue_id="orig-issue-456",
+        )
+        # auto_close is only called on retry success; never invoking it
+        # should leave the bead untouched.
+        tracker.close_issue.assert_not_called()
+        assert len(watcher._seen) == 1
+        assert next(iter(watcher._seen.values())).bead_id is not None
+
+    def test_auto_close_skipped_within_quiet_window(self):
+        """Recent errors guard: don't close while fingerprint is hot."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error(
+            "backend:worker",
+            "still firing",
+            issue_id="orig-issue-789",
+        )
+        # last_created is "now" — within the quiet window — so
+        # auto_close_for_issue must skip it (the same fingerprint may
+        # be erroring on another issue right now).
+        closed = watcher.auto_close_for_issue("orig-issue-789")
+        assert closed == []
+        tracker.close_issue.assert_not_called()
+        # Record stays in _seen so future success can still auto-close
+        assert len(watcher._seen) == 1
+
+    def test_auto_close_skipped_when_bead_too_old(self):
+        """Stale records (>30 min) are skipped — operator owns them."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error(
+            "backend:worker",
+            "ancient error",
+            issue_id="orig-issue-old",
+        )
+        # Push the record well past max_age_seconds.
+        for rec in watcher._seen.values():
+            rec.last_created -= 4000  # ~67 min ago
+        closed = watcher.auto_close_for_issue("orig-issue-old")
+        assert closed == []
+        tracker.close_issue.assert_not_called()
+
+    def test_auto_close_chain_of_retries(self):
+        """Multiple distinct errors → all auto-close on success."""
+        watcher, tracker = self._make_watcher()
+        bead_a = MagicMock(); bead_a.identifier = "oompah-bead-A"
+        bead_b = MagicMock(); bead_b.identifier = "oompah-bead-B"
+        bead_c = MagicMock(); bead_c.identifier = "oompah-bead-C"
+        tracker.create_issue.side_effect = [bead_a, bead_b, bead_c]
+        # All three errors during the same issue's retry chain.
+        watcher.report_error("backend:net", "errno 57", issue_id="issue-X")
+        watcher.report_error("backend:net", "timeout", issue_id="issue-X")
+        watcher.report_error("backend:db", "deadlock", issue_id="issue-X")
+        for rec in watcher._seen.values():
+            rec.last_created -= 120
+        closed = watcher.auto_close_for_issue("issue-X")
+        assert sorted(closed) == ["oompah-bead-A", "oompah-bead-B", "oompah-bead-C"]
+        assert tracker.close_issue.call_count == 3
+        assert not watcher._seen
+
+    def test_auto_close_swallows_close_failures(self):
+        """tracker errors during auto-close shouldn't propagate."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error("backend:x", "boom", issue_id="orig-y")
+        for rec in watcher._seen.values():
+            rec.last_created -= 120
+        tracker.close_issue.side_effect = Exception("bd unreachable")
+        # Should not raise; should return empty list.
+        closed = watcher.auto_close_for_issue("orig-y")
+        assert closed == []
+
+    def test_dedup_path_records_issue_id_when_first_lacked_one(self):
+        """If a bead was first filed without issue context, a later
+        same-fingerprint hit *with* issue context still hooks the link
+        up so a future success can auto-close."""
+        watcher, tracker = self._make_watcher()
+        # First report has no issue_id (e.g. came from a non-worker
+        # logger.error in the same process).
+        watcher.report_error("backend:x", "errno 57")
+        rec_first = next(iter(watcher._seen.values()))
+        assert rec_first.issue_id is None
+        # Second report: same fingerprint, dedup'd, but supplies the
+        # issue_id this time.
+        watcher.report_error("backend:x", "errno 57", issue_id="issue-Z")
+        rec_after = next(iter(watcher._seen.values()))
+        assert rec_after.issue_id == "issue-Z"
+        # Only one create_issue call — second was deduplicated.
+        assert tracker.create_issue.call_count == 1
+
+    def test_logger_handler_passes_issue_id_via_extra(self):
+        """The Python logging handler propagates issue_id from
+        ``extra={"issue_id": ...}`` into the watcher record."""
+        watcher, tracker = self._make_watcher()
+        watcher.install_log_handler("oompah.test_handler_issue_id")
+        try:
+            test_logger = logging.getLogger("oompah.test_handler_issue_id")
+            test_logger.error(
+                "Worker failed something transient",
+                extra={"issue_id": "issue-from-extra"},
+            )
+            # The watcher should have created a record carrying the id.
+            assert len(watcher._seen) == 1
+            rec = next(iter(watcher._seen.values()))
+            assert rec.issue_id == "issue-from-extra"
+        finally:
+            watcher.uninstall_log_handler("oompah.test_handler_issue_id")
 
 
 # ---------------------------------------------------------------------------

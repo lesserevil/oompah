@@ -108,13 +108,19 @@ def set_orchestrator(orch: Orchestrator) -> None:
     # Error watcher: creates beads for backend/frontend errors
     _error_watcher = ErrorWatcher(orch.tracker)
     _error_watcher.install_log_handler("oompah")
+    # Register so the orchestrator can ask it to auto-close transient
+    # error beads when an issue's retry path succeeds (oompah-zlz_2-0nc).
+    orch.register_error_watcher(_error_watcher, project_id=None)
 
     # Project log watcher manager: watches log files for projects that set log_path.
     # Each project gets its own ErrorWatcher backed by the project's tracker so
     # error beads are created in the correct project.
     def _make_error_watcher(project_id: str) -> ErrorWatcher:
         tracker = orch._tracker_for_project(project_id)
-        return ErrorWatcher(tracker, project_id=project_id)
+        watcher = ErrorWatcher(tracker, project_id=project_id)
+        # Same auto-close hook as the global watcher above, scoped per project.
+        orch.register_error_watcher(watcher, project_id=project_id)
+        return watcher
 
     _log_watcher_manager = ProjectLogWatcherManager(_make_error_watcher)
     _log_watcher_manager.sync_watchers(orch.project_store.list_all())

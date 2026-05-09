@@ -37,6 +37,7 @@ from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.scm import detect_provider, extract_repo_slug
+from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
     BeadsTracker,
     TrackerError,
@@ -313,6 +314,16 @@ class Orchestrator:
         # Merged-branches cache: persists across ticks, invalidated by webhooks
         self._merged_branches_dirty: bool = True  # start dirty to force first fetch
 
+        # Error watcher registry (oompah-zlz_2-0nc): keyed by project_id
+        # (or ``None`` for the global / unscoped watcher).  Populated by
+        # :meth:`register_error_watcher` from server.py during startup.
+        # The orchestrator calls
+        # ``ErrorWatcher.auto_close_for_issue(...)`` on the matching
+        # watcher when a worker run finishes successfully via the retry
+        # path so that previously filed transient-error beads can close
+        # themselves automatically.
+        self._error_watchers: dict[str | None, ErrorWatcher] = {}
+
     def _load_state(self) -> dict:
         """Load persisted service state from disk."""
         if not os.path.exists(self._state_path):
@@ -530,6 +541,72 @@ class Orchestrator:
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
         return self.tracker
+
+    # ------------------------------------------------------------------
+    # Error watcher integration (oompah-zlz_2-0nc)
+    # ------------------------------------------------------------------
+    def register_error_watcher(
+        self, watcher: ErrorWatcher, project_id: str | None = None
+    ) -> None:
+        """Register an :class:`ErrorWatcher` so the orchestrator can
+        ask it to auto-close transient error beads.
+
+        ``project_id=None`` registers the global / unscoped watcher (the
+        one that handles ``logger.error`` records emitted from the
+        orchestrator itself and any project-less log file).  Project-
+        scoped watchers are registered with their project's id.
+
+        Idempotent: re-registering replaces the previous reference.
+        """
+        self._error_watchers[project_id] = watcher
+
+    def _error_watchers_for_project(
+        self, project_id: str | None
+    ) -> list[ErrorWatcher]:
+        """Return the watchers that may have observed errors from a
+        given project's worker run.
+
+        We always include the unscoped (``None``) watcher because
+        ``oompah.orchestrator`` itself logs errors through it; if a
+        project-specific watcher is also registered, it gets included
+        as well.  Order: project-scoped first so logs read naturally.
+        """
+        watchers: list[ErrorWatcher] = []
+        if project_id and project_id in self._error_watchers:
+            watchers.append(self._error_watchers[project_id])
+        if None in self._error_watchers:
+            watchers.append(self._error_watchers[None])
+        return watchers
+
+    def _auto_close_transient_errors_for_entry(
+        self, entry: RunningEntry
+    ) -> None:
+        """Best-effort auto-close of error beads tied to ``entry.issue``.
+
+        Called from ``_on_worker_exit`` when ``reason == "normal"`` and
+        the run was retry-driven (``retry_attempt > 0``).  Errors
+        during auto-close are swallowed and logged so they never block
+        the worker-exit path.
+        """
+        if not entry.issue or not entry.issue.id:
+            return
+        project_id = entry.issue.project_id
+        for watcher in self._error_watchers_for_project(project_id):
+            try:
+                closed = watcher.auto_close_for_issue(
+                    entry.issue.id,
+                    issue_identifier=entry.identifier,
+                )
+                if closed:
+                    logger.info(
+                        "Auto-closed %d transient error bead(s) for %s: %s",
+                        len(closed), entry.identifier, ", ".join(closed),
+                    )
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(
+                    "auto_close_for_issue failed for %s: %s",
+                    entry.identifier, exc,
+                )
 
     @property
     def is_paused(self) -> bool:
@@ -4583,7 +4660,11 @@ class Orchestrator:
         except Exception as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
-            logger.exception("API worker failed issue_id=%s", issue.id)
+            logger.exception(
+                "API worker failed issue_id=%s",
+                issue.id,
+                extra={"issue_id": issue.id},
+            )
         finally:
             if not issue.project_id:
                 try:
@@ -4951,7 +5032,11 @@ class Orchestrator:
         except Exception as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
-            logger.exception("ACP worker failed issue_id=%s", issue.id)
+            logger.exception(
+                "ACP worker failed issue_id=%s",
+                issue.id,
+                extra={"issue_id": issue.id},
+            )
         finally:
             if not issue.project_id:
                 try:
@@ -5105,6 +5190,7 @@ class Orchestrator:
                 issue.id,
                 issue.identifier,
                 exc,
+                extra={"issue_id": issue.id},
             )
         except Exception as exc:
             exit_reason = "abnormal"
@@ -5113,6 +5199,7 @@ class Orchestrator:
                 "Worker unexpected error issue_id=%s issue_identifier=%s",
                 issue.id,
                 issue.identifier,
+                extra={"issue_id": issue.id},
             )
         finally:
             if not issue.project_id:
@@ -5258,6 +5345,13 @@ class Orchestrator:
                 issue_id,
                 entry.identifier,
             )
+            # If this success came from a retry (attempt > 0) the
+            # earlier failure(s) likely filed transient bug beads via
+            # the error watcher.  Auto-close them now.  attempt == 0
+            # was the first dispatch — nothing was retried, so don't
+            # auto-close anything.
+            if entry.retry_attempt and entry.retry_attempt > 0:
+                self._auto_close_transient_errors_for_entry(entry)
             # Check if the agent actually closed the issue
             try:
                 tracker = self._tracker_for_project(project_id) if project_id else self.tracker

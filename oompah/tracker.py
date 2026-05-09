@@ -332,13 +332,22 @@ class BeadsTracker:
             args.append(f"--{key}={value}")
         self._run_bd(args)
 
-    def close_issue(self, identifier: str) -> None:
+    def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         """Close an issue via bd close.
 
         Also removes the asking_question label if present, since closed
         issues cannot ask questions.
+
+        Args:
+            identifier: bead identifier (e.g. ``oompah-zlz_2-0nc``).
+            reason: optional close reason string passed to ``bd close
+                --reason``.  Used by the error_watcher to record
+                "retry succeeded; transient" on auto-closed beads.
         """
-        self._run_bd(["close", identifier])
+        args = ["close", identifier]
+        if reason:
+            args.extend(["--reason", reason])
+        self._run_bd(args)
         self.remove_label(identifier, "asking_question")
 
     def reopen_issue(self, identifier: str) -> None:
