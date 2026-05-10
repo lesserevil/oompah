@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Any
 
 from oompah.agent import AgentError, AgentEvent, AgentSession
+from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
 from oompah.events import EventBus, EventType
@@ -197,11 +198,19 @@ class Orchestrator:
     def __init__(self, config: ServiceConfig, workflow_path: str,
                  provider_store: ProviderStore | None = None,
                  project_store: ProjectStore | None = None,
+                 agent_profile_store: AgentProfileStore | None = None,
                  state_path: str | None = None):
         self.config = config
         self.workflow_path = workflow_path
         self.provider_store = provider_store or ProviderStore()
         self.project_store = project_store or ProjectStore()
+        # Agent profile store: owns ``.oompah/agent_profiles.json``.
+        # When None, reuse a fresh AgentProfileStore that points at the
+        # default path (no seed). The bootstrap path in __main__.py
+        # creates a properly-seeded store and passes it in. UI-driven
+        # CRUD writes go through this store and trigger reload_config()
+        # on the orchestrator (oompah-zlz_2-xaj).
+        self.agent_profile_store = agent_profile_store or AgentProfileStore()
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self.state = OrchestratorState(
             poll_interval_ms=config.poll_interval_ms,
@@ -393,8 +402,31 @@ class Orchestrator:
         self._save_state(paused=self._paused)
 
     def reload_config(self, config: ServiceConfig, prompt_template: str) -> None:
-        """Apply new config and prompt template from workflow reload."""
+        """Apply new config and prompt template from workflow reload.
+
+        Also refreshes the agent profile store and re-seeds
+        ``config.agent_profiles`` from it, so a write through
+        ``/api/v1/agent-profiles`` takes effect on the next dispatch
+        without requiring a WORKFLOW.md edit (oompah-zlz_2-xaj).
+        """
         self.config = config
+        # Reload the agent profile store from disk and overwrite
+        # config.agent_profiles with what the JSON store has, so:
+        #  - WORKFLOW.md changes still take effect (config carries fresh
+        #    workflow profiles when JSON store is empty);
+        #  - JSON store CRUD takes effect after a reload_config() call
+        #    (the API handler writes to the store, then calls reload).
+        # Skip when the JSON file is missing AND the config has profiles
+        # (WORKFLOW.md-only legacy mode).
+        try:
+            self.agent_profile_store._load()
+            store_profiles = self.agent_profile_store.list_all()
+            if store_profiles:
+                self.config.agent_profiles = store_profiles
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "reload_config: agent profile store reload failed: %s", exc
+            )
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents

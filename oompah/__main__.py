@@ -93,6 +93,7 @@ def main() -> None:
 async def _run(
     workflow_path: str, cli_port: int | None, start_paused: bool = False,
 ) -> bool:
+    from oompah.agent_profile_store import AgentProfileStore
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.orchestrator import Orchestrator
     from oompah.projects import ProjectStore
@@ -122,6 +123,11 @@ async def _run(
     # Create orchestrator with shared stores
     provider_store = ProviderStore()
     project_store = ProjectStore()
+    # Agent profile store: ServiceConfig.from_workflow already created
+    # the JSON file (or migrated WORKFLOW.md profiles into it) when it
+    # parsed the workflow above. Re-open the same path here so the
+    # orchestrator and the HTTP API share a single in-memory store.
+    agent_profile_store = AgentProfileStore()
 
     # Start gh webhook forwarder for each project (subprocess lifecycle
     # managed by WebhookForwarder; independent of orchestrator).
@@ -149,7 +155,8 @@ async def _run(
 
     orchestrator = Orchestrator(config, workflow_path,
                                 provider_store=provider_store,
-                                project_store=project_store)
+                                project_store=project_store,
+                                agent_profile_store=agent_profile_store)
     orchestrator.set_prompt_template(workflow.prompt_template)
 
     # --paused CLI flag forces the orchestrator to boot paused regardless
