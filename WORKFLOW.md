@@ -7,41 +7,14 @@ tracker:
   terminal_states:
     - closed
 
-agent:
-  profiles:
-    # Non-ACP profiles route through Godspeed (prov-04d8bd25), which
-    # serves nvidia/MiniMax-M2.7-NVFP4 for all three model roles. We
-    # switched away from InferenceAPI's Sonnet/Opus to avoid the
-    # per-token rate-limit issues seen on 2026-05-07. The `default`
-    # profile below stays ACP-routed for subscription billing.
-    - name: quick
-      provider_id: prov-04d8bd25
-      model_role: fast
-      issue_types: [chore]
-      keywords: [typo, rename, cleanup, lint, format]
-      max_priority: 4
-    - name: standard
-      provider_id: prov-04d8bd25
-      model_role: standard
-      issue_types: [task, feature]
-    - name: deep
-      provider_id: prov-04d8bd25
-      model_role: deep
-      issue_types: [bug, epic]
-      keywords: [security, architecture, refactor, critical]
-      min_priority: 0
-      max_priority: 1
-    - name: default
-      provider_id: prov-infapi-01
-      model_role: fast
-      # ACP mode: route through claude_agent_sdk so per-token cost is
-      # billed against the operator's claude subscription instead of
-      # the per-token API meter. Combined with
-      # OOMPAH_DEFAULT_FIRST_DISPATCH=true this routes every first
-      # dispatch through the subscription. Escalations still go to
-      # quick/standard/deep (mode=auto) which fall back to the
-      # api_agent path if ACP fails. See plans/acp-agent.md.
-      mode: acp
+# Agent profiles are managed via the dashboard (Providers → Agent
+# Profiles, backed by /api/v1/agent-profiles) and persisted to
+# .oompah/agent_profiles.json. WORKFLOW.md is no longer the source of
+# truth for the profile chain — leaving an agent.profiles: block here
+# raises a startup drift warning. Run with
+# OOMPAH_STRICT_PROFILE_SOURCE=strict once you've migrated to refuse
+# startup if any agent.profiles block reappears in this file.
+# See oompah-zlz_2-hye and docs/agent-profiles.md for details.
 ---
 
 You are an autonomous coding agent working on issue **{{ issue.identifier }}**. Your worktree is already checked out on branch `{{ issue.branch_name }}` — start working from the current directory; do not `cd` elsewhere.

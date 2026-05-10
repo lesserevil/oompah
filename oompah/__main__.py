@@ -117,6 +117,41 @@ async def _run(
             logger.error("Config validation error: %s", err)
         sys.exit(1)
 
+    # Strict-mode profile source check (oompah-zlz_2-hye). When the
+    # operator has set strict mode, refuse to start if WORKFLOW.md
+    # still has an agent.profiles block at all — the dashboard /
+    # AgentProfileStore is the only authoritative source. Default
+    # mode is "warn", which lets startup proceed and surfaces the
+    # drift through the orchestrator alert mechanism below.
+    if (
+        config.strict_profile_source == "strict"
+        and config.workflow_has_profiles_block
+    ):
+        logger.error(
+            "Strict profile-source mode is enabled and WORKFLOW.md still "
+            "contains an agent.profiles block. This section is no longer "
+            "authoritative; profiles are managed via the dashboard "
+            "(/api/v1/agent-profiles) and stored in "
+            ".oompah/agent_profiles.json. Delete the agent.profiles "
+            "block from %s to start. To disable this strict check, set "
+            "OOMPAH_STRICT_PROFILE_SOURCE=warn (the default).",
+            workflow_path,
+        )
+        sys.exit(1)
+
+    # Drift warning (oompah-zlz_2-hye). When the persisted JSON store
+    # disagrees with WORKFLOW.md's profile block, log a warning here
+    # so the operator sees it during startup. The orchestrator below
+    # also raises a dashboard alert (same source) so the operator
+    # sees it without scrolling logs.
+    if config.agent_profiles_drift:
+        logger.warning(
+            "WORKFLOW.md agent.profiles block detected and differs from "
+            "persisted profile store — using the persisted store. Delete "
+            "the agent.profiles section from %s to clear this warning.",
+            workflow_path,
+        )
+
     # Determine port
     port = cli_port or config.server_port
 

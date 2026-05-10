@@ -376,6 +376,35 @@ class Orchestrator:
         # themselves automatically.
         self._error_watchers: dict[str | None, ErrorWatcher] = {}
 
+        # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
+        # the dashboard shows a banner whenever WORKFLOW.md still has a
+        # stale agent.profiles block that disagrees with the persisted
+        # store. Same channel as auto-update warnings.
+        self._arm_profile_drift_alert()
+
+    def _arm_profile_drift_alert(self) -> None:
+        """Add or clear the profile-drift alert based on config state.
+
+        Idempotent — call once at __init__ and again on every
+        reload_config, so a fresh WORKFLOW.md edit either raises or
+        silences the dashboard banner without restart.
+        """
+        # Always drop any previously-armed drift alert before re-checking.
+        self._alerts = [
+            a for a in self._alerts if a.get("source") != "profile_drift"
+        ]
+        if getattr(self.config, "agent_profiles_drift", False):
+            self._alerts.append({
+                "level": "warning",
+                "source": "profile_drift",
+                "message": (
+                    "WORKFLOW.md agent.profiles block detected and "
+                    "differs from persisted profile store — using the "
+                    "persisted store. Delete the agent.profiles "
+                    "section from WORKFLOW.md to clear this warning."
+                ),
+            })
+
     def _load_state(self) -> dict:
         """Load persisted service state from disk."""
         if not os.path.exists(self._state_path):
@@ -492,10 +521,15 @@ class Orchestrator:
         # Reset last full sync so the new full_sync_interval_ms takes effect
         # immediately rather than waiting for the old interval to expire.
         self._last_full_sync = 0.0
-        # File-watcher reload supersedes any pending API-path profile swap —
+       # File-watcher reload supersedes any pending API-path profile swap —
         # the new ServiceConfig already carries the authoritative profile list.
         with self._pending_profiles_lock:
             self._pending_agent_profiles = None
+        # Re-arm the profile-drift alert against the freshly-loaded
+        # config so a WORKFLOW.md edit (or a UI write that resolved
+        # the drift) updates the dashboard banner immediately
+        # (oompah-zlz_2-hye).
+        self._arm_profile_drift_alert()
         logger.info("Config reloaded poll_interval_ms=%d full_sync_interval_ms=%d max_agents=%d",
                      config.poll_interval_ms, config.full_sync_interval_ms,
                      config.max_concurrent_agents)
