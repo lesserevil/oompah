@@ -26,7 +26,8 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Iterable
+import threading
+from typing import Any, Callable, Iterable
 
 from oompah.models import AgentProfile
 
@@ -37,6 +38,17 @@ DEFAULT_AGENT_PROFILES_PATH = ".oompah/agent_profiles.json"
 VALID_MODES = ("auto", "api", "cli", "acp")
 PROVIDER_REQUIRED_MODES = ("auto", "api")
 
+# Callback signature: receives a fresh ``list[AgentProfile]`` snapshot and a
+# free-form ``source`` string (e.g. 'api:create', 'api:update', 'api:delete')
+# used by the callback for logging. Callbacks must NOT raise — failures are
+# logged and the write still succeeds.
+#
+# See oompah-zlz_2-mif: the orchestrator registers a callback that queues a
+# profiles-list swap onto ``ServiceConfig.agent_profiles`` and applies it at
+# the next quiescent point (start of ``_tick``), so API-driven edits take
+# effect on the next dispatch without a WORKFLOW.md round-trip.
+ReloadCallback = Callable[[list[AgentProfile], str], None]
+
 
 class AgentProfileError(ValueError):
     """Raised when a CRUD operation fails validation.
@@ -45,6 +57,12 @@ class AgentProfileError(ValueError):
     working; new code should catch AgentProfileError to distinguish
     profile-store errors from generic value errors.
     """
+
+
+# Backwards-compatible alias used by callers that imported the original
+# spelling (e.g. /api/v1/agent-profiles in oompah/server.py). New code
+# should reach for ``AgentProfileError`` directly.
+AgentProfileStoreError = AgentProfileError
 
 
 def _validate(
@@ -87,6 +105,7 @@ class AgentProfileStore:
         path: str | None = None,
         *,
         seed_from: list[AgentProfile] | None = None,
+        reload_callback: ReloadCallback | None = None,
     ):
         """Open or create the store at ``path``.
 
@@ -98,12 +117,58 @@ class AgentProfileStore:
         as ``seed_from``, and the store creates the JSON file on first
         boot. Subsequent boots find the JSON file and ignore
         ``seed_from``.
+
+        ``reload_callback``, if provided, is invoked after every
+        successful create/update/delete/replace_all with the
+        post-mutation profile list and a free-form source string. It
+        runs OUTSIDE the internal lock so a slow callback cannot block
+        other writers. See ``set_reload_callback`` for late binding.
         """
         self.path = path or DEFAULT_AGENT_PROFILES_PATH
         self._profiles: dict[str, AgentProfile] = {}
         self._migrated_from_workflow = False
         self._loaded_from_disk = False
+        # threading.Lock guards _profiles + the JSON file so HTTP threads
+        # writing concurrently (e.g. POST + DELETE racing) don't lose
+        # writes or corrupt the file.
+        self._lock = threading.Lock()
+        self._reload_callback: ReloadCallback | None = reload_callback
         self._load(seed_from=seed_from)
+
+    # ------------------------------------------------------------------
+    # Reload-callback wiring (oompah-zlz_2-mif)
+    # ------------------------------------------------------------------
+
+    def set_reload_callback(self, cb: ReloadCallback | None) -> None:
+        """Register (or clear) the reload callback.
+
+        Safe to call at any time. Most callers register from
+        ``oompah/server.py::set_orchestrator`` after the orchestrator is
+        constructed so writes through /api/v1/agent-profiles trigger a
+        partial reload via ``Orchestrator.replace_agent_profiles``.
+        """
+        self._reload_callback = cb
+
+    def _fire_reload(self, source: str) -> None:
+        """Invoke the reload callback with a fresh profile snapshot.
+
+        ``source`` is a free-form string (e.g. 'create', 'update',
+        'delete', 'replace_all') used by the callback for logging.
+        Invoked outside the lock so a slow callback cannot block other
+        writers. Exceptions are swallowed and logged — the write has
+        already succeeded by the time we get here.
+        """
+        cb = self._reload_callback
+        if cb is None:
+            return
+        snapshot = self.list_all()
+        try:
+            cb(snapshot, source)
+        except Exception as exc:  # noqa: BLE001 — callback must never break a write
+            logger.warning(
+                "Agent profile reload callback failed (source=%s): %s",
+                source, exc,
+            )
 
     # ------------------------------------------------------------------
     # Persistence
@@ -160,10 +225,14 @@ class AgentProfileStore:
     # ------------------------------------------------------------------
 
     def list_all(self) -> list[AgentProfile]:
-        return list(self._profiles.values())
+        # Snapshot under the lock so concurrent writes can't mutate
+        # the dict mid-iteration.
+        with self._lock:
+            return list(self._profiles.values())
 
     def get(self, name: str) -> AgentProfile | None:
-        return self._profiles.get(name)
+        with self._lock:
+            return self._profiles.get(name)
 
     @property
     def is_empty(self) -> bool:
@@ -196,9 +265,13 @@ class AgentProfileStore:
         """
         if isinstance(profile, dict):
             profile = AgentProfile.from_dict(profile)
-        _validate(profile, existing_names=self._profiles.keys())
-        self._profiles[profile.name] = profile
-        self._save()
+        with self._lock:
+            _validate(profile, existing_names=self._profiles.keys())
+            self._profiles[profile.name] = profile
+            self._save()
+        # Fire callback OUTSIDE the lock — a slow Orchestrator partial
+        # reload must not block subsequent writes.
+        self._fire_reload("create")
         return profile
 
     def update(self, _profile_name: str, /, **fields: Any) -> AgentProfile | None:
@@ -213,38 +286,42 @@ class AgentProfileStore:
         can pass ``name="new-name"`` as a kwarg to rename the profile
         without colliding with the lookup argument.
         """
-        existing = self._profiles.get(_profile_name)
-        if existing is None:
-            return None
-        # Build a candidate by copying current values then overlaying
-        # the requested fields, so partial PATCHes work.
-        candidate_dict = existing.to_dict()
-        for key, value in fields.items():
-            if key == "name" and value is not None:
-                candidate_dict["name"] = str(value)
-                continue
-            candidate_dict[key] = value
-        candidate = AgentProfile.from_dict(candidate_dict)
-        # Uniqueness check skips the original entry's own name so the
-        # caller can no-op rename to the same value.
-        existing_names = [
-            n for n in self._profiles.keys() if n != _profile_name
-        ]
-        _validate(candidate, existing_names=existing_names)
-        # Apply: drop the old key if rename, set the new entry.
-        if candidate.name != _profile_name:
-            del self._profiles[_profile_name]
-        self._profiles[candidate.name] = candidate
-        self._save()
+        with self._lock:
+            existing = self._profiles.get(_profile_name)
+            if existing is None:
+                return None
+            # Build a candidate by copying current values then overlaying
+            # the requested fields, so partial PATCHes work.
+            candidate_dict = existing.to_dict()
+            for key, value in fields.items():
+                if key == "name" and value is not None:
+                    candidate_dict["name"] = str(value)
+                    continue
+                candidate_dict[key] = value
+            candidate = AgentProfile.from_dict(candidate_dict)
+            # Uniqueness check skips the original entry's own name so the
+            # caller can no-op rename to the same value.
+            existing_names = [
+                n for n in self._profiles.keys() if n != _profile_name
+            ]
+            _validate(candidate, existing_names=existing_names)
+            # Apply: drop the old key if rename, set the new entry.
+            if candidate.name != _profile_name:
+                del self._profiles[_profile_name]
+            self._profiles[candidate.name] = candidate
+            self._save()
+        self._fire_reload("update")
         return candidate
 
     def delete(self, name: str) -> bool:
         """Delete a profile by name. Returns True iff something was removed."""
-        if name in self._profiles:
+        with self._lock:
+            if name not in self._profiles:
+                return False
             del self._profiles[name]
             self._save()
-            return True
-        return False
+        self._fire_reload("delete")
+        return True
 
     def replace_all(self, profiles: list[AgentProfile]) -> None:
         """Replace the entire store with ``profiles`` and persist.
@@ -254,9 +331,11 @@ class AgentProfileStore:
         when the JSON store is the source of truth, or admin reset).
         Validates all profiles before persisting.
         """
-        new_map: dict[str, AgentProfile] = {}
-        for p in profiles:
-            _validate(p, existing_names=new_map.keys())
-            new_map[p.name] = p
-        self._profiles = new_map
-        self._save()
+        with self._lock:
+            new_map: dict[str, AgentProfile] = {}
+            for p in profiles:
+                _validate(p, existing_names=new_map.keys())
+                new_map[p.name] = p
+            self._profiles = new_map
+            self._save()
+        self._fire_reload("replace_all")

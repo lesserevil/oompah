@@ -39,6 +39,10 @@ from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
+from oompah.agent_profile_store import (
+    AgentProfileStore,
+    AgentProfileStoreError,
+)
 
 if TYPE_CHECKING:
     from oompah.orchestrator import Orchestrator
@@ -90,10 +94,12 @@ _provider_store = ProviderStore()
 
 # Global agent profile store. Lazily seeded from WORKFLOW.md by
 # ServiceConfig.from_workflow on first boot; thereafter the JSON file
-# is the source of truth and is the path API writes go through.
-# A fresh empty store is created here so server-side imports don't
+# is the source of truth and is the path API writes go through. A
+# fresh empty store is created here so server-side imports don't
 # crash; the orchestrator wires its real store into both itself and
-# this server module via set_orchestrator() at startup.
+# this server module via :func:`set_orchestrator` at startup, which
+# also registers the reload callback that fires on every write through
+# /api/v1/agent-profiles (oompah-zlz_2-mif).
 _agent_profile_store = AgentProfileStore()
 
 # Global reference to orchestrator, set during startup
@@ -121,6 +127,22 @@ def set_orchestrator(orch: Orchestrator) -> None:
     # State-only observer: state broadcast without issues re-fetch (for agent activity)
     orch._state_only_observers.append(_on_state_only_change)
     orch._activity_observers.append(_on_agent_activity)
+
+    # Wire AgentProfileStore -> Orchestrator partial reload (oompah-zlz_2-mif).
+    # Every successful create/update/delete on the store fires this callback,
+    # which queues the new profile list onto the orchestrator. The swap is
+    # applied at the start of the next _tick() — a quiescent point — so the
+    # current tick (if any) sees a single consistent profile list end-to-end.
+    def _on_profiles_changed(profiles, source: str) -> None:
+        try:
+            orch.replace_agent_profiles(profiles, source=f"api:{source}")
+        except Exception as exc:  # noqa: BLE001 — callback must never break a write
+            logger.error(
+                "Failed to schedule agent profile reload (source=%s): %s",
+                source, exc,
+            )
+
+    _agent_profile_store.set_reload_callback(_on_profiles_changed)
     # Error watcher: creates beads for backend/frontend errors
     _error_watcher = ErrorWatcher(orch.tracker)
     _error_watcher.install_log_handler("oompah")
@@ -146,6 +168,22 @@ def _get_orchestrator() -> Orchestrator:
     if _orchestrator is None:
         raise RuntimeError("Orchestrator not initialized")
     return _orchestrator
+
+
+def _set_agent_profile_store(store: AgentProfileStore) -> None:
+    """Test-only: replace the global agent profile store.
+
+    Not part of the public API. Used by integration tests that need the
+    store to point at a tmp_path so test runs don't collide with each
+    other or with the dev environment's .oompah/agent_profiles.json.
+    """
+    global _agent_profile_store
+    _agent_profile_store = store
+
+
+def _get_agent_profile_store() -> AgentProfileStore:
+    """Return the process-wide agent profile store (for tests/inspection)."""
+    return _agent_profile_store
 
 
 _last_state_broadcast = 0.0
@@ -1204,7 +1242,7 @@ async def api_delete_provider(provider_id: str):
 
 
 # ----------------------------------------------------------------------
-# Agent profiles CRUD (oompah-zlz_2-xaj)
+# Agent profiles CRUD (oompah-zlz_2-xaj + oompah-zlz_2-mif)
 #
 # Backed by AgentProfileStore at .oompah/agent_profiles.json.
 # WORKFLOW.md remains a fallback / migration source only — once a profile
@@ -1217,41 +1255,12 @@ async def api_delete_provider(provider_id: str):
 #   - api / auto modes: provider_id required.
 #   - acp mode:        provider_id NOT required.
 #
-# Successful POST/PATCH/DELETE call orchestrator.reload_config() so the
-# new profile list is in effect on the next dispatch tick (no
-# WORKFLOW.md edit needed).
+# Live-reload: a successful POST/PATCH/DELETE goes through the store's
+# reload callback (registered in :func:`set_orchestrator`) which calls
+# ``Orchestrator.replace_agent_profiles``. That queues a partial config
+# swap applied at the next ``_tick()`` quiescent point — no WORKFLOW.md
+# round-trip. See oompah-zlz_2-mif.
 # ----------------------------------------------------------------------
-
-
-def _reload_orchestrator_config_after_profile_change() -> None:
-    """Trigger an orchestrator reload so updated profiles take effect.
-
-    Best-effort: when the orchestrator is not yet wired (early boot,
-    test contexts), this is a no-op. When a workflow reload itself
-    fails, we log a warning but keep the JSON store change persisted —
-    the operator can recover by fixing WORKFLOW.md or rolling back.
-    """
-    if _orchestrator is None:
-        return
-    try:
-        from oompah.config import (
-            ServiceConfig, WorkflowError, load_workflow,
-            validate_dispatch_config,
-        )
-        wf = load_workflow(_orchestrator.workflow_path)
-        new_config = ServiceConfig.from_workflow(wf)
-        errs = validate_dispatch_config(new_config)
-        if errs:
-            logger.warning(
-                "agent profile reload: workflow validation failed: %s",
-                "; ".join(errs),
-            )
-            return
-        _orchestrator.reload_config(new_config, wf.prompt_template)
-    except WorkflowError as exc:
-        logger.warning("agent profile reload: workflow load failed: %s", exc)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("agent profile reload failed: %s", exc)
 
 
 def _validate_profile_payload_acp_aware(
@@ -1362,9 +1371,21 @@ async def api_create_agent_profile(request: Request):
       mode=acp warns if provider_id is set; model_role must exist
       in the provider's model_roles map when the map is non-empty.
     * Per-record: name uniqueness, mode enum, etc. (AgentProfileStore).
+
+    Live-reload (oompah-zlz_2-mif): a successful create fires the store's
+    reload callback, which queues a partial orchestrator config swap that
+    applies at the start of the next ``_tick()``. No WORKFLOW.md edit
+    required; in-flight running agents keep their existing profile.
     """
     try:
         body = await request.json()
+    except Exception as exc:  # noqa: BLE001 — malformed JSON body
+        return JSONResponse(
+            {"error": {"code": "validation",
+                       "message": f"Invalid JSON: {exc}"}},
+            status_code=400,
+        )
+    try:
         if not isinstance(body, dict):
             return JSONResponse(
                 {"error": {"code": "validation",
@@ -1385,7 +1406,6 @@ async def api_create_agent_profile(request: Request):
                 {"error": {"code": "validation", "message": str(exc)}},
                 status_code=400,
             )
-        _reload_orchestrator_config_after_profile_change()
         out = profile.to_dict()
         if warnings:
             out["warnings"] = warnings
@@ -1406,9 +1426,20 @@ async def api_update_agent_profile(name: str, request: Request):
     profile (uniqueness if renamed; mode/provider_id consistency).
     Cross-store validation: same rules as POST (see
     ``_validate_profile_payload_acp_aware``).
+
+    Live-reload (oompah-zlz_2-mif): a successful update fires the store's
+    reload callback, queuing a partial orchestrator config swap that
+    applies at the next ``_tick()`` quiescent point.
     """
     try:
         body = await request.json()
+    except Exception as exc:  # noqa: BLE001 — malformed JSON body
+        return JSONResponse(
+            {"error": {"code": "validation",
+                       "message": f"Invalid JSON: {exc}"}},
+            status_code=400,
+        )
+    try:
         if not isinstance(body, dict):
             return JSONResponse(
                 {"error": {"code": "validation",
@@ -1444,7 +1475,6 @@ async def api_update_agent_profile(name: str, request: Request):
                            "message": f"Agent profile {name!r} not found"}},
                 status_code=404,
             )
-        _reload_orchestrator_config_after_profile_change()
         out = profile.to_dict()
         if warnings:
             out["warnings"] = warnings
@@ -1459,9 +1489,13 @@ async def api_update_agent_profile(name: str, request: Request):
 
 @app.delete("/api/v1/agent-profiles/{name}")
 async def api_delete_agent_profile(name: str):
-    """Delete an agent profile by name."""
+    """Delete an agent profile by name.
+
+    Live-reload (oompah-zlz_2-mif): a successful delete fires the store's
+    reload callback, queuing a partial orchestrator config swap that
+    applies at the next ``_tick()`` quiescent point.
+    """
     if _agent_profile_store.delete(name):
-        _reload_orchestrator_config_after_profile_change()
         return JSONResponse({"ok": True})
     return JSONResponse(
         {"error": {"code": "not_found",

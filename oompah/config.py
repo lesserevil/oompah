@@ -367,7 +367,8 @@ class ServiceConfig:
         # store) wins when present. WORKFLOW.md profiles are the
         # fallback (and the migration seed when the JSON file does not
         # yet exist). See AgentProfileStore for the full migration
-        # contract; oompah-zlz_2-xaj for the design rationale.
+        # contract; oompah-zlz_2-xaj for the design rationale,
+        # oompah-zlz_2-mif for the live-reload wiring.
         raw_profiles = agent.get("profiles", []) or []
         workflow_profiles: list[AgentProfile] = []
         for p in raw_profiles:
