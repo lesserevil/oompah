@@ -973,14 +973,34 @@ async def api_list_providers():
 
 @app.post("/api/v1/providers")
 async def api_create_provider(request: Request):
-    """Create a new model provider."""
+    """Create a new model provider.
+
+    Validation rules:
+      - ``name`` is always required.
+      - ``mode`` must be one of {"api", "acp"} (defaults to "api").
+      - When mode == "api": ``base_url`` is required (legacy behavior;
+        the OpenAI-compatible client cannot operate without it).
+      - When mode == "acp": ``base_url`` and ``api_key`` are optional —
+        the Claude Agent SDK manages the connection and bills against
+        the operator's claude subscription.
+    """
     try:
         body = await request.json()
         name = body.get("name", "").strip()
+        raw_mode = str(body.get("mode", "api") or "api").lower()
+        mode = raw_mode if raw_mode in ("api", "acp") else "api"
         base_url = body.get("base_url", "").strip()
-        if not name or not base_url:
+        if not name:
             return JSONResponse(
-                {"error": {"code": "validation", "message": "Name and base_url are required"}},
+                {"error": {"code": "validation", "message": "Name is required"}},
+                status_code=400,
+            )
+        # ACP providers don't need a base_url — the Claude Agent SDK
+        # manages the connection. API providers still need one or the
+        # OpenAI-compatible client can't dispatch a single call.
+        if mode == "api" and not base_url:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "base_url is required for api-mode providers"}},
                 status_code=400,
             )
         provider = _provider_store.create(
@@ -990,6 +1010,9 @@ async def api_create_provider(request: Request):
             models=body.get("models", []),
             default_model=body.get("default_model"),
             provider_type=body.get("provider_type", "openai"),
+            mode=mode,
+            acp_permission_mode=body.get("acp_permission_mode"),
+            acp_subscription_only=bool(body.get("acp_subscription_only", False)),
         )
         return JSONResponse(provider.to_safe_dict(), status_code=201)
     except Exception as exc:
@@ -1002,13 +1025,53 @@ async def api_create_provider(request: Request):
 
 @app.patch("/api/v1/providers/{provider_id}")
 async def api_update_provider(provider_id: str, request: Request):
-    """Update a model provider."""
+    """Update a model provider.
+
+    Accepts partial updates. ACP-aware validation rules:
+      - When the request flips ``mode`` to "api" and the (resulting)
+        provider has no ``base_url``, the request is rejected.
+      - Switching to ``mode == "acp"`` is always allowed; base_url and
+        api_key remain stored but unused.
+    """
     try:
         body = await request.json()
         fields = {}
-        for key in ("name", "base_url", "api_key", "models", "default_model", "provider_type", "model_roles", "model_costs", "model_capabilities"):
+        for key in (
+            "name",
+            "base_url",
+            "api_key",
+            "models",
+            "default_model",
+            "provider_type",
+            "model_roles",
+            "model_costs",
+            "model_capabilities",
+            "mode",
+            "acp_permission_mode",
+            "acp_subscription_only",
+        ):
             if key in body:
                 fields[key] = body[key]
+        # Normalize the mode field early so the validation below sees
+        # the value the store will end up writing.
+        if "mode" in fields:
+            m = str(fields["mode"] or "api").lower()
+            fields["mode"] = m if m in ("api", "acp") else "api"
+        # Determine the effective post-update mode + base_url to enforce
+        # the api-mode base_url requirement (regression preserved).
+        existing = _provider_store.get(provider_id)
+        if existing is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+                status_code=404,
+            )
+        effective_mode = fields.get("mode", existing.mode)
+        effective_base_url = fields.get("base_url", existing.base_url)
+        if effective_mode == "api" and not (effective_base_url or "").strip():
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "base_url is required for api-mode providers"}},
+                status_code=400,
+            )
         provider = _provider_store.update(provider_id, **fields)
         if not provider:
             return JSONResponse(
