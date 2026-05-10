@@ -16,6 +16,7 @@
       --accent: #58a6ff;
       --green: #3fb950;
       --red: #f85149;
+      --yellow: #e2b340;
     }
     html { font-size: 125%; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -74,6 +75,7 @@
       justify-content: space-between;
       align-items: center;
     }
+    .content h2.section-spacer { margin-top: 2.5rem; }
 
     .provider-card {
       background: var(--surface);
@@ -100,6 +102,10 @@
       color: var(--accent);
       font-family: 'SF Mono', 'Fira Code', monospace;
     }
+    .provider-type.mode-auto { background: rgba(125, 133, 144, 0.2); color: var(--text-muted); }
+    .provider-type.mode-api { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .provider-type.mode-cli { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+    .provider-type.mode-acp { background: rgba(226, 179, 64, 0.15); color: var(--yellow); }
     .provider-detail {
       font-size: 0.8rem;
       color: var(--text-muted);
@@ -251,6 +257,23 @@
       padding: 0.4rem 1rem;
       font-size: 0.8rem;
     }
+    .dialog details {
+      margin-top: 0.75rem;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+    }
+    .dialog details summary {
+      cursor: pointer;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      user-select: none;
+    }
+    .dialog details summary:hover { color: var(--text); }
+    .dialog details[open] summary { color: var(--text); margin-bottom: 0.4rem; }
+    .row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .row-2col label { margin-top: 0.75rem; }
   </style>
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -296,17 +319,43 @@
       <button class="btn-primary" onclick="openProviderDialog()">+ Add Provider</button>
     </h2>
     <div id="providers-list"></div>
+
+    <h2 class="section-spacer">
+      Agent Profiles
+      <button class="btn-primary" onclick="openProfileDialog()">+ Add Profile</button>
+    </h2>
+    <div id="profiles-list"></div>
   </div>
 
 <script>
 let providers = [];
+let agentProfiles = [];
 let editingId = null;
+let editingProfileName = null;
+const DEFAULT_AGENT_COMMAND = 'claude --dangerously-skip-permissions';
+const VALID_ISSUE_TYPES = ['chore', 'task', 'feature', 'bug', 'epic'];
 
 async function loadProviders() {
   const res = await fetch('/api/v1/providers');
   if (!res.ok) return;
   providers = await res.json();
   renderProviders();
+  renderProfiles();
+}
+
+async function loadAgentProfiles() {
+  try {
+    const res = await fetch('/api/v1/agent-profiles');
+    if (!res.ok) {
+      agentProfiles = [];
+      renderProfiles();
+      return;
+    }
+    agentProfiles = await res.json();
+  } catch (e) {
+    agentProfiles = [];
+  }
+  renderProfiles();
 }
 
 function renderProviders() {
@@ -343,6 +392,68 @@ function renderProviders() {
       </div>
     </div>
   `).join('');
+}
+
+function renderProfiles() {
+  const container = document.getElementById('profiles-list');
+  if (!container) return;
+  if (!agentProfiles || agentProfiles.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        No agent profiles configured.<br>
+        Add a profile to control which model handles fast/standard/deep tiers.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = agentProfiles.map(p => {
+    const mode = (p.mode || 'auto');
+    const provider = providers.find(pr => pr.id === p.provider_id);
+    const providerLabel = mode === 'acp'
+      ? '<em>N/A for acp</em>'
+      : (provider ? esc(provider.name) : (p.provider_id ? `<em>(unknown: ${esc(p.provider_id)})</em>` : '<em>(default)</em>'));
+
+    const constraints = renderProfileConstraints(p);
+
+    return `
+      <div class="provider-card">
+        <div class="provider-header">
+          <span class="provider-name">${esc(p.name)}</span>
+          <span class="provider-type mode-${esc(mode)}">${esc(mode)}</span>
+        </div>
+        <div class="provider-detail">Provider: ${providerLabel}</div>
+        ${p.model_role ? `<div class="provider-detail">Model role: <code>${esc(p.model_role)}</code></div>` : ''}
+        ${p.model ? `<div class="provider-detail">Model override: <code>${esc(p.model)}</code></div>` : ''}
+        ${typeof p.max_turns === 'number' ? `<div class="provider-detail">Max turns: <code>${p.max_turns}</code></div>` : ''}
+        ${constraints ? `<div class="provider-detail">${constraints}</div>` : ''}
+        <div class="provider-actions">
+          <button onclick="editProfile('${escAttr(p.name)}')">Edit</button>
+          <button class="btn-danger" onclick="deleteProfile('${escAttr(p.name)}')">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderProfileConstraints(p) {
+  const parts = [];
+  if (p.issue_types && p.issue_types.length > 0) {
+    parts.push('issue_types: ' + p.issue_types.map(t => '<code>' + esc(t) + '</code>').join(', '));
+  }
+  if (p.keywords && p.keywords.length > 0) {
+    parts.push('keywords: ' + p.keywords.map(k => '<code>' + esc(k) + '</code>').join(', '));
+  }
+  const hasMin = (typeof p.min_priority === 'number');
+  const hasMax = (typeof p.max_priority === 'number');
+  if (hasMin || hasMax) {
+    let pr;
+    if (hasMin && hasMax) pr = `priority: P${p.min_priority}–P${p.max_priority}`;
+    else if (hasMin) pr = `min priority: P${p.min_priority}`;
+    else pr = `max priority: P${p.max_priority}`;
+    parts.push(pr);
+  }
+  return parts.join(' &middot; ');
 }
 
 let dialogModels = [];
@@ -389,7 +500,7 @@ function renderModelTags() {
     tag.textContent = m;
     const rm = document.createElement('span');
     rm.className = 'tag-remove';
-    rm.textContent = '\u00d7';
+    rm.textContent = '×';
     rm.addEventListener('click', () => removeModel(m));
     tag.appendChild(rm);
     wrap.insertBefore(tag, input);
@@ -530,7 +641,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  loadProviders();
+  // Profile dialog tag inputs
+  setupProfileTagInput('ap-types-input', () => profileIssueTypes, (arr) => { profileIssueTypes = arr; renderProfileIssueTypeTags(); });
+  setupProfileTagInput('ap-keywords-input', () => profileKeywords, (arr) => { profileKeywords = arr; renderProfileKeywordTags(); });
+
+  // Provider select changes update model role suggestions
+  document.getElementById('ap-provider').addEventListener('change', updateModelRoleSuggestions);
+  document.getElementById('ap-mode').addEventListener('change', onProfileModeChange);
+
+  loadProviders().then(loadAgentProfiles);
 });
 
 function closeProviderDialog() {
@@ -584,15 +703,281 @@ async function submitProvider() {
   await loadProviders();
 }
 
+// === Agent Profile dialog ============================================
+
+let profileIssueTypes = [];
+let profileKeywords = [];
+
+function setupProfileTagInput(inputId, getArr, setArr) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const v = input.value.replace(',', '').trim();
+      if (v) {
+        const arr = getArr();
+        if (!arr.includes(v)) {
+          setArr([...arr, v]);
+        }
+      }
+      input.value = '';
+    } else if (e.key === 'Backspace' && !input.value) {
+      const arr = getArr();
+      if (arr.length) {
+        setArr(arr.slice(0, -1));
+      }
+    }
+  });
+  input.addEventListener('blur', () => {
+    const v = input.value.trim();
+    if (v) {
+      const arr = getArr();
+      if (!arr.includes(v)) {
+        setArr([...arr, v]);
+      }
+      input.value = '';
+    }
+  });
+}
+
+function renderProfileIssueTypeTags() {
+  renderProfileTags('ap-types-wrap', 'ap-types-input', profileIssueTypes, (v) => {
+    profileIssueTypes = profileIssueTypes.filter(x => x !== v);
+    renderProfileIssueTypeTags();
+  });
+}
+
+function renderProfileKeywordTags() {
+  renderProfileTags('ap-keywords-wrap', 'ap-keywords-input', profileKeywords, (v) => {
+    profileKeywords = profileKeywords.filter(x => x !== v);
+    renderProfileKeywordTags();
+  });
+}
+
+function renderProfileTags(wrapId, inputId, values, onRemove) {
+  const wrap = document.getElementById(wrapId);
+  const input = document.getElementById(inputId);
+  if (!wrap || !input) return;
+  wrap.querySelectorAll('.tag').forEach(t => t.remove());
+  values.forEach(v => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = v;
+    const rm = document.createElement('span');
+    rm.className = 'tag-remove';
+    rm.textContent = '×';
+    rm.addEventListener('click', () => onRemove(v));
+    tag.appendChild(rm);
+    wrap.insertBefore(tag, input);
+  });
+}
+
+function openProfileDialog(profile) {
+  editingProfileName = profile ? profile.name : null;
+  document.getElementById('profile-dialog-title').textContent = profile ? 'Edit Agent Profile' : 'Add Agent Profile';
+
+  const nameInput = document.getElementById('ap-name');
+  nameInput.value = profile ? profile.name : '';
+  nameInput.disabled = !!profile; // name is the unique key — don't allow rename
+
+  document.getElementById('ap-mode').value = profile ? (profile.mode || 'auto') : 'auto';
+  document.getElementById('ap-model-role').value = profile ? (profile.model_role || '') : '';
+  document.getElementById('ap-model').value = profile ? (profile.model || '') : '';
+  document.getElementById('ap-max-turns').value =
+    profile && typeof profile.max_turns === 'number' ? String(profile.max_turns) : '';
+  document.getElementById('ap-min-priority').value =
+    profile && typeof profile.min_priority === 'number' ? String(profile.min_priority) : '';
+  document.getElementById('ap-max-priority').value =
+    profile && typeof profile.max_priority === 'number' ? String(profile.max_priority) : '';
+  document.getElementById('ap-command').value =
+    profile ? (profile.command || DEFAULT_AGENT_COMMAND) : DEFAULT_AGENT_COMMAND;
+
+  profileIssueTypes = profile && profile.issue_types ? [...profile.issue_types] : [];
+  profileKeywords = profile && profile.keywords ? [...profile.keywords] : [];
+  renderProfileIssueTypeTags();
+  renderProfileKeywordTags();
+  document.getElementById('ap-types-input').value = '';
+  document.getElementById('ap-keywords-input').value = '';
+
+  syncProviderSelect(profile ? (profile.provider_id || '') : '');
+  onProfileModeChange();
+  updateModelRoleSuggestions();
+
+  document.getElementById('profile-dialog').classList.add('open');
+  setTimeout(() => {
+    if (!profile) nameInput.focus();
+    else document.getElementById('ap-mode').focus();
+  }, 50);
+}
+
+function closeProfileDialog() {
+  document.getElementById('profile-dialog').classList.remove('open');
+  editingProfileName = null;
+}
+
+function syncProviderSelect(currentVal) {
+  const sel = document.getElementById('ap-provider');
+  sel.innerHTML = '<option value="">— none / use default —</option>';
+  providers.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    sel.appendChild(opt);
+  });
+  if (currentVal) sel.value = currentVal;
+}
+
+function onProfileModeChange() {
+  const mode = document.getElementById('ap-mode').value;
+  const providerSelect = document.getElementById('ap-provider');
+  const providerLabel = document.getElementById('ap-provider-label');
+  if (mode === 'acp') {
+    providerLabel.textContent = 'Provider — N/A for acp';
+    providerSelect.disabled = true;
+    providerSelect.value = '';
+  } else {
+    providerLabel.textContent = 'Provider';
+    providerSelect.disabled = false;
+  }
+  updateModelRoleSuggestions();
+}
+
+function updateModelRoleSuggestions() {
+  const sel = document.getElementById('ap-provider');
+  const dl = document.getElementById('ap-model-role-suggestions');
+  if (!dl) return;
+  dl.innerHTML = '';
+  const provider = providers.find(p => p.id === sel.value);
+  let roles = ['fast', 'standard', 'deep'];
+  if (provider && provider.model_roles && typeof provider.model_roles === 'object') {
+    const keys = Object.keys(provider.model_roles);
+    if (keys.length > 0) roles = keys;
+  }
+  roles.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r;
+    dl.appendChild(opt);
+  });
+}
+
+function editProfile(name) {
+  const p = agentProfiles.find(x => x.name === name);
+  if (p) openProfileDialog(p);
+}
+
+async function deleteProfile(name) {
+  if (!confirm(`Delete agent profile "${name}"?`)) return;
+  const res = await fetch('/api/v1/agent-profiles/' + encodeURIComponent(name), {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    let msg = 'Delete failed';
+    try { const err = await res.json(); msg = (err.error && err.error.message) || msg; } catch(e) {}
+    alert(msg);
+    return;
+  }
+  await loadAgentProfiles();
+}
+
+async function submitProfile() {
+  const name = document.getElementById('ap-name').value.trim();
+  if (!name) { alert('Name is required.'); return; }
+
+  const mode = document.getElementById('ap-mode').value;
+  const providerId = document.getElementById('ap-provider').value;
+  const modelRole = document.getElementById('ap-model-role').value.trim();
+  const model = document.getElementById('ap-model').value.trim();
+  const maxTurnsRaw = document.getElementById('ap-max-turns').value.trim();
+  const minPriorityRaw = document.getElementById('ap-min-priority').value.trim();
+  const maxPriorityRaw = document.getElementById('ap-max-priority').value.trim();
+  const command = document.getElementById('ap-command').value.trim() || DEFAULT_AGENT_COMMAND;
+
+  if (mode !== 'acp' && mode !== 'cli' && !providerId) {
+    if (!confirm('No provider selected for mode "' + mode + '". The runtime will fall back to the default provider. Continue?')) return;
+  }
+
+  // Pull any pending tag-input text in case the user didn't blur out.
+  const typesPending = document.getElementById('ap-types-input').value.trim();
+  if (typesPending && !profileIssueTypes.includes(typesPending)) profileIssueTypes.push(typesPending);
+  const kwPending = document.getElementById('ap-keywords-input').value.trim();
+  if (kwPending && !profileKeywords.includes(kwPending)) profileKeywords.push(kwPending);
+
+  const body = {
+    name,
+    command,
+    mode,
+    provider_id: mode === 'acp' ? null : (providerId || null),
+    model_role: modelRole || null,
+    model: model || null,
+    max_turns: parseIntOrNull(maxTurnsRaw),
+    min_priority: parseIntOrNull(minPriorityRaw),
+    max_priority: parseIntOrNull(maxPriorityRaw),
+    issue_types: [...profileIssueTypes],
+    keywords: [...profileKeywords],
+  };
+
+  // priority bounds validation
+  for (const k of ['min_priority', 'max_priority']) {
+    const v = body[k];
+    if (v !== null && (v < 0 || v > 4)) {
+      alert(`${k} must be between 0 and 4.`);
+      return;
+    }
+  }
+  if (body.min_priority !== null && body.max_priority !== null && body.min_priority > body.max_priority) {
+    alert('min_priority cannot be greater than max_priority.');
+    return;
+  }
+
+  let res;
+  if (editingProfileName) {
+    res = await fetch('/api/v1/agent-profiles/' + encodeURIComponent(editingProfileName), {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  } else {
+    res = await fetch('/api/v1/agent-profiles', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  }
+  if (!res.ok) {
+    let msg = 'Save failed';
+    try { const err = await res.json(); msg = (err.error && err.error.message) || msg; } catch(e) {}
+    alert(msg);
+    return;
+  }
+
+  closeProfileDialog();
+  await loadAgentProfiles();
+}
+
+function parseIntOrNull(s) {
+  if (s === undefined || s === null || s === '') return null;
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 function esc(s) {
-  if (!s) return '';
+  if (s === undefined || s === null) return '';
   const d = document.createElement('div');
-  d.textContent = s;
+  d.textContent = String(s);
   return d.innerHTML;
 }
 
+function escAttr(s) {
+  if (s === undefined || s === null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeProviderDialog();
+  if (e.key === 'Escape') {
+    closeProviderDialog();
+    closeProfileDialog();
+  }
 });
 
 </script>
@@ -629,6 +1014,77 @@ document.addEventListener('keydown', e => {
     <div class="dialog-actions">
       <button onclick="closeProviderDialog()">Cancel</button>
       <button class="btn-primary" onclick="submitProvider()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="profile-dialog" onclick="if(event.target===this)closeProfileDialog()">
+  <div class="dialog">
+    <h2 id="profile-dialog-title">Add Agent Profile</h2>
+    <label for="ap-name">Name</label>
+    <input type="text" id="ap-name" placeholder="e.g., fast, standard, deep, default">
+    <div class="hint">Unique identifier — also the routing target for issue matching.</div>
+
+    <label for="ap-mode">Mode</label>
+    <select id="ap-mode">
+      <option value="auto">auto — api if a provider resolves, else cli</option>
+      <option value="api">api — OpenAI-compatible chat completions</option>
+      <option value="cli">cli — claude CLI subprocess</option>
+      <option value="acp">acp — Claude Agent SDK (operator subscription)</option>
+    </select>
+
+    <label for="ap-provider" id="ap-provider-label">Provider</label>
+    <select id="ap-provider">
+      <option value="">— none / use default —</option>
+    </select>
+    <div class="hint">api/auto require a provider. acp does not use a provider.</div>
+
+    <label for="ap-model-role">Model Role</label>
+    <input type="text" id="ap-model-role" placeholder="fast / standard / deep" list="ap-model-role-suggestions">
+    <datalist id="ap-model-role-suggestions"></datalist>
+    <div class="hint">Resolved against the provider's model_roles. Suggestions reflect the selected provider.</div>
+
+    <label for="ap-model">Model Override</label>
+    <input type="text" id="ap-model" placeholder="(optional) explicit model name">
+    <div class="hint">Wins over model_role when both are set.</div>
+
+    <label for="ap-max-turns">Max Turns</label>
+    <input type="number" id="ap-max-turns" min="1" placeholder="(optional)">
+
+    <label>Issue Types</label>
+    <div class="tag-input-wrap" id="ap-types-wrap" onclick="document.getElementById('ap-types-input').focus()">
+      <input type="text" id="ap-types-input" placeholder="chore / task / feature / bug / epic">
+    </div>
+    <div class="hint">Press Enter or comma to add. Suggested values: chore, task, feature, bug, epic.</div>
+
+    <label>Keywords</label>
+    <div class="tag-input-wrap" id="ap-keywords-wrap" onclick="document.getElementById('ap-keywords-input').focus()">
+      <input type="text" id="ap-keywords-input" placeholder="Type keyword and press Enter">
+    </div>
+    <div class="hint">Match issue title/body to route candidates to this profile.</div>
+
+    <div class="row-2col">
+      <div>
+        <label for="ap-min-priority">Min Priority</label>
+        <input type="number" id="ap-min-priority" min="0" max="4" placeholder="(optional)">
+      </div>
+      <div>
+        <label for="ap-max-priority">Max Priority</label>
+        <input type="number" id="ap-max-priority" min="0" max="4" placeholder="(optional)">
+      </div>
+    </div>
+    <div class="hint">0 = critical, 4 = backlog. Inclusive bounds.</div>
+
+    <details>
+      <summary>Advanced</summary>
+      <label for="ap-command">Command</label>
+      <input type="text" id="ap-command" placeholder="claude --dangerously-skip-permissions">
+      <div class="hint">Subprocess command for cli mode. Default: <code>claude --dangerously-skip-permissions</code></div>
+    </details>
+
+    <div class="dialog-actions">
+      <button onclick="closeProfileDialog()">Cancel</button>
+      <button class="btn-primary" onclick="submitProfile()">Save</button>
     </div>
   </div>
 </div>
