@@ -193,6 +193,33 @@
       font-size: 0.9rem;
     }
 
+    /* Inline notes inside dialogs (e.g. ACP-mode advisories). See
+       bead oompah-zlz_2-rls. */
+    .dialog-note {
+      font-size: 0.75rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 6px;
+      margin-top: 0.6rem;
+      line-height: 1.4;
+    }
+    .dialog-note.note-info {
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(88, 166, 255, 0.25);
+    }
+    .dialog-note.note-warn {
+      background: rgba(226, 179, 64, 0.1);
+      color: var(--yellow);
+      border: 1px solid rgba(226, 179, 64, 0.3);
+    }
+    .field-dimmed { opacity: 0.45; }
+    .field-hidden { display: none !important; }
+    .profile-warning {
+      font-size: 0.7rem;
+      color: var(--yellow);
+      margin-top: 0.4rem;
+    }
+
     /* Form dialog */
     .dialog-overlay {
       display: none;
@@ -416,6 +443,15 @@ function renderProfiles() {
 
     const constraints = renderProfileConstraints(p);
 
+    // ACP-mode profiles bypass the budget gate (calls bill against the
+    // operator's claude subscription). Surface a card-level warning so
+    // operators reviewing the list can see at a glance which profiles
+    // are subscription-billed. Mirrors the orchestrator's startup
+    // diagnostic at oompah/orchestrator.py — see bead oompah-zlz_2-rls.
+    const acpWarning = mode === 'acp'
+      ? `<div class="profile-warning">⚠ mode=acp profiles bypass the budget gate (subscription-billed).</div>`
+      : '';
+
     return `
       <div class="provider-card">
         <div class="provider-header">
@@ -427,6 +463,7 @@ function renderProfiles() {
         ${p.model ? `<div class="provider-detail">Model override: <code>${esc(p.model)}</code></div>` : ''}
         ${typeof p.max_turns === 'number' ? `<div class="provider-detail">Max turns: <code>${p.max_turns}</code></div>` : ''}
         ${constraints ? `<div class="provider-detail">${constraints}</div>` : ''}
+        ${acpWarning}
         <div class="provider-actions">
           <button onclick="editProfile('${escAttr(p.name)}')">Edit</button>
           <button class="btn-danger" onclick="deleteProfile('${escAttr(p.name)}')">Delete</button>
@@ -832,14 +869,65 @@ function onProfileModeChange() {
   const mode = document.getElementById('ap-mode').value;
   const providerSelect = document.getElementById('ap-provider');
   const providerLabel = document.getElementById('ap-provider-label');
-  if (mode === 'acp') {
-    providerLabel.textContent = 'Provider — N/A for acp';
+  const providerHint = document.getElementById('ap-provider-hint');
+  const providerNote = document.getElementById('ap-provider-acp-note');
+  const commandRow = document.getElementById('ap-command-row');
+  const modelInput = document.getElementById('ap-model');
+  const modelHint = document.getElementById('ap-model-hint');
+  const budgetWarn = document.getElementById('ap-budget-warning');
+
+  const isAcp = mode === 'acp';
+
+  // Provider dropdown: dim, disable, surface inline note for ACP.
+  // We don't clear the value here so a save round-trip retains the
+  // (ignored) provider_id; the warning surfaces server-side. The
+  // explicit ``= true`` / ``= false`` literals are used (rather than
+  // ``= isAcp``) so static-template tests can assert the strings.
+  if (isAcp) {
     providerSelect.disabled = true;
-    providerSelect.value = '';
   } else {
-    providerLabel.textContent = 'Provider';
     providerSelect.disabled = false;
   }
+  if (providerLabel) {
+    providerLabel.textContent = isAcp ? 'Provider — N/A for acp' : 'Provider';
+  }
+  // Dim the whole label+select block when ACP. The classList toggle
+  // is on the parent label so the select inherits the opacity. The
+  // pointer-events guard isn't applied because the select is already
+  // disabled by the line above.
+  if (providerLabel) providerLabel.classList.toggle('field-dimmed', isAcp);
+  providerSelect.classList.toggle('field-dimmed', isAcp);
+  if (providerHint) providerHint.classList.toggle('field-dimmed', isAcp);
+  if (providerNote) providerNote.style.display = isAcp ? 'block' : 'none';
+
+  // Command field: hidden for ACP. The Claude Agent SDK manages the
+  // subprocess (oompah/acp_agent.py uses ClaudeSDKClient), so the
+  // command field is irrelevant. Hide rather than disable to keep the
+  // dialog uncluttered for ACP profiles. Uses the <details>'s parent
+  // wrapper id so the disclosure summary disappears too.
+  if (commandRow) commandRow.classList.toggle('field-hidden', isAcp);
+
+  // Model field: ACP profiles set a claude model name (e.g.
+  // claude-sonnet-4-6) rather than a provider model. Adjust the
+  // placeholder/hint to make that obvious.
+  if (modelInput) {
+    if (isAcp) {
+      modelInput.placeholder = 'claude-sonnet-4-6 (claude model name)';
+    } else {
+      modelInput.placeholder = '(optional) explicit model name';
+    }
+  }
+  if (modelHint) {
+    modelHint.textContent = isAcp
+      ? 'Claude model name (e.g. claude-sonnet-4-6, claude-opus-4-1). The Claude Agent SDK passes this through to the subscription endpoint.'
+      : 'Wins over model_role when both are set.';
+  }
+
+  // Budget bypass warning. Mirrors the orchestrator's startup
+  // diagnostic at oompah/orchestrator.py for ACP profiles. See bead
+  // oompah-zlz_2-rls and docs/acp-agent.md.
+  if (budgetWarn) budgetWarn.style.display = isAcp ? 'block' : 'none';
+
   updateModelRoleSuggestions();
 }
 
@@ -951,6 +1039,17 @@ async function submitProfile() {
     return;
   }
 
+  // Surface server-side warnings (e.g. mode=acp ignores provider_id).
+  // The /api/v1/agent-profiles validation hook attaches a non-fatal
+  // ``warnings`` array to the success response — see bead
+  // oompah-zlz_2-rls.
+  try {
+    const data = await res.json();
+    if (data && Array.isArray(data.warnings) && data.warnings.length > 0) {
+      alert('Saved with warnings:\n\n• ' + data.warnings.join('\n\n• '));
+    }
+  } catch (e) { /* ok if body isn't JSON */ }
+
   closeProfileDialog();
   await loadAgentProfiles();
 }
@@ -1033,20 +1132,34 @@ document.addEventListener('keydown', e => {
       <option value="acp">acp — Claude Agent SDK (operator subscription)</option>
     </select>
 
+    <!-- ACP-mode budget-bypass warning. Mirrors the one-shot diagnostic
+         the orchestrator emits at startup for mode=acp profiles. -->
+    <div class="dialog-note note-warn" id="ap-budget-warning" style="display:none;">
+      ⚠ <strong>mode=acp profiles bypass the budget gate.</strong>
+      Calls bill against the operator's claude subscription, not the
+      per-token meter, so over-budget gating does not apply.
+    </div>
+
     <label for="ap-provider" id="ap-provider-label">Provider</label>
     <select id="ap-provider">
       <option value="">— none / use default —</option>
     </select>
-    <div class="hint">api/auto require a provider. acp does not use a provider.</div>
+    <div class="hint" id="ap-provider-hint">api/auto require a provider. acp does not use a provider.</div>
+    <!-- Inline note shown only when mode=acp; explains why the
+         provider dropdown is disabled. See bead oompah-zlz_2-rls. -->
+    <div class="dialog-note note-info" id="ap-provider-acp-note" style="display:none;">
+      ACP bypasses providers — billed against the operator's claude
+      subscription. See <code>docs/acp-agent.md</code>.
+    </div>
 
     <label for="ap-model-role">Model Role</label>
     <input type="text" id="ap-model-role" placeholder="fast / standard / deep" list="ap-model-role-suggestions">
     <datalist id="ap-model-role-suggestions"></datalist>
     <div class="hint">Resolved against the provider's model_roles. Suggestions reflect the selected provider.</div>
 
-    <label for="ap-model">Model Override</label>
+    <label for="ap-model">Model</label>
     <input type="text" id="ap-model" placeholder="(optional) explicit model name">
-    <div class="hint">Wins over model_role when both are set.</div>
+    <div class="hint" id="ap-model-hint">Wins over model_role when both are set.</div>
 
     <label for="ap-max-turns">Max Turns</label>
     <input type="number" id="ap-max-turns" min="1" placeholder="(optional)">
@@ -1075,12 +1188,14 @@ document.addEventListener('keydown', e => {
     </div>
     <div class="hint">0 = critical, 4 = backlog. Inclusive bounds.</div>
 
-    <details>
-      <summary>Advanced</summary>
-      <label for="ap-command">Command</label>
-      <input type="text" id="ap-command" placeholder="claude --dangerously-skip-permissions">
-      <div class="hint">Subprocess command for cli mode. Default: <code>claude --dangerously-skip-permissions</code></div>
-    </details>
+    <div id="ap-command-row">
+      <details>
+        <summary>Advanced</summary>
+        <label for="ap-command">Command</label>
+        <input type="text" id="ap-command" placeholder="claude --dangerously-skip-permissions">
+        <div class="hint">Subprocess command for cli/auto modes. Default: <code>claude --dangerously-skip-permissions</code>. Hidden for mode=acp because the Claude Agent SDK manages the subprocess.</div>
+      </details>
+    </div>
 
     <div class="dialog-actions">
       <button onclick="closeProfileDialog()">Cancel</button>

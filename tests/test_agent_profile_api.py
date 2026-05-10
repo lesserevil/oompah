@@ -12,16 +12,33 @@ from oompah.agent_profile_store import AgentProfileStore
 
 @pytest.fixture
 def api_with_store(tmp_path, monkeypatch):
-    """Return (client, store) with a fresh AgentProfileStore wired into server."""
+    """Return (client, store) with a fresh AgentProfileStore wired into server.
+
+    Also wires a fresh ProviderStore with a single ``prov-1`` entry so
+    the rls validation hook (mode=api requires an EXISTING provider_id)
+    can succeed without each test re-registering one.
+    """
     from oompah.server import app
+    from oompah.providers import ProviderStore
     import oompah.server as server_mod
 
     path = str(tmp_path / "agent_profiles.json")
     store = AgentProfileStore(path=path)
 
+    provider_store = ProviderStore(path=str(tmp_path / "providers.json"))
+    # Pre-register a single provider with id "prov-1" so existing tests
+    # that hardcode that id keep working under the rls validation hook.
+    p = provider_store.create(name="test-provider", base_url="http://x")
+    # Coerce the id to "prov-1" for tests that hardcode it.
+    provider_store._providers["prov-1"] = provider_store._providers.pop(p.id)
+    provider_store._providers["prov-1"].id = "prov-1"
+    provider_store._save()
+
     original_store = server_mod._agent_profile_store
     original_orch = server_mod._orchestrator
+    original_provider_store = server_mod._provider_store
     server_mod._agent_profile_store = store
+    server_mod._provider_store = provider_store
     server_mod._orchestrator = None  # disable reload hook for tests
     try:
         client = TestClient(app)
@@ -29,6 +46,7 @@ def api_with_store(tmp_path, monkeypatch):
     finally:
         server_mod._agent_profile_store = original_store
         server_mod._orchestrator = original_orch
+        server_mod._provider_store = original_provider_store
 
 
 class TestListAgentProfiles:
