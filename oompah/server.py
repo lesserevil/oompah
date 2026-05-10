@@ -1086,6 +1086,93 @@ def _reload_orchestrator_config_after_profile_change() -> None:
         logger.warning("agent profile reload failed: %s", exc)
 
 
+def _validate_profile_payload_acp_aware(
+    body: dict,
+    *,
+    existing_profile=None,
+) -> tuple[dict, list[str]]:
+    """Cross-store validation hook for /api/v1/agent-profiles writes.
+
+    Layered ON TOP of AgentProfileStore's own per-record validation
+    (which only enforces invariants visible to the store: name, mode
+    enum, provider_id presence for api/auto). This adds the checks
+    that need ProviderStore / ACP-mode awareness — see bead
+    oompah-zlz_2-rls:
+
+    * mode=api: provider_id must EXIST in ProviderStore (not just be
+      non-empty).
+    * mode=acp: provider_id is ignored at dispatch — warn if the
+      operator submits one.
+    * model_role: when set AND the resolved provider has a
+      model_roles map, the role must exist as a key (otherwise
+      dispatch will fail at resolve time with a confusing "role
+      not defined" error).
+
+    Returns (cleaned_body, warnings). Raises ValueError on hard
+    failures with a human-readable message.
+
+    ``existing_profile`` is the current store record for PATCH calls
+    (None for POST), so partial bodies validate against the merged
+    shape — e.g. PATCH ``{"mode": "acp"}`` on a profile that already
+    has a provider_id triggers the warning.
+    """
+    out = dict(body)
+    warnings: list[str] = []
+
+    # Resolve effective mode / provider_id / model_role across the
+    # body and the existing record so partial PATCHes validate
+    # correctly.
+    def _eff(key, default=None):
+        if key in body:
+            return body[key]
+        if existing_profile is not None:
+            return getattr(existing_profile, key, default)
+        return default
+
+    mode = (_eff("mode", "auto") or "auto").strip().lower()
+    provider_id = _eff("provider_id")
+    model_role = _eff("model_role")
+
+    if mode == "acp":
+        if provider_id:
+            warnings.append(
+                "mode=acp ignores provider_id — calls bill against the "
+                "operator's claude subscription, not a provider. "
+                "The saved value will be retained but not used at dispatch."
+            )
+    elif mode == "api":
+        if not provider_id:
+            raise ValueError("mode=api requires provider_id")
+        if _provider_store.get(provider_id) is None:
+            raise ValueError(
+                f"provider_id {provider_id!r} does not exist in ProviderStore"
+            )
+    elif mode == "auto":
+        # auto can fall back to the lone default provider, so an
+        # empty provider_id is OK; but if one is supplied it must
+        # exist.
+        if provider_id and _provider_store.get(provider_id) is None:
+            raise ValueError(
+                f"provider_id {provider_id!r} does not exist in ProviderStore"
+            )
+
+    # model_role check: resolve against the provider's model_roles
+    # map. Only applies when a provider can be resolved (mode in
+    # auto/api with a provider_id).
+    if model_role and mode in ("auto", "api") and provider_id:
+        prov = _provider_store.get(provider_id)
+        if prov is not None and prov.model_roles:
+            if model_role not in prov.model_roles:
+                roles = sorted(prov.model_roles.keys())
+                raise ValueError(
+                    f"model_role {model_role!r} not defined in provider "
+                    f"{prov.name!r}. Configured roles: "
+                    f"{', '.join(roles) if roles else '(none)'}"
+                )
+
+    return out, warnings
+
+
 @app.get("/api/v1/agent-profiles")
 async def api_list_agent_profiles():
     """List all configured agent profiles from the JSON store."""
@@ -1100,6 +1187,13 @@ async def api_create_agent_profile(request: Request):
     Body: full AgentProfile JSON (see AgentProfile.to_dict). Required:
     name, command (defaults if absent), mode. provider_id required when
     mode in {auto, api}.
+
+    Validation layers (see bead oompah-zlz_2-rls):
+
+    * Cross-store: mode=api requires an EXISTING provider_id;
+      mode=acp warns if provider_id is set; model_role must exist
+      in the provider's model_roles map when the map is non-empty.
+    * Per-record: name uniqueness, mode enum, etc. (AgentProfileStore).
     """
     try:
         body = await request.json()
@@ -1110,6 +1204,13 @@ async def api_create_agent_profile(request: Request):
                 status_code=400,
             )
         try:
+            body, warnings = _validate_profile_payload_acp_aware(body)
+        except ValueError as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": str(exc)}},
+                status_code=400,
+            )
+        try:
             profile = _agent_profile_store.create(body)
         except AgentProfileError as exc:
             return JSONResponse(
@@ -1117,7 +1218,10 @@ async def api_create_agent_profile(request: Request):
                 status_code=400,
             )
         _reload_orchestrator_config_after_profile_change()
-        return JSONResponse(profile.to_dict(), status_code=201)
+        out = profile.to_dict()
+        if warnings:
+            out["warnings"] = warnings
+        return JSONResponse(out, status_code=201)
     except Exception as exc:
         logger.error("Create agent profile error: %s", exc)
         return JSONResponse(
@@ -1132,6 +1236,8 @@ async def api_update_agent_profile(name: str, request: Request):
 
     Body: partial dict of fields to update. Validates the resulting
     profile (uniqueness if renamed; mode/provider_id consistency).
+    Cross-store validation: same rules as POST (see
+    ``_validate_profile_payload_acp_aware``).
     """
     try:
         body = await request.json()
@@ -1139,6 +1245,22 @@ async def api_update_agent_profile(name: str, request: Request):
             return JSONResponse(
                 {"error": {"code": "validation",
                            "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+        existing = _agent_profile_store.get(name)
+        if existing is None:
+            return JSONResponse(
+                {"error": {"code": "not_found",
+                           "message": f"Agent profile {name!r} not found"}},
+                status_code=404,
+            )
+        try:
+            body, warnings = _validate_profile_payload_acp_aware(
+                body, existing_profile=existing,
+            )
+        except ValueError as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": str(exc)}},
                 status_code=400,
             )
         try:
@@ -1155,7 +1277,10 @@ async def api_update_agent_profile(name: str, request: Request):
                 status_code=404,
             )
         _reload_orchestrator_config_after_profile_change()
-        return JSONResponse(profile.to_dict())
+        out = profile.to_dict()
+        if warnings:
+            out["warnings"] = warnings
+        return JSONResponse(out)
     except Exception as exc:
         logger.error("Update agent profile error: %s", exc)
         return JSONResponse(

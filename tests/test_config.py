@@ -131,7 +131,19 @@ class TestServiceConfig:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.budget_timezone == "Europe/London"
 
-    def test_from_workflow_custom(self):
+    def test_from_workflow_custom(self, tmp_path, monkeypatch):
+        # As of oompah-zlz_2-xaj, ServiceConfig.from_workflow consults
+        # .oompah/agent_profiles.json (with WORKFLOW.md as a fallback /
+        # migration seed). Point the store path at a tmp_path so this
+        # unit test doesn't pick up whatever the live orchestrator wrote
+        # to the worktree's real .oompah/agent_profiles.json. Without
+        # this, running pytest from a worktree with a different default
+        # profile in the JSON store would assert against that name
+        # instead of the WORKFLOW.md one.
+        monkeypatch.setenv(
+            "OOMPAH_AGENT_PROFILES_PATH",
+            str(tmp_path / "agent_profiles.json"),
+        )
         wf = WorkflowDefinition(
             config={
                 "tracker": {"kind": "beads", "active_states": ["open"]},
