@@ -344,12 +344,17 @@ class ServiceConfig:
             ws_root = os.path.join(tempfile.gettempdir(), "oompah_workspaces")
 
         # Parse agent profiles
+        # Source precedence: .oompah/agent_profiles.json (UI-editable
+        # store) wins when present. WORKFLOW.md profiles are the
+        # fallback (and the migration seed when the JSON file does not
+        # yet exist). See AgentProfileStore for the full migration
+        # contract; oompah-zlz_2-xaj for the design rationale.
         raw_profiles = agent.get("profiles", []) or []
-        profiles: list[AgentProfile] = []
+        workflow_profiles: list[AgentProfile] = []
         for p in raw_profiles:
             if not isinstance(p, dict):
                 continue
-            profiles.append(AgentProfile(
+            workflow_profiles.append(AgentProfile(
                 name=str(p.get("name", "default")),
                 command=str(p.get("command", "claude --dangerously-skip-permissions")),
                 provider_id=p.get("provider_id"),
@@ -364,6 +369,49 @@ class ServiceConfig:
                 max_priority=_coerce_int(p.get("max_priority"), None) if p.get("max_priority") is not None else None,
                 mode=_parse_profile_mode(p.get("mode")),
             ))
+
+        # Resolve the JSON store: load if present, otherwise seed from
+        # WORKFLOW.md (the migration). Imported lazily here to avoid a
+        # circular import (agent_profile_store -> models -> config in
+        # some test scenarios).
+        from oompah.agent_profile_store import AgentProfileStore
+        store_path = os.environ.get(
+            "OOMPAH_AGENT_PROFILES_PATH"
+        ) or ".oompah/agent_profiles.json"
+        store = AgentProfileStore(path=store_path, seed_from=workflow_profiles)
+        if store.list_all():
+            profiles = store.list_all()
+            # Re-normalize mode through the parser so values that were
+            # written to JSON via a prior version of the code still get
+            # the same fallback-on-typo behaviour as WORKFLOW.md profiles.
+            for p in profiles:
+                p.mode = _parse_profile_mode(p.mode)
+            if store.migrated_from_workflow:
+                logger.info(
+                    "AgentProfile source: WORKFLOW.md (just migrated to %s; "
+                    "%d profile(s))",
+                    store_path, len(profiles),
+                )
+            elif store.loaded_from_disk:
+                logger.info(
+                    "AgentProfile source: %s (%d profile(s); WORKFLOW.md "
+                    "is fallback only)",
+                    store_path, len(profiles),
+                )
+            else:
+                logger.info(
+                    "AgentProfile source: WORKFLOW.md (%d profile(s); "
+                    "JSON store empty)",
+                    len(profiles),
+                )
+        else:
+            profiles = workflow_profiles
+            if profiles:
+                logger.info(
+                    "AgentProfile source: WORKFLOW.md (%d profile(s); "
+                    "no JSON store at %s)",
+                    len(profiles), store_path,
+                )
 
         budget_limit = float(agent.get("budget_limit", 0) or 0)
 

@@ -31,8 +31,12 @@ from oompah.focus import (
     load_foci, load_suggestions, save_foci, score_focus,
     update_suggestion_status,
 )
+from oompah.agent_profile_store import (
+    AgentProfileError, AgentProfileStore, DEFAULT_AGENT_PROFILES_PATH,
+)
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
+from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 
@@ -84,6 +88,14 @@ async def favicon():
 # Global provider store
 _provider_store = ProviderStore()
 
+# Global agent profile store. Lazily seeded from WORKFLOW.md by
+# ServiceConfig.from_workflow on first boot; thereafter the JSON file
+# is the source of truth and is the path API writes go through.
+# A fresh empty store is created here so server-side imports don't
+# crash; the orchestrator wires its real store into both itself and
+# this server module via set_orchestrator() at startup.
+_agent_profile_store = AgentProfileStore()
+
 # Global reference to orchestrator, set during startup
 _orchestrator: Orchestrator | None = None
 
@@ -99,7 +111,11 @@ _ws_clients: set[WebSocket] = set()
 
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
+    global _agent_profile_store
     _orchestrator = orch
+    # Share the orchestrator's profile store so /api/v1/agent-profiles
+    # writes go to the same in-memory state the dispatch loop reads.
+    _agent_profile_store = orch.agent_profile_store
     # Full observer: state + issues refresh (for dispatch, close, state changes)
     orch._observers.append(_on_orchestrator_change)
     # State-only observer: state broadcast without issues re-fetch (for agent activity)
@@ -1015,6 +1031,148 @@ async def api_delete_provider(provider_id: str):
         return JSONResponse({"ok": True})
     return JSONResponse(
         {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+        status_code=404,
+    )
+
+
+# ----------------------------------------------------------------------
+# Agent profiles CRUD (oompah-zlz_2-xaj)
+#
+# Backed by AgentProfileStore at .oompah/agent_profiles.json.
+# WORKFLOW.md remains a fallback / migration source only — once a profile
+# JSON file exists, WORKFLOW.md edits are ignored on reload.
+#
+# Validation rules (POST/PATCH):
+#   - name: non-empty, unique across the store.
+#   - mode: one of {auto, api, cli, acp}; falls through AgentProfileStore
+#           validator which uses VALID_MODES.
+#   - api / auto modes: provider_id required.
+#   - acp mode:        provider_id NOT required.
+#
+# Successful POST/PATCH/DELETE call orchestrator.reload_config() so the
+# new profile list is in effect on the next dispatch tick (no
+# WORKFLOW.md edit needed).
+# ----------------------------------------------------------------------
+
+
+def _reload_orchestrator_config_after_profile_change() -> None:
+    """Trigger an orchestrator reload so updated profiles take effect.
+
+    Best-effort: when the orchestrator is not yet wired (early boot,
+    test contexts), this is a no-op. When a workflow reload itself
+    fails, we log a warning but keep the JSON store change persisted —
+    the operator can recover by fixing WORKFLOW.md or rolling back.
+    """
+    if _orchestrator is None:
+        return
+    try:
+        from oompah.config import (
+            ServiceConfig, WorkflowError, load_workflow,
+            validate_dispatch_config,
+        )
+        wf = load_workflow(_orchestrator.workflow_path)
+        new_config = ServiceConfig.from_workflow(wf)
+        errs = validate_dispatch_config(new_config)
+        if errs:
+            logger.warning(
+                "agent profile reload: workflow validation failed: %s",
+                "; ".join(errs),
+            )
+            return
+        _orchestrator.reload_config(new_config, wf.prompt_template)
+    except WorkflowError as exc:
+        logger.warning("agent profile reload: workflow load failed: %s", exc)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("agent profile reload failed: %s", exc)
+
+
+@app.get("/api/v1/agent-profiles")
+async def api_list_agent_profiles():
+    """List all configured agent profiles from the JSON store."""
+    profiles = _agent_profile_store.list_all()
+    return JSONResponse([p.to_dict() for p in profiles])
+
+
+@app.post("/api/v1/agent-profiles")
+async def api_create_agent_profile(request: Request):
+    """Create a new agent profile.
+
+    Body: full AgentProfile JSON (see AgentProfile.to_dict). Required:
+    name, command (defaults if absent), mode. provider_id required when
+    mode in {auto, api}.
+    """
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": {"code": "validation",
+                           "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+        try:
+            profile = _agent_profile_store.create(body)
+        except AgentProfileError as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": str(exc)}},
+                status_code=400,
+            )
+        _reload_orchestrator_config_after_profile_change()
+        return JSONResponse(profile.to_dict(), status_code=201)
+    except Exception as exc:
+        logger.error("Create agent profile error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "create_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.patch("/api/v1/agent-profiles/{name}")
+async def api_update_agent_profile(name: str, request: Request):
+    """Patch an existing agent profile by name.
+
+    Body: partial dict of fields to update. Validates the resulting
+    profile (uniqueness if renamed; mode/provider_id consistency).
+    """
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": {"code": "validation",
+                           "message": "Request body must be a JSON object"}},
+                status_code=400,
+            )
+        try:
+            profile = _agent_profile_store.update(name, **body)
+        except AgentProfileError as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": str(exc)}},
+                status_code=400,
+            )
+        if profile is None:
+            return JSONResponse(
+                {"error": {"code": "not_found",
+                           "message": f"Agent profile {name!r} not found"}},
+                status_code=404,
+            )
+        _reload_orchestrator_config_after_profile_change()
+        return JSONResponse(profile.to_dict())
+    except Exception as exc:
+        logger.error("Update agent profile error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "update_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.delete("/api/v1/agent-profiles/{name}")
+async def api_delete_agent_profile(name: str):
+    """Delete an agent profile by name."""
+    if _agent_profile_store.delete(name):
+        _reload_orchestrator_config_after_profile_change()
+        return JSONResponse({"ok": True})
+    return JSONResponse(
+        {"error": {"code": "not_found",
+                   "message": f"Agent profile {name!r} not found"}},
         status_code=404,
     )
 

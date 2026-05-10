@@ -434,6 +434,75 @@ class AgentProfile:
     # Invalid values fall back to "auto" with a warning at config load.
     mode: str = "auto"
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict for AgentProfileStore.
+
+        Mirrors WORKFLOW.md profile YAML keys 1:1 so a round-trip through
+        the JSON store and back into ServiceConfig.from_workflow's profile
+        loader (oompah/config.py) is byte-identical. Optional fields that
+        are at their default value are omitted to keep stored JSON tidy.
+        """
+        d: dict[str, Any] = {
+            "name": self.name,
+            "command": self.command,
+            "mode": self.mode,
+        }
+        if self.provider_id is not None:
+            d["provider_id"] = self.provider_id
+        if self.model is not None:
+            d["model"] = self.model
+        if self.model_role is not None:
+            d["model_role"] = self.model_role
+        if self.cost_per_1k_input:
+            d["cost_per_1k_input"] = self.cost_per_1k_input
+        if self.cost_per_1k_output:
+            d["cost_per_1k_output"] = self.cost_per_1k_output
+        if self.max_turns is not None:
+            d["max_turns"] = self.max_turns
+        if self.keywords:
+            d["keywords"] = list(self.keywords)
+        if self.issue_types:
+            d["issue_types"] = list(self.issue_types)
+        if self.min_priority is not None:
+            d["min_priority"] = self.min_priority
+        if self.max_priority is not None:
+            d["max_priority"] = self.max_priority
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> AgentProfile:
+        """Construct an AgentProfile from its JSON dict.
+
+        Permissive about types: integers/floats parsed leniently, missing
+        keys fall back to the dataclass defaults. Mode validation happens
+        in oompah.config._parse_profile_mode (called separately) — this
+        constructor stores whatever value was on disk so callers can spot
+        bad data and decide how to handle it. Unknown keys are ignored.
+        """
+        def _opt_int(v: Any) -> int | None:
+            if v is None:
+                return None
+            try:
+                return int(v)
+            except (ValueError, TypeError):
+                return None
+
+        return cls(
+            name=str(d.get("name", "")),
+            command=str(d.get("command", "claude --dangerously-skip-permissions")),
+            provider_id=(str(d["provider_id"]) if d.get("provider_id") else None),
+            model=(str(d["model"]) if d.get("model") else None),
+            model_role=(str(d["model_role"]) if d.get("model_role") else None),
+            cost_per_1k_input=float(d.get("cost_per_1k_input", 0) or 0),
+            cost_per_1k_output=float(d.get("cost_per_1k_output", 0) or 0),
+            max_turns=_opt_int(d.get("max_turns")),
+            keywords=[str(k) for k in (d.get("keywords") or [])],
+            issue_types=[str(t) for t in (d.get("issue_types") or [])],
+            min_priority=_opt_int(d.get("min_priority")),
+            max_priority=_opt_int(d.get("max_priority")),
+            mode=str(d.get("mode", "auto") or "auto"),
+        )
+
 
 @dataclass
 class AgentTotals:
