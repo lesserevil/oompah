@@ -322,7 +322,7 @@ class ModelProvider:
     # entries in ``models``); values list supported modalities, e.g.
     # ``{"gpt-4o-mini": ["text", "image"]}``. When a model is unset,
     # callers should default to ``["text"]``. See
-    # docs/multimodal-attachments.md§Provider modality capability.
+    # plans/multimodal-attachments.md§Provider modality capability.
     model_capabilities: dict[str, list[str]] = field(default_factory=dict)
     # Per-model maximum total context window (input + output) in tokens.
     # When set, the API agent estimates the outgoing prompt size and
@@ -430,7 +430,7 @@ class AgentProfile:
     # - "cli"  forces the legacy subprocess + native streaming-JSON path.
     # - "acp"  routes to ACP/Claude-Agent-SDK so calls bill against the
     #          operator's claude subscription instead of the per-token
-    #          API meter. See docs/acp-agent.md / oompah-zlz_2-bcl.
+    #          API meter. See plans/acp-agent.md / oompah-zlz_2-bcl.
     # Invalid values fall back to "auto" with a warning at config load.
     mode: str = "auto"
 

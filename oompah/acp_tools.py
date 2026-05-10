@@ -9,7 +9,7 @@ search_files / run_command) here, routing each one through the same
 Reusing those implementations is the whole point — they carry oompah's
 safety rails (cd-out-of-worktree guard, BEADS_DIR routing, per-command
 timeouts) that claude's native tools don't know about. See
-``docs/acp-agent.md`` Q2 (locked decision: tool bridging via option B,
+``plans/acp-agent.md`` Q2 (locked decision: tool bridging via option B,
 oompah's catalog wins).
 """
 

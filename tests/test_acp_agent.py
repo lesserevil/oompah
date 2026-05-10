@@ -330,7 +330,7 @@ class TestCanUseToolStrictAllowlist:
     * Emits an `acp_permission_grant` event for allows and an
       `acp_permission_deny` event for denies, both with the tool
       name and a truncated copy of the input args so the
-      agent_watcher (planned, docs/agent-watcher.md) can audit
+      agent_watcher (planned, plans/agent-watcher.md) can audit
       retroactively.
     """
 

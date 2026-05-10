@@ -3,7 +3,7 @@
 Drives the bundled `claude` CLI (via the Claude Agent SDK) as a subprocess
 so the per-token cost is billed against the operator's Pro/Max
 subscription rather than the per-token API meter that the api_agent path
-incurs. See ``docs/acp-agent.md`` and bead ``oompah-zlz_2-bcl``.
+incurs. See ``plans/acp-agent.md`` and bead ``oompah-zlz_2-bcl``.
 
 The class shape mirrors :class:`oompah.api_agent.ApiAgentSession` so
 ``_run_acp_worker`` in the orchestrator can be a thin variant of
@@ -11,7 +11,7 @@ The class shape mirrors :class:`oompah.api_agent.ApiAgentSession` so
 return shape, terminate semantics, JSONL event stream).
 
 Key architectural decisions (locked in via the bead's Q&A in
-docs/acp-agent.md):
+plans/acp-agent.md):
 
 * **Tool bridging (Q2 = B).** The SDK's ``ClaudeAgentOptions.mcp_servers``
   takes an in-process MCP server. We declare oompah's existing tool
@@ -24,7 +24,7 @@ docs/acp-agent.md):
   ``ClaudeAgentOptions.permission_mode='bypassPermissions'`` (the SDK's
   equivalent of ``--dangerously-skip-permissions``). Each agent's
   per-issue JSONL log records the bypass at session start so the
-  agent_watcher (planned in docs/agent-watcher.md) has a paper trail.
+  agent_watcher (planned in plans/agent-watcher.md) has a paper trail.
 * **Budget tracking (Q3).** Token usage IS reported by the SDK in
   ``AssistantMessage.usage`` and ``ResultMessage.total_cost_usd``, so
   we DO populate the session counters. Whether the orchestrator's
@@ -229,7 +229,7 @@ class AcpAgentSession:
         # auto-allows ``mcp__oompah__*`` and auto-denies everything
         # else. No human-in-the-loop prompts because the callback
         # always returns a definitive decision. See
-        # docs/acp-agent.md and oompah-zlz_2-bcl.6.
+        # plans/acp-agent.md and oompah-zlz_2-bcl.6.
         from claude_agent_sdk import (
             PermissionResultAllow,
             PermissionResultDeny,
@@ -246,7 +246,7 @@ class AcpAgentSession:
             BEADS_DIR routing, and shell-redirect stay in force.
 
             Every grant and deny is emitted to per-agent JSONL so the
-            agent_watcher (planned in docs/agent-watcher.md) can audit
+            agent_watcher (planned in plans/agent-watcher.md) can audit
             the tool surface after the fact.
             """
             allowed = tool_name.startswith("mcp__oompah__")

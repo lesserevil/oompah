@@ -1770,7 +1770,7 @@ class Orchestrator:
         # subscription, not the per-token API meter the budget tracks.
         # Done BEFORE the cost-aware free-tier check so we don't pay
         # the model-resolution cost when the answer is "subscription".
-        # See docs/acp-agent.md and bead oompah-zlz_2-bcl.
+        # See plans/acp-agent.md and bead oompah-zlz_2-bcl.
         if self._would_dispatch_via_acp(issue):
             return True
         # Budget circuit breaker — model-aware. When the window's spend has
@@ -4431,8 +4431,8 @@ class Orchestrator:
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
         # Select focus first so its (optional) model/provider overrides
-        # participate in resolution. See docs/per-focus-models.md and
-        # docs/agentic-focus-triage.md. The async variant tries an LLM
+        # participate in resolution. See plans/per-focus-models.md and
+        # plans/agentic-focus-triage.md. The async variant tries an LLM
         # call against the provider's default_model and falls back to
         # the deterministic scorer on any failure.
         focus = await select_focus_async(issue, provider=provider)

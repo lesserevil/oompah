@@ -54,7 +54,7 @@ class Focus:
     priority: int = 0  # higher = preferred when multiple foci match
     status: str = "active"  # active | inactive | proposed
     # Optional model overrides — when set, take precedence over the agent
-    # profile's choice during dispatch. See docs/per-focus-models.md.
+    # profile's choice during dispatch. See plans/per-focus-models.md.
     model_role: str | None = None
     model: str | None = None
     provider_id: str | None = None
@@ -582,7 +582,7 @@ def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
 # Agentic (LLM-based) focus triage
 # ---------------------------------------------------------------------------
 #
-# Design recorded in docs/agentic-focus-triage.md. Quick recap:
+# Design recorded in plans/agentic-focus-triage.md. Quick recap:
 #
 # 1. Explicit `needs:<name>` label short-circuits both LLM and scorer
 #    (user routing always wins).

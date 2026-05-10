@@ -1,6 +1,6 @@
 """Tests for the LLM-based focus triage path (select_focus_async).
 
-Plan: docs/agentic-focus-triage.md.
+Plan: plans/agentic-focus-triage.md.
 
 Covers:
 - needs:<X> label short-circuit (no LLM call).

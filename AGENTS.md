@@ -34,6 +34,16 @@ If unsure whether a target exists, run `make help` or `grep` the Makefile.
 
 - When creating diagrams in documentation, **always use Mermaid** (```mermaid code blocks). Never use ASCII art diagrams.
 
+### Documentation layout
+
+Project docs are split across two top-level directories. Pick the right one when adding new docs.
+
+- **`docs/`** — *user-facing documentation*. Setup guides, troubleshooting, operator how-tos, public API references. Anything someone reading the project to learn how to **use** it would want. Examples: `webhook-forwarding.md` (operator setup + verification).
+
+- **`plans/`** — *design / implementation documentation*. Architecture notes, proposed-but-not-yet-shipped features, internal mechanism inventories, experimental design records. Anything someone reading the project to learn how it **works inside**, or how it **might work in the future**, would want. Examples: `acp-agent.md`, `agent-watcher.md`, `multimodal-attachments.md`, `polling-mechanisms.md`, `submit-queue.md`.
+
+Quick test: if the doc tells the reader "what to do with oompah," it goes in `docs/`. If it tells them "what oompah does inside, or what it should do," it goes in `plans/`. When in doubt, lean toward `plans/` — user-facing docs are rare; design docs are common. (Recorded in oompah-zlz_2-wgr.)
+
 ## Test Coverage Required
 
 **ALL code changes MUST be covered by tests.** Do not submit code without corresponding test coverage.

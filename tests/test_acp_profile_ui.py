@@ -4,7 +4,7 @@ Covers the rls-specific additions that go on top of the base
 oompah-zlz_2-ynd dialog:
 
 * mode=acp: dim the provider dropdown + show inline note pointing at
-  docs/acp-agent.md.
+  plans/acp-agent.md.
 * mode=acp: hide the command field (Claude Agent SDK manages the
   subprocess).
 * mode=acp: model-field placeholder/hint switches to "claude model name".
@@ -54,10 +54,10 @@ class TestAcpProviderAffordances:
     def test_provider_acp_note_present(self, html):
         # Inline advisory text required by the issue:
         # "ACP bypasses providers — billed against the operator's claude
-        #  subscription. See docs/acp-agent.md."
+        #  subscription. See plans/acp-agent.md."
         assert "ACP bypasses providers" in html
         assert "claude subscription" in html
-        assert "docs/acp-agent.md" in html
+        assert "plans/acp-agent.md" in html
 
     def test_provider_acp_note_has_id_for_toggle(self, html):
         assert 'id="ap-provider-acp-note"' in html

@@ -9,18 +9,23 @@ tracker:
 
 agent:
   profiles:
+    # Non-ACP profiles route through Godspeed (prov-04d8bd25), which
+    # serves nvidia/MiniMax-M2.7-NVFP4 for all three model roles. We
+    # switched away from InferenceAPI's Sonnet/Opus to avoid the
+    # per-token rate-limit issues seen on 2026-05-07. The `default`
+    # profile below stays ACP-routed for subscription billing.
     - name: quick
-      provider_id: prov-infapi-01
+      provider_id: prov-04d8bd25
       model_role: fast
       issue_types: [chore]
       keywords: [typo, rename, cleanup, lint, format]
       max_priority: 4
     - name: standard
-      provider_id: prov-infapi-01
+      provider_id: prov-04d8bd25
       model_role: standard
       issue_types: [task, feature]
     - name: deep
-      provider_id: prov-infapi-01
+      provider_id: prov-04d8bd25
       model_role: deep
       issue_types: [bug, epic]
       keywords: [security, architecture, refactor, critical]
@@ -35,7 +40,7 @@ agent:
       # OOMPAH_DEFAULT_FIRST_DISPATCH=true this routes every first
       # dispatch through the subscription. Escalations still go to
       # quick/standard/deep (mode=auto) which fall back to the
-      # api_agent path if ACP fails. See docs/acp-agent.md.
+      # api_agent path if ACP fails. See plans/acp-agent.md.
       mode: acp
 ---
 

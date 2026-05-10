@@ -925,7 +925,7 @@ function onProfileModeChange() {
 
   // Budget bypass warning. Mirrors the orchestrator's startup
   // diagnostic at oompah/orchestrator.py for ACP profiles. See bead
-  // oompah-zlz_2-rls and docs/acp-agent.md.
+  // oompah-zlz_2-rls and plans/acp-agent.md.
   if (budgetWarn) budgetWarn.style.display = isAcp ? 'block' : 'none';
 
   updateModelRoleSuggestions();
@@ -1149,7 +1149,7 @@ document.addEventListener('keydown', e => {
          provider dropdown is disabled. See bead oompah-zlz_2-rls. -->
     <div class="dialog-note note-info" id="ap-provider-acp-note" style="display:none;">
       ACP bypasses providers — billed against the operator's claude
-      subscription. See <code>docs/acp-agent.md</code>.
+      subscription. See <code>plans/acp-agent.md</code>.
     </div>
 
     <label for="ap-model-role">Model Role</label>

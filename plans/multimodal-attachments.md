@@ -7,7 +7,7 @@ models, and any images the model produces are stored back into the same
 attachment store and linked on the issue. The dashboard surfaces all of
 this.
 
-This is the "big version" referenced in `docs/multimodal-attachments.md`'s
+This is the "big version" referenced in `plans/multimodal-attachments.md`'s
 predecessor discussion. The smaller version (paths-by-convention in the
 description, no UI, no return path) is rejected here in favor of one
 coherent design.
@@ -25,7 +25,7 @@ coherent design.
   git history.
 - The dashboard renders attachments inline (thumbnails, audio players, PDF
   previews where possible) on issue detail and on the kanban card.
-- Per-focus model overrides (`docs/per-focus-models.md`) cooperate with
+- Per-focus model overrides (`plans/per-focus-models.md`) cooperate with
   modality capability — non-multimodal models silently get a text-only
   prompt with attachment paths listed; multimodal models get the real
   bytes.

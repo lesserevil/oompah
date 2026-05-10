@@ -895,7 +895,7 @@ class TestHandlerIndependence:
 
 
 # ---------------------------------------------------------------------------
-# Per-focus model overrides — see docs/per-focus-models.md
+# Per-focus model overrides — see plans/per-focus-models.md
 # ---------------------------------------------------------------------------
 
 def _provider(pid: str = "p1", name: str = "p1", *, model_roles=None,

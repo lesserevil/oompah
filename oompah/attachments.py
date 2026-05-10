@@ -8,7 +8,7 @@ name stays human-readable.
 
 This module is the storage layer only — wiring into beads metadata, the
 prompt renderer, and the dashboard happens in later phases. See
-``docs/multimodal-attachments.md``.
+``plans/multimodal-attachments.md``.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # -- Limits and policy --------------------------------------------------------
 
-# Per ``docs/multimodal-attachments.md§Validation and limits``.
+# Per ``plans/multimodal-attachments.md§Validation and limits``.
 MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024  # 25 MB per file
 MAX_PER_ISSUE_BYTES = 200 * 1024 * 1024  # 200 MB total per issue
 
