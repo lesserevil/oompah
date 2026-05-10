@@ -397,14 +397,27 @@ function renderProviders() {
     return;
   }
 
-  container.innerHTML = providers.map(p => `
+  container.innerHTML = providers.map(p => {
+    const providerMode = (p.mode || 'api');
+    // ACP providers store no base_url / api_key — render an explanatory
+    // line instead of empty <code> blocks.
+    const urlLine = providerMode === 'acp'
+      ? `<div class="provider-detail">Connection: <em>managed by Claude Agent SDK (subscription)</em></div>`
+      : `<div class="provider-detail">URL: <code>${esc(p.base_url)}</code></div>`;
+    const keyLine = providerMode === 'acp'
+      ? ''
+      : `<div class="provider-detail">API Key: <code>${esc(p.api_key_masked || 'not set')}</code></div>`;
+    return `
     <div class="provider-card">
       <div class="provider-header">
         <span class="provider-name">${esc(p.name)}</span>
+        <span class="provider-type mode-${esc(providerMode)}">${esc(providerMode.toUpperCase())}</span>
         <span class="provider-type">${esc(p.provider_type)}</span>
       </div>
-      <div class="provider-detail">URL: <code>${esc(p.base_url)}</code></div>
-      <div class="provider-detail">API Key: <code>${esc(p.api_key_masked || 'not set')}</code></div>
+      ${urlLine}
+      ${keyLine}
+      ${providerMode === 'acp' && p.acp_permission_mode ? `<div class="provider-detail">Permission mode: <code>${esc(p.acp_permission_mode)}</code></div>` : ''}
+      ${providerMode === 'acp' && p.acp_subscription_only ? `<div class="provider-detail">Billing: <code>subscription-only</code></div>` : ''}
       ${p.models && p.models.length > 0 ? `
         <div class="provider-models">
           ${p.models.map(m => `
@@ -418,7 +431,7 @@ function renderProviders() {
         <button class="btn-danger" onclick="deleteProvider('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 function renderProfiles() {
@@ -507,8 +520,49 @@ function openProviderDialog(provider) {
   renderModelTags();
   syncDefaultModelSelect(provider ? (provider.default_model || '') : '');
   document.getElementById('prov-models-input').value = '';
+  // ACP-mode form state. Default to "api" for new providers; existing
+  // providers use whatever was persisted (defaulting to "api" for the
+  // legacy records that pre-date this field).
+  const mode = provider && provider.mode ? provider.mode : 'api';
+  const apiRadio = document.getElementById('prov-mode-api');
+  const acpRadio = document.getElementById('prov-mode-acp');
+  if (apiRadio) apiRadio.checked = (mode !== 'acp');
+  if (acpRadio) acpRadio.checked = (mode === 'acp');
+  const permSel = document.getElementById('prov-acp-permission-mode');
+  if (permSel) permSel.value = (provider && provider.acp_permission_mode) ? provider.acp_permission_mode : 'default';
+  const subBox = document.getElementById('prov-acp-subscription-only');
+  if (subBox) {
+    // New ACP providers default to subscription_only=true (the common
+    // case when the operator is wiring up their claude subscription);
+    // existing providers reflect the persisted value.
+    subBox.checked = provider ? !!provider.acp_subscription_only : true;
+  }
+  applyProviderModeVisibility();
   document.getElementById('provider-dialog').classList.add('open');
   setTimeout(() => document.getElementById('prov-name').focus(), 50);
+}
+
+// Toggle visibility of mode-specific dialog rows. Called when the
+// operator flips the Mode radio group, and once on dialog open. ACP
+// hides base_url/api_key (the Claude Agent SDK manages auth) and
+// reveals acp_permission_mode + acp_subscription_only.
+function applyProviderModeVisibility() {
+  const acpChecked = document.getElementById('prov-mode-acp');
+  const acp = !!(acpChecked && acpChecked.checked);
+  const apiOnlyIds = ['prov-url-row', 'prov-key-row'];
+  const acpOnlyIds = ['prov-acp-permission-row', 'prov-acp-subscription-row'];
+  apiOnlyIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = acp ? 'none' : '';
+  });
+  acpOnlyIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = acp ? '' : 'none';
+  });
+  // The Fetch Models button hits the provider's /v1/models endpoint
+  // — meaningless for ACP, where the SDK manages model selection.
+  const fetchBtn = document.getElementById('fetch-models-btn');
+  if (fetchBtn) fetchBtn.style.display = acp ? 'none' : '';
 }
 
 function addModel(name) {
@@ -708,7 +762,12 @@ async function deleteProvider(id, name) {
 async function submitProvider() {
   const name = document.getElementById('prov-name').value.trim();
   const base_url = document.getElementById('prov-url').value.trim();
-  if (!name || !base_url) return;
+  const acpRadio = document.getElementById('prov-mode-acp');
+  const mode = (acpRadio && acpRadio.checked) ? 'acp' : 'api';
+  // Validation parity with the server: api-mode requires base_url; acp
+  // mode does not (the Claude Agent SDK manages the connection).
+  if (!name) return;
+  if (mode === 'api' && !base_url) return;
 
   const body = {
     name,
@@ -716,7 +775,15 @@ async function submitProvider() {
     provider_type: document.getElementById('prov-type').value,
     models: [...dialogModels],
     default_model: document.getElementById('prov-default-model').value.trim() || undefined,
+    mode,
   };
+
+  if (mode === 'acp') {
+    const permSel = document.getElementById('prov-acp-permission-mode');
+    const subBox = document.getElementById('prov-acp-subscription-only');
+    body.acp_permission_mode = permSel ? permSel.value : 'default';
+    body.acp_subscription_only = !!(subBox && subBox.checked);
+  }
 
   const apiKey = document.getElementById('prov-key').value.trim();
   if (apiKey) body.api_key = apiKey;
@@ -1092,11 +1159,54 @@ document.addEventListener('keydown', e => {
       <option value="anthropic">Anthropic</option>
       <option value="custom">Custom</option>
     </select>
-    <label for="prov-url">Base URL</label>
-    <input type="text" id="prov-url" placeholder="https://api.openai.com/v1">
-    <div class="hint">The API base URL. For local models, use http://localhost:PORT/v1</div>
-    <label for="prov-key">API Key</label>
-    <input type="password" id="prov-key" placeholder="sk-...">
+
+    <!-- Mode radio group (oompah-zlz_2-keb). API is the default and
+         preserves all legacy behavior; ACP routes the provider through
+         the Claude Agent SDK and bills against the operator's claude
+         subscription. -->
+    <label>Mode</label>
+    <div id="prov-mode-row" style="display:flex;gap:1rem;align-items:center;">
+      <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal;">
+        <input type="radio" name="prov-mode" id="prov-mode-api" value="api" checked onchange="applyProviderModeVisibility()">
+        API
+      </label>
+      <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal;">
+        <input type="radio" name="prov-mode" id="prov-mode-acp" value="acp" onchange="applyProviderModeVisibility()">
+        ACP
+      </label>
+    </div>
+    <div class="hint">API: OpenAI-compatible HTTP. ACP: Claude Agent SDK (subscription-billed).</div>
+
+    <div id="prov-url-row">
+      <label for="prov-url">Base URL</label>
+      <input type="text" id="prov-url" placeholder="https://api.openai.com/v1">
+      <div class="hint">The API base URL. For local models, use http://localhost:PORT/v1</div>
+    </div>
+    <div id="prov-key-row">
+      <label for="prov-key">API Key</label>
+      <input type="password" id="prov-key" placeholder="sk-...">
+    </div>
+
+    <!-- ACP-only fields. Hidden by default; applyProviderModeVisibility()
+         flips them on when the ACP radio is selected. -->
+    <div id="prov-acp-permission-row" style="display:none;">
+      <label for="prov-acp-permission-mode">Permission Mode</label>
+      <select id="prov-acp-permission-mode">
+        <option value="default">default</option>
+        <option value="acceptEdits">acceptEdits</option>
+        <option value="plan">plan</option>
+        <option value="bypassPermissions">bypassPermissions</option>
+      </select>
+      <div class="hint">Passed to ClaudeAgentOptions(permission_mode=...).</div>
+    </div>
+    <div id="prov-acp-subscription-row" style="display:none;">
+      <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal;">
+        <input type="checkbox" id="prov-acp-subscription-only" checked>
+        Subscription-only (bypass per-token budget gate)
+      </label>
+      <div class="hint">When checked, oompah's budget gate skips this provider; calls bill against the operator's claude subscription.</div>
+    </div>
+
     <label style="display:flex;justify-content:space-between;align-items:center;">
       Models
       <button type="button" id="fetch-models-btn" onclick="fetchModelsFromProvider()" style="font-size:0.65rem;padding:0.15rem 0.5rem;">Fetch Models</button>

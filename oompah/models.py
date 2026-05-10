@@ -331,6 +331,23 @@ class ModelProvider:
     # When unset, the agent uses the legacy fixed max_tokens with no
     # pruning — only safe for models with very large windows.
     model_contexts: dict[str, int] = field(default_factory=dict)
+    # Provider mode: "api" (default — OpenAI-compatible HTTP) or "acp"
+    # (Claude Agent SDK; auth via operator's claude subscription).
+    # ACP providers do not require base_url or api_key. Mirrors the
+    # AgentProfile.mode field but at the provider granularity, so a
+    # role-assignment matrix (child B of oompah-zlz_2-4a6) can dispatch
+    # a model_role at this provider through the ACP path. See
+    # docs/acp-agent.md and bead oompah-zlz_2-keb.
+    mode: str = "api"
+    # ACP-only: passed to ClaudeAgentOptions(permission_mode=...) when
+    # mode == "acp". One of {"default", "acceptEdits", "plan",
+    # "bypassPermissions"}. None falls through to "default".
+    acp_permission_mode: str | None = None
+    # ACP-only: marks the provider as billed via the operator's claude
+    # subscription, not the per-token API meter. The orchestrator's
+    # budget gate uses this to bypass the over-budget cap (mirrors the
+    # AgentProfile.mode == "acp" carve-out).
+    acp_subscription_only: bool = False
 
     def get_model_costs(self, model: str) -> tuple[float, float]:
         """Return (cost_per_1k_input, cost_per_1k_output) for a model, or (0, 0) if unknown."""
@@ -371,6 +388,16 @@ class ModelProvider:
             d["model_capabilities"] = self.model_capabilities
         if self.model_contexts:
             d["model_contexts"] = self.model_contexts
+        # ACP-mode fields. mode is always emitted so downstream code
+        # (and the dashboard) can rely on it being present; the ACP-
+        # specific fields are only emitted when in ACP mode (or when
+        # they have explicit non-default values) to keep the JSON
+        # compact for the common API-mode case.
+        d["mode"] = self.mode
+        if self.acp_permission_mode is not None:
+            d["acp_permission_mode"] = self.acp_permission_mode
+        if self.acp_subscription_only:
+            d["acp_subscription_only"] = self.acp_subscription_only
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -386,6 +413,15 @@ class ModelProvider:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> ModelProvider:
+        # Normalize mode: anything other than the two known values
+        # falls back to "api" so a typo can't accidentally bypass the
+        # budget gate. Mirrors the AgentProfile.mode validation.
+        raw_mode = str(d.get("mode", "api") or "api").lower()
+        mode = raw_mode if raw_mode in ("api", "acp") else "api"
+        acp_perm_raw = d.get("acp_permission_mode")
+        acp_permission_mode: str | None = (
+            str(acp_perm_raw) if acp_perm_raw is not None and acp_perm_raw != "" else None
+        )
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -405,6 +441,9 @@ class ModelProvider:
                 for k, v in (d.get("model_contexts") or {}).items()
                 if isinstance(v, (int, float)) or (isinstance(v, str) and v.isdigit())
             },
+            mode=mode,
+            acp_permission_mode=acp_permission_mode,
+            acp_subscription_only=bool(d.get("acp_subscription_only", False)),
         )
 
 
