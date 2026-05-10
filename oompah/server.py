@@ -2233,6 +2233,14 @@ async def api_budget():
             "budget": snapshot["budget"],
             "cost_by_profile": snapshot["cost_by_profile"],
             "agent_profiles": snapshot["agent_profiles"],
+            # "json" (default) means the dashboard's Agent Profiles
+            # section can add/edit/delete via /api/v1/agent-profiles.
+            # "workflow" means OOMPAH_AGENT_PROFILES_SOURCE=workflow
+            # is set and the UI should be read-only. See
+            # docs/agent-profiles.md.
+            "agent_profiles_source": snapshot.get(
+                "agent_profiles_source", "json",
+            ),
         })
     except Exception as exc:
         logger.error("Budget API error: %s", exc)

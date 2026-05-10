@@ -302,3 +302,309 @@ class TestAgentProfileStoreFileFormat:
 
     def test_valid_modes_constant(self):
         assert VALID_MODES == ("auto", "api", "cli", "acp")
+
+
+# ---------------------------------------------------------------------------
+# Source precedence + one-shot migration (oompah-zlz_2-2y7)
+# ---------------------------------------------------------------------------
+
+import logging
+import os
+
+from oompah.agent_profile_store import (
+    DEFAULT_AGENT_PROFILES_PATH,
+    SOURCE_JSON,
+    SOURCE_WORKFLOW,
+    _profiles_signature,
+    reset_warning_state,
+    resolve_agent_profiles,
+    resolve_source,
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_env_for_resolve(monkeypatch):
+    """Each resolve_* test starts with a clean OOMPAH_AGENT_PROFILES_SOURCE
+    and a fresh once-per-process WARN cache. Scoped via autouse so it
+    runs for every test in this module — main's CRUD tests don't touch
+    the env var, so the cleanup is a no-op for them."""
+    monkeypatch.delenv("OOMPAH_AGENT_PROFILES_SOURCE", raising=False)
+    reset_warning_state()
+    yield
+    reset_warning_state()
+
+
+def _make_resolve_profile(name: str, **overrides) -> AgentProfile:
+    """Convenience builder for the source-precedence tests."""
+    base = dict(
+        name=name,
+        command="claude --dangerously-skip-permissions",
+        provider_id="prov-test",
+        model_role="standard",
+    )
+    base.update(overrides)
+    return AgentProfile(**base)
+
+
+class TestResolveSource:
+    def test_default_is_json(self):
+        assert resolve_source() == SOURCE_JSON
+
+    def test_explicit_workflow(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AGENT_PROFILES_SOURCE", "workflow")
+        assert resolve_source() == SOURCE_WORKFLOW
+
+    def test_workflow_case_insensitive(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AGENT_PROFILES_SOURCE", "WORKFLOW")
+        assert resolve_source() == SOURCE_WORKFLOW
+
+    def test_typo_falls_back_to_json(self, monkeypatch):
+        # A typo (e.g. workflwo) must NOT silently disable the JSON store.
+        monkeypatch.setenv("OOMPAH_AGENT_PROFILES_SOURCE", "workflwo")
+        assert resolve_source() == SOURCE_JSON
+
+    def test_empty_falls_back_to_json(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_AGENT_PROFILES_SOURCE", "")
+        assert resolve_source() == SOURCE_JSON
+
+
+class TestResolveAgentProfiles:
+    def test_one_shot_migration_writes_json(self, tmp_path, caplog):
+        store_path = str(tmp_path / "agent_profiles.json")
+        wf_profiles = [
+            _make_resolve_profile("quick", model_role="fast"),
+            _make_resolve_profile("standard", model_role="standard"),
+        ]
+        with caplog.at_level(logging.INFO):
+            profiles, source, migrated = resolve_agent_profiles(
+                wf_profiles, store_path=store_path,
+            )
+        assert source == SOURCE_JSON
+        assert migrated is True
+        assert [p.name for p in profiles] == ["quick", "standard"]
+        # JSON file now exists
+        assert os.path.exists(store_path)
+        # Migration is logged at INFO with the count. The exact phrasing
+        # of the log message lives in AgentProfileStore._load.
+        msgs = [r.message for r in caplog.records]
+        assert any(
+            "Migrated" in m and "WORKFLOW.md" in m and "2" in m
+            for m in msgs
+        )
+
+    def test_no_migration_when_workflow_empty(self, tmp_path):
+        store_path = str(tmp_path / "agent_profiles.json")
+        profiles, source, migrated = resolve_agent_profiles(
+            [], store_path=store_path,
+        )
+        assert source == SOURCE_JSON
+        assert migrated is False
+        assert profiles == []
+        # No JSON file created — the migration is keyed on YAML having profiles.
+        assert not os.path.exists(store_path)
+
+    def test_json_wins_after_first_migration(self, tmp_path, caplog):
+        store_path = str(tmp_path / "agent_profiles.json")
+
+        # First call migrates.
+        wf_profiles = [_make_resolve_profile("quick")]
+        resolve_agent_profiles(wf_profiles, store_path=store_path)
+
+        # Operator manually edits the JSON store to add a profile.
+        AgentProfileStore(path=store_path).replace_all([
+            _make_resolve_profile("quick"),
+            _make_resolve_profile("ui-only"),
+        ])
+
+        # Second call (e.g. workflow file change) returns the JSON contents,
+        # NOT the WORKFLOW.md contents — and does not re-migrate.
+        with caplog.at_level(logging.INFO):
+            profiles, source, migrated = resolve_agent_profiles(
+                wf_profiles, store_path=store_path,
+            )
+        assert source == SOURCE_JSON
+        assert migrated is False
+        names = {p.name for p in profiles}
+        assert names == {"quick", "ui-only"}
+
+    def test_warn_once_per_session_when_workflow_drifts(self, tmp_path, caplog):
+        store_path = str(tmp_path / "agent_profiles.json")
+        # Seed JSON
+        AgentProfileStore(path=store_path).replace_all(
+            [_make_resolve_profile("quick")]
+        )
+
+        # WORKFLOW.md still has profiles but they differ.
+        drifted = [_make_resolve_profile("quick", model_role="fast")]
+        with caplog.at_level(logging.WARNING):
+            resolve_agent_profiles(drifted, store_path=store_path)
+            resolve_agent_profiles(drifted, store_path=store_path)
+            resolve_agent_profiles(drifted, store_path=store_path)
+
+        warns = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "WORKFLOW.md agent.profiles[] differs" in r.message
+        ]
+        # Once-per-process: not once-per-call.
+        assert len(warns) == 1
+
+    def test_no_warn_when_workflow_matches_json(self, tmp_path, caplog):
+        store_path = str(tmp_path / "agent_profiles.json")
+        same = [_make_resolve_profile("quick")]
+        AgentProfileStore(path=store_path).replace_all(same)
+
+        with caplog.at_level(logging.WARNING):
+            resolve_agent_profiles(same, store_path=store_path)
+        assert not any(
+            "WORKFLOW.md agent.profiles[] differs" in r.message
+            for r in caplog.records
+        )
+
+    def test_no_warn_when_workflow_has_no_profiles(self, tmp_path, caplog):
+        store_path = str(tmp_path / "agent_profiles.json")
+        AgentProfileStore(path=store_path).replace_all(
+            [_make_resolve_profile("quick")]
+        )
+
+        # Operator removed agent.profiles[] from WORKFLOW.md after migrating.
+        # That's the *correct* steady state — no warn should fire.
+        with caplog.at_level(logging.WARNING):
+            resolve_agent_profiles([], store_path=store_path)
+        assert not any(
+            "WORKFLOW.md agent.profiles[] differs" in r.message
+            for r in caplog.records
+        )
+
+    def test_workflow_source_skips_json(self, tmp_path, monkeypatch, caplog):
+        monkeypatch.setenv("OOMPAH_AGENT_PROFILES_SOURCE", "workflow")
+        store_path = str(tmp_path / "agent_profiles.json")
+        # Pre-seed JSON store with values that should NOT win.
+        AgentProfileStore(path=store_path).replace_all(
+            [_make_resolve_profile("json-one")]
+        )
+
+        wf_profiles = [
+            _make_resolve_profile("quick"),
+            _make_resolve_profile("standard"),
+        ]
+        with caplog.at_level(logging.INFO):
+            profiles, source, migrated = resolve_agent_profiles(
+                wf_profiles, store_path=store_path,
+            )
+        assert source == SOURCE_WORKFLOW
+        assert migrated is False
+        assert [p.name for p in profiles] == ["quick", "standard"]
+        # We did NOT log a migration.
+        assert not any(
+            "Migrated" in r.message for r in caplog.records
+        )
+
+    def test_signature_ignores_order(self):
+        a = [_make_resolve_profile("a"), _make_resolve_profile("b")]
+        b = [_make_resolve_profile("b"), _make_resolve_profile("a")]
+        assert _profiles_signature(a) == _profiles_signature(b)
+
+    def test_signature_detects_change(self):
+        a = [_make_resolve_profile("a", model_role="fast")]
+        b = [_make_resolve_profile("a", model_role="standard")]
+        assert _profiles_signature(a) != _profiles_signature(b)
+
+
+class TestServiceConfigIntegration:
+    """Verify the migration runs through ServiceConfig.from_workflow."""
+
+    def setup_method(self):
+        for k in list(os.environ):
+            if k.startswith("OOMPAH_"):
+                os.environ.pop(k, None)
+        reset_warning_state()
+
+    def teardown_method(self):
+        for k in list(os.environ):
+            if k.startswith("OOMPAH_"):
+                os.environ.pop(k, None)
+        reset_warning_state()
+
+    def test_first_boot_migrates(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.models import WorkflowDefinition
+
+        store_path = str(tmp_path / "agent_profiles.json")
+        wf = WorkflowDefinition(
+            config={
+                "agent": {
+                    "profiles": [
+                        {"name": "quick", "model_role": "fast"},
+                        {"name": "deep", "model_role": "big"},
+                    ],
+                },
+            },
+            prompt_template="t",
+        )
+        cfg = ServiceConfig.from_workflow(wf, agent_profiles_path=store_path)
+
+        assert cfg.agent_profiles_source == "json"
+        assert [p.name for p in cfg.agent_profiles] == ["quick", "deep"]
+        assert os.path.exists(store_path)
+
+    def test_second_boot_uses_json(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.models import WorkflowDefinition
+
+        store_path = str(tmp_path / "agent_profiles.json")
+        # First boot: migrate.
+        wf1 = WorkflowDefinition(
+            config={"agent": {"profiles": [{"name": "quick"}]}},
+            prompt_template="t",
+        )
+        ServiceConfig.from_workflow(wf1, agent_profiles_path=store_path)
+
+        # Operator updates JSON via the dashboard / direct edit.
+        AgentProfileStore(path=store_path).replace_all(
+            [_make_resolve_profile("quick"), _make_resolve_profile("ui-added")]
+        )
+
+        # Operator also (separately) re-edits WORKFLOW.md.
+        wf2 = WorkflowDefinition(
+            config={"agent": {"profiles": [{"name": "quick", "mode": "acp"}]}},
+            prompt_template="t",
+        )
+        cfg = ServiceConfig.from_workflow(wf2, agent_profiles_path=store_path)
+        # JSON wins.
+        names = {p.name for p in cfg.agent_profiles}
+        assert names == {"quick", "ui-added"}
+
+    def test_workflow_source_env(self, tmp_path, monkeypatch):
+        from oompah.config import ServiceConfig
+        from oompah.models import WorkflowDefinition
+
+        monkeypatch.setenv("OOMPAH_AGENT_PROFILES_SOURCE", "workflow")
+        store_path = str(tmp_path / "agent_profiles.json")
+        # Pre-seed JSON that should be ignored.
+        AgentProfileStore(path=store_path).replace_all(
+            [_make_resolve_profile("from-json")]
+        )
+
+        wf = WorkflowDefinition(
+            config={"agent": {"profiles": [{"name": "from-yaml"}]}},
+            prompt_template="t",
+        )
+        cfg = ServiceConfig.from_workflow(wf, agent_profiles_path=store_path)
+        assert cfg.agent_profiles_source == "workflow"
+        assert [p.name for p in cfg.agent_profiles] == ["from-yaml"]
+
+    def test_default_source_is_json(self, tmp_path):
+        """When the env var is unset and there are no profiles anywhere,
+        the resolved source is still 'json' (so the dashboard knows the
+        UI is read/write)."""
+        from oompah.config import ServiceConfig
+        from oompah.models import WorkflowDefinition
+
+        store_path = str(tmp_path / "agent_profiles.json")
+        wf = WorkflowDefinition(config={}, prompt_template="t")
+        cfg = ServiceConfig.from_workflow(wf, agent_profiles_path=store_path)
+        assert cfg.agent_profiles_source == "json"
+        assert cfg.agent_profiles == []
+        # No spurious file created when there's nothing to migrate.
+        assert not os.path.exists(store_path)

@@ -339,3 +339,122 @@ class AgentProfileStore:
             self._profiles = new_map
             self._save()
         self._fire_reload("replace_all")
+
+
+# ---------------------------------------------------------------------------
+# Source precedence + one-shot migration (oompah-zlz_2-2y7)
+# ---------------------------------------------------------------------------
+
+import json as _json  # noqa: E402  alias to avoid clobbering module-level json
+
+# Resolved values for the OOMPAH_AGENT_PROFILES_SOURCE env var. "workflow"
+# pins authority to WORKFLOW.md and makes the JSON store read-only from
+# the dashboard's perspective; anything else (or unset) means "json".
+SOURCE_WORKFLOW = "workflow"
+SOURCE_JSON = "json"
+
+# Module-level set so the "WORKFLOW.md edits are being ignored" WARN
+# fires at most once per process — even though ServiceConfig.from_workflow
+# may be called multiple times (initial boot + every workflow file change).
+# Reset by reset_warning_state() for tests.
+_warned_paths: set[str] = set()
+
+
+def resolve_source() -> str:
+    """Return the effective profiles-source for this process.
+
+    Reads OOMPAH_AGENT_PROFILES_SOURCE. Anything other than the literal
+    string "workflow" (case-insensitive) resolves to "json" so a typo
+    doesn't silently disable the JSON store.
+    """
+    raw = (os.environ.get("OOMPAH_AGENT_PROFILES_SOURCE") or "").strip().lower()
+    if raw == SOURCE_WORKFLOW:
+        return SOURCE_WORKFLOW
+    return SOURCE_JSON
+
+
+def _profiles_signature(profiles: list[AgentProfile]) -> str:
+    """Stable signature for comparing two profile lists, ignoring order."""
+    return _json.dumps(
+        sorted([p.to_dict() for p in profiles], key=lambda d: d.get("name", "")),
+        sort_keys=True,
+        default=str,
+    )
+
+
+def reset_warning_state() -> None:
+    """Reset the once-per-process WARN cache. Test-only helper."""
+    _warned_paths.clear()
+
+
+def resolve_agent_profiles(
+    workflow_profiles: list[AgentProfile],
+    *,
+    store_path: str | None = None,
+) -> tuple[list[AgentProfile], str, bool]:
+    """Resolve effective agent_profiles per the source-precedence rules.
+
+    Returns ``(profiles, source, migrated)``:
+
+    * ``profiles``  — effective list to use this run.
+    * ``source``    — ``"json"`` or ``"workflow"``; surfaces in
+      ``/api/v1/budget`` so the dashboard can render add/edit/delete
+      controls read-only when WORKFLOW.md is authoritative.
+    * ``migrated``  — True if this call seeded the JSON file from
+      WORKFLOW.md for the first time.
+
+    Precedence:
+
+    1. ``OOMPAH_AGENT_PROFILES_SOURCE=workflow`` — WORKFLOW.md wins, JSON
+       store is not read or written. UI becomes read-only.
+    2. Otherwise (default ``json``):
+       a. If JSON file does NOT exist AND WORKFLOW.md has profiles, run
+          the one-shot migration: seed the JSON file and log INFO.
+       b. If JSON file exists, JSON wins. If WORKFLOW.md still ships
+          profiles that differ, WARN once per process to nudge operators
+          toward the UI.
+       c. If neither has profiles, effective list is empty.
+    """
+    path = store_path or DEFAULT_AGENT_PROFILES_PATH
+    source = resolve_source()
+
+    if source == SOURCE_WORKFLOW:
+        # Operator pinned authority to WORKFLOW.md — JSON is not read.
+        return list(workflow_profiles), SOURCE_WORKFLOW, False
+
+    # Default: JSON wins. Construct the store with seed_from so the
+    # one-shot migration happens transparently on first boot (see
+    # AgentProfileStore.__init__ and ._load).
+    store = AgentProfileStore(path=path, seed_from=workflow_profiles)
+    migrated = store.migrated_from_workflow
+
+    profiles = store.list_all()
+
+    # If the JSON file pre-existed but is empty (e.g. operator deleted
+    # all profiles via the CRUD API), fall back to WORKFLOW.md without
+    # re-writing the JSON file. Operators who genuinely want "no
+    # profiles" still get that — they can delete WORKFLOW.md profiles
+    # too. This matches the behavior of the pre-resolve_agent_profiles
+    # ServiceConfig.from_workflow code (oompah-zlz_2-xaj) and keeps
+    # tests/test_orchestrator_reload_profiles.py green.
+    if not profiles and store.loaded_from_disk and workflow_profiles:
+        return list(workflow_profiles), SOURCE_JSON, False
+
+    if not migrated and store.loaded_from_disk and workflow_profiles:
+        # JSON store pre-existed AND WORKFLOW.md still ships profiles.
+        # Compare for drift; warn once per process per store path so
+        # repeated WORKFLOW.md reloads don't spam.
+        if path not in _warned_paths:
+            wf_sig = _profiles_signature(workflow_profiles)
+            json_sig = _profiles_signature(profiles)
+            if wf_sig != json_sig:
+                logger.warning(
+                    "WORKFLOW.md agent.profiles[] differs from %s; the "
+                    "JSON store wins. Edit profiles via the dashboard "
+                    "(or set OOMPAH_AGENT_PROFILES_SOURCE=workflow to "
+                    "make WORKFLOW.md authoritative again).",
+                    path,
+                )
+                _warned_paths.add(path)
+
+    return profiles, SOURCE_JSON, migrated

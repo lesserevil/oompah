@@ -7016,6 +7016,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 }
                 for p in self.config.agent_profiles
             ],
+            # Tells the dashboard whether agent profiles are managed via the
+            # JSON store (read/write through CRUD endpoints) or pinned to
+            # WORKFLOW.md (read-only). See docs/agent-profiles.md.
+            "agent_profiles_source": getattr(
+                self.config, "agent_profiles_source", "json",
+            ),
             "rate_limits": self.state.rate_limits,
             "projects": [p.to_dict() for p in self.project_store.list_all()],
             "open_reviews_by_project": {
