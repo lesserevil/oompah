@@ -1447,3 +1447,300 @@ class TestYoloOrphanBranchRecovery:
 
         assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_beads
         assert (project.id, "42", "ci-fix") not in orch._yolo_orphan_recovery_beads
+
+
+# ---------------------------------------------------------------------------
+# _describe_rate_limit_context (oompah-zlz_2-phr6)
+#
+# When a 429 fires the alert must name the provider+model so operators don't
+# have to dig through logs. Tests verify the helper and the _on_worker_exit
+# alert-composition path.
+# ---------------------------------------------------------------------------
+
+def _rl_make_entry(agent_profile_name: str = "standard") -> "RunningEntry":
+    """Minimal RunningEntry for rate-limit context tests."""
+    from oompah.models import RunningEntry
+    from datetime import datetime, timezone
+    return RunningEntry(
+        worker_task=None,
+        identifier="issue-1",
+        issue=MagicMock(),
+        session=None,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        agent_profile_name=agent_profile_name,
+    )
+
+
+class TestDescribeRateLimitContext:
+    """Unit tests for _describe_rate_limit_context()."""
+
+    def test_provider_and_model_shown_when_resolved(self, tmp_path):
+        """Returns 'ProviderName (model)' when both resolve successfully."""
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="inf", name="InferenceAPI",
+                         models=["claude-sonnet-4-6"],
+                         default_model="claude-sonnet-4-6")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        entry = _rl_make_entry("standard")
+        # Ensure the profile is registered
+        orch.config.agent_profiles = [
+            AgentProfile(name="standard", command="api",
+                         provider_id="inf", model="claude-sonnet-4-6"),
+        ]
+
+        result = orch._describe_rate_limit_context(entry, None)
+
+        assert "InferenceAPI" in result
+        assert "claude-sonnet-4-6" in result
+
+    def test_error_tokens_append_reason(self, tmp_path):
+        """Error body containing 'tokens' → '— Reason: tokens'."""
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="inf", name="InferenceAPI",
+                         models=["claude-sonnet-4-6"],
+                         default_model="claude-sonnet-4-6")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        entry = _rl_make_entry("standard")
+        orch.config.agent_profiles = [
+            AgentProfile(name="standard", command="api",
+                         provider_id="inf", model="claude-sonnet-4-6"),
+        ]
+
+        result = orch._describe_rate_limit_context(
+            entry, "HTTP 429 from http://x: rate limit type: tokens",
+        )
+
+        assert "InferenceAPI" in result
+        assert "claude-sonnet-4-6" in result
+        assert "Reason: tokens" in result
+
+    def test_error_overloaded_append_reason(self, tmp_path):
+        """Error body containing 'overloaded' → '— Reason: overloaded'."""
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="godspeed", name="Godspeed", models=["mimo-2.5"],
+                         default_model="mimo-2.5")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        entry = _rl_make_entry("standard")
+        orch.config.agent_profiles = [
+            AgentProfile(name="standard", command="api",
+                         provider_id="godspeed", model="mimo-2.5"),
+        ]
+
+        result = orch._describe_rate_limit_context(
+            entry, "HTTP 429 from http://x: model overloaded",
+        )
+
+        assert "Reason: overloaded" in result
+
+    def test_error_quota_append_reason(self, tmp_path):
+        """Error body containing 'quota' → '— Reason: quota'."""
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="inf", name="OpenAI", models=["gpt-4o"],
+                         default_model="gpt-4o")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        entry = _rl_make_entry("standard")
+        orch.config.agent_profiles = [
+            AgentProfile(name="standard", command="api",
+                         provider_id="inf", model="gpt-4o"),
+        ]
+
+        result = orch._describe_rate_limit_context(
+            entry, "HTTP 429 from http://x: quota exceeded",
+        )
+
+        assert "Reason: quota" in result
+
+    def test_acp_mode_returns_claude_sdk(self, tmp_path):
+        """ACP-mode dispatch returns 'Claude SDK' without a model."""
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="acp-1", name="claude-subscription",
+                         models=["claude-sonnet-4-6"])
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        entry = _rl_make_entry("acp-profile")
+        orch.config.agent_profiles = [
+            AgentProfile(name="acp-profile", command="cli", mode="acp",
+                         provider_id="acp-1"),
+        ]
+
+        result = orch._describe_rate_limit_context(entry, None)
+
+        assert result == "Claude SDK"
+        # No model should appear (ACP mode omits it)
+        assert "(" not in result
+
+    def test_acp_mode_with_codex_backend(self, tmp_path):
+        """ACP dispatch via a named backend (e.g. 'codex') shows the backend name."""
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="cx", name="OpenAI Codex")
+        prov.backend = "codex"
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        entry = _rl_make_entry("codex-profile")
+        orch.config.agent_profiles = [
+            AgentProfile(name="codex-profile", command="cli", mode="acp",
+                         provider_id="cx"),
+        ]
+
+        result = orch._describe_rate_limit_context(entry, None)
+
+        assert result == "codex"
+
+    def test_unknown_profile_returns_fallback(self, tmp_path):
+        """Profile name that resolves to nothing → 'an upstream API'."""
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get_default.return_value = _provider()
+        entry = _rl_make_entry("nonexistent-profile")
+        orch.config.agent_profiles = []  # empty profiles
+
+        result = orch._describe_rate_limit_context(entry, None)
+
+        assert result == "an upstream API"
+
+    def test_no_entry_returns_fallback(self, tmp_path):
+        """None entry → 'an upstream API' without crashing."""
+        orch = _make_orchestrator(tmp_path)
+
+        result = orch._describe_rate_limit_context(None, None)
+
+        assert result == "an upstream API"
+
+    def test_provider_found_but_model_unresolved(self, tmp_path):
+        """Provider with no model artifact → returns just the provider name."""
+        orch = _make_orchestrator(tmp_path)
+        # Build provider directly so default_model is genuinely absent
+        prov = ModelProvider(
+            id="bare", name="BareProvider",
+            base_url="http://x", api_key="k",
+            models=[],  # no models catalogued
+            # default_model defaults to None in the dataclass
+        )
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        entry = _rl_make_entry("bare-profile")
+        orch.config.agent_profiles = [
+            AgentProfile(name="bare-profile", command="api",
+                         provider_id="bare"),
+        ]
+
+        result = orch._describe_rate_limit_context(entry, None)
+
+        assert result == "BareProvider"
+        # m-default should NOT appear — provider.models is empty and has no default_model
+        assert "(" not in result
+
+    def test_reason_with_no_provider_appends_reason_to_fallback(self, tmp_path):
+        """Provider resolution fails but reason parses — reason appended to 'an upstream API'."""
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get_default.return_value = None
+        entry = _rl_make_entry("standard")
+        orch.config.agent_profiles = []  # no profiles
+
+        result = orch._describe_rate_limit_context(
+            entry, "HTTP 429: tokens exceeded",
+        )
+
+        # Has the fallback baseline
+        assert "an upstream API" in result
+        # And the reason
+        assert "Reason: tokens" in result
+
+
+class TestRateLimitAlertIncludesProviderAndModel:
+    """Integration test: _on_worker_exit_RATE_LIMITED path emits enriched alert/comment."""
+
+    def test_rate_limited_alert_includes_provider_and_model(self, tmp_path):
+        """When reason=rate_limited, the alert message names provider + model."""
+        from oompah.models import RunningEntry
+        from datetime import datetime, timezone
+
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="inference-api", name="InferenceAPI",
+                         models=["claude-sonnet-4-6"],
+                         default_model="claude-sonnet-4-6")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        orch.config.agent_profiles = [
+            AgentProfile(name="standard", command="api",
+                         provider_id="inference-api",
+                         model="claude-sonnet-4-6"),
+        ]
+        issue = _make_issue("issue-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=None,
+            identifier="issue-1",
+            issue=issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="standard",
+        )
+        # _on_worker_exit requires the entry to be in state.running
+        orch.state.running["issue-1"] = entry
+        orch._post_comment = MagicMock()
+        orch._schedule_retry = MagicMock()
+
+        asyncio.run(orch._on_worker_exit(
+            "issue-1",
+            "rate_limited",
+            "HTTP 429 from http://x: rate limit type: tokens",
+        ))
+
+        # Alert should include provider + model + reason
+        assert len(orch._alerts) == 1
+        alert_msg = orch._alerts[0]["message"]
+        assert "InferenceAPI" in alert_msg
+        assert "claude-sonnet-4-6" in alert_msg
+        assert "Reason: tokens" in alert_msg
+
+    def test_rate_limited_comment_includes_provider_and_model(self, tmp_path):
+        """The per-issue comment must also name provider+model (so `bd comments` shows it)."""
+        from oompah.models import RunningEntry
+        from datetime import datetime, timezone
+
+        orch = _make_orchestrator(tmp_path)
+        prov = _provider(pid="godspeed", name="Godspeed",
+                         models=["mimo-2.5"], default_model="mimo-2.5")
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        orch.provider_store.get_default.return_value = prov
+        orch.config.agent_profiles = [
+            AgentProfile(name="standard", command="api",
+                         provider_id="godspeed", model="mimo-2.5"),
+        ]
+        issue = _make_issue("issue-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=None,
+            identifier="issue-1",
+            issue=issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="standard",
+        )
+        orch.state.running["issue-1"] = entry
+        orch._post_comment = MagicMock()
+        orch._schedule_retry = MagicMock()
+
+        asyncio.run(orch._on_worker_exit("issue-1", "rate_limited", None))
+
+        # Capture the comment posted by _post_comment
+        orch._post_comment.assert_called_once()
+        comment_text = orch._post_comment.call_args.args[1]
+        assert "Godspeed" in comment_text
+        assert "mimo-2.5" in comment_text

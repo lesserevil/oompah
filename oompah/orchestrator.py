@@ -3614,6 +3614,71 @@ class Orchestrator:
             model = profile.model or provider.default_model or (provider.models[0] if provider.models else None)
         return model
 
+    def _describe_rate_limit_context(
+        self,
+        entry: "RunningEntry",
+        error_text: str | None,
+    ) -> str:
+        """Build a human-readable context string for rate-limit alerts and comments.
+
+        Returns a string like ``"InferenceAPI (claude-sonnet-4-6) — tokens"``
+        suitable for embedding in alert messages. Falls back to
+        ``"an upstream API"`` if the profile or provider can't be resolved.
+
+        ACP-mode dispatches (Claude SDK / Codex) omit the model because the
+        SDK manages models internally with no fixed catalog — only the
+        provider/backend name is shown (e.g. ``"Claude SDK"``).
+        """
+        # Parse the error body for a rate-limit reason first (needed even
+        # for the fallback path when profile resolution fails).
+        reason: str | None = None
+        if error_text:
+            error_lower = error_text.lower()
+            if "rate limit type: tokens" in error_lower or "tokens" in error_lower:
+                reason = "tokens"
+            elif "requests per minute" in error_lower or "per minute" in error_lower:
+                reason = "requests per minute"
+            elif "overloaded" in error_lower:
+                reason = "overloaded"
+            elif "quota" in error_lower:
+                reason = "quota"
+
+        if not entry:
+            return f"an upstream API — Reason: {reason}" if reason else "an upstream API"
+
+        profile = self._get_profile_by_name(entry.agent_profile_name)
+        if not profile:
+            return f"an upstream API — Reason: {reason}" if reason else "an upstream API"
+
+        mode = (getattr(profile, "mode", "auto") or "auto").lower()
+        # ACP mode — SDK manages models internally; show backend name only.
+        if mode == "acp":
+            provider = self._resolve_provider(profile)
+            if provider:
+                backend = provider.backend or "Claude SDK"
+                # Pretty-print the registered backend name (e.g. "claude" → "Claude SDK")
+                if backend.lower() == "claude":
+                    return "Claude SDK"
+                return backend
+            return "Claude SDK"
+
+        # API/CLI mode — include provider + model.
+        provider = self._resolve_provider(profile)
+        provider_name = getattr(provider, "name", None) if provider else None
+        model = self._resolve_model(profile, provider) if provider else None
+
+        # Build the context string.
+        if provider_name and model:
+            core = f"{provider_name} ({model})"
+        elif provider_name:
+            core = provider_name
+        else:
+            core = "an upstream API"
+
+        if reason:
+            return f"{core} — Reason: {reason}"
+        return core
+
     def _estimate_cost(
         self,
         profile: AgentProfile,
@@ -5955,16 +6020,17 @@ class Orchestrator:
             cooldown_s = 120  # 2 minutes
             self._rate_limit_until = time.time() + cooldown_s
             self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
+            rl_ctx = self._describe_rate_limit_context(entry, error)
             self._alerts.append({
                 "level": "warning",
                 "source": "rate_limit",
-                "message": f"Rate limited by API — pausing dispatch for {cooldown_s}s",
+                "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
             })
             next_attempt = (entry.retry_attempt or 0) + 1
             delay = max(cooldown_s * 1000, self._backoff_delay(next_attempt))
             self._post_comment(
                 entry.identifier,
-                f"Rate limited by API. Pausing all dispatch for {cooldown_s}s. "
+                f"Rate limited by {rl_ctx}. Pausing all dispatch for {cooldown_s}s. "
                 f"Retrying in {delay // 1000}s (attempt #{next_attempt})",
                 project_id=project_id,
             )
@@ -5976,8 +6042,8 @@ class Orchestrator:
                 error=error,
             )
             logger.warning(
-                "Rate limited — pausing dispatch for %ds. issue_id=%s retrying_in_ms=%d",
-                cooldown_s, issue_id, delay,
+                "Rate limited by %s — pausing dispatch for %ds. issue_id=%s retrying_in_ms=%d",
+                rl_ctx, cooldown_s, issue_id, delay,
             )
         elif reason in ("max_turns", "stalled"):
             next_attempt = (entry.retry_attempt or 0) + 1
@@ -6047,10 +6113,11 @@ class Orchestrator:
                 cooldown_s = 120
                 self._rate_limit_until = time.time() + cooldown_s
                 self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
+                rl_ctx = self._describe_rate_limit_context(entry, error)
                 self._alerts.append({
                     "level": "warning",
                     "source": "rate_limit",
-                    "message": f"Rate limited by API — pausing dispatch for {cooldown_s}s",
+                    "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
                 })
 
             next_attempt = (entry.retry_attempt or 0) + 1
