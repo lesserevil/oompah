@@ -498,35 +498,48 @@ def _get_tracker(orch, project_id: str | None = None):
     return orch._tracker_for_project(project_id)
 
 
-def _find_tracker_for_issue(orch, identifier: str) -> tuple:
-    """Search all projects for an issue by identifier.
+def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None):
+    """Get a tracker for an issue, searching all projects if project_id is missing.
 
-    Returns a (tracker, project_id) tuple if found, or (None, None) if not.
-    Useful when project_id is not known by the caller.
+    Returns (tracker, project_id, issue) tuple. If the issue cannot be found in
+    any project, returns (None, None, None).
+
+    Used by read-only endpoints (issue detail, comments, attachments) where the
+    UI may not know which project an issue belongs to. Mutating endpoints
+    should still require project_id explicitly via _get_tracker().
     """
-    from oompah.tracker import TrackerError
-
-    projects = orch.project_store.list_all()
-    if not projects:
-        # Legacy single-project mode
-        tracker = orch.tracker
+    # Fast path: explicit project_id wins
+    if project_id:
+        try:
+            tracker = orch._tracker_for_project(project_id)
+        except Exception:
+            return None, None, None
         try:
             issue = tracker.fetch_issue_detail(identifier)
-            if issue is not None:
-                return tracker, None
-        except (TrackerError, Exception):
-            pass
-        return None, None
+        except Exception:
+            issue = None
+        return tracker, project_id, issue
+
+    # Slow path: search all known projects for the issue
+    projects = orch.project_store.list_all()
+    if not projects:
+        # Legacy mode — single tracker
+        try:
+            issue = orch.tracker.fetch_issue_detail(identifier)
+        except Exception:
+            issue = None
+        return orch.tracker, None, issue
 
     for project in projects:
         try:
             tracker = orch._tracker_for_project(project.id)
             issue = tracker.fetch_issue_detail(identifier)
-            if issue is not None:
-                return tracker, project.id
-        except (TrackerError, Exception):
+        except Exception:
             continue
-    return None, None
+        if issue is not None:
+            return tracker, project.id, issue
+
+    return None, None, None
 
 
 def _fetch_all_issues(orch, filter_project: str | None = None):
@@ -745,7 +758,11 @@ async def api_remove_label(identifier: str, label: str, request: Request):
 
 @app.get("/api/v1/issues/{identifier}/comments")
 async def api_get_comments(identifier: str, request: Request):
-    """Return comments for an issue."""
+    """Return comments for an issue.
+
+    project_id is OPTIONAL. When omitted, this endpoint searches every known
+    project for an issue with the given identifier (read-only fan-out).
+    """
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
@@ -753,7 +770,14 @@ async def api_get_comments(identifier: str, request: Request):
         cached = _api_cache.get(cache_key)
         if cached is not None:
             return JSONResponse(cached)
-        tracker = _get_tracker(orch, project_id)
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {"error": {"code": "issue_not_found", "message": f"Issue {identifier} not found"}},
+                status_code=404,
+            )
         comments = tracker.fetch_comments(identifier)
         _api_cache.set(cache_key, comments, ttl_ms=3000)
         return JSONResponse(comments)
@@ -823,7 +847,13 @@ async def api_add_comment(identifier: str, request: Request):
 
 @app.get("/api/v1/issues/{identifier}/detail")
 async def api_issue_full_detail(identifier: str, request: Request):
-    """Return full issue detail for the slide-out panel."""
+    """Return full issue detail for the slide-out panel.
+
+    project_id is OPTIONAL. When omitted, this endpoint searches every known
+    project for an issue with the given identifier. The slide-out panel may
+    not know which project an issue belongs to (e.g. when opened from a
+    cross-project listing).
+    """
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
@@ -831,23 +861,16 @@ async def api_issue_full_detail(identifier: str, request: Request):
         cached = _api_cache.get(cache_key)
         if cached is not None:
             return JSONResponse(cached)
-        if project_id:
-            tracker = _get_tracker(orch, project_id)
-            issue = tracker.fetch_issue_detail(identifier)
-        else:
-            # No project_id provided — search across all projects
-            loop = asyncio.get_event_loop()
-            tracker, project_id = await loop.run_in_executor(
-                _api_thread_pool, _find_tracker_for_issue, orch, identifier
-            )
-            issue = None
-            if tracker is not None:
-                issue = tracker.fetch_issue_detail(identifier)
-        if issue is None:
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, identifier, project_id
+        )
+        if tracker is None or issue is None:
             return JSONResponse(
                 {"error": {"code": "issue_not_found", "message": f"Issue {identifier} not found"}},
                 status_code=404,
             )
+        # Use the resolved project_id (may differ from query param if it was None)
+        project_id = resolved_project_id
         result = {
             "id": issue.id,
             "identifier": issue.identifier,
@@ -2541,7 +2564,7 @@ async def api_list_attachments(identifier: str):
         orch = _get_orchestrator()
     except Exception as exc:
         return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
-    tracker, _project_id = _find_tracker_for_issue(orch, identifier)
+    tracker, _project_id, _issue = _find_tracker_for_issue(orch, identifier)
     if tracker is None:
         return JSONResponse({"error": {"code": "not_found", "message": f"Issue {identifier} not found"}}, status_code=404)
     try:
@@ -2559,7 +2582,7 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
     except Exception as exc:
         return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
 
-    tracker, project_id = _find_tracker_for_issue(orch, identifier)
+    tracker, project_id, _issue = _find_tracker_for_issue(orch, identifier)
     if tracker is None:
         return JSONResponse({"error": {"code": "not_found", "message": f"Issue {identifier} not found"}}, status_code=404)
     if not project_id:
