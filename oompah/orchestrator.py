@@ -2346,10 +2346,19 @@ class Orchestrator:
         - Has merge conflicts → trigger conflict resolution
         - CI failed → re-file ticket to fix tests
 
-        **Serialization**: only one *merge/enqueue* action is taken per
-        project per tick. This prevents multiple simultaneous merges from
-        conflicting with each other — each merge changes the target branch,
-        so subsequent PRs must be rebased before they can merge cleanly.
+        **Serialization** (oompah-zlz_2-grw, sibling of -8b9):
+
+        - Direct-merge mode (merge_queue_enabled=False): a SUCCESSFUL
+          merge breaks the loop — each merge changes the target branch
+          and subsequent PRs would need rebasing first.
+        - Direct-merge mode FAILURE: continue to next PR (target branch
+          did NOT change, no race to serialize, breaking would starve
+          later conflict-path / ci-failed dispatches).
+        - Merge-queue mode (merge_queue_enabled=True): NEITHER success
+          nor failure breaks the loop. GitHub's merge queue handles
+          ordering for successful enqueues; a failed enqueue means
+          GitHub rejected the request (config error or "PR already
+          mergeable") so there's nothing to serialize.
 
         Conflict-path (has_conflicts) and ci-failed (retry_ci) dispatches
         are NOT serialized — they're pure idempotent tracker writes and
@@ -2483,6 +2492,13 @@ class Orchestrator:
                                 "success", "", tick=tick,
                             )
                             self._clear_already_mergeable_switch(project.id, str(review_id))
+                            actions_fired += 1
+                            # Merge-queue mode: GitHub's queue handles
+                            # serialization, so a successful enqueue does
+                            # NOT need to break. Continue iterating to
+                            # enqueue any further qualified PRs in the
+                            # same tick. (oompah-zlz_2-grw, fix B)
+                            continue
                         else:
                             self._record_yolo_action(
                                 project.id, str(review_id), "enqueue",
@@ -2496,6 +2512,15 @@ class Orchestrator:
                                 project, provider, slug, review_id, msg,
                                 operation="enqueue",
                             )
+                            actions_fired += 1
+                            # A FAILED enqueue must NOT break either —
+                            # there's no race to serialize and breaking
+                            # starves later conflict-path / ci-failed
+                            # dispatches for older PRs in the iteration
+                            # (GitHub returns PRs in created_at DESC).
+                            # (oompah-zlz_2-grw, fix A — sibling of
+                            # oompah-zlz_2-8b9)
+                            continue
                     elif use_direct_merge_fallback:
                         logger.info(
                             "YOLO: direct merge fallback (already-mergeable loop) on %s MR #%s",
@@ -2514,6 +2539,13 @@ class Orchestrator:
                                 "success", "", tick=tick,
                             )
                             self._clear_already_mergeable_switch(project.id, str(review_id))
+                            actions_fired += 1
+                            # Direct merge (fallback path): each merge
+                            # changes the target branch, so subsequent
+                            # PRs would need a rebase before they can
+                            # merge cleanly. Serialize: one merge per
+                            # project per tick. (oompah-zlz_2-grw)
+                            break
                         else:
                             self._record_yolo_action(
                                 project.id, str(review_id),
@@ -2524,6 +2556,13 @@ class Orchestrator:
                                 project, provider, slug, review_id, msg,
                                 operation="merge",
                             )
+                            actions_fired += 1
+                            # FAILED direct merge: target branch did
+                            # NOT change, so there's no race. Continue
+                            # to the next PR rather than starve later
+                            # conflict-path / ci-failed dispatches.
+                            # (oompah-zlz_2-grw, fix A)
+                            continue
                     else:
                         logger.info("YOLO: auto-merging %s MR #%s (ci=%s)",
                                     project.name, review_id, review.ci_status)
@@ -2535,6 +2574,13 @@ class Orchestrator:
                                 project.id, str(review_id), "merge",
                                 "success", "", tick=tick,
                             )
+                            actions_fired += 1
+                            # Direct-merge mode: each merge changes the
+                            # target branch, so subsequent PRs would
+                            # need a rebase before they can merge
+                            # cleanly. Serialize: one merge per
+                            # project per tick. (oompah-zlz_2-grw)
+                            break
                         else:
                             self._record_yolo_action(
                                 project.id, str(review_id), "merge",
@@ -2544,9 +2590,13 @@ class Orchestrator:
                                 project, provider, slug, review_id, msg,
                                 operation="merge",
                             )
-                    actions_fired += 1
-                    # Serialization: only one action per project per tick.
-                    break
+                            actions_fired += 1
+                            # FAILED direct merge: target branch did
+                            # NOT change, so there's no race. Continue
+                            # to the next PR rather than starve later
+                            # conflict-path / ci-failed dispatches.
+                            # (oompah-zlz_2-grw, fix A)
+                            continue
 
                 # MR doesn't match any action condition (e.g. CI running/pending)
                 logger.debug("YOLO: skipping %s MR #%s branch=%s (ci=%s, conflicts=%s, needs_rebase=%s)",
