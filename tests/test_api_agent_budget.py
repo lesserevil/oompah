@@ -594,6 +594,102 @@ class TestHttpPostClassification:
         assert "Errno 57" in str(excinfo.value)
 
 
+class TestHttpPost401AuthErrorClassifiedAsTransient:
+    """oompah-zlz_2-e6t5: HTTP 401 (authentication error) must be
+    treated as a retryable TransientServerError — not a non-retryable
+    RuntimeError — so that _call_api's 5-attempt retry loop fires on
+    transient auth failures (token expiry / identity-service glitch).
+    This prevents error_watcher from filing a new bug bead every tick
+    on what is typically an operator-fixable config issue."""
+
+    def test_401_raises_transient_server_error(self, monkeypatch):
+        """A 401 must be wrapped as TransientServerError so normal
+        retry logic handles it, AND status_code must be 401 so callers
+        can distinguish it from 5xx."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        class FakeReader:
+            def read(self):
+                return b'{"error":{"message":"Authentication Error","code":"401"}}'
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=401, msg="Unauthorized",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code == 401
+        assert "401" in str(excinfo.value)
+        assert "Authentication Error" in str(excinfo.value)
+
+    def test_401_error_body_is_preserved(self, monkeypatch):
+        """The full auth-error response body must be in the exception
+        message so operators can diagnose what went wrong without
+        digging through logs."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        class FakeReader:
+            def read(self):
+                return b'{"error":{"message":"Server disconnected without sending a response.","type":"auth_error","code":"401"}}'
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=401, msg="Unauthorized",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert "Server disconnected" in str(excinfo.value)
+
+    def test_401_not_rate_limit_error(self, monkeypatch):
+        """401 must NOT be routed as RateLimitError — they have different
+        retry semantics (no Retry-After on 401)."""
+        from oompah.api_agent import _http_post, RateLimitError
+
+        class FakeReader:
+            def read(self):
+                return b"unauthorized"
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=401, msg="Unauthorized",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(Exception) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert not isinstance(excinfo.value, RateLimitError)
+
+    def test_400_still_permanent(self, monkeypatch):
+        """Ensure the 401 carve-out doesn't accidentally make ALL 4xx
+        retryable. 400 is still a permanent RuntimeError."""
+        from oompah.api_agent import _http_post, RetryableError
+
+        class FakeReader:
+            def read(self):
+                return b'{"error":"bad request"}'
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=400, msg="Bad Request",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(Exception) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        # Must NOT be retryable — the request body is wrong.
+        assert not isinstance(excinfo.value, RetryableError), (
+            f"400 must not be retryable: {excinfo.type}"
+        )
+
+
 class TestCallApiRetriesTransientErrors:
     def test_succeeds_after_one_5xx(self, tmp_path, monkeypatch):
         from oompah.api_agent import ApiAgentSession, TransientServerError
@@ -700,6 +796,94 @@ class TestCallApiRetriesTransientErrors:
             asyncio.run(s._call_api([_msg("system"), _msg("user")]))
         # Exactly one call — no retries.
         assert call_count["n"] == 1
+
+    def test_succeeds_after_one_401(self, tmp_path, monkeypatch):
+        """A 401 must be retried by _call_api (like 5xx) — not propagate
+        as a bare RuntimeError. oompah-zlz_2-e6t5."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        responses = [
+            TransientServerError(
+                'HTTP 401 from x: {"error":"Authentication Error"}',
+                status_code=401,
+            ),
+            {"choices": [{"message": {"content": "ok"}}]},
+        ]
+
+        def fake_post(url, headers, body, ssl_ctx):
+            r = responses.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+        async def _noop_sleep(*_a, **_k):
+            return None
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", _noop_sleep)
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        result = asyncio.run(s._call_api([_msg("system"), _msg("user")]))
+        assert result["choices"][0]["message"]["content"] == "ok"
+        assert responses == []
+
+    def test_401_gives_up_after_5_attempts(self, tmp_path, monkeypatch):
+        """After 5 exhausted 401 attempts, _call_api raises so run_task
+        can handle and log the failure cleanly."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        call_count = {"n": 0}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            call_count["n"] += 1
+            raise TransientServerError(
+                'HTTP 401 from x: {"error":"Authentication Error"}',
+                status_code=401,
+            )
+
+        async def _noop_sleep(*_a, **_k):
+            return None
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", _noop_sleep)
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with pytest.raises(TransientServerError) as excinfo:
+            asyncio.run(s._call_api([_msg("system"), _msg("user")]))
+        assert excinfo.value.status_code == 401
+        assert call_count["n"] == 5  # 1 attempt + 4 retries
+
+    def test_401_uses_fast_transient_backoff(self, tmp_path, monkeypatch):
+        """401 retries use the FAST transient error backoff (1s, 2s, 4s,
+        8s, capped at 30s) — not the slower RateLimitError backoff."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        sleep_deltas = []
+
+        async def tracking_sleep(seconds):
+            sleep_deltas.append(seconds)
+
+        def fake_post(url, headers, body, ssl_ctx):
+            raise TransientServerError(
+                'HTTP 401 from x: {"error":"Authentication Error"}',
+                status_code=401,
+            )
+
+        monkeypatch.setattr("oompah.api_agent.asyncio.sleep", tracking_sleep)
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with pytest.raises(TransientServerError):
+            asyncio.run(s._call_api([_msg("system"), _msg("user")]))
+        # 4 sleeps between 5 attempts (fast backoff): 1, 2, 4, 8 (capped at 30).
+        assert sleep_deltas == [1, 2, 4, 8]
 
 
 # ---------------------------------------------------------------------------
@@ -1254,3 +1438,107 @@ class TestRunTaskTransientServerErrorHandler:
         assert any(
             "rate limited" in r.getMessage().lower() for r in api_records
         ), [r.getMessage() for r in api_records]
+
+    def test_auth_error_401_returns_failed(self, tmp_path, monkeypatch):
+        """Exhausted retries on a 401 auth error must produce a 'failed'
+        result — never raise. The 401 is a TransientServerError with
+        status_code=401."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        async def fake_call_api(self_, messages):
+            raise TransientServerError(
+                'HTTP 401 from x: {"error":"Authentication Error"}',
+                status_code=401,
+            )
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        result = asyncio.run(s.run_task("hello"))
+        assert result.status == "failed"
+        assert "401" in (result.error or "")
+
+    def test_auth_error_401_logs_warning_not_error(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """A 401 auth error must log at WARNING — not ERROR — so the
+        error_watcher does not auto-file duplicate bug beads every tick
+        on what is typically an operator-fixable config issue (expired
+        key, wrong endpoint)."""
+        import logging
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        async def fake_call_api(self_, messages):
+            raise TransientServerError(
+                'HTTP 401 from https://inference-api.nvidia.com/v1/chat/completions: '
+                '{"error":{"message":"Authentication Error","code":"401"}}',
+                status_code=401,
+            )
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with caplog.at_level(logging.DEBUG, logger="oompah.api_agent"):
+            asyncio.run(s.run_task("hello"))
+
+        api_records = [
+            r for r in caplog.records if r.name == "oompah.api_agent"
+        ]
+        # Must NOT log at ERROR level — that triggers error_watcher.
+        bead_triggering = [
+            r for r in api_records
+            if r.levelno >= logging.ERROR
+            and r.getMessage().startswith("ApiAgentSession.run_task failed: ")
+        ]
+        assert not bead_triggering, (
+            f"401 auth error must not log at ERROR with 'run_task failed:' "
+            f"phrasing: {[r.getMessage() for r in bead_triggering]}"
+        )
+        # Must log at WARNING with the 'auth_error' signature.
+        warning_records = [
+            r for r in api_records
+            if r.levelno == logging.WARNING
+            and ("auth_error" in r.getMessage() or "401" in r.getMessage())
+        ]
+        assert warning_records, (
+            f"401 auth error must log at WARNING with 'auth_error' "
+            f"signature. Records: {[r.getMessage() for r in api_records]}"
+        )
+
+    def test_auth_error_401_error_in_activity_log(
+        self, tmp_path, monkeypatch,
+    ):
+        """The full auth-error message must appear in the activity log
+        (result.error) so the operator can diagnose without digging
+        through server logs. The full message is preserved, not
+        truncated to the bare HTTP status code."""
+        from oompah.api_agent import ApiAgentSession, TransientServerError
+
+        async def fake_call_api(self_, messages):
+            raise TransientServerError(
+                'HTTP 401 from x: ending=Server disconnected without sending',
+                status_code=401,
+            )
+
+        monkeypatch.setattr(
+            "oompah.api_agent.ApiAgentSession._call_api", fake_call_api,
+        )
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        result = asyncio.run(s.run_task("hello"))
+        # The full error body — not just "401" — must be in result.error
+        # The message preserves the distinctive NVIDIA error phrasing.
+        assert "Server disconnected" in (result.error or "")
