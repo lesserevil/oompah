@@ -418,3 +418,237 @@ class TestStripWorktreeBeadsFork:
         store._strip_worktree_beads_fork(str(wt))
 
         assert not (beads / "dolt-server.pid").exists()
+
+
+# ---------------------------------------------------------------------------
+# _git_worktree_add_with_recovery — handle transient .git/config lock errors
+# (oompah-zlz_2-7iq).
+# ---------------------------------------------------------------------------
+
+from oompah.projects import (
+    _is_transient_git_config_lock_error,
+    _git_worktree_add_with_recovery,
+)
+
+
+# Stderr verbatim from the bug report (oompah-zlz_2-7iq).
+_LOCK_STDERR = (
+    "Preparing worktree (new branch 'oompah-zlz_2-l7e')\n"
+    "error: could not lock config file .git/config: File exists\n"
+    "error: unable to write upstream branch configuration\n"
+    "hint:\n"
+    "hint: After fixing the error cause you may try to fix up\n"
+    "hint: the remote tracking information by invoking:\n"
+    "hint:   git branch --set-upstream-to=origin/refs/heads/main\n"
+)
+
+
+class TestIsTransientGitConfigLockError:
+    def test_matches_bug_report_stderr(self):
+        assert _is_transient_git_config_lock_error(_LOCK_STDERR) is True
+
+    def test_not_match_already_exists(self):
+        assert _is_transient_git_config_lock_error(
+            "fatal: 'wt-path' already exists",
+        ) is False
+
+    def test_not_match_empty(self):
+        assert _is_transient_git_config_lock_error("") is False
+
+
+class TestGitWorktreeAddWithRecovery:
+    def _cmd(self):
+        return ["git", "worktree", "add", "-b", "br", "/wt", "origin/main"]
+
+    def test_first_attempt_success(self, tmp_path):
+        wt = tmp_path / "wt"
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(args)
+            wt.mkdir()
+            return _MM(returncode=0, stdout="", stderr="")
+
+        sleeps = []
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _git_worktree_add_with_recovery(
+                self._cmd(), cwd="/repo", wt_path=str(wt),
+                sleep_fn=lambda s: sleeps.append(s),
+            )
+        assert len(calls) == 1
+        assert sleeps == []  # no retry needed
+
+    def test_lock_error_with_worktree_created_succeeds(self, tmp_path):
+        """The bug report's exact scenario: worktree was prepared on disk,
+        only the upstream-config write failed. Treat as success."""
+        wt = tmp_path / "wt"
+
+        def fake_run(args, **kwargs):
+            # Simulate git creating the worktree path then failing at config.
+            wt.mkdir()
+            raise subprocess.CalledProcessError(
+                returncode=255, cmd=args, output="", stderr=_LOCK_STDERR,
+            )
+
+        sleeps = []
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            # Should not raise.
+            _git_worktree_add_with_recovery(
+                self._cmd(), cwd="/repo", wt_path=str(wt),
+                sleep_fn=lambda s: sleeps.append(s),
+            )
+        # No retry needed once we observed the worktree dir exists.
+        assert sleeps == []
+
+    def test_lock_error_without_worktree_retries_then_succeeds(self, tmp_path):
+        """Transient lock that doesn't create the worktree on first try
+        should back off and retry."""
+        wt = tmp_path / "wt"
+        attempts = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                # No worktree dir created; pure lock failure.
+                raise subprocess.CalledProcessError(
+                    returncode=255, cmd=args, output="", stderr=_LOCK_STDERR,
+                )
+            # On retry, succeed.
+            wt.mkdir()
+            return _MM(returncode=0, stdout="", stderr="")
+
+        sleeps = []
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _git_worktree_add_with_recovery(
+                self._cmd(), cwd="/repo", wt_path=str(wt),
+                sleep_fn=lambda s: sleeps.append(s),
+            )
+        assert attempts["n"] == 2
+        assert len(sleeps) == 1
+        assert 0 < sleeps[0] < 1.0  # exponential backoff started at 0.1s
+
+    def test_lock_error_exhausts_retries_raises(self, tmp_path):
+        wt = tmp_path / "wt"
+
+        def fake_run(args, **kwargs):
+            raise subprocess.CalledProcessError(
+                returncode=255, cmd=args, output="", stderr=_LOCK_STDERR,
+            )
+
+        sleeps = []
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(subprocess.CalledProcessError) as exc_info:
+                _git_worktree_add_with_recovery(
+                    self._cmd(), cwd="/repo", wt_path=str(wt),
+                    max_attempts=3,
+                    sleep_fn=lambda s: sleeps.append(s),
+                )
+        assert _LOCK_STDERR in (exc_info.value.stderr or "")
+        # 3 attempts, sleeping between attempts 1->2 and 2->3.
+        assert len(sleeps) == 2
+
+    def test_non_lock_error_raises_immediately(self, tmp_path):
+        """Any other CalledProcessError must NOT be retried — the caller's
+        existing 'already exists' handling depends on the exception
+        flowing through."""
+        wt = tmp_path / "wt"
+
+        def fake_run(args, **kwargs):
+            raise subprocess.CalledProcessError(
+                returncode=128, cmd=args, output="",
+                stderr="fatal: invalid reference: origin/main",
+            )
+
+        sleeps = []
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(subprocess.CalledProcessError):
+                _git_worktree_add_with_recovery(
+                    self._cmd(), cwd="/repo", wt_path=str(wt),
+                    sleep_fn=lambda s: sleeps.append(s),
+                )
+        # No retries for non-lock errors.
+        assert sleeps == []
+
+    def test_already_exists_error_propagates(self, tmp_path):
+        """The 'already exists' case must propagate so create_worktree's
+        outer handler can fall back to attach-existing-branch."""
+        wt = tmp_path / "wt"
+
+        def fake_run(args, **kwargs):
+            raise subprocess.CalledProcessError(
+                returncode=128, cmd=args, output="",
+                stderr="fatal: '/wt' already exists",
+            )
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(subprocess.CalledProcessError) as exc_info:
+                _git_worktree_add_with_recovery(
+                    self._cmd(), cwd="/repo", wt_path=str(wt),
+                    sleep_fn=lambda s: None,
+                )
+        assert "already exists" in (exc_info.value.stderr or "")
+
+    def test_timeout_propagates(self, tmp_path):
+        wt = tmp_path / "wt"
+
+        def fake_run(args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args, timeout=30)
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(subprocess.TimeoutExpired):
+                _git_worktree_add_with_recovery(
+                    self._cmd(), cwd="/repo", wt_path=str(wt),
+                    sleep_fn=lambda s: None,
+                )
+
+
+class TestCreateWorktreeRecoversFromLockError:
+    """End-to-end: bug-report stderr should NOT cause ProjectStore.create_worktree
+    to raise ProjectError when the worktree directory was created."""
+
+    def test_create_worktree_succeeds_despite_lock_error(self, tmp_path):
+        # Set up a fake project pointing at an empty repo dir.
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        (repo / ".beads").mkdir()
+
+        store = _PS(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = _Project(
+            id="proj-lock", name="lockrepo",
+            repo_url="https://example.com/x.git",
+            repo_path=str(repo), branch="main",
+        )
+        store._projects[p.id] = p
+
+        wt_path = store.worktree_path_for(p.id, "oompah-zlz_2-l7e")
+
+        # Track whether the "main" worktree add was the one that hit the lock.
+        seen_lock = {"hit": False}
+
+        def fake_run(args, **kwargs):
+            # First match: the actual 'git worktree add -b ...' call. Simulate
+            # git creating the worktree path then failing at config write.
+            if (
+                args[:4] == ["git", "worktree", "add", "-b"]
+                and not seen_lock["hit"]
+            ):
+                seen_lock["hit"] = True
+                os.makedirs(wt_path, exist_ok=True)
+                raise subprocess.CalledProcessError(
+                    returncode=255, cmd=args, output="", stderr=_LOCK_STDERR,
+                )
+            # All other git calls (fetch, config user.name/email, etc.) succeed.
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            # Must NOT raise ProjectError.
+            returned = store.create_worktree(p.id, "oompah-zlz_2-l7e")
+
+        assert seen_lock["hit"] is True
+        assert returned == wt_path
+        assert os.path.isdir(wt_path)

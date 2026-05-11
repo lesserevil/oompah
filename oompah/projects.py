@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -14,6 +15,91 @@ from oompah.attachments import AttachmentStore
 from oompah.models import Project
 
 logger = logging.getLogger(__name__)
+
+
+def _is_transient_git_config_lock_error(stderr: str) -> bool:
+    """Return True if ``stderr`` indicates a transient ``.git/config`` lock
+    contention failure.
+
+    These happen when concurrent git operations (in oompah's case: multiple
+    ``git worktree add`` calls running in parallel from the orchestrator's
+    thread pool) race for the ``.git/config`` lock. ``git worktree add``
+    still creates the worktree directory and branch on disk — only the
+    final upstream-tracking config write fails. Our workflow doesn't
+    depend on upstream tracking at creation time (agents push with
+    ``git push -u origin HEAD`` later), so the partial success is safely
+    recoverable.
+
+    Symptom from the bug report (oompah-zlz_2-7iq)::
+
+        error: could not lock config file .git/config: File exists
+        error: unable to write upstream branch configuration
+    """
+    return "could not lock config file" in stderr
+
+
+def _git_worktree_add_with_recovery(
+    cmd: list[str], *, cwd: str, wt_path: str,
+    max_attempts: int = 3, timeout: int = 30,
+    sleep_fn=time.sleep,
+) -> None:
+    """Run ``git worktree add`` with retry+recovery for transient config-lock
+    errors.
+
+    Behaviour:
+
+    - On success → return ``None``.
+    - On the transient ``.git/config`` lock error: if the worktree
+      directory exists, treat as success (logged at WARNING). Otherwise
+      sleep with exponential backoff and retry, up to ``max_attempts``.
+    - On any other ``CalledProcessError`` → re-raise immediately so the
+      caller's existing branch handling (e.g. ``"already exists"``)
+      remains in charge.
+    - On ``TimeoutExpired`` → re-raise (caller wraps as ``ProjectError``).
+    - After all retries exhaust on a transient error with no worktree
+      dir → re-raise the last ``CalledProcessError``.
+
+    ``sleep_fn`` is a seam for unit tests — production callers leave it
+    as the default ``time.sleep``.
+    """
+    last_exc: subprocess.CalledProcessError | None = None
+    for attempt in range(max_attempts):
+        try:
+            subprocess.run(
+                cmd, cwd=cwd,
+                capture_output=True, text=True, check=True, timeout=timeout,
+            )
+            return
+        except subprocess.CalledProcessError as exc:
+            stderr = (exc.stderr or "").strip()
+            if not _is_transient_git_config_lock_error(stderr):
+                raise
+            last_exc = exc
+            # Transient lock error: the worktree directory + branch may
+            # already be on disk (upstream-config was the last step).
+            # Accept that as success; we'll set upstream lazily at push.
+            if os.path.isdir(wt_path):
+                logger.warning(
+                    "git worktree add: upstream config write failed "
+                    "(.git/config lock contention) but worktree was created "
+                    "path=%s attempt=%d/%d — continuing without upstream tracking",
+                    wt_path, attempt + 1, max_attempts,
+                )
+                return
+            # No worktree on disk — back off and retry.
+            if attempt < max_attempts - 1:
+                sleep_s = 0.1 * (2 ** attempt)
+                logger.warning(
+                    "git worktree add: .git/config lock contention "
+                    "attempt=%d/%d; retrying in %.2fs",
+                    attempt + 1, max_attempts, sleep_s,
+                )
+                sleep_fn(sleep_s)
+    # Exhausted retries on a transient error with no worktree created —
+    # re-raise the last CalledProcessError so the caller surfaces the
+    # underlying failure to the operator.
+    assert last_exc is not None
+    raise last_exc
 
 
 def _install_beads_merge_driver(repo_path: str) -> bool:
@@ -615,28 +701,28 @@ class ProjectStore:
 
         try:
             if remote_exists:
-                subprocess.run(
+                _git_worktree_add_with_recovery(
                     ["git", "worktree", "add", "-B", branch_name,
                      wt_path, remote_ref],
                     cwd=project.repo_path,
-                    capture_output=True, text=True, check=True, timeout=30,
+                    wt_path=wt_path,
                 )
             else:
                 base = f"origin/{project.branch}"
-                subprocess.run(
+                _git_worktree_add_with_recovery(
                     ["git", "worktree", "add", "-b", branch_name, wt_path, base],
                     cwd=project.repo_path,
-                    capture_output=True, text=True, check=True, timeout=30,
+                    wt_path=wt_path,
                 )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
             # Branch exists locally but no remote — reuse the existing branch
             if "already exists" in stderr:
                 try:
-                    subprocess.run(
+                    _git_worktree_add_with_recovery(
                         ["git", "worktree", "add", wt_path, branch_name],
                         cwd=project.repo_path,
-                        capture_output=True, text=True, check=True, timeout=30,
+                        wt_path=wt_path,
                     )
                 except subprocess.CalledProcessError as exc2:
                     stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
@@ -767,26 +853,27 @@ class ProjectStore:
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             pass  # best-effort
 
-        # Create worktree on a new branch based on the project's main branch
+        # Create worktree on a new branch based on the project's main branch.
+        # _git_worktree_add_with_recovery handles transient .git/config lock
+        # contention (oompah-zlz_2-7iq) by either accepting partial success
+        # (worktree dir created, only upstream-config write failed) or
+        # retrying with exponential backoff.
         base = f"origin/{project.branch}"
         try:
-            subprocess.run(
+            _git_worktree_add_with_recovery(
                 ["git", "worktree", "add", "-b", branch_name, wt_path, base],
                 cwd=project.repo_path,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=30,
+                wt_path=wt_path,
             )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
             # Branch may already exist from a previous run — try reusing it
             if "already exists" in stderr:
                 try:
-                    subprocess.run(
+                    _git_worktree_add_with_recovery(
                         ["git", "worktree", "add", wt_path, branch_name],
                         cwd=project.repo_path,
-                        capture_output=True, text=True, check=True, timeout=30,
+                        wt_path=wt_path,
                     )
                 except subprocess.CalledProcessError as exc2:
                     stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
