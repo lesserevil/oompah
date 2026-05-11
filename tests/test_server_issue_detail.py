@@ -288,19 +288,21 @@ class TestFindTrackerForIssue:
     def test_legacy_mode_returns_tracker_when_issue_found(self):
         """When no projects configured, uses orch.tracker in legacy mode."""
         mock_tracker = MagicMock()
-        mock_tracker.fetch_issue_detail.return_value = _make_mock_issue()
+        issue = _make_mock_issue()
+        mock_tracker.fetch_issue_detail.return_value = issue
 
         mock_orch = MagicMock()
         mock_orch.project_store.list_all.return_value = []
         mock_orch.tracker = mock_tracker
 
-        tracker, project_id = _find_tracker_for_issue(mock_orch, "my-issue")
+        tracker, project_id, found_issue = _find_tracker_for_issue(mock_orch, "my-issue")
 
         assert tracker is mock_tracker
         assert project_id is None
+        assert found_issue is issue
 
     def test_legacy_mode_returns_none_when_issue_not_found(self):
-        """When no projects and issue not found in legacy tracker, returns None."""
+        """When no projects and issue not found in legacy tracker, issue is None."""
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_detail.return_value = None
 
@@ -308,18 +310,21 @@ class TestFindTrackerForIssue:
         mock_orch.project_store.list_all.return_value = []
         mock_orch.tracker = mock_tracker
 
-        tracker, project_id = _find_tracker_for_issue(mock_orch, "missing")
+        tracker, project_id, found_issue = _find_tracker_for_issue(mock_orch, "missing")
 
-        assert tracker is None
+        # In legacy mode the tracker is still returned (it's the only one),
+        # but the issue is None so callers detect 404 via issue-is-None.
         assert project_id is None
+        assert found_issue is None
 
     def test_multi_project_finds_issue_in_first_matching_project(self):
         """With multiple projects, returns tracker from first project that has the issue."""
         mock_tracker_1 = MagicMock()
         mock_tracker_1.fetch_issue_detail.return_value = None  # not found in proj-1
 
+        issue = _make_mock_issue()
         mock_tracker_2 = MagicMock()
-        mock_tracker_2.fetch_issue_detail.return_value = _make_mock_issue()  # found in proj-2
+        mock_tracker_2.fetch_issue_detail.return_value = issue  # found in proj-2
 
         mock_project_1 = MagicMock()
         mock_project_1.id = "proj-1"
@@ -333,13 +338,14 @@ class TestFindTrackerForIssue:
         mock_orch.project_store.list_all.return_value = [mock_project_1, mock_project_2]
         mock_orch._tracker_for_project.side_effect = _tracker_for_project
 
-        tracker, project_id = _find_tracker_for_issue(mock_orch, "my-issue")
+        tracker, project_id, found_issue = _find_tracker_for_issue(mock_orch, "my-issue")
 
         assert tracker is mock_tracker_2
         assert project_id == "proj-2"
+        assert found_issue is issue
 
     def test_multi_project_returns_none_when_not_found_in_any(self):
-        """With multiple projects, returns (None, None) if no project has the issue."""
+        """With multiple projects, returns (None, None, None) if no project has the issue."""
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_detail.return_value = None
 
@@ -350,18 +356,20 @@ class TestFindTrackerForIssue:
         mock_orch.project_store.list_all.return_value = [mock_project]
         mock_orch._tracker_for_project.return_value = mock_tracker
 
-        tracker, project_id = _find_tracker_for_issue(mock_orch, "missing-issue")
+        tracker, project_id, found_issue = _find_tracker_for_issue(mock_orch, "missing-issue")
 
         assert tracker is None
         assert project_id is None
+        assert found_issue is None
 
     def test_continues_search_when_tracker_raises(self):
         """If a tracker raises on fetch_issue_detail, the search continues to next project."""
         mock_tracker_1 = MagicMock()
         mock_tracker_1.fetch_issue_detail.side_effect = Exception("tracker down")
 
+        issue = _make_mock_issue()
         mock_tracker_2 = MagicMock()
-        mock_tracker_2.fetch_issue_detail.return_value = _make_mock_issue()
+        mock_tracker_2.fetch_issue_detail.return_value = issue
 
         mock_project_1 = MagicMock()
         mock_project_1.id = "proj-1"
@@ -375,7 +383,8 @@ class TestFindTrackerForIssue:
         mock_orch.project_store.list_all.return_value = [mock_project_1, mock_project_2]
         mock_orch._tracker_for_project.side_effect = _tracker_for_project
 
-        tracker, project_id = _find_tracker_for_issue(mock_orch, "my-issue")
+        tracker, project_id, found_issue = _find_tracker_for_issue(mock_orch, "my-issue")
 
         assert tracker is mock_tracker_2
         assert project_id == "proj-2"
+        assert found_issue is issue
