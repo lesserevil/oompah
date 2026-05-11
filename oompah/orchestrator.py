@@ -2881,7 +2881,14 @@ class Orchestrator:
             initial_status="open",
         )
         self._yolo_watchdog_filed[pattern.pattern_key] = new_issue.identifier
-        logger.error(
+        # Log at WARNING (not ERROR): filing a P0 escalation bead is the
+        # watchdog's *expected* notification path for stuck PRs — it's
+        # not an oompah-internal failure. Logging at ERROR would cause
+        # error_watcher's _BeadLoggingHandler to auto-file a duplicate
+        # meta-bead in the oompah project, dirtying the queue with
+        # notifications that already have their own bead in the target
+        # project (oompah-zlz_2-8vc).
+        logger.warning(
             "YOLO watchdog: filed P0 bead %s for pattern %s "
             "(project=%s review=%s detector=%s)",
             new_issue.identifier, pattern.pattern_key,

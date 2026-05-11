@@ -865,3 +865,78 @@ class TestOrchestratorCoverageLogging:
         assert len(iteration_lines) == 1
         assert "considered=1/2" in iteration_lines[0]
         assert "actions=1" in iteration_lines[0]
+
+
+class TestWatchdogFilingLogLevel:
+    """Regression for oompah-zlz_2-8vc.
+
+    The watchdog's "filed P0 bead" log line must NOT be at ERROR level,
+    or else error_watcher's _BeadLoggingHandler will auto-file a duplicate
+    meta-bead in the oompah project every time the watchdog escalates a
+    legitimate stuck PR. The notification belongs in the target project's
+    bead (already filed by _file_watchdog_bead); the oompah orchestrator
+    log line should stay at WARNING.
+    """
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_filed_p0_bead_logged_at_warning_not_error(
+        self, mock_slug, mock_detect, tmp_path, caplog,
+    ):
+        import logging
+        project = _make_project()
+        provider = MagicMock()
+        provider.merge_review.return_value = (False, "GitHub server error")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        mock_tracker = MagicMock()
+        new_issue = MagicMock(identifier="watchdog-001")
+        mock_tracker.create_issue.return_value = new_issue
+        mock_tracker.fetch_issue_detail.return_value = None
+
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._project_trackers[project.id] = mock_tracker
+        orch._reviews_cache = {
+            project.id: [_make_review("42", ci_status="passed")],
+        }
+
+        # Drive D1 to threshold so the watchdog files a P0 bead.
+        with caplog.at_level(logging.DEBUG, logger="oompah.orchestrator"):
+            for _ in range(D1_RECURRENCE_THRESHOLD):
+                orch._yolo_review_actions_sync()
+
+        # The watchdog should have filed exactly one P0 bead.
+        watchdog_calls = [
+            c for c in mock_tracker.create_issue.call_args_list
+            if c.kwargs.get("priority") == 0
+            and "needs-human" in (c.kwargs.get("labels") or [])
+        ]
+        assert len(watchdog_calls) == 1, (
+            f"Expected 1 watchdog bead, got: {mock_tracker.create_issue.call_args_list}"
+        )
+
+        # The "filed P0 bead" log line must be at WARNING, NOT ERROR.
+        filing_records = [
+            r for r in caplog.records
+            if "YOLO watchdog: filed P0 bead" in r.message
+        ]
+        assert len(filing_records) == 1, (
+            f"Expected 1 filing log line, got {len(filing_records)}: "
+            f"{[r.message for r in filing_records]}"
+        )
+        rec = filing_records[0]
+        assert rec.levelno == logging.WARNING, (
+            f"Expected 'YOLO watchdog: filed P0 bead' to be logged at "
+            f"WARNING (not ERROR — error_watcher would auto-file a "
+            f"duplicate meta-bead in oompah), got level={rec.levelname}"
+        )
+        # And explicitly: no records at ERROR or above for this filing.
+        error_records = [
+            r for r in caplog.records
+            if r.levelno >= logging.ERROR
+            and "YOLO watchdog: filed P0 bead" in r.message
+        ]
+        assert error_records == [], (
+            f"Watchdog filing log must not be ERROR+: {[r.message for r in error_records]}"
+        )
