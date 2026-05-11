@@ -324,22 +324,22 @@ Originally closed at: ${closed_at}"
   for branch in "${orphans[@]}"; do
     local tip
     tip=$(git rev-parse "origin/${branch}" 2>/dev/null || echo "no-branch")
-    if $DRY_RUN; then
-      echo "[DRY-RUN] Would file orphan bead for ${branch} (tip=${tip})"
-    else
-      # Check if an orphan bead already exists (search by title substring)
-      local existing_count
-      existing_count=$(bd list --json 2>/dev/null | python3 -c "
+    # Check if an orphan bead already exists (search by title substring)
+    local existing_count
+    existing_count=$(bd list --json 2>/dev/null | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 beads = data if isinstance(data, list) else data.get('issues', [])
-count = sum(1 for b in beads if '${branch}' in b.get('title', ''))
+count = sum(1 for b in beads if '${branch}' in b.get('title', '') and b.get('status') != 'closed')
 print(count)
 " 2>/dev/null || echo "0")
-      if [[ "$existing_count" -gt 0 ]]; then
-        info "Orphan bead for ${branch} already exists — skipping"
-        continue
-      fi
+    if [[ "$existing_count" -gt 0 ]]; then
+      info "Orphan bead for ${branch} already exists — skipping"
+      continue
+    fi
+    if $DRY_RUN; then
+      echo "[DRY-RUN] Would file orphan bead for ${branch} (tip=${tip})"
+    else
       bd create \
         --title="Orphan branch: ${branch} has unmerged commits with no matching bead" \
         --description="The branch \`${branch}\` exists on origin/oompah with unmerged commits (tip: ${tip}) but does not match any bead identifier. It is not on the operator exploration whitelist. This branch predates the oompah-zlz_2 naming convention. Operator review needed: port the work to a new bead, or delete if no longer relevant.
