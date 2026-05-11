@@ -5301,6 +5301,114 @@ class Orchestrator:
         if rate_limits:
             self.state.rate_limits = rate_limits
 
+    # ------------------------------------------------------------------
+    # Close gate (oompah-zlz_2-gz8w)
+    # ------------------------------------------------------------------
+
+    def _run_close_gate(
+        self,
+        entry: "RunningEntry",
+        current_issue: Issue,
+        project_id: str | None,
+    ) -> bool:
+        """Run the close gate for an agent-driven close.
+
+        Returns True when the close is ALLOWED, False when REFUSED.
+
+        When refused:
+        * Posts a diagnostic comment on the bead (author=oompah).
+        * Reopens the bead so it re-enters the dispatch cycle.
+
+        Fail-open on any internal error so a gate bug can never pin a
+        bead in-progress forever.
+        """
+        from oompah.close_gate import (
+            CloseGateResult,
+            check_close_gate,
+            build_refusal_comment,
+        )
+
+        if not self.config.close_gate_enabled:
+            return True
+
+        # Resolve project context
+        repo_path = ""
+        slug = ""
+        base_branch = "main"
+        access_token = None
+        if project_id:
+            try:
+                project = self.project_store.get(project_id)
+                if project:
+                    repo_path = project.repo_path or ""
+                    base_branch = project.branch or "main"
+                    access_token = getattr(project, "access_token", None)
+                    if project.repo_url:
+                        from oompah.scm import extract_repo_slug
+                        slug = extract_repo_slug(project.repo_url)
+            except Exception as exc:
+                logger.warning(
+                    "close_gate: project lookup failed for %s: %s — failing open",
+                    entry.identifier, exc,
+                )
+                return True
+
+        result = check_close_gate(
+            current_issue,
+            repo_path=repo_path,
+            slug=slug,
+            base_branch=base_branch,
+            access_token=access_token,
+            entry_profile=entry.agent_profile_name,
+            entry_focus=entry.focus_name or "",
+            entry_attempt=entry.retry_attempt or 0,
+        )
+
+        if result.allowed:
+            if result.skip_reason:
+                logger.debug(
+                    "close_gate: allowed for %s (skip_reason=%s)",
+                    entry.identifier, result.skip_reason,
+                )
+            else:
+                logger.debug(
+                    "close_gate: allowed for %s (open_prs=%d merged_prs=%d)",
+                    entry.identifier, result.open_prs, result.merged_prs,
+                )
+            return True
+
+        # REFUSED — post comment, reopen, return False
+        try:
+            comment = build_refusal_comment(current_issue, result, base_branch)
+            self._post_comment(
+                entry.identifier,
+                comment,
+                project_id=project_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "close_gate: failed to post refusal comment for %s: %s",
+                entry.identifier, exc,
+            )
+
+        # Reopen the bead
+        try:
+            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            tracker.update_issue(entry.identifier, status="open")
+            logger.warning(
+                "close_gate: REFUSED close for %s — %d commit(s) ahead of %s, "
+                "open_prs=%d merged_prs=%d — bead reopened",
+                entry.identifier, result.commits_ahead, base_branch,
+                result.open_prs, result.merged_prs,
+            )
+        except Exception as exc:
+            logger.warning(
+                "close_gate: failed to reopen %s after refusal: %s",
+                entry.identifier, exc,
+            )
+
+        return False
+
     def _run_completion_verifier(
         self,
         entry: "RunningEntry",
@@ -5567,81 +5675,99 @@ class Orchestrator:
                                 logger.info("Agent completed without closing %s — reset to open (%d/%d)",
                                             entry.identifier, reopen_count, max_reopens)
                 else:
-                    # Agent successfully closed the bead. Run the
-                    # completion verifier (oompah-zlz_2-y0ns) to catch
-                    # false-success closures where the agent's diff
-                    # doesn't actually satisfy the AC.
-                    verifier_result = self._run_completion_verifier(
+                    # Agent successfully closed the bead.
+                    #
+                    # Step 1: Close gate (oompah-zlz_2-gz8w).
+                    # Refuse the close when the branch has unmerged
+                    # commits AND no open/merged PR exists. When
+                    # refused, the gate reopens the bead and posts a
+                    # diagnostic comment — we don't proceed to the
+                    # verifier or mark completed.
+                    gate_passed = self._run_close_gate(
                         entry, current, project_id,
                     )
-                    max_verifier_rejects = 3
-                    reject_count = self._verifier_reject_counts.get(issue_id, 0)
-                    if not verifier_result.passed and reject_count < max_verifier_rejects:
-                        # Reject the close: reopen, post diagnostics,
-                        # schedule a retry. Increment reject count so
-                        # we eventually give up if the agent keeps
-                        # shipping the same gap.
-                        self._verifier_reject_counts[issue_id] = reject_count + 1
-                        try:
-                            tracker.reopen_issue(entry.identifier)
-                        except Exception as exc:
-                            logger.warning(
-                                "Failed to reopen %s after verifier rejection: %s",
-                                entry.identifier, exc,
-                            )
-                            self.state.completed.add(issue_id)
-                            self.state.reopen_counts.pop(issue_id, None)
-                            self._ensure_review_exists(entry, project_id)
-                        else:
+                    if not gate_passed:
+                        # Gate refused. The bead was reopened by the
+                        # gate; the next dispatch cycle will pick it up.
+                        # Skip verifier and completed tracking.
+                        pass
+                    else:
+                        # Step 2: Completion verifier (oompah-zlz_2-y0ns).
+                        # Run the two-stage check (regex + LLM) against the
+                        # bead's "# Acceptance criteria" section to catch
+                        # false-success closures where the agent's diff
+                        # doesn't actually satisfy the AC.
+                        verifier_result = self._run_completion_verifier(
+                            entry, current, project_id,
+                        )
+                        max_verifier_rejects = 3
+                        reject_count = self._verifier_reject_counts.get(issue_id, 0)
+                        if not verifier_result.passed and reject_count < max_verifier_rejects:
+                            # Reject the close: reopen, post diagnostics,
+                            # schedule a retry. Increment reject count so
+                            # we eventually give up if the agent keeps
+                            # shipping the same gap.
+                            self._verifier_reject_counts[issue_id] = reject_count + 1
                             try:
-                                self._post_comment(
-                                    entry.identifier,
-                                    verifier_result.render_rejection_comment(),
-                                    project_id=project_id,
-                                )
+                                tracker.reopen_issue(entry.identifier)
                             except Exception as exc:
                                 logger.warning(
-                                    "Failed to post verifier-rejection comment "
-                                    "to %s: %s", entry.identifier, exc,
+                                    "Failed to reopen %s after verifier rejection: %s",
+                                    entry.identifier, exc,
                                 )
-                            # Schedule a retry — try a higher profile if
-                            # available so the next attempt has more
-                            # capacity to satisfy the AC.
-                            next_attempt = (entry.retry_attempt or 0) + 1
-                            escalated, escalated_name = (
-                                self._next_profile_for_retry(entry)
-                            )
-                            delay = self._backoff_delay(next_attempt)
-                            self._schedule_retry(
-                                issue_id,
-                                attempt=next_attempt,
-                                identifier=entry.identifier,
-                                delay_ms=delay,
-                                error="completion_verifier_rejected",
-                                escalated_profile=escalated_name if escalated else None,
-                            )
-                            logger.info(
-                                "Completion verifier rejected close for %s — "
-                                "reopened, retrying in %ds (reject %d/%d)",
-                                entry.identifier, delay // 1000,
-                                reject_count + 1, max_verifier_rejects,
-                            )
-                    else:
-                        if not verifier_result.passed:
-                            # We've hit the verifier reject ceiling —
-                            # fail open and let the close stick, but
-                            # log a WARNING so the operator can
-                            # investigate.
-                            logger.warning(
-                                "Completion verifier rejected %s for the %dth "
-                                "time — failing open and honoring the close",
-                                entry.identifier, reject_count + 1,
-                            )
-                        self.state.completed.add(issue_id)
-                        self.state.reopen_counts.pop(issue_id, None)
-                        self._verifier_reject_counts.pop(issue_id, None)
-                        # Auto-create review if agent pushed a branch
-                        self._ensure_review_exists(entry, project_id)
+                                self.state.completed.add(issue_id)
+                                self.state.reopen_counts.pop(issue_id, None)
+                                self._ensure_review_exists(entry, project_id)
+                            else:
+                                try:
+                                    self._post_comment(
+                                        entry.identifier,
+                                        verifier_result.render_rejection_comment(),
+                                        project_id=project_id,
+                                    )
+                                except Exception as exc:
+                                    logger.warning(
+                                        "Failed to post verifier-rejection comment "
+                                        "to %s: %s", entry.identifier, exc,
+                                    )
+                                # Schedule a retry — try a higher profile if
+                                # available so the next attempt has more
+                                # capacity to satisfy the AC.
+                                next_attempt = (entry.retry_attempt or 0) + 1
+                                escalated, escalated_name = (
+                                    self._next_profile_for_retry(entry)
+                                )
+                                delay = self._backoff_delay(next_attempt)
+                                self._schedule_retry(
+                                    issue_id,
+                                    attempt=next_attempt,
+                                    identifier=entry.identifier,
+                                    delay_ms=delay,
+                                    error="completion_verifier_rejected",
+                                    escalated_profile=escalated_name if escalated else None,
+                                )
+                                logger.info(
+                                    "Completion verifier rejected close for %s — "
+                                    "reopened, retrying in %ds (reject %d/%d)",
+                                    entry.identifier, delay // 1000,
+                                    reject_count + 1, max_verifier_rejects,
+                                )
+                        else:
+                            if not verifier_result.passed:
+                                # We've hit the verifier reject ceiling —
+                                # fail open and let the close stick, but
+                                # log a WARNING so the operator can
+                                # investigate.
+                                logger.warning(
+                                    "Completion verifier rejected %s for the %dth "
+                                    "time — failing open and honoring the close",
+                                    entry.identifier, reject_count + 1,
+                                )
+                            self.state.completed.add(issue_id)
+                            self.state.reopen_counts.pop(issue_id, None)
+                            self._verifier_reject_counts.pop(issue_id, None)
+                            # Auto-create review if agent pushed a branch
+                            self._ensure_review_exists(entry, project_id)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library
