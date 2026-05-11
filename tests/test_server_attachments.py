@@ -70,7 +70,7 @@ class TestListAttachments:
             {"path": ".oompah/attachments/foo-1/x.png", "size": 10},
         ]
         with patch.object(server_module, "_get_orchestrator", return_value=orch), \
-             patch.object(server_module, "_find_tracker_for_issue", return_value=(tracker, "proj-1")):
+             patch.object(server_module, "_find_tracker_for_issue", return_value=(tracker, "proj-1", MagicMock())):
             r = client.get("/api/v1/issues/foo-1/attachments")
         assert r.status_code == 200
         assert r.json()[0]["path"].endswith("x.png")
@@ -78,7 +78,7 @@ class TestListAttachments:
     def test_unknown_issue_returns_404(self, tmp_path, client):
         orch, _ = _make_orch(tmp_path)
         with patch.object(server_module, "_get_orchestrator", return_value=orch), \
-             patch.object(server_module, "_find_tracker_for_issue", return_value=(None, None)):
+             patch.object(server_module, "_find_tracker_for_issue", return_value=(None, None, None)):
             r = client.get("/api/v1/issues/unknown/attachments")
         assert r.status_code == 404
 
@@ -93,7 +93,7 @@ class TestUploadAttachment:
         orch, _ = _make_orch(tmp_path)
         tracker = MagicMock()
         with patch.object(server_module, "_get_orchestrator", return_value=orch), \
-             patch.object(server_module, "_find_tracker_for_issue", return_value=(tracker, "proj-1")):
+             patch.object(server_module, "_find_tracker_for_issue", return_value=(tracker, "proj-1", MagicMock())):
             r = client.post(
                 "/api/v1/issues/foo-1/attachments",
                 files={"file": ("evil.exe", b"MZ", "application/octet-stream")},
@@ -106,7 +106,7 @@ class TestUploadAttachment:
         tracker = MagicMock()
         tracker.fetch_attachments.return_value = []
         with patch.object(server_module, "_get_orchestrator", return_value=orch), \
-             patch.object(server_module, "_find_tracker_for_issue", return_value=(tracker, "proj-1")):
+             patch.object(server_module, "_find_tracker_for_issue", return_value=(tracker, "proj-1", MagicMock())):
             r = client.post(
                 "/api/v1/issues/foo-1/attachments",
                 files={"file": ("shot.png", _png(100), "image/png")},
