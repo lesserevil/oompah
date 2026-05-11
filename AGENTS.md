@@ -53,6 +53,20 @@ Quick test: if the doc tells the reader "what to do with oompah," it goes in `do
 - Run `make test` before committing to verify tests pass
 - Tests go in `tests/` following existing patterns (pytest, unittest.mock)
 
+## Commit Attribution
+
+All commits authored by an agent in this project MUST end with exactly this trailer block:
+
+```
+🤖 Generated with https://github.com/lesserevil/oompah
+
+Co-authored-by: oompah <lesserevil@users.noreply.github.com>
+```
+
+Do NOT add `Co-Authored-By: Claude <noreply@anthropic.com>`, `Co-Authored-By: GPT-…`, or any other model/vendor attribution. The codebase author is oompah — the underlying model is an implementation detail. GitHub renders `Co-authored-by` as a profile link via the email address, and we want that link to resolve to the project's bot account (the `lesserevil` GitHub profile that owns `lesserevil@users.noreply.github.com`).
+
+A `prepare-commit-msg` hook is installed into every agent worktree (see `oompah/git_hooks/prepare-commit-msg`, wired from `oompah/projects.py`). The hook is a safety net — it strips any model-attribution trailer it finds and stamps the canonical trailer — but the primary expectation is that you write commits with the correct trailer in the first place.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.

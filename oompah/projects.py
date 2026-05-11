@@ -12,9 +12,61 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from oompah.attachments import AttachmentStore
+from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.models import Project
 
 logger = logging.getLogger(__name__)
+
+
+def _install_prepare_commit_msg_hook(wt_path: str) -> None:
+    """Symlink the bundled ``prepare-commit-msg`` hook into the worktree's
+    redirected hooks directory (``<wt_path>/.oompah-no-hooks``).
+
+    Agents commit from inside worktrees; this hook (see
+    ``oompah/git_hooks/prepare-commit-msg``) rewrites every commit message
+    to strip model-attribution trailers (``Co-authored-by: Claude``, etc.)
+    and stamp the canonical oompah trailer block.
+
+    Falls back to a file copy if the platform refuses to create a symlink
+    (e.g. some Windows configurations). Idempotent — re-running on an
+    existing worktree replaces a stale link/copy with the current bundled
+    source, so an oompah upgrade flows through to in-flight worktrees on
+    the next dispatch.
+    """
+    src = _bundled_hook_path("prepare-commit-msg")
+    if not os.path.isfile(src):
+        # Should never happen in a normal install, but be defensive: bail
+        # silently rather than crash worktree creation.
+        return
+    hooks_dir = os.path.join(wt_path, ".oompah-no-hooks")
+    os.makedirs(hooks_dir, exist_ok=True)
+    dst = os.path.join(hooks_dir, "prepare-commit-msg")
+
+    # Remove any existing entry so we can replace it with a fresh link.
+    try:
+        if os.path.islink(dst) or os.path.exists(dst):
+            os.remove(dst)
+    except OSError:
+        pass
+
+    try:
+        os.symlink(src, dst)
+    except (OSError, NotImplementedError):
+        # Symlink failed (Windows without privilege, etc.) — copy instead.
+        try:
+            with open(src, "rb") as rf, open(dst, "wb") as wf:
+                wf.write(rf.read())
+        except OSError:
+            return
+
+    # Ensure the hook is executable. Symlinks resolve to the bundled source
+    # (already chmod +x in the repo); only chmod a real file copy to avoid
+    # follow_symlinks-on-chmod portability issues on macOS/BSD.
+    if not os.path.islink(dst):
+        try:
+            os.chmod(dst, 0o755)
+        except OSError:
+            pass
 
 
 def _is_transient_git_config_lock_error(stderr: str) -> bool:
@@ -964,17 +1016,32 @@ class ProjectStore:
         worktrees, these hooks overwrite the orchestrator's in_progress state
         back to the stale state from the backup. Disabling hooks in worktrees
         prevents this.
+
+        The redirected hooks directory is NOT empty: we install the oompah
+        ``prepare-commit-msg`` hook into it so every commit produced by an
+        agent picks up the canonical oompah attribution trailer (see
+        :mod:`oompah.git_hooks` and oompah-zlz_2-3cpz).
         """
         try:
-            empty_hooks = os.path.join(wt_path, ".oompah-no-hooks")
-            os.makedirs(empty_hooks, exist_ok=True)
+            hooks_dir = os.path.join(wt_path, ".oompah-no-hooks")
+            os.makedirs(hooks_dir, exist_ok=True)
             subprocess.run(
-                ["git", "config", "core.hooksPath", empty_hooks],
+                ["git", "config", "core.hooksPath", hooks_dir],
                 cwd=wt_path,
                 capture_output=True, text=True, timeout=5,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             pass
+        # Best-effort install of the prepare-commit-msg hook. Failures here
+        # must never block worktree creation — agents can still commit, the
+        # trailer just won't be auto-enforced.
+        try:
+            _install_prepare_commit_msg_hook(wt_path)
+        except Exception:  # pragma: no cover - defensive
+            logger.warning(
+                "Failed to install prepare-commit-msg hook in %s", wt_path,
+                exc_info=True,
+            )
 
     def _strip_worktree_beads_fork(self, wt_path: str) -> None:
         """Remove any per-worktree beads dolt detritus.

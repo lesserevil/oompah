@@ -190,6 +190,20 @@ You are working in a git worktree on a branch named after this issue. When your 
 Do NOT push to the main branch. Always work on your issue branch and push it.
 The orchestrator will automatically create a review and manage the merge process — you do not need to create one yourself.
 
+### Commit attribution
+
+When you create commits, ALWAYS end the commit message with this trailer (no model name, no Anthropic):
+
+```
+🤖 Generated with https://github.com/lesserevil/oompah
+
+Co-authored-by: oompah <lesserevil@users.noreply.github.com>
+```
+
+Do NOT include a `Co-Authored-By: Claude ...` trailer or any other model-specific attribution (Claude, Anthropic, GPT, OpenAI, Gemini, etc.). The codebase author is oompah, not the underlying model — GitHub renders the `Co-authored-by` trailer as a link to the profile owning the email, and we want that link to point to the project's bot account.
+
+A `prepare-commit-msg` hook is installed in this worktree as a safety net: it strips any model-attribution trailer and stamps the canonical oompah trailer if you forget. Following the instruction above is still the primary path — the hook is defense-in-depth, not an excuse.
+
 ## Handoff to Another Agent
 
 If you determine that this issue requires a different specialist to complete (e.g., you're a backend agent but the fix needs frontend work, or a bug investigation reveals a security issue), you can **hand off** the issue:
