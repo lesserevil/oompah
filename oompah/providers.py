@@ -37,11 +37,24 @@ class ProviderStore:
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Failed to load providers from %s: %s", self.path, exc)
             self._providers = {}
+        # Defensively reconcile model_roles on every provider at startup so
+        # hand-edited providers.json drift gets self-healed before any dispatch.
+        self._reconcile_all()
 
     def _save(self) -> None:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(self.path, "w") as f:
             json.dump([p.to_dict() for p in self._providers.values()], f, indent=2)
+
+    def _reconcile_all(self) -> None:
+        """Defensively reconcile model_roles on every provider at startup.
+
+        Hand-edited providers.json files with stale model_roles entries
+        get self-healed immediately rather than waiting for an operator
+        to notice the drift via "Model X not available" dispatch failures.
+        """
+        for provider in self._providers.values():
+            provider._reconcile_model_roles()
 
     def list_all(self) -> list[ModelProvider]:
         return list(self._providers.values())
@@ -120,6 +133,9 @@ class ProviderStore:
             m = (provider.mode or "api").lower()
             provider.mode = m if m in ("api", "acp") else "api"
         self._save()
+        # Reconcile model_roles whenever the models list changes.
+        if "models" in fields:
+            provider._reconcile_model_roles()
         return provider
 
     def delete(self, provider_id: str) -> bool:

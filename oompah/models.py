@@ -6,6 +6,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class BlockerRef:
@@ -405,6 +409,49 @@ class ModelProvider:
         """Return the configured max context window for ``model`` or None."""
         v = self.model_contexts.get(model)
         return int(v) if v else None
+
+    def _reconcile_model_roles(self) -> list[str]:
+        """Repoint model_roles entries that don't reference a model in self.models.
+
+        Returns the list of role names that were re-pointed (empty if nothing changed).
+        Used to keep the role dict in sync after model_list mutations.
+
+        Behaviour:
+          - models[] empty: leave roles as-is, emit WARNING for any roles
+            pointing at missing models (ACP / SDK-managed scenario).
+          - default_model is in models[]: use it as the fallback.
+          - default_model is absent: use the first entry in models[].
+          - Roles whose target is still in models[]: untouched.
+        """
+        if not self.model_roles:
+            return []
+        model_list = self.models or []
+        if not model_list:
+            # Empty catalog: preserve the roles verbatim (ACP scenario where
+            # the SDK resolves models against its own catalog at dispatch time).
+            dangling = [r for r, m in self.model_roles.items() if m not in (self.models or [])]
+            if dangling:
+                logger.warning(
+                    "Provider %s: empty models[] — %d role(s) left dangling: %s",
+                    self.name, len(dangling), dangling,
+                )
+            return []
+        # Determine the fallback: default_model if present in the catalog, else the
+        # first entry in models[] (order-preserving — uses the list directly, not
+        # a set, so iteration order is the operator-defined ordering).
+        fallback = self.default_model if self.default_model in model_list else model_list[0]
+        available = set(model_list)  # O(1) membership checks.
+        changed: list[str] = []
+        snapshot = list(self.model_roles.items())  # snapshot before mutation.
+        for role, model in snapshot:
+            if model not in available:
+                self.model_roles[role] = fallback
+                changed.append(role)
+                logger.info(
+                    "Provider %s: role=%s repointed from %r to %r (stale catalog)",
+                    self.name, role, model, fallback,
+                )
+        return changed
 
     def is_per_token_billed(self, mode: str) -> bool:
         """Whether dispatches through this provider in ``mode`` are
