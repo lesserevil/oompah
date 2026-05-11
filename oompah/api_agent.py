@@ -719,7 +719,17 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
                 f"HTTP {exc.code} from {url}: {error_body}",
                 status_code=exc.code,
             ) from exc
-        # 4xx (other than 429): the request itself is wrong, retry won't help.
+        # 401: authentication failure. Treat as retryable — the token
+        # may have expired and will be renewed by the operator, or the
+        # server may have had a brief identity-service hiccup. Unlike
+        # other 4xx errors (bad request, not found, etc.), a 401 never
+        # indicates a problem with the request payload itself.
+        if exc.code == 401:
+            raise TransientServerError(
+                f"HTTP {exc.code} from {url}: {error_body}",
+                status_code=exc.code,
+            ) from exc
+        # All other 4xx: permanent client failure — do not retry.
         raise RuntimeError(
             f"HTTP {exc.code} from {url}: {error_body}"
         ) from exc
@@ -1239,20 +1249,32 @@ class ApiAgentSession:
         except TransientServerError as exc:
             # _call_api's 5-attempt retry loop exhausted on a transient
             # 5xx / network-level failure (ENOTCONN/ECONNRESET/EPIPE
-            # wrapped by _http_post, connection refused, DNS blip, etc.).
+            # wrapped by _http_post, connection refused, DNS blip, etc.)
+            # or a 401 authentication error (expired/revoked token).
+            #
             # Log at WARNING — not ERROR — so the error_watcher does not
             # auto-file duplicate bug beads for transient errors the
             # orchestrator already handles by re-dispatching the worker.
             # Mirrors the RateLimitError handler above and the
             # TrackerTimeoutError WARNING pattern in oompah/tracker.py.
-            # Note: TransientServerError does NOT inherit from OSError —
-            # the dedicated OSError handler below is the bpa
-            # defense-in-depth path for raw OSErrors that bypass the
-            # _http_post wrap entirely.
-            _emit(turns, "error", str(exc))
-            logger.warning(
-                "ApiAgentSession.run_task transient_error: %s", exc,
-            )
+            #
+            # oompah-zlz_2-e6t5: 401 auth errors are a subset of
+            # TransientServerError — distinguish them for operator
+            # ergonomics. A 401 on the first attempt is almost always an
+            # invalid API key (operator misconfiguration), not a server
+            # blip, so emit a slightly more specific log name so the
+            # operator can grep for "auth_error" to find these quickly.
+            auth_err = exc.status_code == 401
+            if auth_err:
+                _emit(turns, "error", f"auth_error: {exc}")
+                logger.warning(
+                    "ApiAgentSession.run_task auth_error (401): %s", exc,
+                )
+            else:
+                _emit(turns, "error", str(exc))
+                logger.warning(
+                    "ApiAgentSession.run_task transient_error: %s", exc,
+                )
             return ApiAgentResult(
                 status="failed",
                 input_tokens=total_input,
