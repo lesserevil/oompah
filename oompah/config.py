@@ -285,6 +285,13 @@ class ServiceConfig:
     decompose_after_attempts: int = 2
     server_port: int | None = None
     agent_profiles: list[AgentProfile] = field(default_factory=list)
+    # Resolved source for the effective agent_profiles list:
+    # - "json" (default): .oompah/agent_profiles.json wins; one-shot
+    #   migration from WORKFLOW.md happens on first boot if needed.
+    # - "workflow": OOMPAH_AGENT_PROFILES_SOURCE=workflow pins authority
+    #   to WORKFLOW.md; the dashboard / future CRUD API treat profiles
+    #   as read-only. See docs/agent-profiles.md.
+    agent_profiles_source: str = "json"
     budget_limit: float = 0.0
     # Rolling window over which budget_limit is enforced. Once the window
     # elapses (counted from budget_window_start in service_state.json),
@@ -332,8 +339,19 @@ class ServiceConfig:
             )
 
     @classmethod
-    def from_workflow(cls, wf: WorkflowDefinition) -> ServiceConfig:
-        """Build ServiceConfig from a parsed WorkflowDefinition."""
+    def from_workflow(
+        cls,
+        wf: WorkflowDefinition,
+        *,
+        agent_profiles_path: str | None = None,
+    ) -> ServiceConfig:
+        """Build ServiceConfig from a parsed WorkflowDefinition.
+
+        ``agent_profiles_path`` overrides the default
+        ``.oompah/agent_profiles.json`` location used for the
+        WORKFLOW.md → JSON one-shot migration. Tests pass tmp paths
+        here so they don't touch the real ``.oompah/`` directory.
+        """
         c = wf.config
 
         tracker = c.get("tracker", {}) or {}
@@ -362,13 +380,15 @@ class ServiceConfig:
         else:
             ws_root = os.path.join(tempfile.gettempdir(), "oompah_workspaces")
 
-        # Parse agent profiles
-        # Source precedence: .oompah/agent_profiles.json (UI-editable
-        # store) wins when present. WORKFLOW.md profiles are the
-        # fallback (and the migration seed when the JSON file does not
-        # yet exist). See AgentProfileStore for the full migration
-        # contract; oompah-zlz_2-xaj for the design rationale,
-        # oompah-zlz_2-mif for the live-reload wiring.
+        # Parse agent profiles from WORKFLOW.md YAML.
+        # These are the *YAML-authored* profiles. Source precedence:
+        # .oompah/agent_profiles.json (UI-editable store) wins by default.
+        # WORKFLOW.md profiles are the migration seed when the JSON file
+        # does not yet exist, and remain authoritative when
+        # OOMPAH_AGENT_PROFILES_SOURCE=workflow. See oompah-zlz_2-xaj for
+        # the AgentProfileStore design, oompah-zlz_2-mif for the live-reload
+        # wiring, and oompah-zlz_2-2y7 for the source-precedence + one-shot
+        # migration rules.
         raw_profiles = agent.get("profiles", []) or []
         workflow_profiles: list[AgentProfile] = []
         for p in raw_profiles:
@@ -390,48 +410,45 @@ class ServiceConfig:
                 mode=_parse_profile_mode(p.get("mode")),
             ))
 
-        # Resolve the JSON store: load if present, otherwise seed from
-        # WORKFLOW.md (the migration). Imported lazily here to avoid a
-        # circular import (agent_profile_store -> models -> config in
-        # some test scenarios).
-        from oompah.agent_profile_store import AgentProfileStore
-        store_path = os.environ.get(
-            "OOMPAH_AGENT_PROFILES_PATH"
-        ) or ".oompah/agent_profiles.json"
-        store = AgentProfileStore(path=store_path, seed_from=workflow_profiles)
-        if store.list_all():
-            profiles = store.list_all()
-            # Re-normalize mode through the parser so values that were
-            # written to JSON via a prior version of the code still get
-            # the same fallback-on-typo behaviour as WORKFLOW.md profiles.
-            for p in profiles:
-                p.mode = _parse_profile_mode(p.mode)
-            if store.migrated_from_workflow:
-                logger.info(
-                    "AgentProfile source: WORKFLOW.md (just migrated to %s; "
-                    "%d profile(s))",
-                    store_path, len(profiles),
-                )
-            elif store.loaded_from_disk:
-                logger.info(
-                    "AgentProfile source: %s (%d profile(s); WORKFLOW.md "
-                    "is fallback only)",
-                    store_path, len(profiles),
-                )
-            else:
-                logger.info(
-                    "AgentProfile source: WORKFLOW.md (%d profile(s); "
-                    "JSON store empty)",
-                    len(profiles),
-                )
-        else:
-            profiles = workflow_profiles
+        # Resolve effective profiles. Source precedence + opt-out env var
+        # live in oompah.agent_profile_store.resolve_agent_profiles; lazy
+        # import avoids any chance of a circular import at module load.
+        from oompah.agent_profile_store import (
+            DEFAULT_AGENT_PROFILES_PATH,
+            resolve_agent_profiles,
+        )
+        effective_store_path = (
+            agent_profiles_path
+            or os.environ.get("OOMPAH_AGENT_PROFILES_PATH")
+            or DEFAULT_AGENT_PROFILES_PATH
+        )
+        profiles, profiles_source, migrated = resolve_agent_profiles(
+            workflow_profiles,
+            store_path=effective_store_path,
+        )
+        # Re-normalize mode through the parser so values that were
+        # written to JSON via a prior version of the code still get
+        # the same fallback-on-typo behaviour as WORKFLOW.md profiles.
+        for p in profiles:
+            p.mode = _parse_profile_mode(p.mode)
+        if profiles_source == "workflow":
             if profiles:
                 logger.info(
-                    "AgentProfile source: WORKFLOW.md (%d profile(s); "
-                    "no JSON store at %s)",
-                    len(profiles), store_path,
+                    "AgentProfile source: WORKFLOW.md (pinned via "
+                    "OOMPAH_AGENT_PROFILES_SOURCE=workflow; %d profile(s))",
+                    len(profiles),
                 )
+        elif migrated:
+            logger.info(
+                "AgentProfile source: %s (just migrated from WORKFLOW.md; "
+                "%d profile(s))",
+                effective_store_path, len(profiles),
+            )
+        elif profiles:
+            logger.info(
+                "AgentProfile source: %s (%d profile(s))",
+                effective_store_path, len(profiles),
+            )
 
         budget_limit = float(agent.get("budget_limit", 0) or 0)
 
@@ -505,6 +522,7 @@ class ServiceConfig:
             decompose_after_attempts=_env_int("OOMPAH_DECOMPOSE_AFTER_ATTEMPTS", agent.get("decompose_after_attempts"), 2),
             server_port=server_port,
             agent_profiles=profiles,
+            agent_profiles_source=profiles_source,
             budget_limit=_env_float("OOMPAH_BUDGET_LIMIT", agent.get("budget_limit"), 0.0),
             budget_window=_parse_budget_window(
                 _env_str("OOMPAH_BUDGET_WINDOW", agent.get("budget_window"), "day"),
