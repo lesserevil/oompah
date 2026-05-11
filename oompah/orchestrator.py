@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -355,6 +356,16 @@ class Orchestrator:
         # primary key across reopen).
         self._verifier_reject_counts: dict[str, int] = {}
 
+        # Pending agent-profile swap (oompah-zlz_2-mif). When the API-path
+        # AgentProfileStore writes a profile, it queues a fresh list here
+        # via :meth:`replace_agent_profiles`. The next ``_tick()`` applies
+        # the swap to ``self.config.agent_profiles`` at a quiescent point so
+        # mid-poll iterations of the profile list aren't disrupted. ``None``
+        # means "no pending swap". A threading.Lock guards write/read pairs
+        # against HTTP threads racing with the dispatch loop.
+        self._pending_agent_profiles: list[AgentProfile] | None = None
+        self._pending_profiles_lock: threading.Lock = threading.Lock()
+
         # Error watcher registry (oompah-zlz_2-0nc): keyed by project_id
         # (or ``None`` for the global / unscoped watcher).  Populated by
         # :meth:`register_error_watcher` from server.py during startup.
@@ -481,9 +492,83 @@ class Orchestrator:
         # Reset last full sync so the new full_sync_interval_ms takes effect
         # immediately rather than waiting for the old interval to expire.
         self._last_full_sync = 0.0
+        # File-watcher reload supersedes any pending API-path profile swap —
+        # the new ServiceConfig already carries the authoritative profile list.
+        with self._pending_profiles_lock:
+            self._pending_agent_profiles = None
         logger.info("Config reloaded poll_interval_ms=%d full_sync_interval_ms=%d max_agents=%d",
                      config.poll_interval_ms, config.full_sync_interval_ms,
                      config.max_concurrent_agents)
+
+    def replace_agent_profiles(
+        self,
+        profiles: list[AgentProfile],
+        source: str = "api",
+    ) -> None:
+        """Schedule a partial config reload that swaps only the agent_profiles list.
+
+        Called by AgentProfileStore (or any future caller) when profiles change
+        through a non-WORKFLOW.md path. The swap is queued under a lock and
+        applied at the next quiescent point — the start of the next ``_tick()``
+        — so a tick already in flight observes a single consistent profile list
+        end-to-end.
+
+        Logs every swap so API-driven reloads show up in the operator log
+        alongside file-watcher reloads.
+
+        In-flight running agents keep their existing profile (the swap only
+        affects the NEXT dispatch). Out of scope: hot-swap of running agents.
+
+        Thread-safe — safe to call from HTTP request handlers (which run in
+        the asyncio event loop alongside the dispatch tick).
+        """
+        # Normalize / defensive copy so the caller can't mutate the queued
+        # list out from under us between queue and apply.
+        snapshot = list(profiles)
+        with self._pending_profiles_lock:
+            self._pending_agent_profiles = snapshot
+        logger.info(
+            "Agent profiles reload queued (source=%s, count=%d) — "
+            "applies at next tick",
+            source, len(snapshot),
+        )
+        # Wake the dispatch loop so the swap takes effect immediately rather
+        # than waiting for the next safety-net full-sync. The loop will call
+        # _apply_pending_agent_profiles() at the start of _tick().
+        self._post_event(DispatchEvent(
+            event_type=DispatchEventType.REFRESH_REQUESTED,
+            payload={"reason": f"agent_profiles_reload:{source}"},
+        ))
+
+    def _apply_pending_agent_profiles(self) -> bool:
+        """Apply a queued profile swap to ``self.config.agent_profiles``.
+
+        Called at the start of every ``_tick()`` (a quiescent point — the
+        dispatch loop is single-threaded so no caller is currently iterating
+        ``self.config.agent_profiles``). Returns True iff a swap was applied.
+
+        The previous-tick profile list is logged when the swap is applied so
+        the operator log shows a clear before/after just like a workflow
+        reload.
+        """
+        with self._pending_profiles_lock:
+            pending = self._pending_agent_profiles
+            self._pending_agent_profiles = None
+        if pending is None:
+            return False
+        before_names = [p.name for p in self.config.agent_profiles]
+        after_names = [p.name for p in pending]
+        # Atomic re-assignment of the list attribute (Python guarantees a
+        # single-instruction store for attribute writes).
+        self.config.agent_profiles = pending
+        logger.info(
+            "Agent profiles reloaded: before=%s after=%s",
+            before_names, after_names,
+        )
+        # Surface the change to dashboard observers so the budget/profiles
+        # snapshot refreshes without waiting for the next tick to publish.
+        self._notify_observers()
+        return True
 
     def set_prompt_template(self, template: str) -> None:
         self._prompt_template = template
@@ -901,6 +986,11 @@ class Orchestrator:
         5. _handle_auto_update()      — git pull + restart when idle
         """
         t0 = time.monotonic()
+
+        # 0. Apply any pending profile swap queued via replace_agent_profiles().
+        # Done at the very start of the tick so every step below sees a single
+        # consistent profile list — mirrors the file-watcher reload semantics.
+        self._apply_pending_agent_profiles()
 
         # 1. Reconcile running agents against tracker
         await self._handle_reconcile()

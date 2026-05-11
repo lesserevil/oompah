@@ -208,8 +208,10 @@ class TestDeleteAgentProfile:
 
 
 class TestReloadHook:
-    """Successful CRUD ops should trigger orchestrator.reload_config so the
-    new profile list is in effect on the next dispatch tick."""
+    """Successful CRUD ops should trigger Orchestrator.replace_agent_profiles
+    (partial reload) so the new profile list takes effect on the next dispatch
+    tick without a WORKFLOW.md round-trip (oompah-zlz_2-mif).
+    """
 
     def test_create_triggers_reload(self, tmp_path, monkeypatch):
         from oompah.server import app
@@ -218,11 +220,14 @@ class TestReloadHook:
         path = str(tmp_path / "agent_profiles.json")
         store = AgentProfileStore(path=path)
 
+        # Mimic what set_orchestrator() wires: register a reload callback
+        # that calls replace_agent_profiles on the orchestrator.
         mock_orch = MagicMock()
-        mock_orch.workflow_path = str(tmp_path / "WORKFLOW.md")
-        # Write a minimal valid workflow
-        with open(mock_orch.workflow_path, "w") as f:
-            f.write("---\n---\nTemplate.")
+        store.set_reload_callback(
+            lambda profs, src: mock_orch.replace_agent_profiles(
+                profs, source=f"api:{src}",
+            ),
+        )
 
         original_store = server_mod._agent_profile_store
         original_orch = server_mod._orchestrator
@@ -235,8 +240,13 @@ class TestReloadHook:
                 json={"name": "x", "command": "c", "mode": "cli"},
             )
             assert resp.status_code == 201
-            # reload_config should have been called once
-            assert mock_orch.reload_config.call_count == 1
+            # replace_agent_profiles should have been called once with
+            # source='api:create'
+            assert mock_orch.replace_agent_profiles.call_count == 1
+            _, kwargs = mock_orch.replace_agent_profiles.call_args
+            assert kwargs.get("source") == "api:create"
+            # Workflow round-trip MUST NOT happen — mif explicitly avoids it
+            assert mock_orch.reload_config.call_count == 0
         finally:
             server_mod._agent_profile_store = original_store
             server_mod._orchestrator = original_orch
@@ -248,7 +258,11 @@ class TestReloadHook:
         path = str(tmp_path / "agent_profiles.json")
         store = AgentProfileStore(path=path)
         mock_orch = MagicMock()
-        mock_orch.workflow_path = "doesnt-matter"
+        store.set_reload_callback(
+            lambda profs, src: mock_orch.replace_agent_profiles(
+                profs, source=f"api:{src}",
+            ),
+        )
         original_store = server_mod._agent_profile_store
         original_orch = server_mod._orchestrator
         server_mod._agent_profile_store = store
@@ -260,6 +274,7 @@ class TestReloadHook:
                 json={"name": "x", "command": "c", "mode": "api"},  # missing provider
             )
             assert resp.status_code == 400
+            assert mock_orch.replace_agent_profiles.call_count == 0
             assert mock_orch.reload_config.call_count == 0
         finally:
             server_mod._agent_profile_store = original_store

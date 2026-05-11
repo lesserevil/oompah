@@ -178,6 +178,55 @@ class TestServiceConfig:
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.tracker_active_states == ["open", "in_progress"]
 
+    def test_json_profile_store_overrides_workflow_md(
+        self, tmp_path, monkeypatch,
+    ):
+        """When .oompah/agent_profiles.json exists, its profiles override the
+        WORKFLOW.md ones (oompah-zlz_2-mif / oompah-zlz_2-xaj).
+        """
+        from oompah.agent_profile_store import AgentProfileStore
+
+        store_path = tmp_path / "agent_profiles.json"
+        store = AgentProfileStore(path=str(store_path))
+        store.create({"name": "from-json", "mode": "cli", "command": "claude"})
+
+        # Point ServiceConfig.from_workflow at this store
+        monkeypatch.setenv("OOMPAH_AGENT_PROFILES_PATH", str(store_path))
+
+        wf = WorkflowDefinition(
+            config={
+                "agent": {
+                    "profiles": [
+                        {"name": "from-workflow-md", "command": "x"},
+                    ],
+                },
+            },
+            prompt_template="t",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        names = [p.name for p in cfg.agent_profiles]
+        # JSON wins; WORKFLOW.md profile is NOT in the result.
+        assert names == ["from-json"]
+
+    def test_workflow_md_used_when_json_absent(self, tmp_path, monkeypatch):
+        """Without the JSON store, WORKFLOW.md profiles are used (back-compat)."""
+        # Point at a non-existent store file
+        monkeypatch.setenv(
+            "OOMPAH_AGENT_PROFILES_PATH", str(tmp_path / "not-here.json"),
+        )
+        wf = WorkflowDefinition(
+            config={
+                "agent": {
+                    "profiles": [
+                        {"name": "quick", "command": "x"},
+                    ],
+                },
+            },
+            prompt_template="t",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert [p.name for p in cfg.agent_profiles] == ["quick"]
+
 
 class TestHelpers:
     def test_coerce_int(self):
