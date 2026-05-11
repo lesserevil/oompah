@@ -4488,10 +4488,13 @@ class Orchestrator:
             logger.error("Model role %r not defined in provider %s (available roles: %s)",
                          profile.model_role, provider.name, ", ".join(provider.model_roles))
             raise ValueError(f"Model role {profile.model_role!r} not defined in provider {provider.name}")
-        if provider.models and model not in provider.models:
+        if provider.models and model not in provider.models and model != provider.default_model:
             logger.error("Model %s not available in provider %s (available: %s)",
                          model, provider.name, ", ".join(provider.models))
             raise ValueError(f"Model {model} not available in provider {provider.name}")
+        if provider.models and model not in provider.models and model == provider.default_model:
+            logger.warning("Model %s is provider.default_model but not in provider.models; proceeding with dispatch",
+                           model)
 
         # Resolve modality capabilities for the (provider, model) pair.
         # Used by the prompt renderer to decide whether to embed
