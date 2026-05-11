@@ -126,7 +126,10 @@ class BeadsTracker:
             logger.warning("Failed to fetch candidates: %s", exc)
             raise
         except TrackerError as exc:
-            logger.error("Failed to fetch candidates: %s", exc)
+            logger.error(
+                "Failed to fetch candidates: %s", exc,
+                extra={"error_class": "bd_failed"},
+            )
             raise
 
         issues: list[Issue] = []

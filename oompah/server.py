@@ -2761,11 +2761,13 @@ async def api_report_error(request: Request):
     source = body.get("source", "frontend")
     detail = body.get("detail")
     priority = body.get("priority", 3)
+    error_class = body.get("error_class") or None
     identifier = _error_watcher.report_error(
         source=source,
         message=message,
         detail=detail,
         priority=priority,
+        error_class=error_class,
     )
     return JSONResponse({
         "created": identifier is not None,

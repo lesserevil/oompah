@@ -96,6 +96,7 @@ class ErrorWatcher:
         detail: str | None = None,
         priority: int = 2,
         issue_id: str | None = None,
+        error_class: str | None = None,
     ) -> str | None:
         """Report an error and create a bead if not a duplicate.
 
@@ -108,11 +109,18 @@ class ErrorWatcher:
                 error. When supplied, the watcher links the resulting
                 bead to the issue so :meth:`auto_close_for_issue` can
                 close it once the issue's retry path succeeds.
+            error_class: Optional explicit error classification (e.g.
+                ``"bd_timeout"``, ``"connection_refused"``). When given,
+                deduplication collapses *all* reports with the same class
+                to a single bead within the dedup window — regardless of
+                the exact message text, project, or subcommand. Use this
+                for known operational/infra failure modes that fan out
+                across many call sites.
 
         Returns:
             The bead identifier if one was created, None if deduplicated.
         """
-        fp = self._fingerprint(source, message)
+        fp = self._fingerprint(source, message, error_class=error_class)
 
         now = time.monotonic()
         record = self._seen.get(fp)
@@ -136,7 +144,16 @@ class ErrorWatcher:
         if len(title) > 200:
             title = title[:197] + "..."
 
+        # Description still carries the full message + caller-supplied
+        # detail so the operator can diagnose even when the fingerprint
+        # was collapsed via error_class.
         description = detail or message
+        if error_class:
+            description = (
+                f"error_class={error_class}\n\n"
+                f"Triggering message: {message}\n\n"
+                f"{description}"
+            )
 
         try:
             issue = self._tracker.create_issue(
@@ -266,12 +283,39 @@ class ErrorWatcher:
 
         return closed
 
-    def _fingerprint(self, source: str, message: str) -> str:
+    def _fingerprint(
+        self,
+        source: str,
+        message: str,
+        *,
+        error_class: str | None = None,
+    ) -> str:
         """Create a stable fingerprint for deduplication.
 
-        Strips variable parts (timestamps, IDs, memory addresses) to group
-        similar errors together.
+        Two paths:
+
+        - **Explicit class** (``error_class`` given): the fingerprint hashes
+          ``class=<error_class>`` alone, so every report with the same
+          class collapses to one bead within the dedup window — regardless
+          of source, message, project, or bd subcommand. This is the
+          operator's escape hatch for transient infra failures (e.g. Dolt
+          server slowdown) that fan out across many call sites in seconds.
+
+        - **Free-form** (no class): normalize the message by stripping
+          parts that vary across operationally-identical errors —
+          timestamps, hex addresses, UUIDs, project names, bd subcommand
+          args, beads-style identifiers, large numbers — then hash.
+
+        Trade-off: broader fingerprints risk lumping unrelated errors into
+        one bead. The free-form normalization stays conservative; for the
+        cases where a *single* root cause is known (e.g. bd timeouts), the
+        caller opts in with ``error_class`` rather than us guessing from
+        message text.
         """
+        if error_class:
+            raw = f"class={error_class}"
+            return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
         import re
         # Normalize: lowercase, strip hex addresses, UUIDs, timestamps, numbers
         normalized = message.lower()
@@ -280,7 +324,44 @@ class ErrorWatcher:
             r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
             "<uuid>", normalized,
         )
-        normalized = re.sub(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}", "<ts>", normalized)
+        normalized = re.sub(r"\d{4}-\d{2}-\d{2}[t ]\d{2}:\d{2}:\d{2}", "<ts>", normalized)
+
+        # Strip "for project <name>" — operationally irrelevant which
+        # project a fan-out failure happened in. Project names are
+        # alphanumeric with optional ._- separators.
+        normalized = re.sub(
+            r"\bfor project [a-z0-9._-]+",
+            "for project <project>",
+            normalized,
+        )
+
+        # Strip quoted identifiers ("oompah-zlz_2-16h", 'bd-42'). Keep
+        # the quotes themselves so the message shape is preserved.
+        normalized = re.sub(
+            r"(['\"])[a-z][a-z0-9_]*(?:-[a-z0-9_]+)+\1",
+            r"\1<id>\1",
+            normalized,
+        )
+
+        # Collapse bd subcommand invocations: "bd list --json" → "bd list",
+        # "bd close oompah-zlz_2-16h" → "bd close", "bd show foo" → "bd show".
+        # Keeps just the subcommand verb; drops everything after.
+        normalized = re.sub(
+            r"\bbd ([a-z][a-z0-9_-]*)(?:\s+\S[^\n]*)?",
+            r"bd \1",
+            normalized,
+        )
+
+        # Tightened identifier normalization: catches beads-style IDs
+        # like "oompah-zlz_2-16h", "oompah-zlz_2-aup". Requires 2+ dash
+        # segments to avoid eating ordinary hyphenated English words
+        # ("for-loop", "non-empty", "use-case").
+        normalized = re.sub(
+            r"\b[a-z][a-z0-9_]*(?:-[a-z0-9_]+){2,}\b",
+            "<id>",
+            normalized,
+        )
+
         normalized = re.sub(r"\b\d{4,}\b", "<num>", normalized)
         raw = f"{source}:{normalized}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -317,12 +398,18 @@ class _BeadLoggingHandler(logging.Handler):
             # issue whose run produced the error.  This lets the
             # orchestrator auto-close the bead on retry success.
             issue_id = getattr(record, "issue_id", None)
+            # Call sites can also pass an explicit class via
+            # ``logger.error("...", extra={"error_class": "bd_failed"})``
+            # to collapse fan-out failures (e.g. one Dolt slowdown that
+            # produces N project-fetch errors) into a single bead.
+            error_class = getattr(record, "error_class", None)
             self._watcher.report_error(
                 source=source,
                 message=message,
                 detail=detail,
                 priority=priority,
                 issue_id=issue_id,
+                error_class=error_class,
             )
         except Exception:
             # Never let handler errors propagate
