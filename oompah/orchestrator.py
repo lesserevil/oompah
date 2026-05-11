@@ -1809,16 +1809,23 @@ class Orchestrator:
         return True
 
     def _would_dispatch_via_acp(self, issue: Issue) -> bool:
-        """True if the agent profile this dispatch would use has
-        ``mode == "acp"``. The budget gate uses this to bypass the
-        cap for subscription-billed sessions; ACP dispatches don't
-        consume the per-token API meter that ``budget_limit`` tracks.
+        """True if the dispatch would route through an ACP profile
+        AND the resolved provider is subscription-billed. The budget
+        gate uses this to bypass the cap for subscription-billed
+        sessions; subscription ACP dispatches don't consume the
+        per-token API meter that ``budget_limit`` tracks.
+
+        Per-token-billed ACP providers (``billing_model == "per_token"``,
+        e.g. some Codex tiers or third-party agents) DO consume the
+        budget — they fall through to the normal _check_budget gate.
+        See bead oompah-zlz_2-ag7h.
 
         Mirrors the safety-critical ACP-routing carve-out in
         ``_dispatch`` (oompah-zlz_2-lfy): when a merge-conflict /
         ci-fix bead would otherwise resolve to a non-ACP profile but
         an ACP profile is configured, the dispatcher swaps to ACP —
-        so the budget gate must agree, otherwise an over-budget
+        so the budget gate must agree (subject to the same
+        subscription-only constraint), otherwise an over-budget
         orchestrator would reject a dispatch that would actually be
         subscription-billed.
 
@@ -1828,7 +1835,10 @@ class Orchestrator:
         try:
             profile = self._match_agent_profile(issue)
             if self._profile_is_acp(profile):
-                return True
+                if self._acp_profile_is_subscription(profile):
+                    return True
+                # per-token ACP — falls through to budget gate.
+                return False
             # Safety-critical ACP-routing parity with _dispatch.
             # Mirrors the conditions there so the budget gate's view
             # of "would this dispatch via ACP?" matches what
@@ -1841,12 +1851,43 @@ class Orchestrator:
                 not self._has_explicit_handoff_label(issue)
                 and issue.issue_type != "epic"
                 and self._is_safety_critical_issue(issue)
-                and self._find_acp_profile() is not None
             ):
-                return True
+                acp_profile = self._find_acp_profile()
+                if (
+                    acp_profile is not None
+                    and self._acp_profile_is_subscription(acp_profile)
+                ):
+                    return True
             return False
         except Exception:
             return False
+
+    def _acp_profile_is_subscription(self, profile: AgentProfile | None) -> bool:
+        """True iff *profile* is mode=acp AND the resolved provider is
+        subscription-billed (``billing_model == "subscription"``).
+
+        Conservative default: any failure to resolve the provider, or a
+        provider with no explicit billing_model, falls through to True
+        (subscription) — that's the legacy behaviour predating this
+        bead (oompah-zlz_2-ag7h) and matches the back-compat default
+        applied by ``ModelProvider.from_dict`` for records that lack
+        the field.
+
+        Used by ``_would_dispatch_via_acp`` and ``_would_dispatch_on_free_model``
+        to decide whether to bypass the budget gate.
+        """
+        if not self._profile_is_acp(profile):
+            return False
+        try:
+            provider = self._resolve_provider(profile)
+        except Exception:
+            return True
+        if provider is None:
+            # No provider configured (CLI-only / legacy deployments running
+            # ACP without a provider record) → subscription is the only
+            # sensible default; there's nothing to meter against.
+            return True
+        return not provider.is_per_token_billed("acp")
 
     def _would_dispatch_on_free_model(self, issue: Issue) -> str | bool:
         """True (and returns the model name) when the model that WOULD be used
@@ -3573,19 +3614,59 @@ class Orchestrator:
             model = profile.model or provider.default_model or (provider.models[0] if provider.models else None)
         return model
 
-    def _estimate_cost(self, profile: AgentProfile, input_tokens: int, output_tokens: int) -> float:
-        """Estimate cost for a session based on provider model costs, falling back to profile rates."""
+    def _estimate_cost(
+        self,
+        profile: AgentProfile,
+        input_tokens: int,
+        output_tokens: int,
+        *,
+        sdk_cost_usd: float | None = None,
+    ) -> float:
+        """Estimate cost for a session based on provider model costs, falling back to profile rates.
+
+        Returns 0.0 for ACP sessions whose provider is subscription-billed
+        (``billing_model == "subscription"``) — those flat-rate sessions
+        should not contribute to the rolling-window spend tracker even
+        when ``model_costs`` is populated. See bead oompah-zlz_2-ag7h.
+
+        For per-token ACP sessions, callers may pass ``sdk_cost_usd``
+        with a non-None value to prefer the SDK's tier-aware total over
+        the local ``model_costs`` lookup. Subscription ACP sessions
+        ignore ``sdk_cost_usd`` and always return 0.
+        """
         cost_in = profile.cost_per_1k_input
         cost_out = profile.cost_per_1k_output
         # Resolve costs from provider if available
         provider = self._resolve_provider(profile)
+        mode = (getattr(profile, "mode", "auto") or "auto").lower()
         if provider:
+            # Subscription-billed ACP providers do not contribute cost
+            # to the rolling-window tracker — calls bill against the
+            # operator's flat-rate subscription. Short-circuit here so
+            # an operator-set model_costs entry (used only for
+            # informational display) doesn't accidentally meter.
+            if mode == "acp" and not provider.is_per_token_billed("acp"):
+                return 0.0
             if provider.model_costs:
                 model = self._resolve_model(profile, provider)
                 if model:
                     pc_in, pc_out = provider.get_model_costs(model)
                     if pc_in or pc_out:
                         cost_in, cost_out = pc_in, pc_out
+        # Per-token ACP: prefer SDK-reported total if present. The SDK
+        # knows tier discounts oompah doesn't.
+        if (
+            mode == "acp"
+            and provider is not None
+            and provider.is_per_token_billed("acp")
+            and sdk_cost_usd is not None
+        ):
+            try:
+                return float(sdk_cost_usd)
+            except (TypeError, ValueError):
+                # Defensive: malformed SDK output → fall through to
+                # local calc rather than crashing or charging $0.
+                pass
         return (input_tokens / 1000.0) * cost_in + \
                (output_tokens / 1000.0) * cost_out
 
@@ -3885,16 +3966,45 @@ class Orchestrator:
             pc_in: float = profile.cost_per_1k_input
             pc_out: float = profile.cost_per_1k_output
             provider = self._resolve_provider(profile)
+            mode = (getattr(profile, "mode", "auto") or "auto").lower()
             if provider:
                 m = self._resolve_model(profile, provider)
                 if m:
                     model_id = m
-                # Override with provider model costs if available
-                if provider.model_costs and model_id != "unknown":
+                # Subscription-billed ACP providers do not contribute
+                # cost to the per-issue task_costs metadata — calls
+                # bill against the operator's flat-rate subscription.
+                # See bead oompah-zlz_2-ag7h edge case
+                # "model_costs set on a subscription-billed provider".
+                if mode == "acp" and not provider.is_per_token_billed("acp"):
+                    pc_in, pc_out = 0.0, 0.0
+                elif provider.model_costs and model_id != "unknown":
+                    # Override with provider model costs if available.
                     mp_in, mp_out = provider.get_model_costs(model_id)
                     if mp_in or mp_out:
                         pc_in, pc_out = mp_in, mp_out
             cost_usd = (input_tokens / 1000.0) * pc_in + (output_tokens / 1000.0) * pc_out
+
+        # Per-token ACP providers: prefer SDK-reported total_cost_usd
+        # over the local model_costs lookup (the SDK knows tier
+        # discounts oompah doesn't). Subscription ACP runs short-
+        # circuit above with pc_in/pc_out=0 and stay at $0 regardless
+        # of any SDK number, matching the "subscription bills flat"
+        # contract.
+        sdk_cost = getattr(entry.session, "sdk_cost_usd", None)
+        if sdk_cost is not None and profile:
+            mode = (getattr(profile, "mode", "auto") or "auto").lower()
+            provider = self._resolve_provider(profile) if profile else None
+            if (
+                mode == "acp"
+                and provider is not None
+                and provider.is_per_token_billed("acp")
+            ):
+                try:
+                    cost_usd = float(sdk_cost)
+                except (TypeError, ValueError):
+                    # Defensive: malformed SDK output → keep local calc.
+                    pass
 
         now_iso = datetime.now(timezone.utc).isoformat()
         run_record = {
@@ -5045,10 +5155,22 @@ class Orchestrator:
                 except Exception:
                     pass
 
-            # Roll per-session counters into orchestrator totals. ACP
-            # sessions DON'T add to estimated_cost — that meter is for
-            # API-billed dispatches. Token totals still accumulate for
-            # observability / reporting.
+            # Roll per-session counters into orchestrator totals. Token
+            # totals always accumulate for observability / reporting.
+            # Cost accumulation happens in :meth:`_on_worker_exit` via
+            # :meth:`_estimate_cost`, which is billing_model-aware:
+            #
+            # * subscription-billed ACP providers (default for legacy
+            #   ACP) — cost stays at $0; calls bill against the
+            #   operator's flat-rate subscription.
+            # * per-token-billed ACP providers — cost is metered
+            #   against the rolling-window budget. We prefer the SDK's
+            #   ``total_cost_usd`` (it knows tier discounts oompah
+            #   doesn't, see ``sdk_cost_usd`` stashed below); when
+            #   absent, fall back to the local ``model_costs`` lookup.
+            #   Missing both → cost defaults to 0 with a WARNING (don't
+            #   crash dispatch over missing config). See bead
+            #   oompah-zlz_2-ag7h.
             self.state.agent_totals.input_tokens += session.input_tokens
             self.state.agent_totals.output_tokens += session.output_tokens
             self.state.agent_totals.total_tokens += session.total_tokens
@@ -5060,6 +5182,42 @@ class Orchestrator:
                 s.total_tokens = session.total_tokens
                 s.turn_count = session.turn_count
                 s.last_event = f"acp_{status}"
+                # Stash the SDK-reported total cost (if any) so
+                # _estimate_cost / _compute_run_cost_record can prefer
+                # it over the local model_costs lookup for per-token
+                # ACP runs. None means "fall back to model_costs";
+                # subscription ACP runs are short-circuited to $0 in
+                # the cost helpers regardless of the SDK number.
+                # See bead oompah-zlz_2-ag7h.
+                s.sdk_cost_usd = (
+                    session.total_cost_usd
+                    if (
+                        provider is not None
+                        and provider.is_per_token_billed("acp")
+                    )
+                    else None
+                )
+                # Emit a warning when per-token ACP runs have no usable
+                # rate source (no SDK cost AND no model_costs entry).
+                # The cost helpers default to $0 in that case so dispatch
+                # proceeds; the operator just needs to backfill rates
+                # for accurate budget tracking on the next run.
+                if (
+                    provider is not None
+                    and provider.is_per_token_billed("acp")
+                    and session.total_cost_usd is None
+                    and (
+                        not model
+                        or not provider.model_costs
+                        or provider.get_model_costs(model) == (0.0, 0.0)
+                    )
+                ):
+                    logger.warning(
+                        "Per-token ACP provider %r has no model_costs entry for "
+                        "model %r (issue %s); cost recorded as $0.00. Set rates "
+                        "via /providers to enable accurate budget tracking.",
+                        provider.name, model, issue.identifier,
+                    )
 
             if status == "succeeded":
                 exit_reason = "normal"
@@ -5530,10 +5688,19 @@ class Orchestrator:
             self.state.agent_totals.output_tokens += entry.session.output_tokens
             self.state.agent_totals.total_tokens += entry.session.total_tokens
 
-            # Estimate cost from agent profile
+            # Estimate cost from agent profile. For per-token ACP runs
+            # the SDK-reported total_cost_usd (stashed on the LiveSession
+            # by _run_acp_worker) is preferred over the local
+            # model_costs calc — the SDK knows tier discounts oompah
+            # doesn't. Subscription ACP runs always cost $0 regardless.
             profile = self._get_profile_by_name(entry.agent_profile_name)
             if profile:
-                cost = self._estimate_cost(profile, entry.session.input_tokens, entry.session.output_tokens)
+                cost = self._estimate_cost(
+                    profile,
+                    entry.session.input_tokens,
+                    entry.session.output_tokens,
+                    sdk_cost_usd=getattr(entry.session, "sdk_cost_usd", None),
+                )
                 # Roll the window first so the increment lands in the
                 # right bucket — otherwise a worker that finishes 1ms
                 # after the day rollover would be charged to yesterday.

@@ -67,6 +67,7 @@ class ProviderStore:
         mode: str = "api",
         acp_permission_mode: str | None = None,
         acp_subscription_only: bool = False,
+        billing_model: str = "subscription",
     ) -> ModelProvider:
         # Normalize mode here as a safety net; the API endpoint validates
         # earlier so callers that hit this path with a bad value stay
@@ -74,6 +75,16 @@ class ProviderStore:
         m = (mode or "api").lower()
         if m not in ("api", "acp"):
             m = "api"
+        # Defensive normalization mirroring ModelProvider.from_dict's
+        # safety net: unknown billing_model values fall back to
+        # subscription so a typo on the API request can't silently
+        # start metering against the budget.
+        if not isinstance(billing_model, str) or billing_model.lower() not in (
+            "subscription", "per_token",
+        ):
+            billing_model = "subscription"
+        else:
+            billing_model = billing_model.lower()
         provider_id = f"prov-{uuid.uuid4().hex[:8]}"
         provider = ModelProvider(
             id=provider_id,
@@ -87,6 +98,7 @@ class ProviderStore:
             mode=m,
             acp_permission_mode=acp_permission_mode,
             acp_subscription_only=bool(acp_subscription_only),
+            billing_model=billing_model,
         )
         self._providers[provider_id] = provider
         self._save()

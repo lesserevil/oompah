@@ -91,9 +91,58 @@ the operator's stated near-term need (Codex) is also session-shaped.
 A single-shot adapter would be a future refinement — out of scope for
 Child A.
 
-## Out of scope (deferred children)
+## Per-token billing (Child C, oompah-zlz_2-ag7h)
 
-* **Child B**: a concrete Codex backend.
-* **Child C**: per-token billing logic specific to non-Claude
-  backends (today's flat subscription-billing assumption baked into
-  `_run_acp_worker` may need to change for backends that DO meter).
+The orchestrator now distinguishes subscription-billed ACP providers
+from per-token-billed ones via the `ModelProvider.billing_model`
+field:
+
+* **`"subscription"`** (default) — calls bill against the operator's
+  flat-rate subscription. `_would_dispatch_via_acp` bypasses the
+  budget gate, and `_estimate_cost` / `_compute_run_cost_record`
+  return $0 even when `model_costs` is populated. Mirrors the
+  pre-`ag7h` ACP behaviour as the back-compat default.
+* **`"per_token"`** — calls are metered per-token. The provider
+  participates in the budget gate via `_check_budget`, and each
+  completed turn accumulates cost in the rolling-window spend
+  tracker.
+
+### Cost resolution order (per-token)
+
+1. **SDK-reported `total_cost_usd`**: when the backend's session
+   exposes a non-None `total_cost_usd` at end-of-turn, that wins —
+   the SDK knows tier discounts (volume / preview / pro) the
+   orchestrator doesn't.
+2. **Local `model_costs` lookup**: `input_tokens × cost_per_1k_input
+   + output_tokens × cost_per_1k_output`, with rates from
+   `provider.model_costs[model]`.
+3. **Neither**: cost recorded as `$0.00` and a WARNING is logged. The
+   dispatch is NOT aborted — the operator can backfill `model_costs`
+   entries via `/providers` for accurate budget tracking on the next
+   run.
+
+### Backend author notes
+
+A backend that wants to participate in per-token billing only needs
+to expose `total_cost_usd` on its `AcpBackendSession` (the protocol
+already requires this). When the wrapping `ModelProvider` is
+configured `billing_model="per_token"`, the orchestrator picks up
+the SDK number automatically; otherwise it falls back to local
+`model_costs`.
+
+If a backend has no concept of per-turn cost (the SDK doesn't report
+one), leave `total_cost_usd = None` and let the operator populate
+`model_costs` on the provider record.
+
+### UI
+
+The Add/Edit Provider dialog exposes the billing model as a two-
+option radio group (Subscription / Per-token). The `model_costs`
+field is left visible in both modes but a small inline note clarifies
+that the rates are ignored at billing time when subscription is
+selected.
+
+## Out of scope (still deferred)
+
+* **Child B**: a concrete Codex backend (per-token customer; the
+  billing scaffolding above is what unblocks it).

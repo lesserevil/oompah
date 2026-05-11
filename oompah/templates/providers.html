@@ -219,6 +219,25 @@
       color: var(--yellow);
       margin-top: 0.4rem;
     }
+    /* Radio group for billing_model (oompah-zlz_2-ag7h) and
+       similar bool/enum selectors. Two stacked radio rows. */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-bottom: 0.4rem;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 0.3rem 0;
+    }
+    .radio-option input[type="radio"] {
+      cursor: pointer;
+    }
 
     /* Form dialog */
     .dialog-overlay {
@@ -593,6 +612,15 @@ function openProviderDialog(provider) {
   }
   applyProviderModeVisibility();
   renderBackendOptions(provider ? (provider.backend || acpBackendsDefault) : acpBackendsDefault);
+  // ACP billing model (oompah-zlz_2-ag7h). Defaults to subscription
+  // so new providers preserve the legacy flat-rate ACP behaviour;
+  // existing providers loaded from disk read their persisted value
+  // (which defaults to subscription via ModelProvider.from_dict).
+  const billingValue = (provider && provider.billing_model) || 'subscription';
+  document.querySelectorAll('input[name="prov-billing-model"]').forEach(el => {
+    el.checked = (el.value === billingValue);
+  });
+  updateBillingModelNote();
   document.getElementById('provider-dialog').classList.add('open');
   setTimeout(() => document.getElementById('prov-name').focus(), 50);
 }
@@ -600,12 +628,17 @@ function openProviderDialog(provider) {
 // Toggle visibility of mode-specific dialog rows. Called when the
 // operator flips the Mode radio group, and once on dialog open. ACP
 // hides base_url/api_key (the Claude Agent SDK manages auth) and
-// reveals acp_permission_mode + acp_subscription_only.
+// reveals acp_permission_mode + acp_subscription_only +
+// billing_model (per oompah-zlz_2-ag7h, only meaningful in ACP mode).
 function applyProviderModeVisibility() {
   const acpChecked = document.getElementById('prov-mode-acp');
   const acp = !!(acpChecked && acpChecked.checked);
   const apiOnlyIds = ['prov-url-row', 'prov-key-row'];
-  const acpOnlyIds = ['prov-acp-permission-row', 'prov-acp-subscription-row'];
+  const acpOnlyIds = [
+    'prov-acp-permission-row',
+    'prov-acp-subscription-row',
+    'prov-billing-model-row',
+  ];
   apiOnlyIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = acp ? 'none' : '';
@@ -618,6 +651,20 @@ function applyProviderModeVisibility() {
   // — meaningless for ACP, where the SDK manages model selection.
   const fetchBtn = document.getElementById('fetch-models-btn');
   if (fetchBtn) fetchBtn.style.display = acp ? 'none' : '';
+}
+
+function getSelectedBillingModel() {
+  const checked = document.querySelector('input[name="prov-billing-model"]:checked');
+  return checked ? checked.value : 'subscription';
+}
+
+function updateBillingModelNote() {
+  // Show the "model_costs ignored" hint only when subscription is
+  // selected; per-token providers actively use the costs so the note
+  // would be misleading.
+  const note = document.getElementById('prov-billing-subscription-note');
+  if (!note) return;
+  note.style.display = getSelectedBillingModel() === 'subscription' ? 'block' : 'none';
 }
 
 function addModel(name) {
@@ -800,6 +847,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // if this request fails.
   loadAcpBackends();
   loadProviders().then(loadAgentProfiles);
+
+  // ACP billing-model radio: toggle the "model_costs ignored" hint
+  // when the operator flips between subscription and per_token so
+  // they immediately see whether their model_costs entries matter.
+  // See bead oompah-zlz_2-ag7h.
+  document.querySelectorAll('input[name="prov-billing-model"]').forEach(el => {
+    el.addEventListener('change', updateBillingModelNote);
+  });
 });
 
 function closeProviderDialog() {
@@ -840,6 +895,10 @@ async function submitProvider() {
     // intact for legacy providers.
     backend: document.getElementById('prov-backend').value || null,
     mode,
+    // ACP billing model (oompah-zlz_2-ag7h). Subscription (default)
+    // bypasses the budget gate; per_token participates in it.
+    // Always emitted but only meaningful when mode === 'acp'.
+    billing_model: getSelectedBillingModel(),
   };
 
   if (mode === 'acp') {
@@ -1300,6 +1359,38 @@ document.addEventListener('keydown', e => {
     <div class="hint" id="prov-backend-hint">
       Used only by agent profiles with <code>mode=acp</code>. Ignored
       for api/cli profiles. Defaults to <code>claude</code>.
+    </div>
+
+    <!-- Billing model selector (oompah-zlz_2-ag7h). Only meaningful
+         when an agent profile in mode=acp routes through this
+         provider; ignored for api/cli/auto modes. Defaults to
+         "subscription" for back-compat with legacy ACP providers
+         (the Claude Agent SDK flat-rate path). Wrapper div lets
+         applyProviderModeVisibility() show/hide the entire row when
+         the operator flips Mode. -->
+    <div id="prov-billing-model-row" style="display:none;">
+      <label>ACP Billing Model</label>
+      <div class="radio-group" id="prov-billing-model-group">
+        <label class="radio-option">
+          <input type="radio" name="prov-billing-model" value="subscription" checked onchange="updateBillingModelNote()">
+          <span>Subscription (flat-rate)</span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="prov-billing-model" value="per_token" onchange="updateBillingModelNote()">
+          <span>Per-token (tracked against budget)</span>
+        </label>
+      </div>
+      <div class="hint" id="prov-billing-hint">
+        Subscription bypasses the budget gate (the operator's flat-rate
+        subscription pays). Per-token meters each turn against the
+        rolling-window budget using <code>model_costs</code>. Ignored
+        for non-acp profiles.
+      </div>
+      <div class="dialog-note note-info" id="prov-billing-subscription-note">
+        Subscription mode: <code>model_costs</code> entries below are
+        ignored at billing time — calls bill against the operator's
+        flat-rate subscription, not the rolling-window meter.
+      </div>
     </div>
 
     <div class="dialog-actions">
