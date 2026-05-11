@@ -132,6 +132,100 @@ class TestModelProvider:
         assert restored.model_roles == original.model_roles
 
 
+class TestProviderTypeMigration:
+    """provider_type collapse migration (oompah-zlz_2-zvm0).
+
+    The legacy three-way Provider Type dropdown (openai | anthropic |
+    custom) has been collapsed to exactly two canonical values
+    (openai_compatible | acp). ``ModelProvider.from_dict`` migrates the
+    legacy values forward at load time so existing providers.json
+    records keep working without operator action.
+    """
+
+    def test_legacy_openai_migrates_to_openai_compatible(self):
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "http://x",
+            "provider_type": "openai",
+        })
+        assert mp.provider_type == "openai_compatible"
+
+    def test_legacy_anthropic_migrates_to_openai_compatible(self):
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "http://x",
+            "provider_type": "anthropic",
+        })
+        assert mp.provider_type == "openai_compatible"
+
+    def test_legacy_custom_migrates_to_openai_compatible(self):
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "http://x",
+            "provider_type": "custom",
+        })
+        assert mp.provider_type == "openai_compatible"
+
+    def test_missing_provider_type_defaults_to_openai_compatible(self):
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "http://x",
+        })
+        assert mp.provider_type == "openai_compatible"
+        assert mp.mode == "api"
+
+    def test_canonical_openai_compatible_round_trips(self):
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "http://x",
+            "provider_type": "openai_compatible",
+        })
+        assert mp.provider_type == "openai_compatible"
+
+    def test_canonical_acp_round_trips(self):
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "",
+            "provider_type": "acp", "mode": "acp",
+        })
+        assert mp.provider_type == "acp"
+        assert mp.mode == "acp"
+
+    def test_acp_mode_forces_provider_type_acp(self):
+        # If mode=acp but provider_type was left as legacy "openai",
+        # the ACP signal wins (matches server-side reconciliation).
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "",
+            "provider_type": "openai", "mode": "acp",
+        })
+        assert mp.provider_type == "acp"
+        assert mp.mode == "acp"
+
+    def test_acp_provider_type_forces_mode_acp(self):
+        # Symmetric: provider_type=acp with mode left blank/api still
+        # comes out as ACP — the ACP signal in either field wins.
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "",
+            "provider_type": "acp",  # mode unset
+        })
+        assert mp.mode == "acp"
+        assert mp.provider_type == "acp"
+
+    def test_openai_compatible_excludes_acp_mode(self):
+        # provider_type=openai_compatible never overrides an acp mode
+        # claim — but it does win when mode is also api.
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "http://x",
+            "provider_type": "openai_compatible", "mode": "api",
+        })
+        assert mp.provider_type == "openai_compatible"
+        assert mp.mode == "api"
+
+    def test_migrated_record_to_dict_writes_new_value(self):
+        # A migrated record must serialize back with the canonical
+        # value so the next load doesn't have to migrate again.
+        mp = ModelProvider.from_dict({
+            "id": "prov-1", "name": "x", "base_url": "http://x",
+            "provider_type": "anthropic",
+        })
+        d = mp.to_dict()
+        assert d["provider_type"] == "openai_compatible"
+
+
 class TestIssue:
     def test_defaults(self):
         i = Issue(id="1", identifier="beads-001", title="Test")

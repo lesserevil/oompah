@@ -406,3 +406,115 @@ class TestProviderApiValidation:
         assert r2.status_code == 200
         assert r2.json()["acp_permission_mode"] == "plan"
         assert r2.json()["mode"] == "acp"
+
+
+class TestAcpBackendsEndpoint:
+    """GET /api/v1/acp-backends surfaces the registry + per-backend
+    descriptors so the dialog can render the Backend dropdown +
+    decide the Fetch Models enabled state (oompah-zlz_2-zvm0 §2, §3)."""
+
+    def test_endpoint_returns_claude_backend(self, api_client):
+        r = api_client.get("/api/v1/acp-backends")
+        assert r.status_code == 200
+        body = r.json()
+        assert "claude" in body["backends"]
+        assert body["default"] == "claude"
+
+    def test_endpoint_emits_descriptors(self, api_client):
+        r = api_client.get("/api/v1/acp-backends")
+        body = r.json()
+        assert "descriptors" in body
+        claude_desc = body["descriptors"]["claude"]
+        # Claude SDK has no model catalog hook today.
+        assert claude_desc["has_catalog"] is False
+        assert claude_desc["supports_model_selection"] is False
+
+    def test_claude_descriptor_subscription_note(self, api_client):
+        r = api_client.get("/api/v1/acp-backends")
+        body = r.json()
+        note = body["descriptors"]["claude"]["fetch_note"]
+        # The dashboard surfaces this verbatim when the operator clicks
+        # Fetch Models on an ACP-mode provider backed by Claude SDK.
+        assert "subscription" in note.lower()
+
+
+class TestFetchModelsAcpAware:
+    """POST /api/v1/providers/fetch-models is ACP-aware (issue §3)."""
+
+    def test_acp_claude_returns_empty_list_and_note(self, api_client):
+        # ACP-mode + claude backend has no catalog — endpoint must NOT
+        # try to fetch <base_url>/models and 404; it returns an empty
+        # list plus the subscription-managed note for the dashboard.
+        r = api_client.post(
+            "/api/v1/providers/fetch-models",
+            json={"mode": "acp", "backend": "claude"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["models"] == []
+        assert "subscription" in body.get("note", "").lower()
+        assert body.get("supports_model_selection") is False
+
+    def test_acp_unknown_backend_returns_empty_with_note(self, api_client):
+        r = api_client.post(
+            "/api/v1/providers/fetch-models",
+            json={"mode": "acp", "backend": "doesnotexist"},
+        )
+        # Returns 200 with an explanatory note rather than a hard error
+        # so the dashboard surfaces it inline.
+        assert r.status_code == 200
+        body = r.json()
+        assert body["models"] == []
+        assert "doesnotexist" in body.get("note", "") or "Unknown" in body.get("note", "")
+
+    def test_api_mode_still_requires_base_url(self, api_client):
+        # api-mode (the OpenAI-compatible path) keeps its legacy 400-
+        # on-missing-base_url contract — unchanged by zvm0.
+        r = api_client.post(
+            "/api/v1/providers/fetch-models",
+            json={"mode": "api"},
+        )
+        assert r.status_code == 400
+
+
+class TestProviderTypeMigrationApi:
+    """Legacy provider_type values get migrated at create + load time
+    (oompah-zlz_2-zvm0).
+    """
+
+    def test_create_with_legacy_openai_normalises(self, api_client):
+        r = api_client.post(
+            "/api/v1/providers",
+            json={"name": "legacy", "base_url": "http://x",
+                  "provider_type": "openai"},
+        )
+        assert r.status_code in (200, 201)
+        assert r.json()["provider_type"] == "openai_compatible"
+
+    def test_create_with_legacy_anthropic_normalises(self, api_client):
+        r = api_client.post(
+            "/api/v1/providers",
+            json={"name": "legacy", "base_url": "http://x",
+                  "provider_type": "anthropic"},
+        )
+        assert r.status_code in (200, 201)
+        assert r.json()["provider_type"] == "openai_compatible"
+
+    def test_create_with_legacy_custom_normalises(self, api_client):
+        r = api_client.post(
+            "/api/v1/providers",
+            json={"name": "legacy", "base_url": "http://x",
+                  "provider_type": "custom"},
+        )
+        assert r.status_code in (200, 201)
+        assert r.json()["provider_type"] == "openai_compatible"
+
+    def test_create_acp_provider_type_drives_mode(self, api_client):
+        r = api_client.post(
+            "/api/v1/providers",
+            json={"name": "acp", "provider_type": "acp", "mode": "acp"},
+        )
+        assert r.status_code in (200, 201)
+        body = r.json()
+        assert body["provider_type"] == "acp"
+        assert body["mode"] == "acp"

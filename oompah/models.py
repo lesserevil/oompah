@@ -323,7 +323,15 @@ class ModelProvider:
     api_key: str = ""
     models: list[str] = field(default_factory=list)
     default_model: str | None = None
-    provider_type: str = "openai"  # openai | anthropic | custom
+    # provider_type collapses to exactly two canonical values:
+    #   * "openai_compatible" — anything speaking the OpenAI chat-completions
+    #     wire format (OpenAI, vLLM, custom proxies, Anthropic-via-OAI-proxy)
+    #   * "acp" — sessions driven through a registered ACP backend (the
+    #     Claude Agent SDK today; future Codex etc. via oompah-zlz_2-0hzh).
+    # Legacy values ("openai", "anthropic", "custom") are migrated at load
+    # time by ``from_dict`` so existing providers.json records keep working
+    # without operator action. See bead oompah-zlz_2-zvm0 for the rationale.
+    provider_type: str = "openai_compatible"
     model_roles: dict[str, str] = field(default_factory=dict)
     model_costs: dict[str, dict[str, float]] = field(default_factory=dict)
     # Per-model modality capability map. Keys are model names (matching
@@ -508,11 +516,42 @@ class ModelProvider:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> ModelProvider:
+        # ----- provider_type migration (oompah-zlz_2-zvm0) -----
+        # Collapse the legacy three-way dropdown ("openai", "anthropic",
+        # "custom") to the canonical two-way split ("openai_compatible",
+        # "acp"). All three legacy values denoted an OpenAI-compatible
+        # HTTP endpoint — only the dropdown label differed — so they all
+        # migrate forward to "openai_compatible". A persisted "acp"
+        # value (set by the new dialog) round-trips unchanged.
+        raw_ptype = str(d.get("provider_type", "openai_compatible") or "").lower().strip()
+        if raw_ptype in ("openai", "anthropic", "custom", ""):
+            provider_type = "openai_compatible"
+        elif raw_ptype in ("openai_compatible", "acp"):
+            provider_type = raw_ptype
+        else:
+            # Unknown future value — preserve verbatim. A separate
+            # validate_for_mode() check will flag it if it's actually
+            # used.
+            provider_type = raw_ptype
+
         # Normalize mode: anything other than the two known values
         # falls back to "api" so a typo can't accidentally bypass the
         # budget gate. Mirrors the AgentProfile.mode validation.
         raw_mode = str(d.get("mode", "api") or "api").lower()
         mode = raw_mode if raw_mode in ("api", "acp") else "api"
+
+        # ----- provider_type <-> mode reconciliation -----
+        # The two fields are isomorphic: provider_type=="acp" iff mode=="acp".
+        # If a persisted record disagrees (e.g. a hand-edited providers.json
+        # set provider_type="acp" but left mode="api"), trust the field that
+        # signals ACP — the budget-gate carve-out only fires when mode=="acp"
+        # so the safer default is to honour any ACP signal in either field.
+        if provider_type == "acp" or mode == "acp":
+            provider_type = "acp"
+            mode = "acp"
+        else:
+            provider_type = "openai_compatible"
+            mode = "api"
         acp_perm_raw = d.get("acp_permission_mode")
         acp_permission_mode: str | None = (
             str(acp_perm_raw) if acp_perm_raw is not None and acp_perm_raw != "" else None
@@ -539,7 +578,7 @@ class ModelProvider:
             api_key=str(d.get("api_key", "")),
             models=d.get("models", []),
             default_model=d.get("default_model"),
-            provider_type=str(d.get("provider_type", "openai")),
+            provider_type=provider_type,
             model_roles=d.get("model_roles", {}),
             model_costs=d.get("model_costs", {}),
             model_capabilities={
