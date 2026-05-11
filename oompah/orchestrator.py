@@ -18,6 +18,7 @@ from typing import Any
 from oompah.agent import AgentError, AgentEvent, AgentSession
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
+from oompah.completion_verifier import VerifierResult, verify_completion
 from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
 from oompah.events import EventBus, EventType
 from oompah.models import (
@@ -322,6 +323,14 @@ class Orchestrator:
         self._yolo_already_mergeable_switched: set[tuple[str, str]] = set()
         # Merged-branches cache: persists across ticks, invalidated by webhooks
         self._merged_branches_dirty: bool = True  # start dirty to force first fetch
+
+        # Completion verifier (oompah-zlz_2-y0ns): tracks how many times
+        # the verifier has rejected a particular issue's close. After
+        # MAX rejections (3) we fail open and let the close stick so a
+        # bad verifier prompt or pathological case can't pin an issue
+        # forever. Keyed by issue.id (not identifier — id is the stable
+        # primary key across reopen).
+        self._verifier_reject_counts: dict[str, int] = {}
 
         # Error watcher registry (oompah-zlz_2-0nc): keyed by project_id
         # (or ``None`` for the global / unscoped watcher).  Populated by
@@ -5289,6 +5298,98 @@ class Orchestrator:
         if rate_limits:
             self.state.rate_limits = rate_limits
 
+    def _run_completion_verifier(
+        self,
+        entry: "RunningEntry",
+        current_issue: Issue,
+        project_id: str | None,
+    ) -> VerifierResult:
+        """Run the post-close verification pass (oompah-zlz_2-y0ns).
+
+        Called from ``_on_worker_exit`` when the worker exited
+        ``normal`` AND the bead has moved to a terminal state — i.e.
+        the agent successfully ran ``bd close``.
+
+        Returns a ``VerifierResult``. Callers inspect ``passed`` to
+        decide whether to honor the close or reopen with diagnostics.
+        Every internal exception fails open (returns ``passed=True``,
+        ``skipped=True``) so verification can never become a stuck
+        loop hazard.
+        """
+        if not self.config.verify_completion:
+            return VerifierResult(passed=True, skipped=True, skip_reason="disabled")
+        try:
+            workspace_path = self.workspace_mgr.workspace_path_for(entry.identifier)
+        except Exception as exc:
+            logger.warning(
+                "completion verifier: unable to resolve workspace for %s: %s",
+                entry.identifier, exc,
+            )
+            return VerifierResult(passed=True, skipped=True, skip_reason=f"workspace error: {exc}")
+
+        base_branch = "main"
+        if project_id:
+            try:
+                project = self.project_store.get(project_id)
+                if project and project.branch:
+                    base_branch = project.branch
+            except Exception:
+                pass
+
+        # Use the same provider the agent's profile resolved to —
+        # ensures the verifier hits the same endpoint the operator has
+        # already authenticated against.
+        provider = None
+        try:
+            profile = self._get_profile_by_name(entry.agent_profile_name)
+            if profile is not None:
+                provider = self._resolve_provider(profile)
+        except Exception:
+            provider = None
+        if provider is None:
+            try:
+                provider = self.provider_store.get_default()
+            except Exception:
+                provider = None
+
+        attempt = entry.retry_attempt or 0
+        try:
+            result = verify_completion(
+                current_issue,
+                workspace_path,
+                base_branch,
+                provider,
+                attempt=attempt,
+                escalate_after_attempts=self.config.escalate_after_attempts,
+                enable_stage2=self.config.verify_completion_llm,
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "completion verifier raised for %s; failing open. err=%s",
+                entry.identifier, exc,
+            )
+            return VerifierResult(passed=True, skipped=True, skip_reason=f"verifier error: {exc}")
+
+        if result.skipped:
+            logger.info(
+                "completion verifier skipped for %s: %s",
+                entry.identifier, result.skip_reason,
+            )
+        elif result.passed:
+            logger.info(
+                "completion verifier passed for %s",
+                entry.identifier,
+            )
+        else:
+            logger.warning(
+                "completion verifier REJECTED close for %s: missing_files=%s missing_symbols=%s llm_verdict=%s",
+                entry.identifier,
+                (result.stage1.missing_files if result.stage1 else []),
+                (result.stage1.missing_symbols if result.stage1 else []),
+                (result.stage2.verdict if result.stage2 else None),
+            )
+        return result
+
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
     ) -> None:
@@ -5463,10 +5564,81 @@ class Orchestrator:
                                 logger.info("Agent completed without closing %s — reset to open (%d/%d)",
                                             entry.identifier, reopen_count, max_reopens)
                 else:
-                    self.state.completed.add(issue_id)
-                    self.state.reopen_counts.pop(issue_id, None)
-                    # Auto-create review if agent pushed a branch
-                    self._ensure_review_exists(entry, project_id)
+                    # Agent successfully closed the bead. Run the
+                    # completion verifier (oompah-zlz_2-y0ns) to catch
+                    # false-success closures where the agent's diff
+                    # doesn't actually satisfy the AC.
+                    verifier_result = self._run_completion_verifier(
+                        entry, current, project_id,
+                    )
+                    max_verifier_rejects = 3
+                    reject_count = self._verifier_reject_counts.get(issue_id, 0)
+                    if not verifier_result.passed and reject_count < max_verifier_rejects:
+                        # Reject the close: reopen, post diagnostics,
+                        # schedule a retry. Increment reject count so
+                        # we eventually give up if the agent keeps
+                        # shipping the same gap.
+                        self._verifier_reject_counts[issue_id] = reject_count + 1
+                        try:
+                            tracker.reopen_issue(entry.identifier)
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to reopen %s after verifier rejection: %s",
+                                entry.identifier, exc,
+                            )
+                            self.state.completed.add(issue_id)
+                            self.state.reopen_counts.pop(issue_id, None)
+                            self._ensure_review_exists(entry, project_id)
+                        else:
+                            try:
+                                self._post_comment(
+                                    entry.identifier,
+                                    verifier_result.render_rejection_comment(),
+                                    project_id=project_id,
+                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    "Failed to post verifier-rejection comment "
+                                    "to %s: %s", entry.identifier, exc,
+                                )
+                            # Schedule a retry — try a higher profile if
+                            # available so the next attempt has more
+                            # capacity to satisfy the AC.
+                            next_attempt = (entry.retry_attempt or 0) + 1
+                            escalated, escalated_name = (
+                                self._next_profile_for_retry(entry)
+                            )
+                            delay = self._backoff_delay(next_attempt)
+                            self._schedule_retry(
+                                issue_id,
+                                attempt=next_attempt,
+                                identifier=entry.identifier,
+                                delay_ms=delay,
+                                error="completion_verifier_rejected",
+                                escalated_profile=escalated_name if escalated else None,
+                            )
+                            logger.info(
+                                "Completion verifier rejected close for %s — "
+                                "reopened, retrying in %ds (reject %d/%d)",
+                                entry.identifier, delay // 1000,
+                                reject_count + 1, max_verifier_rejects,
+                            )
+                    else:
+                        if not verifier_result.passed:
+                            # We've hit the verifier reject ceiling —
+                            # fail open and let the close stick, but
+                            # log a WARNING so the operator can
+                            # investigate.
+                            logger.warning(
+                                "Completion verifier rejected %s for the %dth "
+                                "time — failing open and honoring the close",
+                                entry.identifier, reject_count + 1,
+                            )
+                        self.state.completed.add(issue_id)
+                        self.state.reopen_counts.pop(issue_id, None)
+                        self._verifier_reject_counts.pop(issue_id, None)
+                        # Auto-create review if agent pushed a branch
+                        self._ensure_review_exists(entry, project_id)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library

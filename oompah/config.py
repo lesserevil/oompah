@@ -305,6 +305,20 @@ class ServiceConfig:
     # continues up the hierarchy on subsequent failures.
     # Default False: current behaviour (best-match profile on first dispatch).
     default_first_dispatch: bool = False
+    # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
+    # exits with reason="normal" AND has moved the bead to a terminal
+    # state, the orchestrator runs a two-stage check (regex + LLM)
+    # against the bead's "# Acceptance criteria" section. If the diff
+    # doesn't satisfy the criteria, the close is rejected: the bead is
+    # reopened, a diagnostic comment is posted, and the issue is
+    # rescheduled. Default False during initial rollout — flip via
+    # OOMPAH_VERIFY_COMPLETION=true after a soak window.
+    verify_completion: bool = False
+    # When False, the LLM (stage 2) leg of the verifier is skipped.
+    # Stage 1 still runs and only rejects close on missing FILE
+    # references (not bare symbol misses). Useful for offline /
+    # provider-less testing. Default True.
+    verify_completion_llm: bool = True
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -496,6 +510,16 @@ class ServiceConfig:
                 "OOMPAH_DEFAULT_FIRST_DISPATCH",
                 agent.get("default_first_dispatch"),
                 False,
+            ),
+            verify_completion=_env_bool(
+                "OOMPAH_VERIFY_COMPLETION",
+                agent.get("verify_completion"),
+                False,
+            ),
+            verify_completion_llm=_env_bool(
+                "OOMPAH_VERIFY_COMPLETION_LLM",
+                agent.get("verify_completion_llm"),
+                True,
             ),
         )
 
