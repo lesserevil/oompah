@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+"""prepare-commit-msg — enforce oompah commit attribution.
+
+This hook fires on every commit creation path inside an agent worktree
+(plain commit, --amend, --squash, merge, etc.). It rewrites the commit
+message file to:
+
+1. Strip any model-attribution trailers (``Co-authored-by: Claude``,
+   ``... Anthropic``, ``... GPT``, etc.) — allowlist policy: only an
+   author of ``oompah`` is permitted on a ``Co-authored-by:`` line.
+2. Strip any ``🤖 Generated with ...`` line that isn't the canonical
+   oompah marker, since training data biases agents toward emitting
+   Claude Code's variant of that line.
+3. Append the canonical oompah trailer block (separated from the body
+   by a blank line) unless the body already ends with it.
+
+The hook is idempotent: running it twice produces the same output.
+Body lines (commit subject, paragraphs, operator-added trailers like
+``Signed-off-by``) are preserved.
+
+Trailers are recognised ONLY at column 0 — git's commit-message
+convention reserves indentation for body content / continuation lines.
+This deliberately leaves indented examples (e.g. a commit body that
+documents the canonical trailer by quoting it indented inside a code
+block) untouched.
+
+This file is intentionally self-contained — it must not import any
+oompah modules, since it runs in agent worktrees that may not have the
+oompah package on ``sys.path``.
+
+See ``oompah-zlz_2-3cpz`` for the spec.
+"""
+from __future__ import annotations
+
+import re
+import sys
+
+OOMPAH_BOT_LINE = "🤖 Generated with https://github.com/lesserevil/oompah"
+OOMPAH_COAUTHOR = "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
+
+# Allowlist: this is the only value (case-insensitive on the name part)
+# that may appear in a Co-authored-by trailer inside an agent commit.
+ALLOWED_COAUTHOR_NAME = "oompah"
+
+# Match a Co-authored-by trailer line. Captures the name (before the email).
+# Case-insensitive on the key per GitHub's documented convention. Trailers
+# MUST start at column 0 — git's trailer convention reserves indentation
+# for body content / continuation lines. This deliberately excludes
+# indented example text inside a commit body from being matched.
+_CO_AUTHOR_RE = re.compile(
+    r"^Co-authored-by:\s*(?P<name>.*?)\s*<[^>]*>\s*$",
+    re.IGNORECASE,
+)
+
+# Match any line starting with the 🤖 robot glyph at column 0 (same
+# rationale as above — indented occurrences are body content).
+_BOT_LINE_RE = re.compile(r"^🤖")
+
+
+def _is_comment(line: str) -> bool:
+    """Lines starting with ``#`` are git's editor template (instructions)."""
+    return line.startswith("#")
+
+
+def _is_canonical_oompah_coauthor(line: str) -> bool:
+    """True iff this column-0 line is a Co-authored-by trailer for oompah."""
+    m = _CO_AUTHOR_RE.match(line)
+    if not m:
+        return False
+    return m.group("name").strip().lower() == ALLOWED_COAUTHOR_NAME
+
+
+def _should_strip(line: str) -> bool:
+    """Return True if this line is a model-attribution trailer to remove.
+
+    Lines we strip (all column-0 only — indented lines are body):
+      - Any ``Co-authored-by:`` whose name is NOT "oompah" (case-insensitive).
+      - Any 🤖 line that isn't our exact canonical line.
+
+    Everything else (subject, body, blank lines, comments, Signed-off-by,
+    Reviewed-by, Tested-by, ...) is preserved.
+    """
+    if _CO_AUTHOR_RE.match(line):
+        return not _is_canonical_oompah_coauthor(line)
+    if _BOT_LINE_RE.match(line):
+        return line != OOMPAH_BOT_LINE
+    return False
+
+
+def _ends_with_canonical_trailer(body: list[str]) -> bool:
+    """True iff ``body`` ends with the exact canonical trailer block.
+
+    The block is: ``OOMPAH_BOT_LINE``, optional blank lines, ``OOMPAH_COAUTHOR``,
+    optional trailing blanks. Trailing blanks in ``body`` are tolerated for
+    the check (the caller will trim them before stamping).
+    """
+    # Walk back skipping trailing blanks to find the last non-blank line.
+    i = len(body) - 1
+    while i >= 0 and body[i].strip() == "":
+        i -= 1
+    if i < 0 or body[i] != OOMPAH_COAUTHOR:
+        return False
+    # Skip blanks separating coauthor from bot line.
+    i -= 1
+    while i >= 0 and body[i].strip() == "":
+        i -= 1
+    if i < 0 or body[i] != OOMPAH_BOT_LINE:
+        return False
+    return True
+
+
+def transform(text: str) -> str:
+    """Return ``text`` rewritten to comply with the oompah trailer policy.
+
+    Pure function — has no side effects, safe to unit-test.
+
+    Algorithm:
+
+    1. Split into lines, preserving order.
+    2. Remove every column-0 model-attribution line (see ``_should_strip``);
+       comment lines and indented body lines are exempt.
+    3. Identify the trailing run of blank lines + comment lines (git's
+       editor template). Split the remaining lines into ``body`` +
+       ``tail``.
+    4. Drop trailing blank lines inside ``body`` (we add our own).
+    5. If ``body`` already ends with the canonical trailer block (BOT_LINE
+       then COAUTHOR, blank-separated, column 0), leave it alone — this is
+       the idempotent case.
+    6. Otherwise, dedupe any stray column-0 canonical lines from ``body``
+       (preventing double-append on repeat runs) and append the canonical
+       trailer block at the end.
+    7. Reassemble: body, blank separator, tail (the editor template).
+    """
+    # Track and re-emit the trailing newline that git expects on commit
+    # message files.
+    lines = text.split("\n")
+    trailing_newline = text.endswith("\n")
+    if trailing_newline and lines and lines[-1] == "":
+        lines = lines[:-1]
+
+    # Step 2: drop offending non-comment lines, and normalise any case-
+    # variant of the canonical oompah Co-authored-by trailer to the exact
+    # canonical bytestring (so the idempotency check downstream can do
+    # byte-equal matching).
+    kept: list[str] = []
+    for line in lines:
+        if _is_comment(line):
+            kept.append(line)
+            continue
+        if _should_strip(line):
+            continue
+        if _is_canonical_oompah_coauthor(line) and line != OOMPAH_COAUTHOR:
+            kept.append(OOMPAH_COAUTHOR)
+            continue
+        kept.append(line)
+
+    # Step 3: split into body + tail (blank-then-comments suffix).
+    n = len(kept)
+    tail_start = n
+    seen_comment = False
+    for i in range(n - 1, -1, -1):
+        line = kept[i]
+        if _is_comment(line):
+            tail_start = i
+            seen_comment = True
+        elif line.strip() == "" and seen_comment:
+            tail_start = i
+        elif line.strip() == "" and not seen_comment:
+            # Trailing blank lines with no comment block — treat as tail-ish
+            # so we can drop them cleanly below.
+            tail_start = i
+        else:
+            break
+
+    body = kept[:tail_start]
+    tail = kept[tail_start:]
+
+    # Step 4: drop trailing blank lines from body.
+    while body and body[-1].strip() == "":
+        body.pop()
+
+    # Step 5 + 6: ensure body ends with canonical trailer.
+    if _ends_with_canonical_trailer(body):
+        new_body = body
+    else:
+        # Strip stray column-0 canonical lines (defensive dedupe before
+        # we append). Indented occurrences of the same text in the body
+        # are NOT matched — only exact column-0 string equality.
+        body = [
+            line for line in body
+            if line != OOMPAH_BOT_LINE and line != OOMPAH_COAUTHOR
+        ]
+        # After dedupe, trim trailing blanks again.
+        while body and body[-1].strip() == "":
+            body.pop()
+
+        if body:
+            new_body = body + ["", OOMPAH_BOT_LINE, "", OOMPAH_COAUTHOR]
+        else:
+            new_body = [OOMPAH_BOT_LINE, "", OOMPAH_COAUTHOR]
+
+    # Step 7: reassemble. Separate body from comment tail with one blank line
+    # (matches git's normal layout: body, blank, '#' instructions).
+    if new_body and tail:
+        if tail and tail[0].strip() != "":
+            tail = [""] + tail
+        out_lines = new_body + tail
+    elif new_body:
+        out_lines = new_body
+    else:
+        out_lines = tail
+
+    out = "\n".join(out_lines)
+    if trailing_newline:
+        out += "\n"
+    return out
+
+
+def main(argv: list[str]) -> int:
+    # git invokes us as: prepare-commit-msg <commit-msg-file> [source [sha1]]
+    if len(argv) < 2:
+        return 0
+    path = argv[1]
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except FileNotFoundError:
+        return 0
+    except OSError:
+        # Best-effort: never fail a commit because the hook can't read its
+        # input. Worst case, the agent's commit lands without the trailer
+        # and is fixed up by a future hook run / amend.
+        return 0
+
+    new_text = transform(text)
+
+    if new_text != text:
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(new_text)
+        except OSError:
+            # Same rationale as above — don't abort a commit on hook failure.
+            return 0
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
