@@ -93,6 +93,14 @@ class LiveSession:
     last_reported_output_tokens: int = 0
     last_reported_total_tokens: int = 0
     turn_count: int = 0
+    # Optional SDK-reported total cost for this session in USD. Set
+    # by _run_acp_worker for per-token-billed ACP providers when the
+    # SDK's ResultMessage.total_cost_usd is non-None — the SDK knows
+    # tier discounts oompah doesn't, so when present this beats the
+    # local model_costs lookup. None means "fall back to model_costs"
+    # (or "no cost" for subscription/api/cli paths). See bead
+    # oompah-zlz_2-ag7h.
+    sdk_cost_usd: float | None = None
 
 
 @dataclass
@@ -331,6 +339,13 @@ class ModelProvider:
     # When unset, the agent uses the legacy fixed max_tokens with no
     # pruning — only safe for models with very large windows.
     model_contexts: dict[str, int] = field(default_factory=dict)
+    # ACP backend selector. When this provider is used by an agent
+    # profile with mode=acp, ``backend`` picks which registered backend
+    # (see oompah/acp_backends/registry.py) handles the session.
+    # ``None`` defaults to ``"claude"`` for back-compat with providers
+    # persisted before this field existed. Ignored for non-acp modes.
+    # See bead oompah-zlz_2-0hzh for the multi-backend ACP epic.
+    backend: str | None = None
     # Provider mode: "api" (default — OpenAI-compatible HTTP) or "acp"
     # (Claude Agent SDK; auth via operator's claude subscription).
     # ACP providers do not require base_url or api_key. Mirrors the
@@ -347,7 +362,28 @@ class ModelProvider:
     # subscription, not the per-token API meter. The orchestrator's
     # budget gate uses this to bypass the over-budget cap (mirrors the
     # AgentProfile.mode == "acp" carve-out).
+    #
+    # DEPRECATED — superseded by ``billing_model`` (oompah-zlz_2-ag7h),
+    # which generalizes this binary flag to a labeled enum. Kept for
+    # back-compat: existing provider records that set
+    # acp_subscription_only=True still load fine, and the UI mirrors
+    # the value into billing_model="subscription" so the budget gate
+    # behaves identically. Prefer billing_model in new code.
     acp_subscription_only: bool = False
+    # Billing model for this provider when used in mode=acp.
+    # ``"subscription"`` (default) — calls are billed against the
+    # operator's flat-rate subscription; the orchestrator bypasses
+    # the budget gate and does NOT add cost to the rolling-window
+    # spend tracker. This is the legacy behaviour for the Claude
+    # Agent SDK path.
+    # ``"per_token"`` — calls are metered per-token; the orchestrator
+    # treats them like api-mode dispatches (budget gate enforced,
+    # cost added to estimated_cost based on provider.model_costs OR
+    # the SDK-reported total_cost_usd, whichever is available).
+    # For mode != "acp" this field is ignored — api/cli/auto modes
+    # always meter per-token via the existing api_agent path.
+    # See bead oompah-zlz_2-ag7h.
+    billing_model: str = "subscription"
 
     def get_model_costs(self, model: str) -> tuple[float, float]:
         """Return (cost_per_1k_input, cost_per_1k_output) for a model, or (0, 0) if unknown."""
@@ -370,6 +406,27 @@ class ModelProvider:
         v = self.model_contexts.get(model)
         return int(v) if v else None
 
+    def is_per_token_billed(self, mode: str) -> bool:
+        """Whether dispatches through this provider in ``mode`` are
+        per-token-metered (cost should be tracked against budget).
+
+        * For ``mode == "acp"``: returns True iff
+          ``billing_model == "per_token"``. Subscription-billed ACP
+          providers return False and the orchestrator bypasses the
+          budget gate / cost accumulator for them.
+        * For any other mode (api/cli/auto): always True. The api_agent
+          path is the canonical per-token meter; cli historically had
+          no cost tracking but treating it as per-token here is a
+          no-op (CLI workers don't roll through these helpers).
+
+        Mirrors ``is_model_explicitly_free`` in spirit: a conservative
+        helper used by the budget gate to decide whether a dispatch
+        should consume the budget. See bead oompah-zlz_2-ag7h.
+        """
+        if mode == "acp":
+            return self.billing_model == "per_token"
+        return True
+
     def to_dict(self) -> dict[str, Any]:
         d = {
             "id": self.id,
@@ -388,6 +445,8 @@ class ModelProvider:
             d["model_capabilities"] = self.model_capabilities
         if self.model_contexts:
             d["model_contexts"] = self.model_contexts
+        if self.backend:
+            d["backend"] = self.backend
         # ACP-mode fields. mode is always emitted so downstream code
         # (and the dashboard) can rely on it being present; the ACP-
         # specific fields are only emitted when in ACP mode (or when
@@ -398,6 +457,12 @@ class ModelProvider:
             d["acp_permission_mode"] = self.acp_permission_mode
         if self.acp_subscription_only:
             d["acp_subscription_only"] = self.acp_subscription_only
+        # Always emit billing_model so dashboards / clients can render
+        # the current billing mode without back-compat guessing. The
+        # default value "subscription" is intentional — existing
+        # ACP providers persisted before this field existed are
+        # subscription-billed, matching prior orchestrator behaviour.
+        d["billing_model"] = self.billing_model
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -411,6 +476,36 @@ class ModelProvider:
         del d["api_key"]
         return d
 
+    def validate_for_mode(self, mode: str) -> list[str]:
+        """Validate the provider record for the given profile-mode context.
+
+        Checks:
+
+        * :attr:`backend` — when ``mode == "acp"`` it must resolve to a
+          registered backend (defaults to ``"claude"`` when unset, for
+          back-compat). For non-acp modes the backend field is ignored.
+        * :attr:`billing_model` — must be one of
+          ``{"subscription", "per_token"}`` when ``mode == "acp"``. For
+          non-acp modes the billing_model is ignored (api/cli/auto are
+          always per-token via the api_agent path).
+
+        Returns a list of human-readable error strings; empty list
+        means the provider is valid for the requested mode.
+        """
+        # Import inline to avoid a circular import at module load time:
+        # oompah.acp_backends imports oompah.models for type hints.
+        from oompah.acp_backends.registry import validate_provider_backend
+
+        errors: list[str] = list(validate_provider_backend(self, mode))
+        if mode == "acp":
+            valid = {"subscription", "per_token"}
+            if self.billing_model not in valid:
+                errors.append(
+                    f"Unknown billing_model: {self.billing_model!r}. "
+                    f"Valid values: {sorted(valid)}."
+                )
+        return errors
+
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> ModelProvider:
         # Normalize mode: anything other than the two known values
@@ -422,6 +517,21 @@ class ModelProvider:
         acp_permission_mode: str | None = (
             str(acp_perm_raw) if acp_perm_raw is not None and acp_perm_raw != "" else None
         )
+        raw_backend = d.get("backend")
+        backend = str(raw_backend).strip() if raw_backend else None
+        # billing_model defaults to "subscription" so providers
+        # persisted before this field existed (the legacy ACP path)
+        # read back as subscription-billed — preserving today's
+        # budget-bypass behaviour as the back-compat default.
+        # Unknown values fall back to "subscription" so a typo in
+        # providers.json doesn't silently start metering against
+        # the budget without the operator noticing.
+        raw_billing = d.get("billing_model", "subscription")
+        billing_model = (
+            str(raw_billing).strip().lower() if raw_billing else "subscription"
+        )
+        if billing_model not in ("subscription", "per_token"):
+            billing_model = "subscription"
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -444,6 +554,8 @@ class ModelProvider:
             mode=mode,
             acp_permission_mode=acp_permission_mode,
             acp_subscription_only=bool(d.get("acp_subscription_only", False)),
+            backend=backend or None,
+            billing_model=billing_model,
         )
 
 

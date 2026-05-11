@@ -219,6 +219,25 @@
       color: var(--yellow);
       margin-top: 0.4rem;
     }
+    /* Radio group for billing_model (oompah-zlz_2-ag7h) and
+       similar bool/enum selectors. Two stacked radio rows. */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-bottom: 0.4rem;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 0.3rem 0;
+    }
+    .radio-option input[type="radio"] {
+      cursor: pointer;
+    }
 
     /* Form dialog */
     .dialog-overlay {
@@ -507,6 +526,60 @@ function renderProfileConstraints(p) {
 }
 
 let dialogModels = [];
+// Populated from /api/v1/acp-backends on page load. Lets the Backend
+// dropdown grow as new backends register without a template change.
+let acpBackends = ['claude'];
+let acpBackendsDefault = 'claude';
+
+async function loadAcpBackends() {
+  try {
+    const res = await fetch('/api/v1/acp-backends');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && Array.isArray(data.backends) && data.backends.length > 0) {
+      acpBackends = data.backends;
+    }
+    if (data && typeof data.default === 'string') {
+      acpBackendsDefault = data.default;
+    }
+  } catch (e) {
+    // Network or parse failure — fall back to the static ["claude"]
+    // default. The provider dialog still works, just without the
+    // dynamic backend list.
+    console.warn('loadAcpBackends failed:', e);
+  }
+}
+
+function renderBackendOptions(selectedValue) {
+  const sel = document.getElementById('prov-backend');
+  if (!sel) return;
+  sel.innerHTML = '';
+  acpBackends.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b;
+    opt.textContent = b;
+    sel.appendChild(opt);
+  });
+  // Default to the operator-supplied value (back-compat: empty/null
+  // means "use the registry default", which today is "claude").
+  const v = selectedValue || acpBackendsDefault;
+  if (acpBackends.includes(v)) {
+    sel.value = v;
+  } else {
+    // Persisted value is unrecognised (e.g. backend was removed in
+    // an upgrade) — fall back to the default and keep the original
+    // value as a non-selectable option so the operator notices.
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v + ' (unknown — reselect)';
+    sel.insertBefore(opt, sel.firstChild);
+    sel.value = v;
+  }
+  // Read-only when only one backend is registered. Once Child B
+  // (Codex) lands, the registry grows and the select becomes
+  // interactive automatically.
+  sel.disabled = acpBackends.length <= 1;
+}
 
 function openProviderDialog(provider) {
   editingId = provider ? provider.id : null;
@@ -538,6 +611,16 @@ function openProviderDialog(provider) {
     subBox.checked = provider ? !!provider.acp_subscription_only : true;
   }
   applyProviderModeVisibility();
+  renderBackendOptions(provider ? (provider.backend || acpBackendsDefault) : acpBackendsDefault);
+  // ACP billing model (oompah-zlz_2-ag7h). Defaults to subscription
+  // so new providers preserve the legacy flat-rate ACP behaviour;
+  // existing providers loaded from disk read their persisted value
+  // (which defaults to subscription via ModelProvider.from_dict).
+  const billingValue = (provider && provider.billing_model) || 'subscription';
+  document.querySelectorAll('input[name="prov-billing-model"]').forEach(el => {
+    el.checked = (el.value === billingValue);
+  });
+  updateBillingModelNote();
   document.getElementById('provider-dialog').classList.add('open');
   setTimeout(() => document.getElementById('prov-name').focus(), 50);
 }
@@ -545,12 +628,17 @@ function openProviderDialog(provider) {
 // Toggle visibility of mode-specific dialog rows. Called when the
 // operator flips the Mode radio group, and once on dialog open. ACP
 // hides base_url/api_key (the Claude Agent SDK manages auth) and
-// reveals acp_permission_mode + acp_subscription_only.
+// reveals acp_permission_mode + acp_subscription_only +
+// billing_model (per oompah-zlz_2-ag7h, only meaningful in ACP mode).
 function applyProviderModeVisibility() {
   const acpChecked = document.getElementById('prov-mode-acp');
   const acp = !!(acpChecked && acpChecked.checked);
   const apiOnlyIds = ['prov-url-row', 'prov-key-row'];
-  const acpOnlyIds = ['prov-acp-permission-row', 'prov-acp-subscription-row'];
+  const acpOnlyIds = [
+    'prov-acp-permission-row',
+    'prov-acp-subscription-row',
+    'prov-billing-model-row',
+  ];
   apiOnlyIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = acp ? 'none' : '';
@@ -563,6 +651,20 @@ function applyProviderModeVisibility() {
   // — meaningless for ACP, where the SDK manages model selection.
   const fetchBtn = document.getElementById('fetch-models-btn');
   if (fetchBtn) fetchBtn.style.display = acp ? 'none' : '';
+}
+
+function getSelectedBillingModel() {
+  const checked = document.querySelector('input[name="prov-billing-model"]:checked');
+  return checked ? checked.value : 'subscription';
+}
+
+function updateBillingModelNote() {
+  // Show the "model_costs ignored" hint only when subscription is
+  // selected; per-token providers actively use the costs so the note
+  // would be misleading.
+  const note = document.getElementById('prov-billing-subscription-note');
+  if (!note) return;
+  note.style.display = getSelectedBillingModel() === 'subscription' ? 'block' : 'none';
 }
 
 function addModel(name) {
@@ -740,7 +842,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ap-provider').addEventListener('change', updateModelRoleSuggestions);
   document.getElementById('ap-mode').addEventListener('change', onProfileModeChange);
 
+  // Backends populate the provider dialog's ACP Backend dropdown.
+  // Fire-and-forget; the dropdown silently falls back to ["claude"]
+  // if this request fails.
+  loadAcpBackends();
   loadProviders().then(loadAgentProfiles);
+
+  // ACP billing-model radio: toggle the "model_costs ignored" hint
+  // when the operator flips between subscription and per_token so
+  // they immediately see whether their model_costs entries matter.
+  // See bead oompah-zlz_2-ag7h.
+  document.querySelectorAll('input[name="prov-billing-model"]').forEach(el => {
+    el.addEventListener('change', updateBillingModelNote);
+  });
 });
 
 function closeProviderDialog() {
@@ -775,7 +889,16 @@ async function submitProvider() {
     provider_type: document.getElementById('prov-type').value,
     models: [...dialogModels],
     default_model: document.getElementById('prov-default-model').value.trim() || undefined,
+    // ACP backend selector (oompah-zlz_2-0hzh). Sent as null when the
+    // operator picked the registry default; the server normalises an
+    // empty string to None so the default-to-claude resolution stays
+    // intact for legacy providers.
+    backend: document.getElementById('prov-backend').value || null,
     mode,
+    // ACP billing model (oompah-zlz_2-ag7h). Subscription (default)
+    // bypasses the budget gate; per_token participates in it.
+    // Always emitted but only meaningful when mode === 'acp'.
+    billing_model: getSelectedBillingModel(),
   };
 
   if (mode === 'acp') {
@@ -1220,6 +1343,56 @@ document.addEventListener('keydown', e => {
       <option value="">— none —</option>
     </select>
     <div class="hint">Model to use when no specific model is requested</div>
+
+    <!-- ACP backend selector (oompah-zlz_2-0hzh). Populated from
+         /api/v1/acp-backends so new backends registered via
+         register_backend() appear without a template change. Today
+         only "claude" is registered so the dropdown is read-only;
+         once Child B (Codex) lands, the registry grows and the
+         dropdown becomes interactive. The field is meaningful only
+         for agent profiles with mode=acp that route through this
+         provider; for non-acp profiles it is ignored. -->
+    <label for="prov-backend">ACP Backend</label>
+    <select id="prov-backend">
+      <option value="claude">claude</option>
+    </select>
+    <div class="hint" id="prov-backend-hint">
+      Used only by agent profiles with <code>mode=acp</code>. Ignored
+      for api/cli profiles. Defaults to <code>claude</code>.
+    </div>
+
+    <!-- Billing model selector (oompah-zlz_2-ag7h). Only meaningful
+         when an agent profile in mode=acp routes through this
+         provider; ignored for api/cli/auto modes. Defaults to
+         "subscription" for back-compat with legacy ACP providers
+         (the Claude Agent SDK flat-rate path). Wrapper div lets
+         applyProviderModeVisibility() show/hide the entire row when
+         the operator flips Mode. -->
+    <div id="prov-billing-model-row" style="display:none;">
+      <label>ACP Billing Model</label>
+      <div class="radio-group" id="prov-billing-model-group">
+        <label class="radio-option">
+          <input type="radio" name="prov-billing-model" value="subscription" checked onchange="updateBillingModelNote()">
+          <span>Subscription (flat-rate)</span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="prov-billing-model" value="per_token" onchange="updateBillingModelNote()">
+          <span>Per-token (tracked against budget)</span>
+        </label>
+      </div>
+      <div class="hint" id="prov-billing-hint">
+        Subscription bypasses the budget gate (the operator's flat-rate
+        subscription pays). Per-token meters each turn against the
+        rolling-window budget using <code>model_costs</code>. Ignored
+        for non-acp profiles.
+      </div>
+      <div class="dialog-note note-info" id="prov-billing-subscription-note">
+        Subscription mode: <code>model_costs</code> entries below are
+        ignored at billing time — calls bill against the operator's
+        flat-rate subscription, not the rolling-window meter.
+      </div>
+    </div>
+
     <div class="dialog-actions">
       <button onclick="closeProviderDialog()">Cancel</button>
       <button class="btn-primary" onclick="submitProvider()">Save</button>

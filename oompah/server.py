@@ -971,6 +971,23 @@ async def api_list_providers():
     return JSONResponse([p.to_safe_dict() for p in providers])
 
 
+@app.get("/api/v1/acp-backends")
+async def api_list_acp_backends():
+    """List registered ACP backends.
+
+    Surfaces the registry from ``oompah/acp_backends/registry.py`` so
+    the provider edit dialog can populate its Backend dropdown without
+    hardcoding the backend names. ``default`` is the back-compat
+    default applied when a provider has no backend field set on disk.
+    """
+    from oompah.acp_backends import BACKENDS
+
+    return JSONResponse({
+        "backends": sorted(BACKENDS.keys()),
+        "default": "claude",
+    })
+
+
 @app.post("/api/v1/providers")
 async def api_create_provider(request: Request):
     """Create a new model provider.
@@ -1010,9 +1027,18 @@ async def api_create_provider(request: Request):
             models=body.get("models", []),
             default_model=body.get("default_model"),
             provider_type=body.get("provider_type", "openai"),
+            # ACP backend selector (used only when an agent profile
+            # with mode=acp routes through this provider). None means
+            # "default to claude" — preserves back-compat for providers
+            # created before the field existed.
+            backend=body.get("backend"),
             mode=mode,
             acp_permission_mode=body.get("acp_permission_mode"),
             acp_subscription_only=bool(body.get("acp_subscription_only", False)),
+            # ACP billing model (oompah-zlz_2-ag7h). "subscription"
+            # (default) bypasses the budget gate; "per_token"
+            # participates in it. Ignored for non-acp modes.
+            billing_model=body.get("billing_model", "subscription"),
         )
         return JSONResponse(provider.to_safe_dict(), status_code=201)
     except Exception as exc:
@@ -1049,14 +1075,32 @@ async def api_update_provider(provider_id: str, request: Request):
             "mode",
             "acp_permission_mode",
             "acp_subscription_only",
+            "backend",
+            "billing_model",
         ):
             if key in body:
                 fields[key] = body[key]
+        # Normalize backend: "" → None so the default-to-claude
+        # resolution at validate time keeps working.
+        if fields.get("backend") == "":
+            fields["backend"] = None
         # Normalize the mode field early so the validation below sees
         # the value the store will end up writing.
         if "mode" in fields:
             m = str(fields["mode"] or "api").lower()
             fields["mode"] = m if m in ("api", "acp") else "api"
+        # Normalize billing_model: drop unknown values back to
+        # "subscription" so a typo or stale client doesn't silently
+        # start metering against the budget. Mirrors the from_dict
+        # safety net in oompah/models.py.
+        if "billing_model" in fields:
+            val = fields["billing_model"]
+            if not isinstance(val, str) or val.lower() not in (
+                "subscription", "per_token",
+            ):
+                fields["billing_model"] = "subscription"
+            else:
+                fields["billing_model"] = val.lower()
         # Determine the effective post-update mode + base_url to enforce
         # the api-mode base_url requirement (regression preserved).
         existing = _provider_store.get(provider_id)

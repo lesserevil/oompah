@@ -1,0 +1,64 @@
+"""ACP backend abstraction.
+
+This package introduces a pluggable backend layer for ACP-mode sessions.
+The first registered backend is :class:`ClaudeAcpBackend` (the historical
+default — drives the bundled ``claude`` CLI via the Claude Agent SDK so
+per-token cost bills against the operator's Pro/Max subscription).
+
+Future backends (Codex etc.) plug in by subclassing :class:`AcpBackend`
+and registering themselves at import time via
+:func:`register_backend`. See ``plans/acp-agent.md`` for the design
+motivation and the multi-backend epic.
+
+Public surface:
+
+* :class:`AcpBackend` — the abstract base class every backend implements.
+* :class:`AcpBackendSession` — the session-shaped protocol every
+  backend yields from ``start_session``.
+* :class:`AcpBackendOptions` — typed kwargs passed to ``start_session``.
+* :class:`BackendEvent` — typed dataclass the backend session yields
+  from ``run_turn``.
+* :data:`BACKENDS` — the registry dict mapping ``name -> class``.
+* :func:`register_backend` — register a new backend at import time.
+* :func:`get_backend` — look up a backend class by name (``None`` if
+  not registered).
+* :func:`get_backend_or_raise` — same, but raises a ValueError with a
+  clear list of available backends.
+* :func:`validate_provider_backend` — validate a ModelProvider's
+  ``backend`` field for a given profile-mode context.
+"""
+
+from __future__ import annotations
+
+from oompah.acp_backends.base import (
+    AcpBackend,
+    AcpBackendOptions,
+    AcpBackendSession,
+    BackendEvent,
+)
+from oompah.acp_backends.registry import (
+    BACKENDS,
+    get_backend,
+    get_backend_or_raise,
+    register_backend,
+    validate_provider_backend,
+)
+
+# Importing the claude module registers ``ClaudeAcpBackend`` as ``claude``
+# at import time. Side-effect imports are awkward but necessary for the
+# zero-config back-compat path: a fresh ``import oompah.acp_backends``
+# must produce a fully-populated registry without callers having to
+# remember to import claude.py separately.
+from oompah.acp_backends import claude as _claude  # noqa: F401
+
+__all__ = [
+    "AcpBackend",
+    "AcpBackendOptions",
+    "AcpBackendSession",
+    "BackendEvent",
+    "BACKENDS",
+    "register_backend",
+    "get_backend",
+    "get_backend_or_raise",
+    "validate_provider_backend",
+]
