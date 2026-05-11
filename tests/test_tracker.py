@@ -791,12 +791,60 @@ class TestMissingDbLogging:
 
 
 # ---------------------------------------------------------------------------
-# Timeout handling: TrackerTimeoutError + WARNING-only logs.
-# Covers oompah-zlz_2-sm5 (and 7 dupes): a slow ``bd list --json`` was
-# producing an ERROR log on every tick, which the error_watcher escalated
-# into fresh duplicate bug beads with title:
+# Timeout handling: TrackerTimeoutError + WARNING-only logs + env-var config.
+# Covers oompah-zlz_2-3xm + oompah-zlz_2-sm5 (and 7 dupes): a slow
+# ``bd list --json`` was producing an ERROR log on every tick, which the
+# error_watcher escalated into fresh duplicate bug beads with title:
 #   [backend:tracker] Failed to fetch candidates: bd command timed out: bd list --json
+# The fix: configurable timeout (OOMPAH_BD_TIMEOUT_SECONDS, default 60s),
+# WARNING-only logging, and a single ``bd list --status=X,Y --json --limit=0``
+# call instead of per-status loops with a slower unfiltered fallback.
 # ---------------------------------------------------------------------------
+
+from oompah.tracker import (
+    _DEFAULT_BD_TIMEOUT_SECONDS,
+    _resolve_bd_timeout,
+)
+
+
+class TestBdTimeoutResolution:
+    """``_resolve_bd_timeout`` reads OOMPAH_BD_TIMEOUT_SECONDS at call time
+    so operators can tune for slow dolt-sql-server setups without code
+    changes."""
+
+    def test_default_when_unset(self, monkeypatch):
+        monkeypatch.delenv("OOMPAH_BD_TIMEOUT_SECONDS", raising=False)
+        assert _resolve_bd_timeout() == _DEFAULT_BD_TIMEOUT_SECONDS
+
+    def test_default_is_at_least_60_seconds(self):
+        # Regression guard: 30s was too low for Dolt-backed bd. Don't let
+        # someone "tidy" the default back to 30 without also fixing the
+        # upstream slow-tick problem.
+        assert _DEFAULT_BD_TIMEOUT_SECONDS >= 60.0
+
+    def test_custom_value_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_BD_TIMEOUT_SECONDS", "120")
+        assert _resolve_bd_timeout() == 120.0
+
+    def test_invalid_value_falls_back_to_default(self, monkeypatch, caplog):
+        monkeypatch.setenv("OOMPAH_BD_TIMEOUT_SECONDS", "not-a-number")
+        import logging as _logging
+        with caplog.at_level(_logging.WARNING, logger="oompah.tracker"):
+            assert _resolve_bd_timeout() == _DEFAULT_BD_TIMEOUT_SECONDS
+        # Should warn but not error
+        assert any("OOMPAH_BD_TIMEOUT_SECONDS" in r.message for r in caplog.records)
+
+    def test_zero_value_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_BD_TIMEOUT_SECONDS", "0")
+        assert _resolve_bd_timeout() == _DEFAULT_BD_TIMEOUT_SECONDS
+
+    def test_negative_value_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_BD_TIMEOUT_SECONDS", "-5")
+        assert _resolve_bd_timeout() == _DEFAULT_BD_TIMEOUT_SECONDS
+
+    def test_empty_string_uses_default(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_BD_TIMEOUT_SECONDS", "")
+        assert _resolve_bd_timeout() == _DEFAULT_BD_TIMEOUT_SECONDS
 
 
 class TestTimeoutHandling:
@@ -820,10 +868,25 @@ class TestTimeoutHandling:
             return _CompletedProcess(0, "[]", "")
 
         monkeypatch.setattr(_subprocess, "run", fake_run)
+        # Clear env so we get the documented default.
+        monkeypatch.delenv("OOMPAH_BD_TIMEOUT_SECONDS", raising=False)
         t = _make_tracker()
         t._run_bd(["list", "--json"])
-        # Bumped from 30s to 60s to give the heavy fallback path room.
+        # Bumped from 30s to 60s to give the heavy DB room to respond.
         assert captured["timeout"] == 60
+
+    def test_env_var_overrides_default_timeout(self, monkeypatch):
+        captured = {}
+
+        def fake_run(*args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return _CompletedProcess(0, "[]", "")
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        monkeypatch.setenv("OOMPAH_BD_TIMEOUT_SECONDS", "90")
+        t = _make_tracker()
+        t._run_bd(["list", "--json"])
+        assert captured["timeout"] == 90.0
 
     def test_explicit_timeout_override(self, monkeypatch):
         captured = {}
@@ -833,6 +896,8 @@ class TestTimeoutHandling:
             return _CompletedProcess(0, "[]", "")
 
         monkeypatch.setattr(_subprocess, "run", fake_run)
+        # Explicit kwarg must win even when env var is set.
+        monkeypatch.setenv("OOMPAH_BD_TIMEOUT_SECONDS", "120")
         t = _make_tracker()
         t._run_bd(["list", "--json"], timeout=5)
         assert captured["timeout"] == 5
@@ -841,16 +906,16 @@ class TestTimeoutHandling:
 class TestFetchCandidatesTimeoutLogging:
     """The error_watcher only fires on ERROR-level records. Timeouts are
     transient/environmental, so they MUST be logged at WARNING in
-    fetch_candidate_issues' fallback path — not ERROR — to avoid the
-    duplicate-bug-bead flood.
+    fetch_candidate_issues — not ERROR — to avoid the duplicate-bug-bead
+    flood. Also: the single comma-separated ``--status=X,Y`` call replaces
+    the older per-status loop + slow unfiltered fallback, which used to
+    pile load onto an already-slow DB.
     """
 
-    def test_timeout_in_fallback_logs_warning_not_error(
+    def test_timeout_logs_warning_not_error(
         self, monkeypatch, caplog,
     ):
         def fake_run(*args, **kwargs):
-            # Both the status-filtered call and the unfiltered fallback
-            # time out — same root cause (busy DB).
             raise _subprocess.TimeoutExpired(cmd=["bd"], timeout=1)
 
         monkeypatch.setattr(_subprocess, "run", fake_run)
@@ -873,23 +938,16 @@ class TestFetchCandidatesTimeoutLogging:
             and "Failed to fetch candidates" in r.getMessage()
         ]
         assert warning_records, (
-            "expected exactly one WARNING describing the timeout fallback"
+            "expected exactly one WARNING describing the timeout"
         )
 
-    def test_non_timeout_failure_in_fallback_still_logs_error(
+    def test_non_timeout_failure_still_logs_error(
         self, monkeypatch, caplog,
     ):
-        # A *non*-timeout, non-missing-DB error in the fallback path is a
-        # real bug we want to capture — keep ERROR there.
-        responses = [
-            # Status-filtered call: generic failure.
-            _CompletedProcess(1, "", "Error: something else went wrong"),
-            # Fallback unfiltered call: same generic failure.
-            _CompletedProcess(1, "", "Error: something else went wrong"),
-        ]
-
+        # A *non*-timeout, non-missing-DB error is a real bug we want to
+        # capture — keep ERROR there.
         def fake_run(*args, **kwargs):
-            return responses.pop(0)
+            return _CompletedProcess(1, "", "Error: something else went wrong")
 
         monkeypatch.setattr(_subprocess, "run", fake_run)
         import logging as _logging
@@ -904,3 +962,22 @@ class TestFetchCandidatesTimeoutLogging:
         assert error_records, (
             "non-timeout, non-missing-DB failures should still log at ERROR"
         )
+
+    def test_timeout_does_not_retry_with_slower_unfiltered_fallback(
+        self, monkeypatch,
+    ):
+        """Regression guard for oompah-zlz_2-3xm: the previous code did
+        ``bd list --status=X --json`` per-status with an unfiltered
+        ``bd list --json`` fallback on timeout. That fallback touched
+        *more* rows and reliably timed out too. The current code uses a
+        single comma-separated ``--status=X,Y --json --limit=0`` call;
+        the timeout must propagate without any retry."""
+        from unittest.mock import patch as _mp
+        t = _make_tracker()
+        with _mp.object(
+            t, "_run_bd", side_effect=_TTE("timed out"),
+        ) as mock:
+            with _pytest.raises(_TTE):
+                t.fetch_candidate_issues()
+            # Exactly one bd call total — no fallback retry.
+            assert mock.call_count == 1
