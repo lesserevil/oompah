@@ -58,12 +58,21 @@ class ProviderStore:
     def create(
         self,
         name: str,
-        base_url: str,
+        base_url: str = "",
         api_key: str = "",
         models: list[str] | None = None,
         default_model: str | None = None,
         provider_type: str = "openai",
+        mode: str = "api",
+        acp_permission_mode: str | None = None,
+        acp_subscription_only: bool = False,
     ) -> ModelProvider:
+        # Normalize mode here as a safety net; the API endpoint validates
+        # earlier so callers that hit this path with a bad value stay
+        # consistent (mirrors ModelProvider.from_dict's behavior).
+        m = (mode or "api").lower()
+        if m not in ("api", "acp"):
+            m = "api"
         provider_id = f"prov-{uuid.uuid4().hex[:8]}"
         provider = ModelProvider(
             id=provider_id,
@@ -73,6 +82,9 @@ class ProviderStore:
             models=models or [],
             default_model=default_model,
             provider_type=provider_type,
+            mode=m,
+            acp_permission_mode=acp_permission_mode,
+            acp_subscription_only=bool(acp_subscription_only),
         )
         self._providers[provider_id] = provider
         self._save()
@@ -87,6 +99,12 @@ class ProviderStore:
                 setattr(provider, key, value)
         if "base_url" in fields:
             provider.base_url = provider.base_url.rstrip("/")
+        # Normalize ``mode`` after assignment so a bad value can't
+        # silently slip into the JSON store. Mirrors create() and
+        # ModelProvider.from_dict.
+        if "mode" in fields:
+            m = (provider.mode or "api").lower()
+            provider.mode = m if m in ("api", "acp") else "api"
         self._save()
         return provider
 
