@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+from oompah.models import ModelProvider
 from oompah.providers import ProviderStore
 
 
@@ -90,11 +92,176 @@ class TestProviderStore:
 
 
 # ---------------------------------------------------------------------------
-# model_capabilities (oompah-zlz.2)
+# model_roles reconciliation (oompah-zlz_2-wvn5)
+#
+# Tests for ModelProvider._reconcile_model_roles():
+#   1. model still valid → no-op, empty list returned.
+#   2. model missing + default_model valid → repoint to default_model.
+#   3. model missing + default_model invalid + models[0] valid → repoint to first available.
+#   4. model missing + models empty → WARNING, role left alone, empty list returned.
 # ---------------------------------------------------------------------------
 
-from oompah.models import ModelProvider
+class TestReconcileModelRoles:
+    def test_no_op_when_model_still_valid(self):
+        """Constants in the body are untouched when they reference an existing model."""
+        p = ModelProvider(
+            id="p", name="Test", base_url="http://x",
+            models=["gpt-4", "gpt-4o-mini"],
+            default_model="gpt-4",
+            model_roles={"fast": "gpt-4o-mini", "deep": "gpt-4"},
+        )
+        changed = p._reconcile_model_roles()
+        assert changed == []
+        assert p.model_roles == {"fast": "gpt-4o-mini", "deep": "gpt-4"}
 
+    def test_repoint_to_default_model_when_missing(self, caplog):
+        """When a role points at a missing model and default_model is in models[],
+        the role is repointed to default_model."""
+        import logging
+        caplog.set_level(logging.INFO, "oompah.models")
+        p = ModelProvider(
+            id="p", name="Test", base_url="http://x",
+            models=["gpt-4", "gpt-4o-mini"],
+            default_model="gpt-4",
+            model_roles={"fast": "gpt-4o-mini", "deep": "old-model"},
+        )
+        changed = p._reconcile_model_roles()
+        assert changed == ["deep"]
+        assert p.model_roles["deep"] == "gpt-4"
+        assert p.model_roles["fast"] == "gpt-4o-mini"  # untouched
+        assert any("repointed" in record.message and "deep" in record.message
+                   for record in caplog.records)
+
+    def test_repoint_to_first_available_when_default_also_invalid(self, caplog):
+        """When default_model is missing too, repoint to the first entry in models[]."""
+        import logging
+        caplog.set_level(logging.INFO, "oompah.models")
+        p = ModelProvider(
+            id="p", name="Test", base_url="http://x",
+            models=["gpt-4", "gpt-4o-mini", "claude-3"],
+            default_model="missing-model",
+            model_roles={"fast": "not-real", "deep": "also-not-real"},
+        )
+        changed = p._reconcile_model_roles()
+        assert set(changed) == {"fast", "deep"}
+        assert p.model_roles["fast"] == "gpt-4"
+        assert p.model_roles["deep"] == "gpt-4"
+        assert all("repointed" in record.message for record in caplog.records)
+
+    def test_no_repoint_warning_when_no_fallback_available(self, caplog):
+        """When models[] is empty, roles pointing at missing models are left alone
+        and a WARNING is emitted (ACP / SDK-managed scenario)."""
+        import logging
+        caplog.set_level(logging.WARNING, "oompah.models")
+        p = ModelProvider(
+            id="p", name="Test", base_url="http://x",
+            models=[],
+            model_roles={"fast": "old-model"},
+        )
+        changed = p._reconcile_model_roles()
+        assert changed == []
+        assert p.model_roles["fast"] == "old-model"  # left alone
+        assert any("empty models" in record.message and "fast" in record.message
+                   for record in caplog.records)
+
+    def test_no_op_when_model_roles_empty(self):
+        p = ModelProvider(id="p", name="Test", base_url="http://x",
+                          models=["gpt-4"], model_roles={})
+        changed = p._reconcile_model_roles()
+        assert changed == []
+        assert p.model_roles == {}
+
+    def test_empty_models_list_is_early_return(self):
+        """Empty models[] with existing roles => WARNING but no change."""
+        p = ModelProvider(
+            id="p", name="Test", base_url="http://x",
+            models=[],
+            default_model="gpt-4",
+            model_roles={"fast": "old-model"},
+        )
+        changed = p._reconcile_model_roles()
+        assert changed == []
+
+
+# ---------------------------------------------------------------------------
+# ProviderStore reconciliation wiring (oompah-zlz_2-wvn5)
+#
+# Tests that the store calls _reconcile_model_roles() at the right moments:
+#   - update() when models changes.
+#   - _load() defensively on startup.
+# ---------------------------------------------------------------------------
+
+class TestProviderStoreReconciliation:
+    def test_update_with_models_reconciles(self, tmp_path):
+        """PATCH with models= triggers _reconcile_model_roles()."""
+        from oompah.models import ModelProvider
+
+        store = ProviderStore(path=str(tmp_path / "providers.json"))
+        # Directly build a provider with a stale role (store.create() doesn't
+        # accept model_roles).
+        provider = ModelProvider(
+            id="prov-reconcile",
+            name="Test",
+            base_url="http://x",
+            models=["gpt-4", "gpt-4o-mini"],
+            default_model="gpt-4",
+            model_roles={"fast": "missing-model"},
+        )
+        store._providers["prov-reconcile"] = provider
+        store._save()
+
+        # PATCH removes "gpt-4o-mini" from models[], so "fast" → orphan.
+        updated = store.update("prov-reconcile", models=["gpt-4"])
+        assert updated is not None
+        assert updated.model_roles["fast"] == "gpt-4"
+
+    def test_update_without_models_does_not_reconcile(self, tmp_path):
+        """PATCH without models= in fields does NOT trigger reconciliation."""
+        from oompah.models import ModelProvider
+
+        store = ProviderStore(path=str(tmp_path / "providers2.json"))
+        # Build provider with a valid role.
+        provider = ModelProvider(
+            id="prov-reconcile2",
+            name="Test",
+            base_url="http://x",
+            models=["gpt-4"],
+            model_roles={"fast": "gpt-4"},
+        )
+        store._providers["prov-reconcile2"] = provider
+        store._save()
+
+        # Update a field OTHER than models — reconciliation should NOT fire.
+        updated = store.update("prov-reconcile2", name="Renamed")
+        assert updated is not None
+        assert updated.name == "Renamed"
+        assert updated.model_roles["fast"] == "gpt-4"  # untouched
+
+    def test_load_reconciles_stale_roles_on_startup(self, tmp_path, caplog):
+        """ProviderStore._load() defensively reconciles every provider at startup."""
+        path = tmp_path / "providers_drift.json"
+        # Write a providers.json with a stale role pointer.
+        with open(path, "w") as f:
+            json.dump([{
+                "id": "prov-drift",
+                "name": "Drifty",
+                "base_url": "http://x",
+                "models": ["gpt-4", "gpt-4o-mini"],
+                "default_model": "gpt-4",
+                "model_roles": {"fast": "gpt-4", "deep": "deleted-model"},
+            }], f)
+
+        # Simulate a fresh load (what happens on oompah startup).
+        store = ProviderStore(path=str(path))
+        provider = store.get("prov-drift")
+        assert provider is not None
+        assert provider.model_roles["deep"] == "gpt-4"  # self-healed
+        assert provider.model_roles["fast"] == "gpt-4"
+
+
+# ---------------------------------------------------------------------------
+# model_capabilities (oompah-zlz.2)
+# ---------------------------------------------------------------------------
 
 class TestModelCapabilities:
     def test_default_empty(self):
