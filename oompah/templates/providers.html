@@ -435,6 +435,7 @@ function renderProviders() {
       <div class="provider-header">
         <span class="provider-name">${esc(p.name)}</span>
         <span class="provider-type mode-${esc(providerMode)}">${esc(providerMode.toUpperCase())}</span>
+        ${p.backend ? `<span class="provider-type mode-acp" title="ACP backend for mode=acp profiles">ACP · ${esc(p.backend)}</span>` : ''}
       </div>
       ${urlLine}
       ${keyLine}
@@ -1456,13 +1457,14 @@ document.addEventListener('keydown', e => {
     <div id="prov-backend-row" style="display:none;">
       <label for="prov-backend">Backend</label>
       <select id="prov-backend" onchange="updateFetchModelsButtonState()"
-              title="Additional backends (Codex, etc.) will appear here once their support beads land.">
+              title="Additional backends (Codex registered as the second backend per oompah-zlz_2-yiuy.)">
         <option value="claude">claude</option>
+        <option value="codex">codex</option>
       </select>
       <div class="hint" id="prov-backend-hint">
         Picks the registered ACP backend used to drive sessions for this
         provider. Defaults to <code>claude</code>. Additional backends
-        (Codex, etc.) will appear here once their support beads land.
+        (Codex registered as the second backend per oompah-zlz_2-yiuy.)
       </div>
     </div>
 

@@ -44,12 +44,20 @@ from oompah.acp_backends.registry import (
     validate_provider_backend,
 )
 
-# Importing the claude module registers ``ClaudeAcpBackend`` as ``claude``
-# at import time. Side-effect imports are awkward but necessary for the
-# zero-config back-compat path: a fresh ``import oompah.acp_backends``
-# must produce a fully-populated registry without callers having to
-# remember to import claude.py separately.
-from oompah.acp_backends import claude as _claude  # noqa: F401
+# Importing the backend modules registers each concrete backend
+# (``ClaudeAcpBackend`` as ``claude``, ``CodexAcpBackend`` as
+# ``codex``) at import time. Side-effect imports are awkward but
+# necessary for the zero-config back-compat path: a fresh
+# ``import oompah.acp_backends`` must produce a fully-populated
+# registry without callers having to remember to import each
+# backend module separately.
+#
+# Order matters only for the registry's deterministic ordering when
+# the /providers UI lists backends — Claude is the historical
+# default and remains first; Codex follows as the second backend
+# (child B of the multi-backend epic, bead oompah-zlz_2-yiuy).
+from oompah.acp_backends import claude as _claude  # noqa: F401, E402
+from oompah.acp_backends import codex as _codex  # noqa: F401, E402
 
 __all__ = [
     "AcpBackend",
