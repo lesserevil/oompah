@@ -75,7 +75,7 @@ class ProviderStore:
         api_key: str = "",
         models: list[str] | None = None,
         default_model: str | None = None,
-        provider_type: str = "openai",
+        provider_type: str = "openai_compatible",
         backend: str | None = None,
         mode: str = "api",
         acp_permission_mode: str | None = None,
@@ -88,6 +88,20 @@ class ProviderStore:
         m = (mode or "api").lower()
         if m not in ("api", "acp"):
             m = "api"
+        # Normalize provider_type: collapse legacy values
+        # (openai/anthropic/custom) -> openai_compatible and keep
+        # provider_type isomorphic with mode (oompah-zlz_2-zvm0).
+        pt = str(provider_type or "openai_compatible").lower().strip()
+        if pt in ("openai", "anthropic", "custom", ""):
+            pt = "openai_compatible"
+        if m == "acp":
+            pt = "acp"
+        elif pt == "acp":
+            # provider_type=acp wins — coerce mode to acp too.
+            m = "acp"
+        else:
+            pt = "openai_compatible"
+        provider_type = pt
         # Defensive normalization mirroring ModelProvider.from_dict's
         # safety net: unknown billing_model values fall back to
         # subscription so a typo on the API request can't silently

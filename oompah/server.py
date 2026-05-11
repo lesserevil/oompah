@@ -979,12 +979,50 @@ async def api_list_acp_backends():
     the provider edit dialog can populate its Backend dropdown without
     hardcoding the backend names. ``default`` is the back-compat
     default applied when a provider has no backend field set on disk.
+
+    Each entry in ``descriptors`` carries the metadata the dashboard
+    needs to render the Fetch Models button correctly
+    (oompah-zlz_2-zvm0 §3):
+
+    * ``has_catalog`` — True iff the backend implements ``fetch_models()``.
+      When False, the dashboard disables the button with a tooltip.
+    * ``supports_model_selection`` — mirrors ``has_catalog`` today;
+      separate field reserved for future backends that support a
+      catalog but only at session-creation time.
+    * ``fetch_note`` — short human-readable string the dashboard
+      surfaces alongside the disabled state (e.g. for Claude:
+      "Claude SDK manages model selection via subscription.").
+    * ``label`` — backend display name for the dropdown.
     """
     from oompah.acp_backends import BACKENDS
 
+    descriptors: dict[str, dict[str, Any]] = {}
+    for name, cls in BACKENDS.items():
+        # Sniff fetch_models() at class- or instance-level. The default
+        # ClaudeAcpBackend has none; future Codex backend may add one.
+        has_catalog = callable(getattr(cls, "fetch_models", None))
+        # Per-backend note: ClaudeAcpBackend's subscription path is the
+        # one well-known case; everything else gets a generic note that
+        # the dashboard can override via the disabled-tooltip text.
+        if name == "claude":
+            fetch_note = "Claude SDK manages model selection via subscription."
+        elif not has_catalog:
+            fetch_note = (
+                f"Backend {name!r} does not expose a model catalog — "
+                f"enter model names manually if needed."
+            )
+        else:
+            fetch_note = ""
+        descriptors[name] = {
+            "label": getattr(cls, "label", None) or name,
+            "has_catalog": has_catalog,
+            "supports_model_selection": has_catalog,
+            "fetch_note": fetch_note,
+        }
     return JSONResponse({
         "backends": sorted(BACKENDS.keys()),
         "default": "claude",
+        "descriptors": descriptors,
     })
 
 
@@ -1411,9 +1449,75 @@ async def api_delete_agent_profile(name: str):
 
 @app.post("/api/v1/providers/fetch-models")
 async def api_fetch_models(req: Request):
-    """Proxy to fetch models from a provider's /models endpoint."""
+    """Fetch the model catalog for a provider.
+
+    Branches on ``mode`` (oompah-zlz_2-zvm0 §3):
+
+    * ``mode == "acp"`` — dispatch to the selected ACP backend. If the
+      backend exposes a ``fetch_models()`` hook, call it. Otherwise
+      return an empty list plus a human-readable note ("Claude SDK
+      manages model selection via subscription.") so the dashboard
+      can surface it inline instead of failing with a 404 from a
+      meaningless HTTP probe.
+    * ``mode == "api"`` — the historical OpenAI-compatible
+      ``<base_url>/models`` path. Unchanged.
+    """
     import asyncio, urllib.request, ssl
     data = await req.json()
+    raw_mode = str(data.get("mode") or "").lower()
+    backend_name = (data.get("backend") or "claude").strip() or "claude"
+
+    # ACP-aware branch: dispatch through the registered backend.
+    if raw_mode == "acp":
+        try:
+            from oompah.acp_backends import BACKENDS, get_backend
+            backend_cls = get_backend(backend_name)
+            if backend_cls is None:
+                return JSONResponse({
+                    "models": [],
+                    "note": (
+                        f"Unknown ACP backend: {backend_name!r}. "
+                        f"Registered backends: {sorted(BACKENDS)}."
+                    ),
+                    "supports_model_selection": False,
+                }, status_code=200)
+            backend = backend_cls()
+            # Honour an optional fetch_models() hook on the backend.
+            # Today's ClaudeAcpBackend has none — the SDK manages
+            # selection via subscription, so we return the canonical
+            # subscription-managed note.
+            fetch_hook = getattr(backend, "fetch_models", None)
+            if callable(fetch_hook):
+                try:
+                    models = await asyncio.to_thread(fetch_hook)
+                    if not isinstance(models, list):
+                        models = []
+                    return JSONResponse({
+                        "models": sorted(str(m) for m in models),
+                        "supports_model_selection": True,
+                    })
+                except Exception as exc:
+                    return JSONResponse(
+                        {"models": [], "error": str(exc)},
+                        status_code=502,
+                    )
+            # No catalog hook — Claude SDK et al. The dashboard
+            # disables the Fetch Models button and surfaces this note.
+            note = "Claude SDK manages model selection via subscription."
+            if backend_name != "claude":
+                note = f"Backend {backend_name!r} does not expose a model catalog."
+            return JSONResponse({
+                "models": [],
+                "note": note,
+                "supports_model_selection": False,
+            })
+        except Exception as exc:
+            return JSONResponse(
+                {"models": [], "error": f"ACP fetch failed: {exc}"},
+                status_code=502,
+            )
+
+    # OpenAI-compatible path (legacy behaviour).
     base_url = (data.get("base_url") or "").rstrip("/")
     api_key = data.get("api_key", "")
     provider_id = data.get("provider_id", "")

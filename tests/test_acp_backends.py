@@ -410,9 +410,12 @@ class TestProviderBackendDropdownUI:
     def test_backend_default_option_claude(self, html: str):
         # The pre-rendered dropdown has a static "claude" option so
         # the dialog opens correctly even if loadAcpBackends() never
-        # completes (e.g. server temporarily down).
+        # completes (e.g. server temporarily down). The select tag may
+        # carry additional attributes (oompah-zlz_2-zvm0 added an
+        # onchange handler to refresh Fetch Models state) so the regex
+        # accepts arbitrary attribute content after the id.
         assert re.search(
-            r'<select id="prov-backend">.*?<option value="claude">claude</option>',
+            r'<select id="prov-backend"[^>]*>.*?<option value="claude">claude</option>',
             html, re.DOTALL,
         )
 
