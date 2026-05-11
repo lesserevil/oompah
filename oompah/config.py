@@ -319,6 +319,11 @@ class ServiceConfig:
     # references (not bare symbol misses). Useful for offline /
     # provider-less testing. Default True.
     verify_completion_llm: bool = True
+    # Close gate (oompah-zlz_2-gz8w). When True, agent-driven closes
+    # are refused when the branch has commits not on the base branch
+    # AND no open or merged PR exists. Default False during initial
+    # rollout — flip via OOMPAH_CLOSE_GATE_ENABLED=true.
+    close_gate_enabled: bool = False
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -520,6 +525,11 @@ class ServiceConfig:
                 "OOMPAH_VERIFY_COMPLETION_LLM",
                 agent.get("verify_completion_llm"),
                 True,
+            ),
+            close_gate_enabled=_env_bool(
+                "OOMPAH_CLOSE_GATE_ENABLED",
+                agent.get("close_gate_enabled"),
+                False,
             ),
         )
 
