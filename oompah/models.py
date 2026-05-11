@@ -331,6 +331,13 @@ class ModelProvider:
     # When unset, the agent uses the legacy fixed max_tokens with no
     # pruning — only safe for models with very large windows.
     model_contexts: dict[str, int] = field(default_factory=dict)
+# ACP backend selector. When this provider is used by an agent
+    # profile with mode=acp, ``backend`` picks which registered backend
+    # (see oompah/acp_backends/registry.py) handles the session.
+    # ``None`` defaults to ``"claude"`` for back-compat with providers
+    # persisted before this field existed. Ignored for non-acp modes.
+    # See bead oompah-zlz_2-0hzh for the multi-backend ACP epic.
+    backend: str | None = None
     # Provider mode: "api" (default — OpenAI-compatible HTTP) or "acp"
     # (Claude Agent SDK; auth via operator's claude subscription).
     # ACP providers do not require base_url or api_key. Mirrors the
@@ -388,6 +395,8 @@ class ModelProvider:
             d["model_capabilities"] = self.model_capabilities
         if self.model_contexts:
             d["model_contexts"] = self.model_contexts
+        if self.backend:
+            d["backend"] = self.backend
         # ACP-mode fields. mode is always emitted so downstream code
         # (and the dashboard) can rely on it being present; the ACP-
         # specific fields are only emitted when in ACP mode (or when
@@ -411,9 +420,27 @@ class ModelProvider:
         del d["api_key"]
         return d
 
+    def validate_for_mode(self, mode: str) -> list[str]:
+        """Validate the provider record for the given profile-mode context.
+
+        Currently checks the :attr:`backend` field — when ``mode="acp"``
+        it must resolve to a registered backend (defaults to
+        ``"claude"`` when unset, for back-compat). For non-acp modes
+        the backend field is ignored (operators may pre-populate it in
+        case they later switch a profile to ACP mode).
+
+        Returns a list of human-readable error strings; empty list
+        means the provider is valid for the requested mode.
+        """
+        # Import inline to avoid a circular import at module load time:
+        # oompah.acp_backends imports oompah.models for type hints.
+        from oompah.acp_backends.registry import validate_provider_backend
+
+        return validate_provider_backend(self, mode)
+
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> ModelProvider:
-        # Normalize mode: anything other than the two known values
+# Normalize mode: anything other than the two known values
         # falls back to "api" so a typo can't accidentally bypass the
         # budget gate. Mirrors the AgentProfile.mode validation.
         raw_mode = str(d.get("mode", "api") or "api").lower()
@@ -422,6 +449,8 @@ class ModelProvider:
         acp_permission_mode: str | None = (
             str(acp_perm_raw) if acp_perm_raw is not None and acp_perm_raw != "" else None
         )
+        raw_backend = d.get("backend")
+        backend = str(raw_backend).strip() if raw_backend else None
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -441,9 +470,10 @@ class ModelProvider:
                 for k, v in (d.get("model_contexts") or {}).items()
                 if isinstance(v, (int, float)) or (isinstance(v, str) and v.isdigit())
             },
-            mode=mode,
+mode=mode,
             acp_permission_mode=acp_permission_mode,
             acp_subscription_only=bool(d.get("acp_subscription_only", False)),
+            backend=backend or None,
         )
 
 

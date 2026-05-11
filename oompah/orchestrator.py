@@ -5016,6 +5016,16 @@ class Orchestrator:
             ):
                 acp_model = model
 
+            # ACP backend selection (oompah-zlz_2-0hzh): provider may
+            # nominate a non-default backend via ModelProvider.backend.
+            # Falls back to "claude" when unset, preserving back-compat
+            # for legacy providers persisted before the field existed.
+            acp_backend_name = (
+                getattr(provider, "backend", None) or "claude"
+                if provider is not None
+                else "claude"
+            )
+
             session = AcpAgentSession(
                 workspace_path=workspace_path,
                 prompt=prompt_text,
@@ -5024,6 +5034,7 @@ class Orchestrator:
                 env={"BEADS_DIR": beads_dir} if beads_dir else None,
                 tool_catalog=tool_catalog,
                 on_event=_on_event,
+                backend_name=acp_backend_name,
             )
 
             try:

@@ -507,6 +507,60 @@ function renderProfileConstraints(p) {
 }
 
 let dialogModels = [];
+// Populated from /api/v1/acp-backends on page load. Lets the Backend
+// dropdown grow as new backends register without a template change.
+let acpBackends = ['claude'];
+let acpBackendsDefault = 'claude';
+
+async function loadAcpBackends() {
+  try {
+    const res = await fetch('/api/v1/acp-backends');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && Array.isArray(data.backends) && data.backends.length > 0) {
+      acpBackends = data.backends;
+    }
+    if (data && typeof data.default === 'string') {
+      acpBackendsDefault = data.default;
+    }
+  } catch (e) {
+    // Network or parse failure — fall back to the static ["claude"]
+    // default. The provider dialog still works, just without the
+    // dynamic backend list.
+    console.warn('loadAcpBackends failed:', e);
+  }
+}
+
+function renderBackendOptions(selectedValue) {
+  const sel = document.getElementById('prov-backend');
+  if (!sel) return;
+  sel.innerHTML = '';
+  acpBackends.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b;
+    opt.textContent = b;
+    sel.appendChild(opt);
+  });
+  // Default to the operator-supplied value (back-compat: empty/null
+  // means "use the registry default", which today is "claude").
+  const v = selectedValue || acpBackendsDefault;
+  if (acpBackends.includes(v)) {
+    sel.value = v;
+  } else {
+    // Persisted value is unrecognised (e.g. backend was removed in
+    // an upgrade) — fall back to the default and keep the original
+    // value as a non-selectable option so the operator notices.
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v + ' (unknown — reselect)';
+    sel.insertBefore(opt, sel.firstChild);
+    sel.value = v;
+  }
+  // Read-only when only one backend is registered. Once Child B
+  // (Codex) lands, the registry grows and the select becomes
+  // interactive automatically.
+  sel.disabled = acpBackends.length <= 1;
+}
 
 function openProviderDialog(provider) {
   editingId = provider ? provider.id : null;
@@ -538,6 +592,7 @@ function openProviderDialog(provider) {
     subBox.checked = provider ? !!provider.acp_subscription_only : true;
   }
   applyProviderModeVisibility();
+  renderBackendOptions(provider ? (provider.backend || acpBackendsDefault) : acpBackendsDefault);
   document.getElementById('provider-dialog').classList.add('open');
   setTimeout(() => document.getElementById('prov-name').focus(), 50);
 }
@@ -740,6 +795,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ap-provider').addEventListener('change', updateModelRoleSuggestions);
   document.getElementById('ap-mode').addEventListener('change', onProfileModeChange);
 
+  // Backends populate the provider dialog's ACP Backend dropdown.
+  // Fire-and-forget; the dropdown silently falls back to ["claude"]
+  // if this request fails.
+  loadAcpBackends();
   loadProviders().then(loadAgentProfiles);
 });
 
@@ -775,6 +834,11 @@ async function submitProvider() {
     provider_type: document.getElementById('prov-type').value,
     models: [...dialogModels],
     default_model: document.getElementById('prov-default-model').value.trim() || undefined,
+    // ACP backend selector (oompah-zlz_2-0hzh). Sent as null when the
+    // operator picked the registry default; the server normalises an
+    // empty string to None so the default-to-claude resolution stays
+    // intact for legacy providers.
+    backend: document.getElementById('prov-backend').value || null,
     mode,
   };
 
@@ -1220,6 +1284,24 @@ document.addEventListener('keydown', e => {
       <option value="">— none —</option>
     </select>
     <div class="hint">Model to use when no specific model is requested</div>
+
+    <!-- ACP backend selector (oompah-zlz_2-0hzh). Populated from
+         /api/v1/acp-backends so new backends registered via
+         register_backend() appear without a template change. Today
+         only "claude" is registered so the dropdown is read-only;
+         once Child B (Codex) lands, the registry grows and the
+         dropdown becomes interactive. The field is meaningful only
+         for agent profiles with mode=acp that route through this
+         provider; for non-acp profiles it is ignored. -->
+    <label for="prov-backend">ACP Backend</label>
+    <select id="prov-backend">
+      <option value="claude">claude</option>
+    </select>
+    <div class="hint" id="prov-backend-hint">
+      Used only by agent profiles with <code>mode=acp</code>. Ignored
+      for api/cli profiles. Defaults to <code>claude</code>.
+    </div>
+
     <div class="dialog-actions">
       <button onclick="closeProviderDialog()">Cancel</button>
       <button class="btn-primary" onclick="submitProvider()">Save</button>
