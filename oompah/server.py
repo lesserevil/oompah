@@ -36,6 +36,12 @@ from oompah.agent_profile_store import (
 )
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
+from oompah.issue_enhancer import (
+    EnhancementResult,
+    IssueEnhancerError,
+    enhance_issue,
+    has_quality_source,
+)
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
@@ -622,7 +628,24 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
 
 @app.post("/api/v1/issues")
 async def api_create_issue(request: Request):
-    """Create a new issue."""
+    """Create a new issue.
+
+    Supports an optional ``?enhance=`` query parameter to run a one-shot
+    LLM enhancement of the operator's title/description against the
+    target project's AGENTS.md (with a fallback to WORKFLOW.md's
+    ``Issue Quality`` block). See oompah-zlz_2-u8pz for the design.
+
+    Values for ``enhance``:
+
+    * ``true`` — Return ``{original, enhanced, missing_fields,
+      suggested_changes, diff}`` with ``ok=true`` and HTTP 200; nothing
+      is written.
+    * ``apply`` — Run the enhancement, then write the enhanced version
+      via :meth:`tracker.create_issue`. Falls back to the original
+      input on enhancement error so the operator's intent is never
+      lost.
+    * absent / anything else — Verbatim write (back-compat default).
+    """
     try:
         orch = _get_orchestrator()
         body = await request.json()
@@ -637,11 +660,54 @@ async def api_create_issue(request: Request):
         project_id = body.get("project_id")
         tracker = _get_tracker(orch, project_id)
 
+        # Optional enhancement pass (oompah-zlz_2-u8pz).
+        enhance_mode = (request.query_params.get("enhance") or "").strip().lower()
+        description = body.get("description")
+        if enhance_mode in ("true", "apply"):
+            try:
+                enhancement = _run_issue_enhancement(
+                    orch=orch,
+                    project_id=project_id,
+                    title=title,
+                    description=description,
+                )
+            except IssueEnhancerError as exc:
+                # Preview-mode failures surface to the dashboard so the
+                # operator can fall back to a verbatim save. Apply-mode
+                # failures fall through to verbatim creation so the
+                # operator's input is never lost on transient LLM
+                # outages.
+                if enhance_mode == "true":
+                    return JSONResponse(
+                        {"error": {"code": "enhance_failed", "message": str(exc)}},
+                        status_code=502,
+                    )
+                logger.warning(
+                    "issue_enhancer: apply-mode failed for project=%s, "
+                    "writing verbatim: %s",
+                    project_id, exc,
+                )
+                enhancement = None
+            if enhance_mode == "true":
+                # Preview-only — do not write anything.
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "mode": "enhance_preview",
+                        **enhancement.to_dict(),
+                    },
+                    status_code=200,
+                )
+            # Apply mode: swap in the enhanced fields before write.
+            if enhancement is not None:
+                title = enhancement.enhanced_title or title
+                description = enhancement.enhanced_description
+
         issue_type = body.get("type", "task")
         issue = tracker.create_issue(
             title=title,
             issue_type=issue_type,
-            description=body.get("description"),
+            description=description,
             priority=body.get("priority"),
             initial_status=body.get("status"),
         )
@@ -671,6 +737,86 @@ async def api_create_issue(request: Request):
         logger.error("Create issue API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "create_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+def _run_issue_enhancement(
+    *,
+    orch,
+    project_id: str | None,
+    title: str,
+    description: str | None,
+) -> EnhancementResult:
+    """Resolve the project workspace + 'default' role and run the enhancer.
+
+    Pulled out of :func:`api_create_issue` so tests can patch the
+    resolution path independently of the FastAPI request lifecycle.
+
+    Raises :class:`IssueEnhancerError` on any failure that should
+    surface to the operator.
+    """
+    if not project_id:
+        raise IssueEnhancerError("project_id is required for enhancement")
+    project = orch.project_store.get(project_id)
+    if project is None:
+        raise IssueEnhancerError(f"project not found: {project_id}")
+    repo_path = getattr(project, "repo_path", None)
+    # Resolve the LLM provider+model via RoleStore('default'), then
+    # fall back to provider_store.get_default() so single-provider
+    # installations work out of the box. The model resolution mirrors
+    # completion_verifier.run_stage2_sync.
+    provider, model = orch._resolve_role("default")
+    if provider is None:
+        provider = orch.provider_store.get_default()
+        if provider is not None:
+            model = (
+                (getattr(provider, "model_roles", None) or {}).get("default")
+                or getattr(provider, "default_model", None)
+            )
+            if not model:
+                models = getattr(provider, "models", None) or []
+                if models:
+                    model = models[0]
+    return enhance_issue(
+        title=title,
+        description=description,
+        repo_path=repo_path,
+        provider=provider,
+        model=model,
+    )
+
+
+@app.get("/api/v1/projects/{project_id}/issue-quality-source")
+async def api_issue_quality_source(project_id: str):
+    """Report whether the project has a quality source the enhancer can use.
+
+    Used by the dashboard's create-issue dialog to show or hide the
+    Enhance button. Returns ``{"has_source": bool, "kind": str}`` where
+    ``kind`` is one of ``""``, ``"agents_md"``, or
+    ``"workflow_quality"``.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+        repo_path = getattr(project, "repo_path", None)
+        has = has_quality_source(repo_path)
+        # The kind reported here matches load_quality_source's tag so
+        # the dashboard can surface AGENTS.md vs WORKFLOW.md hints.
+        kind = ""
+        if has:
+            from oompah.issue_enhancer import load_quality_source
+            kind, _ = load_quality_source(repo_path)
+        return JSONResponse({"has_source": has, "kind": kind})
+    except Exception as exc:
+        logger.error("issue-quality-source API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "lookup_failed", "message": str(exc)}},
             status_code=500,
         )
 
