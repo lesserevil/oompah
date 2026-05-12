@@ -69,15 +69,23 @@ class AgentActivity:
     summary: str
     detail: str = ""
     timestamp: float = 0.0
+    # Per-event usage snapshot for the dashboard's sticky activity-
+    # summary header. Shape: {input_tokens, output_tokens, total_tokens,
+    # cost_usd?}. Cumulative (running totals at the time of the event)
+    # so the header can scan back-to-front for the latest non-null value.
+    usage: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "turn": self.turn,
             "kind": self.kind,
             "summary": self.summary,
             "detail": self.detail[:2000],
             "timestamp": self.timestamp,
         }
+        if self.usage is not None:
+            out["usage"] = self.usage
+        return out
 
 
 @dataclass
@@ -967,9 +975,24 @@ class ApiAgentSession:
         )
 
         def _emit(turn: int, kind: str, summary: str, detail: str = "") -> None:
+            # Attach the running token totals so the dashboard's
+            # sticky activity summary header can scan back-to-front
+            # for the latest usage snapshot. ``total_input`` and
+            # friends live in the enclosing scope below.
+            usage_snap: dict[str, Any] | None = None
+            try:
+                if total_input or total_output or total_tokens:
+                    usage_snap = {
+                        "input_tokens": total_input,
+                        "output_tokens": total_output,
+                        "total_tokens": total_tokens,
+                    }
+            except NameError:
+                pass  # _emit called before counters initialized
             entry = AgentActivity(
                 turn=turn, kind=kind, summary=summary,
                 detail=detail, timestamp=time.time(),
+                usage=usage_snap,
             )
             activity.append(entry)
             if on_activity:
