@@ -4552,6 +4552,236 @@ class Orchestrator:
                 entry.identifier, exc,
             )
 
+    # ------------------------------------------------------------------
+    # Per-agent telemetry comment (bead oompah-zlz_2-y3fy)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _format_tokens(n: int) -> str:
+        """Format a token count compactly (e.g. 14200 → '14.2K')."""
+        try:
+            n = int(n)
+        except (ValueError, TypeError):
+            return "0"
+        if n < 1000:
+            return str(n)
+        if n < 1_000_000:
+            return f"{n / 1000:.1f}K"
+        return f"{n / 1_000_000:.1f}M"
+
+    @staticmethod
+    def _format_duration(seconds: float) -> str:
+        """Format a duration in seconds as '<H>h <M>m <S>s' or '<M>m <S>s' or '<S>s'."""
+        try:
+            seconds = float(seconds)
+        except (ValueError, TypeError):
+            return "0s"
+        if seconds < 0:
+            seconds = 0.0
+        total = int(round(seconds))
+        h, rem = divmod(total, 3600)
+        m, s = divmod(rem, 60)
+        if h:
+            return f"{h}h {m}m {s}s"
+        if m:
+            return f"{m}m {s}s"
+        return f"{s}s"
+
+    def _dispatch_attempt_label(self, entry: RunningEntry) -> str:
+        """Return the dispatch_attempt label for the telemetry comment.
+
+        Plain integers ("1", "2", ...) for the natural retry counter,
+        or "YOLO-reopen" when the bead carries a YOLO reopen label
+        (ci-fix / merge-conflict) — those dispatches are not driven by
+        the orchestrator's retry queue, they're orchestrated by YOLO
+        relabeling the bead.
+        """
+        labels = {str(l).lower() for l in (entry.issue.labels or [])}
+        if "ci-fix" in labels or "merge-conflict" in labels:
+            return "YOLO-reopen"
+        attempt_num = (entry.retry_attempt or 0) + 1
+        return str(attempt_num)
+
+    def _count_tool_calls(self, entry: RunningEntry) -> int:
+        """Count tool_call kind entries in the agent's activity log.
+
+        Both api_agent and acp_agent emit ``AgentActivity(kind="tool_call", ...)``
+        for each tool invocation; counting those is the canonical
+        per-run tool-call metric. CLI runs (legacy subprocess agent) do
+        not populate activity_log uniformly — they'll show 0, which is
+        accurate ("not tracked") rather than wrong.
+        """
+        count = 0
+        for activity in entry.activity_log or []:
+            kind = getattr(activity, "kind", None)
+            if kind == "tool_call":
+                count += 1
+        return count
+
+    def _resolve_run_provider_and_model(
+        self, entry: RunningEntry,
+    ) -> tuple[str, str, str, bool]:
+        """Resolve (provider_name, model_id, mode, is_subscription_acp).
+
+        Prefers the snapshot fields populated by the worker
+        (``entry.provider_name`` / ``entry.model_name``) since the focus
+        / role may have changed mid-run; falls back to live resolution
+        via the agent profile when those are not set (back-compat path).
+
+        ``is_subscription_acp`` is True when the run was an ACP session
+        against a subscription-billed provider — used by the telemetry
+        formatter to render "(subscription)" instead of a $0 cost number.
+        """
+        profile = self._get_profile_by_name(entry.agent_profile_name)
+        mode = (getattr(profile, "mode", "auto") or "auto").lower() if profile else "auto"
+        provider = self._resolve_provider(profile) if profile else None
+        if entry.provider_name:
+            provider_name = entry.provider_name
+        elif provider is not None:
+            provider_name = provider.name
+        else:
+            provider_name = "unknown"
+        if entry.model_name:
+            model_id = entry.model_name
+        else:
+            model_id = self._resolve_model(profile, provider) if profile and provider else None
+            model_id = model_id or "unknown"
+        is_subscription_acp = bool(
+            mode == "acp"
+            and provider is not None
+            and not provider.is_per_token_billed("acp")
+        )
+        return provider_name, model_id, mode, is_subscription_acp
+
+    def _format_telemetry_comment(
+        self, entry: RunningEntry, exit_reason: str, elapsed_seconds: float,
+    ) -> str:
+        """Build the per-agent telemetry comment text for ``entry``.
+
+        Format (one block per worker run, see bead oompah-zlz_2-y3fy):
+
+            Run #2 [attempt=2, profile=deep -> InferenceAPI/claude-sonnet-4-6]
+            - Turns: 27, Tool calls: 18
+            - Tokens: 14.2K in / 3.1K out [17.3K total]
+            - Cost: $0.0042
+            - Exit: normal, Duration: 6m 12s
+            - Log: oompah-zlz_2-xxx__20260512T130000Z.jsonl
+        """
+        attempt_label = self._dispatch_attempt_label(entry)
+        provider_name, model_id, mode, is_subscription_acp = (
+            self._resolve_run_provider_and_model(entry)
+        )
+
+        role = entry.model_role or "—"
+        profile_name = entry.agent_profile_name or "default"
+        header = (
+            f"Run #{attempt_label} "
+            f"[attempt={attempt_label}, profile={profile_name}, "
+            f"role={role} -> {provider_name}/{model_id}]"
+        )
+
+        session = entry.session
+        if session:
+            input_tokens = int(getattr(session, "input_tokens", 0) or 0)
+            output_tokens = int(getattr(session, "output_tokens", 0) or 0)
+            total_tokens = int(getattr(session, "total_tokens", 0) or 0)
+            turns = int(getattr(session, "turn_count", 0) or 0)
+        else:
+            input_tokens = output_tokens = total_tokens = turns = 0
+
+        tool_calls = self._count_tool_calls(entry)
+
+        # Cost: subscription ACP runs display "(subscription)" verbatim;
+        # everything else uses the same calc as the budget tracker so the
+        # comment matches the running tally.
+        if is_subscription_acp:
+            cost_str = "(subscription)"
+        else:
+            profile = self._get_profile_by_name(entry.agent_profile_name)
+            if profile is not None:
+                cost_value = self._estimate_cost(
+                    profile,
+                    input_tokens,
+                    output_tokens,
+                    sdk_cost_usd=getattr(session, "sdk_cost_usd", None) if session else None,
+                )
+                cost_str = f"${cost_value:.4f}"
+            else:
+                cost_str = "$0.0000"
+
+        log_basename = ""
+        if entry.agent_log_path:
+            try:
+                log_basename = os.path.basename(entry.agent_log_path)
+            except Exception:
+                log_basename = entry.agent_log_path
+
+        # Normalize exit reason for display: the orchestrator uses
+        # "abnormal" internally, surface it as "error" to operators.
+        exit_display = "error" if exit_reason == "abnormal" else exit_reason
+
+        lines = [
+            header,
+            f"- Turns: {turns}, Tool calls: {tool_calls}",
+            (
+                f"- Tokens: {self._format_tokens(input_tokens)} in / "
+                f"{self._format_tokens(output_tokens)} out "
+                f"[{self._format_tokens(total_tokens)} total]"
+            ),
+            f"- Cost: {cost_str}",
+            (
+                f"- Exit: {exit_display}, "
+                f"Duration: {self._format_duration(elapsed_seconds)}"
+            ),
+        ]
+        if log_basename:
+            lines.append(f"- Log: {log_basename}")
+        return "\n".join(lines)
+
+    def _write_telemetry_comment(
+        self, entry: RunningEntry, exit_reason: str, elapsed_seconds: float,
+    ) -> None:
+        """Post the per-agent telemetry comment for ``entry`` (sync).
+
+        Exceptions are caught and logged at WARNING so a comment-write
+        failure can never block the worker exit path. Designed to be
+        invoked from a background thread via ``_fire_telemetry_comment``.
+        """
+        try:
+            comment = self._format_telemetry_comment(
+                entry, exit_reason, elapsed_seconds,
+            )
+            project_id = entry.issue.project_id if entry.issue else None
+            self._post_comment(
+                entry.identifier, comment, project_id=project_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "telemetry_comment: failed to write for %s: %s",
+                entry.identifier, exc,
+            )
+
+    def _fire_telemetry_comment(
+        self, entry: RunningEntry, exit_reason: str, elapsed_seconds: float,
+    ) -> None:
+        """Fire-and-forget: post the per-agent telemetry comment in a
+        background thread.
+
+        Mirrors :meth:`_fire_task_cost_record` — exceptions are logged
+        but never propagate so the worker exit path stays unblocked.
+        See bead oompah-zlz_2-y3fy.
+        """
+        try:
+            self._tick_pool.submit(
+                self._write_telemetry_comment,
+                entry, exit_reason, elapsed_seconds,
+            )
+        except Exception as exc:
+            logger.warning(
+                "telemetry_comment: failed to submit background write for %s: %s",
+                entry.identifier, exc,
+            )
+
     def _clear_handoff_labels(self, issue: Issue) -> None:
         """Remove any needs:* handoff labels after focus has been selected."""
         if not issue.labels:
@@ -5120,9 +5350,23 @@ class Orchestrator:
                 "Agent log for %s -> %s", issue.identifier, agent_log_path,
             )
 
-            # Update running entry with minimal session info
+            # Update running entry with minimal session info, log path,
+            # and resolved provider/model snapshot so _on_worker_exit's
+            # telemetry comment can name them without re-resolving (the
+            # focus / role may have changed mid-run). See bead
+            # oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
-                self.state.running[issue.id].session = LiveSession(
+                running_entry = self.state.running[issue.id]
+                running_entry.agent_log_path = agent_log_path
+                running_entry.provider_name = provider.name
+                running_entry.model_name = model
+                # Role: focus override wins over profile role; falls back
+                # to None when nothing role-driven was used.
+                running_entry.model_role = (
+                    getattr(focus, "model_role", None)
+                    or profile.model_role
+                )
+                running_entry.session = LiveSession(
                     session_id=f"api-{provider.name}-{model}",
                     thread_id="api",
                     turn_id="0",
@@ -5352,9 +5596,23 @@ class Orchestrator:
                 issue.identifier, agent_log_path, model,
             )
 
-            # Update running entry session.
+            # Update running entry session + telemetry snapshot. The
+            # provider/model fields are diagnostic for ACP runs (the
+            # SDK picks the actual model from the subscription) but
+            # they're still what the operator sees in `bd comments`.
+            # See bead oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
-                self.state.running[issue.id].session = LiveSession(
+                running_entry_acp = self.state.running[issue.id]
+                running_entry_acp.agent_log_path = agent_log_path
+                running_entry_acp.provider_name = (
+                    provider.name if provider is not None else "acp"
+                )
+                running_entry_acp.model_name = model
+                running_entry_acp.model_role = (
+                    getattr(focus, "model_role", None)
+                    or profile.model_role
+                )
+                running_entry_acp.session = LiveSession(
                     session_id=f"acp-{model}",
                     thread_id="acp",
                     turn_id="0",
@@ -5715,11 +5973,25 @@ class Orchestrator:
                                    project_id=issue.project_id)
                 # Clean up handoff labels after focus selection
                 self._clear_handoff_labels(issue)
-                # Store focus on running entry for dashboard display
+                # Store focus on running entry for dashboard display.
+                # CLI worker has no API provider/model resolution (the
+                # claude subprocess picks its own model from auth), but
+                # we still record the model role and a placeholder
+                # provider/model so the telemetry comment has SOMETHING
+                # to render. See bead oompah-zlz_2-y3fy.
                 cli_running = self.state.running.get(issue.id)
                 if cli_running:
                     cli_running.focus_name = cli_focus.name
                     cli_running.focus_role = cli_focus.role
+                    cli_running.provider_name = "cli"
+                    cli_running.model_name = (
+                        (profile.model if profile and profile.model else None)
+                        or "cli-managed"
+                    )
+                    cli_running.model_role = (
+                        getattr(cli_focus, "model_role", None)
+                        or (profile.model_role if profile else None)
+                    )
 
                 # Fetch existing comments and memories to kick-start agent context
                 try:
@@ -6114,6 +6386,13 @@ class Orchestrator:
 
         # Write per-task cost telemetry (fire-and-forget, never blocks exit)
         self._fire_task_cost_record(entry)
+
+        # Write per-agent telemetry comment for this run (fire-and-forget,
+        # never blocks exit). One comment per worker run, regardless of
+        # exit reason — multiple runs on the same bead each leave a
+        # separate comment so the bead history shows all attempts
+        # side-by-side. See bead oompah-zlz_2-y3fy.
+        self._fire_telemetry_comment(entry, reason, elapsed)
 
         tokens_str = ""
         if entry.session and entry.session.total_tokens > 0:
@@ -7038,6 +7317,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # Write per-task cost telemetry before dropping the runtime entry
         # (fire-and-forget, never blocks termination)
         self._fire_task_cost_record(entry)
+
+        # Write per-agent telemetry comment for this terminated run too
+        # so the operator sees every attempt — including manual kills —
+        # in `bd comments <id>`. Exit reason is "terminated" to
+        # distinguish from natural exits. See bead oompah-zlz_2-y3fy.
+        self._fire_telemetry_comment(entry, "terminated", elapsed)
 
         self.state.claimed.discard(issue_id)
 

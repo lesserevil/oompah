@@ -1819,6 +1819,10 @@ class TestRateLimitAlertIncludesProviderAndModel:
         orch.state.running["issue-1"] = entry
         orch._post_comment = MagicMock()
         orch._schedule_retry = MagicMock()
+        # _on_worker_exit also fires a per-agent telemetry comment
+        # (oompah-zlz_2-y3fy). Stub it out so the rate-limit assertion
+        # below sees only the rate-limit message.
+        orch._fire_telemetry_comment = MagicMock()
 
         asyncio.run(orch._on_worker_exit("issue-1", "rate_limited", None))
 
