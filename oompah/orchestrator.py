@@ -3311,6 +3311,18 @@ class Orchestrator:
                         existing_sibling.identifier, issue.identifier,
                     )
                     return
+                # Third idempotency signal: if the parent epic is already
+                # labeled ci-fix (e.g., a human operator or是一场 legacy
+                # YOLO cycle marked it before this fix shipped), treat it as
+                # "a fix was already tried" — don't stack a second sibling
+                # on top of an unacted-on label.
+                if "ci-fix" in issue.labels:
+                    logger.debug(
+                        "YOLO: parent %s already labeled ci-fix "
+                        "(prior attempt) — skipping sibling",
+                        issue.identifier,
+                    )
+                    return
                 sibling_title = (
                     f"CI fix: PR #{review.id} on branch {source_branch}"
                 )

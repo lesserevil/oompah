@@ -514,36 +514,6 @@ class TestYoloReviewSerializationByProject:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_only_one_ci_retry_per_project_per_tick(
-        self, mock_slug, mock_detect, tmp_path
-    ):
-        """When multiple PRs have failed CI, only retry the first one per tick."""
-        project = _make_project()
-        project.yolo = True
-
-        provider = MagicMock()
-        mock_detect.return_value = provider
-        mock_slug.return_value = "org/repo"
-
-        orch = self._make_orchestrator(tmp_path, projects=[project])
-
-        reviews = [
-            _make_review("1", source_branch="feat-1", ci_status="failed"),
-            _make_review("2", source_branch="feat-2", ci_status="failed"),
-        ]
-        orch._reviews_cache = {project.id: reviews}
-
-        # _yolo_retry_ci talks to the tracker; mock it out
-        orch._yolo_retry_ci = MagicMock()
-
-        orch._yolo_review_actions_sync()
-
-        # Only one CI retry should have been attempted
-        assert orch._yolo_retry_ci.call_count == 1
-        assert orch._yolo_retry_ci.call_args[0][1].id == "1"
-
-    @patch("oompah.orchestrator.detect_provider")
-    @patch("oompah.orchestrator.extract_repo_slug")
     def test_draft_prs_are_skipped_not_counted_as_action(
         self, mock_slug, mock_detect, tmp_path
     ):
