@@ -1525,6 +1525,37 @@ async def api_delete_agent_profile(name: str):
 ROLE_MATRIX_KEYS: tuple[str, ...] = ("fast", "standard", "deep", "default")
 
 
+def _reload_orchestrator_config_after_profile_change() -> None:
+    """Trigger an orchestrator reload so updated profiles take effect.
+
+    Best-effort: when the orchestrator is not yet wired (early boot,
+    test contexts), this is a no-op. When a workflow reload itself
+    fails, we log a warning but keep the JSON store change persisted —
+    the operator can recover by fixing WORKFLOW.md or rolling back.
+    """
+    if _orchestrator is None:
+        return
+    try:
+        from oompah.config import (
+            ServiceConfig, WorkflowError, load_workflow,
+            validate_dispatch_config,
+        )
+        wf = load_workflow(_orchestrator.workflow_path)
+        new_config = ServiceConfig.from_workflow(wf)
+        errs = validate_dispatch_config(new_config)
+        if errs:
+            logger.warning(
+                "agent profile reload: workflow validation failed: %s",
+                "; ".join(errs),
+            )
+            return
+        _orchestrator.reload_config(new_config, wf.prompt_template)
+    except WorkflowError as exc:
+        logger.warning("agent profile reload: workflow load failed: %s", exc)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("agent profile reload failed: %s", exc)
+
+
 def _resolve_role_matrix_status(
     profile: AgentProfile | None,
     provider_store: ProviderStore,

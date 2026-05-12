@@ -910,7 +910,7 @@ function renderProviders() {
       ${urlLine}
       ${keyLine}
       ${providerMode === 'acp' && p.acp_permission_mode ? `<div class="provider-detail">Permission mode: <code>${esc(p.acp_permission_mode)}</code></div>` : ''}
-      ${providerMode === 'acp' && p.acp_subscription_only ? `<div class="provider-detail">Billing: <code>subscription-only</code></div>` : ''}
+      ${providerMode === 'acp' ? `<div class="provider-detail">Billing: <code>${esc(p.billing_model || 'subscription')}</code></div>` : ''}
       ${p.models && p.models.length > 0 ? `
         <div class="provider-models">
           ${p.models.map(m => `
@@ -1472,16 +1472,7 @@ async function submitProvider() {
     provider_type: providerType,
     models: [...dialogModels],
     default_model: document.getElementById('prov-default-model').value.trim() || undefined,
-    // ACP backend selector (oompah-zlz_2-0hzh). Sent as null when the
-    // operator picked the registry default; the server normalises an
-    // empty string to None so the default-to-claude resolution stays
-    // intact for legacy providers.
-    backend: document.getElementById('prov-backend').value || null,
     mode,
-    // ACP billing model (oompah-zlz_2-ag7h). Subscription (default)
-    // bypasses the budget gate; per_token participates in it.
-    // Always emitted but only meaningful when mode === 'acp'.
-    billing_model: getSelectedBillingModel(),
   };
 
   if (mode === 'acp') {
@@ -1489,6 +1480,16 @@ async function submitProvider() {
     const subBox = document.getElementById('prov-acp-subscription-only');
     body.acp_permission_mode = permSel ? permSel.value : 'default';
     body.acp_subscription_only = !!(subBox && subBox.checked);
+    // ACP backend selector (oompah-zlz_2-0hzh). Sent as null when the
+    // operator picked the registry default; the server normalises an
+    // empty string to None so the default-to-claude resolution stays
+    // intact for legacy providers.
+    const backendEl = document.getElementById('prov-backend');
+    body.backend = (backendEl && backendEl.value) ? backendEl.value : null;
+    // ACP billing model (oompah-zlz_2-ag7h). Subscription (default)
+    // bypasses the budget gate; per_token participates in it.
+    // Supersedes the earlier acp_subscription_only checkbox.
+    body.billing_model = getSelectedBillingModel();
   }
 
   const apiKey = document.getElementById('prov-key').value.trim();
