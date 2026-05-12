@@ -216,6 +216,27 @@ class TestRoleStoreValidation:
         with pytest.raises(RoleError, match="not in provider"):
             store.set("fast", prov.id, "gpt-4o")
 
+    def test_validate_acp_provider_empty_catalog_empty_model_ok(self, tmp_path):
+        """ACP-mode + empty catalog: empty model is accepted (SDK-managed)."""
+        path = str(tmp_path / "roles.json")
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="claude-sdk", base_url="", mode="acp")
+        store = RoleStore(path=path, provider_store=prov_store)
+        prov = prov_store.get_default()
+        r = store.set("fast", prov.id, "")
+        assert r.name == "fast"
+        assert r.model == ""
+
+    def test_validate_api_provider_empty_model_rejected(self, tmp_path):
+        """Non-ACP provider still requires a non-empty model."""
+        path = str(tmp_path / "roles.json")
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="api-test", base_url="http://x", mode="api", models=["m1"])
+        store = RoleStore(path=path, provider_store=prov_store)
+        prov = prov_store.get_default()
+        with pytest.raises(RoleError, match="model must be non-empty"):
+            store.set("fast", prov.id, "")
+
 
 # ---------------------------------------------------------------------------
 # Reload callback

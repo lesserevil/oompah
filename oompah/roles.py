@@ -302,24 +302,30 @@ class RoleStore:
             raise RoleError("provider_id must be non-empty")
 
         model = (model or "").strip()
-        if not model:
-            raise RoleError("model must be non-empty")
-
-        if self._provider_store is None:
-            return
-
-        provider = self._provider_store.get(provider_id)
-        if provider is None:
+        # Provider lookup runs first so we can decide whether model is
+        # required based on provider mode + catalog.
+        provider = (
+            self._provider_store.get(provider_id)
+            if self._provider_store is not None
+            else None
+        )
+        if self._provider_store is not None and provider is None:
             raise RoleError(
                 f"provider_id {provider_id!r} does not exist in ProviderStore"
             )
 
-        # ACP-mode providers manage their own model catalog through the
-        # SDK and do not necessarily list every model under
-        # provider.models. When the catalog is empty for an ACP
-        # provider, accept any model name.
-        is_acp = getattr(provider, "mode", "api") == "acp"
-        catalog = list(provider.models or [])
+        # ACP-mode providers with an empty catalog manage model
+        # selection through the SDK (e.g. Claude SDK uses the operator's
+        # subscription tier). For those, model is optional.
+        is_acp = (
+            provider is not None
+            and getattr(provider, "mode", "api") == "acp"
+        )
+        catalog = list((provider.models if provider else None) or [])
+        if not model:
+            if not (is_acp and not catalog):
+                raise RoleError("model must be non-empty")
+            return
         if catalog and model not in catalog:
             raise RoleError(
                 f"model {model!r} not in provider {provider.name!r}'s catalog "
@@ -335,33 +341,55 @@ class RoleStore:
 def migrate_agent_profiles_to_roles(
     role_store: "RoleStore",
     profiles: list["AgentProfile"],
+    provider_store: Any = None,
 ) -> int:
-    """Migrate agent profiles with provider_id+model into RoleStore.
+    """Migrate agent profiles into RoleStore, inferring the model when needed.
 
-    For each profile that has ``provider_id`` and ``model`` and
-    ``model_role``, write into ``role_store[profile.model_role]``
-    if that slot is empty (first-write wins for duplicates).
+    For each profile that has ``provider_id`` and ``model_role``, write
+    into ``role_store[profile.model_role]`` if that slot is empty.
+    Model resolution order (first non-empty wins):
 
-    Returns the number of roles migrated.
+      1. ``profile.model`` (explicit override on the profile)
+      2. ``provider.model_roles[profile.model_role]`` (pre-xau7 per-provider role map)
+      3. ``provider.default_model``
+
+    Roles that can't be resolved to a (provider, model) pair are
+    skipped with a debug log. Returns the number of roles migrated.
+
+    ``provider_store`` is optional for back-compat with callers that
+    don't have one in scope; when None, only profile.model is used.
     """
-    from oompah.models import AgentProfile as _AP  # local to avoid circular
-
     migrated = 0
     for profile in profiles:
-        if not profile.provider_id or not profile.model or not profile.model_role:
+        if not profile.provider_id or not profile.model_role:
             continue
         if role_store.get(profile.model_role) is not None:
             continue
+
+        # Resolve the model: profile.model > provider.model_roles[role] > provider.default_model
+        model = profile.model
+        if not model and provider_store is not None:
+            provider = provider_store.get(profile.provider_id)
+            if provider is not None:
+                model_roles = getattr(provider, "model_roles", None) or {}
+                model = model_roles.get(profile.model_role) or getattr(provider, "default_model", None)
+        if not model:
+            logger.debug(
+                "Migration skipped role %r from profile %r: no model resolvable",
+                profile.model_role, profile.name,
+            )
+            continue
+
         try:
             role_store.set(
                 name=profile.model_role,
                 provider_id=profile.provider_id,
-                model=profile.model,
+                model=model,
             )
             migrated += 1
             logger.info(
                 "Migrated role %r from profile %r (provider=%s, model=%s)",
-                profile.model_role, profile.name, profile.provider_id, profile.model,
+                profile.model_role, profile.name, profile.provider_id, model,
             )
         except RoleError as exc:
             logger.warning(

@@ -486,6 +486,41 @@ class TestPutRoleMatrixAtomicity:
         r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
         assert r.status_code == 200, r.text
 
+    def test_acp_provider_with_no_catalog_accepts_empty_model(self, matrix_client):
+        """ACP + empty catalog also accepts an empty/missing model
+        (SDK-managed model selection)."""
+        client = matrix_client["client"]
+        p_api = matrix_client["p_api"]
+        provider_store = matrix_client["provider_store"]
+        provider_store.update(matrix_client["p_acp"].id, models=[])
+        p_acp_id = matrix_client["p_acp"].id
+
+        body = {
+            "fast": {"provider_id": p_acp_id, "model": ""},
+            "standard": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+            "deep": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+            "default": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+        }
+        r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
+        assert r.status_code == 200, r.text
+        rows = {row["role"]: row for row in r.json()["rows"]}
+        assert rows["fast"]["status"] == "resolved"
+
+    def test_api_provider_rejects_empty_model(self, matrix_client):
+        """Non-ACP provider still requires a model even after the
+        ACP empty-catalog exemption lands."""
+        client = matrix_client["client"]
+        p_api = matrix_client["p_api"]
+        body = {
+            "fast": {"provider_id": p_api.id, "model": ""},
+            "standard": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+            "deep": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+            "default": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+        }
+        r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
+        assert r.status_code == 400
+        assert "model is required" in r.json()["error"]["message"]
+
 
 # ----------------------------------------------------------------------
 # UI smoke: providers.html renders the matrix scaffolding
