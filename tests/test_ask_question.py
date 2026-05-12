@@ -297,11 +297,21 @@ class TestOrchestratorAskQuestionExit:
             orch._on_worker_exit(issue_id, "ask_question", "What database should I use?")
         )
 
-        # Verify: comment was posted with the question
-        mock_tracker.add_comment.assert_called_once()
-        comment_args = mock_tracker.add_comment.call_args
-        assert issue.identifier in comment_args[0]
-        assert "What database should I use?" in comment_args[0][1]
+        # Verify: comment was posted with the question.
+        # _on_worker_exit also fires a per-agent telemetry comment
+        # (oompah-zlz_2-y3fy), so look up the question comment by
+        # text rather than asserting call count.
+        assert mock_tracker.add_comment.called
+        comment_texts = [
+            c.args[1] for c in mock_tracker.add_comment.call_args_list
+        ]
+        assert any(
+            "What database should I use?" in t for t in comment_texts
+        ), f"Question comment not found in calls: {comment_texts!r}"
+        assert all(
+            c.args[0] == issue.identifier
+            for c in mock_tracker.add_comment.call_args_list
+        )
 
         # Verify: issue was moved to open with label added atomically
         mock_tracker.update_issue.assert_called_once_with(

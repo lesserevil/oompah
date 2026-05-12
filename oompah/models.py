@@ -772,6 +772,26 @@ class RunningEntry:
     # None means either the flag was off, or the issue was already on its
     # natural profile (retry path).
     natural_profile_name: str | None = None
+    # Absolute path of the per-dispatch JSONL log this worker is
+    # writing (api_agent / acp_agent / cli). Set by each worker when
+    # the log file is opened so the per-agent telemetry comment
+    # written at _on_worker_exit can reference it. None for legacy /
+    # mid-startup state where the log path has not yet been resolved.
+    # See bead oompah-zlz_2-y3fy.
+    agent_log_path: str | None = None
+    # Model role resolved for this dispatch (e.g. "fast", "deep").
+    # Captured at worker startup so the telemetry comment can show
+    # role + resolved (provider, model) without re-resolving at exit
+    # time (the focus / role may have changed mid-run).
+    model_role: str | None = None
+    # Provider name resolved for this dispatch (informational, shown
+    # in the telemetry comment). None means "no provider resolved"
+    # (legacy CLI path / startup failures).
+    provider_name: str | None = None
+    # Model id resolved for this dispatch (informational, shown in
+    # the telemetry comment). May be "unknown" for ACP runs using
+    # the subscription default.
+    model_name: str | None = None
 
 
 @dataclass

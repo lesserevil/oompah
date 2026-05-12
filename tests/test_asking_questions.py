@@ -470,9 +470,11 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         finally:
             loop.close()
 
-        mock_tracker.add_comment.assert_called_once()
-        comment_text = mock_tracker.add_comment.call_args[0][1]
-        assert question in comment_text
+        # _on_worker_exit also fires a per-agent telemetry comment
+        # (oompah-zlz_2-y3fy), so locate the question comment by text.
+        assert mock_tracker.add_comment.called
+        texts = [c.args[1] for c in mock_tracker.add_comment.call_args_list]
+        assert any(question in t for t in texts)
 
     def test_ask_question_no_error_text_uses_fallback(self, tmp_path):
         """If no question text is provided (None), a fallback message is used."""
@@ -496,10 +498,13 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         finally:
             loop.close()
 
-        # Comment should still be posted with a fallback
-        mock_tracker.add_comment.assert_called_once()
-        comment_text = mock_tracker.add_comment.call_args[0][1]
-        assert len(comment_text) > 0  # Non-empty comment posted
+        # Comment should still be posted with a fallback. With the
+        # telemetry comment also wired in (oompah-zlz_2-y3fy) we check
+        # that at least the fallback "Question from agent" comment
+        # made it through.
+        assert mock_tracker.add_comment.called
+        texts = [c.args[1] for c in mock_tracker.add_comment.call_args_list]
+        assert any("Question from agent" in t for t in texts)
 
     def test_ask_question_tracker_error_does_not_raise(self, tmp_path):
         """If tracker operations fail during ask_question exit, no exception is raised."""
