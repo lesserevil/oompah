@@ -5480,6 +5480,7 @@ class Orchestrator:
                         summary=summary,
                         detail=detail,
                         timestamp=ev.timestamp,
+                        usage=dict(ev.usage) if ev.usage else None,
                     )
                     entry.activity_log.append(activity)
 
