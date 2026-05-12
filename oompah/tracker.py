@@ -145,6 +145,14 @@ class BeadsTracker:
         try:
             raw_list = self._run_bd([
                 "list",
+                # ``--all`` is needed alongside ``--status=`` because
+                # ``bd list --status=open`` (without --all) applies an
+                # additional hooked/worktree-aware filter that hides
+                # issues with an active local worktree under
+                # ``.oompah/worktrees/``. We need the full set of
+                # active issues for dispatch. See oompah-zlz_2-???
+                # for the upstream bd bug (oompah-zlz_2-7q55).
+                "--all",
                 f"--status={status_filter}",
                 "--limit=0",
                 "--json",
