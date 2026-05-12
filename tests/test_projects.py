@@ -44,7 +44,7 @@ from unittest.mock import patch
 
 import pytest
 
-from oompah.projects import _bootstrap_lfs
+from oompah.projects import _bootstrap_lfs, _configure_beads_jsonl_ignore
 
 
 def _make_repo(tmp_path) -> str:
@@ -115,6 +115,327 @@ class TestBootstrapLFS:
 
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
             assert _bootstrap_lfs(repo) is False
+
+
+class TestConfigureBeadsJsonlIgnore:
+    """Tests for ``_configure_beads_jsonl_ignore`` (oompah-zlz_2-mp4v).
+
+    Verifies that the helper:
+    1. Adds ``.beads/*.jsonl`` to ``.gitignore`` (idempotent).
+    2. Untracks any currently-tracked ``.beads/*.jsonl`` via ``git rm --cached``.
+    3. Sets ``bd config set export.git-add false``.
+    """
+
+    def _make_repo_with_beads(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+        beads = repo / ".beads"
+        beads.mkdir()
+        return repo
+
+    def test_returns_false_for_nonexistent_path(self, tmp_path):
+        result = _configure_beads_jsonl_ignore(str(tmp_path / "does-not-exist"))
+        assert result is False
+
+    def test_adds_gitignore_block_when_absent(self, tmp_path):
+        repo = self._make_repo_with_beads(tmp_path)
+        (repo / ".gitignore").write_text("*.log\n")
+
+        def fake_run(args, **kwargs):
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+
+        gi = (repo / ".gitignore").read_text()
+        assert ".beads/*.jsonl" in gi
+        assert "*.log" in gi  # original content preserved
+        assert "oompah-zlz_2-mp4v" in gi  # bears the explanatory comment
+
+    def test_creates_gitignore_when_missing(self, tmp_path):
+        repo = self._make_repo_with_beads(tmp_path)
+        # No .gitignore at all
+        assert not (repo / ".gitignore").exists()
+
+        def fake_run(args, **kwargs):
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+
+        gi = (repo / ".gitignore").read_text()
+        assert ".beads/*.jsonl" in gi
+
+    def test_idempotent_on_repeated_calls(self, tmp_path):
+        repo = self._make_repo_with_beads(tmp_path)
+        (repo / ".gitignore").write_text("# starter\n")
+
+        def fake_run(args, **kwargs):
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+            first = (repo / ".gitignore").read_text()
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+            second = (repo / ".gitignore").read_text()
+
+        # File content unchanged on second call.
+        assert first == second
+        # Exactly one occurrence of the .beads/*.jsonl pattern.
+        assert first.count(".beads/*.jsonl") == 1
+
+    def test_skips_when_pattern_present_without_marker(self, tmp_path):
+        """Operator-added .beads/*.jsonl entry is respected; we don't duplicate."""
+        repo = self._make_repo_with_beads(tmp_path)
+        (repo / ".gitignore").write_text(
+            "# Operator's own ignore\n.beads/*.jsonl\n*.bak\n"
+        )
+
+        def fake_run(args, **kwargs):
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+
+        gi = (repo / ".gitignore").read_text()
+        # Single occurrence — no duplicate appended.
+        assert gi.count(".beads/*.jsonl") == 1
+        # Operator's other entries preserved.
+        assert "*.bak" in gi
+
+    def test_untracks_tracked_jsonl_files(self, tmp_path):
+        repo = self._make_repo_with_beads(tmp_path)
+
+        # Pretend issues.jsonl and interactions.jsonl are tracked.
+        ls_files_output = ".beads/issues.jsonl\n.beads/interactions.jsonl\n"
+        rm_call = []
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "ls-files"]:
+                return subprocess.CompletedProcess(
+                    args, 0, ls_files_output, "",
+                )
+            if args[:3] == ["git", "rm", "--cached"]:
+                rm_call.append(args)
+                return subprocess.CompletedProcess(args, 0, "", "")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _configure_beads_jsonl_ignore(str(repo))
+
+        assert len(rm_call) == 1
+        # Both jsonl files should be in the rm call.
+        rm_paths = rm_call[0]
+        assert ".beads/issues.jsonl" in rm_paths
+        assert ".beads/interactions.jsonl" in rm_paths
+
+    def test_does_not_untrack_backup_subdirectory_files(self, tmp_path):
+        """``.beads/*.jsonl`` should only match top-level, not ``.beads/backup/*.jsonl``."""
+        repo = self._make_repo_with_beads(tmp_path)
+
+        # git ls-files may return recursive matches even when given a
+        # top-level glob; the helper must filter those out.
+        ls_files_output = (
+            ".beads/issues.jsonl\n"
+            ".beads/backup/comments.jsonl\n"
+            ".beads/backup/issues.jsonl\n"
+        )
+        rm_call = []
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "ls-files"]:
+                return subprocess.CompletedProcess(
+                    args, 0, ls_files_output, "",
+                )
+            if args[:3] == ["git", "rm", "--cached"]:
+                rm_call.append(args)
+                return subprocess.CompletedProcess(args, 0, "", "")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _configure_beads_jsonl_ignore(str(repo))
+
+        assert len(rm_call) == 1
+        rm_paths = rm_call[0]
+        assert ".beads/issues.jsonl" in rm_paths
+        # Backup subdirectory entries must NOT be passed to git rm.
+        assert ".beads/backup/comments.jsonl" not in rm_paths
+        assert ".beads/backup/issues.jsonl" not in rm_paths
+
+    def test_no_rm_call_when_nothing_tracked(self, tmp_path):
+        repo = self._make_repo_with_beads(tmp_path)
+
+        rm_call = []
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "ls-files"]:
+                # Empty output → nothing tracked.
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[:3] == ["git", "rm", "--cached"]:
+                rm_call.append(args)
+                return subprocess.CompletedProcess(args, 0, "", "")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _configure_beads_jsonl_ignore(str(repo))
+
+        # Nothing to untrack → no rm call at all.
+        assert rm_call == []
+
+    def test_calls_bd_config_set_export_git_add_false(self, tmp_path):
+        repo = self._make_repo_with_beads(tmp_path)
+
+        bd_calls = []
+
+        def fake_run(args, **kwargs):
+            if args[0] == "bd":
+                bd_calls.append(args)
+                return subprocess.CompletedProcess(args, 0, "", "")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _configure_beads_jsonl_ignore(str(repo))
+
+        # Exactly one bd config set call.
+        assert len(bd_calls) == 1
+        assert bd_calls[0] == [
+            "bd", "config", "set", "export.git-add", "false",
+        ]
+
+    def test_resilient_to_bd_command_missing(self, tmp_path):
+        """If bd isn't on PATH, the helper logs but returns True."""
+        repo = self._make_repo_with_beads(tmp_path)
+
+        def fake_run(args, **kwargs):
+            if args[0] == "bd":
+                raise FileNotFoundError("bd not on PATH")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            # Other sub-steps still succeed; overall function returns True.
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+
+    def test_resilient_to_git_rm_failure(self, tmp_path):
+        repo = self._make_repo_with_beads(tmp_path)
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "ls-files"]:
+                return subprocess.CompletedProcess(
+                    args, 0, ".beads/issues.jsonl\n", "",
+                )
+            if args[:3] == ["git", "rm", "--cached"]:
+                raise subprocess.CalledProcessError(
+                    1, args, output="", stderr="not in index",
+                )
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            # Failure is logged, not raised.  Overall result still True.
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+
+    def test_resilient_to_gitignore_oserror(self, tmp_path):
+        """If we can't read or write .gitignore, log but continue."""
+        repo = self._make_repo_with_beads(tmp_path)
+
+        def fake_open(*args, **kwargs):
+            raise OSError("permission denied")
+
+        # Patch builtin open used by the helper.  We still need
+        # subprocess.run to succeed.
+        def fake_run(args, **kwargs):
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with patch("oompah.projects.open", side_effect=fake_open, create=True), \
+             patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _configure_beads_jsonl_ignore(str(repo)) is True
+
+
+class TestConfigureBeadsJsonlIgnoreCreate:
+    """``ProjectStore.create()`` must call ``_configure_beads_jsonl_ignore``."""
+
+    def test_create_calls_configure_helper(self, tmp_path):
+        from oompah.projects import ProjectStore
+        from unittest.mock import MagicMock
+
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+
+        def fake_run(args, **kwargs):
+            # Simulate git clone by making the repo dir appear with .beads/.
+            if args[:2] == ["git", "clone"]:
+                target = args[-1]
+                os.makedirs(os.path.join(target, ".git"), exist_ok=True)
+                os.makedirs(os.path.join(target, ".beads"), exist_ok=True)
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args == ["git", "config", "--global", "user.name"]:
+                return MagicMock(returncode=0, stdout="Test User\n", stderr="")
+            if args == ["git", "config", "--global", "user.email"]:
+                return MagicMock(returncode=0, stdout="test@example.com\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run), \
+             patch("oompah.projects._bootstrap_lfs", return_value=False), \
+             patch("oompah.projects._install_beads_merge_driver", return_value=True), \
+             patch(
+                 "oompah.projects._configure_beads_jsonl_ignore",
+                 return_value=True,
+             ) as mock_cfg:
+            store.create(
+                repo_url="https://example.com/repo.git",
+                name="testrepo",
+                branch="main",
+            )
+
+        assert mock_cfg.call_count == 1, (
+            "Expected ProjectStore.create() to call "
+            "_configure_beads_jsonl_ignore exactly once"
+        )
+
+
+class TestConfigureBeadsJsonlIgnoreSync:
+    """``sync_project_sources`` must self-heal existing projects."""
+
+    def test_sync_calls_configure_helper(self, tmp_path):
+        store = _store_with_one_project(tmp_path)
+
+        def fake_run(args, **kwargs):
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch.object(_subprocess, "run", side_effect=fake_run), \
+             _patch(
+                 "oompah.projects._configure_beads_jsonl_ignore",
+                 return_value=True,
+             ) as mock_cfg:
+            store.sync_project_sources("proj-sync1")
+
+        assert mock_cfg.call_count == 1, (
+            "Expected sync_project_sources to invoke "
+            "_configure_beads_jsonl_ignore once"
+        )
+
+    def test_sync_does_not_raise_when_configure_helper_errors(self, tmp_path):
+        store = _store_with_one_project(tmp_path)
+
+        def fake_run(args, **kwargs):
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch.object(_subprocess, "run", side_effect=fake_run), \
+             _patch(
+                 "oompah.projects._configure_beads_jsonl_ignore",
+                 side_effect=RuntimeError("boom"),
+             ):
+            # Top-level catches any exception from the helper.
+            status = store.sync_project_sources("proj-sync1")
+
+        # Should still return a status dict — git and beads runs proceed.
+        assert isinstance(status, dict)
+        assert status.get("git") == "ok"
 
 
 class TestProjectLFSAvailableField:

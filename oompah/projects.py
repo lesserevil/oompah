@@ -207,6 +207,130 @@ def _install_beads_merge_driver(repo_path: str) -> bool:
         return False
 
 
+# Marker comment used to detect oompah's managed .beads/*.jsonl gitignore
+# block.  Lets ``_configure_beads_jsonl_ignore`` be idempotent and survive
+# operators who tweak the .gitignore by hand.
+_BEADS_JSONL_GITIGNORE_MARKER = "# beads-jsonl-ignore (managed by oompah)"
+_BEADS_JSONL_GITIGNORE_BLOCK = "\n".join([
+    "",
+    _BEADS_JSONL_GITIGNORE_MARKER,
+    "# Beads JSONL backups — dolt sync (refs/dolt/data) is the source of truth.",
+    "# Tracking these in git creates a redundant second copy that conflicts",
+    "# whenever two PRs touch beads simultaneously. See oompah-zlz_2-mp4v.",
+    ".beads/*.jsonl",
+    "",
+])
+
+
+def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
+    """Configure ``repo_path`` to gitignore ``.beads/*.jsonl`` and disable
+    bd's git-add-on-export.  Idempotent — safe to call on every project
+    create and on every boot self-heal pass.
+
+    Three sub-steps, each best-effort (any failure is logged, never raised):
+
+    1. Ensure ``.beads/*.jsonl`` appears in the repo-root ``.gitignore``.
+       The block is wrapped with a marker comment so we can detect it on
+       subsequent runs without duplicating.
+    2. ``git rm --cached`` any currently-tracked ``.beads/*.jsonl`` files
+       so the gitignore actually takes effect (gitignore alone doesn't
+       untrack files that are already in the index).
+    3. ``bd config set export.git-add false`` so bd's auto-export stops
+       re-staging the JSONL files after a write.
+
+    Rationale: ``bd dolt push/pull`` over ``refs/dolt/data`` is the source
+    of truth for beads state (PR #140's watchdog keeps that in sync).
+    The JSONL files at ``.beads/issues.jsonl`` and ``.beads/interactions.jsonl``
+    are a local backup only — tracking them in git produces merge
+    conflicts whenever two PRs touch beads simultaneously, and the
+    JSONL drifts off-cycle from dolt.  See oompah-zlz_2-mp4v.
+
+    Returns ``True`` on success (or partial success — any sub-step that
+    fails is logged but doesn't abort the others), ``False`` only when
+    the repo path is unusable.
+    """
+    if not os.path.isdir(repo_path):
+        return False
+
+    # -- Step 1: ensure .gitignore contains the .beads/*.jsonl block.
+    gitignore_path = os.path.join(repo_path, ".gitignore")
+    try:
+        try:
+            with open(gitignore_path, "r", encoding="utf-8") as f:
+                current = f.read()
+        except FileNotFoundError:
+            current = ""
+
+        if _BEADS_JSONL_GITIGNORE_MARKER in current or ".beads/*.jsonl" in current:
+            logger.debug(
+                "beads-jsonl gitignore block already present in %s", repo_path,
+            )
+        else:
+            # Append block.  Ensure a leading blank line if the file
+            # doesn't already end with one.
+            suffix = "" if current.endswith("\n\n") or current == "" else (
+                "\n" if current.endswith("\n") else "\n\n"
+            )
+            with open(gitignore_path, "a", encoding="utf-8") as f:
+                f.write(suffix + _BEADS_JSONL_GITIGNORE_BLOCK)
+            logger.info(
+                "Appended .beads/*.jsonl gitignore block to %s", gitignore_path,
+            )
+    except OSError as exc:
+        logger.warning(
+            "Failed to update .gitignore in %s: %s", repo_path, exc,
+        )
+
+    # -- Step 2: git rm --cached any tracked .beads/*.jsonl files.
+    try:
+        r = subprocess.run(
+            ["git", "ls-files", "--", ".beads/*.jsonl"],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=15,
+        )
+        tracked = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
+        # ls-files returns recursive matches; restrict to top-level
+        # .beads/<name>.jsonl (don't touch .beads/backup/*.jsonl — those
+        # are deliberately out of scope per the issue).
+        tracked = [
+            p for p in tracked
+            if p.startswith(".beads/") and "/" not in p[len(".beads/"):]
+        ]
+        if tracked:
+            subprocess.run(
+                ["git", "rm", "--cached", "--quiet", "--", *tracked],
+                cwd=repo_path,
+                capture_output=True, text=True, check=True, timeout=15,
+            )
+            logger.info(
+                "Untracked .beads/*.jsonl files in %s: %s",
+                repo_path, ", ".join(tracked),
+            )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            FileNotFoundError) as exc:
+        logger.warning(
+            "Failed to git rm --cached .beads/*.jsonl in %s: %s", repo_path, exc,
+        )
+
+    # -- Step 3: bd config set export.git-add false (idempotent).
+    try:
+        subprocess.run(
+            ["bd", "config", "set", "export.git-add", "false"],
+            cwd=repo_path,
+            capture_output=True, text=True, check=True, timeout=15,
+        )
+        logger.debug(
+            "Set bd export.git-add=false in %s", repo_path,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            FileNotFoundError) as exc:
+        logger.warning(
+            "Failed to set bd export.git-add=false in %s: %s", repo_path, exc,
+        )
+
+    return True
+
+
 def _bootstrap_lfs(repo_path: str) -> bool:
     """Run `git lfs install --local` in ``repo_path`` and write the
     attachments .gitattributes. Idempotent.
@@ -410,6 +534,12 @@ class ProjectStore:
         # changes to .beads/issues.jsonl resolve automatically.  Idempotent.
         _install_beads_merge_driver(repo_path)
 
+        # Gitignore .beads/*.jsonl + disable bd's git-add-on-export.
+        # Dolt sync (refs/dolt/data) is the source of truth; tracking the
+        # JSONL files causes merge conflicts.  Idempotent.  See
+        # oompah-zlz_2-mp4v.
+        _configure_beads_jsonl_ignore(repo_path)
+
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
             id=project_id,
@@ -607,6 +737,19 @@ class ProjectStore:
                 status["git"] = f"failed: {exc}"
                 logger.warning(
                     "Startup git fetch/pull failed for %s: %s", project.name, exc,
+                )
+
+        # Self-heal: ensure .beads/*.jsonl is gitignored and bd's
+        # export.git-add is disabled (idempotent — fixes pre-existing
+        # projects that predate oompah-zlz_2-mp4v).  Best-effort: logged
+        # but never raises.
+        if project.repo_path and os.path.isdir(project.repo_path):
+            try:
+                _configure_beads_jsonl_ignore(project.repo_path)
+            except Exception as exc:  # pragma: no cover - belt-and-suspenders
+                logger.warning(
+                    "_configure_beads_jsonl_ignore failed for %s: %s",
+                    project.name, exc,
                 )
 
         # bd dolt pull. Skip if there's no .beads/ directory at all.
