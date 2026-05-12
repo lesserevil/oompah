@@ -865,6 +865,18 @@
       user-select: none;
     }
     .activity-toolbar input[type="checkbox"] { margin: 0; cursor: pointer; }
+    /* Activity summary sticky header — live counters */
+    #activity-summary {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      padding: 0.25rem 1rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
     /* Compact (verbose=OFF) message entry — full text inline, no toggle, no pills */
     .activity-entry-compact {
       padding: 0.35rem 0;
@@ -2264,6 +2276,7 @@ function toggleAgentLogVerbose() {
   setAgentLogVerboseLabel();
   // Re-render the panel from the cached entries — no network call.
   renderActivityList(_activityEntries);
+  renderActivitySummary(_activityEntries);
 }
 
 async function openActivityPanel(identifier) {
@@ -2292,6 +2305,98 @@ function closeActivityPanel() {
   if (el) el.classList.remove('open');
   if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
   _activityEntries = [];
+}
+
+// --- Activity summary header (live counters) ---
+// Renders a compact status strip at the top of the activity panel
+// showing Turn, Tools, Tokens, Cost, and Elapsed counters.
+// Called from renderActivityList, handleActivityPush, and toggleAgentLogVerbose.
+function renderActivitySummary(entries) {
+  const summaryEl = document.getElementById('activity-summary');
+  if (!summaryEl) return;
+
+  if (!entries || entries.length === 0) {
+    summaryEl.textContent = 'Waiting for first event...';
+    return;
+  }
+
+  // Turn: highest turn field across all entries
+  let maxTurn = 0;
+  for (let i = 0; i < entries.length; i++) {
+    const t = entries[i].turn || 0;
+    if (t > maxTurn) maxTurn = t;
+  }
+
+  // Tools: count of tool_call kind entries
+  let toolCount = 0;
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].kind === 'tool_call') toolCount++;
+  }
+
+  // Tokens: scan back-to-front for most recent usage with input_tokens/output_tokens
+  let inputTokens = null;
+  let outputTokens = null;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const usage = entries[i].usage;
+    if (usage) {
+      if (inputTokens === null && usage.input_tokens != null) inputTokens = usage.input_tokens;
+      if (outputTokens === null && usage.output_tokens != null) outputTokens = usage.output_tokens;
+      if (inputTokens !== null && outputTokens !== null) break;
+    }
+  }
+
+  // Cost: scan back-to-front for most recent usage.cost_usd
+  let costUsd = null;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const usage = entries[i].usage;
+    if (usage && usage.cost_usd != null) {
+      costUsd = usage.cost_usd;
+      break;
+    }
+  }
+
+  // Elapsed: wall-clock since first event
+  let elapsedStr = '';
+  try {
+    const firstTs = entries[0].ts;
+    if (firstTs) {
+      const startMs = new Date(firstTs).getTime();
+      if (!isNaN(startMs)) {
+        const elapsedMs = Date.now() - startMs;
+        const totalSec = Math.floor(elapsedMs / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0) elapsedStr = h + 'h ' + m + 'm ' + s + 's';
+        else if (m > 0) elapsedStr = m + 'm ' + s + 's';
+        else elapsedStr = s + 's';
+      }
+    }
+  } catch (e) { /* ignore parse errors */ }
+
+  // Format token counts (e.g. 14200 → "14.2K", 3100 → "3.1K")
+  function fmtTokens(n) {
+    if (n == null) return '—';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  // Format cost (e.g. 0.0042 → "$0.0042")
+  function fmtCost(c) {
+    if (c == null) return '—';
+    return '$' + c.toFixed(4);
+  }
+
+  // Build the summary string
+  const parts = [];
+  parts.push('Turn ' + maxTurn);
+  parts.push(toolCount + ' tools');
+  parts.push(fmtTokens(inputTokens) + ' in / ' + fmtTokens(outputTokens) + ' out');
+  parts.push(fmtCost(costUsd));
+  if (elapsedStr) parts.push(elapsedStr);
+
+  summaryEl.textContent = parts.join(' · ');
 }
 
 // Patterns for entries we should hide even if kind='message' — these
@@ -2369,6 +2474,7 @@ function renderActivityList(entries) {
   if (!body) return;
   if (!entries || entries.length === 0) {
     body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No activity yet...</div>';
+    renderActivitySummary(entries);
     return;
   }
   body.innerHTML = '';
@@ -2385,6 +2491,7 @@ function renderActivityList(entries) {
     body.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No messages yet — toggle Verbose ON to see tool calls.</div>';
   }
   body.scrollTop = body.scrollHeight;
+  renderActivitySummary(entries);
 }
 
 function handleActivityPush(identifier, entry) {
@@ -2400,6 +2507,8 @@ function handleActivityPush(identifier, entry) {
   if (!node) {
     // Entry is filtered out under the current Verbose state — keep it
     // in the cache; it will appear if the operator toggles Verbose ON.
+    // Still update the summary counters so the operator sees activity.
+    renderActivitySummary(_activityEntries);
     return;
   }
   // If the body still has a placeholder (no real entries yet), clear it
@@ -2409,6 +2518,7 @@ function handleActivityPush(identifier, entry) {
   }
   body.appendChild(node);
   body.scrollTop = body.scrollHeight;
+  renderActivitySummary(_activityEntries);
 }
 
 async function refreshActivity(identifier) {
@@ -2418,6 +2528,7 @@ async function refreshActivity(identifier) {
     const entries = data.activity || [];
     _activityEntries = entries;
     renderActivityList(entries);
+    renderActivitySummary(entries);
   } catch(e) {}
 }
 
@@ -2939,6 +3050,7 @@ connectWebSocket();
         <span id="activity-verbose-label">Verbose: ON</span>
       </label>
     </div>
+    <div id="activity-summary"></div>
     <div class="activity-body" id="activity-body">
       <div style="color: var(--text-muted); text-align: center; padding: 2rem;">Loading...</div>
     </div>
