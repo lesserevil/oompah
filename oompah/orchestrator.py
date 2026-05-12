@@ -39,6 +39,7 @@ from oompah.focus import (
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
+from oompah.roles import RoleStore
 from oompah.scm import detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
@@ -224,6 +225,7 @@ class Orchestrator:
                  provider_store: ProviderStore | None = None,
                  project_store: ProjectStore | None = None,
                  agent_profile_store: AgentProfileStore | None = None,
+                 role_store: RoleStore | None = None,
                  state_path: str | None = None):
         self.config = config
         self.workflow_path = workflow_path
@@ -236,6 +238,13 @@ class Orchestrator:
         # CRUD writes go through this store and trigger reload_config()
         # on the orchestrator (oompah-zlz_2-xaj).
         self.agent_profile_store = agent_profile_store or AgentProfileStore()
+        # Role store: owns ``.oompah/roles.json``. Maps role_name →
+        # (provider_id, model). When populated, takes priority over
+        # the legacy profile.provider_id/profile.model resolution path
+        # (see _resolve_provider / _resolve_model). See epic xau7.
+        self.role_store = role_store or RoleStore(
+            provider_store=self.provider_store,
+        )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self.state = OrchestratorState(
             poll_interval_ms=config.poll_interval_ms,
@@ -3814,13 +3823,36 @@ class Orchestrator:
                 out.append(s)
         return out or ["text"]
 
-    def _resolve_provider(self, profile: AgentProfile, focus=None):
-        """Resolve the provider for a profile, falling back to the default.
+    def _resolve_role(self, role_name: str | None):
+        """Look up a role in RoleStore and return (provider, model).
 
-        If ``focus.provider_id`` is set and refers to a known provider, it
-        wins over the profile's ``provider_id``. A focus that points at a
-        missing provider falls back to the profile/default with a warning,
-        rather than failing dispatch.
+        Returns ``(None, None)`` when ``role_name`` is empty, the role
+        isn't in RoleStore, or the role's ``provider_id`` no longer
+        points to an existing provider. Callers fall back to legacy
+        profile-level resolution in that case.
+
+        Primary resolution path for the role/profile decoupling — see
+        epic oompah-zlz_2-xau7.
+        """
+        if not role_name:
+            return (None, None)
+        role = self.role_store.get(role_name)
+        if role is None:
+            return (None, None)
+        provider = self.provider_store.get(role.provider_id)
+        if provider is None:
+            return (None, None)
+        return (provider, role.model)
+
+    def _resolve_provider(self, profile: AgentProfile, focus=None):
+        """Resolve the provider for a profile.
+
+        Priority:
+        1. focus.provider_id (explicit operator override)
+        2. focus.model_role → RoleStore
+        3. profile.model_role → RoleStore
+        4. profile.provider_id (legacy)
+        5. provider_store.get_default()
         """
         if focus is not None and getattr(focus, "provider_id", None):
             p = self.provider_store.get(focus.provider_id)
@@ -3830,6 +3862,14 @@ class Orchestrator:
                 "Focus %r references unknown provider_id=%r; falling back to profile/default",
                 focus.name, focus.provider_id,
             )
+        # Role-based resolution (epic xau7). focus's role wins over profile's role.
+        focus_role = getattr(focus, "model_role", None) if focus is not None else None
+        for candidate_role in (focus_role, profile.model_role):
+            p, _ = self._resolve_role(candidate_role)
+            if p is not None:
+                return p
+        # Legacy fallback: profile.provider_id (kept for back-compat until
+        # the migration soaks).
         if profile.provider_id:
             return self.provider_store.get(profile.provider_id)
         return self.provider_store.get_default()
@@ -3837,35 +3877,48 @@ class Orchestrator:
     def _resolve_model(self, profile: AgentProfile, provider, focus=None) -> str | None:
         """Resolve the model name.
 
-        Priority: focus.model > focus.model_role(provider) > profile.model >
-        profile.model_role(provider) > provider.default_model > first model.
-
-        If both ``focus.model`` and ``focus.model_role`` are set, ``model``
-        wins (a warning is emitted at load time / via validation). When a
-        focus's ``model_role`` is missing on the provider, fall back to the
-        profile-level resolution rather than failing dispatch.
+        Priority:
+        1. focus.model (explicit operator override)
+        2. focus.model_role → RoleStore (epic xau7)
+        3. focus.model_role → provider.model_roles (legacy)
+        4. profile.model (legacy explicit)
+        5. profile.model_role → RoleStore (epic xau7)
+        6. profile.model_role → provider.model_roles (legacy)
+        7. provider.default_model
+        8. provider.models[0]
         """
         # Focus-level overrides first.
         if focus is not None:
             if getattr(focus, "model", None):
                 return focus.model
             role = getattr(focus, "model_role", None)
-            if role and provider.model_roles:
-                m = provider.model_roles.get(role)
+            if role:
+                # RoleStore wins over provider.model_roles for the same role name.
+                _, m = self._resolve_role(role)
                 if m:
                     return m
-                logger.warning(
-                    "Focus %r model_role=%r not defined on provider %s; falling back to profile",
-                    focus.name, role, provider.name,
-                )
+                if provider.model_roles:
+                    m = provider.model_roles.get(role)
+                    if m:
+                        return m
+                    logger.warning(
+                        "Focus %r model_role=%r not defined in RoleStore "
+                        "or on provider %s; falling back to profile",
+                        focus.name, role, provider.name,
+                    )
 
-        # Profile-level resolution (existing behaviour).
-        model = None
-        if profile.model_role and provider.model_roles:
-            model = provider.model_roles.get(profile.model_role)
-        if not model:
-            model = profile.model or provider.default_model or (provider.models[0] if provider.models else None)
-        return model
+        # Profile-level resolution. profile.model_role wins over
+        # profile.model when both are set (preserves the legacy
+        # behaviour from before epic xau7).
+        if profile.model_role:
+            _, m = self._resolve_role(profile.model_role)
+            if m:
+                return m
+            if provider.model_roles:
+                m = provider.model_roles.get(profile.model_role)
+                if m:
+                    return m
+        return profile.model or provider.default_model or (provider.models[0] if provider.models else None)
 
     def _describe_rate_limit_context(
         self,
