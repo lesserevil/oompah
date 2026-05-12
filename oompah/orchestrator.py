@@ -3311,6 +3311,18 @@ class Orchestrator:
                         existing_sibling.identifier, issue.identifier,
                     )
                     return
+                # Third idempotency signal: if the parent epic is already
+                # labeled ci-fix (e.g., a human operator or是一场 legacy
+                # YOLO cycle marked it before this fix shipped), treat it as
+                # "a fix was already tried" — don't stack a second sibling
+                # on top of an unacted-on label.
+                if "ci-fix" in issue.labels:
+                    logger.debug(
+                        "YOLO: parent %s already labeled ci-fix "
+                        "(prior attempt) — skipping sibling",
+                        issue.identifier,
+                    )
+                    return
                 sibling_title = (
                     f"CI fix: PR #{review.id} on branch {source_branch}"
                 )
@@ -3350,6 +3362,44 @@ class Orchestrator:
             state_lower = issue.state.strip().lower()
             if state_lower in ("open", "in_progress") and "ci-fix" in issue.labels:
                 return
+            # If the matched bead is an epic with children, the dispatcher will
+            # never dispatch it (epics-with-children are gated out of both
+            # regular dispatch and epic-planner dispatch). Relabeling such an
+            # epic as ci-fix would silently strand the work forever. File a
+            # sibling task bead under the epic instead so an agent actually
+            # gets dispatched against the CI failure. See oompah-zlz_2-p4y.
+            if issue.issue_type == "epic":
+                children = self._fetch_epic_children(issue)
+                if children:
+                    sibling_title = (
+                        f"CI fix: PR #{review.id} on branch {source_branch}"
+                    )
+                    sibling_description = (
+                        f"YOLO: CI tests failed on MR #{review.id} "
+                        f"(branch {source_branch}). The branch's primary "
+                        f"bead {issue.identifier} is an epic with "
+                        f"{len(children)} children and won't be dispatched. "
+                        "This sibling bead carries the actual fix work.\n\n"
+                        "Fix the failing tests so this MR can merge. "
+                        "Do NOT rewrite the feature — only fix test failures. "
+                        "IMPORTANT: Paths in CI logs are not trustworthy. "
+                        "Run tests locally to get accurate paths and errors."
+                    )
+                    sibling = tracker.create_issue(
+                        title=sibling_title,
+                        issue_type="task",
+                        description=sibling_description,
+                        priority=0,
+                        labels=["ci-fix"],
+                        parent=issue.identifier,
+                        initial_status="open",
+                    )
+                    logger.info(
+                        "YOLO: filed sibling ci-fix bead %s under epic %s "
+                        "for MR #%s",
+                        sibling.identifier, issue.identifier, review.id,
+                    )
+                    return
             tracker.update_issue(
                 issue.identifier,
                 status="open", priority="0",
