@@ -2280,6 +2280,16 @@ function toggleAgentLogVerbose() {
 }
 
 async function openActivityPanel(identifier) {
+  // Cancel any prior agent's poll loop AND wipe state immediately so
+  // we don't render leftover entries from the previously-viewed agent
+  // while the new fetch is in flight.
+  if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
+  _activityEntries = [];
+  const bodyEl = document.getElementById('activity-body');
+  if (bodyEl) bodyEl.innerHTML = '';
+  const summaryEl = document.getElementById('activity-summary');
+  if (summaryEl) summaryEl.textContent = 'Loading...';
+
   const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
   let title = 'Agent: ' + identifier;
   if (agent) {
@@ -2525,6 +2535,11 @@ async function refreshActivity(identifier) {
   try {
     const res = await fetch('/api/v1/agents/' + encodeURIComponent(identifier) + '/activity');
     const data = await res.json();
+    // Discard the response if the operator switched to another agent
+    // while the fetch was in flight — otherwise we'd render this
+    // agent's entries under the new agent's title.
+    const titleEl = document.getElementById('activity-title');
+    if (!titleEl || titleEl.dataset.identifier !== identifier) return;
     const entries = data.activity || [];
     _activityEntries = entries;
     renderActivityList(entries);
