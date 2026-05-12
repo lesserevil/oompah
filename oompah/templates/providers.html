@@ -220,23 +220,32 @@
       margin-top: 0.4rem;
     }
     /* Radio group for billing_model (oompah-zlz_2-ag7h) and
-       similar bool/enum selectors. Two stacked radio rows. */
-    .radio-group {
+       similar bool/enum selectors. Two stacked radio rows.
+       Specificity bumped via .dialog prefix so the dialog's global
+       label/input rules don't clobber the flex/sizing. */
+    .dialog .radio-group {
       display: flex;
       flex-direction: column;
       gap: 0.3rem;
       margin-bottom: 0.4rem;
     }
-    .radio-option {
+    .dialog label.radio-option {
       display: flex;
       align-items: center;
       gap: 0.5rem;
       font-size: 0.8rem;
+      font-weight: normal;
+      color: var(--text);
       cursor: pointer;
-      padding: 0.3rem 0;
+      padding: 0.2rem 0;
+      margin: 0;
     }
-    .radio-option input[type="radio"] {
+    .dialog .radio-option input[type="radio"] {
+      width: auto;
+      padding: 0;
+      margin: 0;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     /* Role-assignment matrix (oompah-zlz_2-6xc) */
