@@ -2963,10 +2963,29 @@ function renderCardAttachments(issue) {
   return html;
 }
 
+// Per-identifier cache of rich attachment records keyed by the path-list
+// signature. The WebSocket already pushes issue.attachments (path list)
+// on every issues broadcast; if that list matches what we last fetched
+// rich records for, skip the network round-trip and re-render from cache.
+const _attachmentCache = {}; // { identifier: {sig, records} }
+
 async function loadIssueAttachments(identifier) {
   const root = document.getElementById('detail-attachments-' + identifier);
   if (!root) return;
   const body = root.querySelector('.detail-attachments-body');
+
+  // Compute a signature from the WS-driven path list. If unchanged
+  // since the last fetch, render from cache.
+  const issue = allIssuesFlat.find(i => i.identifier === identifier);
+  const paths = (issue && Array.isArray(issue.attachments)) ? issue.attachments : [];
+  const sig = paths.slice().sort().join('|');
+  const cached = _attachmentCache[identifier];
+  if (cached && cached.sig === sig) {
+    _renderAttachmentBody(body, cached.records);
+    _wireAttachmentDropZone(root, identifier);
+    return;
+  }
+
   try {
     const res = await fetch('/api/v1/issues/' + encodeURIComponent(identifier) + '/attachments');
     if (!res.ok) {
@@ -2974,19 +2993,24 @@ async function loadIssueAttachments(identifier) {
       return;
     }
     const records = await res.json();
-    if (!records.length) {
-      body.textContent = '(none yet)';
-    } else {
-      const inputs = records.filter(r => !r.generated);
-      const outputs = records.filter(r => r.generated);
-      body.innerHTML =
-        (inputs.length ? '<div class="attachment-section-title">Inputs</div>' + inputs.map(_renderAttachmentRow).join('') : '') +
-        (outputs.length ? '<div class="attachment-section-title">Outputs</div>' + outputs.map(_renderAttachmentRow).join('') : '');
-    }
+    _attachmentCache[identifier] = {sig, records};
+    _renderAttachmentBody(body, records);
   } catch (e) {
     body.textContent = 'Failed to load attachments';
   }
   _wireAttachmentDropZone(root, identifier);
+}
+
+function _renderAttachmentBody(body, records) {
+  if (!records || !records.length) {
+    body.textContent = '(none yet)';
+    return;
+  }
+  const inputs = records.filter(r => !r.generated);
+  const outputs = records.filter(r => r.generated);
+  body.innerHTML =
+    (inputs.length ? '<div class="attachment-section-title">Inputs</div>' + inputs.map(_renderAttachmentRow).join('') : '') +
+    (outputs.length ? '<div class="attachment-section-title">Outputs</div>' + outputs.map(_renderAttachmentRow).join('') : '');
 }
 
 function _renderAttachmentRow(rec) {
@@ -3039,6 +3063,9 @@ function _wireAttachmentDropZone(root, identifier) {
         alert(`Upload failed for ${file.name}: ${err.message || err}`);
       }
     }
+    // Local-action mutation: bust the cache before re-fetching so the
+    // new file shows up even though the WS state hasn't propagated yet.
+    delete _attachmentCache[identifier];
     loadIssueAttachments(identifier);
   });
   // Wire up delete buttons.
@@ -3048,7 +3075,10 @@ function _wireAttachmentDropZone(root, identifier) {
       const force = btn.getAttribute('data-force') || '';
       if (!confirm(`Remove ${path.split('/').pop()}?`)) return;
       const r = await fetch('/api/v1/attachments/' + encodeURI(path) + force, { method: 'DELETE' });
-      if (r.ok) loadIssueAttachments(identifier);
+      if (r.ok) {
+        delete _attachmentCache[identifier];
+        loadIssueAttachments(identifier);
+      }
       else alert('Delete failed: ' + r.status);
     });
   });
