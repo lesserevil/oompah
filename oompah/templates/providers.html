@@ -239,6 +239,104 @@
       cursor: pointer;
     }
 
+    /* Role-assignment matrix (oompah-zlz_2-6xc) */
+    .role-matrix {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .role-matrix th, .role-matrix td {
+      text-align: left;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .role-matrix th {
+      background: var(--bg);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .role-matrix tbody tr:last-child td { border-bottom: none; }
+    .role-matrix .role-name {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .role-matrix select {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.35rem 0.45rem;
+      font-size: 0.8rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .role-matrix select:focus { border-color: var(--accent); }
+    .role-matrix select:disabled { opacity: 0.55; }
+    .role-matrix .matrix-mode {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    /* Billing column (oompah-zlz_2-yqss). Surfaces backend + billing
+       model + per-token rate (when applicable) per role so the
+       operator can see at a glance which roles meter against the
+       budget and which fly on the flat-rate subscription. */
+    .role-matrix .matrix-billing {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      line-height: 1.35;
+    }
+    .role-matrix .billing-backend {
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .role-matrix .billing-model-tag {
+      display: inline-block;
+      padding: 0.05rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      margin-left: 0.25rem;
+      vertical-align: 1px;
+    }
+    .role-matrix .billing-subscription {
+      background: rgba(80, 200, 120, 0.15);
+      color: var(--green);
+    }
+    .role-matrix .billing-per-token {
+      background: rgba(255, 200, 80, 0.18);
+      color: var(--yellow);
+    }
+    .role-matrix .billing-api {
+      background: rgba(120, 160, 230, 0.18);
+      color: var(--accent);
+    }
+    .role-matrix .billing-rate {
+      display: block;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    .role-matrix .billing-rate-missing {
+      color: var(--yellow);
+    }
+    .role-matrix .matrix-status {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.75rem;
+    }
+    .role-matrix .status-resolved { color: var(--green); }
+    .role-matrix .status-warn { color: var(--yellow); }
+    .role-matrix .status-error { color: var(--red); }
+
     /* Form dialog */
     .dialog-overlay {
       display: none;
@@ -360,7 +458,22 @@
     </div>
   </div>
   <div class="content">
+    <!-- Role assignments matrix (oompah-zlz_2-6xc).
+         Maps the four standard role names (fast/standard/deep/default)
+         to (provider, model) pairs in one screen. Rows are populated
+         from the AgentProfileStore + ProviderStore on page load and
+         persisted via PUT /api/v1/agent-profiles/role-matrix. -->
     <h2>
+      Role Assignments
+      <button class="btn-primary" id="role-matrix-save" onclick="saveRoleMatrix()" disabled>
+        Save assignments
+      </button>
+    </h2>
+    <div id="role-matrix-container">
+      <div class="empty-state">Loading…</div>
+    </div>
+
+    <h2 class="section-spacer">
       Model Providers
       <button class="btn-primary" onclick="openProviderDialog()">+ Add Provider</button>
     </h2>
@@ -387,6 +500,7 @@ async function loadProviders() {
   providers = await res.json();
   renderProviders();
   renderProfiles();
+  renderRoleMatrix();
 }
 
 async function loadAgentProfiles() {
@@ -395,6 +509,7 @@ async function loadAgentProfiles() {
     if (!res.ok) {
       agentProfiles = [];
       renderProfiles();
+      renderRoleMatrix();
       return;
     }
     agentProfiles = await res.json();
@@ -402,6 +517,361 @@ async function loadAgentProfiles() {
     agentProfiles = [];
   }
   renderProfiles();
+  renderRoleMatrix();
+}
+
+// === Role-assignment matrix (oompah-zlz_2-6xc) =======================
+//
+// Renders a four-row matrix mapping fast / standard / deep / default to
+// (provider, model) pairs. Reads from the in-memory providers +
+// agentProfiles arrays so it stays in sync as the surrounding UI
+// edits providers / profiles. Persists via PUT /api/v1/agent-profiles
+// /role-matrix.
+
+const ROLE_MATRIX_ROLES = ['fast', 'standard', 'deep', 'default'];
+// Local edit state. Mirrors the on-disk profile state until the operator
+// edits a row, at which point the dirty flag flips to enable Save.
+const roleMatrixState = {
+  // keyed by role -> { provider_id, model }
+  rows: {},
+  dirty: false,
+};
+
+function renderRoleMatrix() {
+  const container = document.getElementById('role-matrix-container');
+  if (!container) return;
+
+  // Build initial state from agentProfiles. A role row is "missing"
+  // when no profile of that name exists; the dropdown still renders so
+  // the operator can see the gap, but the row's status is ⚠.
+  const profilesByName = {};
+  agentProfiles.forEach(p => { profilesByName[p.name] = p; });
+
+  // Reset state from server-side truth on each render so concurrent
+  // edits to the surrounding UI don't desync the matrix. Dirty edits
+  // are preserved on partial re-renders that originate from the matrix
+  // itself (provider-select changes call renderRoleMatrix() directly).
+  if (!roleMatrixState.dirty) {
+    roleMatrixState.rows = {};
+    ROLE_MATRIX_ROLES.forEach(role => {
+      const p = profilesByName[role];
+      roleMatrixState.rows[role] = {
+        provider_id: p ? (p.provider_id || '') : '',
+        model: p ? (p.model || '') : '',
+        profile_exists: !!p,
+      };
+    });
+  }
+
+  // Render the table.
+  const rowsHtml = ROLE_MATRIX_ROLES.map(role => {
+    const row = roleMatrixState.rows[role] || {provider_id: '', model: '', profile_exists: false};
+    const provider = providers.find(p => p.id === row.provider_id);
+    const mode = provider ? (provider.mode || 'api') : '—';
+    const status = computeRoleMatrixStatus(role, row, provider);
+    const billing = computeRoleMatrixBilling(row, provider);
+
+    const providerOpts = ['<option value="">— select provider —</option>']
+      .concat(providers.map(p =>
+        `<option value="${esc(p.id)}"${p.id === row.provider_id ? ' selected' : ''}>${esc(p.name)} (${esc(p.mode || 'api')})</option>`,
+      ))
+      .join('');
+
+    const modelList = provider && Array.isArray(provider.models) ? provider.models : [];
+    let modelOpts;
+    if (!provider) {
+      modelOpts = '<option value="">— pick a provider first —</option>';
+    } else if (modelList.length === 0) {
+      modelOpts = '<option value="">— provider has no models —</option>';
+    } else {
+      modelOpts = ['<option value="">— select model —</option>']
+        .concat(modelList.map(m =>
+          `<option value="${esc(m)}"${m === row.model ? ' selected' : ''}>${esc(m)}</option>`,
+        ))
+        .join('');
+      // If the saved model isn't in the catalog, surface it as a dimmed
+      // option so the operator can see the mismatch and pick a new one
+      // without losing the original value.
+      if (row.model && !modelList.includes(row.model)) {
+        modelOpts += `<option value="${esc(row.model)}" selected>${esc(row.model)} (not in catalog)</option>`;
+      }
+    }
+
+    const statusClass =
+      status.kind === 'resolved' ? 'status-resolved'
+        : status.kind === 'warn' ? 'status-warn'
+        : 'status-error';
+    const statusGlyph = status.kind === 'resolved' ? '✓' : '⚠';
+
+    return `
+      <tr>
+        <td><span class="role-name">${esc(role)}</span></td>
+        <td>
+          <select data-role="${esc(role)}" data-field="provider_id" onchange="onRoleMatrixChange(this)">
+            ${providerOpts}
+          </select>
+        </td>
+        <td>
+          <select data-role="${esc(role)}" data-field="model" onchange="onRoleMatrixChange(this)">
+            ${modelOpts}
+          </select>
+        </td>
+        <td><span class="matrix-mode">${esc(mode)}</span></td>
+        <td><span class="matrix-billing" title="${esc(billing.tooltip)}">${billing.html}</span></td>
+        <td>
+          <span class="matrix-status ${statusClass}" title="${esc(status.message)}">
+            ${statusGlyph} ${esc(status.label)}
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="role-matrix">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Provider</th>
+          <th>Model</th>
+          <th>Mode</th>
+          <th>Billing</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `;
+
+  // Save button enabled iff the local state is dirty AND every row has
+  // both provider_id and model set (the server requires both per row).
+  const saveBtn = document.getElementById('role-matrix-save');
+  if (saveBtn) {
+    const allFilled = ROLE_MATRIX_ROLES.every(role => {
+      const r = roleMatrixState.rows[role] || {};
+      return !!(r.provider_id && r.model && r.profile_exists);
+    });
+    saveBtn.disabled = !(roleMatrixState.dirty && allFilled);
+  }
+}
+
+function computeRoleMatrixStatus(role, row, provider) {
+  if (!row.profile_exists) {
+    return {
+      kind: 'error',
+      label: 'no profile',
+      message: `no agent profile named "${role}" — create one in the Agent Profiles section`,
+    };
+  }
+  if (!row.provider_id) {
+    return {
+      kind: 'warn',
+      label: 'no provider',
+      message: 'select a provider for this role',
+    };
+  }
+  if (!provider) {
+    return {
+      kind: 'warn',
+      label: 'unknown provider',
+      message: `provider ${row.provider_id} no longer exists`,
+    };
+  }
+  const catalog = Array.isArray(provider.models) ? provider.models : [];
+  if (catalog.length === 0) {
+    return {
+      kind: 'warn',
+      label: 'no models',
+      message: `provider "${provider.name}" has no models in its catalog`,
+    };
+  }
+  if (!row.model) {
+    return {
+      kind: 'warn',
+      label: 'no model',
+      message: 'select a model for this role',
+    };
+  }
+  if (!catalog.includes(row.model)) {
+    return {
+      kind: 'warn',
+      label: 'model not in catalog',
+      message: `model "${row.model}" is not listed under provider "${provider.name}"`,
+    };
+  }
+  return {
+    kind: 'resolved',
+    label: 'resolved',
+    message: `${provider.name} → ${row.model} (${provider.mode || 'api'})`,
+  };
+}
+
+// Compute the Billing column cell for a matrix row (oompah-zlz_2-yqss).
+// Surfaces the backend selector + billing model per role, and for
+// per_token providers, shows the current input/output rate from
+// model_costs (or a "rates not set" warning when model_costs is empty
+// for the chosen model). For api-mode providers we still surface the
+// model_costs rate when present since api/cli/auto modes always meter
+// per-token via the api_agent path.
+//
+// Returns { html, tooltip } where html is safe-to-insert (the helper
+// escapes everything it interpolates) and tooltip is a plain-text
+// summary for the cell's title= attribute.
+function computeRoleMatrixBilling(row, provider) {
+  if (!provider) {
+    return {
+      html: '<span class="billing-backend">—</span>',
+      tooltip: 'No provider selected for this role',
+    };
+  }
+  const mode = provider.mode || 'api';
+  if (mode === 'acp') {
+    const backend = provider.backend || 'claude';
+    const billingModel = provider.billing_model || 'subscription';
+    const isPerToken = billingModel === 'per_token';
+    const tagClass = isPerToken ? 'billing-per-token' : 'billing-subscription';
+    const tagLabel = isPerToken ? 'per-token' : 'subscription';
+    // For per_token providers, show the rate from model_costs next to
+    // the model selector (or a "rates not set" warning when empty).
+    let rateHtml = '';
+    let rateTooltip = '';
+    if (isPerToken) {
+      const rate = lookupModelRate(provider, row.model);
+      if (rate.hasRate) {
+        rateHtml = `<span class="billing-rate">${esc(rate.text)}</span>`;
+        rateTooltip = ` Rates: ${rate.text}.`;
+      } else {
+        rateHtml = `<span class="billing-rate billing-rate-missing" title="${esc(rate.warning)}">⚠ rates not set</span>`;
+        rateTooltip = ` ${rate.warning}`;
+      }
+    }
+    return {
+      html:
+        `<span class="billing-backend">${esc(backend)}</span>` +
+        `<span class="billing-model-tag ${tagClass}">${esc(tagLabel)}</span>` +
+        rateHtml,
+      tooltip:
+        `ACP backend: ${backend}. Billing: ${tagLabel}.` +
+        (isPerToken
+          ? ' Per-token providers meter against the rolling-window budget.'
+          : " Subscription providers bill against the operator's flat-rate Claude subscription and bypass the budget gate.") +
+        rateTooltip,
+    };
+  }
+  // API mode: always per-token via the api_agent path; surface
+  // model_costs rate when present so the matrix is consistent across
+  // both modes. Use a neutral "api" tag colour.
+  const rate = lookupModelRate(provider, row.model);
+  let rateHtml = '';
+  let rateTooltip = '';
+  if (rate.hasRate) {
+    rateHtml = `<span class="billing-rate">${esc(rate.text)}</span>`;
+    rateTooltip = ` Rates: ${rate.text}.`;
+  } else if (row.model) {
+    rateHtml = `<span class="billing-rate billing-rate-missing" title="${esc(rate.warning)}">⚠ rates not set</span>`;
+    rateTooltip = ` ${rate.warning}`;
+  }
+  return {
+    html:
+      '<span class="billing-backend">api</span>' +
+      '<span class="billing-model-tag billing-api">per-token</span>' +
+      rateHtml,
+    tooltip:
+      'API mode: per-token via the api_agent path; cost rolls through ' +
+      'the budget gate using model_costs.' + rateTooltip,
+  };
+}
+
+// Look up the per-1k-token rate for ``model`` on ``provider`` and
+// format it for display. Returns { hasRate, text, warning }.
+// hasRate is false either when no model is selected or when the
+// provider's model_costs map lacks an entry for the chosen model.
+function lookupModelRate(provider, model) {
+  if (!model) {
+    return {
+      hasRate: false,
+      text: '',
+      warning: 'pick a model to see its rate',
+    };
+  }
+  const costs = provider && provider.model_costs ? provider.model_costs[model] : null;
+  if (!costs) {
+    return {
+      hasRate: false,
+      text: '',
+      warning: 'rates not set — set via Edit Provider',
+    };
+  }
+  const cin = Number(costs.cost_per_1k_input);
+  const cout = Number(costs.cost_per_1k_output);
+  // An explicit $0/$0 entry is informational (a free-tier model) — we
+  // still treat it as "rate set" and render the zeros. Missing-only
+  // (NaN) treats as unset.
+  const hasIn = Number.isFinite(cin);
+  const hasOut = Number.isFinite(cout);
+  if (!hasIn && !hasOut) {
+    return {
+      hasRate: false,
+      text: '',
+      warning: 'rates not set — set via Edit Provider',
+    };
+  }
+  const inStr = hasIn ? `$${cin.toFixed(4).replace(/\.?0+$/, '')}/1k in` : '— in';
+  const outStr = hasOut ? `$${cout.toFixed(4).replace(/\.?0+$/, '')}/1k out` : '— out';
+  return {
+    hasRate: true,
+    text: `${inStr} · ${outStr}`,
+    warning: '',
+  };
+}
+
+function onRoleMatrixChange(selectEl) {
+  const role = selectEl.dataset.role;
+  const field = selectEl.dataset.field;
+  if (!role || !field) return;
+  const row = roleMatrixState.rows[role] || {};
+  row[field] = selectEl.value;
+  // When the operator picks a different provider, clear the model so
+  // they don't accidentally save a (provider, model) mismatch.
+  if (field === 'provider_id') {
+    row.model = '';
+  }
+  roleMatrixState.rows[role] = row;
+  roleMatrixState.dirty = true;
+  renderRoleMatrix();
+}
+
+async function saveRoleMatrix() {
+  const body = {};
+  for (const role of ROLE_MATRIX_ROLES) {
+    const r = roleMatrixState.rows[role] || {};
+    body[role] = {provider_id: r.provider_id || '', model: r.model || ''};
+  }
+  const saveBtn = document.getElementById('role-matrix-save');
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    const res = await fetch('/api/v1/agent-profiles/role-matrix', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let msg = 'Save failed';
+      try {
+        const err = await res.json();
+        msg = (err.error && err.error.message) || msg;
+      } catch (e) {}
+      alert(msg);
+      return;
+    }
+    // Reset dirty flag and reload the canonical state from the server.
+    roleMatrixState.dirty = false;
+    await loadAgentProfiles();
+  } finally {
+    // Re-enable the button only if loadAgentProfiles re-derived dirty
+    // state. renderRoleMatrix handles the disabled flag itself.
+    renderRoleMatrix();
+  }
 }
 
 function renderProviders() {
@@ -440,7 +910,7 @@ function renderProviders() {
       ${urlLine}
       ${keyLine}
       ${providerMode === 'acp' && p.acp_permission_mode ? `<div class="provider-detail">Permission mode: <code>${esc(p.acp_permission_mode)}</code></div>` : ''}
-      ${providerMode === 'acp' && p.acp_subscription_only ? `<div class="provider-detail">Billing: <code>subscription-only</code></div>` : ''}
+      ${providerMode === 'acp' ? `<div class="provider-detail">Billing: <code>${esc(p.billing_model || 'subscription')}</code></div>` : ''}
       ${p.models && p.models.length > 0 ? `
         <div class="provider-models">
           ${p.models.map(m => `
@@ -1002,16 +1472,7 @@ async function submitProvider() {
     provider_type: providerType,
     models: [...dialogModels],
     default_model: document.getElementById('prov-default-model').value.trim() || undefined,
-    // ACP backend selector (oompah-zlz_2-0hzh). Sent as null when the
-    // operator picked the registry default; the server normalises an
-    // empty string to None so the default-to-claude resolution stays
-    // intact for legacy providers.
-    backend: document.getElementById('prov-backend').value || null,
     mode,
-    // ACP billing model (oompah-zlz_2-ag7h). Subscription (default)
-    // bypasses the budget gate; per_token participates in it.
-    // Always emitted but only meaningful when mode === 'acp'.
-    billing_model: getSelectedBillingModel(),
   };
 
   if (mode === 'acp') {
@@ -1019,6 +1480,16 @@ async function submitProvider() {
     const subBox = document.getElementById('prov-acp-subscription-only');
     body.acp_permission_mode = permSel ? permSel.value : 'default';
     body.acp_subscription_only = !!(subBox && subBox.checked);
+    // ACP backend selector (oompah-zlz_2-0hzh). Sent as null when the
+    // operator picked the registry default; the server normalises an
+    // empty string to None so the default-to-claude resolution stays
+    // intact for legacy providers.
+    const backendEl = document.getElementById('prov-backend');
+    body.backend = (backendEl && backendEl.value) ? backendEl.value : null;
+    // ACP billing model (oompah-zlz_2-ag7h). Subscription (default)
+    // bypasses the budget gate; per_token participates in it.
+    // Supersedes the earlier acp_subscription_only checkbox.
+    body.billing_model = getSelectedBillingModel();
   }
 
   const apiKey = document.getElementById('prov-key').value.trim();

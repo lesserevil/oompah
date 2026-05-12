@@ -1504,6 +1504,325 @@ async def api_delete_agent_profile(name: str):
     )
 
 
+# ----------------------------------------------------------------------
+# Role-assignment matrix (oompah-zlz_2-6xc)
+#
+# A four-row matrix mapping the standard role names (fast/standard/deep/
+# default) to (provider, model) pairs in one operation. Each row updates
+# the profile of the same name in the AgentProfileStore. Profiles not
+# in the matrix (e.g. specialty profiles like merge_conflict) are
+# untouched.
+#
+# Atomicity: all four rows are validated up front. If any single row
+# fails (provider unknown, model not in provider's catalog, profile
+# missing from the store), the request is rejected with 400 BEFORE any
+# profile is mutated. On the unlikely path where validation passes but
+# a write fails mid-flight, every previously-mutated profile is
+# rolled back to its pre-call snapshot so partial writes are never
+# observable.
+# ----------------------------------------------------------------------
+
+ROLE_MATRIX_KEYS: tuple[str, ...] = ("fast", "standard", "deep", "default")
+
+
+def _reload_orchestrator_config_after_profile_change() -> None:
+    """Trigger an orchestrator reload so updated profiles take effect.
+
+    Best-effort: when the orchestrator is not yet wired (early boot,
+    test contexts), this is a no-op. When a workflow reload itself
+    fails, we log a warning but keep the JSON store change persisted —
+    the operator can recover by fixing WORKFLOW.md or rolling back.
+    """
+    if _orchestrator is None:
+        return
+    try:
+        from oompah.config import (
+            ServiceConfig, WorkflowError, load_workflow,
+            validate_dispatch_config,
+        )
+        wf = load_workflow(_orchestrator.workflow_path)
+        new_config = ServiceConfig.from_workflow(wf)
+        errs = validate_dispatch_config(new_config)
+        if errs:
+            logger.warning(
+                "agent profile reload: workflow validation failed: %s",
+                "; ".join(errs),
+            )
+            return
+        _orchestrator.reload_config(new_config, wf.prompt_template)
+    except WorkflowError as exc:
+        logger.warning("agent profile reload: workflow load failed: %s", exc)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("agent profile reload failed: %s", exc)
+
+
+def _resolve_role_matrix_status(
+    profile: AgentProfile | None,
+    provider_store: ProviderStore,
+) -> tuple[str, str | None]:
+    """Compute the (status, message) tuple for one matrix row.
+
+    ``status`` is one of:
+      - ``"resolved"`` — the profile's provider exists and the chosen
+        model is in the provider's catalog.
+      - ``"missing_profile"`` — no profile of that name exists.
+      - ``"missing_provider"`` — the profile points at a provider_id
+        that's no longer in the ProviderStore.
+      - ``"missing_model"`` — provider exists but the chosen model is
+        not listed in ``provider.models``. Empty model resolves through
+        provider.default_model / first-model fallback so we treat it
+        as resolved when the provider has any models at all.
+      - ``"empty_catalog"`` — provider has zero models listed; the
+        operator can't pick anything sensible until the catalog is
+        populated.
+
+    Pure function — no side effects. Used both at GET time (initial
+    matrix render) and after a successful PUT to surface the per-row
+    indicator to the dashboard.
+    """
+    if profile is None:
+        return ("missing_profile", "no profile of this name exists")
+    pid = profile.provider_id
+    if not pid:
+        return ("missing_provider", "no provider_id set on the profile")
+    provider = provider_store.get(pid)
+    if provider is None:
+        return ("missing_provider", f"provider {pid!r} not found")
+    catalog = list(provider.models or [])
+    if not catalog:
+        return ("empty_catalog", f"provider {provider.name!r} has no models listed")
+    chosen = profile.model
+    # When ``model`` isn't set explicitly, the profile resolves through
+    # provider.model_roles[profile.model_role] → provider.default_model
+    # → catalog[0]. Treat any of those as a clean resolution.
+    if not chosen:
+        if profile.model_role and provider.model_roles.get(profile.model_role):
+            chosen = provider.model_roles[profile.model_role]
+        else:
+            chosen = provider.default_model or catalog[0]
+    if chosen not in catalog:
+        return (
+            "missing_model",
+            f"model {chosen!r} not in provider {provider.name!r}'s catalog",
+        )
+    return ("resolved", None)
+
+
+def _serialize_role_matrix_row(
+    role: str,
+    profile: AgentProfile | None,
+    provider_store: ProviderStore,
+) -> dict:
+    """Serialize one matrix row for the API response.
+
+    Includes the resolved provider_id, model, mode (derived from the
+    provider record), and a (status, message) pair so the UI can light
+    up the ✓ / ⚠ indicator without making a second round trip.
+    """
+    status, message = _resolve_role_matrix_status(profile, provider_store)
+    out: dict = {"role": role, "status": status}
+    if message is not None:
+        out["message"] = message
+    if profile is not None:
+        out["profile_name"] = profile.name
+        out["provider_id"] = profile.provider_id
+        out["model"] = profile.model
+        out["model_role"] = profile.model_role
+    if profile is not None and profile.provider_id:
+        provider = provider_store.get(profile.provider_id)
+        if provider is not None:
+            out["provider_mode"] = provider.mode
+            out["provider_name"] = provider.name
+    return out
+
+
+@app.get("/api/v1/agent-profiles/role-matrix")
+async def api_get_role_matrix():
+    """Return the current role assignments for fast/standard/deep/default.
+
+    Each row is the resolved (provider_id, model, mode, status) tuple
+    for the profile of the same name. The dashboard's matrix UI calls
+    this on page load and again after a successful PUT.
+    """
+    rows = [
+        _serialize_role_matrix_row(
+            role, _agent_profile_store.get(role), _provider_store,
+        )
+        for role in ROLE_MATRIX_KEYS
+    ]
+    return JSONResponse({"rows": rows})
+
+
+@app.put("/api/v1/agent-profiles/role-matrix")
+async def api_put_role_matrix(request: Request):
+    """Atomically update the four standard profiles to the supplied
+    (provider_id, model) pairs.
+
+    Body shape::
+
+        {
+          "fast":     {"provider_id": "prov-X", "model": "..."},
+          "standard": {"provider_id": "prov-X", "model": "..."},
+          "deep":     {"provider_id": "prov-Y", "model": "..."},
+          "default":  {"provider_id": "prov-Z", "model": "..."}
+        }
+
+    All four roles are required (the matrix is fixed-size for v1 — see
+    the issue's "Out of scope" section). Each row is validated against
+    the ProviderStore: provider_id must exist, and model must appear in
+    the provider's ``models`` catalog. Each row's profile (by name =
+    role) must exist in the AgentProfileStore.
+
+    If any validation fails the entire request is rejected with 400 and
+    no profile is touched. If a write fails mid-apply (e.g. due to a
+    rare disk error) every already-mutated profile is restored from a
+    pre-call snapshot so partial writes never become visible.
+
+    Returns the resolved matrix in the same shape as
+    ``GET /api/v1/agent-profiles/role-matrix``.
+    """
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError) as exc:
+        return JSONResponse(
+            {"error": {"code": "validation",
+                       "message": f"invalid JSON: {exc}"}},
+            status_code=400,
+        )
+    if not isinstance(body, dict):
+        return JSONResponse(
+            {"error": {"code": "validation",
+                       "message": "request body must be a JSON object"}},
+            status_code=400,
+        )
+
+    # ----- Phase 1: validate body shape and each row up front -------
+    errors: list[str] = []
+    parsed: dict[str, tuple[str, str]] = {}
+    for role in ROLE_MATRIX_KEYS:
+        if role not in body:
+            errors.append(f"missing role {role!r}")
+            continue
+        row = body[role]
+        if not isinstance(row, dict):
+            errors.append(f"role {role!r}: row must be a JSON object")
+            continue
+        pid = row.get("provider_id")
+        model = row.get("model")
+        if not isinstance(pid, str) or not pid:
+            errors.append(f"role {role!r}: provider_id is required")
+            continue
+        if not isinstance(model, str) or not model:
+            errors.append(f"role {role!r}: model is required")
+            continue
+        parsed[role] = (pid, model)
+    if errors:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "; ".join(errors)}},
+            status_code=400,
+        )
+
+    # ----- Phase 2: cross-store validation (provider+model+profile) -
+    for role, (pid, model) in parsed.items():
+        provider = _provider_store.get(pid)
+        if provider is None:
+            errors.append(
+                f"role {role!r}: provider_id {pid!r} not found"
+            )
+            continue
+        # ACP-mode providers manage their own model catalog through
+        # the Claude Agent SDK and do not necessarily list every model
+        # under provider.models. When the catalog is empty for an ACP
+        # provider, accept any model name; otherwise enforce membership.
+        if provider.models and model not in provider.models:
+            errors.append(
+                f"role {role!r}: model {model!r} not in provider "
+                f"{provider.name!r}'s catalog (have: "
+                f"{', '.join(provider.models)})"
+            )
+            continue
+        if _agent_profile_store.get(role) is None:
+            errors.append(
+                f"role {role!r}: no profile of that name exists in the "
+                f"AgentProfileStore. Create it via "
+                f"POST /api/v1/agent-profiles before reassigning."
+            )
+    if errors:
+        return JSONResponse(
+            {"error": {"code": "validation", "message": "; ".join(errors)}},
+            status_code=400,
+        )
+
+    # ----- Phase 3: snapshot existing profiles for rollback ---------
+    snapshot: dict[str, AgentProfile] = {}
+    for role in ROLE_MATRIX_KEYS:
+        existing = _agent_profile_store.get(role)
+        # Make a defensive copy so a later mutation can't leak through
+        # the dict-shared reference.
+        assert existing is not None  # validated in phase 2
+        snapshot[role] = AgentProfile.from_dict(existing.to_dict())
+
+    # ----- Phase 4: apply updates, rolling back on any failure ------
+    updated_roles: list[str] = []
+    try:
+        for role, (pid, model) in parsed.items():
+            # Setting both provider_id and model directly preserves the
+            # matrix's intent at dispatch time: profile.model wins over
+            # the provider.model_roles[profile.model_role] lookup, so
+            # the chosen (provider, model) pair resolves exactly even
+            # if provider.model_roles disagrees. ``model_role`` is set
+            # to the role name itself for documentary clarity (it has
+            # no effect at resolve time when ``model`` is set).
+            result = _agent_profile_store.update(
+                role,
+                provider_id=pid,
+                model=model,
+                model_role=role,
+            )
+            if result is None:
+                # Should be impossible after phase 2 validation but
+                # guard anyway so we don't silently miss a row.
+                raise RuntimeError(
+                    f"role {role!r}: profile vanished mid-apply"
+                )
+            updated_roles.append(role)
+    except Exception as exc:  # noqa: BLE001 — any error → roll back
+        # Roll back every already-applied row. Failures during
+        # rollback are logged but otherwise swallowed: there's
+        # nothing else to do, and surfacing the original error is
+        # more useful to the operator.
+        for role in updated_roles:
+            try:
+                snap = snapshot[role]
+                _agent_profile_store.update(
+                    role,
+                    provider_id=snap.provider_id,
+                    model=snap.model,
+                    model_role=snap.model_role,
+                )
+            except Exception as rollback_exc:  # noqa: BLE001
+                logger.error(
+                    "role-matrix rollback failed for %r: %s",
+                    role, rollback_exc,
+                )
+        logger.error("role-matrix update failed: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "update_failed",
+                       "message": f"role-matrix update failed: {exc}"}},
+            status_code=500,
+        )
+
+    _reload_orchestrator_config_after_profile_change()
+
+    rows = [
+        _serialize_role_matrix_row(
+            role, _agent_profile_store.get(role), _provider_store,
+        )
+        for role in ROLE_MATRIX_KEYS
+    ]
+    return JSONResponse({"rows": rows})
+
+
 @app.post("/api/v1/providers/fetch-models")
 async def api_fetch_models(req: Request):
     """Fetch the model catalog for a provider.

@@ -433,13 +433,20 @@ class TestProviderBackendDropdownUI:
         assert "acpBackends.length <= 1" in html
 
     def test_submit_provider_sends_backend(self, html: str):
-        # submitProvider() includes the backend in the request body.
-        # We look for the literal field name + the source DOM element.
+        # submitProvider() includes the backend in the request body
+        # (only when mode === 'acp' since backend is meaningful only
+        # in ACP mode after the oompah-zlz_2-yqss merge resolution).
+        # We look for the literal field name + the body.backend
+        # assignment that follows the source DOM element lookup.
         assert "prov-backend" in html
         assert re.search(
-            r"backend:\s*document\.getElementById\(['\"]prov-backend['\"]\)",
+            r"document\.getElementById\(['\"]prov-backend['\"]\)",
             html,
-        )
+        ), "submitProvider must read #prov-backend"
+        assert re.search(
+            r"body\.backend\s*=",
+            html,
+        ), "submitProvider must assign body.backend"
 
     def test_dialog_hint_mentions_acp(self, html: str):
         # The hint text under the dropdown explains that the field is

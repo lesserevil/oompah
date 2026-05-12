@@ -126,9 +126,10 @@ class TestBillingModelLifecycle:
     def test_submit_sends_billing_model(self, script):
         """Submit body includes billing_model so the server endpoint
         receives the operator's choice."""
-        # We look for the body assignment in submitProvider — the key
-        # billing_model appears alongside backend in the same dict.
-        assert "billing_model: getSelectedBillingModel()" in script
+        # billing_model is sent only when mode === 'acp' (it's an
+        # ACP-only field on the server side), so the submit handler
+        # writes it via body.billing_model inside the acp branch.
+        assert "body.billing_model = getSelectedBillingModel()" in script
 
     def test_update_note_handler_present(self, script):
         """A change handler flips the subscription note visibility so
