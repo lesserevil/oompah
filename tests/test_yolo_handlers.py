@@ -1,0 +1,236 @@
+"""Tests for YOLO mode helpers (oompah-zlz_2-s56w).
+
+Covers the rebase-before-notify behavior in
+``Orchestrator._yolo_notify_conflict``:
+
+- Provider rebase succeeds → no bead notification.
+- Provider rebase fails with ``conflict`` in message → bead notify path runs.
+- Provider rebase fails for unrelated reason (network/auth/etc.) → bead notify
+  path still runs (safety net) AND a WARNING is logged.
+- Provider rebase raises → bead notify path still runs (safety net).
+"""
+
+from __future__ import annotations
+
+import logging
+from unittest.mock import MagicMock
+
+import pytest
+
+from oompah.config import ServiceConfig
+from oompah.orchestrator import Orchestrator
+from oompah.scm import ReviewRequest
+
+
+def _make_config() -> ServiceConfig:
+    return ServiceConfig()
+
+
+def _make_project(project_id: str = "proj-1",
+                  repo_url: str = "https://github.com/org/repo",
+                  yolo: bool = True):
+    p = MagicMock()
+    p.id = project_id
+    p.repo_url = repo_url
+    p.name = "test-project"
+    p.yolo = yolo
+    return p
+
+
+def _make_review_request(
+    review_id: str = "30",
+    source_branch: str = "trickle-x1y",
+    target_branch: str = "main",
+    has_conflicts: bool = True,
+    ci_status: str = "passed",
+) -> ReviewRequest:
+    return ReviewRequest(
+        id=review_id,
+        title=f"PR #{review_id}",
+        url=f"https://github.com/org/repo/pull/{review_id}",
+        author="alice",
+        state="open",
+        source_branch=source_branch,
+        target_branch=target_branch,
+        created_at="2025-01-01",
+        updated_at="2025-01-02",
+        ci_status=ci_status,
+        has_conflicts=has_conflicts,
+    )
+
+
+def _make_orchestrator(tmp_path, projects=None):
+    """Create a test orchestrator with a mocked project store."""
+    from oompah.roles import RoleStore
+    all_projects = list(projects or [])
+    project_store = MagicMock()
+    project_store.list_all.return_value = all_projects
+    project_store.get.side_effect = lambda pid: next(
+        (p for p in all_projects if p.id == pid), None
+    )
+    role_store = RoleStore(path=str(tmp_path / "roles.json"))
+    return Orchestrator(
+        config=_make_config(),
+        workflow_path="WORKFLOW.md",
+        project_store=project_store,
+        role_store=role_store,
+        state_path=str(tmp_path / "state.json"),
+    )
+
+
+class TestYoloNotifyConflictRebaseFirst:
+    """_yolo_notify_conflict tries provider.rebase_review before the bead.
+
+    Mirrors the dashboard "Resolve Conflicts" button's behavior at
+    server.py:2825 — try the cheap provider rebase first, only disturb the
+    bead if the rebase produces a real merge conflict. (oompah-zlz_2-s56w)
+    """
+
+    # --- Path 1: rebase success short-circuits the bead-notify path ---
+
+    def test_rebase_success_skips_bead_notification(self, tmp_path, caplog):
+        """When provider.rebase_review returns success, no bead is touched."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.rebase_review.return_value = (True, "Rebase initiated successfully")
+        # If anything tries to fetch the review / bead, the test must fail
+        # — short-circuit must happen before that.
+        provider.get_review.side_effect = AssertionError(
+            "rebase success path must NOT fetch the review"
+        )
+
+        tracker = MagicMock()
+        # Same guard: tracker must not be touched on the success path.
+        tracker.fetch_issue_detail.side_effect = AssertionError(
+            "rebase success path must NOT touch the tracker"
+        )
+        orch._project_trackers[project.id] = tracker
+
+        with caplog.at_level(logging.INFO, logger="oompah.orchestrator"):
+            orch._yolo_notify_conflict(project, provider, "org/repo", "30")
+
+        provider.rebase_review.assert_called_once_with("org/repo", "30")
+        # Bead untouched
+        tracker.fetch_issue_detail.assert_not_called()
+        tracker.add_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        # Telemetry: success log present.
+        assert any(
+            "rebased" in rec.message.lower() and "30" in rec.message
+            for rec in caplog.records
+        ), f"expected YOLO rebase-success log, got: {[r.message for r in caplog.records]}"
+
+    # --- Path 2: rebase fails with 'conflict' -> bead-notify fires ---
+
+    def test_rebase_fails_with_conflict_falls_through_to_bead(self, tmp_path):
+        """Rebase fails with 'merge conflicts' in the message → existing bead path runs."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.rebase_review.return_value = (
+            False,
+            "Rebase failed: merge conflicts require manual resolution",
+        )
+        provider.get_review.return_value = _make_review_request(
+            review_id="30", source_branch="trickle-real",
+        )
+
+        tracker = MagicMock()
+        existing = MagicMock()
+        existing.state = "closed"
+        existing.labels = []
+        existing.identifier = "trickle-real"
+        existing.id = "trickle-real"
+        tracker.fetch_issue_detail.return_value = existing
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_notify_conflict(project, provider, "org/repo", "30")
+
+        # Bead path ran: comment + reopen
+        provider.rebase_review.assert_called_once_with("org/repo", "30")
+        tracker.fetch_issue_detail.assert_called_once()
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once()
+
+    # --- Path 3: rebase fails with non-conflict reason -> bead-notify still fires ---
+
+    def test_rebase_fails_with_network_error_still_notifies_bead(self, tmp_path, caplog):
+        """Network/transport failure: WARNING logged, bead notification fires anyway."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.rebase_review.return_value = (
+            False,
+            "Rebase failed: HTTPSConnectionPool(host='api.github.com'): Read timed out",
+        )
+        provider.get_review.return_value = _make_review_request(
+            review_id="31", source_branch="trickle-real-31",
+        )
+
+        tracker = MagicMock()
+        existing = MagicMock()
+        existing.state = "closed"
+        existing.labels = []
+        existing.identifier = "trickle-real-31"
+        existing.id = "trickle-real-31"
+        tracker.fetch_issue_detail.return_value = existing
+        orch._project_trackers[project.id] = tracker
+
+        with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
+            orch._yolo_notify_conflict(project, provider, "org/repo", "31")
+
+        # The safety net is preserved: bead-notify path still ran.
+        provider.rebase_review.assert_called_once_with("org/repo", "31")
+        tracker.fetch_issue_detail.assert_called_once()
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once()
+        # WARNING surfaced so an operator can see the non-conflict failure
+        # didn't get the cheap rebase path.
+        assert any(
+            "non-conflict" in rec.message.lower()
+            and rec.levelname == "WARNING"
+            for rec in caplog.records
+        ), (
+            "expected WARNING for non-conflict rebase failure, got: "
+            f"{[(r.levelname, r.message) for r in caplog.records]}"
+        )
+
+    def test_rebase_raises_still_notifies_bead(self, tmp_path, caplog):
+        """If provider.rebase_review raises, fall through to bead-notify anyway."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.rebase_review.side_effect = RuntimeError("boom")
+        provider.get_review.return_value = _make_review_request(
+            review_id="32", source_branch="trickle-real-32",
+        )
+
+        tracker = MagicMock()
+        existing = MagicMock()
+        existing.state = "closed"
+        existing.labels = []
+        existing.identifier = "trickle-real-32"
+        existing.id = "trickle-real-32"
+        tracker.fetch_issue_detail.return_value = existing
+        orch._project_trackers[project.id] = tracker
+
+        with caplog.at_level(logging.WARNING, logger="oompah.orchestrator"):
+            orch._yolo_notify_conflict(project, provider, "org/repo", "32")
+
+        provider.rebase_review.assert_called_once_with("org/repo", "32")
+        tracker.fetch_issue_detail.assert_called_once()
+        tracker.add_comment.assert_called_once()
+        tracker.update_issue.assert_called_once()
+        # And a WARNING was emitted so we can spot the raising provider.
+        assert any(
+            "rebase raised" in rec.message.lower()
+            for rec in caplog.records
+        ), (
+            "expected WARNING for raising provider.rebase_review, got: "
+            f"{[(r.levelname, r.message) for r in caplog.records]}"
+        )
