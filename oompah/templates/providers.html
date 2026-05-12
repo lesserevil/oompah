@@ -287,6 +287,48 @@
       color: var(--text-muted);
       text-transform: uppercase;
     }
+    /* Billing column (oompah-zlz_2-yqss). Surfaces backend + billing
+       model + per-token rate (when applicable) per role so the
+       operator can see at a glance which roles meter against the
+       budget and which fly on the flat-rate subscription. */
+    .role-matrix .matrix-billing {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      line-height: 1.35;
+    }
+    .role-matrix .billing-backend {
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .role-matrix .billing-model-tag {
+      display: inline-block;
+      padding: 0.05rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      margin-left: 0.25rem;
+      vertical-align: 1px;
+    }
+    .role-matrix .billing-subscription {
+      background: rgba(80, 200, 120, 0.15);
+      color: var(--green);
+    }
+    .role-matrix .billing-per-token {
+      background: rgba(255, 200, 80, 0.18);
+      color: var(--yellow);
+    }
+    .role-matrix .billing-api {
+      background: rgba(120, 160, 230, 0.18);
+      color: var(--accent);
+    }
+    .role-matrix .billing-rate {
+      display: block;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    .role-matrix .billing-rate-missing {
+      color: var(--yellow);
+    }
     .role-matrix .matrix-status {
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 0.75rem;
@@ -527,6 +569,7 @@ function renderRoleMatrix() {
     const provider = providers.find(p => p.id === row.provider_id);
     const mode = provider ? (provider.mode || 'api') : '—';
     const status = computeRoleMatrixStatus(role, row, provider);
+    const billing = computeRoleMatrixBilling(row, provider);
 
     const providerOpts = ['<option value="">— select provider —</option>']
       .concat(providers.map(p =>
@@ -574,6 +617,7 @@ function renderRoleMatrix() {
           </select>
         </td>
         <td><span class="matrix-mode">${esc(mode)}</span></td>
+        <td><span class="matrix-billing" title="${esc(billing.tooltip)}">${billing.html}</span></td>
         <td>
           <span class="matrix-status ${statusClass}" title="${esc(status.message)}">
             ${statusGlyph} ${esc(status.label)}
@@ -591,6 +635,7 @@ function renderRoleMatrix() {
           <th>Provider</th>
           <th>Model</th>
           <th>Mode</th>
+          <th>Billing</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -658,6 +703,125 @@ function computeRoleMatrixStatus(role, row, provider) {
     kind: 'resolved',
     label: 'resolved',
     message: `${provider.name} → ${row.model} (${provider.mode || 'api'})`,
+  };
+}
+
+// Compute the Billing column cell for a matrix row (oompah-zlz_2-yqss).
+// Surfaces the backend selector + billing model per role, and for
+// per_token providers, shows the current input/output rate from
+// model_costs (or a "rates not set" warning when model_costs is empty
+// for the chosen model). For api-mode providers we still surface the
+// model_costs rate when present since api/cli/auto modes always meter
+// per-token via the api_agent path.
+//
+// Returns { html, tooltip } where html is safe-to-insert (the helper
+// escapes everything it interpolates) and tooltip is a plain-text
+// summary for the cell's title= attribute.
+function computeRoleMatrixBilling(row, provider) {
+  if (!provider) {
+    return {
+      html: '<span class="billing-backend">—</span>',
+      tooltip: 'No provider selected for this role',
+    };
+  }
+  const mode = provider.mode || 'api';
+  if (mode === 'acp') {
+    const backend = provider.backend || 'claude';
+    const billingModel = provider.billing_model || 'subscription';
+    const isPerToken = billingModel === 'per_token';
+    const tagClass = isPerToken ? 'billing-per-token' : 'billing-subscription';
+    const tagLabel = isPerToken ? 'per-token' : 'subscription';
+    // For per_token providers, show the rate from model_costs next to
+    // the model selector (or a "rates not set" warning when empty).
+    let rateHtml = '';
+    let rateTooltip = '';
+    if (isPerToken) {
+      const rate = lookupModelRate(provider, row.model);
+      if (rate.hasRate) {
+        rateHtml = `<span class="billing-rate">${esc(rate.text)}</span>`;
+        rateTooltip = ` Rates: ${rate.text}.`;
+      } else {
+        rateHtml = `<span class="billing-rate billing-rate-missing" title="${esc(rate.warning)}">⚠ rates not set</span>`;
+        rateTooltip = ` ${rate.warning}`;
+      }
+    }
+    return {
+      html:
+        `<span class="billing-backend">${esc(backend)}</span>` +
+        `<span class="billing-model-tag ${tagClass}">${esc(tagLabel)}</span>` +
+        rateHtml,
+      tooltip:
+        `ACP backend: ${backend}. Billing: ${tagLabel}.` +
+        (isPerToken
+          ? ' Per-token providers meter against the rolling-window budget.'
+          : " Subscription providers bill against the operator's flat-rate Claude subscription and bypass the budget gate.") +
+        rateTooltip,
+    };
+  }
+  // API mode: always per-token via the api_agent path; surface
+  // model_costs rate when present so the matrix is consistent across
+  // both modes. Use a neutral "api" tag colour.
+  const rate = lookupModelRate(provider, row.model);
+  let rateHtml = '';
+  let rateTooltip = '';
+  if (rate.hasRate) {
+    rateHtml = `<span class="billing-rate">${esc(rate.text)}</span>`;
+    rateTooltip = ` Rates: ${rate.text}.`;
+  } else if (row.model) {
+    rateHtml = `<span class="billing-rate billing-rate-missing" title="${esc(rate.warning)}">⚠ rates not set</span>`;
+    rateTooltip = ` ${rate.warning}`;
+  }
+  return {
+    html:
+      '<span class="billing-backend">api</span>' +
+      '<span class="billing-model-tag billing-api">per-token</span>' +
+      rateHtml,
+    tooltip:
+      'API mode: per-token via the api_agent path; cost rolls through ' +
+      'the budget gate using model_costs.' + rateTooltip,
+  };
+}
+
+// Look up the per-1k-token rate for ``model`` on ``provider`` and
+// format it for display. Returns { hasRate, text, warning }.
+// hasRate is false either when no model is selected or when the
+// provider's model_costs map lacks an entry for the chosen model.
+function lookupModelRate(provider, model) {
+  if (!model) {
+    return {
+      hasRate: false,
+      text: '',
+      warning: 'pick a model to see its rate',
+    };
+  }
+  const costs = provider && provider.model_costs ? provider.model_costs[model] : null;
+  if (!costs) {
+    return {
+      hasRate: false,
+      text: '',
+      warning: 'rates not set — set via Edit Provider',
+    };
+  }
+  const cin = Number(costs.cost_per_1k_input);
+  const cout = Number(costs.cost_per_1k_output);
+  // An explicit $0/$0 entry is informational (a free-tier model) — we
+  // still treat it as "rate set" and render the zeros. Missing-only
+  // (NaN) treats as unset.
+  const hasIn = Number.isFinite(cin);
+  const hasOut = Number.isFinite(cout);
+  if (!hasIn && !hasOut) {
+    return {
+      hasRate: false,
+      text: '',
+      warning: 'rates not set — set via Edit Provider',
+    };
+  }
+  const inStr = hasIn ? `$${cin.toFixed(4).replace(/\.?0+$/, '')}/1k in` : '— in';
+  const outStr = hasOut ? `$${cout.toFixed(4).replace(/\.?0+$/, '')}/1k out` : '— out';
+  return {
+    hasRate: true,
+    text: `${inStr} · ${outStr}`,
+    warning: '',
   };
 }
 

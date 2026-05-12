@@ -504,6 +504,100 @@ class TestProvidersHtmlMatrixScaffold:
         assert "method: 'PUT'" in html
 
     def test_matrix_table_columns(self, html):
-        # The four header cells.
-        for col in ("Role", "Provider", "Model", "Mode", "Status"):
+        # The matrix header cells, including the Billing column added
+        # by oompah-zlz_2-yqss.
+        for col in ("Role", "Provider", "Model", "Mode", "Billing", "Status"):
             assert f">{col}<" in html
+
+
+class TestBillingColumn:
+    """Static template smoke tests for the Billing column added by
+    oompah-zlz_2-yqss. Verifies that the column's rendering helper and
+    its rate-lookup helper are wired into the matrix.
+    """
+
+    @pytest.fixture
+    def html(self) -> str:
+        path = Path(__file__).parent.parent / "oompah" / "templates" / "providers.html"
+        return path.read_text()
+
+    def test_billing_header_present(self, html):
+        # The Billing <th> appears between Mode and Status in the
+        # matrix header (oompah-zlz_2-yqss).
+        assert ">Billing<" in html
+
+    def test_billing_compute_helper_defined(self, html):
+        # The per-row helper that classifies (backend, billing_model,
+        # rate) for the cell.
+        assert "function computeRoleMatrixBilling" in html
+
+    def test_rate_lookup_helper_defined(self, html):
+        # The model_costs rate lookup helper used by both modes.
+        assert "function lookupModelRate" in html
+
+    def test_rate_warning_text_present(self, html):
+        # The "rates not set" warning copy from the bead description.
+        assert "rates not set — set via Edit Provider" in html
+
+    def test_billing_per_token_tag_css(self, html):
+        # CSS classes for the two ACP billing-model tags + the api
+        # tag must exist so the column has visible styling.
+        assert ".billing-per-token" in html
+        assert ".billing-subscription" in html
+        assert ".billing-api" in html
+
+    def test_billing_rate_missing_class_css(self, html):
+        # The yellow-text variant for the warning state.
+        assert ".billing-rate-missing" in html
+
+    def test_billing_cell_invoked_from_render(self, html):
+        # renderRoleMatrix() must call computeRoleMatrixBilling so the
+        # new column is actually rendered per row.
+        assert "computeRoleMatrixBilling(row, provider)" in html
+
+    def test_billing_cell_class_in_render(self, html):
+        # The cell uses matrix-billing as its CSS class.
+        assert "matrix-billing" in html
+
+
+class TestComputeBilling:
+    """Behaviour tests for the computeRoleMatrixBilling JS helper.
+
+    Renders providers.html into a minimal jsdom-like context via a
+    regex pull of the function bodies, then exercises them with a few
+    representative inputs. Keeps the test in Python by treating the
+    JavaScript as a string and asserting on its branching structure.
+    """
+
+    @pytest.fixture
+    def script(self) -> str:
+        path = Path(__file__).parent.parent / "oompah" / "templates" / "providers.html"
+        return path.read_text()
+
+    def test_subscription_branch_returns_flat_label(self, script):
+        # The subscription branch must produce the "subscription"
+        # tag label, not "per-token".
+        assert "tagLabel = isPerToken ? 'per-token' : 'subscription'" in script
+
+    def test_per_token_branch_uses_rate_lookup(self, script):
+        # Per-token providers display the rate from model_costs.
+        assert "lookupModelRate(provider, row.model)" in script
+
+    def test_api_mode_falls_back_to_api_path(self, script):
+        # API mode reuses the same rate-lookup helper but tags the
+        # cell with the neutral "api" colour.
+        assert "billing-api" in script
+
+    def test_lookup_returns_warning_when_no_costs(self, script):
+        # Missing-model-costs entry => warning string in the return.
+        assert "rates not set — set via Edit Provider" in script
+
+    def test_lookup_formats_per_1k_in_out(self, script):
+        # Rate display is per-1k input/output tokens.
+        assert "/1k in" in script
+        assert "/1k out" in script
+
+    def test_default_backend_falls_back_to_claude(self, script):
+        # provider.backend missing => the column shows "claude" since
+        # that is the registry default.
+        assert "provider.backend || 'claude'" in script

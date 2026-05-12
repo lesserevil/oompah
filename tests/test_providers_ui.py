@@ -283,5 +283,8 @@ class TestProviderCardBadge:
     def test_card_renders_permission_mode_when_acp(self, script):
         assert "acp_permission_mode" in script
 
-    def test_card_renders_subscription_billing_when_acp(self, script):
-        assert "subscription-only" in script
+   def test_card_renders_billing_model_when_acp(self, script):
+        # An ACP provider's card surfaces its billing_model
+        # (subscription / per_token) so the operator can tell at a
+        # glance which providers meter against the budget.
+        assert "p.billing_model" in script
