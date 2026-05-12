@@ -208,6 +208,51 @@ def _coerce_int(value: Any, default: int) -> int:
 
 _BUDGET_WINDOW_VALUES = ("hour", "day", "week")
 _PROFILE_MODE_VALUES = ("auto", "api", "cli", "acp")
+_STRICT_PROFILE_SOURCE_VALUES = ("warn", "strict")
+
+
+def _parse_strict_profile_source(value: Any) -> str:
+    """Normalize the strict_profile_source flag to one of {warn, strict}.
+
+    Default is "warn" — log a warning and continue if WORKFLOW.md's
+    agent.profiles block drifts from the persisted store. "strict"
+    refuses to start when the block is present at all (used by
+    operators who have completed the migration and want to lock the
+    block out from being edited again). Falls back to "warn" on typos.
+    """
+    if value is None:
+        return "warn"
+    s = str(value).strip().lower()
+    if s in _STRICT_PROFILE_SOURCE_VALUES:
+        return s
+    logger.warning(
+        "Unknown strict_profile_source=%r; falling back to 'warn'. Valid: %s",
+        value, ", ".join(_STRICT_PROFILE_SOURCE_VALUES),
+    )
+    return "warn"
+
+
+def _profiles_to_canonical(profiles: list[AgentProfile]) -> list[dict]:
+    """Render a list of AgentProfile as JSON-shaped dicts sorted by name.
+
+    Used by drift detection to compare WORKFLOW.md's profile block to
+    the persisted JSON store regardless of source-order. Two lists are
+    "equal" iff they produce the same canonical representation.
+    """
+    return sorted((p.to_dict() for p in profiles), key=lambda d: d.get("name", ""))
+
+
+def _profiles_differ(
+    workflow_profiles: list[AgentProfile],
+    store_profiles: list[AgentProfile],
+) -> bool:
+    """Return True iff WORKFLOW.md profiles differ from the persisted store.
+
+    Comparison is order-independent and uses the same JSON dict shape
+    that gets persisted to .oompah/agent_profiles.json so semantically
+    equivalent inputs from either source compare equal.
+    """
+    return _profiles_to_canonical(workflow_profiles) != _profiles_to_canonical(store_profiles)
 
 
 def _parse_profile_mode(value: Any) -> str:
@@ -312,7 +357,7 @@ class ServiceConfig:
     # continues up the hierarchy on subsequent failures.
     # Default False: current behaviour (best-match profile on first dispatch).
     default_first_dispatch: bool = False
-    # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
+   # Completion verifier (oompah-zlz_2-y0ns). When True, after a worker
     # exits with reason="normal" AND has moved the bead to a terminal
     # state, the orchestrator runs a two-stage check (regex + LLM)
     # against the bead's "# Acceptance criteria" section. If the diff
@@ -331,6 +376,29 @@ class ServiceConfig:
     # AND no open or merged PR exists. Default False during initial
     # rollout — flip via OOMPAH_CLOSE_GATE_ENABLED=true.
     close_gate_enabled: bool = False
+    # Strictness for the WORKFLOW.md → AgentProfileStore migration
+    # (oompah-zlz_2-hye). One of:
+    #   "warn"   — log a warning and surface a dashboard alert when
+    #              WORKFLOW.md's agent.profiles block drifts from the
+    #              persisted JSON store. Continue with the store as the
+    #              source of truth. (Default.)
+    #   "strict" — refuse to start when WORKFLOW.md still contains an
+    #              agent.profiles block at all. Use this only after the
+    #              migration is complete and the block has been deleted
+    #              from WORKFLOW.md.
+    # Configurable via OOMPAH_STRICT_PROFILE_SOURCE or
+    # agent.strict_profile_source in WORKFLOW.md.
+    strict_profile_source: str = "warn"
+    # True iff WORKFLOW.md's YAML front matter contained an
+    # agent.profiles list (even an empty one). Surfaced to __main__.py
+    # for strict-mode failure and to the orchestrator for the drift
+    # alert. Computed in from_workflow() — never hand-set by callers.
+    workflow_has_profiles_block: bool = False
+    # True iff WORKFLOW.md's profile block content differs from the
+    # JSON store after seed/migration. Computed in from_workflow() —
+    # signals to the orchestrator that it should raise a startup
+    # alert telling the operator to delete the block.
+    agent_profiles_drift: bool = False
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -380,7 +448,7 @@ class ServiceConfig:
         else:
             ws_root = os.path.join(tempfile.gettempdir(), "oompah_workspaces")
 
-        # Parse agent profiles from WORKFLOW.md YAML.
+       # Parse agent profiles from WORKFLOW.md YAML.
         # These are the *YAML-authored* profiles. Source precedence:
         # .oompah/agent_profiles.json (UI-editable store) wins by default.
         # WORKFLOW.md profiles are the migration seed when the JSON file
@@ -389,6 +457,14 @@ class ServiceConfig:
         # the AgentProfileStore design, oompah-zlz_2-mif for the live-reload
         # wiring, and oompah-zlz_2-2y7 for the source-precedence + one-shot
         # migration rules.
+        #
+        # The "profiles" key being PRESENT in YAML — even as an empty
+        # list — is the operator-visible signal that they're still
+        # using the legacy block; we surface that as
+        # workflow_has_profiles_block so __main__ can fail-loud under
+        # strict mode and the orchestrator can show a drift alert.
+        # (oompah-zlz_2-hye)
+        workflow_has_profiles_block = "profiles" in agent
         raw_profiles = agent.get("profiles", []) or []
         workflow_profiles: list[AgentProfile] = []
         for p in raw_profiles:
@@ -410,7 +486,7 @@ class ServiceConfig:
                 mode=_parse_profile_mode(p.get("mode")),
             ))
 
-        # Resolve effective profiles. Source precedence + opt-out env var
+       # Resolve effective profiles. Source precedence + opt-out env var
         # live in oompah.agent_profile_store.resolve_agent_profiles; lazy
         # import avoids any chance of a circular import at module load.
         from oompah.agent_profile_store import (
@@ -431,6 +507,22 @@ class ServiceConfig:
         # the same fallback-on-typo behaviour as WORKFLOW.md profiles.
         for p in profiles:
             p.mode = _parse_profile_mode(p.mode)
+        # Drift detection (oompah-zlz_2-hye). Compare the parsed
+        # WORKFLOW.md block (workflow_profiles) against the effective
+        # profiles resolved by the store. They will be identical
+        # immediately after migration; they diverge once the operator
+        # edits either side. The store wins regardless; this flag
+        # lets __main__ / orchestrator surface a warning telling the
+        # operator to delete the stale block.
+        agent_profiles_drift = False
+        if (
+            workflow_has_profiles_block
+            and workflow_profiles
+            and not migrated
+            and profiles_source == "json"
+            and _profiles_differ(workflow_profiles, profiles)
+        ):
+            agent_profiles_drift = True
         if profiles_source == "workflow":
             if profiles:
                 logger.info(
@@ -535,7 +627,7 @@ class ServiceConfig:
                 agent.get("default_first_dispatch"),
                 False,
             ),
-            verify_completion=_env_bool(
+          verify_completion=_env_bool(
                 "OOMPAH_VERIFY_COMPLETION",
                 agent.get("verify_completion"),
                 False,
@@ -550,6 +642,15 @@ class ServiceConfig:
                 agent.get("close_gate_enabled"),
                 False,
             ),
+            strict_profile_source=_parse_strict_profile_source(
+                _env_str(
+                    "OOMPAH_STRICT_PROFILE_SOURCE",
+                    agent.get("strict_profile_source"),
+                    "warn",
+                ),
+            ),
+            workflow_has_profiles_block=workflow_has_profiles_block,
+            agent_profiles_drift=agent_profiles_drift,
         )
 
 
