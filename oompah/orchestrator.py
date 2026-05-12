@@ -3341,7 +3341,43 @@ class Orchestrator:
         )
 
     def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
-        """Notify the bead about a merge conflict (YOLO mode)."""
+        """Notify the bead about a merge conflict (YOLO mode).
+
+        Before falling through to the bead-notification path, attempt a
+        provider-level rebase. GitHub frequently marks a PR ``mergeable=CONFLICTING``
+        when the branch is merely out-of-date — the underlying patches don't
+        actually overlap. In that case ``provider.rebase_review`` succeeds and
+        clears ``has_conflicts`` on the next review fetch, so no agent work is
+        needed. Only when the rebase truly fails with conflict markers (or for
+        unrelated transport/auth reasons) do we fall through to today's
+        notify-bead behavior. See oompah-zlz_2-s56w.
+        """
+        # Step 1: try a provider-level rebase before disturbing the bead.
+        try:
+            success, message = provider.rebase_review(slug, review_id)
+            if success:
+                logger.info(
+                    "YOLO: rebased %s MR #%s clean (no conflict)",
+                    slug, review_id,
+                )
+                return
+            msg_lower = (message or "").lower()
+            if "conflict" not in msg_lower:
+                # Network/auth/etc — preserve today's safety net by
+                # falling through to notify the bead, but log so an
+                # operator can see why YOLO didn't get the cheap path.
+                logger.warning(
+                    "YOLO: provider rebase failed for %s MR #%s (non-conflict): %s",
+                    slug, review_id, message,
+                )
+            # else: real merge conflict — fall through to bead-notify below.
+        except Exception as exc:
+            logger.warning(
+                "YOLO: provider rebase raised for %s MR #%s: %s",
+                slug, review_id, exc,
+            )
+            # Fall through to bead-notify (safety net).
+
         try:
             review = provider.get_review(slug, review_id)
             if not review:
