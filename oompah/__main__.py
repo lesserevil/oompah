@@ -98,6 +98,7 @@ async def _run(
     from oompah.orchestrator import Orchestrator
     from oompah.projects import ProjectStore
     from oompah.providers import ProviderStore
+    from oompah.roles import RoleStore, migrate_agent_profiles_to_roles
     from oompah.server import app, set_orchestrator
     from oompah.webhooks import WebhookForwarder
 
@@ -163,6 +164,15 @@ async def _run(
     # parsed the workflow above. Re-open the same path here so the
     # orchestrator and the HTTP API share a single in-memory store.
     agent_profile_store = AgentProfileStore()
+    # Role store (epic oompah-zlz_2-xau7): maps role_name → (provider, model).
+    # First-run migration copies existing AgentProfile.provider_id/model into
+    # RoleStore[profile.model_role] for empty slots — idempotent, so
+    # subsequent boots are no-ops.
+    role_store = RoleStore(provider_store=provider_store)
+    if role_store.is_empty:
+        migrate_agent_profiles_to_roles(
+            role_store, agent_profile_store.list_all(),
+        )
 
     # Start gh webhook forwarder for each project (subprocess lifecycle
     # managed by WebhookForwarder; independent of orchestrator).
@@ -191,7 +201,8 @@ async def _run(
     orchestrator = Orchestrator(config, workflow_path,
                                 provider_store=provider_store,
                                 project_store=project_store,
-                                agent_profile_store=agent_profile_store)
+                                agent_profile_store=agent_profile_store,
+                                role_store=role_store)
     orchestrator.set_prompt_template(workflow.prompt_template)
 
     # --paused CLI flag forces the orchestrator to boot paused regardless

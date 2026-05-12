@@ -985,6 +985,84 @@ class TestFocusModelOverrides:
                orch._resolve_model(prof, prov, focus=None)
 
 
+class TestRoleStoreResolution:
+    """RoleStore-aware resolution (epic oompah-zlz_2-xau7).
+
+    When RoleStore has an entry for a profile's model_role, that
+    (provider, model) pair wins over the legacy provider.model_roles
+    lookup and over profile.provider_id/profile.model.
+    """
+
+    def _orch_with_roles(self, tmp_path, providers, roles):
+        """Build an orchestrator wired with a populated RoleStore."""
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        by_id = {p.id: p for p in providers}
+        orch.provider_store.get.side_effect = lambda pid: by_id.get(pid)
+        orch.provider_store.get_default.return_value = providers[0]
+        # Build a real RoleStore against tmp_path; bypass validation by
+        # leaving provider_store=None on the store itself (the orchestrator's
+        # provider_store is what matters for resolution).
+        from oompah.roles import RoleStore
+        rs = RoleStore(path=str(tmp_path / "roles.json"))
+        for role_name, provider_id, model in roles:
+            rs.set(role_name, provider_id, model)
+        orch.role_store = rs
+        return orch
+
+    def test_profile_role_resolves_via_role_store(self, tmp_path):
+        prov_a = _provider(pid="a", name="A", models=["m-a-fast"])
+        prov_b = _provider(pid="b", name="B", models=["m-b-fast"])
+        orch = self._orch_with_roles(
+            tmp_path,
+            providers=[prov_a, prov_b],
+            roles=[("fast", "b", "m-b-fast")],
+        )
+        prof = _profile(model_role="fast", provider_id="a")
+        # Role-store mapping wins over profile.provider_id/profile.model
+        assert orch._resolve_provider(prof) is prov_b
+        assert orch._resolve_model(prof, prov_b) == "m-b-fast"
+
+    def test_focus_role_wins_over_profile_role(self, tmp_path):
+        prov_a = _provider(pid="a", name="A", models=["m-a"])
+        prov_b = _provider(pid="b", name="B", models=["m-b"])
+        orch = self._orch_with_roles(
+            tmp_path,
+            providers=[prov_a, prov_b],
+            roles=[("fast", "a", "m-a"), ("deep", "b", "m-b")],
+        )
+        prof = _profile(model_role="fast")
+        focus = Focus(name="docs", role="r", description="d", model_role="deep")
+        assert orch._resolve_provider(prof, focus=focus) is prov_b
+        assert orch._resolve_model(prof, prov_b, focus=focus) == "m-b"
+
+    def test_missing_role_falls_back_to_legacy(self, tmp_path):
+        """When RoleStore has no entry for the role, fall back to
+        provider.model_roles and profile.provider_id/profile.model."""
+        prov = _provider()  # has provider.model_roles={"fast":"m-fast","deep":"m-deep"}
+        orch = self._orch_with_roles(
+            tmp_path,
+            providers=[prov],
+            roles=[],  # empty role store
+        )
+        prof = _profile(model_role="deep", provider_id="p1")
+        assert orch._resolve_provider(prof) is prov
+        assert orch._resolve_model(prof, prov) == "m-deep"
+
+    def test_role_store_provider_missing_falls_back(self, tmp_path):
+        """RoleStore entry pointing at a deleted provider falls back
+        to the profile-level resolution path."""
+        prov_a = _provider(pid="a", name="A")
+        orch = self._orch_with_roles(
+            tmp_path,
+            providers=[prov_a],
+            roles=[("fast", "ghost", "m-ghost")],  # ghost not in provider_store
+        )
+        prof = _profile(model_role="fast", provider_id="a")
+        # provider_id="ghost" doesn't resolve → falls back to profile.provider_id="a"
+        assert orch._resolve_provider(prof) is prov_a
+
+
 # ---------------------------------------------------------------------------
 # _resolve_capabilities (oompah-zlz.3)
 # ---------------------------------------------------------------------------

@@ -498,6 +498,9 @@
 <script>
 let providers = [];
 let agentProfiles = [];
+// Role assignments from RoleStore (epic xau7), keyed by role name.
+// Populated by loadRoleMatrix().
+let roleStoreRows = {};
 let editingId = null;
 let editingProfileName = null;
 const DEFAULT_AGENT_COMMAND = 'claude --dangerously-skip-permissions';
@@ -529,6 +532,23 @@ async function loadAgentProfiles() {
   renderRoleMatrix();
 }
 
+async function loadRoleMatrix() {
+  try {
+    const res = await fetch('/api/v1/roles');
+    if (!res.ok) {
+      roleStoreRows = {};
+      renderRoleMatrix();
+      return;
+    }
+    const data = await res.json();
+    roleStoreRows = {};
+    (data.rows || []).forEach(r => { roleStoreRows[r.role] = r; });
+  } catch (e) {
+    roleStoreRows = {};
+  }
+  renderRoleMatrix();
+}
+
 // === Role-assignment matrix (oompah-zlz_2-6xc) =======================
 //
 // Renders a four-row matrix mapping fast / standard / deep / default to
@@ -550,24 +570,21 @@ function renderRoleMatrix() {
   const container = document.getElementById('role-matrix-container');
   if (!container) return;
 
-  // Build initial state from agentProfiles. A role row is "missing"
-  // when no profile of that name exists; the dropdown still renders so
-  // the operator can see the gap, but the row's status is ⚠.
-  const profilesByName = {};
-  agentProfiles.forEach(p => { profilesByName[p.name] = p; });
-
   // Reset state from server-side truth on each render so concurrent
   // edits to the surrounding UI don't desync the matrix. Dirty edits
   // are preserved on partial re-renders that originate from the matrix
   // itself (provider-select changes call renderRoleMatrix() directly).
+  //
+  // Post-xau7: state comes from RoleStore via roleStoreRows (populated
+  // by loadRoleMatrix()), not from profiles. Roles are independent of
+  // profile names.
   if (!roleMatrixState.dirty) {
     roleMatrixState.rows = {};
     ROLE_MATRIX_ROLES.forEach(role => {
-      const p = profilesByName[role];
+      const r = roleStoreRows[role];
       roleMatrixState.rows[role] = {
-        provider_id: p ? (p.provider_id || '') : '',
-        model: p ? (p.model || '') : '',
-        profile_exists: !!p,
+        provider_id: r ? (r.provider_id || '') : '',
+        model: r ? (r.model || '') : '',
       };
     });
   }
@@ -654,24 +671,20 @@ function renderRoleMatrix() {
 
   // Save button enabled iff the local state is dirty AND every row has
   // both provider_id and model set (the server requires both per row).
+  // Post-xau7: dropped the profile_exists gate — roles are independent.
   const saveBtn = document.getElementById('role-matrix-save');
   if (saveBtn) {
     const allFilled = ROLE_MATRIX_ROLES.every(role => {
       const r = roleMatrixState.rows[role] || {};
-      return !!(r.provider_id && r.model && r.profile_exists);
+      return !!(r.provider_id && r.model);
     });
     saveBtn.disabled = !(roleMatrixState.dirty && allFilled);
   }
 }
 
 function computeRoleMatrixStatus(role, row, provider) {
-  if (!row.profile_exists) {
-    return {
-      kind: 'error',
-      label: 'no profile',
-      message: `no agent profile named "${role}" — create one in the Agent Profiles section`,
-    };
-  }
+  // Post-xau7: roles are independent of profiles. The "no profile"
+  // status is gone — empty rows show "no provider" instead.
   if (!row.provider_id) {
     return {
       kind: 'warn',
@@ -859,7 +872,7 @@ async function saveRoleMatrix() {
   const saveBtn = document.getElementById('role-matrix-save');
   if (saveBtn) saveBtn.disabled = true;
   try {
-    const res = await fetch('/api/v1/agent-profiles/role-matrix', {
+    const res = await fetch('/api/v1/roles', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body),
@@ -875,10 +888,10 @@ async function saveRoleMatrix() {
     }
     // Reset dirty flag and reload the canonical state from the server.
     roleMatrixState.dirty = false;
-    await loadAgentProfiles();
+    await loadRoleMatrix();
   } finally {
-    // Re-enable the button only if loadAgentProfiles re-derived dirty
-    // state. renderRoleMatrix handles the disabled flag itself.
+    // renderRoleMatrix already runs from loadRoleMatrix on success;
+    // call it again on the error path to re-enable the button.
     renderRoleMatrix();
   }
 }
@@ -1421,7 +1434,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Fire-and-forget; the dropdown silently falls back to ["claude"]
   // if this request fails.
   loadAcpBackends();
-  loadProviders().then(loadAgentProfiles);
+  loadProviders().then(loadAgentProfiles).then(loadRoleMatrix);
 
   // ACP billing-model radio: toggle the "model_costs ignored" hint
   // when the operator flips between subscription and per_token so
@@ -1698,19 +1711,25 @@ function onProfileModeChange() {
 }
 
 function updateModelRoleSuggestions() {
-  const sel = document.getElementById('ap-provider');
   const dl = document.getElementById('ap-model-role-suggestions');
   if (!dl) return;
   dl.innerHTML = '';
-  const provider = providers.find(p => p.id === sel.value);
-  let roles = ['fast', 'standard', 'deep'];
-  if (provider && provider.model_roles && typeof provider.model_roles === 'object') {
-    const keys = Object.keys(provider.model_roles);
-    if (keys.length > 0) roles = keys;
-  }
-  roles.forEach(r => {
+  // Post-xau7: suggestions come from RoleStore. The four standard
+  // roles are always offered; extras appear when the operator adds
+  // custom role names (future). Fall back to the static four when
+  // /api/v1/roles hasn't loaded yet.
+  const seen = new Set();
+  Object.keys(roleStoreRows || {}).forEach(name => seen.add(name));
+  ['fast', 'standard', 'deep', 'default'].forEach(name => seen.add(name));
+  Array.from(seen).forEach(r => {
     const opt = document.createElement('option');
     opt.value = r;
+    // Annotate with the resolved provider/model so the operator can
+    // see which assignment each role currently maps to.
+    const entry = roleStoreRows && roleStoreRows[r];
+    if (entry && entry.provider_name && entry.model) {
+      opt.label = `${entry.provider_name} → ${entry.model}`;
+    }
     dl.appendChild(opt);
   });
 }
@@ -2001,7 +2020,7 @@ document.addEventListener('keydown', e => {
     <label for="ap-model-role">Model Role</label>
     <input type="text" id="ap-model-role" placeholder="fast / standard / deep" list="ap-model-role-suggestions">
     <datalist id="ap-model-role-suggestions"></datalist>
-    <div class="hint">Resolved against the provider's model_roles. Suggestions reflect the selected provider.</div>
+    <div class="hint">Resolves through RoleStore (Roles tab) → (provider, model). Suggestions list every role currently assigned.</div>
 
     <label for="ap-model">Model</label>
     <input type="text" id="ap-model" placeholder="(optional) explicit model name">

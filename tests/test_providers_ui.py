@@ -158,7 +158,6 @@ class TestAcpFieldVisibility:
     @pytest.mark.parametrize("field_id", [
         "prov-backend-row",
         "prov-acp-permission-row",
-        "prov-acp-subscription-row",
         "prov-billing-model-row",
     ])
     def test_acp_rows_hidden_by_default(self, html, field_id):
@@ -173,9 +172,6 @@ class TestAcpFieldVisibility:
         # All four canonical Claude Agent SDK permission modes.
         for opt in ("default", "acceptEdits", "plan", "bypassPermissions"):
             assert f'value="{opt}"' in html, f"Missing permission mode option: {opt}"
-
-    def test_subscription_only_default_checked(self, html):
-        assert re.search(r'id="prov-acp-subscription-only"[^>]*checked', html)
 
 
 class TestVisibilityHelper:
@@ -257,9 +253,6 @@ class TestSubmitProvider:
 
     def test_submit_includes_acp_permission_mode(self, script):
         assert "acp_permission_mode" in script
-
-    def test_submit_includes_acp_subscription_only(self, script):
-        assert "acp_subscription_only" in script
 
 
 class TestProviderCardBadge:
