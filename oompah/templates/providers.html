@@ -1711,19 +1711,25 @@ function onProfileModeChange() {
 }
 
 function updateModelRoleSuggestions() {
-  const sel = document.getElementById('ap-provider');
   const dl = document.getElementById('ap-model-role-suggestions');
   if (!dl) return;
   dl.innerHTML = '';
-  const provider = providers.find(p => p.id === sel.value);
-  let roles = ['fast', 'standard', 'deep'];
-  if (provider && provider.model_roles && typeof provider.model_roles === 'object') {
-    const keys = Object.keys(provider.model_roles);
-    if (keys.length > 0) roles = keys;
-  }
-  roles.forEach(r => {
+  // Post-xau7: suggestions come from RoleStore. The four standard
+  // roles are always offered; extras appear when the operator adds
+  // custom role names (future). Fall back to the static four when
+  // /api/v1/roles hasn't loaded yet.
+  const seen = new Set();
+  Object.keys(roleStoreRows || {}).forEach(name => seen.add(name));
+  ['fast', 'standard', 'deep', 'default'].forEach(name => seen.add(name));
+  Array.from(seen).forEach(r => {
     const opt = document.createElement('option');
     opt.value = r;
+    // Annotate with the resolved provider/model so the operator can
+    // see which assignment each role currently maps to.
+    const entry = roleStoreRows && roleStoreRows[r];
+    if (entry && entry.provider_name && entry.model) {
+      opt.label = `${entry.provider_name} → ${entry.model}`;
+    }
     dl.appendChild(opt);
   });
 }
@@ -2014,7 +2020,7 @@ document.addEventListener('keydown', e => {
     <label for="ap-model-role">Model Role</label>
     <input type="text" id="ap-model-role" placeholder="fast / standard / deep" list="ap-model-role-suggestions">
     <datalist id="ap-model-role-suggestions"></datalist>
-    <div class="hint">Resolved against the provider's model_roles. Suggestions reflect the selected provider.</div>
+    <div class="hint">Resolves through RoleStore (Roles tab) → (provider, model). Suggestions list every role currently assigned.</div>
 
     <label for="ap-model">Model</label>
     <input type="text" id="ap-model" placeholder="(optional) explicit model name">
