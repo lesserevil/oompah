@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.providers import ProviderStore
+from oompah.roles import RoleStore
 
 
 @pytest.fixture
@@ -51,18 +52,9 @@ def matrix_client(tmp_path):
     )
 
     agent_store = AgentProfileStore(path=str(tmp_path / "agent_profiles.json"))
-    # Seed the four standard profiles all pointing at the api provider
-    # initially. Tests will reassign via the matrix.
-    for role in ("fast", "standard", "deep", "default"):
-        agent_store.create({
-            "name": role,
-            "command": "claude --foo",
-            "mode": "api",
-            "provider_id": p_api.id,
-            "model": "nvidia/MiniMax-M2.7",
-            "model_role": role,
-        })
     # Add an unrelated specialty profile that the matrix MUST NOT touch.
+    # Post-xau7 the matrix lives in RoleStore (not AgentProfileStore), so
+    # this specialty profile is the only profile-store fixture.
     agent_store.create({
         "name": "merge_conflict",
         "command": "claude --foo",
@@ -72,12 +64,23 @@ def matrix_client(tmp_path):
         "model_role": "deep",
     })
 
+    # RoleStore (epic xau7) — populate the four standard roles pointing
+    # at the api provider initially. Tests reassign via the matrix.
+    role_store = RoleStore(
+        path=str(tmp_path / "roles.json"),
+        provider_store=provider_store,
+    )
+    for role_name in ("fast", "standard", "deep", "default"):
+        role_store.set(role_name, p_api.id, "nvidia/MiniMax-M2.7")
+
     original_provider_store = server_mod._provider_store
     original_profile_store = server_mod._agent_profile_store
+    original_role_store = server_mod._role_store
     original_orch = server_mod._orchestrator
 
     server_mod._provider_store = provider_store
     server_mod._agent_profile_store = agent_store
+    server_mod._role_store = role_store
     server_mod._orchestrator = None  # disable reload hook in tests
 
     try:
@@ -86,12 +89,14 @@ def matrix_client(tmp_path):
             "client": client,
             "provider_store": provider_store,
             "profile_store": agent_store,
+            "role_store": role_store,
             "p_api": p_api,
             "p_acp": p_acp,
         }
     finally:
         server_mod._provider_store = original_provider_store
         server_mod._agent_profile_store = original_profile_store
+        server_mod._role_store = original_role_store
         server_mod._orchestrator = original_orch
 
 
@@ -127,25 +132,34 @@ class TestGetRoleMatrix:
         for row in rows:
             assert row["provider_mode"] == "api", row
 
-    def test_missing_profile_status(self, matrix_client):
-        # Delete the "fast" profile and re-fetch. Status should reflect
-        # the missing profile.
-        store = matrix_client["profile_store"]
-        store.delete("fast")
+    def test_unassigned_status(self, matrix_client):
+        # Delete the "fast" role from RoleStore and re-fetch. Post-xau7
+        # the matrix's truth lives in RoleStore, not AgentProfileStore.
+        role_store = matrix_client["role_store"]
+        role_store.delete("fast")
         client = matrix_client["client"]
         r = client.get("/api/v1/agent-profiles/role-matrix")
         rows = r.json()["rows"]
         fast = next(row for row in rows if row["role"] == "fast")
-        assert fast["status"] == "missing_profile"
+        assert fast["status"] == "unassigned"
         # Other rows still resolved.
         for row in rows:
             if row["role"] != "fast":
                 assert row["status"] == "resolved", row
 
     def test_missing_provider_status(self, matrix_client):
-        # Point the "deep" profile at a vanished provider and verify.
-        store = matrix_client["profile_store"]
-        store.update("deep", provider_id="prov-vanished")
+        # Point "deep" at a vanished provider directly in RoleStore
+        # (bypass validation by writing through the store's internal
+        # dict — the validate path would refuse).
+        role_store = matrix_client["role_store"]
+        from oompah.roles import Role
+        from datetime import datetime, timezone
+        role_store._roles["deep"] = Role(
+            name="deep",
+            provider_id="prov-vanished",
+            model="nvidia/MiniMax-M2.7",
+            updated_at=datetime.now(timezone.utc),
+        )
         client = matrix_client["client"]
         r = client.get("/api/v1/agent-profiles/role-matrix")
         rows = r.json()["rows"]
@@ -153,10 +167,18 @@ class TestGetRoleMatrix:
         assert deep["status"] == "missing_provider"
 
     def test_missing_model_status(self, matrix_client):
-        # Reassign "standard" to an explicit model that's NOT in the
-        # provider's catalog.
-        store = matrix_client["profile_store"]
-        store.update("standard", model="nvidia/not-real-model")
+        # Reassign "standard" to a model that's NOT in the provider's
+        # catalog (bypass validation via internal dict write).
+        role_store = matrix_client["role_store"]
+        from oompah.roles import Role
+        from datetime import datetime, timezone
+        existing = role_store.get("standard")
+        role_store._roles["standard"] = Role(
+            name="standard",
+            provider_id=existing.provider_id,
+            model="nvidia/not-real-model",
+            updated_at=datetime.now(timezone.utc),
+        )
         client = matrix_client["client"]
         r = client.get("/api/v1/agent-profiles/role-matrix")
         rows = r.json()["rows"]
@@ -191,8 +213,8 @@ class TestPutRoleMatrixHappy:
             "default": "resolved",
         }
 
-    def test_each_role_updates_its_own_profile(self, matrix_client):
-        """Verify the right profile got the right (provider, model) pair."""
+    def test_each_role_updates_role_store(self, matrix_client):
+        """Verify each role wrote the right (provider, model) pair to RoleStore."""
         client = matrix_client["client"]
         p_api = matrix_client["p_api"]
         p_acp = matrix_client["p_acp"]
@@ -205,16 +227,14 @@ class TestPutRoleMatrixHappy:
         r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
         assert r.status_code == 200, r.text
 
-        store = matrix_client["profile_store"]
-        fast = store.get("fast")
+        role_store = matrix_client["role_store"]
+        fast = role_store.get("fast")
         assert fast.provider_id == p_acp.id
         assert fast.model == "nvidia/minimaxai/minimax-m2.7"
-        assert fast.model_role == "fast"
 
-        standard = store.get("standard")
+        standard = role_store.get("standard")
         assert standard.provider_id == p_api.id
         assert standard.model == "nvidia/llama3-70b"
-        assert standard.model_role == "standard"
 
     def test_specialty_profile_untouched(self, matrix_client):
         """``merge_conflict`` (not in the matrix) must not be modified."""
@@ -259,20 +279,26 @@ class TestPutRoleMatrixHappy:
         assert by_role["fast"]["model"] == "nvidia/minimaxai/minimax-m2.7"
         assert by_role["default"]["provider_mode"] == "api"
 
-    def test_other_profile_fields_preserved(self, matrix_client):
-        """Updating provider/model must not clobber unrelated fields."""
+    def test_does_not_touch_profile_store(self, matrix_client):
+        """Post-xau7 the matrix lives in RoleStore — profile records of
+        any name should be left alone when the matrix PUT runs.
+        """
         client = matrix_client["client"]
         store = matrix_client["profile_store"]
-        # Set extra fields on "fast" first.
-        store.update(
-            "fast",
-            command="claude --custom",
-            max_turns=42,
-            keywords=["typo", "lint"],
-            issue_types=["chore"],
-            min_priority=0,
-            max_priority=4,
-        )
+        # Create a profile literally named "fast" with arbitrary fields.
+        # Pre-xau7 the matrix would have mutated this; post-xau7 it must
+        # not touch it.
+        store.create({
+            "name": "fast",
+            "command": "claude --custom",
+            "mode": "api",
+            "provider_id": matrix_client["p_api"].id,
+            "model": "nvidia/MiniMax-M2.7",
+            "model_role": "fast",
+            "max_turns": 42,
+        })
+        before = store.get("fast").to_dict()
+
         p_acp = matrix_client["p_acp"]
         p_api = matrix_client["p_api"]
         body = {
@@ -284,13 +310,8 @@ class TestPutRoleMatrixHappy:
         r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
         assert r.status_code == 200
 
-        fast = store.get("fast")
-        assert fast.command == "claude --custom"
-        assert fast.max_turns == 42
-        assert fast.keywords == ["typo", "lint"]
-        assert fast.issue_types == ["chore"]
-        assert fast.min_priority == 0
-        assert fast.max_priority == 4
+        after = store.get("fast").to_dict()
+        assert after == before, "matrix PUT must not mutate profile records"
 
 
 # ----------------------------------------------------------------------
@@ -381,12 +402,16 @@ class TestPutRoleMatrixValidation:
         r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
         assert r.status_code == 400
 
-    def test_rejects_missing_role_profile(self, matrix_client):
-        """If a target profile (e.g. 'fast') doesn't exist in the store, fail."""
+    def test_accepts_when_no_profile_of_role_name(self, matrix_client):
+        """Post-xau7: roles are independent of profiles. PUT succeeds
+        even when no profile of the role's name exists.
+
+        Inverts the pre-xau7 ``test_rejects_missing_role_profile``.
+        """
         client = matrix_client["client"]
         p_api = matrix_client["p_api"]
-        store = matrix_client["profile_store"]
-        store.delete("fast")
+        # Profile store doesn't have profiles named fast/standard/deep/default
+        # (only "merge_conflict" from the fixture); PUT should succeed.
         body = {
             "fast": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
             "standard": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
@@ -394,8 +419,7 @@ class TestPutRoleMatrixValidation:
             "default": {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
         }
         r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
-        assert r.status_code == 400
-        assert "fast" in r.json()["error"]["message"]
+        assert r.status_code == 200, r.text
 
 
 # ----------------------------------------------------------------------
@@ -404,18 +428,15 @@ class TestPutRoleMatrixValidation:
 
 
 class TestPutRoleMatrixAtomicity:
-    def test_validation_failure_leaves_profiles_unchanged(self, matrix_client):
-        """A 400 response means NO profile was modified."""
+    def test_validation_failure_leaves_role_store_unchanged(self, matrix_client):
+        """A 400 response means NO role was modified in RoleStore."""
         client = matrix_client["client"]
         p_api = matrix_client["p_api"]
         p_acp = matrix_client["p_acp"]
-        store = matrix_client["profile_store"]
+        role_store = matrix_client["role_store"]
 
-        # Snapshot all profiles before the bad request.
-        before = {
-            name: store.get(name).to_dict()
-            for name in ("fast", "standard", "deep", "default", "merge_conflict")
-        }
+        # Snapshot RoleStore before the bad request.
+        before = {r.name: r.to_dict() for r in role_store.list_all()}
 
         # Three-good, one-bad payload. The "deep" row uses an unknown
         # provider — should bounce the entire request.
@@ -428,12 +449,19 @@ class TestPutRoleMatrixAtomicity:
         r = client.put("/api/v1/agent-profiles/role-matrix", json=body)
         assert r.status_code == 400
 
-        # Every profile must be byte-identical to before.
-        after = {
-            name: store.get(name).to_dict()
-            for name in ("fast", "standard", "deep", "default", "merge_conflict")
-        }
-        assert after == before
+        # Every role must be byte-identical to before. (Roles also keep
+        # an updated_at timestamp — skip that field when comparing.)
+        after = {r.name: r.to_dict() for r in role_store.list_all()}
+        for name in before:
+            b = {k: v for k, v in before[name].items() if k != "updated_at"}
+            a = {k: v for k, v in after[name].items() if k != "updated_at"}
+            assert a == b, f"role {name!r} mutated despite 400"
+
+        # Sentinel: merge_conflict profile untouched by matrix activity.
+        store = matrix_client["profile_store"]
+        mc = store.get("merge_conflict")
+        assert mc is not None
+        assert mc.model == "nvidia/llama3-70b"
 
     def test_acp_provider_with_no_catalog_accepts_any_model(self, matrix_client):
         """ACP-mode providers with empty catalog skip the model-membership check.
