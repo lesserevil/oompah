@@ -83,16 +83,21 @@ def _make_review(
 
 def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
     """Create a test orchestrator with mocked project store."""
+    from oompah.roles import RoleStore
     all_projects = list(projects or []) + list(yolo_projects or [])
     project_store = MagicMock()
     project_store.list_all.return_value = all_projects
     project_store.get.side_effect = lambda pid: next(
         (p for p in all_projects if p.id == pid), None
     )
+    # Use a tmp-scoped RoleStore so tests aren't influenced by any
+    # .oompah/roles.json that happens to be in the cwd.
+    role_store = RoleStore(path=str(tmp_path / "roles.json"))
     return Orchestrator(
         config=_make_config(),
         workflow_path="WORKFLOW.md",
         project_store=project_store,
+        role_store=role_store,
         state_path=str(tmp_path / "state.json"),
     )
 

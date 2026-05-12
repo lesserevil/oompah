@@ -1575,15 +1575,15 @@ def _resolve_role_status(
     ``missing_profile`` since roles no longer need a same-named profile.
 
     ``status`` is one of:
-      - ``"resolved"`` — role's provider exists and model is in catalog.
+      - ``"resolved"`` — role's provider exists and model is in catalog
+        (or provider is ACP-mode with an SDK-managed empty catalog).
       - ``"unassigned"`` — no entry in RoleStore for this slot yet.
       - ``"missing_provider"`` — role points at a provider_id that no
         longer exists in ProviderStore.
-      - ``"missing_model"`` — provider exists but the role's model is
-        not in ``provider.models`` (and the provider has a non-empty
-        catalog, so we expected catalog membership).
-      - ``"empty_catalog"`` — provider has zero models listed. Operator
-        needs to populate the catalog before assigning.
+      - ``"missing_model"`` — provider has a non-empty catalog but the
+        role's model is not in it.
+      - ``"empty_catalog"`` — non-ACP provider has zero models. The
+        operator needs to populate the catalog before this resolves.
     """
     if role is None:
         return ("unassigned", "no provider/model assigned to this role")
@@ -1591,8 +1591,15 @@ def _resolve_role_status(
     if provider is None:
         return ("missing_provider", f"provider {role.provider_id!r} not found")
     catalog = list(provider.models or [])
+    is_acp_sdk_managed = getattr(provider, "mode", "api") == "acp" and not catalog
+    if is_acp_sdk_managed:
+        # Empty model is fine — the SDK picks. Non-empty model is also
+        # fine, since the catalog isn't authoritative for ACP backends.
+        return ("resolved", None)
     if not catalog:
         return ("empty_catalog", f"provider {provider.name!r} has no models listed")
+    if not role.model:
+        return ("missing_model", f"no model assigned for provider {provider.name!r}")
     if role.model not in catalog:
         return (
             "missing_model",
@@ -1743,7 +1750,10 @@ async def api_put_roles(request: Request):
             status_code=400,
         )
 
-    # Phase 1: shape validation.
+    # Phase 1: shape validation. ``model`` may be empty when the
+    # provider is ACP-mode with no catalog (Claude SDK et al. — the SDK
+    # picks the model from the operator's subscription); the phase-2
+    # check below enforces that case.
     errors: list[str] = []
     parsed: dict[str, tuple[str, str]] = {}
     for role in ROLE_MATRIX_KEYS:
@@ -1755,12 +1765,12 @@ async def api_put_roles(request: Request):
             errors.append(f"role {role!r}: row must be a JSON object")
             continue
         pid = row.get("provider_id")
-        model = row.get("model")
+        model = row.get("model") or ""
         if not isinstance(pid, str) or not pid:
             errors.append(f"role {role!r}: provider_id is required")
             continue
-        if not isinstance(model, str) or not model:
-            errors.append(f"role {role!r}: model is required")
+        if not isinstance(model, str):
+            errors.append(f"role {role!r}: model must be a string")
             continue
         parsed[role] = (pid, model)
     if errors:
@@ -1769,17 +1779,24 @@ async def api_put_roles(request: Request):
             status_code=400,
         )
 
-    # Phase 2: cross-store validation (provider exists; model in catalog).
+    # Phase 2: cross-store validation. ACP-mode providers with an empty
+    # catalog let model stay empty (SDK-managed); everyone else requires
+    # a non-empty model that's in the provider's catalog.
     for role, (pid, model) in parsed.items():
         provider = _provider_store.get(pid)
         if provider is None:
             errors.append(f"role {role!r}: provider_id {pid!r} not found")
             continue
-        if provider.models and model not in provider.models:
+        catalog = list(provider.models or [])
+        is_acp_sdk_managed = provider.mode == "acp" and not catalog
+        if not model and not is_acp_sdk_managed:
+            errors.append(f"role {role!r}: model is required")
+            continue
+        if catalog and model and model not in catalog:
             errors.append(
                 f"role {role!r}: model {model!r} not in provider "
                 f"{provider.name!r}'s catalog (have: "
-                f"{', '.join(provider.models)})"
+                f"{', '.join(catalog)})"
             )
     if errors:
         return JSONResponse(

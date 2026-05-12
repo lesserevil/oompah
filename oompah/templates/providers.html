@@ -608,7 +608,9 @@ function renderRoleMatrix() {
     if (!provider) {
       modelOpts = '<option value="">— pick a provider first —</option>';
     } else if (modelList.length === 0) {
-      modelOpts = '<option value="">— provider has no models —</option>';
+      modelOpts = (provider.mode === 'acp')
+        ? '<option value="">— SDK-managed —</option>'
+        : '<option value="">— provider has no models —</option>';
     } else {
       modelOpts = ['<option value="">— select model —</option>']
         .concat(modelList.map(m =>
@@ -670,13 +672,17 @@ function renderRoleMatrix() {
   `;
 
   // Save button enabled iff the local state is dirty AND every row has
-  // both provider_id and model set (the server requires both per row).
-  // Post-xau7: dropped the profile_exists gate — roles are independent.
+  // a provider set and either a model OR an SDK-managed provider
+  // (ACP-mode + empty catalog, e.g. Claude SDK).
   const saveBtn = document.getElementById('role-matrix-save');
   if (saveBtn) {
     const allFilled = ROLE_MATRIX_ROLES.every(role => {
       const r = roleMatrixState.rows[role] || {};
-      return !!(r.provider_id && r.model);
+      if (!r.provider_id) return false;
+      if (r.model) return true;
+      const prov = providers.find(p => p.id === r.provider_id);
+      const catalog = prov && Array.isArray(prov.models) ? prov.models : [];
+      return !!(prov && prov.mode === 'acp' && catalog.length === 0);
     });
     saveBtn.disabled = !(roleMatrixState.dirty && allFilled);
   }
@@ -700,11 +706,19 @@ function computeRoleMatrixStatus(role, row, provider) {
     };
   }
   const catalog = Array.isArray(provider.models) ? provider.models : [];
-  if (catalog.length === 0) {
+  const isAcpSdkManaged = provider.mode === 'acp' && catalog.length === 0;
+  if (catalog.length === 0 && !isAcpSdkManaged) {
     return {
       kind: 'warn',
       label: 'no models',
       message: `provider "${provider.name}" has no models in its catalog`,
+    };
+  }
+  if (isAcpSdkManaged) {
+    return {
+      kind: 'resolved',
+      label: 'SDK-managed',
+      message: `${provider.name}: model selection managed by the SDK`,
     };
   }
   if (!row.model) {

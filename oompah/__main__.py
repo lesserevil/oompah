@@ -172,6 +172,7 @@ async def _run(
     if role_store.is_empty:
         migrate_agent_profiles_to_roles(
             role_store, agent_profile_store.list_all(),
+            provider_store=provider_store,
         )
 
     # Start gh webhook forwarder for each project (subprocess lifecycle
