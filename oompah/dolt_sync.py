@@ -38,10 +38,12 @@ from oompah.models import Project
 
 logger = logging.getLogger(__name__)
 
-# Per-subprocess timeout. The full sync interval defaults to 120s; allowing
-# pull+push to consume up to ~30s combined keeps tick latency bounded while
-# still being lenient enough for a slow remote.
-DEFAULT_SUBPROCESS_TIMEOUT_S = 15.0
+# Per-subprocess timeout. ``None`` means no timeout — bd dolt push/pull
+# can legitimately take a long time on a slow remote or a deep history,
+# and an aggressive cap causes spurious alerts (which then arm the
+# error-backoff window). Add a real cap only once observed p99 duration
+# justifies one.
+DEFAULT_SUBPROCESS_TIMEOUT_S: float | None = None
 
 # Backoff multiplier on the existing full_sync interval after an error.
 # A single transient error (rate limit, DNS hiccup) should not push a
@@ -145,10 +147,13 @@ def _truncate(msg: str, limit: int = 200) -> str:
 def _run_bd_dolt(
     args: list[str],
     cwd: str,
-    timeout_s: float,
+    timeout_s: float | None,
     runner: Any = subprocess.run,
 ) -> subprocess.CompletedProcess:
-    """Invoke ``bd dolt <args>`` with the given cwd and timeout.
+    """Invoke ``bd dolt <args>`` with the given cwd and (optional) timeout.
+
+    ``timeout_s`` is forwarded to ``subprocess.run``; ``None`` means no
+    timeout (the default per ``DEFAULT_SUBPROCESS_TIMEOUT_S``).
 
     The ``runner`` indirection exists so tests can substitute a mock
     without monkey-patching the global ``subprocess.run``.
@@ -167,7 +172,7 @@ def sync_project_dolt(
     state: DoltSyncState,
     *,
     full_sync_interval_s: float,
-    timeout_s: float = DEFAULT_SUBPROCESS_TIMEOUT_S,
+    timeout_s: float | None = DEFAULT_SUBPROCESS_TIMEOUT_S,
     now_monotonic: float | None = None,
     now_utc: datetime | None = None,
     runner: Any = subprocess.run,
