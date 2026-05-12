@@ -4906,10 +4906,17 @@ class Orchestrator:
             await self._run_cli_worker(issue, attempt, profile)
             return
 
-        # api or auto: prefer api when a provider resolves, else cli.
+        # api or auto: dispatch by the resolved provider's mode.
+        # When the provider itself is ACP-mode, route through the ACP
+        # worker even though the profile said "api"/"auto" — RoleStore
+        # may have repointed this role at an ACP-mode provider after
+        # the profile was created (epic xau7).
         if profile:
             provider = self._resolve_provider(profile)
             if provider:
+                if getattr(provider, "mode", "api") == "acp":
+                    await self._run_acp_worker(issue, attempt, profile)
+                    return
                 await self._run_api_worker(issue, attempt, profile, provider)
                 return
             if mode == "api":
@@ -4946,36 +4953,52 @@ class Orchestrator:
             )
             provider = focus_provider
 
-        # Resolve model with focus participating.
+        # Resolve model with focus participating. ACP-mode providers
+        # with an empty catalog (Claude SDK, etc.) are SDK-managed —
+        # the SDK picks the model from the operator's subscription,
+        # so no model name is required at dispatch time.
         model = self._resolve_model(profile, provider, focus=focus)
-        if not model:
+        is_acp_sdk_managed = (
+            getattr(provider, "mode", "api") == "acp"
+            and not (provider.models or [])
+        )
+        if not model and not is_acp_sdk_managed:
             raise ValueError(f"No model resolved for profile {profile.name!r} with provider {provider.name}")
 
         # Diagnostic: surface where the model came from.
-        if focus.model:
+        if is_acp_sdk_managed and not model:
+            model_source = "acp.sdk-managed"
+            model_display = "(SDK-managed)"
+        elif focus.model:
             model_source = f"focus={focus.name}.model"
+            model_display = model
         elif focus.model_role and provider.model_roles and provider.model_roles.get(focus.model_role) == model:
             model_source = f"focus={focus.name}.model_role={focus.model_role}"
+            model_display = model
         elif profile.model_role and provider.model_roles and provider.model_roles.get(profile.model_role) == model:
             model_source = f"profile={profile.name}.model_role={profile.model_role}"
+            model_display = model
         elif profile.model and profile.model == model:
             model_source = f"profile={profile.name}.model"
+            model_display = model
         else:
             model_source = "provider.default"
+            model_display = model
         logger.info("Resolved provider=%s model=%s source=%s for %s",
-                    provider.name, model, model_source, issue.identifier)
+                    provider.name, model_display, model_source, issue.identifier)
 
-        if profile.model_role and provider.model_roles and profile.model_role not in provider.model_roles:
-            logger.error("Model role %r not defined in provider %s (available roles: %s)",
-                         profile.model_role, provider.name, ", ".join(provider.model_roles))
-            raise ValueError(f"Model role {profile.model_role!r} not defined in provider {provider.name}")
-        if provider.models and model not in provider.models and model != provider.default_model:
-            logger.error("Model %s not available in provider %s (available: %s)",
-                         model, provider.name, ", ".join(provider.models))
-            raise ValueError(f"Model {model} not available in provider {provider.name}")
-        if provider.models and model not in provider.models and model == provider.default_model:
-            logger.warning("Model %s is provider.default_model but not in provider.models; proceeding with dispatch",
-                           model)
+        if not is_acp_sdk_managed:
+            if profile.model_role and provider.model_roles and profile.model_role not in provider.model_roles:
+                logger.error("Model role %r not defined in provider %s (available roles: %s)",
+                             profile.model_role, provider.name, ", ".join(provider.model_roles))
+                raise ValueError(f"Model role {profile.model_role!r} not defined in provider {provider.name}")
+            if provider.models and model not in provider.models and model != provider.default_model:
+                logger.error("Model %s not available in provider %s (available: %s)",
+                             model, provider.name, ", ".join(provider.models))
+                raise ValueError(f"Model {model} not available in provider {provider.name}")
+            if provider.models and model not in provider.models and model == provider.default_model:
+                logger.warning("Model %s is provider.default_model but not in provider.models; proceeding with dispatch",
+                               model)
 
         # Resolve modality capabilities for the (provider, model) pair.
         # Used by the prompt renderer to decide whether to embed
