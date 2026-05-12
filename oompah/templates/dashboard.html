@@ -2825,6 +2825,7 @@ function openCreateDialog() {
   document.getElementById('create-desc').value = '';
   document.getElementById('create-type').value = 'task';
   document.getElementById('create-priority').value = '2';
+  dismissEnhancePreview();
   // Show all types when creating standalone
   const typeSelect = document.getElementById('create-type');
   typeSelect.querySelector('option[value="epic"]').style.display = '';
@@ -2832,6 +2833,7 @@ function openCreateDialog() {
   const filterSel = document.getElementById('project-filter');
   const defaultProjectId = filterSel ? filterSel.value : '';
   populateProjectSelect(defaultProjectId);
+  refreshEnhanceButtonVisibility();
   setTimeout(() => document.getElementById('create-title').focus(), 50);
 }
 
@@ -2845,18 +2847,156 @@ function openCreateDialogForEpic(epicId) {
   document.getElementById('create-desc').value = '';
   document.getElementById('create-type').value = 'task';
   document.getElementById('create-priority').value = '2';
+  dismissEnhancePreview();
   // Hide epic type when creating children
   const typeSelect = document.getElementById('create-type');
   typeSelect.querySelector('option[value="epic"]').style.display = 'none';
   // Pre-select the epic's project
   const epicProjectId = epic && epic.project_id ? epic.project_id : '';
   populateProjectSelect(epicProjectId);
+  refreshEnhanceButtonVisibility();
   setTimeout(() => document.getElementById('create-title').focus(), 50);
 }
 
 function closeCreateDialog() {
   document.getElementById('create-dialog').classList.remove('open');
   createParentId = null;
+  dismissEnhancePreview();
+}
+
+// ---------------------------------------------------------------------------
+// Issue-enhancement preview (oompah-zlz_2-u8pz)
+// ---------------------------------------------------------------------------
+//
+// The Enhance button calls POST /api/v1/issues?enhance=true which returns
+// {original, enhanced, missing_fields, suggested_changes, diff} without
+// writing anything. The button is hidden unless the selected project has
+// an AGENTS.md or WORKFLOW.md issue.quality block.
+
+let _enhancePending = null;  // {enhanced_title, enhanced_description}
+let _enhanceSourceCache = {};  // project_id -> {has_source, kind} (TTL: per page load)
+
+async function onCreateProjectChange() {
+  await refreshEnhanceButtonVisibility();
+}
+
+async function refreshEnhanceButtonVisibility() {
+  const btn = document.getElementById('create-enhance-btn');
+  if (!btn) return;
+  // Resolve the project id the same way submitCreateDialog does so we
+  // never disagree about which project the issue lands in.
+  let projectId = '';
+  const projectSel = document.getElementById('create-project-select');
+  if (projectSel && projectSel.value) {
+    projectId = projectSel.value;
+  } else if (createParentId) {
+    const epic = allIssuesFlat.find(i => i.id === createParentId);
+    if (epic && epic.project_id) projectId = epic.project_id;
+  } else {
+    const sel = document.getElementById('project-filter');
+    if (sel && sel.value) projectId = sel.value;
+  }
+  if (!projectId) {
+    btn.style.display = 'none';
+    return;
+  }
+  let info = _enhanceSourceCache[projectId];
+  if (info === undefined) {
+    try {
+      const res = await fetch('/api/v1/projects/' + encodeURIComponent(projectId) + '/issue-quality-source');
+      info = res.ok ? await res.json() : {has_source: false};
+    } catch (e) {
+      info = {has_source: false};
+    }
+    _enhanceSourceCache[projectId] = info;
+  }
+  btn.style.display = info && info.has_source ? '' : 'none';
+}
+
+async function enhanceCreateDialog() {
+  const title = document.getElementById('create-title').value.trim();
+  if (!title) {
+    alert('Enter a title before running Enhance.');
+    return;
+  }
+  const enhanceBtn = document.getElementById('create-enhance-btn');
+  const submitBtn = document.getElementById('create-submit');
+  const oldLabel = enhanceBtn.textContent;
+  enhanceBtn.disabled = true;
+  enhanceBtn.textContent = 'Enhancing…';
+  submitBtn.disabled = true;
+  try {
+    const body = {
+      title,
+      type: document.getElementById('create-type').value,
+      description: document.getElementById('create-desc').value.trim() || undefined,
+      priority: parseInt(document.getElementById('create-priority').value, 10),
+    };
+    if (createParentId) body.parent_id = createParentId;
+    const projectSel = document.getElementById('create-project-select');
+    if (projectSel && projectSel.value) body.project_id = projectSel.value;
+    if (!body.project_id && createParentId) {
+      const epic = allIssuesFlat.find(i => i.id === createParentId);
+      if (epic && epic.project_id) body.project_id = epic.project_id;
+    }
+    if (!body.project_id) {
+      const sel = document.getElementById('project-filter');
+      if (sel && sel.value) body.project_id = sel.value;
+    }
+    const res = await fetch('/api/v1/issues?enhance=true', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      const msg = (data && data.error && data.error.message) || 'Enhancement failed';
+      alert('Enhance failed: ' + msg);
+      return;
+    }
+    showEnhancePreview(data);
+  } catch (e) {
+    alert('Enhance failed: ' + e);
+  } finally {
+    enhanceBtn.disabled = false;
+    enhanceBtn.textContent = oldLabel;
+    submitBtn.disabled = false;
+  }
+}
+
+function showEnhancePreview(data) {
+  _enhancePending = data;
+  const panel = document.getElementById('create-enhance-preview');
+  document.getElementById('create-enhance-title').value = (data.enhanced && data.enhanced.title) || '';
+  document.getElementById('create-enhance-desc').value = (data.enhanced && data.enhanced.description) || '';
+  const summary = document.getElementById('create-enhance-summary');
+  summary.textContent = data.suggested_changes || 'Review the suggested title and description below, then Accept or Reject.';
+  const missing = document.getElementById('create-enhance-missing');
+  if (data.missing_fields && data.missing_fields.length) {
+    missing.style.display = '';
+    missing.textContent = 'Still missing: ' + data.missing_fields.join(', ');
+  } else {
+    missing.style.display = 'none';
+    missing.textContent = '';
+  }
+  panel.style.display = '';
+}
+
+function dismissEnhancePreview() {
+  _enhancePending = null;
+  const panel = document.getElementById('create-enhance-preview');
+  if (panel) panel.style.display = 'none';
+}
+
+function acceptEnhancePreview() {
+  // Pull the (potentially edited) suggested fields into the main form
+  // and then submit normally. Operator-edited values win.
+  const newTitle = document.getElementById('create-enhance-title').value.trim();
+  const newDesc = document.getElementById('create-enhance-desc').value;
+  if (newTitle) document.getElementById('create-title').value = newTitle;
+  document.getElementById('create-desc').value = newDesc;
+  dismissEnhancePreview();
+  submitCreateDialog();
 }
 
 async function submitCreateDialog() {
@@ -3094,7 +3234,7 @@ connectWebSocket();
     <h2 id="create-dialog-title">Create Issue</h2>
     <div id="create-project-row" style="display:none;">
       <label for="create-project-select">Project</label>
-      <select id="create-project-select"></select>
+      <select id="create-project-select" onchange="onCreateProjectChange()"></select>
     </div>
     <label for="create-type">Type</label>
     <select id="create-type">
@@ -3117,8 +3257,29 @@ connectWebSocket();
     </select>
     <label for="create-desc">Description</label>
     <textarea id="create-desc" placeholder="Optional details..."></textarea>
+    <div id="create-enhance-preview" style="display:none;margin-top:0.75rem;border:1px solid var(--border, #444);border-radius:4px;padding:0.75rem;background:var(--bg-elevated, rgba(255,255,255,0.04));">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+        <strong style="font-size:0.95rem;">Suggested enhancement</strong>
+        <button onclick="dismissEnhancePreview()" style="font-size:0.8rem;padding:2px 8px;">Dismiss</button>
+      </div>
+      <div id="create-enhance-summary" style="font-size:0.85rem;color:var(--text-muted, #aaa);margin-bottom:0.5rem;"></div>
+      <div id="create-enhance-missing" style="font-size:0.85rem;color:#d97706;margin-bottom:0.5rem;display:none;"></div>
+      <div style="margin-bottom:0.5rem;">
+        <label style="font-size:0.85rem;">Suggested title</label>
+        <input type="text" id="create-enhance-title" style="width:100%;font-family:inherit;">
+      </div>
+      <div>
+        <label style="font-size:0.85rem;">Suggested description</label>
+        <textarea id="create-enhance-desc" style="width:100%;min-height:140px;font-family:inherit;"></textarea>
+      </div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem;justify-content:flex-end;">
+        <button onclick="dismissEnhancePreview()">Reject</button>
+        <button class="btn-primary" onclick="acceptEnhancePreview()">Accept</button>
+      </div>
+    </div>
     <div class="dialog-actions">
       <button onclick="closeCreateDialog()">Cancel</button>
+      <button id="create-enhance-btn" style="display:none;" onclick="enhanceCreateDialog()" title="Run an LLM enhancement pass against the project's AGENTS.md quality criteria">✨ Enhance</button>
       <button class="btn-primary" id="create-submit" onclick="submitCreateDialog()">Create</button>
     </div>
   </div>
