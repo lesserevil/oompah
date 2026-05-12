@@ -384,7 +384,13 @@ class TestFetchCandidateIssues:
 
     @patch.object(BeadsTracker, "_run_bd")
     def test_single_call_with_comma_separated_status(self, mock_run_bd):
-        """One bd call covering every active state — no per-status loop."""
+        """One bd call covering every active state — no per-status loop.
+
+        ``--all`` is needed alongside ``--status=`` because the bd CLI's
+        ``--status`` filter alone hides issues with an active local
+        worktree (oompah-zlz_2-7q55). The dispatcher needs the full
+        set, so the call includes ``--all``.
+        """
         mock_run_bd.return_value = []
         tracker = self._tracker(["open", "in_progress"])
         tracker.fetch_candidate_issues()
@@ -393,6 +399,7 @@ class TestFetchCandidateIssues:
         args = mock_run_bd.call_args_list[0].args[0]
         assert args == [
             "list",
+            "--all",
             "--status=open,in_progress",
             "--limit=0",
             "--json",
@@ -400,12 +407,12 @@ class TestFetchCandidateIssues:
 
     @patch.object(BeadsTracker, "_run_bd")
     def test_single_active_state(self, mock_run_bd):
-        """Single-state config still uses --status filter (not --all)."""
+        """Single-state config uses --all --status filter (oompah-zlz_2-7q55)."""
         mock_run_bd.return_value = []
         tracker = self._tracker(["open"])
         tracker.fetch_candidate_issues()
         args = mock_run_bd.call_args_list[0].args[0]
-        assert args == ["list", "--status=open", "--limit=0", "--json"]
+        assert args == ["list", "--all", "--status=open", "--limit=0", "--json"]
 
     @patch.object(BeadsTracker, "_run_bd")
     def test_no_fallback_on_tracker_error(self, mock_run_bd):
