@@ -3,6 +3,13 @@
 .dolt/
 *.db
 
+# Beads JSONL backups — dolt sync (refs/dolt/data) is the source of truth.
+# Tracking these in git creates a redundant second copy that conflicts
+# whenever two PRs touch beads simultaneously. See oompah-zlz_2-mp4v.
+# The files themselves still exist locally (export.auto=true) for
+# emergency recovery via `bd bootstrap`.
+.beads/*.jsonl
+
 # Python
 __pycache__/
 *.pyc
