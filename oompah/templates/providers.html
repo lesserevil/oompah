@@ -1114,13 +1114,6 @@ function openProviderDialog(provider) {
   document.getElementById('prov-models-input').value = '';
   const permSel = document.getElementById('prov-acp-permission-mode');
   if (permSel) permSel.value = (provider && provider.acp_permission_mode) ? provider.acp_permission_mode : 'default';
-  const subBox = document.getElementById('prov-acp-subscription-only');
-  if (subBox) {
-    // New ACP providers default to subscription_only=true (the common
-    // case when the operator is wiring up their claude subscription);
-    // existing providers reflect the persisted value.
-    subBox.checked = provider ? !!provider.acp_subscription_only : true;
-  }
   applyProviderModeVisibility();
   renderBackendOptions(provider ? (provider.backend || acpBackendsDefault) : acpBackendsDefault);
   // ACP billing model (oompah-zlz_2-ag7h). Defaults to subscription
@@ -1150,26 +1143,19 @@ function applyProviderModeVisibility() {
   const acpOnlyIds = [
     'prov-backend-row',
     'prov-acp-permission-row',
-    'prov-acp-subscription-row',
     'prov-billing-model-row',
   ];
   acpOnlyIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = acp ? '' : 'none';
   });
-  // Base URL / API Key are shown in both modes per the issue's field
-  // visibility table — but the "required" hint flips. Update the hint
-  // text so the operator sees that ACP can be wired up without a URL.
-  const urlHint = document.getElementById('prov-url-hint');
-  if (urlHint) {
-    urlHint.textContent = acp
-      ? 'Optional for ACP — some backends (Claude SDK) use subscription auth and ignore base_url.'
-      : 'The API base URL. For local models, use http://localhost:PORT/v1';
-  }
-  // Fetch Models behaviour depends on the selected ACP backend's
-  // catalog support; ACP-aware fetch is wired in fetchModelsFromProvider().
-  // Keep the button visible in both modes so operators see why it's
-  // disabled rather than wondering where it went.
+  // Base URL + API Key are api-only; ACP backends (Claude SDK today)
+  // use subscription auth and don't take a URL.
+  const apiOnlyIds = ['prov-url-row', 'prov-key-row'];
+  apiOnlyIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = acp ? 'none' : '';
+  });
   updateFetchModelsButtonState();
 }
 
@@ -1477,9 +1463,7 @@ async function submitProvider() {
 
   if (mode === 'acp') {
     const permSel = document.getElementById('prov-acp-permission-mode');
-    const subBox = document.getElementById('prov-acp-subscription-only');
     body.acp_permission_mode = permSel ? permSel.value : 'default';
-    body.acp_subscription_only = !!(subBox && subBox.checked);
     // ACP backend selector (oompah-zlz_2-0hzh). Sent as null when the
     // operator picked the registry default; the server normalises an
     // empty string to None so the default-to-claude resolution stays
@@ -1488,7 +1472,6 @@ async function submitProvider() {
     body.backend = (backendEl && backendEl.value) ? backendEl.value : null;
     // ACP billing model (oompah-zlz_2-ag7h). Subscription (default)
     // bypasses the budget gate; per_token participates in it.
-    // Supersedes the earlier acp_subscription_only checkbox.
     body.billing_model = getSelectedBillingModel();
   }
 
@@ -1876,7 +1859,7 @@ document.addEventListener('keydown', e => {
     <div id="prov-url-row">
       <label for="prov-url">Base URL</label>
       <input type="text" id="prov-url" placeholder="https://api.openai.com/v1">
-      <div class="hint" id="prov-url-hint">The API base URL. For local models, use http://localhost:PORT/v1</div>
+      <div class="hint">The API base URL. For local models, use http://localhost:PORT/v1</div>
     </div>
     <div id="prov-key-row">
       <label for="prov-key">API Key</label>
@@ -1894,13 +1877,6 @@ document.addEventListener('keydown', e => {
         <option value="bypassPermissions">bypassPermissions</option>
       </select>
       <div class="hint">Passed to ClaudeAgentOptions(permission_mode=...).</div>
-    </div>
-    <div id="prov-acp-subscription-row" style="display:none;">
-      <label style="display:flex;gap:0.3rem;align-items:center;font-weight:normal;">
-        <input type="checkbox" id="prov-acp-subscription-only" checked>
-        Subscription-only (bypass per-token budget gate)
-      </label>
-      <div class="hint">When checked, oompah's budget gate skips this provider; calls bill against the operator's claude subscription.</div>
     </div>
 
     <label style="display:flex;justify-content:space-between;align-items:center;">
