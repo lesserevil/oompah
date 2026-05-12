@@ -1034,6 +1034,9 @@
       &#10067; <strong id="questions-count" style="color:var(--orange,#d18616);">0</strong> <span>questions waiting</span>
       <div class="questions-dropdown" id="questions-dropdown" role="menu" aria-label="Issues asking questions"></div>
     </span>
+    <span class="agent-stat" id="dolt-sync-stat" title="Dolt sync watchdog status" style="display:none;">
+      Dolt sync: <strong id="dolt-sync-status">-</strong>
+    </span>
     <span class="agent-warning" id="agent-warnings"></span>
     <div class="running-agents" id="running-agents"></div>
   </div>
@@ -1140,6 +1143,44 @@ function handleStateUpdate(state) {
     warningsEl.innerHTML = alerts.map(a => '&#9888; ' + esc(a.message)).join(' &middot; ');
   } else {
     warningsEl.textContent = '';
+  }
+
+  // Dolt sync watchdog indicator (oompah-zlz_2-5ms2). Shows "ok / N min ago"
+  // on the most-recent successful sync across all projects, or "error" if
+  // any project is divergent or has consecutive errors.
+  const doltStat = document.getElementById('dolt-sync-stat');
+  const doltStatusEl = document.getElementById('dolt-sync-status');
+  const doltSync = state.dolt_sync || {};
+  const doltProjects = Object.values(doltSync);
+  if (doltProjects.length === 0) {
+    doltStat.style.display = 'none';
+  } else {
+    doltStat.style.display = '';
+    const divergent = doltProjects.filter(p => p.divergent);
+    const errored = doltProjects.filter(p => !p.divergent && p.last_error);
+    let mostRecent = null;
+    for (const p of doltProjects) {
+      const ts = p.last_push_at || p.last_pull_at;
+      if (ts && (!mostRecent || ts > mostRecent)) mostRecent = ts;
+    }
+    let label = '-';
+    let color = 'var(--text-muted)';
+    if (divergent.length > 0) {
+      label = 'diverged (' + divergent.length + ')';
+      color = 'var(--red,#f85149)';
+    } else if (errored.length > 0) {
+      label = 'error (' + errored.length + ')';
+      color = 'var(--orange,#d18616)';
+    } else if (mostRecent) {
+      const ageMs = Date.now() - new Date(mostRecent).getTime();
+      const ageMin = Math.max(0, Math.floor(ageMs / 60000));
+      label = 'ok / ' + (ageMin === 0 ? 'just now' : ageMin + ' min ago');
+      color = 'var(--green,#3fb950)';
+    } else {
+      label = 'pending';
+    }
+    doltStatusEl.textContent = label;
+    doltStatusEl.style.color = color;
   }
 
   // Update agent stats
