@@ -1018,6 +1018,24 @@ async def api_orchestrator_restart(request: Request):
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@app.get("/api/v1/orchestrator/dolt-sync")
+async def api_orchestrator_dolt_sync():
+    """Return per-project Dolt sync watchdog status (oompah-zlz_2-5ms2).
+
+    Mapping of ``project_id`` → ``{last_push_at, last_pull_at, last_error,
+    last_error_at, divergent, consecutive_errors}``.
+
+    Updated on every full-sync tick. Empty if the watchdog has not yet
+    completed its first pass (typically within the first 2 minutes after
+    orchestrator startup).
+    """
+    try:
+        orch = _get_orchestrator()
+        return JSONResponse({"projects": orch.dolt_sync_snapshot()})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/api/v1/orchestrator/dispatch/{identifier}")
 async def api_orchestrator_dispatch(identifier: str):
     """Manually dispatch a specific issue to an agent."""

@@ -21,6 +21,13 @@ from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.completion_verifier import VerifierResult, verify_completion
 from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
+from oompah.dolt_sync import (
+    DoltSyncResult,
+    DoltSyncState,
+    get_or_create_state as _dolt_get_or_create_state,
+    summarize_for_alerts as _dolt_summarize_for_alerts,
+    sync_project_dolt,
+)
 from oompah.events import EventBus, EventType
 from oompah.models import (
     AgentProfile,
@@ -303,6 +310,18 @@ class Orchestrator:
         # Watchdog state
         self._last_watchdog_run: float = 0.0
         self._watchdog_interval_s: float = 300.0  # 5 minutes
+        # Dolt sync watchdog state (oompah-zlz_2-5ms2). One entry per
+        # project, populated lazily on first sync. The watchdog runs on
+        # every full-sync tick (full_sync_interval_ms, default 120s) and
+        # pushes/pulls bd dolt state so agent edits propagate to the
+        # configured upstream.
+        self._dolt_sync_state: dict[str, DoltSyncState] = {}
+        self._dolt_sync_last_results: dict[str, DoltSyncResult] = {}
+        # Monotonic time of the last dolt sync — gates the watchdog to
+        # the full-sync interval. Distinct from _last_full_sync (which is
+        # updated every tick) so the dolt sync only fires on the slow
+        # cadence regardless of how many event-driven ticks happen.
+        self._last_dolt_sync_monotonic: float = 0.0
         self._last_candidates: list[Issue] = []
         self._orphan_reset_counts: dict[str, int] = {}
         self._yolo_limbo_ticks: dict[str, int] = {}
@@ -1059,6 +1078,14 @@ class Orchestrator:
         yolo_ms, archive_ms, merged_ms = await self._handle_yolo_review()
         t4 = time.monotonic()
 
+        # 5a. Dolt sync watchdog (oompah-zlz_2-5ms2). Pushes/pulls bd dolt
+        # state to/from the configured upstream so agent edits propagate
+        # across machines. Gated to the full-sync interval (no-op on
+        # event-driven ticks). All subprocesses are time-bound; failures
+        # are recorded into _dolt_sync_state and surface as alerts.
+        dolt_ms = await self._handle_dolt_sync()
+        t4b = time.monotonic()
+
         # 5b. Watchdog: detect and fix stuck issues (periodic, lightweight).
         # Offloaded to the tick thread pool to keep the event loop unblocked —
         # the four sub-checks iterate _last_candidates and may issue bd CLI
@@ -1070,16 +1097,16 @@ class Orchestrator:
             self._tick_pool, self._maybe_run_watchdog
         )
 
-        total_ms = (t4 - t0) * 1000
+        total_ms = (t4b - t0) * 1000
         if total_ms > 2000:
             logger.warning(
                 "Slow tick: %.0fms (reconcile=%.0f reviews=%.0f dispatch=%.0f "
-                "yolo=%.0f archive=%.0f merged=%.0f)",
+                "yolo=%.0f archive=%.0f merged=%.0f dolt_sync=%.0f)",
                 total_ms,
                 (t1 - t0) * 1000,
                 (t2 - t1) * 1000,
                 (t3 - t3_start) * 1000,
-                yolo_ms, archive_ms, merged_ms,
+                yolo_ms, archive_ms, merged_ms, dolt_ms,
             )
 
         self._notify_observers()
@@ -1219,6 +1246,76 @@ class Orchestrator:
             loop.run_in_executor(self._tick_pool, _timed_merged_labels),
         )
         return yolo_ms, archive_ms, merged_ms
+
+    def _dolt_sync_due(self) -> bool:
+        """Return True if the dolt sync should fire this tick.
+
+        Gates the watchdog to the full-sync interval. Returns True on
+        the very first tick (``_last_dolt_sync_monotonic == 0``) so
+        operators don't have to wait one full interval after restart.
+        """
+        if self._last_dolt_sync_monotonic == 0.0:
+            return True
+        elapsed_ms = (
+            time.monotonic() - self._last_dolt_sync_monotonic
+        ) * 1000
+        return elapsed_ms >= self.config.full_sync_interval_ms
+
+    async def _handle_dolt_sync(self) -> float:
+        """Push/pull bd dolt state for every project (full-sync only).
+
+        Runs as a step in the full-sync tick (oompah-zlz_2-5ms2). Per
+        project, pulls then pushes via :func:`sync_project_dolt`. All
+        subprocesses are time-bound and run in the tick thread pool so
+        a slow remote can't wedge the event loop.
+
+        Returns elapsed milliseconds for inclusion in the slow-tick log
+        (0 if the watchdog was skipped this tick because the interval
+        hasn't elapsed yet).
+        """
+        if not self._dolt_sync_due():
+            return 0.0
+        t0 = time.monotonic()
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(self._tick_pool, self._dolt_sync_all_sync)
+        self._last_dolt_sync_monotonic = time.monotonic()
+        return (time.monotonic() - t0) * 1000
+
+    def _dolt_sync_all_sync(self) -> None:
+        """Synchronous worker: iterate projects and call :func:`sync_project_dolt`.
+
+        Updates ``self._dolt_sync_state`` and ``self._dolt_sync_last_results``
+        in place. Merges any divergent/repeated-failure alerts into
+        ``self._alerts`` so the dashboard banner surfaces them.
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            return
+        interval_s = max(self.config.full_sync_interval_ms / 1000.0, 1.0)
+        results: dict[str, DoltSyncResult] = {}
+        for project in projects:
+            try:
+                state = _dolt_get_or_create_state(self._dolt_sync_state, project.id)
+                result = sync_project_dolt(
+                    project, state, full_sync_interval_s=interval_s,
+                )
+                results[project.id] = result
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "Dolt sync raised unexpectedly for %s: %s",
+                    project.name, exc,
+                )
+        self._dolt_sync_last_results = results
+
+        # Refresh alerts. Drop any prior dolt_sync entries, then re-add
+        # for currently-problematic projects. Same idempotent pattern as
+        # _arm_profile_drift_alert / auto_update alert handling.
+        self._alerts = [
+            a for a in self._alerts if a.get("source") != "dolt_sync"
+        ]
+        projects_by_id = {p.id: p for p in projects}
+        for entry in _dolt_summarize_for_alerts(self._dolt_sync_state, projects_by_id):
+            self._alerts.append(entry)
 
     async def _handle_auto_update(self) -> None:
         """Trigger git auto-update when the orchestrator is idle.
@@ -7192,6 +7289,20 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "alerts": list(self._alerts),
             "reviews_summary": self._reviews_summary(),
             "proposed_foci_count": self._proposed_foci_count(),
+            "dolt_sync": self.dolt_sync_snapshot(),
+        }
+
+    def dolt_sync_snapshot(self) -> dict[str, Any]:
+        """Public-facing snapshot of the dolt sync watchdog state.
+
+        Mapping of ``project_id`` -> per-project state dict with
+        ``last_push_at`` / ``last_pull_at`` / ``last_error`` / ``divergent``
+        fields. Used by both ``get_snapshot()`` (dashboard) and the
+        ``/api/v1/orchestrator/dolt-sync`` endpoint.
+        """
+        return {
+            pid: st.to_dict()
+            for pid, st in self._dolt_sync_state.items()
         }
 
     def _reviews_summary(self) -> dict[str, int]:
