@@ -52,6 +52,12 @@
     .review-card.has-conflicts { border-color: var(--red); }
     .rebase-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(226, 179, 64, 0.15); color: var(--yellow); text-transform: uppercase; }
     .conflict-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(248, 81, 73, 0.15); color: var(--red); text-transform: uppercase; }
+    /* Passive "Auto-resolving…" indicator shown instead of the manual
+       "Resolve Conflicts" button on YOLO-enabled projects — YOLO will
+       try provider.rebase_review then fall back to notifying the bead
+       on its own (oompah-zlz_2-zvf2). Calmer yellow tone communicates
+       "in progress" rather than red "operator action required". */
+    .conflict-badge.auto-resolving { background: rgba(226, 179, 64, 0.15); color: var(--yellow); text-transform: none; font-weight: 600; }
     .agent-active-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(56, 139, 253, 0.15); color: var(--blue); text-transform: uppercase; }
     .btn-rebase { background: rgba(226, 179, 64, 0.15); color: var(--yellow); border-color: rgba(226, 179, 64, 0.3); font-size: 0.65rem; padding: 0.15rem 0.5rem; vertical-align: middle; }
     .btn-rebase:hover { background: rgba(226, 179, 64, 0.25); }
@@ -252,7 +258,7 @@ function renderReviews(data) {
       review.agent_active = row.item.agent_active || false;
       const provider = row.item.provider;
       const providerLabel = provider === 'github' ? 'GitHub' : 'GitLab';
-      const card = renderReviewCard(review, provider, row.item.project_id);
+      const card = renderReviewCard(review, provider, row.item.project_id, !!row.item.project_yolo);
       // Inline project name on each card since we no longer group by project.
       const projectChip = ' <span style="color:var(--text-muted);font-size:0.7rem;">'
         + esc(row.item.project_name) + ' · ' + providerLabel + '</span>';
@@ -266,7 +272,12 @@ function renderReviews(data) {
   const byProject = {};
   for (const item of data) {
     const key = item.project_name;
-    if (!byProject[key]) byProject[key] = { provider: item.provider, project_id: item.project_id, reviews: [] };
+    if (!byProject[key]) byProject[key] = {
+      provider: item.provider,
+      project_id: item.project_id,
+      project_yolo: !!item.project_yolo,
+      reviews: [],
+    };
     const review = item.review;
     review.agent_active = item.agent_active || false;
     byProject[key].reviews.push(review);
@@ -287,7 +298,7 @@ function renderReviews(data) {
       group.reviews.length + ' open ' + reviewLabel + '</span></div>';
 
     for (const r of group.reviews) {
-      html += renderReviewCard(r, group.provider, group.project_id);
+      html += renderReviewCard(r, group.provider, group.project_id, group.project_yolo);
     }
     html += '</div>';
   }
@@ -372,7 +383,7 @@ function deriveQueueStatus(r) {
   return {label: ms || '—', cls: 'queue-unknown', emoji: '', sortRank: 8};
 }
 
-function renderReviewCard(r, provider, projectId) {
+function renderReviewCard(r, provider, projectId, projectYolo) {
   const idPrefix = provider === 'github' ? '#' : '!';
 
   let agentHtml = '';
@@ -394,9 +405,20 @@ function renderReviewCard(r, provider, projectId) {
   if (r.agent_active) {
     // Agent is handling it — no action buttons needed
   } else if (r.has_conflicts) {
-    rebaseHtml = ' <span class="conflict-badge">Merge Conflicts</span>' +
-      ' <button class="btn-resolve" ' +
-      'onclick="resolveConflicts(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Resolve Conflicts</button>';
+    // On YOLO-enabled projects, the orchestrator's _yolo_notify_conflict
+    // path already tries provider.rebase_review then falls back to the
+    // bead-notify behavior on every full-sync tick. The "Resolve Conflicts"
+    // button does the same thing manually — redundant friction. Hide it
+    // and show a passive indicator instead (oompah-zlz_2-zvf2). Non-YOLO
+    // projects still get the manual button.
+    if (projectYolo) {
+      rebaseHtml = ' <span class="conflict-badge">Merge Conflicts</span>' +
+        ' <span class="conflict-badge auto-resolving" title="YOLO will retry rebase or dispatch an agent on the next full-sync tick">Auto-resolving…</span>';
+    } else {
+      rebaseHtml = ' <span class="conflict-badge">Merge Conflicts</span>' +
+        ' <button class="btn-resolve" ' +
+        'onclick="resolveConflicts(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Resolve Conflicts</button>';
+    }
   } else if (r.needs_rebase) {
     rebaseHtml = ' <span class="rebase-badge">Needs Rebase</span>' +
       ' <button class="btn-rebase" ' +

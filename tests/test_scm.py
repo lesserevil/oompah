@@ -1390,3 +1390,133 @@ class TestGitHubPRDetailCache:
         # Even on a second tick, no fetch and no cache entry.
         provider.list_open_reviews("x/y")
         assert detail_calls == []
+
+
+# ---------------------------------------------------------------------------
+# get_all_open_reviews — payload shape, including project_yolo
+# (oompah-zlz_2-zvf2)
+# ---------------------------------------------------------------------------
+
+
+class TestGetAllOpenReviews:
+    """``get_all_open_reviews`` flattens every project's open PRs/MRs
+    into a list of ``{project_id, project_name, project_yolo, provider,
+    review}`` dicts. The ``project_yolo`` field is consumed by the
+    /reviews UI to hide the manual 'Resolve Conflicts' button on
+    YOLO-enabled projects (oompah-zlz_2-zvf2)."""
+
+    def _make_project(self, *, project_id="proj-1", name="repo",
+                      yolo=False, repo_url="https://github.com/o/r"):
+        proj = mock.MagicMock()
+        proj.id = project_id
+        proj.name = name
+        proj.yolo = yolo
+        proj.repo_url = repo_url
+        proj.access_token = None
+        return proj
+
+    def _make_review(self, review_id="42"):
+        return ReviewRequest(
+            id=review_id, title="Fix", url=f"https://x/{review_id}",
+            author="alice", state="open", source_branch=f"b-{review_id}",
+            target_branch="main", created_at="", updated_at="",
+        )
+
+    def test_payload_includes_project_yolo_true(self):
+        """A project with yolo=True surfaces project_yolo=True on every
+        review item — the template uses this to swap the
+        'Resolve Conflicts' button for 'Auto-resolving…'."""
+        from oompah.scm import get_all_open_reviews
+
+        project = self._make_project(yolo=True)
+        provider = mock.MagicMock()
+        provider.provider_name.return_value = "github"
+        provider.list_open_reviews.return_value = [self._make_review("42")]
+
+        with (
+            mock.patch("oompah.scm.detect_provider", return_value=provider),
+            mock.patch("oompah.scm.extract_repo_slug", return_value="o/r"),
+        ):
+            results = get_all_open_reviews([project])
+
+        assert len(results) == 1
+        assert results[0]["project_yolo"] is True
+        assert results[0]["project_id"] == "proj-1"
+        assert results[0]["provider"] == "github"
+        assert results[0]["review"]["id"] == "42"
+
+    def test_payload_includes_project_yolo_false(self):
+        """A project with yolo=False surfaces project_yolo=False so the
+        template renders the manual 'Resolve Conflicts' button."""
+        from oompah.scm import get_all_open_reviews
+
+        project = self._make_project(yolo=False)
+        provider = mock.MagicMock()
+        provider.provider_name.return_value = "github"
+        provider.list_open_reviews.return_value = [self._make_review("42")]
+
+        with (
+            mock.patch("oompah.scm.detect_provider", return_value=provider),
+            mock.patch("oompah.scm.extract_repo_slug", return_value="o/r"),
+        ):
+            results = get_all_open_reviews([project])
+
+        assert len(results) == 1
+        assert results[0]["project_yolo"] is False
+
+    def test_payload_yolo_missing_defaults_false(self):
+        """If a Project somehow lacks the ``yolo`` attribute, the
+        result must still include ``project_yolo`` and default to False
+        — never raise AttributeError."""
+        from oompah.scm import get_all_open_reviews
+
+        project = mock.MagicMock(spec=["id", "name", "repo_url",
+                                       "access_token"])
+        project.id = "p"
+        project.name = "n"
+        project.repo_url = "https://github.com/o/r"
+        project.access_token = None
+        provider = mock.MagicMock()
+        provider.provider_name.return_value = "github"
+        provider.list_open_reviews.return_value = [self._make_review("1")]
+
+        with (
+            mock.patch("oompah.scm.detect_provider", return_value=provider),
+            mock.patch("oompah.scm.extract_repo_slug", return_value="o/r"),
+        ):
+            results = get_all_open_reviews([project])
+
+        assert len(results) == 1
+        assert results[0]["project_yolo"] is False
+
+    def test_project_yolo_set_per_project_in_mixed_list(self):
+        """When list_all() returns projects with different yolo settings,
+        each project's reviews carry the per-project value (no leakage
+        across projects)."""
+        from oompah.scm import get_all_open_reviews
+
+        yolo_proj = self._make_project(project_id="p-yolo",
+                                        name="yolo-proj", yolo=True,
+                                        repo_url="https://github.com/o/y")
+        manual_proj = self._make_project(project_id="p-manual",
+                                          name="manual-proj", yolo=False,
+                                          repo_url="https://github.com/o/m")
+
+        def fake_provider(repo_url, **_kwargs):
+            p = mock.MagicMock()
+            p.provider_name.return_value = "github"
+            review_id = "y1" if "/y" in repo_url else "m1"
+            p.list_open_reviews.return_value = [self._make_review(review_id)]
+            return p
+
+        with (
+            mock.patch("oompah.scm.detect_provider", side_effect=fake_provider),
+            mock.patch("oompah.scm.extract_repo_slug",
+                       side_effect=lambda url: url.rsplit("/", 2)[-2] + "/"
+                                + url.rsplit("/", 1)[-1]),
+        ):
+            results = get_all_open_reviews([yolo_proj, manual_proj])
+
+        by_id = {r["project_id"]: r for r in results}
+        assert by_id["p-yolo"]["project_yolo"] is True
+        assert by_id["p-manual"]["project_yolo"] is False

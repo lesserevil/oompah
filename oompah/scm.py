@@ -1289,10 +1289,17 @@ def get_all_open_reviews(projects: list) -> list[dict]:
             logger.warning("Failed to fetch reviews for %s: %s", project.name, exc)
             continue
 
+        # Surface project.yolo so the /reviews UI can hide the manual
+        # "Resolve Conflicts" button on YOLO-enabled projects (where YOLO
+        # already retries provider.rebase_review then falls back to
+        # notifying the bead — making the click redundant). See
+        # oompah-zlz_2-zvf2.
+        project_yolo = bool(getattr(project, "yolo", False))
         for review in reviews:
             results.append({
                 "project_id": project.id,
                 "project_name": project.name,
+                "project_yolo": project_yolo,
                 "provider": provider.provider_name(),
                 "review": review.to_dict(),
             })
