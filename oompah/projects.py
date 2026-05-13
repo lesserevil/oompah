@@ -97,29 +97,56 @@ def _is_ref_namespace_conflict_error(stderr: str, branch_name: str) -> bool:
     Git's filesystem-based ref storage cannot have both
     ``refs/heads/<branch>`` (a file) AND ``refs/heads/<branch>/<sub>``
     (a file inside a directory named ``<branch>``). Creating either when
-    the other exists fails with::
+    the other exists fails.
+
+    Git emits two slightly different stderr formats depending on whether
+    the conflicting nested ref is stored as a **loose ref** (file under
+    ``.git/refs/heads/``) or a **packed ref** (entry in
+    ``.git/packed-refs``):
+
+    Loose nested ref::
 
         fatal: cannot lock ref 'refs/heads/<branch>':
         'refs/heads/<branch>/<sub>' exists; cannot create 'refs/heads/<branch>'
+
+    Packed nested ref::
+
+        fatal: 'refs/heads/<branch>/<sub>' exists; cannot create 'refs/heads/<branch>'
+
+    Both share the ``exists; cannot create 'refs/heads/<branch>'`` tail —
+    we detect on that, plus the presence of the ``refs/heads/<branch>/``
+    namespace prefix, so both loose and packed variants trigger the
+    recovery path in ``_git_worktree_add_with_recovery``.
 
     This typically happens when a previous agent (or a hand-pushed branch)
     used a slash-style nested name like ``trickle-u02z/strip-signing``,
     consuming the ``trickle-u02z`` namespace and blocking subsequent
     creation of a flat branch named ``trickle-u02z``.
 
-    Symptom from the bug report (oompah-zlz_2-kudu)::
+    Symptom from bug reports:
+
+    - oompah-zlz_2-kudu (loose variant)::
 
         fatal: cannot lock ref 'refs/heads/trickle-u02z':
         'refs/heads/trickle-u02z/strip-signing' exists;
         cannot create 'refs/heads/trickle-u02z'
+
+    - oompah-zlz_2-4g1y (packed-refs variant — note no
+      ``cannot lock ref`` prefix)::
+
+        fatal: 'refs/heads/trickle-zwmx/in-binary-url-register' exists;
+        cannot create 'refs/heads/trickle-zwmx'
     """
     if not stderr or not branch_name:
         return False
-    # Match git's canonical phrasing. Be lenient about exact quoting.
+    # Match git's canonical phrasing. Be lenient about exact quoting and
+    # accept both loose and packed-refs variants — both contain
+    # ``exists; cannot create 'refs/heads/<branch>'`` and reference at
+    # least one ``refs/heads/<branch>/<sub>`` nested ref.
     return (
-        "cannot lock ref" in stderr
-        and f"refs/heads/{branch_name}/" in stderr
-        and "cannot create" in stderr
+        f"refs/heads/{branch_name}/" in stderr
+        and f"cannot create 'refs/heads/{branch_name}'" in stderr
+        and "exists" in stderr
     )
 
 
