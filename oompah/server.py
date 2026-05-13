@@ -126,6 +126,11 @@ _log_watcher_manager: ProjectLogWatcherManager | None = None
 # Connected WebSocket clients
 _ws_clients: set[WebSocket] = set()
 
+# Per-project ACP console manager (oompah-zlz_2-ebwe). Constructed in
+# set_orchestrator() once the project/provider/role stores are wired,
+# then accessed by the WS handler and the GET /api/v1/console endpoints.
+_console_manager: Any = None
+
 
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
@@ -176,6 +181,97 @@ def set_orchestrator(orch: Orchestrator) -> None:
 
     _log_watcher_manager = ProjectLogWatcherManager(_make_error_watcher)
     _log_watcher_manager.sync_watchers(orch.project_store.list_all())
+
+    # Per-project ACP console manager (oompah-zlz_2-ebwe). Hooks into:
+    # * resolve_backend: looks up the project's 'default' role → provider →
+    #   provider.backend (default 'claude'); returns model + permission_mode
+    #   too so the console honours operator config in /providers.
+    # * broadcast: fans console events out to the existing WS pool as
+    #   ``{type:"console_event", project_id, event}``.
+    # * resolve_project: reads project.repo_path + project.name so the
+    #   ConsoleSession knows where to run its tools.
+    global _console_manager
+    from oompah.console import ConsoleManager
+
+    def _resolve_console_backend(project_id: str) -> dict[str, Any]:
+        info: dict[str, Any] = {"backend_name": "claude"}
+        try:
+            project = orch.project_store.get(project_id)
+        except Exception:
+            project = None
+        if project is not None and project.repo_path:
+            info["beads_dir"] = os.path.join(project.repo_path, ".beads")
+        # Resolve 'default' role through the unified role store.
+        role = None
+        try:
+            role = orch.role_store.get("default") if orch.role_store else None
+        except Exception:
+            role = None
+        provider = None
+        if role is not None:
+            try:
+                provider = orch.provider_store.get(role.provider_id)
+            except Exception:
+                provider = None
+        if provider is None:
+            try:
+                provider = orch.provider_store.get_default()
+            except Exception:
+                provider = None
+        if provider is not None:
+            info["backend_name"] = (
+                getattr(provider, "backend", None) or "claude"
+            )
+            # Model: prefer role's model when it resolves, otherwise the
+            # provider's default. ACP backends may ignore the model name
+            # and pick from the subscription; that's fine.
+            if role is not None and role.model:
+                info["model"] = role.model
+            elif provider.default_model:
+                info["model"] = provider.default_model
+            # Permission mode: the issue locks this to acceptEdits so
+            # the operator (the human at the keyboard) is the gate.
+            # Provider records may override per their acp_permission_mode
+            # field; consoles default to acceptEdits regardless.
+            info["permission_mode"] = (
+                getattr(provider, "acp_permission_mode", None)
+                or "acceptEdits"
+            )
+        else:
+            info["permission_mode"] = "acceptEdits"
+        return info
+
+    def _broadcast_console_event(project_id: str, event: dict) -> None:
+        if not _ws_clients:
+            return
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(_broadcast({
+                    "type": "console_event",
+                    "project_id": project_id,
+                    "event": event,
+                }))
+        except RuntimeError:
+            pass
+
+    def _resolve_console_project(project_id: str) -> dict[str, Any] | None:
+        try:
+            project = orch.project_store.get(project_id)
+        except Exception:
+            return None
+        if project is None:
+            return None
+        return {
+            "repo_path": project.repo_path,
+            "name": project.name,
+        }
+
+    _console_manager = ConsoleManager(
+        resolve_backend=_resolve_console_backend,
+        broadcast=_broadcast_console_event,
+        resolve_project=_resolve_console_project,
+    )
 
 
 def _get_orchestrator() -> Orchestrator:
@@ -416,6 +512,12 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_text(json.dumps(
                         {"type": "state", "data": orch.get_snapshot()}, default=str))
                     await broadcast_issues()
+                elif msg.get("type") == "console_input":
+                    # Per-project ACP console (oompah-zlz_2-ebwe).
+                    # Operator typed something in the dashboard's console
+                    # panel; route it to the project's ConsoleSession,
+                    # which serializes inputs server-side.
+                    await _handle_console_input(ws, msg)
             except json.JSONDecodeError:
                 pass
     except WebSocketDisconnect:
@@ -425,6 +527,104 @@ async def websocket_endpoint(ws: WebSocket):
     finally:
         _ws_clients.discard(ws)
         logger.info("WebSocket client disconnected (%d remaining)", len(_ws_clients))
+
+
+# ----------------------------------------------------------------------
+# Per-project ACP console (oompah-zlz_2-ebwe)
+# ----------------------------------------------------------------------
+
+
+async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
+    """Handle a {type:"console_input", project_id, text, attachments?} WS msg.
+
+    Enqueues the input onto the project's ConsoleSession (creating it on
+    first message). Broadcast of resulting events flows through the
+    manager's broadcast callback installed in set_orchestrator().
+    """
+    if _console_manager is None:
+        await ws.send_text(json.dumps({
+            "type": "console_event",
+            "project_id": msg.get("project_id", ""),
+            "event": {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": "console_error",
+                "payload": {"error": "console manager not initialized"},
+            },
+        }))
+        return
+    project_id = str(msg.get("project_id") or "")
+    text = str(msg.get("text") or "")
+    if not project_id or not text.strip():
+        return
+    attachments_raw = msg.get("attachments") or []
+    attachments = [str(a) for a in attachments_raw if a]
+    try:
+        loop = asyncio.get_event_loop()
+        session = _console_manager.get_or_create(project_id, loop=loop)
+    except KeyError as exc:
+        await ws.send_text(json.dumps({
+            "type": "console_event",
+            "project_id": project_id,
+            "event": {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": "console_error",
+                "payload": {"error": str(exc)},
+            },
+        }))
+        return
+    session.ensure_runner(loop=loop)
+    await session.submit(text, attachments=attachments)
+
+
+@app.get("/api/v1/console/{project_id}/transcript")
+async def api_console_transcript(
+    project_id: str,
+    limit: int = 200,
+    before: int | None = None,
+):
+    """Return a page of the project's console transcript for initial load.
+
+    Query params:
+
+    * ``limit`` — max events to return (default 200, capped at 1000).
+    * ``before`` — when set, return the page ending strictly before
+      this 0-indexed position in the chronological transcript (used by
+      the UI to scroll back through history).
+    """
+    if _console_manager is None:
+        return JSONResponse(
+            {"error": {"code": "not_ready",
+                       "message": "console manager not initialized"}},
+            status_code=503,
+        )
+    orch = _get_orchestrator()
+    project = orch.project_store.get(project_id)
+    if project is None:
+        return JSONResponse(
+            {"error": {"code": "no_project",
+                       "message": f"Unknown project_id {project_id!r}"}},
+            status_code=404,
+        )
+    try:
+        capped_limit = max(1, min(1000, int(limit)))
+    except (ValueError, TypeError):
+        capped_limit = 200
+    before_int: int | None = None
+    if before is not None:
+        try:
+            before_int = int(before)
+        except (ValueError, TypeError):
+            before_int = None
+    events, total = _console_manager.read_transcript(
+        project_id, limit=capped_limit, before=before_int,
+    )
+    return JSONResponse({
+        "project_id": project_id,
+        "events": events,
+        "total": total,
+        "limit": capped_limit,
+        "before": before_int,
+    })
 
 
 # --- JSON REST API ---

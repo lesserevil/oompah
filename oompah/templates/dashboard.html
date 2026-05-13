@@ -679,6 +679,188 @@
       border-color: var(--yellow) !important;
     }
 
+    /* Per-project ACP console (oompah-zlz_2-ebwe) */
+    .console-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+    }
+    .console-overlay.open { display: flex; }
+    .console-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 800px;
+      max-width: 95vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .console-header h3 {
+      font-size: 0.9rem;
+      color: var(--accent);
+      margin: 0;
+    }
+    .console-meta {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .console-tools-tag {
+      background: rgba(248, 81, 73, 0.12);
+      color: #f0883e;
+      border: 1px solid rgba(240, 136, 62, 0.4);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.65rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .console-project-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.5rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+    }
+    .console-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.8rem;
+    }
+    .console-empty {
+      color: var(--text-muted);
+      text-align: center;
+      padding: 2rem;
+    }
+    .console-msg {
+      margin-bottom: 0.75rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .console-msg-operator {
+      background: rgba(88, 166, 255, 0.10);
+      border-left: 3px solid var(--accent, #58a6ff);
+    }
+    .console-msg-assistant {
+      background: rgba(56, 139, 253, 0.05);
+      border-left: 3px solid rgba(120, 200, 120, 0.6);
+    }
+    .console-msg-thinking {
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 3px solid rgba(180, 180, 180, 0.3);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .console-msg-tool {
+      background: rgba(48, 54, 61, 0.4);
+      border-left: 3px solid rgba(240, 136, 62, 0.6);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .console-msg-tool .console-tool-detail {
+      display: none;
+      margin-top: 0.4rem;
+      padding-top: 0.4rem;
+      border-top: 1px dashed rgba(255, 255, 255, 0.1);
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .console-msg-tool.expanded .console-tool-detail { display: block; }
+    .console-msg-meta {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      padding: 0.25rem 0.5rem;
+    }
+    .console-msg-error {
+      background: rgba(248, 81, 73, 0.10);
+      border-left: 3px solid #f85149;
+      color: #f85149;
+    }
+    .console-msg-role {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.15rem;
+    }
+    .console-input-row {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      border-top: 1px solid var(--border);
+      align-items: flex-end;
+    }
+    .console-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      font-family: inherit;
+      font-size: 0.8rem;
+      resize: vertical;
+      min-height: 38px;
+      max-height: 200px;
+    }
+    .console-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .console-send-btn {
+      padding: 0.4rem 0.9rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .console-send-btn:hover { opacity: 0.9; }
+    .console-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .console-drop {
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 0.4rem;
+      margin: 0 1.25rem 0.5rem;
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .console-drop.drag { border-color: var(--accent); color: var(--accent); }
+    .console-attachments-chip {
+      display: inline-block;
+      padding: 1px 6px;
+      margin-left: 0.4rem;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border-radius: 10px;
+      font-size: 0.65rem;
+    }
+
     /* Questions notification dropdown */
     .questions-stat {
       position: relative;
@@ -1013,6 +1195,7 @@
       <button onclick="window.location='/providers'">Providers</button>
       <button onclick="window.location='/foci'">Foci</button>
       <button onclick="window.location='/reviews'">Reviews</button>
+      <button id="btn-console" onclick="openConsolePanel()" title="Per-project interactive ACP console (oompah-zlz_2-ebwe). Same SDK and tool catalog as worker dispatch. Tools: read/write/run.">Console</button>
       <button id="btn-pause" onclick="togglePause()">Pause</button>
       <button onclick="refreshBoard()">Refresh</button>
     </div>
@@ -1109,6 +1292,8 @@ function connectWebSocket() {
         if (_openDetailIdentifier && msg.identifier === _openDetailIdentifier) {
           refreshOpenDetailPanel();
         }
+      } else if (msg.type === 'console_event') {
+        handleConsoleEvent(msg.project_id, msg.event);
       }
     } catch (e) { /* ignore parse errors */ }
   };
@@ -3224,8 +3409,313 @@ function _wireAttachmentDropZone(root, identifier) {
   });
 }
 
+// ----------------------------------------------------------------------
+// Per-project ACP console (oompah-zlz_2-ebwe)
+// ----------------------------------------------------------------------
+
+// Per-project transcript cache: project_id -> array of events. Updated
+// both by the GET /transcript REST call (initial load) and by WS
+// console_event pushes (live updates). The currently-rendered project
+// is _activeConsoleProject; render functions only redraw when the
+// event's project_id matches.
+let _consoleTranscripts = {};
+let _activeConsoleProject = null;
+let _consoleAttachments = []; // staged file uploads for the next send
+let _consoleInflight = false; // true while a turn is in flight
+
+function getActiveConsoleProject() {
+  const sel = document.getElementById('console-project-select');
+  return (sel && sel.value) || null;
+}
+
+function setConsoleProject(projectId) {
+  const sel = document.getElementById('console-project-select');
+  if (!sel) return;
+  if (sel.value !== projectId) sel.value = projectId;
+  _activeConsoleProject = projectId || null;
+  loadConsoleTranscript(projectId);
+}
+
+function onConsoleProjectChange() {
+  setConsoleProject(getActiveConsoleProject());
+}
+
+function _populateConsoleProjectSelect() {
+  const sel = document.getElementById('console-project-select');
+  if (!sel) return;
+  const prior = sel.value;
+  sel.innerHTML = '';
+  // Pre-fill from the same currentProjects list the board filter uses.
+  if (!currentProjects || currentProjects.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no projects)';
+    sel.appendChild(opt);
+    return;
+  }
+  for (const p of currentProjects) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    sel.appendChild(opt);
+  }
+  // Default to the board's project filter if one is set; otherwise the
+  // first project. Preserves user's choice on subsequent open/closes.
+  const filterSel = document.getElementById('project-filter');
+  const preferred = prior || (filterSel && filterSel.value) || currentProjects[0].id;
+  sel.value = preferred;
+}
+
+function openConsolePanel() {
+  const overlay = document.getElementById('console-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  _populateConsoleProjectSelect();
+  const pid = getActiveConsoleProject();
+  if (pid) {
+    setConsoleProject(pid);
+  } else {
+    document.getElementById('console-body').innerHTML =
+      '<div class="console-empty">No projects configured. Add one at /projects-manage.</div>';
+  }
+  // Focus the input after a tick so the click-to-open doesn't steal it.
+  setTimeout(() => {
+    const inp = document.getElementById('console-input');
+    if (inp) inp.focus();
+  }, 50);
+}
+
+function closeConsolePanel() {
+  const el = document.getElementById('console-overlay');
+  if (el) el.classList.remove('open');
+}
+
+async function loadConsoleTranscript(projectId) {
+  if (!projectId) return;
+  const body = document.getElementById('console-body');
+  if (body) body.innerHTML = '<div class="console-empty">Loading transcript…</div>';
+  try {
+    const r = await fetch('/api/v1/console/' + encodeURIComponent(projectId) + '/transcript?limit=200');
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      if (body) body.innerHTML = '<div class="console-empty">' + esc((err.error && err.error.message) || 'Failed to load transcript') + '</div>';
+      return;
+    }
+    const data = await r.json();
+    _consoleTranscripts[projectId] = data.events || [];
+    renderConsoleTranscript(projectId);
+  } catch (e) {
+    if (body) body.innerHTML = '<div class="console-empty">' + esc(String(e)) + '</div>';
+  }
+}
+
+function renderConsoleTranscript(projectId) {
+  if (projectId !== _activeConsoleProject) return;
+  const body = document.getElementById('console-body');
+  if (!body) return;
+  const events = _consoleTranscripts[projectId] || [];
+  if (events.length === 0) {
+    body.innerHTML = '<div class="console-empty">No messages yet. Say hi 👋</div>';
+    return;
+  }
+  body.innerHTML = '';
+  for (const ev of events) {
+    const node = renderConsoleEvent(ev);
+    if (node) body.appendChild(node);
+  }
+  body.scrollTop = body.scrollHeight;
+}
+
+function renderConsoleEvent(ev) {
+  const kind = ev.kind || '';
+  const payload = ev.payload || {};
+  const div = document.createElement('div');
+  // Default: hide events we don't have an explicit renderer for so the
+  // chat doesn't fill with metadata. Verbose toggle is a v2 nice-to-have.
+  let role = '';
+  let text = '';
+  let cls = 'console-msg';
+  if (kind === 'operator_input') {
+    role = 'You';
+    text = payload.text || '';
+    cls += ' console-msg-operator';
+    if (payload.attachments && payload.attachments.length > 0) {
+      text += '\n\n' + payload.attachments.length + ' attachment(s): ' +
+              payload.attachments.join(', ');
+    }
+  } else if (kind === 'acp_text') {
+    role = 'Assistant';
+    text = payload.text || '';
+    cls += ' console-msg-assistant';
+  } else if (kind === 'acp_thinking') {
+    role = '(thinking)';
+    text = payload.text || '';
+    cls += ' console-msg-thinking';
+  } else if (kind === 'acp_tool_use') {
+    const tool = payload.tool || '?';
+    const args = payload.input != null ? JSON.stringify(payload.input) : '';
+    role = '→ tool';
+    text = tool + '(' + (args.length > 80 ? args.slice(0, 80) + '…' : args) + ')';
+    cls += ' console-msg-tool';
+    div.title = 'Click to expand';
+    div.onclick = () => div.classList.toggle('expanded');
+    div.innerHTML =
+      '<div class="console-msg-role">' + esc(role) + '</div>' +
+      '<div>' + esc(text) + '</div>' +
+      '<div class="console-tool-detail">' + esc(args) + '</div>';
+    div.className = cls;
+    return div;
+  } else if (kind === 'acp_tool_result') {
+    const isErr = !!payload.is_error;
+    role = isErr ? '← tool (error)' : '← tool';
+    text = String(payload.content || '');
+    cls += ' console-msg-tool';
+    const summary = text.length > 120 ? text.slice(0, 120) + '…' : text;
+    div.title = 'Click to expand';
+    div.onclick = () => div.classList.toggle('expanded');
+    div.innerHTML =
+      '<div class="console-msg-role">' + esc(role) + '</div>' +
+      '<div>' + esc(summary) + '</div>' +
+      '<div class="console-tool-detail">' + esc(text) + '</div>';
+    div.className = cls;
+    return div;
+  } else if (kind === 'acp_session_start') {
+    role = '— session start';
+    const model = payload.model || 'default';
+    const perm = payload.permission_mode || '';
+    text = 'model=' + model + (perm ? ' perm=' + perm : '');
+    cls += ' console-msg-meta';
+    // Update header metadata.
+    const backendEl = document.getElementById('console-meta-backend');
+    if (backendEl) backendEl.textContent = 'backend: ' + (payload.tool_policy ? 'claude' : 'codex');
+    const modelEl = document.getElementById('console-meta-model');
+    if (modelEl) modelEl.textContent = model ? 'model: ' + model : '';
+  } else if (kind === 'acp_result') {
+    role = '— turn complete';
+    const cost = payload.total_cost_usd;
+    const turns = payload.num_turns;
+    text = (turns != null ? turns + ' turn(s)' : '') +
+           (typeof cost === 'number' ? ' · $' + cost.toFixed(4) : '');
+    cls += ' console-msg-meta';
+    _consoleInflight = false;
+    _updateConsoleSendButton();
+  } else if (kind === 'console_error' || kind === 'acp_session_error' ||
+             kind === 'acp_assistant_error' || kind === 'acp_turn_timeout') {
+    role = '⚠ error';
+    text = payload.error || JSON.stringify(payload);
+    cls += ' console-msg-error';
+    _consoleInflight = false;
+    _updateConsoleSendButton();
+  } else if (kind === 'console_status') {
+    role = '— status: ' + (payload.status || '');
+    text = payload.error || '';
+    cls += ' console-msg-meta';
+  } else {
+    // Skip unknown metadata events.
+    return null;
+  }
+  div.className = cls;
+  div.innerHTML =
+    '<div class="console-msg-role">' + esc(role) + '</div>' +
+    '<div>' + esc(text) + '</div>';
+  return div;
+}
+
+function handleConsoleEvent(projectId, event) {
+  if (!projectId || !event) return;
+  if (!_consoleTranscripts[projectId]) _consoleTranscripts[projectId] = [];
+  _consoleTranscripts[projectId].push(event);
+  if (projectId !== _activeConsoleProject) return;
+  const body = document.getElementById('console-body');
+  if (!body) return;
+  // Clear placeholder if present.
+  const empty = body.querySelector('.console-empty');
+  if (empty) empty.remove();
+  const node = renderConsoleEvent(event);
+  if (node) {
+    body.appendChild(node);
+    body.scrollTop = body.scrollHeight;
+  }
+}
+
+function _updateConsoleSendButton() {
+  const btn = document.getElementById('console-send');
+  if (!btn) return;
+  btn.disabled = _consoleInflight;
+  btn.textContent = _consoleInflight ? 'Sending…' : 'Send';
+}
+
+function sendConsoleMessage() {
+  const inp = document.getElementById('console-input');
+  if (!inp) return;
+  const text = (inp.value || '').trim();
+  if (!text) return;
+  const projectId = getActiveConsoleProject();
+  if (!projectId) {
+    alert('Pick a project first');
+    return;
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    alert('WebSocket disconnected; reload page');
+    return;
+  }
+  _consoleInflight = true;
+  _updateConsoleSendButton();
+  ws.send(JSON.stringify({
+    type: 'console_input',
+    project_id: projectId,
+    text: text,
+    attachments: _consoleAttachments,
+  }));
+  inp.value = '';
+  _consoleAttachments = [];
+  _updateConsoleAttachmentsChip();
+}
+
+function _updateConsoleAttachmentsChip() {
+  // We don't actually upload attachments in v1 — operator can use the
+  // bead-detail dropzone for that. This chip is a visual placeholder
+  // for future expansion. Leave empty for now.
+  const drop = document.getElementById('console-drop');
+  if (!drop) return;
+  if (_consoleAttachments.length === 0) {
+    drop.textContent = 'Drop files here to attach to your next message';
+  } else {
+    drop.textContent = _consoleAttachments.length + ' attachment(s) staged';
+  }
+}
+
+// Wire console keyboard shortcuts + drop zone after DOM is ready.
+function _wireConsoleInputs() {
+  const inp = document.getElementById('console-input');
+  if (inp) {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendConsoleMessage();
+      }
+    });
+  }
+  const drop = document.getElementById('console-drop');
+  if (drop) {
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+    drop.addEventListener('drop', async e => {
+      e.preventDefault();
+      drop.classList.remove('drag');
+      const files = Array.from(e.dataTransfer.files || []);
+      // v1: stash filenames so the operator can see what's queued, but
+      // actual upload-and-send would require a project-attached bead.
+      // The bead-detail dropzone is the canonical attachment path.
+      _consoleAttachments = _consoleAttachments.concat(files.map(f => f.name));
+      _updateConsoleAttachmentsChip();
+    });
+  }
+}
+
 // Initial load via WebSocket (falls back to REST if WS fails)
 initHideMergedToggle();
+_wireConsoleInputs();
 connectWebSocket();
 </script>
 
@@ -3281,6 +3771,35 @@ connectWebSocket();
       <button onclick="closeCreateDialog()">Cancel</button>
       <button id="create-enhance-btn" style="display:none;" onclick="enhanceCreateDialog()" title="Run an LLM enhancement pass against the project's AGENTS.md quality criteria">✨ Enhance</button>
       <button class="btn-primary" id="create-submit" onclick="submitCreateDialog()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Per-project ACP console (oompah-zlz_2-ebwe). -->
+<div class="console-overlay" id="console-overlay" onclick="if(event.target===this)closeConsolePanel()">
+  <div class="console-panel">
+    <div class="console-header">
+      <h3>Console
+        <span class="console-tools-tag" title="Tool catalog matches worker dispatch: read/write/edit files, run_command, bd. acceptEdits permission mode — operator is the human gate.">Tools: read/write/run</span>
+      </h3>
+      <div class="console-meta">
+        <span id="console-meta-backend">backend: …</span>
+        <span id="console-meta-model"></span>
+        <button onclick="closeConsolePanel()">&times;</button>
+      </div>
+    </div>
+    <div class="console-project-row">
+      <label for="console-project-select" style="color:var(--text-muted);">Project:</label>
+      <select id="console-project-select" onchange="onConsoleProjectChange()" style="padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></select>
+      <span id="console-project-warning" style="color:var(--text-muted);"></span>
+    </div>
+    <div class="console-body" id="console-body">
+      <div class="console-empty">Select a project to start a console session.</div>
+    </div>
+    <div class="console-drop" id="console-drop">Drop files here to attach to your next message</div>
+    <div class="console-input-row">
+      <textarea id="console-input" class="console-input" placeholder="Type a message and press Enter (Shift+Enter for newline)…" rows="2"></textarea>
+      <button class="console-send-btn" id="console-send" onclick="sendConsoleMessage()">Send</button>
     </div>
   </div>
 </div>
