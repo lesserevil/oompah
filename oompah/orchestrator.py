@@ -47,7 +47,7 @@ from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.roles import RoleStore
-from oompah.scm import detect_provider, extract_repo_slug
+from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
     BeadsTracker,
@@ -1725,12 +1725,12 @@ class Orchestrator:
     def _auto_close_completed_epics(self, candidates: list[Issue]) -> None:
         """Auto-close epics whose children are all in terminal states.
 
-        Scans deferred/open epics that have children; if every child is
-        in a terminal state, the epic is closed automatically.
+        Scans deferred/open epics that have children; for each, delegates
+        to :meth:`_epic_auto_close_check` which enforces the full
+        four-condition gate (terminal children + branch merges +
+        not-already-closed). See oompah-zlz_2-lvcd.
         """
         terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
-        active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
-        non_terminal = active_norms | {"deferred", "in_progress"}
 
         for issue in candidates:
             if issue.issue_type != "epic":
@@ -1738,27 +1738,291 @@ class Orchestrator:
             state_norm = issue.state.strip().lower()
             if state_norm in terminal_norms:
                 continue  # already closed
+            self._epic_auto_close_check(issue)
 
-            children = self._fetch_epic_children(issue)
-            if not children:
-                continue  # no children — nothing to roll up
+    def _epic_auto_close_check(self, epic: Issue) -> bool:
+        """Evaluate whether ``epic`` should auto-close, and close if so.
 
-            all_terminal = all(
-                c.state.strip().lower() in terminal_norms for c in children
-            )
-            if all_terminal:
+        Implements the four-condition gate from oompah-zlz_2-lvcd:
+
+        1. Every child in a terminal state per ``tracker_terminal_states``.
+        2. For every child whose branch produced a PR/MR, that PR was
+           merged into the project's default branch (``project.branch``).
+        3. Children with no PR/MR (research/triage tasks that closed
+           without code) are treated as eligible — no merge check.
+        4. Epic itself is not already in a terminal state (don't
+           reanimate a manually-closed epic).
+
+        Returns:
+            ``True`` when the epic was closed by this call, ``False``
+            otherwise. When condition 1 passes but condition 2 fails,
+            an alert with ``source='stuck_epic'`` is added to
+            ``self._alerts`` so the dashboard surfaces it.
+        """
+        terminal_norms = {
+            s.strip().lower() for s in self.config.tracker_terminal_states
+        }
+
+        # Condition 4: don't reanimate a manually-closed epic.
+        state_norm = epic.state.strip().lower()
+        if state_norm in terminal_norms:
+            self._clear_stuck_epic_alert(epic.identifier)
+            return False
+
+        # Edge case: epic with no children — never auto-close.
+        children = self._fetch_epic_children(epic)
+        if not children:
+            self._clear_stuck_epic_alert(epic.identifier)
+            return False
+
+        # Condition 1: every child in a terminal state.
+        non_terminal_children = [
+            c for c in children
+            if c.state.strip().lower() not in terminal_norms
+        ]
+        if non_terminal_children:
+            # Clear any previous stuck alert — work is still in
+            # progress, so it's not stuck yet.
+            self._clear_stuck_epic_alert(epic.identifier)
+            return False
+
+        # Conditions 2 + 3: per-child branch-merge check.
+        merged_summaries: list[str] = []
+        unmerged_children: list[tuple[Issue, ReviewRequest | None]] = []
+        project = (
+            self.project_store.get(epic.project_id)
+            if epic.project_id
+            else None
+        )
+        target_branch = (project.branch or "main") if project else "main"
+
+        # Children of stacked/shared epics target the epic's own
+        # branch (``epic-<identifier>``), not ``project.branch`` —
+        # the epic→main merge happens via ``_open_epic_main_prs``.
+        # For flat mode the expected child target is project.branch.
+        strategy = self._project_epic_strategy(epic.project_id)
+        if strategy in ("stacked", "shared"):
+            try:
+                expected_child_target = self.project_store.epic_branch_name(
+                    epic.identifier,
+                )
+            except Exception:
+                expected_child_target = target_branch
+        else:
+            expected_child_target = target_branch
+
+        provider = None
+        slug = ""
+        if project and project.repo_url:
+            try:
+                provider = detect_provider(
+                    project.repo_url, access_token=project.access_token,
+                )
+                slug = extract_repo_slug(project.repo_url)
+            except Exception as exc:
+                logger.debug(
+                    "Failed to resolve SCM provider for epic %s: %s",
+                    epic.identifier, exc,
+                )
+
+        for child in children:
+            branch = (child.branch_name or "").strip()
+            review: ReviewRequest | None = None
+            if branch and provider is not None and slug:
                 try:
-                    tracker = self._tracker_for_issue(issue)
-                    tracker.close_issue(issue.identifier)
-                    logger.info(
-                        "Auto-closed epic %s — all %d children in terminal state",
-                        issue.identifier,
-                        len(children),
-                    )
+                    review = provider.find_pr_for_branch(slug, branch)
                 except Exception as exc:
-                    logger.warning(
-                        "Failed to auto-close epic %s: %s", issue.identifier, exc
+                    logger.debug(
+                        "find_pr_for_branch failed for %s (%s): %s",
+                        child.identifier, branch, exc,
                     )
+                    review = None
+
+            if review is None:
+                # Condition 3: no PR ever opened for this branch — treat
+                # as a research/triage closure that needs no merge check.
+                merged_summaries.append(
+                    f"{child.identifier} (closed without PR)"
+                )
+                continue
+
+            if review.state == "merged":
+                # Verify the merge landed on the expected target.
+                merged_target = (review.target_branch or "").strip()
+                if (
+                    not merged_target
+                    or merged_target == expected_child_target
+                ):
+                    merged_summaries.append(
+                        f"{child.identifier} (merged via PR #{review.id})"
+                    )
+                else:
+                    # Merged but to an unexpected branch.
+                    unmerged_children.append((child, review))
+                continue
+
+            # PR exists but is open or closed-without-merge — stuck.
+            unmerged_children.append((child, review))
+
+        if unmerged_children:
+            self._arm_stuck_epic_alert(
+                epic, unmerged_children, expected_child_target,
+            )
+            return False
+
+        # For stacked/shared mode epics, an additional gate: the
+        # epic's OWN branch (``epic-<id>``) must be merged to
+        # ``project.branch`` before we auto-close. Otherwise we'd
+        # close the bead while its merge-train work is still pending.
+        # No "stuck_epic" alert is raised here — the epic→main PR is
+        # owned by ``_open_epic_main_prs`` and merging is the
+        # operator's responsibility.
+        if strategy in ("stacked", "shared"):
+            if provider is None or not slug:
+                # Can't verify — fail closed (don't auto-close).
+                return False
+            try:
+                epic_branch = self.project_store.epic_branch_name(
+                    epic.identifier,
+                )
+            except Exception:
+                return False
+            try:
+                epic_review = provider.find_pr_for_branch(slug, epic_branch)
+            except Exception as exc:
+                logger.debug(
+                    "find_pr_for_branch failed for epic branch %s: %s",
+                    epic_branch, exc,
+                )
+                return False
+            if (
+                epic_review is None
+                or epic_review.state != "merged"
+                or (
+                    epic_review.target_branch
+                    and epic_review.target_branch != target_branch
+                )
+            ):
+                # Epic branch hasn't merged to main yet — still pending,
+                # not stuck.
+                self._clear_stuck_epic_alert(epic.identifier)
+                return False
+
+        # All conditions hold — close + comment.
+        reason = (
+            f"Auto-closed: all {len(children)} children closed and merged "
+            f"to {expected_child_target}.\n"
+            f"Children: " + ", ".join(merged_summaries)
+        )
+        try:
+            tracker = self._tracker_for_issue(epic)
+            tracker.close_issue(epic.identifier, reason=reason)
+            self._clear_stuck_epic_alert(epic.identifier)
+            logger.info(
+                "Auto-closed epic %s — all %d children closed and merged "
+                "to %s",
+                epic.identifier, len(children), expected_child_target,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(
+                "Failed to auto-close epic %s: %s", epic.identifier, exc,
+            )
+            return False
+
+    def _arm_stuck_epic_alert(
+        self,
+        epic: Issue,
+        unmerged: list[tuple[Issue, "ReviewRequest | None"]],
+        target_branch: str,
+    ) -> None:
+        """Add (or replace) a ``stuck_epic`` alert for one epic.
+
+        Triggered when every child is closed but at least one child
+        has an unmerged branch — Condition 2 of the auto-close gate
+        fails. The alert is keyed on ``source='stuck_epic'`` and the
+        epic identifier, so re-arming is idempotent.
+        """
+        source = f"stuck_epic:{epic.identifier}"
+        details: list[str] = []
+        for child, review in unmerged:
+            if review is None:
+                details.append(
+                    f"{child.identifier} (branch {child.branch_name or '?'})"
+                )
+            elif review.state == "merged":
+                details.append(
+                    f"{child.identifier} (PR #{review.id} merged to "
+                    f"{review.target_branch or '?'}, expected {target_branch})"
+                )
+            else:
+                details.append(
+                    f"{child.identifier} (PR #{review.id} {review.state})"
+                )
+        message = (
+            f"Epic {epic.identifier} has {len(unmerged)} child(ren) closed "
+            f"with unmerged branches: " + ", ".join(details)
+        )
+        # Drop any prior alert for this epic, then re-arm.
+        self._alerts = [
+            a for a in self._alerts if a.get("source") != source
+        ]
+        self._alerts.append({
+            "level": "warning",
+            "source": source,
+            "message": message,
+        })
+
+    def _clear_stuck_epic_alert(self, epic_identifier: str) -> None:
+        """Drop any ``stuck_epic`` alert previously armed for this epic."""
+        source = f"stuck_epic:{epic_identifier}"
+        before = len(self._alerts)
+        self._alerts = [
+            a for a in self._alerts if a.get("source") != source
+        ]
+        if len(self._alerts) != before:
+            logger.debug(
+                "Cleared stuck_epic alert for %s", epic_identifier,
+            )
+
+    def _maybe_auto_close_parent_epic(self, child: Issue | None) -> None:
+        """If ``child`` has a parent epic, evaluate the parent for auto-close.
+
+        Called from the worker-exit success path (oompah-zlz_2-lvcd) so
+        the epic auto-close gate fires reactively when the last child
+        closes, instead of waiting for the next full-sync tick. Failures
+        are logged but never raised — this is best-effort.
+
+        Cascading is handled implicitly: when a mid-tier epic closes
+        here, the next tick's :meth:`_auto_close_completed_epics` sweep
+        will pick up its grandparent.
+        """
+        if child is None:
+            return
+        parent_id = (child.parent_id or "").strip()
+        if not parent_id:
+            return
+        try:
+            tracker = self._tracker_for_issue(child)
+            parent = tracker.fetch_issue_detail(parent_id)
+        except Exception as exc:
+            logger.debug(
+                "Failed to fetch parent epic %s for %s: %s",
+                parent_id, child.identifier, exc,
+            )
+            return
+        if parent is None:
+            return
+        if parent.issue_type != "epic":
+            # The parent could be a non-epic — only roll up to epics.
+            return
+        try:
+            self._epic_auto_close_check(parent)
+        except Exception as exc:
+            logger.warning(
+                "Epic auto-close check failed for %s: %s",
+                parent.identifier, exc,
+            )
 
     def _plan_open_epics(self, candidates: list[Issue]) -> list[Issue]:
         """Identify open epics that need planning and return them for dispatch.
@@ -6640,6 +6904,8 @@ class Orchestrator:
                         tracker.close_issue(entry.identifier)
                         self.state.completed.add(issue_id)
                         self.state.reopen_counts.pop(issue_id, None)
+                        # Reactive epic auto-close (oompah-zlz_2-lvcd).
+                        self._maybe_auto_close_parent_epic(current)
                     else:
                         # Track how many times this issue completed without closing
                         reopen_count = self.state.reopen_counts.get(issue_id, 0) + 1
@@ -6780,6 +7046,12 @@ class Orchestrator:
                             self._verifier_reject_counts.pop(issue_id, None)
                             # Auto-create review if agent pushed a branch
                             self._ensure_review_exists(entry, project_id)
+                            # Reactive epic auto-close: if the just-closed
+                            # bead is a child of an epic, evaluate the
+                            # parent for auto-close immediately rather
+                            # than waiting for the next full-sync tick.
+                            # See oompah-zlz_2-lvcd.
+                            self._maybe_auto_close_parent_epic(current)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library
