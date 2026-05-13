@@ -398,6 +398,244 @@ class TestConfigureBeadsJsonlIgnoreCreate:
         )
 
 
+class TestBootstrapBeads:
+    """Tests for ``_bootstrap_beads`` (oompah-zlz_2-a2td).
+
+    Best-effort: runs ``bd bootstrap`` in a cloned repo, logs and continues
+    on any failure. Never raises.
+    """
+
+    def _make_repo_with_beads(self, tmp_path) -> str:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        beads = repo / ".beads"
+        beads.mkdir()
+        return str(repo)
+
+    def test_returns_false_when_no_beads_dir(self, tmp_path):
+        from oompah.projects import _bootstrap_beads
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        # No .beads/ — should short-circuit without touching subprocess.
+        with patch("oompah.projects.subprocess.run") as mock_run:
+            assert _bootstrap_beads(str(repo)) is False
+            mock_run.assert_not_called()
+
+    def test_invokes_bd_bootstrap_with_cwd(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        from oompah.projects import _bootstrap_beads
+
+        repo = self._make_repo_with_beads(tmp_path)
+
+        def fake_run(args, **kwargs):
+            assert args == ["bd", "bootstrap"]
+            assert kwargs.get("cwd") == repo
+            return MagicMock(returncode=0, stdout="bootstrap complete\n", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run) as mock_run:
+            assert _bootstrap_beads(repo) is True
+            assert mock_run.call_count == 1
+
+    def test_returns_false_on_nonzero_exit(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        from oompah.projects import _bootstrap_beads
+
+        repo = self._make_repo_with_beads(tmp_path)
+
+        def fake_run(args, **kwargs):
+            return MagicMock(returncode=1, stdout="", stderr="no remote configured")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            # Should not raise; just returns False.
+            assert _bootstrap_beads(repo) is False
+
+    def test_returns_false_when_bd_not_on_path(self, tmp_path):
+        from oompah.projects import _bootstrap_beads
+
+        repo = self._make_repo_with_beads(tmp_path)
+
+        with patch(
+            "oompah.projects.subprocess.run",
+            side_effect=FileNotFoundError("bd not on PATH"),
+        ):
+            assert _bootstrap_beads(repo) is False
+
+    def test_returns_false_on_timeout(self, tmp_path):
+        from oompah.projects import _bootstrap_beads
+
+        repo = self._make_repo_with_beads(tmp_path)
+
+        with patch(
+            "oompah.projects.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["bd", "bootstrap"], 600),
+        ):
+            # Should not raise; just returns False.
+            assert _bootstrap_beads(repo) is False
+
+    def test_uses_long_safety_timeout(self, tmp_path):
+        """The bd bootstrap subprocess should have a 10-minute timeout."""
+        from unittest.mock import MagicMock
+
+        from oompah.projects import _BD_BOOTSTRAP_TIMEOUT_S, _bootstrap_beads
+
+        repo = self._make_repo_with_beads(tmp_path)
+
+        captured = {}
+
+        def fake_run(args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _bootstrap_beads(repo)
+
+        # 10 minutes safety net (well above any observed real-world case).
+        assert captured["timeout"] == _BD_BOOTSTRAP_TIMEOUT_S
+        assert captured["timeout"] >= 600
+
+
+class TestCreateProjectRunsBootstrap:
+    """``ProjectStore.create()`` must call ``_bootstrap_beads`` when
+    ``.beads/`` exists in the clone (oompah-zlz_2-a2td)."""
+
+    def _make_fake_run(self, *, beads_dir: bool = True):
+        """Return a fake subprocess.run that simulates a successful git
+        clone (optionally creating .beads/) and ignores other commands."""
+        from unittest.mock import MagicMock
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "clone"]:
+                target = args[-1]
+                os.makedirs(os.path.join(target, ".git"), exist_ok=True)
+                if beads_dir:
+                    os.makedirs(os.path.join(target, ".beads"), exist_ok=True)
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args == ["git", "config", "--global", "user.name"]:
+                return MagicMock(returncode=0, stdout="Test User\n", stderr="")
+            if args == ["git", "config", "--global", "user.email"]:
+                return MagicMock(returncode=0, stdout="test@example.com\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        return fake_run
+
+    def _store(self, tmp_path):
+        from oompah.projects import ProjectStore
+
+        return ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+
+    def test_create_project_runs_bootstrap_when_beads_dir_exists(self, tmp_path):
+        store = self._store(tmp_path)
+
+        with patch(
+            "oompah.projects.subprocess.run",
+            side_effect=self._make_fake_run(beads_dir=True),
+        ), patch("oompah.projects._bootstrap_lfs", return_value=False), \
+             patch(
+                 "oompah.projects._install_beads_merge_driver", return_value=True,
+             ), patch(
+                 "oompah.projects._configure_beads_jsonl_ignore", return_value=True,
+             ), patch(
+                 "oompah.projects._bootstrap_beads", return_value=True,
+             ) as mock_boot:
+            project = store.create(
+                repo_url="https://example.com/repo.git",
+                name="testrepo",
+                branch="main",
+            )
+
+        assert mock_boot.call_count == 1, (
+            "Expected ProjectStore.create() to call _bootstrap_beads exactly once"
+        )
+        # Called with cwd=repo_path (the cloned location).
+        called_with = mock_boot.call_args[0][0]
+        assert called_with == project.repo_path
+
+    def test_create_project_skips_bootstrap_when_no_beads_dir(self, tmp_path):
+        from oompah.projects import ProjectError
+
+        store = self._store(tmp_path)
+
+        with patch(
+            "oompah.projects.subprocess.run",
+            side_effect=self._make_fake_run(beads_dir=False),
+        ), patch("oompah.projects._bootstrap_lfs", return_value=False), \
+             patch(
+                 "oompah.projects._install_beads_merge_driver", return_value=True,
+             ), patch(
+                 "oompah.projects._configure_beads_jsonl_ignore", return_value=True,
+             ), patch(
+                 "oompah.projects._bootstrap_beads", return_value=False,
+             ) as mock_boot:
+            with pytest.raises(ProjectError, match="no .beads/ directory found"):
+                store.create(
+                    repo_url="https://example.com/repo.git",
+                    name="testrepo",
+                    branch="main",
+                )
+
+        # We raise before reaching the bootstrap step.
+        mock_boot.assert_not_called()
+
+    def test_create_project_continues_on_bootstrap_failure(self, tmp_path, caplog):
+        """Project creation MUST succeed even when bd bootstrap fails."""
+        import logging
+        from unittest.mock import MagicMock
+
+        store = self._store(tmp_path)
+
+        # Real _bootstrap_beads runs — but subprocess.run for bd bootstrap
+        # returns non-zero, simulating "no remote configured" or auth fail.
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "clone"]:
+                target = args[-1]
+                os.makedirs(os.path.join(target, ".git"), exist_ok=True)
+                os.makedirs(os.path.join(target, ".beads"), exist_ok=True)
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if args == ["bd", "bootstrap"]:
+                return MagicMock(
+                    returncode=1, stdout="", stderr="Error: no remote configured",
+                )
+            if args == ["git", "config", "--global", "user.name"]:
+                return MagicMock(returncode=0, stdout="Test User\n", stderr="")
+            if args == ["git", "config", "--global", "user.email"]:
+                return MagicMock(returncode=0, stdout="test@example.com\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run), \
+             patch("oompah.projects._bootstrap_lfs", return_value=False), \
+             patch(
+                 "oompah.projects._install_beads_merge_driver", return_value=True,
+             ), patch(
+                 "oompah.projects._configure_beads_jsonl_ignore", return_value=True,
+             ):
+            caplog.set_level(logging.WARNING, logger="oompah.projects")
+            project = store.create(
+                repo_url="https://example.com/repo.git",
+                name="testrepo",
+                branch="main",
+            )
+
+        # Project still created.
+        assert project is not None
+        assert project.name == "testrepo"
+        # Warning logged with the stderr.
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and "bd bootstrap" in r.getMessage()
+        ]
+        assert warnings, "Expected a WARNING log mentioning 'bd bootstrap'"
+        assert any(
+            "no remote configured" in r.getMessage() for r in warnings
+        ), "Warning should include stderr from bd bootstrap"
+
+
 class TestConfigureBeadsJsonlIgnoreSync:
     """``sync_project_sources`` must self-heal existing projects."""
 
