@@ -2826,6 +2826,36 @@ async def api_update_project(project_id: str, request: Request):
                     status_code=400,
                 )
             fields["max_in_flight_prs"] = val
+        if "max_concurrent_agents" in body:
+            raw = body["max_concurrent_agents"]
+            # Accept null/empty-string for "unlimited"; positive int otherwise.
+            # Booleans are rejected explicitly because Python's bool is a
+            # subclass of int and would silently slip through (True -> 1,
+            # False -> 0). See bead oompah-zlz_2-okxw.
+            if raw is None or (isinstance(raw, str) and not raw.strip()):
+                fields["max_concurrent_agents"] = None
+            else:
+                if isinstance(raw, bool):
+                    return JSONResponse(
+                        {"error": {"code": "validation",
+                                   "message": "max_concurrent_agents must be a positive integer or null"}},
+                        status_code=400,
+                    )
+                try:
+                    val = int(raw)
+                except (TypeError, ValueError):
+                    return JSONResponse(
+                        {"error": {"code": "validation",
+                                   "message": "max_concurrent_agents must be a positive integer or null"}},
+                        status_code=400,
+                    )
+                if val < 1:
+                    return JSONResponse(
+                        {"error": {"code": "validation",
+                                   "message": "max_concurrent_agents must be >= 1 (use null for unlimited)"}},
+                        status_code=400,
+                    )
+                fields["max_concurrent_agents"] = val
         if "merge_queue_enabled" in body:
             fields["merge_queue_enabled"] = bool(body["merge_queue_enabled"])
         if "paused" in body:

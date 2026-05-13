@@ -157,8 +157,46 @@
   </div>
 
 <script>
+// Per-project running-agent count, refreshed alongside the project list so
+// the "Agents: X/Y" badge stays current without a separate polling loop.
+// Keyed by project_id; missing keys mean zero running. Sourced from
+// /api/v1/state.running_count_by_project; falls back to scanning state.running
+// when older orchestrators don't surface the aggregate. See bead oompah-zlz_2-okxw.
+let _runningCountByProject = {};
+
+function runningCountFor(pid) {
+  return _runningCountByProject[pid] || 0;
+}
+
+async function fetchRunningCounts() {
+  try {
+    const res = await fetch('/api/v1/state');
+    if (!res.ok) return;
+    const snap = await res.json();
+    if (snap && typeof snap.running_count_by_project === 'object'
+        && snap.running_count_by_project !== null) {
+      _runningCountByProject = snap.running_count_by_project;
+      return;
+    }
+    // Back-compat: derive from the running list.
+    const counts = {};
+    for (const row of (snap && snap.running) || []) {
+      const pid = row && row.project_id;
+      if (pid) counts[pid] = (counts[pid] || 0) + 1;
+    }
+    _runningCountByProject = counts;
+  } catch (e) {
+    // Soft-fail: leave the previous counts in place so the UI doesn't blink.
+  }
+}
+
 async function loadProjects() {
-  const res = await fetch('/api/v1/projects');
+  // Fetch project list and running counts in parallel so the badge renders
+  // in one frame instead of flashing zero-then-real.
+  const [res] = await Promise.all([
+    fetch('/api/v1/projects'),
+    fetchRunningCounts(),
+  ]);
   const projects = await res.json();
   const container = document.getElementById('project-list');
   if (projects.length === 0) {
@@ -206,6 +244,11 @@ async function loadProjects() {
         <span class="field-label">Max in-flight PRs:</span>
         <span class="field-value">${esc(String(p.max_in_flight_prs || 1))}</span>
         <span style="font-size:0.7rem;color:var(--text-muted);margin-left:0.5rem;">(raise only when GitHub Merge Queue is enabled for this repo)</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Agents:</span>
+        <span class="field-value">${esc(String(runningCountFor(p.id)))} / ${p.max_concurrent_agents == null ? '∞' : esc(String(p.max_concurrent_agents))}</span>
+        <span style="font-size:0.7rem;color:var(--text-muted);margin-left:0.5rem;">(per-project concurrent-agent cap; ∞ means only the global cap applies)</span>
       </div>
       <div class="field-row">
         <span class="field-label">Merge Queue:</span>
@@ -275,6 +318,10 @@ async function loadProjects() {
         <div class="form-group">
           <label>Max in-flight PRs (default: 1 — only raise when GitHub Merge Queue is enabled for this repo)</label>
           <input type="number" id="edit-max-in-flight-prs-${esc(p.id)}" value="${esc(String(p.max_in_flight_prs || 1))}" min="1" step="1">
+        </div>
+        <div class="form-group">
+          <label>Max concurrent agents (leave empty for unlimited — only the global cap applies)</label>
+          <input type="number" id="edit-max-concurrent-agents-${esc(p.id)}" value="${p.max_concurrent_agents == null ? '' : esc(String(p.max_concurrent_agents))}" min="1" step="1" placeholder="unlimited">
         </div>
         <div class="form-group">
           <label>Test Command (pre-push verification — agents run this exact command instead of inferring)</label>
@@ -434,6 +481,19 @@ async function saveProject(id) {
     errEl.style.display = 'block';
     return;
   }
+  // Max concurrent agents: empty string -> null (unlimited). Anything else
+  // must parse to a positive int. See bead oompah-zlz_2-okxw.
+  const maxConcurrentAgentsRaw = document.getElementById('edit-max-concurrent-agents-' + id).value.trim();
+  let maxConcurrentAgents = null;
+  if (maxConcurrentAgentsRaw) {
+    const parsed = parseInt(maxConcurrentAgentsRaw, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      errEl.textContent = 'Max concurrent agents must be a positive integer (>= 1) or empty for unlimited';
+      errEl.style.display = 'block';
+      return;
+    }
+    maxConcurrentAgents = parsed;
+  }
   const testCommand = document.getElementById('edit-test-command-' + id).value.trim();
   const testCommandFull = document.getElementById('edit-test-command-full-' + id).value.trim();
   const testSkipPathsRaw = document.getElementById('edit-test-skip-paths-' + id).value.trim();
@@ -445,7 +505,9 @@ async function saveProject(id) {
   // radio is always pre-checked).
   const epicStrategyEl = document.querySelector('input[name="edit-epic-strategy-' + id + '"]:checked');
   const epicStrategy = epicStrategyEl ? epicStrategyEl.value : 'flat';
-  const body = {name, branch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy};
+  const body = {name, branch, max_in_flight_prs: maxInFlightPrs,
+                max_concurrent_agents: maxConcurrentAgents,
+                epic_strategy: epicStrategy};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;

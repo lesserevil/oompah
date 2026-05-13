@@ -149,6 +149,17 @@ class Project:
     # single-in-flight behavior. Raise per-project once GitHub Merge Queue
     # (Step 5) is enabled and verified for that repo.
     max_in_flight_prs: int = 1
+    # Maximum number of concurrent agents (running dispatches) allowed for
+    # this project. Distinct from ``max_in_flight_prs``: that one caps PR-
+    # producing dispatch, but a single noisy project can still saturate the
+    # global concurrent-agent pool with pre-PR work (planning, reading,
+    # asking_question) and starve other projects. This cap is enforced
+    # directly against ``state.running`` entries scoped to ``project.id``.
+    #
+    # ``None`` means infinite — only the global ``max_concurrent_agents``
+    # cap (and other gates) apply. Any positive int caps in-flight agents
+    # for this project specifically. See bead oompah-zlz_2-okxw.
+    max_concurrent_agents: int | None = None
     # When True, YOLO auto-merge calls enable_auto_merge (GitHub merge queue)
     # instead of directly merging the PR.  Default False preserves today's
     # direct-merge behaviour.
@@ -233,6 +244,10 @@ class Project:
             d["test_command_full"] = self.test_command_full
         if self.test_skip_paths:
             d["test_skip_paths"] = list(self.test_skip_paths)
+        # Per-project agent cap: omit when None (the default "infinite" mode)
+        # so legacy projects.json files stay clean. See bead oompah-zlz_2-okxw.
+        if self.max_concurrent_agents is not None:
+            d["max_concurrent_agents"] = self.max_concurrent_agents
         # Always emit epic_strategy so dashboards can render the current
         # mode without back-compat guessing. Default "flat" is included
         # so an upgraded server writing an existing projects.json file
@@ -271,6 +286,18 @@ class Project:
             max_in_flight_prs = max(1, int(raw_max))
         except (ValueError, TypeError):
             max_in_flight_prs = 1
+        # Per-project agent cap: missing key or null -> None (infinite),
+        # positive int -> kept, anything else (zero/negative/garbage) -> None.
+        # See bead oompah-zlz_2-okxw.
+        max_concurrent_agents: int | None
+        if "max_concurrent_agents" not in d or d["max_concurrent_agents"] is None:
+            max_concurrent_agents = None
+        else:
+            try:
+                parsed = int(d["max_concurrent_agents"])
+                max_concurrent_agents = parsed if parsed > 0 else None
+            except (ValueError, TypeError):
+                max_concurrent_agents = None
         raw_skip = d.get("test_skip_paths") or []
         if isinstance(raw_skip, list):
             test_skip_paths = [str(p) for p in raw_skip if str(p).strip()]
@@ -308,6 +335,7 @@ class Project:
             lfs_available=bool(d.get("lfs_available", False)),
             last_webhook_received_at=last_webhook_received_at,
             max_in_flight_prs=max_in_flight_prs,
+            max_concurrent_agents=max_concurrent_agents,
             merge_queue_enabled=bool(d.get("merge_queue_enabled", False)),
             paused=bool(d.get("paused", False)),
             test_command=test_command or None,

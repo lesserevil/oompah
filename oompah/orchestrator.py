@@ -1549,6 +1549,79 @@ class Orchestrator:
         except (TypeError, ValueError):
             return 1
 
+    def _count_running_for_project(self, project_id: str | None) -> int:
+        """Number of currently running agents whose issue belongs to *project_id*.
+
+        Counts ``state.running`` entries where ``entry.issue.project_id``
+        matches. Used by the per-project ``max_concurrent_agents`` gate
+        (bead oompah-zlz_2-okxw) to keep one noisy project from
+        consuming the entire global agent pool and starving the others.
+
+        Returns 0 for legacy issues that have no project_id.
+        """
+        if not project_id:
+            return 0
+        n = 0
+        for entry in self.state.running.values():
+            issue = getattr(entry, "issue", None)
+            if issue is not None and issue.project_id == project_id:
+                n += 1
+        return n
+
+    def _running_count_by_project(self) -> dict[str, int]:
+        """Return ``{project_id: running_count}`` for every project with
+        at least one running agent.
+
+        Surfaced via ``get_snapshot()`` so the projects page can render
+        the "Agents: X/Y" badge without scanning the ``running`` list
+        on every render. Legacy entries with no project_id are skipped
+        (they cannot be attributed to a project). See bead
+        oompah-zlz_2-okxw.
+        """
+        counts: dict[str, int] = {}
+        for entry in self.state.running.values():
+            issue = getattr(entry, "issue", None)
+            pid = getattr(issue, "project_id", None) if issue is not None else None
+            if not pid:
+                continue
+            counts[pid] = counts.get(pid, 0) + 1
+        return counts
+
+    def _project_max_concurrent_agents(
+        self, project_id: str | None
+    ) -> int | None:
+        """Return the configured per-project agent cap, or None for unlimited.
+
+        ``None`` means the project has no per-project cap and is only
+        bounded by the global ``max_concurrent_agents``. A positive int
+        caps in-flight agents for this project specifically. Zero or
+        negative values stored on disk are coerced to None at load time
+        by ``Project.from_dict`` (treated as "infinite") — this helper
+        only sees the post-load value so any positive int here is real.
+
+        Falls back to None (no per-project cap) when the project is
+        unknown or the attribute is missing on legacy instances. See
+        bead oompah-zlz_2-okxw.
+        """
+        if not project_id:
+            return None
+        project = self.project_store.get(project_id)
+        if project is None:
+            return None
+        raw = getattr(project, "max_concurrent_agents", None)
+        # Project.from_dict normalizes this field to ``None`` or a positive
+        # int at load time, so anything else here is a fresh mock or a
+        # back-compat attribute miss — treat it as "no cap". We avoid
+        # int(raw) on purpose: unittest.mock.MagicMock auto-implements
+        # __int__ (returns 1), which would silently switch every
+        # MagicMock-built test project to "cap=1" and break unrelated
+        # dispatch tests.
+        if isinstance(raw, bool):
+            return None
+        if not isinstance(raw, int):
+            return None
+        return raw if raw > 0 else None
+
     def _is_project_paused(self, project_id: str | None) -> bool:
         """Return True when the project has been individually paused.
 
@@ -2046,6 +2119,27 @@ class Orchestrator:
             limit = self._project_max_in_flight(issue.project_id)
             if n_open >= limit:
                 return _reject(f"open_reviews_at_cap={n_open}/{limit}")
+        # Per-project concurrent-agent cap. Distinct from the in-flight PR
+        # cap above: this counts ALL running agents for the project
+        # (planning, reading, asking_question, pre-PR work), not just those
+        # that have produced a PR. Default None = no per-project cap
+        # (only the global max_concurrent_agents applies). Strict
+        # enforcement, no P0 carve-out: the operator chose this number to
+        # bound RESOURCES (memory/cost/CPU), not PR coordination, so a
+        # surprise P0 burst should not exceed it. See bead oompah-zlz_2-okxw.
+        project_agent_cap = self._project_max_concurrent_agents(issue.project_id)
+        if project_agent_cap is not None:
+            running_for_project = self._count_running_for_project(issue.project_id)
+            if running_for_project >= project_agent_cap:
+                project = self.project_store.get(issue.project_id) if issue.project_id else None
+                project_name = project.name if project is not None else (issue.project_id or "?")
+                logger.debug(
+                    "Project %s at per-project agent cap (%d/%d) — skipping dispatch",
+                    project_name, running_for_project, project_agent_cap,
+                )
+                return _reject(
+                    f"project_agents_at_cap={running_for_project}/{project_agent_cap}"
+                )
         # epic_strategy=='shared' serializes child dispatch within an epic.
         # Multiple children share one worktree+branch and we don't have an
         # in-worktree coordination protocol yet (out of scope per the bead),
@@ -7634,6 +7728,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 pid: self._count_open_reviews(pid)
                 for pid in (getattr(self, "_reviews_cache", None) or {})
             },
+            # Per-project running-agent counts, keyed by project_id. Surfaced
+            # for the /projects UI to render the "Agents: X/Y" badge against
+            # ``project.max_concurrent_agents``. Includes every project that
+            # has at least one running entry; absent keys mean zero running.
+            # See bead oompah-zlz_2-okxw.
+            "running_count_by_project": self._running_count_by_project(),
             "alerts": list(self._alerts),
             "reviews_summary": self._reviews_summary(),
             "proposed_foci_count": self._proposed_foci_count(),

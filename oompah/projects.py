@@ -847,7 +847,8 @@ class ProjectStore:
     UPDATABLE_FIELDS = frozenset({
         "name", "repo_url", "branch", "git_user_name", "git_user_email",
         "yolo", "log_path", "webhook_secret", "access_token",
-        "last_webhook_received_at", "max_in_flight_prs", "merge_queue_enabled",
+        "last_webhook_received_at", "max_in_flight_prs",
+        "max_concurrent_agents", "merge_queue_enabled",
         "paused", "test_command", "test_command_full", "test_skip_paths",
         "epic_strategy",
     })
@@ -949,6 +950,31 @@ class ProjectStore:
             if val < 1:
                 raise ProjectError("'max_in_flight_prs' must be >= 1")
             fields["max_in_flight_prs"] = val
+
+        # Validate max_concurrent_agents: None (unlimited) or positive int.
+        # Empty string and explicit None are both interpreted as "unlimited".
+        # Floats are rejected to prevent silent truncation. See bead
+        # oompah-zlz_2-okxw.
+        if "max_concurrent_agents" in fields:
+            val = fields["max_concurrent_agents"]
+            if val is None or (isinstance(val, str) and not val.strip()):
+                fields["max_concurrent_agents"] = None
+            else:
+                if isinstance(val, bool) or isinstance(val, float):
+                    raise ProjectError(
+                        "'max_concurrent_agents' must be a positive integer or null"
+                    )
+                try:
+                    parsed = int(val)
+                except (TypeError, ValueError):
+                    raise ProjectError(
+                        "'max_concurrent_agents' must be a positive integer or null"
+                    )
+                if parsed < 1:
+                    raise ProjectError(
+                        "'max_concurrent_agents' must be >= 1 (use null for unlimited)"
+                    )
+                fields["max_concurrent_agents"] = parsed
 
         for key, value in fields.items():
             setattr(project, key, value)
