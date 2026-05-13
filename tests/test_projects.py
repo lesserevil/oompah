@@ -973,3 +973,291 @@ class TestCreateWorktreeRecoversFromLockError:
         assert seen_lock["hit"] is True
         assert returned == wt_path
         assert os.path.isdir(wt_path)
+
+
+# ---------------------------------------------------------------------------
+# Ref namespace conflict recovery (oompah-zlz_2-kudu).
+#
+# When a previous run created a nested-style branch like
+# `trickle-u02z/strip-signing`, subsequent `git worktree add -b trickle-u02z`
+# fails because git's filesystem-based ref storage can't have both
+# refs/heads/trickle-u02z (file) and refs/heads/trickle-u02z/<sub>.
+# ---------------------------------------------------------------------------
+
+from oompah.projects import (
+    _is_ref_namespace_conflict_error,
+    _resolve_ref_namespace_conflict,
+    _branch_name_from_worktree_cmd,
+)
+
+
+# Stderr verbatim from the bug report (oompah-zlz_2-kudu).
+_NAMESPACE_STDERR = (
+    "Preparing worktree (new branch 'trickle-u02z')\n"
+    "fatal: cannot lock ref 'refs/heads/trickle-u02z': "
+    "'refs/heads/trickle-u02z/strip-signing' exists; "
+    "cannot create 'refs/heads/trickle-u02z'\n"
+)
+
+
+class TestIsRefNamespaceConflictError:
+    def test_matches_bug_report_stderr(self):
+        assert _is_ref_namespace_conflict_error(
+            _NAMESPACE_STDERR, "trickle-u02z",
+        ) is True
+
+    def test_does_not_match_other_branch(self):
+        """A conflict for branch X must not be reported for branch Y."""
+        assert _is_ref_namespace_conflict_error(
+            _NAMESPACE_STDERR, "other-branch",
+        ) is False
+
+    def test_does_not_match_lock_config_error(self):
+        """Must not confuse with the transient .git/config lock error."""
+        assert _is_ref_namespace_conflict_error(
+            "error: could not lock config file .git/config: File exists",
+            "trickle-u02z",
+        ) is False
+
+    def test_empty_stderr(self):
+        assert _is_ref_namespace_conflict_error("", "foo") is False
+
+    def test_empty_branch_name(self):
+        assert _is_ref_namespace_conflict_error(_NAMESPACE_STDERR, "") is False
+
+
+class TestBranchNameFromWorktreeCmd:
+    def test_extract_with_dash_b(self):
+        cmd = ["git", "worktree", "add", "-b", "trickle-u02z",
+               "/wt", "origin/main"]
+        assert _branch_name_from_worktree_cmd(cmd) == "trickle-u02z"
+
+    def test_extract_with_dash_capital_b(self):
+        cmd = ["git", "worktree", "add", "-B", "epic-foo", "/wt", "origin/main"]
+        assert _branch_name_from_worktree_cmd(cmd) == "epic-foo"
+
+    def test_no_branch_flag_returns_none(self):
+        """When the command attaches an existing branch (no -b/-B), return None."""
+        cmd = ["git", "worktree", "add", "/wt", "existing-branch"]
+        assert _branch_name_from_worktree_cmd(cmd) is None
+
+    def test_unrecognised_shape(self):
+        assert _branch_name_from_worktree_cmd(["git", "status"]) is None
+
+
+class TestResolveRefNamespaceConflict:
+    def test_renames_nested_local_refs(self, tmp_path):
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:2] == ["git", "for-each-ref"]:
+                # Two nested local branches under trickle-u02z/.
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-u02z/strip-signing\ntrickle-u02z/other\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "show-ref", "--verify"]:
+                # No collision on the new flat names.
+                return _MM(returncode=1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-m"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            renames = _resolve_ref_namespace_conflict("/repo", "trickle-u02z")
+        assert renames == [
+            ("trickle-u02z/strip-signing", "trickle-u02z__strip-signing"),
+            ("trickle-u02z/other", "trickle-u02z__other"),
+        ]
+        # Verify branch -m was called with the right arguments.
+        mv_calls = [c for c in calls if c[:3] == ["git", "branch", "-m"]]
+        assert mv_calls == [
+            ["git", "branch", "-m", "trickle-u02z/strip-signing",
+             "trickle-u02z__strip-signing"],
+            ["git", "branch", "-m", "trickle-u02z/other",
+             "trickle-u02z__other"],
+        ]
+
+    def test_no_nested_refs_returns_empty(self, tmp_path):
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            renames = _resolve_ref_namespace_conflict("/repo", "foo")
+        assert renames == []
+
+    def test_collision_on_target_name_uses_suffix(self, tmp_path):
+        """If the renamed-to target already exists, append a numeric suffix."""
+        seen_collisions = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-u02z/strip-signing\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "show-ref", "--verify"]:
+                # First lookup says target exists (returncode=0), second is free.
+                seen_collisions["n"] += 1
+                if seen_collisions["n"] == 1:
+                    return _MM(returncode=0, stdout="", stderr="")
+                return _MM(returncode=1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-m"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            renames = _resolve_ref_namespace_conflict("/repo", "trickle-u02z")
+        assert renames == [
+            ("trickle-u02z/strip-signing", "trickle-u02z__strip-signing_1"),
+        ]
+
+    def test_for_each_ref_failure_returns_empty(self, tmp_path):
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(returncode=1, stdout="", stderr="boom")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            renames = _resolve_ref_namespace_conflict("/repo", "foo")
+        assert renames == []
+
+    def test_rename_failure_skips_branch(self, tmp_path):
+        """If 'git branch -m' fails for one branch, others should still be tried."""
+        def fake_run(args, **kwargs):
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(
+                    returncode=0,
+                    stdout="foo/a\nfoo/b\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "show-ref", "--verify"]:
+                return _MM(returncode=1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-m"]:
+                # Fail for the first one (foo/a -> foo__a), succeed for second.
+                if args[3] == "foo/a":
+                    return _MM(returncode=1, stdout="", stderr="locked")
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            renames = _resolve_ref_namespace_conflict("/repo", "foo")
+        assert renames == [("foo/b", "foo__b")]
+
+    def test_empty_branch_name_returns_empty(self):
+        assert _resolve_ref_namespace_conflict("/repo", "") == []
+
+
+class TestGitWorktreeAddWithRefNamespaceConflict:
+    """End-to-end: _git_worktree_add_with_recovery should auto-recover from
+    the trickle-u02z/strip-signing-style namespace conflict by renaming the
+    nested local branches and retrying once."""
+
+    def _cmd(self):
+        return ["git", "worktree", "add", "-b", "trickle-u02z",
+                "/wt", "origin/main"]
+
+    def test_recovers_by_renaming_and_retrying(self, tmp_path):
+        wt = tmp_path / "wt"
+        attempts = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "add"]:
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise subprocess.CalledProcessError(
+                        returncode=128, cmd=args, output="",
+                        stderr=_NAMESPACE_STDERR,
+                    )
+                # Second attempt: succeed.
+                wt.mkdir()
+                return _MM(returncode=0, stdout="", stderr="")
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-u02z/strip-signing\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "show-ref", "--verify"]:
+                return _MM(returncode=1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-m"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        sleeps = []
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _git_worktree_add_with_recovery(
+                self._cmd(), cwd="/repo", wt_path=str(wt),
+                sleep_fn=lambda s: sleeps.append(s),
+            )
+        # Two worktree add attempts: original failure + post-rename success.
+        assert attempts["n"] == 2
+        # No exponential-backoff sleeps for namespace conflict (it's
+        # one-shot mitigation, not a transient race).
+        assert sleeps == []
+
+    def test_namespace_conflict_with_no_renamable_refs_propagates(self, tmp_path):
+        """If for_each_ref returns nothing (e.g. the offending ref lives in
+        packed-refs and listing it failed), re-raise so the operator sees it."""
+        wt = tmp_path / "wt"
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "add"]:
+                raise subprocess.CalledProcessError(
+                    returncode=128, cmd=args, output="",
+                    stderr=_NAMESPACE_STDERR,
+                )
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(subprocess.CalledProcessError) as exc_info:
+                _git_worktree_add_with_recovery(
+                    self._cmd(), cwd="/repo", wt_path=str(wt),
+                    sleep_fn=lambda s: None,
+                )
+        assert "cannot lock ref" in (exc_info.value.stderr or "")
+
+    def test_namespace_recovery_is_one_shot(self, tmp_path):
+        """If the namespace error recurs after a successful rename, do NOT
+        loop — re-raise immediately. Guards against pathological packed-ref
+        states where renaming a local branch doesn't actually free the
+        namespace."""
+        wt = tmp_path / "wt"
+        attempts = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "add"]:
+                attempts["n"] += 1
+                # Always fail with namespace conflict.
+                raise subprocess.CalledProcessError(
+                    returncode=128, cmd=args, output="",
+                    stderr=_NAMESPACE_STDERR,
+                )
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-u02z/strip-signing\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "show-ref", "--verify"]:
+                return _MM(returncode=1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-m"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(subprocess.CalledProcessError):
+                _git_worktree_add_with_recovery(
+                    self._cmd(), cwd="/repo", wt_path=str(wt),
+                    sleep_fn=lambda s: None,
+                )
+        # Exactly 2 worktree add attempts: original + 1 post-rename retry.
+        # No further loops.
+        assert attempts["n"] == 2
