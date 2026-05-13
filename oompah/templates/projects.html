@@ -158,9 +158,29 @@
 
 <script>
 async function loadProjects() {
-  const res = await fetch('/api/v1/projects');
-  const projects = await res.json();
   const container = document.getElementById('project-list');
+  let projects;
+  try {
+    const res = await fetch('/api/v1/projects');
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+    }
+    projects = await res.json();
+  } catch (err) {
+    // Network failure (server unreachable, offline, dropped connection) or
+    // non-OK response. Surface a user-visible retry UI instead of letting
+    // the rejection bubble up to window.onunhandledrejection — that handler
+    // POSTs every unhandled error to /api/v1/errors, which auto-files a
+    // duplicate bug bead for what is almost always a transient hiccup.
+    console.error('loadProjects failed:', err);
+    const msg = (err && err.message) ? err.message : String(err);
+    container.innerHTML = '<div class="empty-state" role="alert" aria-live="polite">' +
+      'Could not load projects.<br>' +
+      '<span style="font-size:0.75rem;color:var(--text-muted);">' + esc(msg) + '</span><br><br>' +
+      '<button type="button" class="btn-primary" onclick="loadProjects()" aria-label="Retry loading projects">Retry</button>' +
+      '</div>';
+    return;
+  }
   if (projects.length === 0) {
     container.innerHTML = '<div class="empty-state">No projects configured.<br>Add a git repo with beads to get started.</div>';
     return;
@@ -350,11 +370,19 @@ async function addProject() {
     errEl.style.display = 'block';
     return;
   }
-  const res = await fetch('/api/v1/projects', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({repo_url: repo, name, branch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken}),
-  });
+  let res;
+  try {
+    res = await fetch('/api/v1/projects', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({repo_url: repo, name, branch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken}),
+    });
+  } catch (err) {
+    console.error('addProject fetch failed:', err);
+    errEl.textContent = 'Network error: ' + ((err && err.message) || String(err));
+    errEl.style.display = 'block';
+    return;
+  }
   if (res.ok) {
     toggleAddForm();
     document.getElementById('add-name').value = '';
@@ -365,14 +393,36 @@ async function addProject() {
     document.getElementById('add-access-token').value = '';
     loadProjects();
   } else {
-    const data = await res.json();
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* non-JSON body */ }
     errEl.textContent = (data.error && data.error.message) || 'Failed to add project';
     errEl.style.display = 'block';
   }
 }
 
+// Run a project mutator. Wraps fetch so transient network errors surface
+// as a user-visible alert instead of an unhandled-rejection that the
+// onunhandledrejection handler would auto-file as a P3 bug bead.
+async function _runMutation(label, url, options) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      let data = {};
+      try { data = await res.json(); } catch (e) { /* non-JSON body */ }
+      const detail = (data.error && data.error.message) || (res.status + ' ' + res.statusText);
+      alert(label + ' failed: ' + detail);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(label + ' failed:', err);
+    alert(label + ' failed: ' + ((err && err.message) || String(err)));
+    return false;
+  }
+}
+
 async function toggleYolo(id, enabled) {
-  await fetch('/api/v1/projects/' + id, {
+  await _runMutation('Toggle YOLO', '/api/v1/projects/' + id, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({yolo: enabled}),
@@ -381,7 +431,7 @@ async function toggleYolo(id, enabled) {
 }
 
 async function toggleMergeQueue(id, enabled) {
-  await fetch('/api/v1/projects/' + id, {
+  await _runMutation('Toggle merge queue', '/api/v1/projects/' + id, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({merge_queue_enabled: enabled}),
@@ -390,18 +440,18 @@ async function toggleMergeQueue(id, enabled) {
 }
 
 async function pauseProject(id) {
-  await fetch('/api/v1/projects/' + id + '/pause', {method: 'POST'});
+  await _runMutation('Pause project', '/api/v1/projects/' + id + '/pause', {method: 'POST'});
   loadProjects();
 }
 
 async function resumeProject(id) {
-  await fetch('/api/v1/projects/' + id + '/resume', {method: 'POST'});
+  await _runMutation('Resume project', '/api/v1/projects/' + id + '/resume', {method: 'POST'});
   loadProjects();
 }
 
 async function deleteProject(id, name) {
   if (!confirm('Delete project "' + name + '"? This does not delete the repo.')) return;
-  await fetch('/api/v1/projects/' + id, {method: 'DELETE'});
+  await _runMutation('Delete project', '/api/v1/projects/' + id, {method: 'DELETE'});
   loadProjects();
 }
 
@@ -460,15 +510,24 @@ async function saveProject(id) {
   } else if (accessToken) {
     body.access_token = accessToken;
   }
-  const res = await fetch('/api/v1/projects/' + id, {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
+  let res;
+  try {
+    res = await fetch('/api/v1/projects/' + id, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error('saveProject fetch failed:', err);
+    errEl.textContent = 'Network error: ' + ((err && err.message) || String(err));
+    errEl.style.display = 'block';
+    return;
+  }
   if (res.ok) {
     loadProjects();
   } else {
-    const data = await res.json();
+    let data = {};
+    try { data = await res.json(); } catch (e) { /* non-JSON body */ }
     errEl.textContent = (data.error && data.error.message) || 'Failed to save project';
     errEl.style.display = 'block';
   }
@@ -477,8 +536,19 @@ async function saveProject(id) {
 async function showWorktrees(id) {
   const el = document.getElementById('wt-' + id);
   if (el.style.display !== 'none') { el.style.display = 'none'; return; }
-  const res = await fetch('/api/v1/projects/' + id + '/worktrees');
-  const data = await res.json();
+  let data;
+  try {
+    const res = await fetch('/api/v1/projects/' + id + '/worktrees');
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+    }
+    data = await res.json();
+  } catch (err) {
+    console.error('showWorktrees fetch failed:', err);
+    el.innerHTML = '<em style="color:var(--red);">Could not load worktrees: ' + esc((err && err.message) || String(err)) + '</em>';
+    el.style.display = 'block';
+    return;
+  }
   const wts = data.worktrees || [];
   el.innerHTML = wts.length > 0
     ? '<strong>Active worktrees:</strong><br>' + wts.map(w => esc(w)).join('<br>')
