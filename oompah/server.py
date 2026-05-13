@@ -11,7 +11,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -182,101 +182,80 @@ def set_orchestrator(orch: Orchestrator) -> None:
     _log_watcher_manager = ProjectLogWatcherManager(_make_error_watcher)
     _log_watcher_manager.sync_watchers(orch.project_store.list_all())
 
-    # Per-project ACP console manager (oompah-zlz_2-ebwe). Hooks into:
-    # * resolve_backend: looks up the project's 'default' role → provider →
-    #   provider.backend (default 'claude'); returns model + permission_mode
-    #   too so the console honours operator config in /providers.
-    # * broadcast: fans console events out to the existing WS pool as
-    #   ``{type:"console_event", project_id, event}``.
-    # * resolve_project: reads project.repo_path + project.name so the
-    #   ConsoleSession knows where to run its tools.
+    # Per-project ACP console manager (oompah-zlz_2-ebwe + oompah-zlz_2-g73s).
+    # Wires the new modular console layer:
+    #   * ``oompah.console_store.ConsoleStore`` for on-disk JSONL transcripts +
+    #     meta sidecar (replaces the legacy per-project store).
+    #   * ``oompah.console.ConsoleSessionManager`` for the in-memory
+    #     ConsoleSession registry (replaces ``oompah.console_legacy``).
+    #   * The on_event_factory hook fans every persisted event over the
+    #     existing WS pool as ``{type:"console_event", project_id, event}``.
+    #   * The workspace_resolver supplies each ConsoleSession with the
+    #     project's repo_path so SDK tools execute in the right tree.
     global _console_manager
-    # NOTE: server.py wires the umbrella's inline console implementation
-    # (oompah/console_legacy.py). The new modular design landed in
-    # oompah/console.py via bead oompah-zlz_2-49tv but isn't wired into
-    # HTTP/WS yet — that's tracked in bead oompah-zlz_2-g73s (Console
-    # 4/6). When that lands, this import will swing over to the new
-    # ConsoleSessionManager.
-    from oompah.console_legacy import ConsoleManager
+    from oompah.console import ConsoleSessionManager
+    from oompah.console_format import ConsoleEvent
+    from oompah.console_store import ConsoleStore, DEFAULT_CONSOLE_ROOT
 
-    def _resolve_console_backend(project_id: str) -> dict[str, Any]:
-        info: dict[str, Any] = {"backend_name": "claude"}
-        try:
-            project = orch.project_store.get(project_id)
-        except Exception:
-            project = None
-        if project is not None and project.repo_path:
-            info["beads_dir"] = os.path.join(project.repo_path, ".beads")
-        # Resolve 'default' role through the unified role store.
-        role = None
-        try:
-            role = orch.role_store.get("default") if orch.role_store else None
-        except Exception:
-            role = None
-        provider = None
-        if role is not None:
-            try:
-                provider = orch.provider_store.get(role.provider_id)
-            except Exception:
-                provider = None
-        if provider is None:
-            try:
-                provider = orch.provider_store.get_default()
-            except Exception:
-                provider = None
-        if provider is not None:
-            info["backend_name"] = (
-                getattr(provider, "backend", None) or "claude"
-            )
-            # Model: prefer role's model when it resolves, otherwise the
-            # provider's default. ACP backends may ignore the model name
-            # and pick from the subscription; that's fine.
-            if role is not None and role.model:
-                info["model"] = role.model
-            elif provider.default_model:
-                info["model"] = provider.default_model
-            # Permission mode: the issue locks this to acceptEdits so
-            # the operator (the human at the keyboard) is the gate.
-            # Provider records may override per their acp_permission_mode
-            # field; consoles default to acceptEdits regardless.
-            info["permission_mode"] = (
-                getattr(provider, "acp_permission_mode", None)
-                or "acceptEdits"
-            )
-        else:
-            info["permission_mode"] = "acceptEdits"
-        return info
+    console_store = ConsoleStore(root=DEFAULT_CONSOLE_ROOT)
 
-    def _broadcast_console_event(project_id: str, event: dict) -> None:
-        if not _ws_clients:
-            return
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.create_task(_broadcast({
-                    "type": "console_event",
-                    "project_id": project_id,
-                    "event": event,
-                }))
-        except RuntimeError:
-            pass
-
-    def _resolve_console_project(project_id: str) -> dict[str, Any] | None:
+    def _resolve_console_workspace(project_id: str) -> str | None:
         try:
             project = orch.project_store.get(project_id)
         except Exception:
             return None
         if project is None:
             return None
-        return {
-            "repo_path": project.repo_path,
-            "name": project.name,
-        }
+        return project.repo_path or None
 
-    _console_manager = ConsoleManager(
-        resolve_backend=_resolve_console_backend,
-        broadcast=_broadcast_console_event,
-        resolve_project=_resolve_console_project,
+    def _make_console_event_callback(
+        project_id: str,
+    ) -> Callable[["ConsoleEvent"], None]:
+        """Per-session factory: returns the ``on_event`` callable the
+        ConsoleSession invokes for every persisted event.
+
+        The callable schedules ``_broadcast`` onto whatever asyncio
+        loop is currently running. ``_broadcast`` is a no-op when
+        there are no clients, so this is safe to call from any
+        thread that has a running loop (the runner task itself, or
+        an executor-thread call into the session). Falls back to
+        silent skip when no loop is available (synchronous unit
+        tests).
+        """
+        def _on_event(event: "ConsoleEvent") -> None:
+            if not _ws_clients:
+                return
+            try:
+                payload = event.to_dict()
+            except Exception as exc:
+                logger.debug(
+                    "console on_event: failed to serialize event for %s: %s",
+                    project_id, exc,
+                )
+                return
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                return
+            if not loop.is_running():
+                return
+            try:
+                loop.create_task(_broadcast({
+                    "type": "console_event",
+                    "project_id": project_id,
+                    "event": payload,
+                }))
+            except RuntimeError:
+                # Loop closed underneath us — give up quietly.
+                return
+        return _on_event
+
+    _console_manager = ConsoleSessionManager(
+        store=console_store,
+        provider_store=orch.provider_store,
+        role_store=orch.role_store,
+        on_event_factory=_make_console_event_callback,
+        workspace_resolver=_resolve_console_workspace,
     )
 
 
@@ -543,59 +522,133 @@ async def websocket_endpoint(ws: WebSocket):
 async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     """Handle a {type:"console_input", project_id, text, attachments?} WS msg.
 
-    Enqueues the input onto the project's ConsoleSession (creating it on
-    first message). Broadcast of resulting events flows through the
-    manager's broadcast callback installed in set_orchestrator().
+    Routes the operator input into the project's ConsoleSession via
+    ``ConsoleSessionManager.get(project_id).send(text, attachments)``.
+    The session's on_event callback (wired at construction in
+    :func:`set_orchestrator`) broadcasts every persisted event to all
+    WS clients as ``{type:"console_event", project_id, event}``; the
+    client filters by project_id.
+
+    Unknown / not-yet-registered projects return an inline error
+    ``console_event`` so the originating tab surfaces the failure.
+    Validation errors (missing project_id / empty text) silently no-op
+    — the UI shouldn't be sending these but if it does, dropping is
+    safer than crashing.
     """
-    if _console_manager is None:
-        await ws.send_text(json.dumps({
-            "type": "console_event",
-            "project_id": msg.get("project_id", ""),
-            "event": {
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "kind": "console_error",
-                "payload": {"error": "console manager not initialized"},
-            },
-        }))
-        return
     project_id = str(msg.get("project_id") or "")
     text = str(msg.get("text") or "")
     if not project_id or not text.strip():
         return
-    attachments_raw = msg.get("attachments") or []
-    attachments = [str(a) for a in attachments_raw if a]
-    try:
-        loop = asyncio.get_event_loop()
-        session = _console_manager.get_or_create(project_id, loop=loop)
-    except KeyError as exc:
+    if _console_manager is None:
         await ws.send_text(json.dumps({
             "type": "console_event",
             "project_id": project_id,
             "event": {
                 "ts": datetime.now(timezone.utc).isoformat(),
-                "kind": "console_error",
-                "payload": {"error": str(exc)},
+                "kind": "error",
+                "is_error": True,
+                "text": "console manager not initialized",
             },
         }))
         return
-    session.ensure_runner(loop=loop)
-    await session.submit(text, attachments=attachments)
+    # Reject unknown project_id before touching the manager so we
+    # don't spawn an orphan session.
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+    except Exception:
+        project = None
+    if project is None:
+        await ws.send_text(json.dumps({
+            "type": "console_event",
+            "project_id": project_id,
+            "event": {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": "error",
+                "is_error": True,
+                "text": f"unknown project_id {project_id!r}",
+            },
+        }))
+        return
+    attachments_raw = msg.get("attachments") or []
+    attachments = [str(a) for a in attachments_raw if a]
+    try:
+        session = _console_manager.get(project_id)
+    except Exception as exc:
+        await ws.send_text(json.dumps({
+            "type": "console_event",
+            "project_id": project_id,
+            "event": {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": "error",
+                "is_error": True,
+                "text": str(exc),
+            },
+        }))
+        return
+    # session.send() awaits the turn to completion. The serial queue
+    # inside the session guarantees concurrent operator inputs from
+    # multiple WS clients run one at a time.
+    try:
+        await session.send(text, attachments=attachments or None)
+    except Exception as exc:
+        # The session already records an internal ``error`` event on
+        # most failure paths; only emit an out-of-band one here when
+        # send itself raised (closed session, etc.).
+        await ws.send_text(json.dumps({
+            "type": "console_event",
+            "project_id": project_id,
+            "event": {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": "error",
+                "is_error": True,
+                "text": f"console send failed: {exc}",
+            },
+        }))
+
+
+# Hard cap on transcript pagination to keep responses bounded.
+_CONSOLE_TRANSCRIPT_MAX_LIMIT = 1000
+_CONSOLE_TRANSCRIPT_DEFAULT_LIMIT = 200
+
+
+def _coerce_transcript_limit(raw: int | str | None) -> int:
+    """Validate + cap the ?limit query param."""
+    if raw is None:
+        return _CONSOLE_TRANSCRIPT_DEFAULT_LIMIT
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _CONSOLE_TRANSCRIPT_DEFAULT_LIMIT
+    if value < 0:
+        return _CONSOLE_TRANSCRIPT_DEFAULT_LIMIT
+    return max(1, min(_CONSOLE_TRANSCRIPT_MAX_LIMIT, value))
 
 
 @app.get("/api/v1/console/{project_id}/transcript")
 async def api_console_transcript(
     project_id: str,
-    limit: int = 200,
-    before: int | None = None,
+    since: str | None = None,
+    limit: int | None = None,
 ):
-    """Return a page of the project's console transcript for initial load.
+    """Return the project's console transcript.
 
     Query params:
 
+    * ``since`` — when set, return only events with ``ts > since``
+      (ISO-8601 string compare; matches the format the store uses).
     * ``limit`` — max events to return (default 200, capped at 1000).
-    * ``before`` — when set, return the page ending strictly before
-      this 0-indexed position in the chronological transcript (used by
-      the UI to scroll back through history).
+
+    Response shape:
+
+        {"events": [...], "meta": {...}}
+
+    ``meta`` is the contents of the on-disk meta sidecar (typically
+    ``{"backend": "...", "model_role": "...", "switched_at": "..."}``)
+    so the UI can render the current backend without a second round-
+    trip. Missing / empty meta returns ``{}``.
+
+    Unknown project_id returns 404.
     """
     if _console_manager is None:
         return JSONResponse(
@@ -604,7 +657,73 @@ async def api_console_transcript(
             status_code=503,
         )
     orch = _get_orchestrator()
-    project = orch.project_store.get(project_id)
+    try:
+        project = orch.project_store.get(project_id)
+    except Exception:
+        project = None
+    if project is None:
+        return JSONResponse(
+            {"error": {"code": "no_project",
+                       "message": f"Unknown project_id {project_id!r}"}},
+            status_code=404,
+        )
+    capped_limit = _coerce_transcript_limit(limit)
+    since_ts: str | None = None
+    if since is not None:
+        # Defensive: empty string == treat as None. Non-strings can't
+        # arrive here through FastAPI, but coerce anyway.
+        ss = str(since).strip()
+        if ss:
+            since_ts = ss
+    store = _console_manager.store
+    try:
+        events = store.read_all(project_id, since_ts=since_ts, limit=capped_limit)
+    except Exception as exc:
+        logger.warning("Console transcript read failed for %s: %s",
+                       project_id, exc)
+        events = []
+    try:
+        meta = store.load_meta(project_id)
+    except Exception:
+        meta = {}
+    return JSONResponse({
+        "project_id": project_id,
+        "events": events,
+        "meta": meta,
+        "limit": capped_limit,
+        "since": since_ts,
+    })
+
+
+@app.post("/api/v1/console/{project_id}/backend")
+async def api_console_backend(project_id: str, request: Request):
+    """Swap the console's active backend / model role for ``project_id``.
+
+    Body (JSON): ``{"backend": "claude" | "codex", "model_role": "default"}``.
+
+    Returns:
+
+    * ``200`` ``{"backend": "..."}`` on success.
+    * ``400`` on missing / unknown backend.
+    * ``404`` on unknown project_id.
+    * ``409`` ``{"error": "turn in flight"}`` if a turn is currently
+      running on the session.
+    * ``503`` if the console manager hasn't been wired yet.
+
+    The new backend is persisted to the meta sidecar so service
+    restarts pick it up.
+    """
+    if _console_manager is None:
+        return JSONResponse(
+            {"error": {"code": "not_ready",
+                       "message": "console manager not initialized"}},
+            status_code=503,
+        )
+    orch = _get_orchestrator()
+    try:
+        project = orch.project_store.get(project_id)
+    except Exception:
+        project = None
     if project is None:
         return JSONResponse(
             {"error": {"code": "no_project",
@@ -612,25 +731,101 @@ async def api_console_transcript(
             status_code=404,
         )
     try:
-        capped_limit = max(1, min(1000, int(limit)))
-    except (ValueError, TypeError):
-        capped_limit = 200
-    before_int: int | None = None
-    if before is not None:
-        try:
-            before_int = int(before)
-        except (ValueError, TypeError):
-            before_int = None
-    events, total = _console_manager.read_transcript(
-        project_id, limit=capped_limit, before=before_int,
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return JSONResponse(
+            {"error": {"code": "bad_request",
+                       "message": "request body must be a JSON object"}},
+            status_code=400,
+        )
+    backend = body.get("backend")
+    if not isinstance(backend, str) or not backend.strip():
+        return JSONResponse(
+            {"error": {"code": "bad_request",
+                       "message": "missing 'backend' string field"}},
+            status_code=400,
+        )
+    backend = backend.strip()
+    model_role_raw = body.get("model_role", "default")
+    model_role = (
+        model_role_raw.strip() if isinstance(model_role_raw, str) and
+        model_role_raw.strip() else "default"
     )
+    try:
+        session = _console_manager.get(project_id)
+    except Exception as exc:
+        return JSONResponse(
+            {"error": {"code": "session_error", "message": str(exc)}},
+            status_code=500,
+        )
+    try:
+        await session.switch_backend(backend, model_role=model_role)
+    except ValueError as exc:
+        # Unknown backend → translator missing.
+        return JSONResponse(
+            {"error": {"code": "unknown_backend", "message": str(exc)}},
+            status_code=400,
+        )
+    except RuntimeError as exc:
+        # Turn in flight (per ConsoleSession.switch_backend contract).
+        return JSONResponse(
+            {"error": {"code": "turn_in_flight",
+                       "message": "turn in flight"}},
+            status_code=409,
+        )
+    meta = session.get_meta()
     return JSONResponse({
-        "project_id": project_id,
-        "events": events,
-        "total": total,
-        "limit": capped_limit,
-        "before": before_int,
+        "backend": meta.get("backend"),
+        "model_role": meta.get("model_role"),
     })
+
+
+@app.delete("/api/v1/console/{project_id}")
+async def api_console_delete(project_id: str):
+    """Clear the project's console session — in-memory + on-disk.
+
+    Idempotent: missing projects return 404, but missing sessions /
+    missing transcript files are silently OK and return 200.
+
+    Hard-resets even when a turn is "in flight" — the runner task is
+    shut down, then the disk transcript is removed. The next operator
+    input reconstructs a fresh session.
+    """
+    if _console_manager is None:
+        return JSONResponse(
+            {"error": {"code": "not_ready",
+                       "message": "console manager not initialized"}},
+            status_code=503,
+        )
+    orch = _get_orchestrator()
+    try:
+        project = orch.project_store.get(project_id)
+    except Exception:
+        project = None
+    if project is None:
+        return JSONResponse(
+            {"error": {"code": "no_project",
+                       "message": f"Unknown project_id {project_id!r}"}},
+            status_code=404,
+        )
+    # Drop the in-memory session first (forces shutdown of its runner
+    # task so a mid-turn delete still completes). Errors are absorbed
+    # — manager.remove is already best-effort.
+    try:
+        await _console_manager.remove(project_id)
+    except Exception as exc:
+        logger.warning("Console DELETE: manager.remove raised for %s: %s",
+                       project_id, exc)
+    # Then clear on-disk transcript + meta. ConsoleStore.clear is
+    # idempotent (missing files are ignored).
+    try:
+        _console_manager.store.clear(project_id)
+    except Exception as exc:
+        logger.warning("Console DELETE: store.clear raised for %s: %s",
+                       project_id, exc)
+    return JSONResponse({"ok": True})
 
 
 # --- JSON REST API ---

@@ -716,6 +716,14 @@ class ConsoleSession:
 # ---------------------------------------------------------------------------
 
 
+OnEventFactory = Callable[[str], Callable[[ConsoleEvent], None]]
+"""Factory hook signature: given a ``project_id``, return the
+``on_event`` callback the freshly-constructed :class:`ConsoleSession`
+will invoke for every persisted event. Wired in by ``server.py`` so
+console events fan out over the existing WebSocket pool (see
+oompah-zlz_2-g73s, Console 4/6)."""
+
+
 class ConsoleSessionManager:
     """Process-singleton registry mapping ``project_id`` → ConsoleSession.
 
@@ -725,6 +733,13 @@ class ConsoleSessionManager:
     The :class:`ConsoleSession` instances themselves are loop-bound;
     callers should not invoke their coroutines off the originating
     loop.
+
+    The optional ``on_event_factory`` parameter lets the wiring layer
+    (``server.py``) provide a project-scoped event callback for each
+    newly-constructed session — used to fan console events out over
+    the WebSocket pool. The factory runs once per session at
+    construction time; the returned callable is stored on the session
+    and called synchronously from the per-event persist path.
     """
 
     def __init__(
@@ -732,10 +747,20 @@ class ConsoleSessionManager:
         store: ConsoleStore,
         provider_store: "ProviderStore",
         role_store: "RoleStore",
+        *,
+        on_event_factory: OnEventFactory | None = None,
+        workspace_resolver: Callable[[str], str | None] | None = None,
     ) -> None:
         self.store = store
         self.provider_store = provider_store
         self.role_store = role_store
+        self._on_event_factory = on_event_factory
+        # Optional callback that resolves project_id → workspace_path
+        # (an absolute or repo-relative path the SDK uses for tool
+        # execution). Wired in by server.py so the manager can build
+        # sessions that know their checkout directory; tests typically
+        # leave this None.
+        self._workspace_resolver = workspace_resolver
         self._sessions: dict[str, ConsoleSession] = {}
         self._lock = threading.Lock()
 
@@ -753,14 +778,73 @@ class ConsoleSessionManager:
             existing = self._sessions.get(project_id)
             if existing is not None:
                 return existing
+            on_event: Callable[[ConsoleEvent], None] | None = None
+            if self._on_event_factory is not None:
+                try:
+                    on_event = self._on_event_factory(project_id)
+                except Exception as exc:  # pragma: no cover — defensive
+                    logger.warning(
+                        "ConsoleSessionManager: on_event_factory raised "
+                        "for project_id %r: %s",
+                        project_id, exc,
+                    )
+                    on_event = None
+            workspace_path: str | None = None
+            if self._workspace_resolver is not None:
+                try:
+                    workspace_path = self._workspace_resolver(project_id)
+                except Exception as exc:  # pragma: no cover — defensive
+                    logger.warning(
+                        "ConsoleSessionManager: workspace_resolver raised "
+                        "for project_id %r: %s",
+                        project_id, exc,
+                    )
+                    workspace_path = None
             session = ConsoleSession(
                 project_id=project_id,
                 store=self.store,
                 provider_store=self.provider_store,
                 role_store=self.role_store,
+                on_event=on_event,
+                workspace_path=workspace_path,
             )
             self._sessions[project_id] = session
             return session
+
+    def get_existing(self, project_id: str) -> ConsoleSession | None:
+        """Return the in-memory session for ``project_id`` if it has been
+        constructed, else ``None``. Never constructs a new session —
+        useful for endpoints that want to test existence without
+        side-effects (e.g., DELETE on an unused project).
+        """
+        if not project_id:
+            return None
+        with self._lock:
+            return self._sessions.get(project_id)
+
+    async def remove(self, project_id: str) -> bool:
+        """Drop the cached session for ``project_id``.
+
+        Returns ``True`` when there was a session to drop, ``False``
+        otherwise. Idempotent — repeated calls on an unknown
+        project_id are no-ops.
+
+        Best-effort shutdown of the underlying runner task. The caller
+        is responsible for clearing the on-disk transcript separately
+        (via :attr:`store`) if a hard reset is intended.
+        """
+        with self._lock:
+            session = self._sessions.pop(project_id, None)
+        if session is None:
+            return False
+        try:
+            await session.shutdown()
+        except Exception as exc:
+            logger.debug(
+                "ConsoleSessionManager.remove: shutdown raised for %r: %s",
+                project_id, exc,
+            )
+        return True
 
     def known_project_ids(self) -> list[str]:
         """Sorted list of project_ids the manager has constructed
@@ -785,5 +869,6 @@ __all__ = [
     "ConsoleSessionManager",
     "DEFAULT_BACKEND",
     "DEFAULT_MODEL_ROLE",
+    "OnEventFactory",
     "agent_session_factory",
 ]
