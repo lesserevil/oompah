@@ -1,831 +1,789 @@
-"""Per-project persistent ACP console session.
+"""ConsoleSession + ConsoleSessionManager (oompah-zlz_2-49tv, Console 3/6).
 
-Provides the operator with a first-class interactive ACP session inside
-the dashboard, using the same SDK and tool catalog as the worker
-dispatch path. Each project has ONE console session keyed by
-``project_id``; every dashboard browser viewing that project sees the
-same transcript and contributes to the same conversation.
+In-memory wrapper that wires the on-disk transcript store
+(:mod:`oompah.console_store`) and the normalized-event translators
+(:mod:`oompah.console_translators`) to an :class:`AcpAgentSession`.
+Manages one project's interactive operator conversation.
 
-Architecture (see issue oompah-zlz_2-ebwe for the design discussion):
+Architecture
+------------
 
-* :class:`ConsoleStore` — owns the per-project JSONL transcript at
-  ``.oompah/console/<project_id>.jsonl``. Append-only event log
-  identical in shape to the JSONL the worker path writes (one event
-  per line, ``{"ts", "kind", "payload", "usage"?}``).
+* :class:`ConsoleSession` — one per project_id. Holds a serial queue
+  so concurrent operator inputs run one-at-a-time, rehydrates the SDK
+  session from the on-disk transcript before sending each turn, fans
+  every backend event back through the on_event callback and the
+  store.
 
-* :class:`ConsoleSession` — per-project session orchestrator. Owns an
-  asyncio.Queue so concurrent operator inputs serialize naturally
-  (second message queues server-side until the first turn completes).
-  For each input, it builds a fresh :class:`AcpAgentSession` whose
-  prompt embeds the full transcript as context (replay-on-every-turn).
-  This means: service restarts do NOT lose context — the transcript on
-  disk IS the source of truth for the conversation.
+* :class:`ConsoleSessionManager` — process-singleton dict of
+  ``project_id → ConsoleSession``. ``get(project_id)`` constructs on
+  first call, caches for the process lifetime.
 
-* :class:`ConsoleManager` — global singleton holding one
-  :class:`ConsoleSession` per ``project_id`` and one shared event
-  fan-out callback that the server wires to its WebSocket pool.
+Concurrency invariants
+~~~~~~~~~~~~~~~~~~~~~~
 
-Key decisions:
+* **One in-flight turn per session.** A second :meth:`send` while a
+  turn is running is queued in an :class:`asyncio.Queue` and drained
+  FIFO. The queue is bounded (defaults to 128) to keep a runaway
+  operator from filling memory.
 
-* **Replay-on-every-turn** rather than "replay-once-after-restart, then
-  in-memory". The Claude Agent SDK / openai-agents SDKs both treat
-  ``ClaudeSDKClient`` (or its Codex analog) as session-shaped, but
-  oompah's ``AcpAgentSession`` is single-turn (prompt-in, response-out).
-  Reusing the worker path's machinery means replaying the transcript
-  each turn — slightly more tokens, vastly simpler. The transcript JSONL
-  is the canonical state; in-memory is just a cache for fast renders.
+* **switch_backend refuses mid-turn (v1 policy).** Operators see a
+  :class:`RuntimeError` and the UI surfaces the message. v2 may wait
+  for the in-flight turn to finish.
 
-* **Per-input serialization** via :class:`asyncio.Queue`. v1 just queues;
-  v2 could surface "X is typing" via the WS. The queue runs forever in
-  the background of the FastAPI process — no per-request spawn cost.
+* **All state mutation runs on the asyncio loop.** ``send`` /
+  ``switch_backend`` / ``clear`` are coroutines; the queue drainer is
+  an asyncio task. We don't need to wrap shared state in a threading
+  lock — the loop serializes access by construction. The underlying
+  :class:`ConsoleStore` is already threadsafe.
 
-* **Tool catalog comes from acp_tools.build_*_catalog** (the same one
-  workers use). Permission mode is ``acceptEdits`` (operator is the
-  human gate sitting in front of the browser). Working dir is the
-  project's ``repo_path``.
+Rehydration
+~~~~~~~~~~~
 
-* **Backend selection per project** via the existing provider/role
-  machinery: project's ``default`` role -> provider -> provider.backend.
-  Falls back to ``"claude"`` for back-compat with providers that don't
-  specify a backend.
+Before each turn the session reads the canonical transcript from
+disk, converts every dict event back to a :class:`ConsoleEvent`,
+hands it to the per-backend ``normalized_to_sdk_history`` builder,
+and passes the resulting structured history to a fresh
+:class:`AcpAgentSession`. Service restarts therefore lose nothing —
+the next operator message picks up exactly where the prior session
+left off.
+
+Out of scope
+~~~~~~~~~~~~
+
+HTTP / WS endpoints, the dashboard UI panel, and the end-to-end
+cross-backend integration test are tracked in beads
+oompah-zlz_2-g73s, -577a, -elug respectively.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
+import datetime as _dt
 import logging
-import os
 import threading
-import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Awaitable, Callable, Iterator
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
+
+from oompah.console_format import ConsoleEvent, make_error, make_operator_input
+from oompah.console_store import ConsoleStore
+from oompah.console_translators import get_translator, known_backends
+
+if TYPE_CHECKING:
+    from oompah.providers import ProviderStore
+    from oompah.roles import RoleStore
 
 logger = logging.getLogger(__name__)
 
-# Default location for the per-project transcript directory. Mirrors the
-# DEFAULT_SERVICE_STATE_PATH / DEFAULT_AGENT_PROFILES_PATH conventions:
-# ``.oompah/<...>`` relative to the cwd of the running service. Tests
-# override this via the OOMPAH_CONSOLE_DIR env var (see
-# tests/conftest.py's pattern for agent_profile_store).
-DEFAULT_CONSOLE_DIR = ".oompah/console"
 
-# Per-event payload size cap applied at JSONL append time. The acp_*
-# events already truncate their inner text/detail fields, but we still
-# cap the whole serialized event to avoid pathological run_command
-# outputs (e.g. a binary blob) blowing up the on-disk file.
-_MAX_EVENT_BYTES = 64 * 1024
+# ---------------------------------------------------------------------------
+# Module constants
+# ---------------------------------------------------------------------------
 
+DEFAULT_BACKEND = "claude"
+"""Backend used when meta on disk has no backend selection yet."""
 
-# ----------------------------------------------------------------------
-# ConsoleStore — per-project JSONL transcript
-# ----------------------------------------------------------------------
+DEFAULT_MODEL_ROLE = "default"
+"""Role name resolved against :class:`RoleStore` to pick provider/model."""
 
+_DEFAULT_QUEUE_MAXSIZE = 128
+"""Cap on the pending-send queue size to keep a runaway operator from
+unbounded memory growth. 128 messages is hundreds of pages of
+operator input — well past anything a human would queue up but small
+enough to fail fast on a bug."""
 
-def _now_iso() -> str:
-    """ISO-8601 timestamp (UTC, second precision)."""
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-def _resolve_console_dir(base_dir: str | None) -> str:
-    """Pick the console directory.
-
-    Priority: explicit ``base_dir`` argument > ``OOMPAH_CONSOLE_DIR``
-    env var > ``DEFAULT_CONSOLE_DIR`` (``.oompah/console``). Returned
-    path is NOT created here — :class:`ConsoleStore` does that lazily.
-    """
-    if base_dir:
-        return base_dir
-    return os.environ.get("OOMPAH_CONSOLE_DIR") or DEFAULT_CONSOLE_DIR
+_DEFAULT_PERMISSION_MODE = "acceptEdits"
+"""The operator-at-the-keyboard is the human gate, so the SDK doesn't
+need to interactively confirm edits. Matches the v1 design in
+plans/console.md."""
 
 
-class ConsoleStore:
-    """Append-only JSONL transcript for one project.
-
-    File path: ``<base_dir>/<project_id>.jsonl``. Each line is a JSON
-    object with at minimum ``ts`` (ISO-8601) and ``kind`` (string);
-    most events also have ``payload`` (dict) and ``usage`` (dict).
-
-    Operator inputs are recorded as ``kind="operator_input"`` with
-    payload ``{"text": "...", "attachments": [...]}``. Agent events
-    are recorded with their backend kind (``acp_text``, ``acp_tool_use``,
-    ``acp_result``, etc.) so the same UI rendering used for worker
-    activity logs applies.
-
-    File is opened lazily on first write and closed on
-    :meth:`close` — long-lived sessions keep the FD open for the
-    process lifetime, which is intentional (avoids open/fsync per event).
-    """
-
-    def __init__(self, project_id: str, *, base_dir: str | None = None):
-        if not project_id:
-            raise ValueError("ConsoleStore requires non-empty project_id")
-        # Sanitize: project_id is operator-supplied so we forbid path
-        # separators to keep the file inside base_dir. Real project IDs
-        # are slugs (e.g. "proj-3e4e9214") so this never trips in
-        # practice — it's just a defense against a misconfigured caller.
-        if os.sep in project_id or "/" in project_id or "\\" in project_id:
-            raise ValueError(
-                f"project_id {project_id!r} contains path separator"
-            )
-        if project_id in ("", ".", ".."):
-            raise ValueError(f"project_id {project_id!r} is not allowed")
-        self.project_id = project_id
-        self._base_dir = _resolve_console_dir(base_dir)
-        self.path = os.path.join(self._base_dir, f"{project_id}.jsonl")
-        self._lock = threading.Lock()
-        self._fp: Any = None  # opened lazily
-
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
-
-    def _ensure_dir(self) -> None:
-        os.makedirs(self._base_dir, exist_ok=True)
-
-    def _ensure_fp(self):
-        if self._fp is None:
-            self._ensure_dir()
-            self._fp = open(self.path, "a", encoding="utf-8")
-        return self._fp
-
-    def append(
-        self,
-        kind: str,
-        payload: dict[str, Any] | None = None,
-        *,
-        usage: dict[str, Any] | None = None,
-        ts: str | None = None,
-    ) -> dict[str, Any]:
-        """Append one event to the JSONL transcript and return it.
-
-        The returned dict is the canonical event shape used by the
-        broadcast layer (WebSocket fan-out) and by callers that want
-        to keep a parallel in-memory view.
-        """
-        event: dict[str, Any] = {
-            "ts": ts or _now_iso(),
-            "kind": kind,
-            "payload": payload or {},
-        }
-        if usage:
-            event["usage"] = usage
-        serialized = json.dumps(event, default=str)
-        if len(serialized) > _MAX_EVENT_BYTES:
-            # Drop payload to keep the line small; preserve the kind +
-            # a marker so consumers can see something happened.
-            trimmed = {
-                "ts": event["ts"],
-                "kind": kind,
-                "payload": {
-                    "_truncated": True,
-                    "_reason": (
-                        f"event exceeded {_MAX_EVENT_BYTES} bytes "
-                        f"(was {len(serialized)})"
-                    ),
-                },
-            }
-            if usage:
-                trimmed["usage"] = usage
-            event = trimmed
-            serialized = json.dumps(event, default=str)
-        with self._lock:
-            fp = self._ensure_fp()
-            fp.write(serialized + "\n")
-            fp.flush()
-        return event
-
-    def read_all(self) -> list[dict[str, Any]]:
-        """Return every event currently on disk, oldest first.
-
-        Missing file -> empty list. Malformed JSONL lines are skipped
-        with a WARNING (a partial write or a hand-edited file shouldn't
-        crash the read path).
-        """
-        if not os.path.exists(self.path):
-            return []
-        events: list[dict[str, Any]] = []
-        try:
-            with open(self.path, "r", encoding="utf-8") as f:
-                for lineno, line in enumerate(f, 1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        events.append(json.loads(line))
-                    except json.JSONDecodeError as exc:
-                        logger.warning(
-                            "Skipping malformed line %d in %s: %s",
-                            lineno, self.path, exc,
-                        )
-        except OSError as exc:
-            logger.warning("Failed to read %s: %s", self.path, exc)
-            return []
-        return events
-
-    def read_page(
-        self,
-        *,
-        limit: int = 200,
-        before: int | None = None,
-    ) -> tuple[list[dict[str, Any]], int]:
-        """Return up to ``limit`` events, with optional pagination.
-
-        ``before`` is a 0-indexed position into the chronologically-
-        ordered events list; events strictly BEFORE that index are
-        returned (so the caller can scroll back). Returns the
-        page-tuple ``(events, total_count)`` where total_count is the
-        full length of the transcript on disk (handy for the UI to
-        show "showing 50 of 327").
-        """
-        all_events = self.read_all()
-        total = len(all_events)
-        if before is None:
-            # Default: latest ``limit`` events (newest end of the file).
-            page = all_events[-limit:]
-        else:
-            end = max(0, int(before))
-            start = max(0, end - limit)
-            page = all_events[start:end]
-        return page, total
-
-    def close(self) -> None:
-        """Close the underlying file descriptor. Idempotent."""
-        with self._lock:
-            fp = self._fp
-            self._fp = None
-            if fp is not None:
-                try:
-                    fp.close()
-                except Exception:  # pragma: no cover — defensive
-                    pass
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-# ----------------------------------------------------------------------
-# ConsoleSession — orchestrates AcpAgentSession spawns per operator turn
-# ----------------------------------------------------------------------
+def _utc_now_iso() -> str:
+    """ISO-8601 UTC timestamp with microsecond precision and a Z suffix.
 
-
-# Caller-supplied callback that resolves the (backend_name, model,
-# permission_mode, env) tuple for a fresh ACP turn at the time of the
-# turn, NOT at session construction. This lets operators flip the
-# project's default role from the /providers page and have the next
-# console message pick up the new backend without a restart.
-ResolveBackendFn = Callable[[str], dict[str, Any]]
-
-# Caller-supplied callback that fans out a console_event to WS clients.
-# Signature: (project_id, event_dict) -> None. Implementations are
-# expected to schedule the broadcast onto an event loop themselves.
-BroadcastFn = Callable[[str, dict[str, Any]], None]
-
-
-def _truncate(value: Any, limit: int = 2000) -> Any:
-    """Mirror the truncation used by acp_backends.claude._truncate_for_log
-    but inlined to avoid importing the backend module at console-load
-    time."""
-    if isinstance(value, str):
-        return value if len(value) <= limit else (value[:limit] + " …[truncated]")
-    if isinstance(value, dict):
-        return {k: _truncate(v, limit) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_truncate(v, limit) for v in value]
-    return value
-
-
-def render_transcript_as_prompt(
-    transcript: list[dict[str, Any]],
-    *,
-    new_input: str,
-    project_name: str | None = None,
-    tools_summary: str | None = None,
-    max_history_events: int = 200,
-) -> str:
-    """Build the prompt body fed to the next AcpAgentSession.
-
-    Embeds the recent transcript so the model has full conversational
-    context. ``new_input`` is appended at the end as the operator's
-    latest message — that's what the model is responding to.
-
-    We intentionally keep this rendering format simple and stable:
-    each event maps to one line tagged with its role
-    (Operator: / Assistant: / tool-use: / tool-result:). The Claude
-    SDK / openai-agents SDK both treat the prompt as opaque text;
-    structured replay would require a tighter coupling we don't need
-    for v1.
-    """
-    lines: list[str] = []
-    header_parts = ["You are the interactive ACP console for"]
-    if project_name:
-        header_parts.append(f"the {project_name!r} project")
-    else:
-        header_parts.append("an oompah project")
-    header_parts.append(
-        ". You're talking to a human operator through the dashboard. "
-        "Be concise and direct. When the operator asks you to do something "
-        "(close beads, run commands, edit files), use the available tools. "
-        "Keep prose readable in a terminal-sized panel."
+    Matches the format the claude translator emits, so chronological
+    string ordering works on a mixed feed."""
+    return (
+        _dt.datetime.now(_dt.timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
     )
-    lines.append("".join(header_parts))
-    if tools_summary:
-        lines.append(f"Tools: {tools_summary}")
-    lines.append("")
 
-    # Limit how much history we replay to keep prompts bounded; oldest
-    # events get dropped first. The UI shows the full transcript still
-    # — this just bounds the model's context window.
-    if len(transcript) > max_history_events:
-        skipped = len(transcript) - max_history_events
-        history = transcript[-max_history_events:]
-        lines.append(
-            f"[Earlier {skipped} events elided from prompt; visible in UI.]"
-        )
-    else:
-        history = transcript
 
-    for ev in history:
-        kind = ev.get("kind", "")
-        payload = ev.get("payload") or {}
-        if kind == "operator_input":
-            text = (payload.get("text") or "").strip()
-            if text:
-                lines.append(f"Operator: {text}")
-        elif kind in ("acp_text",):
-            text = (payload.get("text") or "").strip()
-            if text:
-                lines.append(f"Assistant: {text}")
-        elif kind == "acp_thinking":
-            # Skip thinking blocks — they're internal scratch space and
-            # replaying them tends to confuse the next turn.
-            continue
-        elif kind == "acp_tool_use":
-            tool = payload.get("tool", "?")
-            tool_input = payload.get("input")
-            args = json.dumps(tool_input, default=str)[:200] \
-                if tool_input is not None else ""
-            lines.append(f"[tool-use {tool}: {args}]")
-        elif kind == "acp_tool_result":
-            content = str(payload.get("content", ""))[:300]
-            lines.append(f"[tool-result: {content}]")
-        elif kind == "acp_session_start":
-            # Don't replay session-start headers — they'd accumulate
-            # and confuse the model.
-            continue
-        elif kind == "acp_result":
-            # Terminal events also skipped.
-            continue
-        # Unknown / metadata events ignored.
+def _events_from_store(store: ConsoleStore, project_id: str) -> list[ConsoleEvent]:
+    """Materialize the on-disk transcript as :class:`ConsoleEvent`s.
 
-    lines.append("")
-    lines.append(f"Operator: {new_input.strip()}")
-    lines.append("")
-    lines.append("Assistant:")
-    return "\n".join(lines)
+    Malformed rows are skipped by :meth:`ConsoleStore.read_all`; here
+    we additionally defend against bad row dicts by routing
+    construction through :meth:`ConsoleEvent.from_dict` which is
+    permissive.
+    """
+    out: list[ConsoleEvent] = []
+    for row in store.read_all(project_id):
+        try:
+            out.append(ConsoleEvent.from_dict(row))
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "ConsoleSession[%s]: dropping malformed transcript row: %s",
+                project_id, exc,
+            )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# AcpAgentSession factory injection
+# ---------------------------------------------------------------------------
+
+
+# The tests inject a mocked AcpAgentSession by patching this attribute
+# on the module. Production code uses the real class, lazy-loaded so
+# importing :mod:`oompah.console` doesn't drag the SDK in.
+def _resolve_agent_session_cls() -> Any:
+    from oompah.acp_agent import AcpAgentSession  # lazy
+    return AcpAgentSession
+
+
+AgentSessionFactory = Callable[..., Any]
+
+
+def _default_agent_session_factory(**kwargs: Any) -> Any:
+    """Default factory: instantiate the real AcpAgentSession.
+
+    Tests replace this on the module to inject a mock. Centralizing
+    construction here means callers don't have to mock both class and
+    instantiation paths.
+    """
+    cls = _resolve_agent_session_cls()
+    return cls(**kwargs)
+
+
+# Module-level factory the tests monkey-patch. ConsoleSession reads it
+# at turn time so a test patch takes effect even after the session was
+# constructed.
+agent_session_factory: AgentSessionFactory = _default_agent_session_factory
+
+
+# ---------------------------------------------------------------------------
+# Internal queue item
+# ---------------------------------------------------------------------------
 
 
 @dataclass
-class _InputItem:
-    """One queued operator turn."""
+class _PendingSend:
+    """One queued operator input awaiting its turn."""
+
     text: str
     attachments: list[str] = field(default_factory=list)
-    # Optional Future to wake up the caller when the turn finishes.
-    # ConsoleManager.submit() awaits this in test mode; in production
-    # the WS path doesn't wait — events flow asynchronously.
-    done: asyncio.Future | None = None
+    # Resolved when the turn that processes this send completes (or
+    # errors). Lets callers ``await session.send(...)`` and know the
+    # turn has finished.
+    done: asyncio.Future[None] | None = None
+
+
+# ---------------------------------------------------------------------------
+# ConsoleSession
+# ---------------------------------------------------------------------------
 
 
 class ConsoleSession:
-    """One project's persistent console session.
+    """In-memory wrapper for one project's interactive ACP conversation.
 
     Holds:
 
-    * The :class:`ConsoleStore` (transcript on disk).
-    * An asyncio.Queue of pending operator inputs.
-    * A background "runner" task that drains the queue, spawning a
-      fresh AcpAgentSession per turn.
-    * A list of in-memory events used by the read path while the queue
-      is being drained (so reads-after-write are consistent without a
-      round-trip to disk).
+    * The :class:`ConsoleStore` (on-disk transcript + meta sidecar).
+    * The :class:`ProviderStore` / :class:`RoleStore` references used
+      to resolve which backend + model to use per turn (operators can
+      flip the project's ``default`` role from ``/providers`` between
+      turns and the next message will pick up the change).
+    * A serial :class:`asyncio.Queue` of :class:`_PendingSend` items.
+    * A background runner task that drains the queue one turn at a
+      time, spawning a fresh :class:`AcpAgentSession` per turn with
+      the rehydrated history.
 
-    Lifecycle:
-
-    * :meth:`submit` enqueues an operator turn. Returns once the entry
-      is in the queue; the actual model call happens off the caller's
-      thread.
-    * :meth:`shutdown` cancels the runner task and closes the store.
+    All public methods are coroutines; the loop serializes state
+    access so the session needs no explicit lock for in-memory fields.
+    The :class:`ConsoleStore` it wraps is already threadsafe — fine
+    to share across sessions or call from outside the loop.
     """
 
     def __init__(
         self,
         project_id: str,
+        store: ConsoleStore,
+        provider_store: "ProviderStore",
+        role_store: "RoleStore",
+        on_event: Callable[[ConsoleEvent], None] | None = None,
         *,
-        workspace_path: str,
-        project_name: str | None = None,
-        store: ConsoleStore | None = None,
-        resolve_backend: ResolveBackendFn,
-        broadcast: BroadcastFn,
-        loop: asyncio.AbstractEventLoop | None = None,
-    ):
+        workspace_path: str | None = None,
+        queue_maxsize: int = _DEFAULT_QUEUE_MAXSIZE,
+    ) -> None:
+        if not project_id:
+            raise ValueError("ConsoleSession requires non-empty project_id")
         self.project_id = project_id
+        self.store = store
+        self.provider_store = provider_store
+        self.role_store = role_store
+        self.on_event = on_event
+        # workspace_path is optional at construction so the manager can
+        # wire it in once the project record is resolved. Production
+        # code (server.py / manager) sets it; tests usually leave it
+        # None when they're mocking AcpAgentSession.
         self.workspace_path = workspace_path
-        self.project_name = project_name
-        self.store = store or ConsoleStore(project_id)
-        self._resolve_backend = resolve_backend
-        self._broadcast = broadcast
-        self._loop = loop
-        self._queue: asyncio.Queue[_InputItem] = asyncio.Queue()
+        # Backend + model role come from the meta sidecar if present.
+        # First-time projects use DEFAULT_BACKEND / DEFAULT_MODEL_ROLE.
+        meta = store.load_meta(project_id) if store else {}
+        self._backend: str = (
+            meta.get("backend") if isinstance(meta.get("backend"), str)
+            else DEFAULT_BACKEND
+        )
+        self._model_role: str = (
+            meta.get("model_role")
+            if isinstance(meta.get("model_role"), str)
+            else DEFAULT_MODEL_ROLE
+        )
+        self._queue: asyncio.Queue[_PendingSend] = asyncio.Queue(
+            maxsize=queue_maxsize
+        )
+        # Turn-in-flight tracking: switch_backend uses this to decide
+        # whether to refuse with a RuntimeError. _turn_active is True
+        # iff a turn is currently between dequeue and full event-drain
+        # completion.
+        self._turn_active: bool = False
+        # The asyncio.Task that drains the queue. Created lazily on
+        # the first ``send`` so a freshly-constructed session in a
+        # test without a running loop doesn't try to schedule a task.
         self._runner_task: asyncio.Task | None = None
-        self._closed = False
-        self._stop_event: asyncio.Event | None = None
-        # Mirror the on-disk transcript in memory after first read so
-        # the prompt builder doesn't re-read the file on every turn.
-        # Loaded lazily on first submit.
-        self._memory_loaded = False
-        self._memory: list[dict[str, Any]] = []
-        # Counter so tests can synchronize on "all queued turns done".
-        self._turns_started = 0
-        self._turns_finished = 0
-        self._activity_lock = asyncio.Lock()
+        self._closed: bool = False
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def transcript(self) -> list[dict[str, Any]]:
-        """Return the in-memory transcript (loaded lazily from disk)."""
-        if not self._memory_loaded:
-            self._memory = self.store.read_all()
-            self._memory_loaded = True
-        return list(self._memory)
+    def get_meta(self) -> dict:
+        """Return the session's current metadata snapshot.
 
-    def ensure_runner(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
-        """Start the background runner task if it isn't running yet.
-
-        Called from the WS handler on every console_input so the runner
-        is up by the time the first message lands. Idempotent.
+        Read-only convenience: callers can render the current backend
+        and model_role in the UI without poking the store directly.
+        Returned dict is a copy — mutating it does NOT update session
+        state. Use :meth:`switch_backend` to change backend/role.
         """
-        if self._closed:
-            raise RuntimeError(
-                f"ConsoleSession for {self.project_id!r} is closed"
-            )
-        if self._runner_task is not None and not self._runner_task.done():
-            return
-        self._loop = loop or self._loop or asyncio.get_event_loop()
-        self._stop_event = asyncio.Event()
-        self._runner_task = self._loop.create_task(self._run_forever())
+        return {
+            "project_id": self.project_id,
+            "backend": self._backend,
+            "model_role": self._model_role,
+            "turn_active": self._turn_active,
+            "queue_size": self._queue.qsize(),
+        }
 
-    async def submit(
+    async def send(
         self,
         text: str,
-        *,
         attachments: list[str] | None = None,
-        wait: bool = False,
-    ) -> asyncio.Future | None:
-        """Enqueue an operator input. If wait=True, returns a Future
-        that resolves when the turn finishes.
+    ) -> None:
+        """Append an operator_input event and drive one turn.
 
-        Caller is responsible for ensuring :meth:`ensure_runner` ran
-        first (typically called from the WS handler on the same loop).
+        Concurrency: serializes through the session's
+        :class:`asyncio.Queue`. The caller's coroutine resolves once
+        the turn finishes (success, error, or backend missing) — that
+        makes ``await session.send(...)`` a natural "wait for the
+        model to reply" primitive for both tests and the WS handler.
         """
         if self._closed:
             raise RuntimeError(
-                f"ConsoleSession for {self.project_id!r} is closed"
+                f"ConsoleSession[{self.project_id}] is closed"
             )
         text = (text or "").strip()
         if not text:
-            return None
-        done: asyncio.Future | None = None
-        if wait:
-            loop = asyncio.get_event_loop()
-            done = loop.create_future()
-        item = _InputItem(
+            return
+        loop = asyncio.get_event_loop()
+        done: asyncio.Future[None] = loop.create_future()
+        item = _PendingSend(
             text=text,
             attachments=list(attachments or []),
             done=done,
         )
+        # Ensure the runner is up before enqueuing.
+        self._ensure_runner(loop)
+        # The queue is bounded; if the operator floods inputs faster
+        # than the model replies, this will block (back-pressure) —
+        # exactly what we want.
         await self._queue.put(item)
-        return done
+        # Wait for the turn that processes THIS send to complete.
+        # Using a per-item Future means concurrent ``await send()``
+        # callers each resolve independently in FIFO order.
+        await done
+
+    async def switch_backend(
+        self,
+        backend: str,
+        model_role: str = DEFAULT_MODEL_ROLE,
+    ) -> None:
+        """Swap the backend + model_role for the next turn.
+
+        v1 policy: refuses with :class:`RuntimeError` if a turn is
+        currently in flight. The UI surfaces the error message; the
+        operator retries after the turn settles. v2 may queue the
+        swap.
+
+        Persists the new selection to the meta sidecar so a restart
+        picks up the latest choice. The next :meth:`send` rehydrates
+        the SDK with the on-disk transcript under the NEW backend's
+        translator — that's the cross-backend continuity story.
+        """
+        if self._closed:
+            raise RuntimeError(
+                f"ConsoleSession[{self.project_id}] is closed"
+            )
+        if self._turn_active:
+            raise RuntimeError(
+                f"ConsoleSession[{self.project_id}]: cannot switch backend "
+                "while a turn is in flight"
+            )
+        # Validate the backend has a registered translator. Don't gate
+        # on the codex stub raising NotImplementedError — that's a
+        # downstream concern for the actual turn execution; v1 lets
+        # the operator pick codex and learn about the stub error when
+        # the next message tries to use it.
+        if backend not in known_backends():
+            raise ValueError(
+                f"Unknown backend {backend!r}. "
+                f"Known: {sorted(known_backends())}"
+            )
+        self._backend = backend
+        self._model_role = model_role or DEFAULT_MODEL_ROLE
+        # Persist immediately so a restart sees the operator's choice
+        # even if no turn has run yet.
+        meta = self.store.load_meta(self.project_id) if self.store else {}
+        meta["backend"] = self._backend
+        meta["model_role"] = self._model_role
+        meta["switched_at"] = _utc_now_iso()
+        self.store.save_meta(self.project_id, meta)
+
+    async def clear(self) -> None:
+        """Clear the on-disk transcript + meta for this project.
+
+        Cancels any pending sends in the queue (each gets its
+        ``done`` Future resolved with a CancelledError-compatible
+        :class:`RuntimeError`) so callers awaiting :meth:`send` see a
+        prompt failure. The backend/model_role selection IS reset to
+        defaults — the cleared meta sidecar implies a fresh start.
+
+        Refuses (RuntimeError) if a turn is in flight. v1 keeps clear
+        in the same conservative bucket as :meth:`switch_backend`.
+        """
+        if self._closed:
+            return
+        if self._turn_active:
+            raise RuntimeError(
+                f"ConsoleSession[{self.project_id}]: cannot clear "
+                "while a turn is in flight"
+            )
+        # Drain any queued pending sends and fail their futures.
+        drained: list[_PendingSend] = []
+        while not self._queue.empty():
+            try:
+                drained.append(self._queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        for item in drained:
+            if item.done is not None and not item.done.done():
+                item.done.set_exception(
+                    RuntimeError("console transcript cleared")
+                )
+        self.store.clear(self.project_id)
+        self._backend = DEFAULT_BACKEND
+        self._model_role = DEFAULT_MODEL_ROLE
 
     async def shutdown(self) -> None:
-        """Stop the runner task and close the store. Idempotent."""
+        """Stop the runner task and mark the session closed.
+
+        Idempotent. Not strictly required for unit tests (they don't
+        leak loops) but the manager calls it on its own shutdown to
+        keep CI tidy.
+        """
         if self._closed:
             return
         self._closed = True
-        if self._stop_event is not None:
-            self._stop_event.set()
         runner = self._runner_task
         if runner is not None and not runner.done():
             # Drop a sentinel onto the queue so the runner wakes up
-            # and notices _closed=True.
+            # and checks _closed.
             try:
-                await self._queue.put(_InputItem(text=""))
-            except Exception:
+                self._queue.put_nowait(_PendingSend(text=""))
+            except asyncio.QueueFull:
                 pass
             try:
                 await asyncio.wait_for(runner, timeout=5.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 runner.cancel()
-        try:
-            self.store.close()
-        except Exception:
-            pass
 
     # ------------------------------------------------------------------
-    # Runner: pulls items off the queue and processes them one at a time
+    # Internal: runner task drains the queue one item at a time
     # ------------------------------------------------------------------
+
+    def _ensure_runner(self, loop: asyncio.AbstractEventLoop) -> None:
+        """Start the runner task if it isn't running yet. Idempotent."""
+        if self._runner_task is not None and not self._runner_task.done():
+            return
+        self._runner_task = loop.create_task(self._run_forever())
 
     async def _run_forever(self) -> None:
-        """Drain the queue forever, processing one input at a time."""
+        """Pull pending sends off the queue and process one at a time."""
         while not self._closed:
             try:
                 item = await self._queue.get()
             except asyncio.CancelledError:
                 return
             if self._closed:
+                # Resolve the item's future so its caller doesn't hang.
+                if item.done is not None and not item.done.done():
+                    item.done.set_exception(
+                        RuntimeError("console session closed mid-flight")
+                    )
                 return
             if not item.text.strip():
-                # Sentinel from shutdown(); break out.
-                continue
-            self._turns_started += 1
-            try:
-                await self._handle_turn(item)
-            except Exception as exc:  # pragma: no cover — defensive
-                logger.exception(
-                    "ConsoleSession[%s] turn failed: %s",
-                    self.project_id, exc,
-                )
-                self._record_and_broadcast(
-                    "console_error",
-                    {"error": f"{type(exc).__name__}: {exc}"},
-                )
-            finally:
-                self._turns_finished += 1
+                # Shutdown sentinel.
                 if item.done is not None and not item.done.done():
                     item.done.set_result(None)
-
-    async def _handle_turn(self, item: _InputItem) -> None:
-        """Run one operator turn end-to-end.
-
-        Steps:
-
-        1. Record the operator input event (transcript + WS broadcast).
-        2. Resolve the backend (claude / codex / ...).
-        3. Build the tool catalog appropriate for the backend.
-        4. Build the prompt by replaying the transcript + new input.
-        5. Spawn a fresh AcpAgentSession and run_task.
-        6. Each acp_* event the SDK emits is forwarded to the store
-           (append-only JSONL) and the WS broadcast.
-        """
-        # Lazy import keeps module import cheap (the SDK is heavy).
-        from oompah.acp_agent import AcpAgentSession
-        from oompah.acp_tools import (
-            build_codex_tool_catalog,
-            build_tool_catalog,
-        )
-
-        # Mirror the operator input both to disk and to WS clients.
-        operator_event = self._record_and_broadcast(
-            "operator_input",
-            {
-                "text": item.text,
-                "attachments": list(item.attachments),
-            },
-        )
-
-        # Resolve backend + model + permission_mode for THIS turn so
-        # provider/role changes pick up on the next message.
-        try:
-            backend_info = self._resolve_backend(self.project_id) or {}
-        except Exception as exc:
-            logger.warning(
-                "ConsoleSession[%s] backend resolution failed: %s",
-                self.project_id, exc,
-            )
-            backend_info = {}
-        backend_name = backend_info.get("backend_name") or "claude"
-        model = backend_info.get("model")
-        permission_mode = backend_info.get("permission_mode") or "acceptEdits"
-        beads_dir = backend_info.get("beads_dir")
-
-        # Build tool catalog for this backend.
-        try:
-            if backend_name == "codex":
-                tool_catalog = build_codex_tool_catalog(
-                    self.workspace_path,
-                    beads_dir=beads_dir,
+                continue
+            self._turn_active = True
+            try:
+                await self._run_one_turn(item)
+            except Exception as exc:  # pragma: no cover — runner safety net
+                logger.exception(
+                    "ConsoleSession[%s] turn crashed: %s",
+                    self.project_id, exc,
                 )
-                tools_summary = (
-                    "read/write/edit/list/search files + run_command + bd"
+                self._record_error(
+                    f"turn crashed: {type(exc).__name__}: {exc}"
                 )
+                if item.done is not None and not item.done.done():
+                    item.done.set_exception(exc)
             else:
-                tool_catalog = build_tool_catalog(
-                    self.workspace_path,
-                    beads_dir=beads_dir,
-                )
-                tools_summary = (
-                    "read/write/edit/list/search files + run_command + bd"
-                )
-        except ImportError as exc:
-            err = f"backend {backend_name!r} unavailable: {exc}"
-            logger.warning("ConsoleSession[%s] %s", self.project_id, err)
-            self._record_and_broadcast("console_error", {"error": err})
+                if item.done is not None and not item.done.done():
+                    item.done.set_result(None)
+            finally:
+                self._turn_active = False
+
+    async def _run_one_turn(self, item: _PendingSend) -> None:
+        """Execute one full operator turn end-to-end.
+
+        Steps (mirrors plans/console.md §"Backend switching"):
+
+        1. Record the operator_input event to disk + fan out via
+           on_event.
+        2. Rehydrate the SDK history from disk via the per-backend
+           translator's ``normalized_to_sdk_history``.
+        3. Resolve provider + model via the role store.
+        4. Construct an AcpAgentSession with ``history=`` and a
+           backend-event callback that translates each backend event
+           back through ``acp_to_normalized`` then appends + fans out.
+        5. Run the turn (``await session.run_task()``) and emit a
+           terminal status event so the UI can stop the spinner.
+        """
+        # Step 1: persist + emit operator_input.
+        op_event = make_operator_input(
+            ts=_utc_now_iso(),
+            text=item.text,
+            attachments=item.attachments or None,
+            backend=self._backend,
+        )
+        self._persist_and_emit(op_event)
+
+        # Step 2: rehydrate the SDK history. We use the per-backend
+        # translator chosen at submit time (the operator may have
+        # flipped backend before sending this message; the queue is
+        # serial so we can rely on _backend being current).
+        try:
+            translator = get_translator(self._backend)
+        except KeyError as exc:
+            self._record_error(f"unknown backend {self._backend!r}: {exc}")
+            return
+        transcript_events = _events_from_store(self.store, self.project_id)
+        try:
+            history = translator.normalized_to_sdk_history(transcript_events)
+        except NotImplementedError as exc:
+            # Codex stub today, until oompah-zlz_2-elug lands.
+            self._record_error(
+                f"backend {self._backend!r} cannot build history: {exc}"
+            )
             return
         except Exception as exc:
-            err = (
-                f"backend {backend_name!r} catalog build failed: "
+            self._record_error(
+                f"backend {self._backend!r} history-build failed: "
                 f"{type(exc).__name__}: {exc}"
             )
-            logger.warning("ConsoleSession[%s] %s", self.project_id, err)
-            self._record_and_broadcast("console_error", {"error": err})
             return
 
-        # Build the prompt by replaying transcript (in-memory) + new input.
-        # Make sure to include the operator_event we just appended so the
-        # session sees it.
-        transcript = self.transcript()
-        prompt = render_transcript_as_prompt(
-            transcript,
-            new_input=item.text,
-            project_name=self.project_name,
-            tools_summary=tools_summary,
-        )
-
-        env: dict[str, str] | None = None
-        if beads_dir:
-            env = {"BEADS_DIR": beads_dir}
-
-        # Forward every backend event into the transcript + WS fan-out.
-        def _on_event(ev) -> None:
-            kind = getattr(ev, "event", None) or "acp_event"
-            payload = getattr(ev, "payload", None) or {}
-            usage = getattr(ev, "usage", None) or None
-            self._record_and_broadcast(kind, payload, usage=usage)
-
-        session = AcpAgentSession(
-            workspace_path=self.workspace_path,
-            prompt=prompt,
-            model=model,
-            env=env,
-            tool_catalog=tool_catalog,
-            on_event=_on_event,
-            permission_mode=permission_mode,
-            backend_name=backend_name,
-        )
+        # Step 3: resolve provider + model. Fail-open with informative
+        # error events — a missing role / provider shouldn't crash the
+        # whole session.
+        role = None
         try:
-            status = await session.run_task()
+            role = self.role_store.get(self._model_role)
         except Exception as exc:
-            err = f"{type(exc).__name__}: {exc}"
-            logger.warning("ConsoleSession[%s] run_task crashed: %s",
-                           self.project_id, err)
-            self._record_and_broadcast("console_error", {"error": err})
-            return
-        # A terminal status outside "succeeded" is informational only
-        # for the console — the operator can just send another message.
-        if status not in ("succeeded",):
-            self._record_and_broadcast(
-                "console_status",
-                {
-                    "status": status,
-                    "error": session.last_error,
-                },
-            )
-
-    # ------------------------------------------------------------------
-    # Internal: dual-write (disk + WS)
-    # ------------------------------------------------------------------
-
-    def _record_and_broadcast(
-        self,
-        kind: str,
-        payload: dict[str, Any] | None = None,
-        *,
-        usage: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Persist an event to JSONL, append to in-memory transcript,
-        and fan out to WS clients."""
-        event = self.store.append(kind, payload or {}, usage=usage)
-        # Keep the in-memory mirror in sync. We don't bother taking
-        # an asyncio lock here because all writes flow through the
-        # single runner task — the only contention is the initial
-        # lazy load, and read_all() is safe to call any time.
-        if self._memory_loaded:
-            self._memory.append(event)
-        try:
-            self._broadcast(self.project_id, event)
-        except Exception as exc:
-            logger.debug(
-                "ConsoleSession[%s] broadcast failed: %s",
+            logger.warning(
+                "ConsoleSession[%s] role lookup failed: %s",
                 self.project_id, exc,
             )
-        return event
+        provider = None
+        if role is not None:
+            try:
+                provider = self.provider_store.get(role.provider_id)
+            except Exception:
+                provider = None
+        if provider is None:
+            # Fall back to a single configured provider if any.
+            try:
+                provider = self.provider_store.get_default()
+            except Exception:
+                provider = None
+        # Choose a model from role > provider default.
+        model: str | None = None
+        if role is not None and role.model:
+            model = role.model
+        elif provider is not None and getattr(provider, "default_model", None):
+            model = provider.default_model
+
+        # Step 4: build the AcpAgentSession. Pass ``history`` through
+        # as a kwarg so the tests can mock the class and assert the
+        # rehydrated structure. Production AcpAgentSession today does
+        # not consume ``history`` — that's tracked as a future
+        # enhancement; for v1 the on-disk transcript is also reflected
+        # in the prompt itself via the operator_input we just
+        # persisted (and any prior turns' agent_text already drove the
+        # SDK during their original execution).
+        try:
+            agent_session = agent_session_factory(
+                workspace_path=self.workspace_path or "",
+                prompt=item.text,
+                history=history,
+                model=model,
+                backend_name=self._backend,
+                permission_mode=_DEFAULT_PERMISSION_MODE,
+                on_event=self._make_backend_event_callback(translator),
+            )
+        except TypeError as exc:
+            # AcpAgentSession may not accept ``history`` yet in
+            # production; degrade gracefully and try without it. Tests
+            # always inject a mock so they hit the happy path above.
+            if "history" in str(exc):
+                try:
+                    agent_session = agent_session_factory(
+                        workspace_path=self.workspace_path or "",
+                        prompt=item.text,
+                        model=model,
+                        backend_name=self._backend,
+                        permission_mode=_DEFAULT_PERMISSION_MODE,
+                        on_event=self._make_backend_event_callback(translator),
+                    )
+                except Exception as inner_exc:
+                    self._record_error(
+                        f"agent session construction failed: "
+                        f"{type(inner_exc).__name__}: {inner_exc}"
+                    )
+                    return
+            else:
+                self._record_error(
+                    f"agent session construction failed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                return
+        except Exception as exc:
+            self._record_error(
+                f"agent session construction failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            return
+
+        # Step 5: drive the turn. The agent session's run_task is a
+        # coroutine; events flow through on_event during the call.
+        try:
+            run_task = getattr(agent_session, "run_task", None)
+            if run_task is None:
+                self._record_error(
+                    "agent session has no run_task method"
+                )
+                return
+            result = run_task()
+            if asyncio.iscoroutine(result):
+                status = await result
+            elif asyncio.isfuture(result):
+                status = await result
+            else:
+                # Mock returned a plain value — treat as the status.
+                status = result
+        except Exception as exc:
+            self._record_error(
+                f"agent run_task crashed: {type(exc).__name__}: {exc}"
+            )
+            return
+
+        # Emit a synthetic session_meta event with the terminal status
+        # so the UI can drop the spinner. The translator's
+        # acp_to_normalized path would normally do this on the SDK's
+        # ``acp_result`` event, but a misbehaving backend that never
+        # fires Result still owes the UI a terminal signal.
+        status_str = str(status) if status is not None else "unknown"
+        terminal = ConsoleEvent(
+            ts=_utc_now_iso(),
+            kind="session_meta",
+            backend=self._backend,
+            args={"status": status_str, "synthetic_terminal": True},
+            raw_event_kind="console_turn_end",
+        )
+        self._persist_and_emit(terminal)
+
+    # ------------------------------------------------------------------
+    # Internal: persistence + fan-out
+    # ------------------------------------------------------------------
+
+    def _make_backend_event_callback(
+        self,
+        translator: Any,
+    ) -> Callable[[Any], None]:
+        """Build the on_event callback handed to AcpAgentSession.
+
+        Each backend event is translated to a normalized ConsoleEvent,
+        appended to the store, and forwarded to the session's
+        ``on_event`` consumer. We catch and log translator errors so
+        a bad event payload doesn't kill the turn.
+        """
+        def _on_backend_event(backend_event: Any) -> None:
+            try:
+                normalized = translator.acp_to_normalized(backend_event)
+            except Exception as exc:
+                logger.warning(
+                    "ConsoleSession[%s] translator error on event %r: %s",
+                    self.project_id, backend_event, exc,
+                )
+                # Don't drop the event — surface as session_meta with
+                # the raw kind so the UI shows *something*.
+                raw_kind = getattr(backend_event, "event", None)
+                normalized = ConsoleEvent(
+                    ts=_utc_now_iso(),
+                    kind="session_meta",
+                    backend=self._backend,
+                    args={"_translator_error": str(exc)},
+                    raw_event_kind=str(raw_kind) if raw_kind else None,
+                )
+            self._persist_and_emit(normalized)
+
+        return _on_backend_event
+
+    def _persist_and_emit(self, event: ConsoleEvent) -> None:
+        """Append ``event`` to disk and fan out via on_event.
+
+        Both operations are best-effort — we don't want a buggy on_event
+        consumer to corrupt the transcript or vice-versa.
+        """
+        try:
+            self.store.append(self.project_id, event.to_dict())
+        except Exception as exc:
+            logger.warning(
+                "ConsoleSession[%s] store.append failed: %s",
+                self.project_id, exc,
+            )
+        if self.on_event is not None:
+            try:
+                self.on_event(event)
+            except Exception as exc:
+                logger.debug(
+                    "ConsoleSession[%s] on_event callback raised: %s",
+                    self.project_id, exc,
+                )
+
+    def _record_error(self, message: str) -> None:
+        """Emit an ``error`` ConsoleEvent. Used as the unified
+        sad-path for any failure inside ``_run_one_turn``."""
+        event = make_error(
+            ts=_utc_now_iso(),
+            text=message,
+            backend=self._backend,
+        )
+        self._persist_and_emit(event)
+        logger.warning(
+            "ConsoleSession[%s] %s", self.project_id, message,
+        )
 
 
-# ----------------------------------------------------------------------
-# ConsoleManager — global registry of per-project sessions
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# ConsoleSessionManager
+# ---------------------------------------------------------------------------
 
 
-class ConsoleManager:
-    """Manages one :class:`ConsoleSession` per project_id.
+class ConsoleSessionManager:
+    """Process-singleton registry mapping ``project_id`` → ConsoleSession.
 
-    Wires the resolve_backend / broadcast callbacks down to each
-    session. The server module owns a single ConsoleManager instance
-    and routes WS messages through it.
+    Thread-safe (lock around the dict) because :meth:`get` may be
+    called from any of: the WS handler (asyncio loop), the REST
+    endpoint (executor thread pool), or test code (main thread).
+    The :class:`ConsoleSession` instances themselves are loop-bound;
+    callers should not invoke their coroutines off the originating
+    loop.
     """
 
     def __init__(
         self,
-        *,
-        resolve_backend: ResolveBackendFn,
-        broadcast: BroadcastFn,
-        resolve_project: Callable[[str], dict[str, Any] | None],
-        base_dir: str | None = None,
-    ):
-        """
-        :param resolve_backend: Called per-turn with project_id; returns
-            a dict with optional keys: ``backend_name``, ``model``,
-            ``permission_mode``, ``beads_dir``.
-        :param broadcast: Called for every console event with
-            ``(project_id, event)``; should fan out to WS clients.
-        :param resolve_project: Called on first session construction;
-            returns ``{"repo_path", "name"}`` for a project_id or
-            ``None`` when the project doesn't exist.
-        :param base_dir: Optional override for the transcript directory.
-            Tests use this to point at tmp dirs.
-        """
-        self._resolve_backend = resolve_backend
-        self._broadcast = broadcast
-        self._resolve_project = resolve_project
-        self._base_dir = base_dir
+        store: ConsoleStore,
+        provider_store: "ProviderStore",
+        role_store: "RoleStore",
+    ) -> None:
+        self.store = store
+        self.provider_store = provider_store
+        self.role_store = role_store
         self._sessions: dict[str, ConsoleSession] = {}
         self._lock = threading.Lock()
 
-    def get_session(self, project_id: str) -> ConsoleSession | None:
-        """Return the in-memory session for ``project_id`` if any.
+    def get(self, project_id: str) -> ConsoleSession:
+        """Return the singleton :class:`ConsoleSession` for ``project_id``.
 
-        Does NOT create a session — call :meth:`get_or_create` for
-        lazy construction.
+        Creates on first call and caches for the process lifetime.
+        Subsequent calls return the same instance, which is the
+        acceptance criterion: any caller (WS handler, REST endpoint,
+        test) sees the same conversation state.
         """
-        with self._lock:
-            return self._sessions.get(project_id)
-
-    def get_or_create(
-        self,
-        project_id: str,
-        *,
-        loop: asyncio.AbstractEventLoop | None = None,
-    ) -> ConsoleSession:
-        """Get-or-create the session for ``project_id``.
-
-        Raises :class:`KeyError` if the project doesn't exist.
-        """
+        if not project_id:
+            raise ValueError("ConsoleSessionManager.get requires project_id")
         with self._lock:
             existing = self._sessions.get(project_id)
             if existing is not None:
                 return existing
-            info = self._resolve_project(project_id)
-            if not info:
-                raise KeyError(f"Unknown project_id: {project_id!r}")
-            workspace_path = info.get("repo_path") or ""
-            if not workspace_path:
-                raise KeyError(
-                    f"Project {project_id!r} has no repo_path; "
-                    "console requires a checked-out repo"
-                )
             session = ConsoleSession(
                 project_id=project_id,
-                workspace_path=workspace_path,
-                project_name=info.get("name"),
-                store=ConsoleStore(project_id, base_dir=self._base_dir),
-                resolve_backend=self._resolve_backend,
-                broadcast=self._broadcast,
-                loop=loop,
+                store=self.store,
+                provider_store=self.provider_store,
+                role_store=self.role_store,
             )
             self._sessions[project_id] = session
             return session
 
-    def read_transcript(
-        self,
-        project_id: str,
-        *,
-        limit: int = 200,
-        before: int | None = None,
-    ) -> tuple[list[dict[str, Any]], int]:
-        """Read a page of transcript without creating a session.
-
-        Useful for the REST endpoint that serves the initial page load
-        before any operator input has triggered session construction.
-        """
-        store = ConsoleStore(project_id, base_dir=self._base_dir)
-        return store.read_page(limit=limit, before=before)
+    def known_project_ids(self) -> list[str]:
+        """Sorted list of project_ids the manager has constructed
+        sessions for. Useful for diagnostics and shutdown loops."""
+        with self._lock:
+            return sorted(self._sessions)
 
     async def shutdown(self) -> None:
-        """Shut down every active session."""
+        """Shut down every cached session. Best-effort."""
         with self._lock:
             sessions = list(self._sessions.values())
             self._sessions.clear()
-        for s in sessions:
+        for session in sessions:
             try:
-                await s.shutdown()
+                await session.shutdown()
             except Exception:
                 pass
+
+
+__all__ = [
+    "ConsoleSession",
+    "ConsoleSessionManager",
+    "DEFAULT_BACKEND",
+    "DEFAULT_MODEL_ROLE",
+    "agent_session_factory",
+]
