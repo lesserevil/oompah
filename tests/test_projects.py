@@ -1025,6 +1025,22 @@ class TestIsRefNamespaceConflictError:
     def test_empty_branch_name(self):
         assert _is_ref_namespace_conflict_error(_NAMESPACE_STDERR, "") is False
 
+    def test_matches_trickle_zwmx_variant(self):
+        """Regression: oompah-zlz_2-5a05 reported the same ref-namespace
+        D/F conflict for a different issue (``trickle-zwmx`` blocked by
+        ``trickle-zwmx/in-binary-url-register``). The kudu recovery
+        helpers must classify this stderr identically — confirms 5a05 is
+        not a new bug class, just another instance of kudu."""
+        stderr_5a05 = (
+            "Preparing worktree (new branch 'trickle-zwmx')\n"
+            "fatal: cannot lock ref 'refs/heads/trickle-zwmx': "
+            "'refs/heads/trickle-zwmx/in-binary-url-register' exists; "
+            "cannot create 'refs/heads/trickle-zwmx'\n"
+        )
+        assert _is_ref_namespace_conflict_error(
+            stderr_5a05, "trickle-zwmx",
+        ) is True
+
 
 class TestBranchNameFromWorktreeCmd:
     def test_extract_with_dash_b(self):
