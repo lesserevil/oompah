@@ -1291,6 +1291,33 @@ class Orchestrator:
         projects = self.project_store.list_all()
         if not projects:
             return
+        live_ids = {p.id for p in projects}
+
+        # Prune state for projects that no longer exist (oompah-zlz_2-k7zt).
+        # Without this, _dolt_sync_state accumulates ghost entries after
+        # a project is deleted from projects.json and the watchdog keeps
+        # surfacing spurious "no beads database found" alerts for them.
+        for pid in list(self._dolt_sync_state.keys()):
+            if pid not in live_ids:
+                logger.info(
+                    "Dolt sync: pruning ghost state for deleted project %s",
+                    pid,
+                )
+                del self._dolt_sync_state[pid]
+        for pid in list(self._dolt_sync_last_results.keys()):
+            if pid not in live_ids:
+                del self._dolt_sync_last_results[pid]
+        # Drop any pre-existing dolt_sync alerts pointing at ghosts.
+        # The rebuild at the bottom of this function also clears all
+        # dolt_sync alerts and re-emits from the (now-pruned) state, but
+        # we drop ghosts up front so any reader observing _alerts mid-tick
+        # never sees stale entries for deleted projects.
+        self._alerts = [
+            a for a in self._alerts
+            if a.get("source") != "dolt_sync"
+            or a.get("project_id") in live_ids
+        ]
+
         interval_s = max(self.config.full_sync_interval_ms / 1000.0, 1.0)
         results: dict[str, DoltSyncResult] = {}
         for project in projects:
