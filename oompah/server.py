@@ -191,7 +191,13 @@ def set_orchestrator(orch: Orchestrator) -> None:
     # * resolve_project: reads project.repo_path + project.name so the
     #   ConsoleSession knows where to run its tools.
     global _console_manager
-    from oompah.console import ConsoleManager
+    # NOTE: server.py wires the umbrella's inline console implementation
+    # (oompah/console_legacy.py). The new modular design landed in
+    # oompah/console.py via bead oompah-zlz_2-49tv but isn't wired into
+    # HTTP/WS yet — that's tracked in bead oompah-zlz_2-g73s (Console
+    # 4/6). When that lands, this import will swing over to the new
+    # ConsoleSessionManager.
+    from oompah.console_legacy import ConsoleManager
 
     def _resolve_console_backend(project_id: str) -> dict[str, Any]:
         info: dict[str, Any] = {"backend_name": "claude"}

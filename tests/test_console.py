@@ -22,8 +22,12 @@ from typing import Any
 
 import pytest
 
-from oompah import console as console_mod
-from oompah.console import (
+# These tests cover the LEGACY umbrella implementation
+# (oompah/console_legacy.py). The new modular ConsoleSession +
+# ConsoleSessionManager (oompah-zlz_2-49tv) is tested in
+# tests/test_console_session.py.
+from oompah import console_legacy as console_mod
+from oompah.console_legacy import (
     ConsoleManager,
     ConsoleSession,
     ConsoleStore,

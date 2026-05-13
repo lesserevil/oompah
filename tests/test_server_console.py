@@ -18,7 +18,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
-from oompah.console import ConsoleManager, ConsoleStore
+# These tests cover the LEGACY umbrella implementation
+# (oompah/console_legacy.py). The new modular design is wired in bead
+# oompah-zlz_2-g73s (Console 4/6).
+from oompah.console_legacy import ConsoleManager, ConsoleStore
 from oompah.models import Project
 from oompah.server import app
 
