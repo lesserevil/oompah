@@ -973,3 +973,436 @@ class TestCreateWorktreeRecoversFromLockError:
         assert seen_lock["hit"] is True
         assert returned == wt_path
         assert os.path.isdir(wt_path)
+
+
+# ---------------------------------------------------------------------------
+# _is_ref_hierarchy_conflict_error + nested-ref cleanup helpers
+# (oompah-zlz_2-kkc5).
+# ---------------------------------------------------------------------------
+
+from oompah.projects import (
+    _is_ref_hierarchy_conflict_error,
+    _find_conflicting_nested_refs,
+    _branch_has_worktree,
+    _branch_is_merged,
+    _cleanup_conflicting_nested_refs,
+    ProjectError,
+)
+
+
+# Stderr verbatim from the bug report (oompah-zlz_2-kkc5).
+_REF_DF_STDERR = (
+    "Preparing worktree (new branch 'trickle-2z2l')\n"
+    "fatal: cannot lock ref 'refs/heads/trickle-2z2l': "
+    "'refs/heads/trickle-2z2l/tier-c-failure-bead' exists; "
+    "cannot create 'refs/heads/trickle-2z2l'\n"
+)
+
+
+class TestIsRefHierarchyConflictError:
+    def test_matches_bug_report_stderr(self):
+        assert _is_ref_hierarchy_conflict_error(_REF_DF_STDERR) is True
+
+    def test_matches_minimal_form(self):
+        assert _is_ref_hierarchy_conflict_error(
+            "fatal: cannot lock ref 'refs/heads/foo': "
+            "'refs/heads/foo/bar' exists; cannot create 'refs/heads/foo'"
+        ) is True
+
+    def test_not_match_already_exists(self):
+        assert _is_ref_hierarchy_conflict_error(
+            "fatal: A branch named 'foo' already exists"
+        ) is False
+
+    def test_not_match_config_lock(self):
+        assert _is_ref_hierarchy_conflict_error(_LOCK_STDERR) is False
+
+    def test_not_match_empty(self):
+        assert _is_ref_hierarchy_conflict_error("") is False
+
+    def test_requires_all_three_markers(self):
+        # 'exists' alone is not enough.
+        assert _is_ref_hierarchy_conflict_error(
+            "fatal: pathspec 'foo' does not match any files; file exists"
+        ) is False
+        # 'cannot lock ref' alone is not enough.
+        assert _is_ref_hierarchy_conflict_error(
+            "fatal: cannot lock ref 'refs/heads/foo'"
+        ) is False
+
+
+class TestFindConflictingNestedRefs:
+    def test_returns_nested_refs(self, tmp_path):
+        def fake_run(args, **kwargs):
+            assert args[0:2] == ["git", "for-each-ref"]
+            return _MM(
+                returncode=0,
+                stdout="trickle-2z2l/tier-c-failure-bead\n"
+                       "trickle-2z2l/other-child\n",
+                stderr="",
+            )
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            refs = _find_conflicting_nested_refs("/repo", "trickle-2z2l")
+        assert refs == [
+            "trickle-2z2l/tier-c-failure-bead",
+            "trickle-2z2l/other-child",
+        ]
+
+    def test_empty_when_no_nested(self, tmp_path):
+        def fake_run(args, **kwargs):
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            refs = _find_conflicting_nested_refs("/repo", "trickle-2z2l")
+        assert refs == []
+
+    def test_empty_on_git_failure(self):
+        def fake_run(args, **kwargs):
+            return _MM(returncode=1, stdout="", stderr="error")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            refs = _find_conflicting_nested_refs("/repo", "x")
+        assert refs == []
+
+    def test_empty_on_timeout(self):
+        def fake_run(args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args, timeout=10)
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            refs = _find_conflicting_nested_refs("/repo", "x")
+        assert refs == []
+
+
+class TestBranchHasWorktree:
+    def test_true_when_branch_in_worktree_list(self):
+        porcelain = (
+            "worktree /path/main\n"
+            "HEAD abc123\n"
+            "branch refs/heads/main\n"
+            "\n"
+            "worktree /path/wt1\n"
+            "HEAD def456\n"
+            "branch refs/heads/trickle-2z2l/tier-c-failure-bead\n"
+        )
+
+        def fake_run(args, **kwargs):
+            return _MM(returncode=0, stdout=porcelain, stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _branch_has_worktree(
+                "/repo", "trickle-2z2l/tier-c-failure-bead",
+            ) is True
+
+    def test_false_when_not_in_worktree_list(self):
+        porcelain = (
+            "worktree /path/main\n"
+            "HEAD abc123\n"
+            "branch refs/heads/main\n"
+        )
+
+        def fake_run(args, **kwargs):
+            return _MM(returncode=0, stdout=porcelain, stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _branch_has_worktree("/repo", "trickle-2z2l/x") is False
+
+    def test_fails_closed_on_git_error(self):
+        def fake_run(args, **kwargs):
+            return _MM(returncode=1, stdout="", stderr="error")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            # Failure must return True (fail closed) so we don't accidentally
+            # delete a branch that might be in use.
+            assert _branch_has_worktree("/repo", "x") is True
+
+    def test_fails_closed_on_timeout(self):
+        def fake_run(args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args, timeout=10)
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _branch_has_worktree("/repo", "x") is True
+
+
+class TestBranchIsMerged:
+    def test_true_when_merge_base_is_ancestor_returns_0(self):
+        def fake_run(args, **kwargs):
+            assert args[0:4] == [
+                "git", "merge-base", "--is-ancestor", "trickle-2z2l/x",
+            ]
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _branch_is_merged(
+                "/repo", "trickle-2z2l/x", "origin/main",
+            ) is True
+
+    def test_false_when_not_ancestor(self):
+        def fake_run(args, **kwargs):
+            return _MM(returncode=1, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _branch_is_merged("/repo", "x", "origin/main") is False
+
+    def test_false_on_other_rc(self):
+        # rc != 0 and != 1 still means "not safe" — treat as unmerged.
+        def fake_run(args, **kwargs):
+            return _MM(returncode=128, stdout="", stderr="bad ref")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _branch_is_merged("/repo", "x", "origin/main") is False
+
+    def test_false_on_timeout(self):
+        def fake_run(args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args, timeout=10)
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            assert _branch_is_merged("/repo", "x", "origin/main") is False
+
+
+class TestCleanupConflictingNestedRefs:
+    """Verify the partition logic and side effects of nested-ref cleanup."""
+
+    def _fake_run_factory(
+        self, *, has_worktree=False, is_merged=True, delete_rc=0,
+    ):
+        """Build a fake_run that responds to the three subprocess calls
+        cleanup makes per ref."""
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "list"]:
+                if has_worktree:
+                    # Pretend the ref under test is checked out.
+                    return _MM(
+                        returncode=0,
+                        stdout=(
+                            "worktree /path/wt\nHEAD x\n"
+                            f"branch refs/heads/{args[-1] if False else 'trickle-2z2l/tier-c-failure-bead'}\n"
+                        ),
+                        stderr="",
+                    )
+                return _MM(returncode=0, stdout="", stderr="")
+            if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+                return _MM(
+                    returncode=0 if is_merged else 1,
+                    stdout="", stderr="",
+                )
+            if args[:3] == ["git", "branch", "-D"]:
+                return _MM(returncode=delete_rc, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+        return fake_run
+
+    def test_deletes_merged_ref_with_no_worktree(self):
+        fake_run = self._fake_run_factory(
+            has_worktree=False, is_merged=True, delete_rc=0,
+        )
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            deleted, skipped = _cleanup_conflicting_nested_refs(
+                "/repo", "main",
+                ["trickle-2z2l/tier-c-failure-bead"],
+            )
+        assert deleted == ["trickle-2z2l/tier-c-failure-bead"]
+        assert skipped == []
+
+    def test_skips_ref_with_active_worktree(self):
+        fake_run = self._fake_run_factory(
+            has_worktree=True, is_merged=True, delete_rc=0,
+        )
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            deleted, skipped = _cleanup_conflicting_nested_refs(
+                "/repo", "main",
+                ["trickle-2z2l/tier-c-failure-bead"],
+            )
+        assert deleted == []
+        assert skipped == ["trickle-2z2l/tier-c-failure-bead"]
+
+    def test_skips_unmerged_ref(self):
+        fake_run = self._fake_run_factory(
+            has_worktree=False, is_merged=False, delete_rc=0,
+        )
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            deleted, skipped = _cleanup_conflicting_nested_refs(
+                "/repo", "main",
+                ["trickle-2z2l/unmerged-bead"],
+            )
+        assert deleted == []
+        assert skipped == ["trickle-2z2l/unmerged-bead"]
+
+    def test_skips_when_delete_fails(self):
+        fake_run = self._fake_run_factory(
+            has_worktree=False, is_merged=True, delete_rc=1,
+        )
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            deleted, skipped = _cleanup_conflicting_nested_refs(
+                "/repo", "main",
+                ["trickle-2z2l/x"],
+            )
+        assert deleted == []
+        assert skipped == ["trickle-2z2l/x"]
+
+    def test_empty_input_returns_empty(self):
+        with _patch("oompah.projects.subprocess.run") as mock_run:
+            deleted, skipped = _cleanup_conflicting_nested_refs(
+                "/repo", "main", [],
+            )
+        assert deleted == []
+        assert skipped == []
+        mock_run.assert_not_called()
+
+    def test_partitions_mixed_refs(self):
+        """Mixed safe/unsafe refs — safe ones get deleted, unsafe skipped."""
+        call_log = []
+
+        def fake_run(args, **kwargs):
+            call_log.append(args)
+            if args[:3] == ["git", "worktree", "list"]:
+                # Neither ref is in a worktree.
+                return _MM(returncode=0, stdout="", stderr="")
+            if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+                # First ref (safe) is merged; second (unsafe) is not.
+                ref = args[3]
+                merged = ref == "trickle-2z2l/safe"
+                return _MM(returncode=0 if merged else 1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-D"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            deleted, skipped = _cleanup_conflicting_nested_refs(
+                "/repo", "main",
+                ["trickle-2z2l/safe", "trickle-2z2l/unsafe"],
+            )
+        assert deleted == ["trickle-2z2l/safe"]
+        assert skipped == ["trickle-2z2l/unsafe"]
+
+
+class TestCreateWorktreeRecoversFromRefHierarchyConflict:
+    """End-to-end: ref D/F conflict on create_worktree triggers cleanup,
+    deletes the merged nested ref, and retries successfully."""
+
+    def _make_store(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        (repo / ".beads").mkdir()
+        store = _PS(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = _Project(
+            id="proj-df", name="trickle",
+            repo_url="https://example.com/x.git",
+            repo_path=str(repo), branch="main",
+        )
+        store._projects[p.id] = p
+        return store, p
+
+    def test_recovery_succeeds_when_nested_ref_is_safe_to_delete(self, tmp_path):
+        store, p = self._make_store(tmp_path)
+        wt_path = store.worktree_path_for(p.id, "trickle-2z2l")
+
+        call_seq: list[str] = []
+
+        def fake_run(args, **kwargs):
+            cmd = " ".join(args)
+            call_seq.append(cmd)
+            # 1. Initial worktree add — fail with ref hierarchy error.
+            if args[:4] == ["git", "worktree", "add", "-b"] and len(
+                [c for c in call_seq if c.startswith("git worktree add -b")]
+            ) == 1:
+                raise subprocess.CalledProcessError(
+                    returncode=128, cmd=args, output="",
+                    stderr=_REF_DF_STDERR,
+                )
+            # 2. for-each-ref returns the nested ref.
+            if args[0:2] == ["git", "for-each-ref"]:
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-2z2l/tier-c-failure-bead\n",
+                    stderr="",
+                )
+            # 3. worktree list — no active worktree on the nested ref.
+            if args[:3] == ["git", "worktree", "list"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            # 4. merge-base --is-ancestor — say merged (rc=0).
+            if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            # 5. branch -D succeeds.
+            if args[:3] == ["git", "branch", "-D"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            # 6. Retry worktree add — make it succeed.
+            if args[:4] == ["git", "worktree", "add", "-b"]:
+                os.makedirs(wt_path, exist_ok=True)
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            result = store.create_worktree(p.id, "trickle-2z2l")
+
+        assert result == wt_path
+        assert os.path.isdir(wt_path)
+        # Verify we did make the cleanup calls in order.
+        assert any("git for-each-ref" in c for c in call_seq)
+        assert any("git branch -D" in c for c in call_seq)
+        # Two worktree add -b attempts (initial + retry).
+        adds = [c for c in call_seq if c.startswith("git worktree add -b")]
+        assert len(adds) == 2
+
+    def test_recovery_aborts_when_nested_ref_unsafe(self, tmp_path):
+        """Unmerged nested ref must NOT be deleted; ProjectError surfaces
+        the operator-action message."""
+        store, p = self._make_store(tmp_path)
+
+        def fake_run(args, **kwargs):
+            if args[:4] == ["git", "worktree", "add", "-b"]:
+                raise subprocess.CalledProcessError(
+                    returncode=128, cmd=args, output="",
+                    stderr=_REF_DF_STDERR,
+                )
+            if args[0:2] == ["git", "for-each-ref"]:
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-2z2l/unmerged-work\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "worktree", "list"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+                # Not merged — rc=1 means unsafe.
+                return _MM(returncode=1, stdout="", stderr="")
+            # Never reach branch -D.
+            if args[:3] == ["git", "branch", "-D"]:
+                raise AssertionError("must not delete unmerged ref")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(ProjectError) as exc_info:
+                store.create_worktree(p.id, "trickle-2z2l")
+
+        msg = str(exc_info.value)
+        assert "blocked by nested refs" in msg
+        assert "trickle-2z2l/unmerged-work" in msg
+        assert "Operator action required" in msg
+
+    def test_recovery_surfaces_original_error_when_no_nested_refs_found(
+        self, tmp_path,
+    ):
+        """If for-each-ref returns empty, surface the original git error
+        rather than silently retrying."""
+        store, p = self._make_store(tmp_path)
+
+        def fake_run(args, **kwargs):
+            if args[:4] == ["git", "worktree", "add", "-b"]:
+                raise subprocess.CalledProcessError(
+                    returncode=128, cmd=args, output="",
+                    stderr=_REF_DF_STDERR,
+                )
+            if args[0:2] == ["git", "for-each-ref"]:
+                # Nothing under refs/heads/trickle-2z2l/ — odd, but handle it.
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            with pytest.raises(ProjectError) as exc_info:
+                store.create_worktree(p.id, "trickle-2z2l")
+        assert "cannot lock ref" in str(exc_info.value)

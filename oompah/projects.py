@@ -90,6 +90,166 @@ def _is_transient_git_config_lock_error(stderr: str) -> bool:
     return "could not lock config file" in stderr
 
 
+def _is_ref_hierarchy_conflict_error(stderr: str) -> bool:
+    """Return True if ``stderr`` indicates a git D/F (directory/file) ref
+    conflict.
+
+    This happens when a branch named ``foo/bar`` exists (stored at
+    ``refs/heads/foo/bar``, with ``refs/heads/foo/`` as a directory) and
+    we try to create branch ``foo``. Git refuses because the directory
+    blocks ``refs/heads/foo`` from being a file.
+
+    Symptom from the bug report (oompah-zlz_2-kkc5)::
+
+        fatal: cannot lock ref 'refs/heads/trickle-2z2l': 'refs/heads/trickle-2z2l/tier-c-failure-bead'
+        exists; cannot create 'refs/heads/trickle-2z2l'
+
+    The detector matches the three independent markers in the message so
+    it isn't fooled by unrelated "already exists" or "cannot create"
+    errors.
+    """
+    return (
+        "cannot lock ref" in stderr
+        and "cannot create" in stderr
+        and "exists" in stderr
+    )
+
+
+def _find_conflicting_nested_refs(repo_path: str, branch_name: str) -> list[str]:
+    """Return refs under ``refs/heads/<branch_name>/*`` that block creation
+    of ``refs/heads/<branch_name>``.
+
+    Returns the short ref name (e.g. ``"trickle-2z2l/tier-c-failure-bead"``)
+    so callers can pass it to ``git branch -D``. Returns ``[]`` on any
+    error (no refs found, git invocation failed, etc.) so callers can
+    fall through to the generic error path.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "for-each-ref",
+             "--format=%(refname:short)",
+             f"refs/heads/{branch_name}/"],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return []
+        return [line.strip() for line in r.stdout.splitlines() if line.strip()]
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return []
+
+
+def _branch_has_worktree(repo_path: str, branch_name: str) -> bool:
+    """Return True if ``branch_name`` is checked out in any worktree of the
+    repo at ``repo_path``.
+
+    Used to refuse deletion of nested refs that are actively in use.
+    Fails closed: returns True on any error so we never accidentally
+    delete a branch that might be in use.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return True
+        target = f"refs/heads/{branch_name}"
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            # Porcelain format: `branch refs/heads/<name>` lines.
+            if line.startswith("branch ") and line[len("branch "):].strip() == target:
+                return True
+        return False
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return True  # fail closed
+
+
+def _branch_is_merged(repo_path: str, ref: str, target: str) -> bool:
+    """Return True if commit at ``ref`` is reachable from ``target``
+    (i.e. the branch is fully merged into target).
+
+    ``target`` is typically ``origin/<project.branch>``. A merged ref is
+    safe to delete because all its commits are preserved on the remote
+    main branch. Fails closed: returns False on any error so we never
+    delete an unmerged branch.
+    """
+    try:
+        r = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ref, target],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=10,
+        )
+        # Exit 0 = is ancestor (merged), 1 = not ancestor (unmerged),
+        # other = error (treat as unmerged for safety).
+        return r.returncode == 0
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _cleanup_conflicting_nested_refs(
+    repo_path: str,
+    project_branch: str,
+    nested_refs: list[str],
+) -> tuple[list[str], list[str]]:
+    """Best-effort delete nested refs that are SAFE to delete.
+
+    A ref is safe to delete when:
+      - it has no associated worktree, AND
+      - it is fully merged into ``origin/<project_branch>``
+        (all its commits are preserved on the remote main branch).
+
+    Returns ``(deleted, skipped_unsafe)`` — the partition. The caller
+    should retry the worktree add only when ``skipped_unsafe`` is empty.
+
+    All operations are best-effort; failures during deletion leave the
+    ref in ``skipped_unsafe`` so the caller surfaces the issue.
+    """
+    deleted: list[str] = []
+    skipped: list[str] = []
+    target = f"origin/{project_branch}"
+    for ref in nested_refs:
+        if _branch_has_worktree(repo_path, ref):
+            logger.warning(
+                "ref cleanup: nested ref %r has active worktree — refusing to delete",
+                ref,
+            )
+            skipped.append(ref)
+            continue
+        if not _branch_is_merged(repo_path, ref, target):
+            logger.warning(
+                "ref cleanup: nested ref %r is not merged into %s — refusing to delete",
+                ref, target,
+            )
+            skipped.append(ref)
+            continue
+        try:
+            r = subprocess.run(
+                ["git", "branch", "-D", ref],
+                cwd=repo_path,
+                capture_output=True, text=True, timeout=10,
+            )
+            if r.returncode == 0:
+                logger.warning(
+                    "ref cleanup: deleted nested ref %r (merged, no worktree)",
+                    ref,
+                )
+                deleted.append(ref)
+            else:
+                logger.warning(
+                    "ref cleanup: git branch -D %r failed rc=%d stderr=%s",
+                    ref, r.returncode, (r.stderr or "").strip()[:200],
+                )
+                skipped.append(ref)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning(
+                "ref cleanup: exception deleting nested ref %r: %s", ref, exc,
+            )
+            skipped.append(ref)
+    return deleted, skipped
+
+
 def _git_worktree_add_with_recovery(
     cmd: list[str], *, cwd: str, wt_path: str,
     max_attempts: int = 3, timeout: int = 30,
@@ -922,6 +1082,49 @@ class ProjectStore:
                 except subprocess.CalledProcessError as exc2:
                     stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
                     raise ProjectError(f"git worktree add failed: {stderr2}")
+            elif _is_ref_hierarchy_conflict_error(stderr):
+                # D/F conflict (oompah-zlz_2-kkc5): nested branches like
+                # `<branch_name>/<child>` block creation of `<branch_name>`.
+                # Best-effort: delete merged, unattached nested refs and
+                # retry once. Unmerged or in-use refs are preserved.
+                nested = _find_conflicting_nested_refs(
+                    project.repo_path, branch_name,
+                )
+                deleted, skipped = _cleanup_conflicting_nested_refs(
+                    project.repo_path, project.branch, nested,
+                )
+                if skipped:
+                    raise ProjectError(
+                        f"git worktree add failed: branch {branch_name!r} "
+                        f"blocked by nested refs that are NOT safe to delete "
+                        f"(unmerged or in-use): {skipped}. Operator action "
+                        f"required: review and `git branch -D` these "
+                        f"branches manually if appropriate."
+                    )
+                if not deleted:
+                    raise ProjectError(f"git worktree add failed: {stderr}")
+                logger.warning(
+                    "create_epic_worktree: cleaned %d nested ref(s) blocking %r, retrying",
+                    len(deleted), branch_name,
+                )
+                try:
+                    if remote_exists:
+                        _git_worktree_add_with_recovery(
+                            ["git", "worktree", "add", "-B", branch_name,
+                             wt_path, remote_ref],
+                            cwd=project.repo_path,
+                            wt_path=wt_path,
+                        )
+                    else:
+                        base = f"origin/{project.branch}"
+                        _git_worktree_add_with_recovery(
+                            ["git", "worktree", "add", "-b", branch_name, wt_path, base],
+                            cwd=project.repo_path,
+                            wt_path=wt_path,
+                        )
+                except subprocess.CalledProcessError as exc3:
+                    stderr3 = exc3.stderr.strip()[:500] if exc3.stderr else ""
+                    raise ProjectError(f"git worktree add failed: {stderr3}")
             else:
                 raise ProjectError(f"git worktree add failed: {stderr}")
         except subprocess.TimeoutExpired:
@@ -1073,6 +1276,42 @@ class ProjectStore:
                 except subprocess.CalledProcessError as exc2:
                     stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
                     raise ProjectError(f"git worktree add failed: {stderr2}")
+            elif _is_ref_hierarchy_conflict_error(stderr):
+                # D/F conflict (oompah-zlz_2-kkc5): nested branches like
+                # `<branch_name>/<child>` block creation of `<branch_name>`
+                # as a leaf ref. Best-effort: delete merged, unattached
+                # nested refs and retry once. Unmerged or in-use refs are
+                # preserved and surfaced.
+                nested = _find_conflicting_nested_refs(
+                    project.repo_path, branch_name,
+                )
+                deleted, skipped = _cleanup_conflicting_nested_refs(
+                    project.repo_path, project.branch, nested,
+                )
+                if skipped:
+                    raise ProjectError(
+                        f"git worktree add failed: branch {branch_name!r} "
+                        f"blocked by nested refs that are NOT safe to delete "
+                        f"(unmerged or in-use): {skipped}. Operator action "
+                        f"required: review and `git branch -D` these "
+                        f"branches manually if appropriate."
+                    )
+                if not deleted:
+                    # Nothing to clean up — surface the original error.
+                    raise ProjectError(f"git worktree add failed: {stderr}")
+                logger.warning(
+                    "create_worktree: cleaned %d nested ref(s) blocking %r, retrying",
+                    len(deleted), branch_name,
+                )
+                try:
+                    _git_worktree_add_with_recovery(
+                        ["git", "worktree", "add", "-b", branch_name, wt_path, base],
+                        cwd=project.repo_path,
+                        wt_path=wt_path,
+                    )
+                except subprocess.CalledProcessError as exc3:
+                    stderr3 = exc3.stderr.strip()[:500] if exc3.stderr else ""
+                    raise ProjectError(f"git worktree add failed: {stderr3}")
             else:
                 raise ProjectError(f"git worktree add failed: {stderr}")
         except subprocess.TimeoutExpired:
