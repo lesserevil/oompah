@@ -1279,6 +1279,49 @@ class TestIsRefNamespaceConflictError:
             stderr_5a05, "trickle-zwmx",
         ) is True
 
+    def test_matches_packed_refs_variant_4g1y(self):
+        """Regression: oompah-zlz_2-4g1y. When the conflicting nested
+        ref lives in ``.git/packed-refs`` rather than as a loose file,
+        git emits a shorter stderr WITHOUT the ``cannot lock ref ...:``
+        prefix::
+
+            fatal: 'refs/heads/trickle-zwmx/in-binary-url-register' exists;
+            cannot create 'refs/heads/trickle-zwmx'
+
+        The detector must still recognise this so
+        ``_git_worktree_add_with_recovery`` invokes the namespace healer.
+        """
+        stderr_4g1y = (
+            "Preparing worktree (new branch 'trickle-zwmx')\n"
+            "fatal: 'refs/heads/trickle-zwmx/in-binary-url-register' "
+            "exists; cannot create 'refs/heads/trickle-zwmx'\n"
+        )
+        assert _is_ref_namespace_conflict_error(
+            stderr_4g1y, "trickle-zwmx",
+        ) is True
+
+    def test_packed_variant_does_not_match_other_branch(self):
+        """Packed-refs variant for branch X must not be reported for Y."""
+        stderr_4g1y = (
+            "fatal: 'refs/heads/trickle-zwmx/in-binary-url-register' "
+            "exists; cannot create 'refs/heads/trickle-zwmx'\n"
+        )
+        assert _is_ref_namespace_conflict_error(
+            stderr_4g1y, "different-branch",
+        ) is False
+
+    def test_substring_match_does_not_false_positive(self):
+        """``cannot create 'refs/heads/foo'`` substring must NOT match a
+        target named ``foo-bar`` — closing-quote anchoring prevents the
+        substring confusion that would otherwise trip the detector."""
+        # Conflict is for branch "foo", but caller is asking about "foo-bar".
+        stderr = (
+            "fatal: 'refs/heads/foo/sub' exists; "
+            "cannot create 'refs/heads/foo'\n"
+        )
+        assert _is_ref_namespace_conflict_error(stderr, "foo-bar") is False
+        assert _is_ref_namespace_conflict_error(stderr, "foo") is True
+
 
 class TestBranchNameFromWorktreeCmd:
     def test_extract_with_dash_b(self):
@@ -1515,3 +1558,57 @@ class TestGitWorktreeAddWithRefNamespaceConflict:
         # Exactly 2 worktree add attempts: original + 1 post-rename retry.
         # No further loops.
         assert attempts["n"] == 2
+
+    def test_recovers_from_packed_refs_variant_4g1y(self, tmp_path):
+        """Regression: oompah-zlz_2-4g1y. When the conflicting nested ref
+        is packed (in ``.git/packed-refs`` rather than a loose file),
+        git emits a shorter stderr WITHOUT the ``cannot lock ref ...:``
+        prefix. The recovery flow must still trigger and heal it.
+
+        Exact stderr from the bug report (trickle-zwmx)::
+
+            Preparing worktree (new branch 'trickle-zwmx')
+            fatal: 'refs/heads/trickle-zwmx/in-binary-url-register' exists;
+            cannot create 'refs/heads/trickle-zwmx'
+        """
+        cmd = ["git", "worktree", "add", "-b", "trickle-zwmx",
+               "/wt", "origin/main"]
+        wt = tmp_path / "wt"
+        packed_stderr = (
+            "Preparing worktree (new branch 'trickle-zwmx')\n"
+            "fatal: 'refs/heads/trickle-zwmx/in-binary-url-register' "
+            "exists; cannot create 'refs/heads/trickle-zwmx'\n"
+        )
+        attempts = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "add"]:
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise subprocess.CalledProcessError(
+                        returncode=128, cmd=args, output="",
+                        stderr=packed_stderr,
+                    )
+                wt.mkdir()
+                return _MM(returncode=0, stdout="", stderr="")
+            if args[:2] == ["git", "for-each-ref"]:
+                # for-each-ref includes both loose AND packed refs, so
+                # the nested ref under refs/heads/trickle-zwmx/ is
+                # listed normally.
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-zwmx/in-binary-url-register\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "show-ref", "--verify"]:
+                return _MM(returncode=1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-m"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _git_worktree_add_with_recovery(
+                cmd, cwd="/repo", wt_path=str(wt),
+                sleep_fn=lambda s: None,
+            )
+        assert attempts["n"] == 2  # initial fail + post-rename success
