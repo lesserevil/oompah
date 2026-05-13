@@ -694,7 +694,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
-      width: 800px;
+      width: 900px;
       max-width: 95vw;
       max-height: 90vh;
       display: flex;
@@ -705,20 +705,45 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 0.75rem;
       padding: 0.75rem 1.25rem;
       border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
     }
     .console-header h3 {
       font-size: 0.9rem;
       color: var(--accent);
       margin: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
     }
     .console-meta {
       font-size: 0.7rem;
       color: var(--text-muted);
       display: flex;
-      gap: 0.75rem;
+      gap: 0.6rem;
       align-items: center;
+      flex-wrap: wrap;
+    }
+    .console-meta-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .console-meta-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .console-meta select {
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.75rem;
     }
     .console-tools-tag {
       background: rgba(248, 81, 73, 0.12);
@@ -728,6 +753,50 @@
       border-radius: 3px;
       font-size: 0.65rem;
       font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .console-tokens {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: rgba(88, 166, 255, 0.08);
+    }
+    .console-tokens[hidden] { display: none; }
+    .console-clear-btn {
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .console-clear-btn:hover {
+      color: var(--red, #f85149);
+      border-color: var(--red, #f85149);
+    }
+    .console-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      cursor: pointer;
+      padding: 0 0.4rem;
+    }
+    .console-close-btn:hover { color: var(--text); }
+    .console-notice {
+      padding: 0.4rem 1.25rem;
+      font-size: 0.75rem;
+      background: rgba(210, 153, 34, 0.12);
+      color: var(--yellow, #d29922);
+      border-bottom: 1px solid rgba(210, 153, 34, 0.3);
+    }
+    .console-notice[hidden] { display: none; }
+    .console-notice.error {
+      background: rgba(248, 81, 73, 0.12);
+      color: var(--red, #f85149);
+      border-bottom-color: rgba(248, 81, 73, 0.3);
     }
     .console-project-row {
       display: flex;
@@ -742,42 +811,108 @@
       overflow-y: auto;
       padding: 0.75rem 1.25rem;
       font-size: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      min-height: 240px;
     }
     .console-empty {
       color: var(--text-muted);
       text-align: center;
       padding: 2rem;
     }
+    /* ------ Per-kind message rendering (oompah-zlz_2-577a) ------ */
     .console-msg {
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.6rem;
       padding: 0.4rem 0.6rem;
       border-radius: 6px;
       line-height: 1.4;
-      white-space: pre-wrap;
       word-break: break-word;
+      max-width: 85%;
     }
-    .console-msg-operator {
-      background: rgba(88, 166, 255, 0.10);
-      border-left: 3px solid var(--accent, #58a6ff);
+    /* operator_input — right-aligned bubble */
+    .console-msg-operator_input {
+      background: rgba(88, 166, 255, 0.15);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      align-self: flex-end;
+      margin-left: auto;
+      white-space: pre-wrap;
     }
-    .console-msg-assistant {
+    .console-msg-operator_input .console-attach-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.3rem;
+    }
+    .console-attach-chip {
+      display: inline-block;
+      padding: 1px 6px;
+      background: rgba(88, 166, 255, 0.2);
+      color: var(--accent);
+      border-radius: 10px;
+      font-size: 0.65rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    /* agent_text — left-aligned */
+    .console-msg-agent_text {
       background: rgba(56, 139, 253, 0.05);
       border-left: 3px solid rgba(120, 200, 120, 0.6);
+      align-self: flex-start;
     }
-    .console-msg-thinking {
+    .console-msg-agent_text p { margin: 0 0 0.4rem 0; }
+    .console-msg-agent_text p:last-child { margin-bottom: 0; }
+    .console-msg-agent_text code {
+      background: rgba(110, 118, 129, 0.2);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.85em;
+    }
+    .console-msg-agent_text pre {
+      background: rgba(110, 118, 129, 0.12);
+      padding: 0.5rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8em;
+      margin: 0.3rem 0;
+    }
+    .console-msg-agent_text pre code {
+      background: transparent;
+      padding: 0;
+    }
+    .console-msg-agent_text a { color: var(--accent); }
+    /* agent_thinking — muted italic, collapsible */
+    .console-msg-agent_thinking {
       background: rgba(255, 255, 255, 0.03);
       border-left: 3px solid rgba(180, 180, 180, 0.3);
       color: var(--text-muted);
       font-style: italic;
+      align-self: flex-start;
+      cursor: pointer;
     }
-    .console-msg-tool {
-      background: rgba(48, 54, 61, 0.4);
+    .console-msg-agent_thinking .console-thinking-body {
+      display: none;
+      margin-top: 0.3rem;
+      white-space: pre-wrap;
+    }
+    .console-msg-agent_thinking.expanded .console-thinking-body { display: block; }
+    .console-msg-agent_thinking .console-thinking-preview {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .console-msg-agent_thinking.expanded .console-thinking-preview { display: none; }
+    /* tool_call — card, collapsed by default */
+    .console-msg-tool_call {
+      background: rgba(48, 54, 61, 0.5);
       border-left: 3px solid rgba(240, 136, 62, 0.6);
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 0.72rem;
       cursor: pointer;
+      align-self: flex-start;
     }
-    .console-msg-tool .console-tool-detail {
+    .console-msg-tool_call .console-tool-args {
       display: none;
       margin-top: 0.4rem;
       padding-top: 0.4rem;
@@ -786,16 +921,58 @@
       overflow-y: auto;
       white-space: pre-wrap;
     }
-    .console-msg-tool.expanded .console-tool-detail { display: block; }
-    .console-msg-meta {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      padding: 0.25rem 0.5rem;
+    .console-msg-tool_call.expanded .console-tool-args { display: block; }
+    /* tool_result — paired with tool_call, success/error coloring */
+    .console-msg-tool_result {
+      background: rgba(48, 54, 61, 0.35);
+      border-left: 3px solid rgba(63, 185, 80, 0.6);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.72rem;
+      cursor: pointer;
+      align-self: flex-start;
     }
+    .console-msg-tool_result.error {
+      border-left-color: var(--red, #f85149);
+      background: rgba(248, 81, 73, 0.07);
+    }
+    .console-msg-tool_result .console-tool-detail {
+      display: none;
+      margin-top: 0.4rem;
+      padding-top: 0.4rem;
+      border-top: 1px dashed rgba(255, 255, 255, 0.1);
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .console-msg-tool_result.expanded .console-tool-detail { display: block; }
+    /* permission — subtle inline notice */
+    .console-msg-permission {
+      background: rgba(210, 153, 34, 0.08);
+      border-left: 3px solid var(--yellow, #d29922);
+      font-size: 0.72rem;
+      color: var(--yellow, #d29922);
+      align-self: stretch;
+      max-width: 100%;
+    }
+    /* session_meta — italic centered */
+    .console-msg-session_meta {
+      background: transparent;
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.72rem;
+      text-align: center;
+      align-self: center;
+      padding: 0.25rem 0.5rem;
+      max-width: 100%;
+    }
+    /* error — red card */
     .console-msg-error {
       background: rgba(248, 81, 73, 0.10);
-      border-left: 3px solid #f85149;
-      color: #f85149;
+      border-left: 3px solid var(--red, #f85149);
+      color: var(--red, #f85149);
+      align-self: stretch;
+      max-width: 100%;
+      white-space: pre-wrap;
     }
     .console-msg-role {
       font-size: 0.65rem;
@@ -829,28 +1006,45 @@
       outline: none;
       border-color: var(--accent);
     }
-    .console-send-btn {
+    .console-input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .console-send-btn,
+    .console-stop-btn {
       padding: 0.4rem 0.9rem;
-      background: var(--accent);
-      color: var(--bg);
       border: none;
       border-radius: 6px;
       cursor: pointer;
       font-size: 0.8rem;
       font-weight: 600;
     }
+    .console-send-btn {
+      background: var(--accent);
+      color: var(--bg);
+    }
     .console-send-btn:hover { opacity: 0.9; }
     .console-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .console-drop {
-      border: 2px dashed var(--border);
-      border-radius: 6px;
-      padding: 0.4rem;
+    .console-stop-btn {
+      background: var(--red, #f85149);
+      color: #fff;
+    }
+    .console-stop-btn:hover { opacity: 0.9; }
+    .console-stop-btn[hidden] { display: none; }
+    .console-send-btn[hidden] { display: none; }
+    /* Drop zone — reuses the .detail-attachments-drop visual pattern. */
+    .console-drop,
+    .attachment-dropzone {
+      border: 1px dashed var(--border);
+      border-radius: 5px;
+      padding: 0.5rem;
       margin: 0 1.25rem 0.5rem;
       text-align: center;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
     }
-    .console-drop.drag { border-color: var(--accent); color: var(--accent); }
+    .console-drop.drag,
+    .attachment-dropzone.drag { border-color: var(--accent); color: var(--accent); }
     .console-attachments-chip {
       display: inline-block;
       padding: 1px 6px;
@@ -1258,7 +1452,7 @@
         <button id="btn-flat" class="active" onclick="setViewMode('flat')">Flat</button>
         <button id="btn-swimlane" onclick="setViewMode('swimlane')">By Epic</button>
       </div>
-      <select id="project-filter" onchange="saveProjectFilter(); refreshBoard()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+      <select id="project-filter" onchange="saveProjectFilter(); refreshBoard(); _syncConsoleToProjectFilter()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
         <option value="">All Projects</option>
       </select>
       <label id="hide-merged-toggle" title="Show only beads with work still in flight: open or in_progress beads, plus closed beads whose PR is still open (in queue/CI). Hides closed beads with no open PR (work fully landed or abandoned) and deferred beads." style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
@@ -1350,6 +1544,13 @@ function connectWebSocket() {
   ws.onopen = () => {
     document.getElementById('status-text').textContent = 'Connected';
     if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+    // Console WS reconnect backfill — pick up events that landed while
+    // we were disconnected before the live stream resumes. Only for
+    // the currently-active project; other projects refresh next time
+    // they're focused.
+    if (_activeConsoleProject) {
+      _backfillConsoleTranscript(_activeConsoleProject);
+    }
   };
 
   ws.onmessage = (event) => {
@@ -1718,6 +1919,30 @@ function saveProjectFilter() {
   const sel = document.getElementById('project-filter');
   if (sel) {
     localStorage.setItem('oompah_selected_project', sel.value);
+  }
+}
+
+// When the top-level dashboard project filter changes, mirror the
+// selection into the console panel project dropdown so the operator
+// doesn't have to flip it twice. No-op if the console panel hasn't
+// been opened yet (the dropdown will populate from the filter on first
+// open via _populateConsoleProjectSelect).
+function _syncConsoleToProjectFilter() {
+  const filterSel = document.getElementById('project-filter');
+  if (!filterSel) return;
+  const pid = filterSel.value;
+  if (!pid) return;  // "All Projects" — leave console alone
+  const consoleSel = document.getElementById('console-project-select');
+  if (!consoleSel) return;
+  // Only refresh if the console panel is active for a different project.
+  if (consoleSel.value === pid) return;
+  // If the option exists in the console dropdown, switch to it (this
+  // also re-fetches the transcript via setConsoleProject).
+  for (const opt of consoleSel.options) {
+    if (opt.value === pid) {
+      setConsoleProject(pid);
+      return;
+    }
   }
 }
 
@@ -3637,15 +3862,28 @@ function _wireAttachmentDropZone(root, identifier) {
 // Per-project ACP console (oompah-zlz_2-ebwe)
 // ----------------------------------------------------------------------
 
-// Per-project transcript cache: project_id -> array of events. Updated
-// both by the GET /transcript REST call (initial load) and by WS
-// console_event pushes (live updates). The currently-rendered project
-// is _activeConsoleProject; render functions only redraw when the
-// event's project_id matches.
+// ---------------------------------------------------------------------
+// Per-project ACP console (oompah-zlz_2-ebwe; UI panel oompah-zlz_2-577a).
+//
+// Per-project transcript cache: project_id -> array of normalized events.
+// Updated by the GET /transcript REST call (initial load + WS reconnect
+// backfill via ?since) and by WS console_event pushes (live updates).
+// The currently-rendered project is _activeConsoleProject; render
+// functions only redraw when the event's project_id matches.
+//
+// Event kinds (normalized — see oompah/console_format.py NORMALIZED_KINDS):
+//   operator_input, agent_text, agent_thinking, tool_call, tool_result,
+//   permission, session_meta, error
+// ---------------------------------------------------------------------
 let _consoleTranscripts = {};
+let _consoleLastTs = {};       // project_id -> last seen ts (for WS reconnect backfill)
 let _activeConsoleProject = null;
 let _consoleAttachments = []; // staged file uploads for the next send
 let _consoleInflight = false; // true while a turn is in flight
+let _consoleInflightTimer = null; // auto-release inflight after long timeout
+let _consoleBackends = null;   // {backends: [...], default: 'claude', descriptors: {...}}
+let _consoleMeta = {};         // project_id -> meta (backend, model_role, etc.)
+const CONSOLE_INFLIGHT_TIMEOUT_MS = 5 * 60 * 1000; // 5min safety net
 
 function getActiveConsoleProject() {
   const sel = document.getElementById('console-project-select');
@@ -3657,6 +3895,12 @@ function setConsoleProject(projectId) {
   if (!sel) return;
   if (sel.value !== projectId) sel.value = projectId;
   _activeConsoleProject = projectId || null;
+  // Clear the in-flight inflight flag when switching projects — the
+  // disabled-input state is per-active-project for v1.
+  _consoleInflight = false;
+  _clearConsoleInflightTimer();
+  _updateConsoleSendButton();
+  _hideConsoleNotice();
   loadConsoleTranscript(projectId);
 }
 
@@ -3690,6 +3934,37 @@ function _populateConsoleProjectSelect() {
   sel.value = preferred;
 }
 
+async function _loadConsoleBackends() {
+  if (_consoleBackends) return _consoleBackends;
+  try {
+    const r = await fetch('/api/v1/acp-backends');
+    if (!r.ok) return null;
+    _consoleBackends = await r.json();
+  } catch (e) {
+    _consoleBackends = null;
+  }
+  return _consoleBackends;
+}
+
+async function _populateConsoleBackendSelect(meta) {
+  const sel = document.getElementById('console-backend-select');
+  if (!sel) return;
+  const backends = await _loadConsoleBackends();
+  sel.innerHTML = '';
+  const names = (backends && backends.backends) || ['claude'];
+  const descriptors = (backends && backends.descriptors) || {};
+  const fallbackDefault = (backends && backends.default) || 'claude';
+  const current = (meta && meta.backend) || fallbackDefault;
+  for (const name of names) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    const desc = descriptors[name];
+    opt.textContent = (desc && desc.label) || name;
+    if (name === current) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
 function openConsolePanel() {
   const overlay = document.getElementById('console-overlay');
   if (!overlay) return;
@@ -3699,8 +3974,12 @@ function openConsolePanel() {
   if (pid) {
     setConsoleProject(pid);
   } else {
-    document.getElementById('console-body').innerHTML =
-      '<div class="console-empty">No projects configured. Add one at /projects-manage.</div>';
+    const body = document.getElementById('console-body');
+    if (body) {
+      body.innerHTML =
+        '<div class="console-empty">No projects configured. Add one at /projects-manage.</div>';
+    }
+    _populateConsoleBackendSelect(null);
   }
   // Focus the input after a tick so the click-to-open doesn't steal it.
   setTimeout(() => {
@@ -3714,23 +3993,94 @@ function closeConsolePanel() {
   if (el) el.classList.remove('open');
 }
 
+function _isConsoleOpen() {
+  const el = document.getElementById('console-overlay');
+  return !!(el && el.classList.contains('open'));
+}
+
+function _showConsoleNotice(msg, isError) {
+  const el = document.getElementById('console-notice');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle('error', !!isError);
+  el.hidden = false;
+  // Auto-clear non-error info notices after 5s.
+  if (!isError) {
+    clearTimeout(_consoleNoticeTimer);
+    _consoleNoticeTimer = setTimeout(_hideConsoleNotice, 5000);
+  }
+}
+let _consoleNoticeTimer = null;
+function _hideConsoleNotice() {
+  const el = document.getElementById('console-notice');
+  if (el) el.hidden = true;
+}
+
 async function loadConsoleTranscript(projectId) {
   if (!projectId) return;
   const body = document.getElementById('console-body');
   if (body) body.innerHTML = '<div class="console-empty">Loading transcript…</div>';
   try {
-    const r = await fetch('/api/v1/console/' + encodeURIComponent(projectId) + '/transcript?limit=200');
+    const r = await fetch('/api/v1/console/' + encodeURIComponent(projectId) +
+                          '/transcript?limit=200');
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      if (body) body.innerHTML = '<div class="console-empty">' + esc((err.error && err.error.message) || 'Failed to load transcript') + '</div>';
+      if (body) {
+        body.innerHTML = '<div class="console-empty">' +
+          esc((err.error && err.error.message) || 'Failed to load transcript') +
+          '</div>';
+      }
       return;
     }
     const data = await r.json();
     _consoleTranscripts[projectId] = data.events || [];
+    _consoleMeta[projectId] = data.meta || {};
+    _consoleLastTs[projectId] = _computeLastTs(_consoleTranscripts[projectId]);
     renderConsoleTranscript(projectId);
+    _populateConsoleBackendSelect(_consoleMeta[projectId]);
+    _updateTokenMeter(projectId);
   } catch (e) {
     if (body) body.innerHTML = '<div class="console-empty">' + esc(String(e)) + '</div>';
   }
+}
+
+// WS reconnect handler — backfill any events that arrived while we
+// were disconnected, then live updates resume via the existing WS
+// message router. Called from connectWebSocket's onopen.
+async function _backfillConsoleTranscript(projectId) {
+  if (!projectId) return;
+  const since = _consoleLastTs[projectId];
+  if (!since) {
+    // Never loaded for this project — do a full load.
+    return loadConsoleTranscript(projectId);
+  }
+  try {
+    const url = '/api/v1/console/' + encodeURIComponent(projectId) +
+                '/transcript?limit=500&since=' + encodeURIComponent(since);
+    const r = await fetch(url);
+    if (!r.ok) return;
+    const data = await r.json();
+    const newEvents = data.events || [];
+    if (newEvents.length === 0) return;
+    if (!_consoleTranscripts[projectId]) _consoleTranscripts[projectId] = [];
+    _consoleTranscripts[projectId] = _consoleTranscripts[projectId].concat(newEvents);
+    _consoleLastTs[projectId] = _computeLastTs(_consoleTranscripts[projectId]);
+    if (projectId === _activeConsoleProject) {
+      renderConsoleTranscript(projectId);
+      _updateTokenMeter(projectId);
+    }
+  } catch (e) { /* swallow — next message will retry */ }
+}
+
+function _computeLastTs(events) {
+  if (!events || events.length === 0) return null;
+  // Events are stored in append order. Find the max ts (string compare
+  // works for ISO-8601 timestamps the store emits).
+  let maxTs = null;
+  for (const ev of events) {
+    if (ev && ev.ts && (maxTs === null || ev.ts > maxTs)) maxTs = ev.ts;
+  }
+  return maxTs;
 }
 
 function renderConsoleTranscript(projectId) {
@@ -3743,130 +4093,359 @@ function renderConsoleTranscript(projectId) {
     return;
   }
   body.innerHTML = '';
+  // Map of tool_use_id -> tool_call node, so we can match tool_result
+  // events back to their originating call for paired success/error
+  // coloring.
+  const toolCalls = {};
   for (const ev of events) {
-    const node = renderConsoleEvent(ev);
+    const node = renderConsoleEvent(ev, toolCalls);
     if (node) body.appendChild(node);
   }
   body.scrollTop = body.scrollHeight;
 }
 
-function renderConsoleEvent(ev) {
-  const kind = ev.kind || '';
-  const payload = ev.payload || {};
-  const div = document.createElement('div');
-  // Default: hide events we don't have an explicit renderer for so the
-  // chat doesn't fill with metadata. Verbose toggle is a v2 nice-to-have.
-  let role = '';
-  let text = '';
-  let cls = 'console-msg';
-  if (kind === 'operator_input') {
-    role = 'You';
-    text = payload.text || '';
-    cls += ' console-msg-operator';
-    if (payload.attachments && payload.attachments.length > 0) {
-      text += '\n\n' + payload.attachments.length + ' attachment(s): ' +
-              payload.attachments.join(', ');
-    }
-  } else if (kind === 'acp_text') {
-    role = 'Assistant';
-    text = payload.text || '';
-    cls += ' console-msg-assistant';
-  } else if (kind === 'acp_thinking') {
-    role = '(thinking)';
-    text = payload.text || '';
-    cls += ' console-msg-thinking';
-  } else if (kind === 'acp_tool_use') {
-    const tool = payload.tool || '?';
-    const args = payload.input != null ? JSON.stringify(payload.input) : '';
-    role = '→ tool';
-    text = tool + '(' + (args.length > 80 ? args.slice(0, 80) + '…' : args) + ')';
-    cls += ' console-msg-tool';
-    div.title = 'Click to expand';
-    div.onclick = () => div.classList.toggle('expanded');
-    div.innerHTML =
-      '<div class="console-msg-role">' + esc(role) + '</div>' +
-      '<div>' + esc(text) + '</div>' +
-      '<div class="console-tool-detail">' + esc(args) + '</div>';
-    div.className = cls;
-    return div;
-  } else if (kind === 'acp_tool_result') {
-    const isErr = !!payload.is_error;
-    role = isErr ? '← tool (error)' : '← tool';
-    text = String(payload.content || '');
-    cls += ' console-msg-tool';
-    const summary = text.length > 120 ? text.slice(0, 120) + '…' : text;
-    div.title = 'Click to expand';
-    div.onclick = () => div.classList.toggle('expanded');
-    div.innerHTML =
-      '<div class="console-msg-role">' + esc(role) + '</div>' +
-      '<div>' + esc(summary) + '</div>' +
-      '<div class="console-tool-detail">' + esc(text) + '</div>';
-    div.className = cls;
-    return div;
-  } else if (kind === 'acp_session_start') {
-    role = '— session start';
-    const model = payload.model || 'default';
-    const perm = payload.permission_mode || '';
-    text = 'model=' + model + (perm ? ' perm=' + perm : '');
-    cls += ' console-msg-meta';
-    // Update header metadata.
-    const backendEl = document.getElementById('console-meta-backend');
-    if (backendEl) backendEl.textContent = 'backend: ' + (payload.tool_policy ? 'claude' : 'codex');
-    const modelEl = document.getElementById('console-meta-model');
-    if (modelEl) modelEl.textContent = model ? 'model: ' + model : '';
-  } else if (kind === 'acp_result') {
-    role = '— turn complete';
-    const cost = payload.total_cost_usd;
-    const turns = payload.num_turns;
-    text = (turns != null ? turns + ' turn(s)' : '') +
-           (typeof cost === 'number' ? ' · $' + cost.toFixed(4) : '');
-    cls += ' console-msg-meta';
-    _consoleInflight = false;
-    _updateConsoleSendButton();
-  } else if (kind === 'console_error' || kind === 'acp_session_error' ||
-             kind === 'acp_assistant_error' || kind === 'acp_turn_timeout') {
-    role = '⚠ error';
-    text = payload.error || JSON.stringify(payload);
-    cls += ' console-msg-error';
-    _consoleInflight = false;
-    _updateConsoleSendButton();
-  } else if (kind === 'console_status') {
-    role = '— status: ' + (payload.status || '');
-    text = payload.error || '';
-    cls += ' console-msg-meta';
-  } else {
-    // Skip unknown metadata events.
-    return null;
+// ---------------------------------------------------------------------
+// Token meter (oompah-zlz_2-577a)
+// Pull from the latest event's `usage` field (set on session_meta and
+// occasionally agent_text/agent_thinking by the translator). Render in
+// the header as "14.2K in / 3.1K out" (or hide if no usage seen yet).
+// ---------------------------------------------------------------------
+function _formatTokens(n) {
+  if (n == null || isNaN(n)) return '';
+  if (n < 1000) return String(n);
+  if (n < 100000) return (n / 1000).toFixed(1) + 'K';
+  return Math.round(n / 1000) + 'K';
+}
+
+function _latestUsage(events) {
+  // Walk backwards to find the most recent event carrying a usage
+  // dict. Most usage info arrives on session_meta events emitted at
+  // turn completion.
+  if (!events) return null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (ev && ev.usage && typeof ev.usage === 'object') return ev.usage;
   }
-  div.className = cls;
-  div.innerHTML =
-    '<div class="console-msg-role">' + esc(role) + '</div>' +
-    '<div>' + esc(text) + '</div>';
+  return null;
+}
+
+function _updateTokenMeter(projectId) {
+  const el = document.getElementById('console-tokens');
+  if (!el) return;
+  const events = _consoleTranscripts[projectId] || [];
+  const usage = _latestUsage(events);
+  if (!usage) {
+    el.hidden = true;
+    el.textContent = '';
+    return;
+  }
+  // Accept either explicit input/output or just total_tokens. Per the
+  // issue spec: "14.2K in / 3.1K out".
+  const inTok = usage.input_tokens != null ? usage.input_tokens :
+                (usage.prompt_tokens != null ? usage.prompt_tokens : null);
+  const outTok = usage.output_tokens != null ? usage.output_tokens :
+                 (usage.completion_tokens != null ? usage.completion_tokens : null);
+  const total = usage.total_tokens != null ? usage.total_tokens : null;
+  let label = '';
+  if (inTok != null && outTok != null) {
+    label = _formatTokens(inTok) + ' in / ' + _formatTokens(outTok) + ' out';
+  } else if (total != null) {
+    label = _formatTokens(total) + ' tokens';
+  } else {
+    el.hidden = true;
+    return;
+  }
+  el.textContent = 'tokens: ' + label;
+  el.hidden = false;
+}
+
+// ---------------------------------------------------------------------
+// Minimal markdown rendering (oompah-zlz_2-577a)
+// The spec asks for markdown rendering on agent_text. The codebase has
+// no external markdown helper, so this is a tiny safe inline renderer
+// covering the common cases: code fences, inline code, bold/italic,
+// links, paragraphs, and lists. Everything escapes to text first.
+// ---------------------------------------------------------------------
+function renderConsoleMarkdown(src) {
+  if (!src) return '';
+  const escaped = esc(String(src));
+  // Code fences first — replace before any other transformation so
+  // their contents don't get mangled.
+  const codeBlocks = [];
+  let out = escaped.replace(/```([a-z0-9_+-]*)\n([\s\S]*?)```/gi, (_, lang, body) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push('<pre><code>' + body + '</code></pre>');
+    return '\x00CB' + idx + '\x00';
+  });
+  // Inline code
+  out = out.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  // Bold, italic (simple)
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(^|\W)_([^_\n]+)_(?=\W|$)/g, '$1<em>$2</em>');
+  // Links: [label](https://…)
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // Paragraph splitting — split on double newline; single newline
+  // becomes <br>.
+  const paras = out.split(/\n\s*\n/).map(p => {
+    if (!p.trim()) return '';
+    // Re-inject code blocks.
+    if (p.indexOf('\x00CB') !== -1) {
+      return p.replace(/\x00CB(\d+)\x00/g, (_, i) => codeBlocks[+i] || '');
+    }
+    return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+  }).filter(Boolean);
+  return paras.join('');
+}
+
+// ---------------------------------------------------------------------
+// Per-kind renderer (oompah-zlz_2-577a). Returns a DOM node or null
+// for kinds that should be hidden from the chat view (none today —
+// every normalized kind has a renderer).
+//
+// The eight normalized kinds map directly to console-msg-<kind> CSS
+// classes for styling.
+// ---------------------------------------------------------------------
+function renderConsoleEvent(ev, toolCalls) {
+  if (!ev) return null;
+  const kind = ev.kind || 'session_meta';
+  const div = document.createElement('div');
+  div.className = 'console-msg console-msg-' + kind;
+  div.dataset.kind = kind;
+  if (ev.ts) div.dataset.ts = ev.ts;
+
+  if (kind === 'operator_input') {
+    const text = ev.text || '';
+    let html = '<div class="console-msg-role">You</div>' +
+               '<div class="console-msg-body">' + esc(text) + '</div>';
+    const atts = (ev.attachments || []).filter(a => typeof a === 'string');
+    if (atts.length > 0) {
+      html += '<div class="console-attach-chips">' +
+        atts.map(a => '<span class="console-attach-chip">📎 ' + esc(a) + '</span>').join('') +
+        '</div>';
+    }
+    div.innerHTML = html;
+    return div;
+  }
+
+  if (kind === 'agent_text') {
+    const md = renderConsoleMarkdown(ev.text || '');
+    div.innerHTML = '<div class="console-msg-role">Agent</div>' +
+                    '<div class="console-msg-body">' + md + '</div>';
+    return div;
+  }
+
+  if (kind === 'agent_thinking') {
+    const text = ev.text || '';
+    const preview = text.length > 80 ? text.slice(0, 80) + '…' : text;
+    div.title = 'Click to expand thinking';
+    div.onclick = () => div.classList.toggle('expanded');
+    div.innerHTML = '<div class="console-msg-role">(thinking — click to expand)</div>' +
+                    '<div class="console-thinking-preview">' + esc(preview) + '</div>' +
+                    '<div class="console-thinking-body">' + esc(text) + '</div>';
+    return div;
+  }
+
+  if (kind === 'tool_call') {
+    const tool = ev.tool || '?';
+    const args = ev.args || {};
+    const argsJson = (() => {
+      try { return JSON.stringify(args, null, 2); }
+      catch (_) { return String(args); }
+    })();
+    const summary = argsJson.length > 80 ? argsJson.slice(0, 80) + '…' : argsJson;
+    div.title = 'Click to expand args';
+    div.onclick = () => div.classList.toggle('expanded');
+    div.innerHTML = '<div class="console-msg-role">→ ' + esc(tool) + '</div>' +
+                    '<div>' + esc(summary.replace(/\s+/g, ' ')) + '</div>' +
+                    '<div class="console-tool-args">' + esc(argsJson) + '</div>';
+    // Index by _tool_use_id so a future tool_result can flag this call
+    // as errored. The translator stuffs the id into args._tool_use_id.
+    const useId = args._tool_use_id;
+    if (useId && toolCalls) toolCalls[useId] = div;
+    return div;
+  }
+
+  if (kind === 'tool_result') {
+    const result = ev.result || {};
+    const isErr = !!ev.is_error;
+    if (isErr) div.classList.add('error');
+    // The result dict may carry the content directly, or a string-y
+    // .content for shell-style tools. Stringify whatever we get.
+    let content;
+    if (typeof result.content === 'string') content = result.content;
+    else if (typeof result === 'string') content = result;
+    else {
+      try { content = JSON.stringify(result, null, 2); }
+      catch (_) { content = String(result); }
+    }
+    const summary = content.length > 120 ? content.slice(0, 120) + '…' : content;
+    const role = isErr ? '← tool (error)' : '← tool';
+    div.title = 'Click to expand result';
+    div.onclick = () => div.classList.toggle('expanded');
+    div.innerHTML = '<div class="console-msg-role">' + esc(role) + '</div>' +
+                    '<div>' + esc(summary.replace(/\s+/g, ' ')) + '</div>' +
+                    '<div class="console-tool-detail">' + esc(content) + '</div>';
+    // If we have a matching tool_call, flag it as errored too.
+    const useId = result.tool_use_id;
+    if (useId && isErr && toolCalls && toolCalls[useId]) {
+      toolCalls[useId].classList.add('error');
+    }
+    return div;
+  }
+
+  if (kind === 'permission') {
+    const tool = ev.tool || '?';
+    const status = ev.is_error ? 'denied' : 'granted';
+    div.innerHTML = '<div>permission ' + esc(status) + ' for <code>' + esc(tool) + '</code></div>';
+    return div;
+  }
+
+  if (kind === 'session_meta') {
+    // Session metadata: backend switch, turn complete, etc. Render an
+    // italic centered line summarizing the key fact. Avoid noise — we
+    // only show backend transitions, terminal/cleared markers, and
+    // _translator_error fallbacks.
+    const args = ev.args || {};
+    const backend = ev.backend || args.backend;
+    const model = ev.model || args.model;
+    let label = '';
+    if (args.synthetic_terminal) {
+      label = 'turn complete' + (args.status ? ' (' + args.status + ')' : '');
+    } else if (args.cleared) {
+      label = 'transcript cleared';
+    } else if (args._translator_error) {
+      label = 'event ignored: ' + args._translator_error;
+    } else if (backend) {
+      label = 'backend: ' + backend + (model ? ' · model: ' + model : '');
+    } else if (ev.raw_event_kind) {
+      label = ev.raw_event_kind;
+    } else {
+      // Generic catchall; still show something so the operator sees the line.
+      label = 'session event';
+    }
+    div.innerHTML = '<span>— ' + esc(label) + ' —</span>';
+    return div;
+  }
+
+  if (kind === 'error') {
+    div.innerHTML = '<div class="console-msg-role">⚠ error</div>' +
+                    '<div>' + esc(ev.text || ev.raw_event_kind || 'unknown error') + '</div>';
+    return div;
+  }
+
+  // Unknown kind — render a session_meta-style summary so we don't
+  // silently drop it.
+  div.className = 'console-msg console-msg-session_meta';
+  div.innerHTML = '<span>— ' + esc(kind) + ' —</span>';
   return div;
+}
+
+function _isAtBottom(el) {
+  if (!el) return true;
+  // 8px slack so a touch of overflow still counts as "at bottom".
+  return (el.scrollHeight - el.scrollTop - el.clientHeight) < 8;
 }
 
 function handleConsoleEvent(projectId, event) {
   if (!projectId || !event) return;
   if (!_consoleTranscripts[projectId]) _consoleTranscripts[projectId] = [];
   _consoleTranscripts[projectId].push(event);
+  if (event.ts) {
+    const prev = _consoleLastTs[projectId];
+    if (!prev || event.ts > prev) _consoleLastTs[projectId] = event.ts;
+  }
+  // Live token meter update — even when the panel isn't open or this
+  // project isn't focused, so we don't have to recompute when it opens.
+  if (projectId === _activeConsoleProject) {
+    _updateTokenMeter(projectId);
+  }
+  // Watch for terminal session_meta events to flip inflight off.
+  if (event.kind === 'session_meta' && event.args && event.args.synthetic_terminal) {
+    if (projectId === _activeConsoleProject) {
+      _consoleInflight = false;
+      _clearConsoleInflightTimer();
+      _updateConsoleSendButton();
+    }
+  }
+  if (event.kind === 'error') {
+    if (projectId === _activeConsoleProject) {
+      _consoleInflight = false;
+      _clearConsoleInflightTimer();
+      _updateConsoleSendButton();
+    }
+  }
+  // Backend swap: session_meta carrying a new backend value updates
+  // the header dropdown (and clears any 409 notice).
+  if (event.kind === 'session_meta' && event.backend) {
+    if (!_consoleMeta[projectId]) _consoleMeta[projectId] = {};
+    _consoleMeta[projectId].backend = event.backend;
+    if (projectId === _activeConsoleProject) {
+      _populateConsoleBackendSelect(_consoleMeta[projectId]);
+    }
+  }
   if (projectId !== _activeConsoleProject) return;
   const body = document.getElementById('console-body');
   if (!body) return;
   // Clear placeholder if present.
   const empty = body.querySelector('.console-empty');
   if (empty) empty.remove();
+  // Autoscroll only if user was at bottom.
+  const wasAtBottom = _isAtBottom(body);
   const node = renderConsoleEvent(event);
   if (node) {
     body.appendChild(node);
-    body.scrollTop = body.scrollHeight;
+    if (wasAtBottom) body.scrollTop = body.scrollHeight;
   }
 }
 
 function _updateConsoleSendButton() {
-  const btn = document.getElementById('console-send');
-  if (!btn) return;
-  btn.disabled = _consoleInflight;
-  btn.textContent = _consoleInflight ? 'Sending…' : 'Send';
+  const send = document.getElementById('console-send');
+  const stop = document.getElementById('console-stop');
+  const inp = document.getElementById('console-input');
+  if (!send || !stop) return;
+  if (_consoleInflight) {
+    send.hidden = true;
+    stop.hidden = false;
+    if (inp) inp.disabled = true;
+  } else {
+    send.hidden = false;
+    stop.hidden = true;
+    if (inp) inp.disabled = false;
+  }
+}
+
+function _setConsoleInflight(value) {
+  _consoleInflight = !!value;
+  _clearConsoleInflightTimer();
+  if (_consoleInflight) {
+    // Long-timeout safety net — see issue: "UI button can also just
+    // re-enable input after a long timeout". Five minutes is generous
+    // enough that real turns finish first; if they don't, the operator
+    // can hit Stop themselves.
+    _consoleInflightTimer = setTimeout(() => {
+      _consoleInflight = false;
+      _updateConsoleSendButton();
+      _showConsoleNotice('Turn taking unusually long; input re-enabled. Server-side turn may still complete.', false);
+    }, CONSOLE_INFLIGHT_TIMEOUT_MS);
+  }
+  _updateConsoleSendButton();
+}
+
+function _clearConsoleInflightTimer() {
+  if (_consoleInflightTimer) {
+    clearTimeout(_consoleInflightTimer);
+    _consoleInflightTimer = null;
+  }
+}
+
+function stopConsoleTurn() {
+  // Server-side cancellation is a follow-up bead. v1: just unblocks
+  // the UI so the operator can keep typing while the server-side
+  // turn finishes (any events it does eventually emit will still
+  // render).
+  _setConsoleInflight(false);
+  _showConsoleNotice('Stopped waiting. Any pending server-side turn will still complete.', false);
 }
 
 function sendConsoleMessage() {
@@ -3876,15 +4455,15 @@ function sendConsoleMessage() {
   if (!text) return;
   const projectId = getActiveConsoleProject();
   if (!projectId) {
-    alert('Pick a project first');
+    _showConsoleNotice('Pick a project first.', true);
     return;
   }
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    alert('WebSocket disconnected; reload page');
+    _showConsoleNotice('WebSocket disconnected; will reconnect shortly.', true);
     return;
   }
-  _consoleInflight = true;
-  _updateConsoleSendButton();
+  _setConsoleInflight(true);
+  _hideConsoleNotice();
   ws.send(JSON.stringify({
     type: 'console_input',
     project_id: projectId,
@@ -3894,6 +4473,70 @@ function sendConsoleMessage() {
   inp.value = '';
   _consoleAttachments = [];
   _updateConsoleAttachmentsChip();
+}
+
+async function onConsoleBackendChange() {
+  const sel = document.getElementById('console-backend-select');
+  if (!sel) return;
+  const backend = sel.value;
+  const projectId = getActiveConsoleProject();
+  if (!projectId || !backend) return;
+  try {
+    const r = await fetch('/api/v1/console/' + encodeURIComponent(projectId) + '/backend', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({backend: backend, model_role: 'default'}),
+    });
+    if (r.status === 409) {
+      _showConsoleNotice('Cannot switch backend while a turn is in flight. Wait for the current turn to finish.', true);
+      // Re-select the previous backend.
+      const meta = _consoleMeta[projectId] || {};
+      _populateConsoleBackendSelect(meta);
+      return;
+    }
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      _showConsoleNotice('Backend switch failed: ' +
+        ((err.error && err.error.message) || r.status), true);
+      const meta = _consoleMeta[projectId] || {};
+      _populateConsoleBackendSelect(meta);
+      return;
+    }
+    const data = await r.json();
+    if (!_consoleMeta[projectId]) _consoleMeta[projectId] = {};
+    _consoleMeta[projectId].backend = data.backend;
+    _consoleMeta[projectId].model_role = data.model_role;
+    _showConsoleNotice('Backend switched to ' + (data.backend || backend) +
+      '. The next message will use the new backend.', false);
+  } catch (e) {
+    _showConsoleNotice('Backend switch error: ' + String(e), true);
+  }
+}
+
+async function clearConsole() {
+  const projectId = getActiveConsoleProject();
+  if (!projectId) return;
+  if (!confirm('Clear the entire console transcript for this project? This cannot be undone.')) return;
+  try {
+    const r = await fetch('/api/v1/console/' + encodeURIComponent(projectId), {
+      method: 'DELETE',
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      _showConsoleNotice('Clear failed: ' +
+        ((err.error && err.error.message) || r.status), true);
+      return;
+    }
+    _consoleTranscripts[projectId] = [];
+    _consoleLastTs[projectId] = null;
+    _consoleMeta[projectId] = {};
+    _setConsoleInflight(false);
+    renderConsoleTranscript(projectId);
+    _updateTokenMeter(projectId);
+    _showConsoleNotice('Transcript cleared.', false);
+  } catch (e) {
+    _showConsoleNotice('Clear error: ' + String(e), true);
+  }
 }
 
 function _updateConsoleAttachmentsChip() {
@@ -4015,31 +4658,44 @@ connectWebSocket();
   </div>
 </div>
 
-<!-- Per-project ACP console (oompah-zlz_2-ebwe). -->
-<div class="console-overlay" id="console-overlay" onclick="if(event.target===this)closeConsolePanel()">
+<!-- Per-project ACP console (oompah-zlz_2-ebwe, UI panel oompah-zlz_2-577a). -->
+<div class="console-overlay" id="console-overlay" onclick="if(event.target===this)closeConsolePanel()"
+     role="dialog" aria-modal="true" aria-labelledby="console-title">
   <div class="console-panel">
     <div class="console-header">
-      <h3>Console
+      <h3 id="console-title">Console
         <span class="console-tools-tag" title="Tool catalog matches worker dispatch: read/write/edit files, run_command, bd. acceptEdits permission mode — operator is the human gate.">Tools: read/write/run</span>
       </h3>
       <div class="console-meta">
-        <span id="console-meta-backend">backend: …</span>
-        <span id="console-meta-model"></span>
-        <button onclick="closeConsolePanel()">&times;</button>
+        <span class="console-meta-control" title="Switch the project this console session targets.">
+          <span class="console-meta-label">project:</span>
+          <select id="console-project-select" onchange="onConsoleProjectChange()" aria-label="Console project"></select>
+        </span>
+        <span class="console-meta-control" title="Switch the ACP backend for the next turn. Refuses with a notice if a turn is in flight.">
+          <span class="console-meta-label">backend:</span>
+          <select id="console-backend-select" onchange="onConsoleBackendChange()" aria-label="Console backend">
+            <option value="">…</option>
+          </select>
+        </span>
+        <span id="console-tokens" class="console-tokens" hidden aria-live="polite"></span>
+        <button id="console-clear-btn" class="console-clear-btn"
+                onclick="clearConsole()" title="Clear this project's console transcript and start fresh.">Clear</button>
+        <button class="console-close-btn" onclick="closeConsolePanel()" aria-label="Close console">&times;</button>
       </div>
     </div>
-    <div class="console-project-row">
-      <label for="console-project-select" style="color:var(--text-muted);">Project:</label>
-      <select id="console-project-select" onchange="onConsoleProjectChange()" style="padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);"></select>
-      <span id="console-project-warning" style="color:var(--text-muted);"></span>
-    </div>
+    <div id="console-notice" class="console-notice" hidden role="status" aria-live="polite"></div>
     <div class="console-body" id="console-body">
       <div class="console-empty">Select a project to start a console session.</div>
     </div>
-    <div class="console-drop" id="console-drop">Drop files here to attach to your next message</div>
+    <div class="console-drop attachment-dropzone" id="console-drop"
+         aria-label="Attachment dropzone">Drop files here to attach to your next message</div>
     <div class="console-input-row">
-      <textarea id="console-input" class="console-input" placeholder="Type a message and press Enter (Shift+Enter for newline)…" rows="2"></textarea>
+      <textarea id="console-input" class="console-input"
+                placeholder="Type a message and press Enter (Shift+Enter for newline)…" rows="2"
+                aria-label="Console message input"></textarea>
       <button class="console-send-btn" id="console-send" onclick="sendConsoleMessage()">Send</button>
+      <button class="console-stop-btn" id="console-stop" hidden onclick="stopConsoleTurn()"
+              title="Re-enable input. Server-side cancellation lands in a follow-up bead; this currently just unblocks the UI.">Stop</button>
     </div>
   </div>
 </div>
