@@ -14,6 +14,7 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 - **Provider flexibility** — connect to any OpenAI-compatible API for model inference, with per-profile model roles and cost tracking
 - **Budget controls** — set spending limits, track costs by agent profile, and pause dispatch when budgets are exceeded
 - **Live dashboard** — real-time web UI with kanban board, agent activity, cost tracking, reviews page, and focus management
+- **Per-project ACP console** — interactive chat panel in the dashboard for each project, backed by the same Claude / Codex (openai-agents) ACP backends the workers use. Transcripts persist on disk; the operator can switch backends mid-conversation and the prior context carries over via per-backend translators. See `plans/console.md` § "Backend switching" for the full design.
 - **Multimodal attachments** — drop images, audio, or PDFs onto an issue; agents with image-capable models receive them inline. With `allow_image_output` foci, agents can attach generated images back to the issue. Stored in the project repo via git LFS. See `plans/multimodal-attachments.md`.
 - **Forge webhook forwarding** — listens for PR/push events via `gh webhook forward` so reactions are near-realtime instead of waiting for the periodic full-sync. Requires the `cli/gh-webhook` extension; install with `make install-gh-extensions`. See `docs/webhook-forwarding.md`.
 - **Hot reload** — edit `WORKFLOW.md` and the service picks up changes without restart
@@ -177,6 +178,20 @@ Start the dashboard by setting `server.port` in `WORKFLOW.md`:
 - **`/foci`** — Focus library management with inline editing
 - **`/projects-manage`** — Project CRUD (git repos with beads tracking)
 - **`/providers`** — Model provider configuration
+
+### Cross-agent continuity (console)
+
+The dashboard's per-project Console panel runs against the same ACP
+backends the worker dispatch path uses (Claude SDK, Codex via
+openai-agents). Operators can flip backends mid-conversation via the
+`backend:` dropdown in the console header — the on-disk JSONL
+transcript is the canonical state, and a per-backend translator
+rebuilds the SDK-native history on the next turn. The Claude
+translator emits Anthropic Messages API shape; the Codex translator
+emits the openai-agents `Runner.run_streamed(input=…)` input-item
+list. Tool calls and their results survive the round-trip across
+backends, with `_tool_use_id` ↔ `call_id` preserved. See
+`plans/console.md` § "Backend switching" for the design.
 
 ## Project setup
 
