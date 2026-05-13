@@ -90,6 +90,178 @@ def _is_transient_git_config_lock_error(stderr: str) -> bool:
     return "could not lock config file" in stderr
 
 
+def _is_ref_namespace_conflict_error(stderr: str, branch_name: str) -> bool:
+    """Return True if ``stderr`` indicates a git ref-namespace conflict for
+    ``branch_name``.
+
+    Git's filesystem-based ref storage cannot have both
+    ``refs/heads/<branch>`` (a file) AND ``refs/heads/<branch>/<sub>``
+    (a file inside a directory named ``<branch>``). Creating either when
+    the other exists fails with::
+
+        fatal: cannot lock ref 'refs/heads/<branch>':
+        'refs/heads/<branch>/<sub>' exists; cannot create 'refs/heads/<branch>'
+
+    This typically happens when a previous agent (or a hand-pushed branch)
+    used a slash-style nested name like ``trickle-u02z/strip-signing``,
+    consuming the ``trickle-u02z`` namespace and blocking subsequent
+    creation of a flat branch named ``trickle-u02z``.
+
+    Symptom from the bug report (oompah-zlz_2-kudu)::
+
+        fatal: cannot lock ref 'refs/heads/trickle-u02z':
+        'refs/heads/trickle-u02z/strip-signing' exists;
+        cannot create 'refs/heads/trickle-u02z'
+    """
+    if not stderr or not branch_name:
+        return False
+    # Match git's canonical phrasing. Be lenient about exact quoting.
+    return (
+        "cannot lock ref" in stderr
+        and f"refs/heads/{branch_name}/" in stderr
+        and "cannot create" in stderr
+    )
+
+
+def _resolve_ref_namespace_conflict(
+    cwd: str, branch_name: str, *, timeout: int = 5,
+) -> list[tuple[str, str]]:
+    """Free the ``refs/heads/<branch_name>`` namespace by renaming any local
+    nested refs of the form ``<branch_name>/<sub>`` to ``<branch_name>__<sub>``.
+
+    Returns the list of (old_name, new_name) renames performed. Empty list
+    means there was nothing to do.
+
+    Safety:
+
+    - Only LOCAL refs are touched. Remote-tracking refs
+      (``refs/remotes/origin/<branch>/<sub>``) are untouched, so the work
+      remains reachable via ``origin/<old_name>`` and ``git fetch`` will
+      not re-create the local branches in the conflicting namespace.
+    - Renames preserve commit reachability — no work is lost. If the
+      target name ``<branch_name>__<sub>`` is already taken, append a
+      numeric suffix to avoid clobbering an unrelated branch.
+    - Failures are logged at WARNING and skip the offending branch; the
+      caller's retry will surface any unrecoverable conflict to the
+      operator via the original CalledProcessError.
+    """
+    if not branch_name:
+        return []
+    # List local branches under the conflicting prefix.
+    try:
+        r = subprocess.run(
+            [
+                "git", "for-each-ref",
+                "--format=%(refname:short)",
+                f"refs/heads/{branch_name}/",
+            ],
+            cwd=cwd, capture_output=True, text=True, timeout=timeout,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        logger.warning(
+            "ref-namespace-conflict: failed to enumerate refs under %s/: %s",
+            branch_name, exc,
+        )
+        return []
+    if r.returncode != 0:
+        logger.warning(
+            "ref-namespace-conflict: git for-each-ref failed rc=%d stderr=%s",
+            r.returncode, (r.stderr or "").strip()[:200],
+        )
+        return []
+
+    nested = [line.strip() for line in (r.stdout or "").splitlines() if line.strip()]
+    if not nested:
+        return []
+
+    # Use a separator that cannot appear in a sanitized identifier
+    # (_sanitize_identifier produces [A-Za-z0-9._-]). Double underscore
+    # is safe and visually distinct.
+    renames: list[tuple[str, str]] = []
+    for old in nested:
+        # Guard: only rename if the prefix really matches our branch.
+        prefix = f"{branch_name}/"
+        if not old.startswith(prefix):
+            continue
+        sub = old[len(prefix):]
+        # Replace any further slashes inside sub so the new name is flat.
+        sub_flat = sub.replace("/", "__")
+        new_base = f"{branch_name}__{sub_flat}"
+        new = new_base
+        # Find a free target name by appending a numeric suffix if needed.
+        for n in range(1, 100):
+            try:
+                check = subprocess.run(
+                    [
+                        "git", "show-ref", "--verify", "--quiet",
+                        f"refs/heads/{new}",
+                    ],
+                    cwd=cwd, capture_output=True, text=True, timeout=timeout,
+                )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+                # If we can't check, assume free and try; rename will fail loudly.
+                check = None
+            if check is None or check.returncode != 0:
+                # returncode != 0 from show-ref means the ref does NOT exist — free.
+                break
+            new = f"{new_base}_{n}"
+        else:
+            logger.warning(
+                "ref-namespace-conflict: could not find a free rename target "
+                "for %s (last tried %s); skipping",
+                old, new,
+            )
+            continue
+
+        try:
+            mv = subprocess.run(
+                ["git", "branch", "-m", old, new],
+                cwd=cwd, capture_output=True, text=True, timeout=timeout,
+            )
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning(
+                "ref-namespace-conflict: git branch -m %s %s failed: %s",
+                old, new, exc,
+            )
+            continue
+        if mv.returncode != 0:
+            logger.warning(
+                "ref-namespace-conflict: git branch -m %s %s failed rc=%d stderr=%s",
+                old, new, mv.returncode, (mv.stderr or "").strip()[:200],
+            )
+            continue
+        renames.append((old, new))
+        logger.warning(
+            "ref-namespace-conflict: renamed local branch %s -> %s to free "
+            "refs/heads/%s namespace (commits preserved, remote untouched)",
+            old, new, branch_name,
+        )
+    return renames
+
+
+def _branch_name_from_worktree_cmd(cmd: list[str]) -> str | None:
+    """Extract the branch name from a ``git worktree add`` command list.
+
+    Accepts both the create-new-branch form
+    (``git worktree add -b <branch> <path> <base>``) and the
+    force-or-reuse form (``git worktree add -B <branch> ...``).
+
+    Returns ``None`` if the command shape is unrecognised — callers must
+    treat that as "no namespace recovery possible".
+    """
+    try:
+        i = cmd.index("worktree")
+        if cmd[i + 1] != "add":
+            return None
+        # Look for -b or -B after "add".
+        for j in range(i + 2, len(cmd) - 1):
+            if cmd[j] in ("-b", "-B"):
+                return cmd[j + 1]
+    except (ValueError, IndexError):
+        return None
+    return None
+
+
 def _git_worktree_add_with_recovery(
     cmd: list[str], *, cwd: str, wt_path: str,
     max_attempts: int = 3, timeout: int = 30,
@@ -113,8 +285,16 @@ def _git_worktree_add_with_recovery(
 
     ``sleep_fn`` is a seam for unit tests — production callers leave it
     as the default ``time.sleep``.
+
+    Additional recovery (oompah-zlz_2-kudu): a one-shot ref-namespace
+    conflict resolver runs when stderr matches the
+    ``cannot lock ref 'refs/heads/<branch>'`` pattern. Any local nested
+    refs that consumed the namespace (e.g. ``trickle-u02z/strip-signing``
+    blocking creation of ``trickle-u02z``) are renamed locally with a
+    ``__`` separator. The retry happens once per call to avoid loops.
     """
     last_exc: subprocess.CalledProcessError | None = None
+    namespace_conflict_handled = False
     for attempt in range(max_attempts):
         try:
             subprocess.run(
@@ -124,6 +304,29 @@ def _git_worktree_add_with_recovery(
             return
         except subprocess.CalledProcessError as exc:
             stderr = (exc.stderr or "").strip()
+            # First, see if this is a ref-namespace conflict we can heal.
+            branch_name = _branch_name_from_worktree_cmd(cmd)
+            if (
+                branch_name
+                and not namespace_conflict_handled
+                and _is_ref_namespace_conflict_error(stderr, branch_name)
+            ):
+                namespace_conflict_handled = True
+                renames = _resolve_ref_namespace_conflict(cwd, branch_name)
+                if renames:
+                    logger.warning(
+                        "git worktree add: freed refs/heads/%s namespace by "
+                        "renaming %d nested local branch(es); retrying",
+                        branch_name, len(renames),
+                    )
+                    # Don't consume the attempt budget for this recovery —
+                    # this is a one-shot mitigation, not a transient race.
+                    last_exc = exc
+                    continue
+                # Nothing to rename means a different ref still blocks us
+                # (e.g. packed-refs out of sync, or a remote-tracking ref).
+                # Fall through to re-raise so the operator can investigate.
+                raise
             if not _is_transient_git_config_lock_error(stderr):
                 raise
             last_exc = exc
