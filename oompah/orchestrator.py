@@ -7620,11 +7620,27 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         ``last_push_at`` / ``last_pull_at`` / ``last_error`` / ``divergent``
         fields. Used by both ``get_snapshot()`` (dashboard) and the
         ``/api/v1/orchestrator/dolt-sync`` endpoint.
+
+        Each entry also carries ``project_name`` and ``repo_path``
+        (resolved from the project store) so the dashboard's
+        click-to-expand alert modal can render the project label and
+        suggested recovery commands without a second round-trip
+        (oompah-zlz_2-g8uk).
         """
-        return {
-            pid: st.to_dict()
-            for pid, st in self._dolt_sync_state.items()
-        }
+        try:
+            projects_by_id = {p.id: p for p in self.project_store.list_all()}
+        except Exception:
+            projects_by_id = {}
+        out: dict[str, Any] = {}
+        for pid, st in self._dolt_sync_state.items():
+            entry = st.to_dict()
+            proj = projects_by_id.get(pid)
+            entry["project_name"] = proj.name if proj else pid
+            entry["repo_path"] = (
+                getattr(proj, "repo_path", None) if proj else None
+            )
+            out[pid] = entry
+        return out
 
     def _reviews_summary(self) -> dict[str, int]:
         """Aggregate per-tick review cache for the dashboard badge.

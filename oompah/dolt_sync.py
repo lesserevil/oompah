@@ -311,6 +311,10 @@ def summarize_for_alerts(
     least 3 consecutive errors. The orchestrator merges these into its
     main ``_alerts`` list so the dashboard surfaces them next to
     auto-update/profile-drift warnings.
+
+    Each alert dict carries ``project_id`` so the dashboard can map the
+    click-to-expand modal back to a specific entry in
+    ``/api/v1/orchestrator/dolt-sync`` (oompah-zlz_2-g8uk).
     """
     alerts: list[dict[str, str]] = []
     for pid, st in states.items():
@@ -320,6 +324,7 @@ def summarize_for_alerts(
             alerts.append({
                 "level": "error",
                 "source": "dolt_sync",
+                "project_id": pid,
                 "message": (
                     f"Dolt sync diverged for {name} — operator must "
                     "merge bd dolt history by hand."
@@ -329,6 +334,7 @@ def summarize_for_alerts(
             alerts.append({
                 "level": "warning",
                 "source": "dolt_sync",
+                "project_id": pid,
                 "message": (
                     f"Dolt sync failing for {name} "
                     f"({st.consecutive_errors}x): {st.last_error}"
