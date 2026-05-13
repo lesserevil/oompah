@@ -1145,6 +1145,81 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    /* Dolt sync alert modal (oompah-zlz_2-g8uk) */
+    .dolt-sync-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .dolt-sync-row .label {
+      flex: 0 0 130px;
+      color: var(--text-muted);
+    }
+    .dolt-sync-row .value {
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      word-break: break-word;
+    }
+    .dolt-sync-error-box {
+      margin-top: 0.5rem;
+      max-height: 180px;
+      overflow: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem 0.6rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      color: var(--text);
+    }
+    .dolt-sync-cmd-box {
+      margin-top: 0.4rem;
+      display: flex;
+      align-items: stretch;
+      gap: 0.4rem;
+    }
+    .dolt-sync-cmd-box pre {
+      flex: 1;
+      margin: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem 0.6rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.78rem;
+      color: var(--text);
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+    .dolt-sync-cmd-box .copy-btn {
+      align-self: flex-start;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+    .dolt-sync-badge {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .dolt-sync-badge.divergent {
+      background: rgba(248, 81, 73, 0.15);
+      color: var(--red, #f85149);
+    }
+    .dolt-sync-badge.errors {
+      background: rgba(209, 134, 22, 0.15);
+      color: var(--orange, #d18616);
+    }
+    .dolt-sync-badge.ok {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green, #3fb950);
+    }
   </style>
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -1321,11 +1396,23 @@ function handleStateUpdate(state) {
     pauseBtn.classList.remove('btn-paused');
   }
 
-  // Render alerts inline in agent bar
+  // Render alerts inline in agent bar. Dolt-sync alerts are clickable —
+  // clicking opens a modal with the full error message and suggested
+  // recovery commands (oompah-zlz_2-g8uk).
   const warningsEl = document.getElementById('agent-warnings');
   const alerts = state.alerts || [];
   if (alerts.length > 0) {
-    warningsEl.innerHTML = alerts.map(a => '&#9888; ' + esc(a.message)).join(' &middot; ');
+    warningsEl.innerHTML = alerts.map(function(a) {
+      if (a.source === 'dolt_sync' && a.project_id) {
+        const pid = esc(a.project_id);
+        return '<span class="dolt-sync-alert" data-project-id="' + pid +
+               '" onclick="openDoltSyncAlertModal(\'' + pid + '\')" ' +
+               'title="Click for details and recovery commands" ' +
+               'style="cursor:pointer;text-decoration:underline dotted;">' +
+               '&#9888; ' + esc(a.message) + ' &#8250;</span>';
+      }
+      return '<span>&#9888; ' + esc(a.message) + '</span>';
+    }).join(' &middot; ');
   } else {
     warningsEl.textContent = '';
   }
@@ -2448,6 +2535,143 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+// ---------------------------------------------------------------------
+// Dolt sync alert detail modal (oompah-zlz_2-g8uk).
+// Clicking a dolt_sync alert in the agent-bar opens this modal so the
+// operator can see the full bd CLI error and one-or-two recovery
+// commands without having to ssh in and trawl logs.
+// ---------------------------------------------------------------------
+
+function humanizeTimestamp(iso) {
+  if (!iso) return 'never';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return String(iso);
+  const ageMs = Date.now() - t;
+  const ageSec = Math.floor(ageMs / 1000);
+  if (ageSec < 60) return ageSec + ' seconds ago';
+  const ageMin = Math.floor(ageSec / 60);
+  if (ageMin < 60) return ageMin + (ageMin === 1 ? ' minute ago' : ' minutes ago');
+  const ageHr = Math.floor(ageMin / 60);
+  if (ageHr < 24) return ageHr + (ageHr === 1 ? ' hour ago' : ' hours ago');
+  const ageDay = Math.floor(ageHr / 24);
+  return ageDay + (ageDay === 1 ? ' day ago' : ' days ago');
+}
+
+// Build the suggested recovery command for a dolt-sync entry.
+// Three branches: divergent → pull+push --force; consecutive_errors>=5
+// and not divergent → status (operator investigates); otherwise →
+// plain pull+push retry. Exposed for testability via the static template
+// assertions in tests/test_dashboard_dolt_alert.py.
+function buildDoltSyncRecoveryCommand(entry) {
+  const repo = (entry && entry.repo_path) ? entry.repo_path : '<repo_path>';
+  if (entry && entry.divergent) {
+    return 'cd ' + repo + ' && bd dolt pull && bd dolt push --force';
+  }
+  if (entry && entry.consecutive_errors >= 5) {
+    return 'cd ' + repo + ' && bd dolt status';
+  }
+  return 'cd ' + repo + ' && bd dolt pull && bd dolt push';
+}
+
+function renderDoltSyncDialog(entry) {
+  const body = document.getElementById('dolt-sync-dialog-body');
+  if (!entry) {
+    body.innerHTML = '<div style="color:var(--text-muted);">' +
+      'No sync data available for this project (the watchdog may not ' +
+      'have run yet).</div>';
+    return;
+  }
+  const lastSyncIso = entry.last_push_at || entry.last_pull_at;
+  let stateBadge;
+  if (entry.divergent) {
+    stateBadge = '<span class="dolt-sync-badge divergent">DIVERGENT</span>';
+  } else if (entry.consecutive_errors >= 3) {
+    stateBadge = '<span class="dolt-sync-badge errors">' +
+      esc(String(entry.consecutive_errors)) + ' consecutive errors</span>';
+  } else {
+    stateBadge = '<span class="dolt-sync-badge ok">' +
+      esc(String(entry.consecutive_errors || 0)) + ' errors</span>';
+  }
+  const cmd = buildDoltSyncRecoveryCommand(entry);
+  body.innerHTML = '' +
+    '<div class="dolt-sync-row"><span class="label">Project</span>' +
+    '<span class="value">' + esc(entry.project_name || entry.project_id || '') + '</span></div>' +
+    '<div class="dolt-sync-row"><span class="label">Repo path</span>' +
+    '<span class="value">' + esc(entry.repo_path || '(unknown)') + '</span></div>' +
+    '<div class="dolt-sync-row"><span class="label">State</span>' +
+    '<span class="value">' + stateBadge + '</span></div>' +
+    '<div class="dolt-sync-row"><span class="label">Last successful sync</span>' +
+    '<span class="value">' + esc(humanizeTimestamp(lastSyncIso)) + '</span></div>' +
+    '<div class="dolt-sync-row"><span class="label">Last error at</span>' +
+    '<span class="value">' + esc(humanizeTimestamp(entry.last_error_at)) + '</span></div>' +
+    '<div style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted);">Last error</div>' +
+    '<div class="dolt-sync-error-box" id="dolt-sync-error">' +
+      esc(entry.last_error || '(no error recorded)') +
+    '</div>' +
+    '<div style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted);">Suggested recovery command</div>' +
+    '<div class="dolt-sync-cmd-box">' +
+      '<pre id="dolt-sync-cmd">' + esc(cmd) + '</pre>' +
+      '<button class="copy-btn" onclick="copyDoltSyncCommand()">Copy</button>' +
+    '</div>';
+}
+
+async function openDoltSyncAlertModal(projectId) {
+  const overlay = document.getElementById('dolt-sync-dialog');
+  const body = document.getElementById('dolt-sync-dialog-body');
+  body.innerHTML = '<div style="color:var(--text-muted);">Loading…</div>';
+  overlay.classList.add('open');
+  try {
+    const resp = await fetch('/api/v1/orchestrator/dolt-sync');
+    if (!resp.ok) {
+      throw new Error('HTTP ' + resp.status);
+    }
+    const data = await resp.json();
+    const projects = (data && data.projects) || {};
+    const entry = projects[projectId] || null;
+    renderDoltSyncDialog(entry);
+  } catch (err) {
+    body.innerHTML = '<div style="color:var(--red,#f85149);">' +
+      'Failed to load sync detail: ' + esc(String(err)) + '</div>';
+  }
+}
+
+function closeDoltSyncAlertModal() {
+  document.getElementById('dolt-sync-dialog').classList.remove('open');
+}
+
+function copyDoltSyncCommand() {
+  const pre = document.getElementById('dolt-sync-cmd');
+  if (!pre) return;
+  const text = pre.textContent || '';
+  const done = function() {
+    const btn = document.querySelector('#dolt-sync-dialog-body .copy-btn');
+    if (!btn) return;
+    const prev = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = prev; }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(function() {
+      // Fallback when clipboard API is unavailable (insecure context, etc).
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      done();
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    done();
+  }
 }
 
 async function refreshBoard() {
@@ -3771,6 +3995,22 @@ connectWebSocket();
       <button onclick="closeCreateDialog()">Cancel</button>
       <button id="create-enhance-btn" style="display:none;" onclick="enhanceCreateDialog()" title="Run an LLM enhancement pass against the project's AGENTS.md quality criteria">✨ Enhance</button>
       <button class="btn-primary" id="create-submit" onclick="submitCreateDialog()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dolt sync alert detail modal (oompah-zlz_2-g8uk).
+     Opened when the operator clicks a dolt_sync alert in the agent bar. -->
+<div class="dialog-overlay" id="dolt-sync-dialog" onclick="if(event.target===this)closeDoltSyncAlertModal()">
+  <div class="dialog" id="dolt-sync-dialog-content" style="width:560px;">
+    <h2>Dolt sync detail
+      <span style="float:right;cursor:pointer;font-size:0.9rem;color:var(--text-muted);" onclick="closeDoltSyncAlertModal()">&times;</span>
+    </h2>
+    <div id="dolt-sync-dialog-body">
+      <div style="color:var(--text-muted);">Loading…</div>
+    </div>
+    <div class="dialog-actions">
+      <button onclick="closeDoltSyncAlertModal()">Close</button>
     </div>
   </div>
 </div>
