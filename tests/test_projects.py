@@ -1515,3 +1515,66 @@ class TestGitWorktreeAddWithRefNamespaceConflict:
         # Exactly 2 worktree add attempts: original + 1 post-rename retry.
         # No further loops.
         assert attempts["n"] == 2
+
+    def test_recovers_trickle_zwmx_variant_end_to_end(self, tmp_path):
+        """End-to-end regression: oompah-zlz_2-1i60 (third instance of the
+        same bug class as oompah-zlz_2-kudu / -5a05) reported a worktree-add
+        failure for ``trickle-zwmx`` blocked by an existing local nested
+        ref ``trickle-zwmx/in-binary-url-register``.
+
+        5a05 added a detector-level regression test
+        (``TestIsRefNamespaceConflictError.test_matches_trickle_zwmx_variant``)
+        — this complements it at the recovery-orchestration layer so
+        future drift in ``_git_worktree_add_with_recovery``'s integration
+        of detector + resolver + retry fails CI here rather than waiting
+        for the bug to re-fire in production.
+
+        Identical shape to ``test_recovers_by_renaming_and_retrying`` but
+        uses the exact branch name (``trickle-zwmx``), child ref name
+        (``in-binary-url-register``), and verbatim git stderr from the
+        1i60 bug report.
+        """
+        wt = tmp_path / "wt"
+        attempts = {"n": 0}
+
+        # Verbatim from the 1i60 bug report's ProjectError message.
+        stderr_1i60 = (
+            "Preparing worktree (new branch 'trickle-zwmx')\n"
+            "fatal: cannot lock ref 'refs/heads/trickle-zwmx': "
+            "'refs/heads/trickle-zwmx/in-binary-url-register' exists; "
+            "cannot create 'refs/heads/trickle-zwmx'\n"
+        )
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "add"]:
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise subprocess.CalledProcessError(
+                        returncode=128, cmd=args, output="",
+                        stderr=stderr_1i60,
+                    )
+                # Second attempt: namespace freed, succeed.
+                wt.mkdir()
+                return _MM(returncode=0, stdout="", stderr="")
+            if args[:2] == ["git", "for-each-ref"]:
+                return _MM(
+                    returncode=0,
+                    stdout="trickle-zwmx/in-binary-url-register\n",
+                    stderr="",
+                )
+            if args[:3] == ["git", "show-ref", "--verify"]:
+                # Target rename name is free.
+                return _MM(returncode=1, stdout="", stderr="")
+            if args[:3] == ["git", "branch", "-m"]:
+                return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        cmd = ["git", "worktree", "add", "-b", "trickle-zwmx",
+               str(wt), "origin/main"]
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            _git_worktree_add_with_recovery(
+                cmd, cwd="/repo", wt_path=str(wt),
+                sleep_fn=lambda s: None,
+            )
+        # Two worktree-add attempts: original failure + post-rename success.
+        assert attempts["n"] == 2
