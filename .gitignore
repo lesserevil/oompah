@@ -23,9 +23,9 @@ build/
 # Oompah local config
 .oompah/
 
-# Console session transcripts (oompah-zlz_2-pd2z). Already covered by the
-# .oompah/ wildcard above, but listed explicitly so future contributors
-# don't accidentally check in console transcripts when narrowing that rule.
+# Per-project console transcripts (oompah-zlz_2-ebwe). Already covered
+# by ``.oompah/`` above, but listed explicitly so the path is greppable
+# for operators looking up where the console persists state.
 .oompah/console/
 
 # Environment variables — never commit secrets
