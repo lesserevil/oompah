@@ -1520,3 +1520,216 @@ class TestGetAllOpenReviews:
         by_id = {r["project_id"]: r for r in results}
         assert by_id["p-yolo"]["project_yolo"] is True
         assert by_id["p-manual"]["project_yolo"] is False
+
+
+class TestFindPrForBranchGitHub:
+    """``GitHubProvider.find_pr_for_branch`` filters PRs by head ref and
+    returns the most recent record, normalising ``state`` to one of
+    ``open``/``closed``/``merged``."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider(self, payload, status_code=200):
+        provider = GitHubProvider(access_token="t")
+
+        captured: dict = {}
+
+        def fake_api(method, path, **kwargs):
+            captured["method"] = method
+            captured["path"] = path
+            captured["params"] = kwargs.get("params")
+            return self._FakeResponse(payload, status_code=status_code)
+
+        provider._api = fake_api
+        provider._captured = captured  # type: ignore[attr-defined]
+        return provider
+
+    def test_returns_none_for_empty_branch(self):
+        provider = GitHubProvider(access_token="t")
+        # _api should NOT be invoked when branch is empty.
+        provider._api = mock.MagicMock(
+            side_effect=AssertionError("should not call API"),
+        )
+        assert provider.find_pr_for_branch("owner/repo", "") is None
+
+    def test_returns_none_when_no_prs(self):
+        provider = self._provider([])
+        assert provider.find_pr_for_branch("owner/repo", "feat-x") is None
+        # ``head`` param must be ``owner:branch``.
+        assert provider._captured["params"]["head"] == "owner:feat-x"
+        assert provider._captured["params"]["state"] == "all"
+
+    def test_returns_merged_state_when_merged_at_set(self):
+        payload = [{
+            "number": 42,
+            "title": "Feat X",
+            "html_url": "https://github.com/owner/repo/pull/42",
+            "user": {"login": "alice"},
+            "state": "closed",
+            "merged_at": "2026-01-01T00:00:00Z",
+            "head": {"ref": "feat-x"},
+            "base": {"ref": "main"},
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "body": "Closes oompah-zlz_2-foo.",
+            "labels": [{"name": "feature"}],
+            "draft": False,
+        }]
+        provider = self._provider(payload)
+        review = provider.find_pr_for_branch("owner/repo", "feat-x")
+        assert review is not None
+        assert review.id == "42"
+        assert review.state == "merged"
+        assert review.source_branch == "feat-x"
+        assert review.target_branch == "main"
+        assert review.author == "alice"
+
+    def test_returns_closed_state_for_closed_unmerged(self):
+        payload = [{
+            "number": 7,
+            "title": "Failed",
+            "html_url": "u",
+            "user": {"login": "bob"},
+            "state": "closed",
+            "merged_at": None,
+            "head": {"ref": "feat-7"},
+            "base": {"ref": "main"},
+            "created_at": "", "updated_at": "",
+            "body": "", "labels": [], "draft": False,
+        }]
+        provider = self._provider(payload)
+        review = provider.find_pr_for_branch("owner/repo", "feat-7")
+        assert review is not None
+        assert review.state == "closed"
+
+    def test_returns_open_state_for_open_pr(self):
+        payload = [{
+            "number": 9,
+            "title": "WIP",
+            "html_url": "u",
+            "user": {"login": "carol"},
+            "state": "open",
+            "merged_at": None,
+            "head": {"ref": "feat-9"},
+            "base": {"ref": "main"},
+            "created_at": "", "updated_at": "",
+            "body": "", "labels": [], "draft": False,
+        }]
+        provider = self._provider(payload)
+        review = provider.find_pr_for_branch("owner/repo", "feat-9")
+        assert review is not None
+        assert review.state == "open"
+
+    def test_returns_none_on_http_error(self):
+        provider = self._provider({}, status_code=500)
+        assert provider.find_pr_for_branch("owner/repo", "feat-x") is None
+
+    def test_returns_none_on_exception(self):
+        provider = GitHubProvider(access_token="t")
+        import httpx
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("boom"))
+        assert provider.find_pr_for_branch("owner/repo", "feat-x") is None
+
+
+class TestFindPrForBranchGitLab:
+    """``GitLabProvider.find_pr_for_branch`` filters MRs by source_branch."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider(self, payload, status_code=200):
+        provider = GitLabProvider(
+            hostname="gitlab.example.com",
+            access_token="t",
+        )
+        captured: dict = {}
+
+        def fake_api(method, path, **kwargs):
+            captured["method"] = method
+            captured["path"] = path
+            captured["params"] = kwargs.get("params")
+            return self._FakeResponse(payload, status_code=status_code)
+
+        provider._api = fake_api
+        provider._captured = captured  # type: ignore[attr-defined]
+        return provider
+
+    def test_returns_none_for_empty_branch(self):
+        provider = GitLabProvider(
+            hostname="gitlab.example.com",
+            access_token="t",
+        )
+        provider._api = mock.MagicMock(
+            side_effect=AssertionError("should not call API"),
+        )
+        assert provider.find_pr_for_branch("group/proj", "") is None
+
+    def test_returns_merged_state(self):
+        payload = [{
+            "iid": 123,
+            "title": "Merge me",
+            "web_url": "https://gitlab/example/-/merge_requests/123",
+            "author": {"username": "dave"},
+            "state": "merged",
+            "source_branch": "feat-z",
+            "target_branch": "main",
+            "created_at": "",
+            "updated_at": "",
+            "description": "body",
+            "labels": ["feature"],
+            "draft": False,
+        }]
+        provider = self._provider(payload)
+        review = provider.find_pr_for_branch("group/proj", "feat-z")
+        assert review is not None
+        assert review.id == "123"
+        assert review.state == "merged"
+        assert review.source_branch == "feat-z"
+        assert review.target_branch == "main"
+
+    def test_returns_closed_state(self):
+        payload = [{
+            "iid": 124, "title": "x", "web_url": "u",
+            "author": {"username": "e"}, "state": "closed",
+            "source_branch": "f", "target_branch": "main",
+            "created_at": "", "updated_at": "", "description": "",
+            "labels": [], "draft": False,
+        }]
+        provider = self._provider(payload)
+        review = provider.find_pr_for_branch("group/proj", "f")
+        assert review is not None
+        assert review.state == "closed"
+
+    def test_returns_open_state(self):
+        payload = [{
+            "iid": 125, "title": "x", "web_url": "u",
+            "author": {"username": "e"}, "state": "opened",
+            "source_branch": "g", "target_branch": "main",
+            "created_at": "", "updated_at": "", "description": "",
+            "labels": [], "draft": False,
+        }]
+        provider = self._provider(payload)
+        review = provider.find_pr_for_branch("group/proj", "g")
+        assert review is not None
+        assert review.state == "open"
+
+    def test_returns_none_when_no_mrs(self):
+        provider = self._provider([])
+        assert provider.find_pr_for_branch("group/proj", "missing") is None
+        assert provider._captured["params"]["source_branch"] == "missing"
+        assert provider._captured["params"]["state"] == "all"
+
+    def test_returns_none_on_http_error(self):
+        provider = self._provider({}, status_code=403)
+        assert provider.find_pr_for_branch("group/proj", "b") is None

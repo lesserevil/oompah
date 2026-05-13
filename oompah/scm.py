@@ -108,6 +108,22 @@ class SCMProvider(ABC):
         ...
 
     @abstractmethod
+    def find_pr_for_branch(
+        self, repo: str, branch_name: str,
+    ) -> ReviewRequest | None:
+        """Find the most recent PR/MR whose source/head branch matches.
+
+        Returns a ``ReviewRequest`` whose ``state`` field is one of
+        ``"open"``, ``"closed"`` (closed without merge), or
+        ``"merged"``. Returns ``None`` when no PR/MR for that branch
+        exists.
+
+        Used by the epic auto-close gate (oompah-zlz_2-lvcd) to verify
+        a child's branch was merged before closing the parent epic.
+        """
+        ...
+
+    @abstractmethod
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         """Get a single pull/merge request by ID."""
         ...
@@ -773,6 +789,75 @@ class GitHubProvider(SCMProvider):
             if pr.get("merged_at") and pr.get("head", {}).get("ref")
         }
 
+    def find_pr_for_branch(
+        self, repo: str, branch_name: str,
+    ) -> ReviewRequest | None:
+        """Find the most recent PR whose head ref matches ``branch_name``.
+
+        Uses GitHub's pulls list endpoint with the ``head`` filter
+        (which requires ``user:branch`` format) to scope the search.
+        Returns the most recently updated PR, with ``state`` normalised
+        to ``"merged"`` when ``merged_at`` is set.
+        """
+        if not branch_name:
+            return None
+        # ``head=user:branch`` form is required. Owner is the first
+        # segment of ``repo`` (e.g. ``owner/name``).
+        owner = repo.split("/", 1)[0] if "/" in repo else ""
+        head_param = f"{owner}:{branch_name}" if owner else branch_name
+        try:
+            r = self._api(
+                "GET",
+                f"/repos/{repo}/pulls",
+                params={
+                    "state": "all",
+                    "head": head_param,
+                    "per_page": 50,
+                    "sort": "updated",
+                    "direction": "desc",
+                },
+            )
+            if r.status_code != 200:
+                logger.debug(
+                    "GitHub find_pr_for_branch %s/%s: HTTP %d",
+                    repo, branch_name, r.status_code,
+                )
+                return None
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitHub find_pr_for_branch failed for %s/%s: %s",
+                repo, branch_name, exc,
+            )
+            return None
+        if not data:
+            return None
+        pr = data[0]
+        author = pr.get("user", {})
+        author_login = (
+            author.get("login", "") if isinstance(author, dict) else str(author)
+        )
+        if pr.get("merged_at"):
+            state = "merged"
+        elif pr.get("state") == "closed":
+            state = "closed"
+        else:
+            state = "open"
+        return ReviewRequest(
+            id=str(pr.get("number", "")),
+            title=pr.get("title", ""),
+            url=pr.get("html_url", ""),
+            author=author_login,
+            state=state,
+            source_branch=pr.get("head", {}).get("ref", ""),
+            target_branch=pr.get("base", {}).get("ref", ""),
+            created_at=pr.get("created_at", ""),
+            updated_at=pr.get("updated_at", ""),
+            description=_truncate(pr.get("body", "") or "", 500),
+            labels=[l.get("name", "") for l in (pr.get("labels") or [])],
+            draft=pr.get("draft", False),
+        )
+
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         try:
             r = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
@@ -1087,6 +1172,75 @@ class GitLabProvider(SCMProvider):
             return set()
 
         return {mr.get("source_branch", "") for mr in data if mr.get("source_branch")}
+
+    def find_pr_for_branch(
+        self, repo: str, branch_name: str,
+    ) -> ReviewRequest | None:
+        """Find the most recent MR whose source branch matches.
+
+        GitLab's MR list supports filtering by ``source_branch``. We
+        ask for ``state=all`` and sort newest-first so the first hit
+        is the latest record for the branch (whether open, merged, or
+        closed without merge).
+        """
+        if not branch_name:
+            return None
+        encoded = self._project_path(repo)
+        try:
+            r = self._api(
+                "GET",
+                f"/projects/{encoded}/merge_requests",
+                params={
+                    "state": "all",
+                    "source_branch": branch_name,
+                    "per_page": 50,
+                    "order_by": "updated_at",
+                    "sort": "desc",
+                },
+            )
+            if r.status_code != 200:
+                logger.debug(
+                    "GitLab find_pr_for_branch %s/%s: HTTP %d",
+                    repo, branch_name, r.status_code,
+                )
+                return None
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitLab find_pr_for_branch failed for %s/%s: %s",
+                repo, branch_name, exc,
+            )
+            return None
+        if not data:
+            return None
+        mr = data[0]
+        raw_state = (mr.get("state") or "").lower()
+        if raw_state == "merged":
+            state = "merged"
+        elif raw_state == "closed":
+            state = "closed"
+        else:
+            state = "open"
+        author = mr.get("author", {})
+        author_name = (
+            author.get("username", author.get("name", ""))
+            if isinstance(author, dict)
+            else str(author)
+        )
+        return ReviewRequest(
+            id=str(mr.get("iid", mr.get("id", ""))),
+            title=mr.get("title", ""),
+            url=mr.get("web_url", ""),
+            author=author_name,
+            state=state,
+            source_branch=mr.get("source_branch", ""),
+            target_branch=mr.get("target_branch", ""),
+            created_at=mr.get("created_at", ""),
+            updated_at=mr.get("updated_at", ""),
+            description=_truncate(mr.get("description", "") or "", 500),
+            labels=mr.get("labels") or [],
+            draft=mr.get("draft", False) or mr.get("work_in_progress", False),
+        )
 
     def get_review(self, repo: str, review_id: str) -> ReviewRequest | None:
         encoded = self._project_path(repo)
