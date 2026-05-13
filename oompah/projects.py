@@ -534,6 +534,78 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
     return True
 
 
+# Safety-net cap for ``bd bootstrap``. Bootstrap can be slow on large dolt
+# histories — per the no-timeouts-on-bd-dolt feedback, we don't impose a
+# short timeout. 10 minutes is well above any observed real-world case and
+# just prevents a hung subprocess from wedging project creation forever.
+_BD_BOOTSTRAP_TIMEOUT_S = 600
+
+
+def _bootstrap_beads(repo_path: str) -> bool:
+    """Run ``bd bootstrap`` in ``repo_path``. Best-effort.
+
+    When a freshly-cloned project already has beads on its dolt remote,
+    ``bd bootstrap`` populates ``.beads/embeddeddolt/`` from that remote
+    so the local database is in sync with the team's tracker. We must
+    NEVER run ``bd init`` instead — that creates divergent local history
+    that fails to push/pull.
+
+    Failure modes (all logged, none fatal):
+    - ``bd`` not on PATH (FileNotFoundError) — skipped.
+    - Repo has ``.beads/config.yaml`` but no remote configured yet
+      (operator-cloned but never pushed).
+    - The dolt remote URL requires auth the orchestrator doesn't have.
+    - Bootstrap exceeds the safety-net timeout
+      (``_BD_BOOTSTRAP_TIMEOUT_S``).
+
+    Returns ``True`` on success, ``False`` on any failure or skip. The
+    caller continues either way; the orchestrator's dolt-sync watchdog
+    will surface the resulting state.
+
+    See oompah-zlz_2-a2td.
+    """
+    if not os.path.isdir(os.path.join(repo_path, ".beads")):
+        return False
+    try:
+        proc = subprocess.run(
+            ["bd", "bootstrap"],
+            cwd=repo_path,
+            capture_output=True, text=True,
+            timeout=_BD_BOOTSTRAP_TIMEOUT_S,
+        )
+    except FileNotFoundError:
+        logger.warning(
+            "bd not on PATH; skipped 'bd bootstrap' in %s", repo_path,
+        )
+        return False
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "'bd bootstrap' timed out after %ds in %s; project creation continues",
+            _BD_BOOTSTRAP_TIMEOUT_S, repo_path,
+        )
+        return False
+
+    if proc.returncode == 0:
+        summary = (proc.stdout or "").strip()
+        if summary:
+            # Keep log compact — bootstrap output can be verbose.
+            summary = summary.splitlines()[-1][:300]
+        logger.info(
+            "'bd bootstrap' succeeded in %s%s",
+            repo_path,
+            f": {summary}" if summary else "",
+        )
+        return True
+
+    stderr = (proc.stderr or "").strip()[:500]
+    logger.warning(
+        "'bd bootstrap' failed (exit %d) in %s: %s — project creation continues; "
+        "operator can re-run manually",
+        proc.returncode, repo_path, stderr or "(no stderr)",
+    )
+    return False
+
+
 def _bootstrap_lfs(repo_path: str) -> bool:
     """Run `git lfs install --local` in ``repo_path`` and write the
     attachments .gitattributes. Idempotent.
@@ -688,6 +760,14 @@ class ProjectStore:
                 f"Repo cloned but no .beads/ directory found. "
                 f"Run 'bd init' in {repo_path} to set up beads issue tracking."
             )
+
+        # The repo has .beads/, so it's a beads-tracked project. The right
+        # next step is 'bd bootstrap' (NOT 'bd init') — bootstrap populates
+        # .beads/embeddeddolt/ from the configured dolt remote. Failures
+        # (no remote, auth, timeout) are logged but don't fail project
+        # creation; the dolt-sync watchdog will surface the resulting state.
+        # See oompah-zlz_2-a2td.
+        _bootstrap_beads(repo_path)
 
         # If git_user_name / git_user_email not provided, read global git config
         if not git_user_name:
