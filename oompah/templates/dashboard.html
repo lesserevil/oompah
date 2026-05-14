@@ -763,6 +763,20 @@
       background: rgba(88, 166, 255, 0.08);
     }
     .console-tokens[hidden] { display: none; }
+    /* "(history will carry over)" affordance: shown briefly after a
+       mid-conversation backend dropdown change so the operator knows
+       prior context is preserved. Subtle so it doesn't compete with
+       the main controls. */
+    .console-backend-hint {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(88, 166, 255, 0.08);
+      transition: opacity 0.3s ease-in;
+    }
+    .console-backend-hint[hidden] { display: none; }
     .console-clear-btn {
       padding: 2px 8px;
       font-size: 0.7rem;
@@ -4016,6 +4030,37 @@ function _hideConsoleNotice() {
   if (el) el.hidden = true;
 }
 
+// "(history will carry over)" affordance — shown next to the backend
+// dropdown when the operator changes backends mid-conversation. The
+// hint is intentionally subtle and self-clears after 8 seconds so it
+// doesn't accumulate visual noise across multiple swaps in one
+// session.
+let _consoleBackendHintTimer = null;
+function _showConsoleBackendCarryoverHint(projectId) {
+  const hint = document.getElementById('console-backend-carryover-hint');
+  if (!hint) return;
+  // Only show when there's actually prior conversation context to
+  // carry over. _consoleTranscripts is the in-memory transcript
+  // cache populated by loadConsoleTranscript() + WS event fan-out;
+  // an empty / unset transcript means there's nothing to carry over
+  // and showing the hint would be misleading.
+  const transcript = (typeof _consoleTranscripts !== 'undefined'
+    && _consoleTranscripts) ? _consoleTranscripts[projectId] : null;
+  const hasPriorTurns = Array.isArray(transcript) && transcript.some(function(ev) {
+    return ev && (ev.kind === 'operator_input' || ev.kind === 'agent_text'
+      || ev.kind === 'tool_call' || ev.kind === 'tool_result');
+  });
+  if (!hasPriorTurns) {
+    hint.hidden = true;
+    return;
+  }
+  hint.hidden = false;
+  clearTimeout(_consoleBackendHintTimer);
+  _consoleBackendHintTimer = setTimeout(function() {
+    hint.hidden = true;
+  }, 8000);
+}
+
 async function loadConsoleTranscript(projectId) {
   if (!projectId) return;
   const body = document.getElementById('console-body');
@@ -4481,6 +4526,13 @@ async function onConsoleBackendChange() {
   const backend = sel.value;
   const projectId = getActiveConsoleProject();
   if (!projectId || !backend) return;
+  // Mid-conversation hint: if the project already has any agent_text /
+  // tool_call / operator_input events in its transcript, show the
+  // "(history will carry over)" affordance briefly so the operator
+  // knows prior context is preserved across the switch. The hint
+  // hides itself after 8s (or on the next backend change) so it
+  // doesn't accumulate visual noise.
+  _showConsoleBackendCarryoverHint(projectId);
   try {
     const r = await fetch('/api/v1/console/' + encodeURIComponent(projectId) + '/backend', {
       method: 'POST',
@@ -4676,6 +4728,10 @@ connectWebSocket();
           <select id="console-backend-select" onchange="onConsoleBackendChange()" aria-label="Console backend">
             <option value="">…</option>
           </select>
+          <span id="console-backend-carryover-hint" class="console-backend-hint" hidden
+                title="The full prior transcript is replayed into the new backend's input on the next turn, so the conversation context is preserved across backends.">
+            (history will carry over)
+          </span>
         </span>
         <span id="console-tokens" class="console-tokens" hidden aria-live="polite"></span>
         <button id="console-clear-btn" class="console-clear-btn"

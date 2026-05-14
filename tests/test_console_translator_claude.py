@@ -590,22 +590,33 @@ class TestDispatch:
         assert direct == dispatched
 
 
-class TestCodexStub:
-    def test_codex_acp_to_normalized_raises_not_implemented(self):
+class TestCodexTranslatorRegistered:
+    """The codex translator was finalized in oompah-zlz_2-elug. Its full
+    semantics are exercised in :mod:`tests.test_console_translator_codex`
+    and :mod:`tests.test_console_crossagent`. Here we just sanity-check
+    that the codex backend is registered and the dispatch path doesn't
+    raise NotImplementedError anymore — guards the elug regression where
+    the codex.py stub was reintroduced accidentally."""
+
+    def test_codex_acp_to_normalized_does_not_raise_not_implemented(self):
         from oompah.console_translators import codex as codex_mod
 
-        with pytest.raises(NotImplementedError):
-            codex_mod.acp_to_normalized(_ev("anything"))
+        norm = codex_mod.acp_to_normalized(_ev("acp_text", {"text": "hi"}))
+        assert norm.kind == "agent_text"
+        assert norm.backend == "codex"
 
-    def test_codex_normalized_to_sdk_history_raises_not_implemented(self):
+    def test_codex_normalized_to_sdk_history_returns_list(self):
         from oompah.console_translators import codex as codex_mod
 
-        with pytest.raises(NotImplementedError):
-            codex_mod.normalized_to_sdk_history([])
+        # Empty input → empty list, never raise.
+        assert codex_mod.normalized_to_sdk_history([]) == []
 
-    def test_codex_dispatch_raises_not_implemented(self):
-        with pytest.raises(NotImplementedError):
-            dispatch_acp_to_normalized(_ev("anything"), backend="codex")
+    def test_codex_dispatch_returns_console_event(self):
+        norm = dispatch_acp_to_normalized(
+            _ev("acp_text", {"text": "hi"}), backend="codex"
+        )
+        assert norm.kind == "agent_text"
+        assert norm.backend == "codex"
 
 
 # ---------------------------------------------------------------------------

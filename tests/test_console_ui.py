@@ -496,3 +496,77 @@ class TestWebSocketRouter:
         body = _get_func_body(script, "sendConsoleMessage")
         # Outgoing message type per the server endpoint contract.
         assert "'console_input'" in body or '"console_input"' in body
+
+
+# ===========================================================================
+# 11. Backend dropdown carryover hint (oompah-zlz_2-elug, Console 6/6)
+# ===========================================================================
+
+
+class TestBackendCarryoverHint:
+    """The backend dropdown should surface a small '(history will carry
+    over)' affordance when the operator changes backends mid-
+    conversation. The hint reassures them that prior turns are not
+    lost — the cross-agent continuity promise the epic delivered."""
+
+    def test_hint_element_exists(self, html):
+        assert 'id="console-backend-carryover-hint"' in html
+
+    def test_hint_uses_carryover_copy(self, html):
+        # The exact copy is what operators will see. Pin it.
+        assert "(history will carry over)" in html
+
+    def test_hint_starts_hidden(self, html):
+        # The hint should default to hidden so the dropdown header
+        # doesn't carry extra noise on page load.
+        m = re.search(
+            r'id="console-backend-carryover-hint"[^>]*hidden', html
+        )
+        assert m, "carryover hint should default hidden"
+
+    def test_hint_has_explanatory_title(self, html):
+        # Tooltip-level explanation so an operator who hovers
+        # understands the mechanism without reading docs.
+        m = re.search(
+            r'id="console-backend-carryover-hint"[^>]*title="[^"]*replayed[^"]*"',
+            html,
+        )
+        assert m, (
+            "carryover hint should have a title attribute explaining "
+            "the replay mechanism"
+        )
+
+    def test_hint_helper_function_defined(self, script):
+        assert "function _showConsoleBackendCarryoverHint(" in script
+
+    def test_backend_change_handler_calls_hint(self, script):
+        body = _get_func_body(script, "onConsoleBackendChange")
+        assert "_showConsoleBackendCarryoverHint(" in body
+
+    def test_hint_helper_checks_for_prior_turns(self, script):
+        body = _get_func_body(script, "_showConsoleBackendCarryoverHint")
+        # The helper inspects the transcript cache to avoid showing
+        # the hint on a fresh project where no history exists yet.
+        assert "_consoleTranscripts" in body
+        # And it checks for actual conversation kinds (not just
+        # session_meta / errors).
+        assert "operator_input" in body
+        assert "agent_text" in body
+
+    def test_hint_auto_clears_after_timeout(self, script):
+        body = _get_func_body(script, "_showConsoleBackendCarryoverHint")
+        # The hint hides itself after some seconds so multiple swaps
+        # in one session don't stack visually.
+        assert "setTimeout" in body
+        # The timer state is module-scoped so a second swap cancels
+        # the prior pending hide.
+        assert "_consoleBackendHintTimer" in body
+
+    def test_hint_css_class_present(self, html):
+        assert ".console-backend-hint" in html
+
+    def test_hint_hidden_attribute_styled(self, html):
+        # Defensive: the hidden attribute should also be reinforced
+        # with display:none in CSS so older browsers don't render the
+        # element.
+        assert ".console-backend-hint[hidden]" in html
