@@ -120,7 +120,7 @@ def _import_sdk():
             raise ImportError(
                 "openai-agents SDK not installed. Codex ACP backend "
                 "requires the OpenAI Agents Python SDK. Install with: "
-                "pip install openai-agents"
+                "uv pip install 'oompah[codex]'"
             ) from exc
 
 

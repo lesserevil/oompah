@@ -293,7 +293,10 @@ class ClaudeAcpBackendSession(AcpBackendSession):
                 ThinkingBlock,
             )
         except ImportError as exc:
-            self._last_error = f"claude_agent_sdk not installed: {exc}"
+            self._last_error = (
+                f"claude_agent_sdk not installed: {exc}. "
+                "Install with: uv pip install 'oompah[claude]'"
+            )
             logger.error(self._last_error)
             self._status = "errored"
             return
@@ -307,10 +310,19 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         # else. No human-in-the-loop prompts because the callback
         # always returns a definitive decision. See
         # plans/acp-agent.md and oompah-zlz_2-bcl.6.
-        from claude_agent_sdk import (
-            PermissionResultAllow,
-            PermissionResultDeny,
-        )
+        try:
+            from claude_agent_sdk import (
+                PermissionResultAllow,
+                PermissionResultDeny,
+            )
+        except ImportError as exc:
+            self._last_error = (
+                f"claude_agent_sdk missing PermissionResultAllow/Deny: {exc}. "
+                "Install with: uv pip install 'oompah[claude]'"
+            )
+            logger.error(self._last_error)
+            self._status = "errored"
+            return
 
         # Compose the env we want claude to see.
         agent_env = dict(os.environ)
@@ -367,7 +379,16 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         if self._options.max_turns:
             options_kwargs["max_turns"] = int(self._options.max_turns)
         if self._options.tool_catalog:
-            from claude_agent_sdk import create_sdk_mcp_server
+            try:
+                from claude_agent_sdk import create_sdk_mcp_server
+            except ImportError as exc:
+                self._last_error = (
+                    f"claude_agent_sdk missing create_sdk_mcp_server: {exc}. "
+                    "Install with: uv pip install 'oompah[claude]'"
+                )
+                logger.error(self._last_error)
+                self._status = "errored"
+                return
 
             server = create_sdk_mcp_server(
                 name="oompah-tools",

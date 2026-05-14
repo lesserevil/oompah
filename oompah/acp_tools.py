@@ -59,7 +59,14 @@ def build_tool_catalog(
     # Lazy imports: keep the SDK out of import paths that don't need it,
     # and avoid pulling api_agent's full surface (which imports _http_post
     # etc.) at module load time.
-    from claude_agent_sdk import tool
+    try:
+        from claude_agent_sdk import tool
+    except ImportError as exc:
+        raise ImportError(
+            "claude-agent-sdk not installed. Claude ACP backend requires "
+            "the Claude Agent SDK. Install with: "
+            "uv pip install 'oompah[claude]'"
+        ) from exc
 
     from oompah.api_agent import (
         _exec_read_file,
@@ -199,7 +206,7 @@ def build_codex_tool_catalog(
             raise ImportError(
                 "openai-agents SDK not installed. Codex ACP backend "
                 "requires the OpenAI Agents Python SDK. Install with: "
-                "pip install openai-agents"
+                "uv pip install 'oompah[codex]'"
             ) from exc
 
     function_tool = getattr(agents, "function_tool", None)
