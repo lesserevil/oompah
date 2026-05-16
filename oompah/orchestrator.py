@@ -1489,15 +1489,14 @@ class Orchestrator:
         # Guard against non-datetime types (e.g. MagicMock in tests).
         if not ts or not isinstance(ts, datetime):
             return False
-        # Treat timezone-naive datetimes as UTC to allow comparison.
-        # This is safe because webhook timestamps from the database are
-        # always stored as UTC (server.py normalises them), so a naive
-        # value signals corrupted / misconfigured data — still better
-        # than crashing with a TypeError.
+        # Treat timezone-naive datetimes as local wall-clock values; comparing
+        # them to timezone-aware UTC values raises, and older persisted/test
+        # values may be naive.
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        # Fall back to polling if delivery is older than 150 seconds
-        age = datetime.now(timezone.utc) - ts
+            age = datetime.now() - ts
+        else:
+            age = datetime.now(timezone.utc) - ts
+        # Fall back to polling if delivery is older than 150 seconds.
         return age.total_seconds() <= 150
 
     def _count_open_reviews(self, project_id: str | None) -> int:

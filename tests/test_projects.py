@@ -121,8 +121,9 @@ class TestConfigureBeadsJsonlIgnore:
     """Tests for ``_configure_beads_jsonl_ignore`` (oompah-zlz_2-mp4v).
 
     Verifies that the helper:
-    1. Adds ``.beads/*.jsonl`` to ``.gitignore`` (idempotent).
-    2. Untracks any currently-tracked ``.beads/*.jsonl`` via ``git rm --cached``.
+    1. Adds beads JSONL backup paths to ``.gitignore`` (idempotent).
+    2. Untracks any currently-tracked beads JSONL backup files via
+       ``git rm --cached``.
     3. Sets ``bd config set export.git-add false``.
     """
 
@@ -152,6 +153,7 @@ class TestConfigureBeadsJsonlIgnore:
 
         gi = (repo / ".gitignore").read_text()
         assert ".beads/*.jsonl" in gi
+        assert ".beads/backup/" in gi
         assert "*.log" in gi  # original content preserved
         assert "oompah-zlz_2-mp4v" in gi  # bears the explanatory comment
 
@@ -168,6 +170,7 @@ class TestConfigureBeadsJsonlIgnore:
 
         gi = (repo / ".gitignore").read_text()
         assert ".beads/*.jsonl" in gi
+        assert ".beads/backup/" in gi
 
     def test_idempotent_on_repeated_calls(self, tmp_path):
         repo = self._make_repo_with_beads(tmp_path)
@@ -186,9 +189,10 @@ class TestConfigureBeadsJsonlIgnore:
         assert first == second
         # Exactly one occurrence of the .beads/*.jsonl pattern.
         assert first.count(".beads/*.jsonl") == 1
+        assert first.count(".beads/backup/") == 1
 
     def test_skips_when_pattern_present_without_marker(self, tmp_path):
-        """Operator-added .beads/*.jsonl entry is respected; we don't duplicate."""
+        """Operator-added .beads/*.jsonl entry is respected; we add only gaps."""
         repo = self._make_repo_with_beads(tmp_path)
         (repo / ".gitignore").write_text(
             "# Operator's own ignore\n.beads/*.jsonl\n*.bak\n"
@@ -203,14 +207,20 @@ class TestConfigureBeadsJsonlIgnore:
         gi = (repo / ".gitignore").read_text()
         # Single occurrence — no duplicate appended.
         assert gi.count(".beads/*.jsonl") == 1
+        assert gi.count(".beads/backup/") == 1
         # Operator's other entries preserved.
         assert "*.bak" in gi
 
-    def test_untracks_tracked_jsonl_files(self, tmp_path):
+    def test_untracks_tracked_jsonl_and_backup_files(self, tmp_path):
         repo = self._make_repo_with_beads(tmp_path)
 
-        # Pretend issues.jsonl and interactions.jsonl are tracked.
-        ls_files_output = ".beads/issues.jsonl\n.beads/interactions.jsonl\n"
+        # Pretend top-level JSONL plus bd's backup snapshot files are tracked.
+        ls_files_output = (
+            ".beads/issues.jsonl\n"
+            ".beads/interactions.jsonl\n"
+            ".beads/backup/backup_state.json\n"
+            ".beads/backup/comments.jsonl\n"
+        )
         rm_call = []
 
         def fake_run(args, **kwargs):
@@ -231,17 +241,20 @@ class TestConfigureBeadsJsonlIgnore:
         rm_paths = rm_call[0]
         assert ".beads/issues.jsonl" in rm_paths
         assert ".beads/interactions.jsonl" in rm_paths
+        assert ".beads/backup/backup_state.json" in rm_paths
+        assert ".beads/backup/comments.jsonl" in rm_paths
 
-    def test_does_not_untrack_backup_subdirectory_files(self, tmp_path):
-        """``.beads/*.jsonl`` should only match top-level, not ``.beads/backup/*.jsonl``."""
+    def test_untracks_backup_but_not_other_nested_jsonl_files(self, tmp_path):
+        """Only top-level JSONL plus ``.beads/backup/`` snapshots are untracked."""
         repo = self._make_repo_with_beads(tmp_path)
 
         # git ls-files may return recursive matches even when given a
-        # top-level glob; the helper must filter those out.
+        # top-level glob; the helper must filter non-backup nested files out.
         ls_files_output = (
             ".beads/issues.jsonl\n"
             ".beads/backup/comments.jsonl\n"
-            ".beads/backup/issues.jsonl\n"
+            ".beads/backup/backup_state.json\n"
+            ".beads/archive/issues.jsonl\n"
         )
         rm_call = []
 
@@ -261,9 +274,9 @@ class TestConfigureBeadsJsonlIgnore:
         assert len(rm_call) == 1
         rm_paths = rm_call[0]
         assert ".beads/issues.jsonl" in rm_paths
-        # Backup subdirectory entries must NOT be passed to git rm.
-        assert ".beads/backup/comments.jsonl" not in rm_paths
-        assert ".beads/backup/issues.jsonl" not in rm_paths
+        assert ".beads/backup/comments.jsonl" in rm_paths
+        assert ".beads/backup/backup_state.json" in rm_paths
+        assert ".beads/archive/issues.jsonl" not in rm_paths
 
     def test_no_rm_call_when_nothing_tracked(self, tmp_path):
         repo = self._make_repo_with_beads(tmp_path)

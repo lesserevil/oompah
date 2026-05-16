@@ -448,32 +448,33 @@ _BEADS_JSONL_GITIGNORE_BLOCK = "\n".join([
     "# Tracking these in git creates a redundant second copy that conflicts",
     "# whenever two PRs touch beads simultaneously. See oompah-zlz_2-mp4v.",
     ".beads/*.jsonl",
+    ".beads/backup/",
     "",
 ])
 
 
 def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
-    """Configure ``repo_path`` to gitignore ``.beads/*.jsonl`` and disable
-    bd's git-add-on-export.  Idempotent — safe to call on every project
-    create and on every boot self-heal pass.
+    """Configure ``repo_path`` to gitignore beads JSONL backups and disable
+    bd's git-add-on-export.  Idempotent — safe to call on every project create
+    and on every boot self-heal pass.
 
     Three sub-steps, each best-effort (any failure is logged, never raised):
 
-    1. Ensure ``.beads/*.jsonl`` appears in the repo-root ``.gitignore``.
-       The block is wrapped with a marker comment so we can detect it on
-       subsequent runs without duplicating.
-    2. ``git rm --cached`` any currently-tracked ``.beads/*.jsonl`` files
-       so the gitignore actually takes effect (gitignore alone doesn't
-       untrack files that are already in the index).
+    1. Ensure ``.beads/*.jsonl`` and ``.beads/backup/`` appear in the repo-root
+       ``.gitignore``. The block is wrapped with a marker comment so we can
+       detect it on subsequent runs without duplicating.
+    2. ``git rm --cached`` any currently-tracked top-level ``.beads/*.jsonl``
+       and ``.beads/backup/`` files so the gitignore actually takes effect
+       (gitignore alone doesn't untrack files that are already in the index).
     3. ``bd config set export.git-add false`` so bd's auto-export stops
        re-staging the JSONL files after a write.
 
     Rationale: ``bd dolt push/pull`` over ``refs/dolt/data`` is the source
     of truth for beads state (PR #140's watchdog keeps that in sync).
-    The JSONL files at ``.beads/issues.jsonl`` and ``.beads/interactions.jsonl``
-    are a local backup only — tracking them in git produces merge
-    conflicts whenever two PRs touch beads simultaneously, and the
-    JSONL drifts off-cycle from dolt.  See oompah-zlz_2-mp4v.
+    The JSONL files at ``.beads/issues.jsonl``, ``.beads/interactions.jsonl``,
+    and ``.beads/backup/`` are a local backup only — tracking them in git
+    produces merge conflicts whenever two PRs touch beads simultaneously, and
+    the JSONL drifts off-cycle from dolt.  See oompah-zlz_2-mp4v.
 
     Returns ``True`` on success (or partial success — any sub-step that
     fails is logged but doesn't abort the others), ``False`` only when
@@ -491,40 +492,62 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
         except FileNotFoundError:
             current = ""
 
-        if _BEADS_JSONL_GITIGNORE_MARKER in current or ".beads/*.jsonl" in current:
+        required_patterns = [".beads/*.jsonl", ".beads/backup/"]
+        missing_patterns = [
+            pattern for pattern in required_patterns if pattern not in current
+        ]
+
+        if not missing_patterns:
             logger.debug(
                 "beads-jsonl gitignore block already present in %s", repo_path,
             )
         else:
-            # Append block.  Ensure a leading blank line if the file
-            # doesn't already end with one.
+            if len(missing_patterns) == len(required_patterns):
+                block = _BEADS_JSONL_GITIGNORE_BLOCK
+            else:
+                lines = [""]
+                if _BEADS_JSONL_GITIGNORE_MARKER not in current:
+                    lines.append(_BEADS_JSONL_GITIGNORE_MARKER)
+                lines.extend([
+                    "# Beads backup files are local-only; dolt sync is the source of truth.",
+                    *missing_patterns,
+                    "",
+                ])
+                block = "\n".join(lines)
+
+            # Append block. Ensure a leading blank line if the file doesn't
+            # already end with one.
             suffix = "" if current.endswith("\n\n") or current == "" else (
                 "\n" if current.endswith("\n") else "\n\n"
             )
             with open(gitignore_path, "a", encoding="utf-8") as f:
-                f.write(suffix + _BEADS_JSONL_GITIGNORE_BLOCK)
+                f.write(suffix + block)
             logger.info(
-                "Appended .beads/*.jsonl gitignore block to %s", gitignore_path,
+                "Appended beads JSONL backup gitignore block to %s",
+                gitignore_path,
             )
     except OSError as exc:
         logger.warning(
             "Failed to update .gitignore in %s: %s", repo_path, exc,
         )
 
-    # -- Step 2: git rm --cached any tracked .beads/*.jsonl files.
+    # -- Step 2: git rm --cached any tracked beads JSONL backup files.
     try:
         r = subprocess.run(
-            ["git", "ls-files", "--", ".beads/*.jsonl"],
+            ["git", "ls-files", "--", ".beads/*.jsonl", ".beads/backup"],
             cwd=repo_path,
             capture_output=True, text=True, timeout=15,
         )
         tracked = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
-        # ls-files returns recursive matches; restrict to top-level
-        # .beads/<name>.jsonl (don't touch .beads/backup/*.jsonl — those
-        # are deliberately out of scope per the issue).
+        # ``git ls-files`` returns recursive matches for the top-level glob;
+        # restrict to top-level ``.beads/<name>.jsonl`` plus the explicit
+        # ``.beads/backup/`` snapshot directory.
         tracked = [
             p for p in tracked
-            if p.startswith(".beads/") and "/" not in p[len(".beads/"):]
+            if (
+                p.startswith(".beads/")
+                and "/" not in p[len(".beads/"):]
+            ) or p.startswith(".beads/backup/")
         ]
         if tracked:
             subprocess.run(
@@ -539,7 +562,8 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
             FileNotFoundError) as exc:
         logger.warning(
-            "Failed to git rm --cached .beads/*.jsonl in %s: %s", repo_path, exc,
+            "Failed to git rm --cached beads JSONL backups in %s: %s",
+            repo_path, exc,
         )
 
     # -- Step 3: bd config set export.git-add false (idempotent).
