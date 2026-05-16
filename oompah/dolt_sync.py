@@ -38,12 +38,9 @@ from oompah.models import Project
 
 logger = logging.getLogger(__name__)
 
-# Per-subprocess timeout. ``None`` means no timeout — bd dolt push/pull
-# can legitimately take a long time on a slow remote or a deep history,
-# and an aggressive cap causes spurious alerts (which then arm the
-# error-backoff window). Add a real cap only once observed p99 duration
-# justifies one.
-DEFAULT_SUBPROCESS_TIMEOUT_S: float | None = None
+# Per-subprocess timeout. Keep this bounded so bd/dolt network stalls do not
+# wedge the orchestrator tick and starve unrelated dispatch/reconcile work.
+DEFAULT_SUBPROCESS_TIMEOUT_S: float | None = 45.0
 
 # Backoff multiplier on the existing full_sync interval after an error.
 # A single transient error (rate limit, DNS hiccup) should not push a

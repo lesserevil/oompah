@@ -122,6 +122,19 @@ class TestTruncate:
 # ---------------------------------------------------------------------------
 
 class TestSyncProjectDolt:
+    def test_default_timeout_is_forwarded_to_bd_commands(self, tmp_path):
+        """The watchdog's default timeout must bound bd/dolt subprocesses."""
+        project = _make_project(tmp_path)
+        state = DoltSyncState(project_id=project.id)
+        runner = MagicMock(side_effect=_runner_factory((0, ""), (0, "")))
+
+        sync_project_dolt(
+            project, state, full_sync_interval_s=120.0, runner=runner,
+        )
+
+        assert runner.mock_calls[0].kwargs["timeout"] == DEFAULT_SUBPROCESS_TIMEOUT_S
+        assert runner.mock_calls[1].kwargs["timeout"] == DEFAULT_SUBPROCESS_TIMEOUT_S
+
     def test_pull_and_push_success(self, tmp_path):
         """Happy path: pull succeeds, push succeeds — both timestamps set."""
         project = _make_project(tmp_path)
