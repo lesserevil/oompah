@@ -53,4 +53,4 @@
 # - github.org
 # - github.repo
 
-sync.remote: "git+https://github.com/lesserevil/oompah.git"
+sync.remote: "git+https://lesserevil@github.com/lesserevil/oompah.git"
