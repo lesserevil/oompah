@@ -690,6 +690,7 @@ def _bootstrap_lfs(repo_path: str) -> bool:
 DEFAULT_PROJECTS_PATH = ".oompah/projects.json"
 DEFAULT_REPOS_ROOT = os.path.join(os.path.expanduser("~"), ".oompah", "repos")
 DEFAULT_WORKTREE_ROOT = os.path.join(os.path.expanduser("~"), ".oompah", "worktrees")
+DEFAULT_SOURCE_SYNC_TIMEOUT_S = 45.0
 
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
 
@@ -1017,7 +1018,7 @@ class ProjectStore:
     # -- Startup sync --
 
     def sync_project_sources(
-        self, project_id: str, timeout_s: float = 60,
+        self, project_id: str, timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S,
     ) -> dict[str, str]:
         """Pull latest code (git) and beads state (dolt) for one project.
 
@@ -1114,7 +1115,7 @@ class ProjectStore:
         return status
 
     def sync_all_sources(
-        self, timeout_s: float = 60, max_workers: int = 4,
+        self, timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S, max_workers: int = 4,
     ) -> dict[str, dict[str, str]]:
         """Run :meth:`sync_project_sources` for every project in parallel.
 

@@ -716,7 +716,7 @@ import subprocess as _subprocess
 from unittest.mock import patch as _patch, MagicMock as _MM
 
 from oompah.models import Project as _Project
-from oompah.projects import ProjectStore as _PS
+from oompah.projects import DEFAULT_SOURCE_SYNC_TIMEOUT_S, ProjectStore as _PS
 
 
 def _store_with_one_project(tmp_path) -> _PS:
@@ -756,6 +756,24 @@ class TestSyncProjectSources:
         assert any(c == "git" and "fetch" in calls[i] for i, c in enumerate(cmds))
         assert any(c == "git" and "pull" in calls[i] for i, c in enumerate(cmds))
         assert any(c == "bd" for c in cmds)
+
+    def test_default_timeout_is_forwarded_to_bd_pull(self, tmp_path):
+        store = _store_with_one_project(tmp_path)
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append((args, kwargs))
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch.object(_subprocess, "run", side_effect=fake_run):
+            store.sync_project_sources("proj-sync1")
+
+        bd_calls = [
+            (args, kwargs) for args, kwargs in calls
+            if args == ["bd", "dolt", "pull"]
+        ]
+        assert bd_calls
+        assert bd_calls[0][1]["timeout"] == DEFAULT_SOURCE_SYNC_TIMEOUT_S
 
     def test_skips_git_when_no_dot_git(self, tmp_path):
         store = _PS(
