@@ -54,3 +54,6 @@
 # - github.repo
 
 sync.remote: "git+https://lesserevil@github.com/lesserevil/oompah.git"
+
+export.git-add: false
+export.auto: false
