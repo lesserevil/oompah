@@ -5,8 +5,8 @@ The first registered backend is :class:`ClaudeAcpBackend` (the historical
 default — drives the bundled ``claude`` CLI via the Claude Agent SDK so
 per-token cost bills against the operator's Pro/Max subscription).
 
-Future backends (Codex etc.) plug in by subclassing :class:`AcpBackend`
-and registering themselves at import time via
+Future backends (Codex, OpenCode, etc.) plug in by subclassing
+:class:`AcpBackend` and registering themselves at import time via
 :func:`register_backend`. See ``plans/acp-agent.md`` for the design
 motivation and the multi-backend epic.
 
@@ -46,18 +46,19 @@ from oompah.acp_backends.registry import (
 
 # Importing the backend modules registers each concrete backend
 # (``ClaudeAcpBackend`` as ``claude``, ``CodexAcpBackend`` as
-# ``codex``) at import time. Side-effect imports are awkward but
-# necessary for the zero-config back-compat path: a fresh
-# ``import oompah.acp_backends`` must produce a fully-populated
-# registry without callers having to remember to import each
-# backend module separately.
+# ``codex``, ``OpenCodeAcpBackend`` as ``opencode``) at import time.
+# Side-effect imports are awkward but necessary for the zero-config
+# back-compat path: a fresh ``import oompah.acp_backends`` must
+# produce a fully-populated registry without callers having to
+# remember to import each backend module separately.
 #
 # Order matters only for the registry's deterministic ordering when
 # the /providers UI lists backends — Claude is the historical
-# default and remains first; Codex follows as the second backend
-# (child B of the multi-backend epic, bead oompah-zlz_2-yiuy).
+# default and remains first; Codex follows as the second backend;
+# OpenCode is the third (bead oompah-zlz_2-p1ti).
 from oompah.acp_backends import claude as _claude  # noqa: F401, E402
 from oompah.acp_backends import codex as _codex  # noqa: F401, E402
+from oompah.acp_backends import opencode as _opencode  # noqa: F401, E402
 
 __all__ = [
     "AcpBackend",

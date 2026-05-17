@@ -1946,14 +1946,16 @@ document.addEventListener('keydown', e => {
     <div id="prov-backend-row" style="display:none;">
       <label for="prov-backend">Backend</label>
       <select id="prov-backend" onchange="updateFetchModelsButtonState()"
-              title="Additional backends (Codex registered as the second backend per oompah-zlz_2-yiuy.)">
+              title="ACP backend used to drive agent sessions for this provider. Defaults to claude.">
         <option value="claude">claude</option>
         <option value="codex">codex</option>
+        <option value="opencode">opencode</option>
       </select>
       <div class="hint" id="prov-backend-hint">
         Picks the registered ACP backend used to drive sessions for this
-        provider. Defaults to <code>claude</code>. Additional backends
-        (Codex registered as the second backend per oompah-zlz_2-yiuy.)
+        provider. Defaults to <code>claude</code>. Registered backends:
+        claude (Claude Agent SDK), codex (OpenAI Agents SDK), opencode
+        (OpenCode Python SDK).
       </div>
     </div>
 

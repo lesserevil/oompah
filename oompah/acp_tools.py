@@ -12,15 +12,16 @@ timeouts) that claude's native tools don't know about. See
 ``plans/acp-agent.md`` Q2 (locked decision: tool bridging via option B,
 oompah's catalog wins).
 
-This module exposes two catalog builders, one per registered ACP
-backend, both wired through the same ``_exec_*`` helpers so the
+This module exposes three catalog builders, one per registered ACP
+backend, all wired through the same ``_exec_*`` helpers so the
 safety rails are identical:
 
 * :func:`build_tool_catalog` — Claude Agent SDK ``@tool`` format
-  (today's default backend).
+  (the default backend).
 * :func:`build_codex_tool_catalog` — OpenAI Agents SDK
-  ``@function_tool`` format (child B of the multi-backend ACP epic,
-  bead ``oompah-zlz_2-yiuy``).
+  ``@function_tool`` format (second backend).
+* :func:`build_opencode_tool_catalog` — OpenCode SDK ``@tool``
+  format (third backend, bead oompah-zlz_2-p1ti).
 
 When the operator adds a new ACP backend the convention is: add a
 parallel ``build_<backend>_tool_catalog`` here so the shared
@@ -276,6 +277,144 @@ def build_codex_tool_catalog(
             {"command": command},
             timeout=run_command_timeout_s,
             env_overrides=env_overrides or None,
+        )
+
+    return [
+        read_file,
+        write_file,
+        edit_file,
+        list_files,
+        search_files,
+        run_command,
+    ]
+
+
+# ----------------------------------------------------------------------
+# OpenCode SDK tool catalog (oompah-zlz_2-p1ti)
+# ----------------------------------------------------------------------
+
+
+def build_opencode_tool_catalog(
+    workspace_path: str,
+    *,
+    beads_dir: str | None = None,
+    run_command_timeout_s: int = 60,
+) -> list[Any]:
+    """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
+
+    Returns a list of ``@tool``-decorated async functions (OpenCode uses
+    the same ``@tool`` surface as Claude, unlike Codex's
+    ``@function_tool``). Each function routes through the same
+    :func:`oompah.api_agent._exec_*` helpers so cd-guard, BEADS_DIR
+    routing, and per-command timeouts apply identically to the Claude
+    and OpenCode backends.
+
+    The SDK is imported lazily; callers that don't use OpenCode never
+    pay the import cost. If the SDK is missing we raise
+    ``ImportError`` with a clear install hint (NOT silently empty) —
+    a missing SDK is an operator config error.
+    """
+    # Lazy import to keep the SDK out of import paths that don't need it.
+    try:
+        import opencode  # type: ignore
+    except ImportError as exc:
+        raise ImportError(
+            "OpenCode SDK not installed. OpenCode ACP backend requires "
+            "the OpenCode Python SDK. Install with: pip install opencode"
+        ) from exc
+
+    tool = getattr(opencode, "tool", None)
+    if tool is None:
+        raise ImportError(
+            "OpenCode SDK is installed but does not expose the 'tool' "
+            "decorator. The OpenCode backend requires an SDK version "
+            "with tool decoration support."
+        )
+
+    from oompah.api_agent import (
+        _exec_read_file,
+        _exec_write_file,
+        _exec_edit_file,
+        _exec_list_files,
+        _exec_search_files,
+        _exec_run_command,
+    )
+
+    workspace = Path(workspace_path)
+    env_overrides: dict[str, str] = {}
+    if beads_dir:
+        env_overrides["BEADS_DIR"] = beads_dir
+
+    def _wrap_text(content: str) -> dict[str, Any]:
+        """Package a plain-string tool result in the MCP content shape
+        the SDK expects from @tool functions."""
+        return {"content": [{"type": "text", "text": content}]}
+
+    @tool(
+        "read_file",
+        "Read the contents of a file inside the workspace. Path is "
+        "workspace-relative. Returns file contents or an error message.",
+        {"path": str},
+    )
+    async def read_file(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_read_file(workspace, args))
+
+    @tool(
+        "write_file",
+        "Write text content to a file inside the workspace. Creates "
+        "parent directories. Overwrites existing files. Path is "
+        "workspace-relative.",
+        {"path": str, "content": str},
+    )
+    async def write_file(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_write_file(workspace, args))
+
+    @tool(
+        "edit_file",
+        "Replace exactly one occurrence of `old_string` with "
+        "`new_string` in `path`. More efficient than write_file for "
+        "targeted changes. Errors if the old_string is missing or "
+        "appears more than once.",
+        {"path": str, "old_string": str, "new_string": str},
+    )
+    async def edit_file(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_edit_file(workspace, args))
+
+    @tool(
+        "list_files",
+        "List the immediate entries of a directory in the workspace. "
+        "Use path='.' for the workspace root.",
+        {"path": str},
+    )
+    async def list_files(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_list_files(workspace, args))
+
+    @tool(
+        "search_files",
+        "Grep-style search across the workspace. `pattern` is a Python "
+        "regex. Optional `path` narrows the scope. Returns matching "
+        "lines with file:line: prefix.",
+        {"pattern": str, "path": str},
+    )
+    async def search_files(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_search_files(workspace, args))
+
+    @tool(
+        "run_command",
+        "Run a shell command inside the workspace. Stays inside the "
+        "workspace — `cd` to absolute paths outside is refused. `bd` "
+        "commands automatically route to the project's main beads "
+        "database via BEADS_DIR. Returns stdout, stderr, and exit code.",
+        {"command": str},
+    )
+    async def run_command(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(
+            _exec_run_command(
+                workspace,
+                args,
+                timeout=run_command_timeout_s,
+                env_overrides=env_overrides or None,
+            )
         )
 
     return [
