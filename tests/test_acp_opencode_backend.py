@@ -257,7 +257,10 @@ class TestOpencodeSessionLifecycle:
             proc = MagicMock()
             proc.stdin = fake_stdin
             proc.stdout = AsyncMockReadingStream(stdout_messages)
-            proc.stderr = AsyncMock()
+            # stderr.read() is sync (returns bytes from a StreamReader) — use
+            # MagicMock so we don't trigger "coroutine never awaited" warnings
+            # when the mock's read() method is left unawaited by accident.
+            proc.stderr = MagicMock()
             proc.terminate = MagicMock()
             proc.kill = MagicMock()
             proc.wait = AsyncMock(return_value=return_code)
@@ -424,7 +427,8 @@ class TestOpencodeClose:
             {"type": "text", "text": "hello"},
             {"type": "result", "stop_reason": "end_turn"},
         ])
-        proc.stderr = AsyncMock()
+        # stderr.read() returns bytes (sync), so use MagicMock.
+        proc.stderr = MagicMock()
         proc.terminate = MagicMock()
         proc.kill = MagicMock()
         proc.wait = AsyncMock(return_value=0)
