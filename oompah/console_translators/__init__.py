@@ -117,6 +117,7 @@ def normalized_to_sdk_history(
 
 from oompah.console_translators import claude as _claude  # noqa: E402,F401
 from oompah.console_translators import codex as _codex  # noqa: E402,F401
+from oompah.console_translators import opencode as _opencode  # noqa: E402,F401
 
 
 __all__ = [
