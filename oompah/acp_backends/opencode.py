@@ -112,6 +112,9 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         self._permission_denials: list[Any] = []
         self._last_error: str | None = None
         self._status: str = "pending"
+        # Tracks whether close() killed the subprocess so run_turn()
+        # can distinguish "user cancelled" from "process crashed".
+        self._killed_by_close: bool = False
         # The subprocess handle. Populated lazily on first run_turn.
         self._proc: Any = None
 
@@ -158,10 +161,14 @@ class OpencodeAcpBackendSession(AcpBackendSession):
     # ---- Lifecycle ----
 
     async def close(self) -> None:
-        """Request that the active subprocess stop. Idempotent."""
+        """Request that the active subprocess stop. Idempotent.  When called
+        before the subprocess is spawned (``_proc is None``) the session
+        is marked ``interrupted`` so that a subsequent ``run_turn`` exits
+        immediately without attempting to start the opencode binary."""
         self._stop_requested = True
         proc = self._proc
         if proc is not None:
+            self._killed_by_close = True
             try:
                 proc.terminate()
             except Exception:
@@ -169,6 +176,9 @@ class OpencodeAcpBackendSession(AcpBackendSession):
                     proc.kill()
                 except Exception:
                     pass
+        else:
+            # No subprocess yet — mark interrupted so run_turn bails out.
+            self._status = "interrupted"
 
     # ---- Internal: event emission ----
 
@@ -351,7 +361,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             )
             logger.error(self._last_error)
             self._status = "errored"
-            self._emit(
+            yield self._emit(
                 "acp_session_error", payload={"error": self._last_error},
             )
             return
@@ -359,7 +369,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             self._last_error = f"failed to spawn opencode serve: {exc!r}"
             logger.warning(self._last_error)
             self._status = "errored"
-            self._emit(
+            yield self._emit(
                 "acp_session_error", payload={"error": self._last_error},
             )
             return
@@ -379,7 +389,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             self._last_error = f"failed to send init message: {exc!r}"
             logger.warning(self._last_error)
             self._status = "errored"
-            self._emit(
+            yield self._emit(
                 "acp_session_error", payload={"error": self._last_error},
             )
             return
@@ -431,6 +441,11 @@ class OpencodeAcpBackendSession(AcpBackendSession):
             # subprocess has closed its stdout — wait for it to finish.
             return_code = await self._proc.wait()
             if return_code != 0:
+                # Distinguish "user closed the session" from "crash":
+                # _killed_by_close is set by close() → terminate/kill.
+                if self._killed_by_close:
+                    self._status = "interrupted"
+                    return
                 stderr_lines = []
                 if self._proc.stderr:
                     try:
