@@ -53,13 +53,13 @@ class TestRegistry:
         so the GET /api/v1/acp-backends endpoint surfaces it in the
         provider edit dialog's Backend dropdown
         (oompah-zlz_2-llk2)."""
-        from oompah.acp_backends.opencode import OpencodeAcpBackend
+        from oompah.acp_backends.opencode import OpenCodeAcpBackend
 
         assert "opencode" in BACKENDS
-        assert BACKENDS["opencode"] is OpencodeAcpBackend
-        assert get_backend("opencode") is OpencodeAcpBackend
+        assert BACKENDS["opencode"] is OpenCodeAcpBackend
+        assert get_backend("opencode") is OpenCodeAcpBackend
         # Also reachable through the convenience raise-variant.
-        assert get_backend_or_raise("opencode") is OpencodeAcpBackend
+        assert get_backend_or_raise("opencode") is OpenCodeAcpBackend
 
     def test_get_backend_unknown_returns_none(self):
         assert get_backend("does-not-exist") is None
@@ -199,39 +199,39 @@ class TestClaudeAcpBackend:
 # ----------------------------------------------------------------------
 
 
-class TestOpencodeAcpBackend:
-    """Tests for OpencodeAcpBackend (oompah-zlz_2-llk2)."""
+class TestOpenCodeAcpBackend:
+    """Tests for OpenCodeAcpBackend (oompah-zlz_2-llk2)."""
 
     def test_name_returns_opencode(self):
-        from oompah.acp_backends.opencode import OpencodeAcpBackend
+        from oompah.acp_backends.opencode import OpenCodeAcpBackend
 
-        assert OpencodeAcpBackend.name() == "opencode"
+        assert OpenCodeAcpBackend.name() == "opencode"
 
-    def test_validate_provider_accepts_any_provider(self):
-        from oompah.acp_backends.opencode import OpencodeAcpBackend
+    def test_validate_provider_subscription_skips_api_key(self):
+        from oompah.acp_backends.opencode import OpenCodeAcpBackend
 
-        backend = OpencodeAcpBackend()
-        # opencode accepts any provider — the auth mechanism is
-        # determined by the SDK when the real implementation lands.
+        backend = OpenCodeAcpBackend()
+        # Subscription billing: api_key is optional (OpenCode CLI OAuth).
         provider = ModelProvider(
             id="p1", name="opencode-provider", base_url="https://api.opencode.ai",
-            api_key="",  # empty
+            api_key="",  # empty — subscription doesn't require api_key
+            billing_model="subscription",
         )
         assert backend.validate_provider(provider) == []
 
     def test_start_session_returns_opencode_session(self):
         from oompah.acp_backends.opencode import (
-            OpencodeAcpBackend,
-            OpencodeAcpBackendSession,
+            OpenCodeAcpBackend,
+            OpenCodeAcpBackendSession,
         )
 
-        backend = OpencodeAcpBackend()
+        backend = OpenCodeAcpBackend()
         options = AcpBackendOptions(
             workspace_path="/tmp/ws",
             prompt="hello",
         )
         session = backend.start_session(options)
-        assert isinstance(session, OpencodeAcpBackendSession)
+        assert isinstance(session, OpenCodeAcpBackendSession)
 
 
 # ----------------------------------------------------------------------
