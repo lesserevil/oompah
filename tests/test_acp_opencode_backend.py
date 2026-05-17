@@ -209,12 +209,27 @@ class _FakeSubprocess:
 
 
 class _FakeStdin:
-    """Async file-like object that accepts writes."""
+    """Sync file-like object that accepts writes.
 
-    async def write(self, data: bytes):
-        pass
+    In the real asyncio subprocess API, StreamWriter.write() is
+    synchronous (it buffers internally and schedules the actual OS
+    write in the background). Only StreamWriter.drain() is async.
+    This mock matches that contract so tests don't produce spurious
+    RuntimeWarnings about unawaited coroutines.
+    """
 
-    async def drain(self):
+    def __init__(self):
+        self._buffer = b""
+
+    def write(self, data: bytes) -> int:
+        """Sync write — matches asyncio.StreamWriter.write() API."""
+        if isinstance(data, str):
+            data = data.encode()
+        self._buffer += data
+        return len(data)
+
+    async def drain(self) -> None:
+        """Async drain — matches asyncio.StreamWriter.drain() API."""
         pass
 
 
