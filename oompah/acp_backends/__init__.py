@@ -58,6 +58,7 @@ from oompah.acp_backends.registry import (
 # (child B of the multi-backend epic, bead oompah-zlz_2-yiuy).
 from oompah.acp_backends import claude as _claude  # noqa: F401, E402
 from oompah.acp_backends import codex as _codex  # noqa: F401, E402
+from oompah.acp_backends import opencode as _opencode  # noqa: F401, E402
 
 __all__ = [
     "AcpBackend",
