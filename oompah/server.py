@@ -27,12 +27,20 @@ from oompah.webhooks import (
     validate_gitlab_token,
 )
 from oompah.focus import (
-    BUILTIN_FOCI, DEFAULT_FOCUS, Focus, FocusSuggestion,
-    load_foci, load_suggestions, save_foci, score_focus,
+    BUILTIN_FOCI,
+    DEFAULT_FOCUS,
+    Focus,
+    FocusSuggestion,
+    load_foci,
+    load_suggestions,
+    save_foci,
+    score_focus,
     update_suggestion_status,
 )
 from oompah.agent_profile_store import (
-    AgentProfileError, AgentProfileStore, DEFAULT_AGENT_PROFILES_PATH,
+    AgentProfileError,
+    AgentProfileStore,
+    DEFAULT_AGENT_PROFILES_PATH,
 )
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
@@ -74,6 +82,7 @@ app = FastAPI(title="oompah", version="0.1.0")
 
 # Serve static assets (favicon, etc.) from oompah/static/
 from fastapi.staticfiles import StaticFiles
+
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 if _STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
@@ -95,6 +104,7 @@ async def favicon():
         media_type="image/svg+xml",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
 
 # Global provider store
 _provider_store = ProviderStore()
@@ -134,13 +144,16 @@ _console_manager: Any = None
 
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
-    global _agent_profile_store, _role_store
+    global _agent_profile_store, _role_store, _provider_store
     _orchestrator = orch
     # Share the orchestrator's profile store so /api/v1/agent-profiles
     # writes go to the same in-memory state the dispatch loop reads.
     _agent_profile_store = orch.agent_profile_store
     # Same for the role store (epic xau7).
     _role_store = orch.role_store
+    # Keep _provider_store in sync so Phase-2 validation in api_put_roles
+    # and Phase-3 _role_store.set() use the same store instance.
+    _provider_store = orch.provider_store
     # Full observer: state + issues refresh (for dispatch, close, state changes)
     orch._observers.append(_on_orchestrator_change)
     # State-only observer: state broadcast without issues re-fetch (for agent activity)
@@ -158,7 +171,8 @@ def set_orchestrator(orch: Orchestrator) -> None:
         except Exception as exc:  # noqa: BLE001 — callback must never break a write
             logger.error(
                 "Failed to schedule agent profile reload (source=%s): %s",
-                source, exc,
+                source,
+                exc,
             )
 
     _agent_profile_store.set_reload_callback(_on_profiles_changed)
@@ -222,6 +236,7 @@ def set_orchestrator(orch: Orchestrator) -> None:
         silent skip when no loop is available (synchronous unit
         tests).
         """
+
         def _on_event(event: "ConsoleEvent") -> None:
             if not _ws_clients:
                 return
@@ -230,7 +245,8 @@ def set_orchestrator(orch: Orchestrator) -> None:
             except Exception as exc:
                 logger.debug(
                     "console on_event: failed to serialize event for %s: %s",
-                    project_id, exc,
+                    project_id,
+                    exc,
                 )
                 return
             try:
@@ -240,14 +256,19 @@ def set_orchestrator(orch: Orchestrator) -> None:
             if not loop.is_running():
                 return
             try:
-                loop.create_task(_broadcast({
-                    "type": "console_event",
-                    "project_id": project_id,
-                    "event": payload,
-                }))
+                loop.create_task(
+                    _broadcast(
+                        {
+                            "type": "console_event",
+                            "project_id": project_id,
+                            "event": payload,
+                        }
+                    )
+                )
             except RuntimeError:
                 # Loop closed underneath us — give up quietly.
                 return
+
         return _on_event
 
     _console_manager = ConsoleSessionManager(
@@ -286,6 +307,7 @@ _last_issues_broadcast = 0.0
 _ISSUES_THROTTLE_MS = 3000  # Don't fetch/broadcast issues more than every 3s
 # Dedicated thread pool for API requests so they don't compete with tick threads
 from concurrent.futures import ThreadPoolExecutor
+
 _api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
@@ -293,9 +315,11 @@ _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
 # Shared response cache for API endpoints
 _api_cache = TTLCache()
 
+
 def _on_state_only_change(snapshot: dict) -> None:
     """Called on agent activity — broadcast state only, no issues re-fetch."""
     import time
+
     global _last_state_broadcast
     if not _ws_clients:
         return
@@ -314,6 +338,7 @@ def _on_state_only_change(snapshot: dict) -> None:
 def _on_orchestrator_change(snapshot: dict) -> None:
     """Called on state changes (dispatch, close, etc.). Broadcasts state + issues."""
     import time
+
     global _last_state_broadcast
     _api_cache.invalidate("issues:all")
     if not _ws_clients:
@@ -339,11 +364,17 @@ def _on_agent_activity(identifier: str, entry) -> None:
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            loop.create_task(_broadcast({
-                "type": "activity",
-                "identifier": identifier,
-                "entry": entry.to_dict() if hasattr(entry, 'to_dict') else str(entry),
-            }))
+            loop.create_task(
+                _broadcast(
+                    {
+                        "type": "activity",
+                        "identifier": identifier,
+                        "entry": entry.to_dict()
+                        if hasattr(entry, "to_dict")
+                        else str(entry),
+                    }
+                )
+            )
     except RuntimeError:
         pass
 
@@ -367,7 +398,12 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     parents: dict[str, dict] = {}
     for issue in all_issues:
         if issue.id in parent_ids or issue.issue_type == "epic":
-            parents[issue.id] = {"deferred": 0, "open": 0, "in_progress": 0, "closed": 0}
+            parents[issue.id] = {
+                "deferred": 0,
+                "open": 0,
+                "in_progress": 0,
+                "closed": 0,
+            }
     for issue in all_issues:
         if issue.parent_id and issue.parent_id in parents:
             child_state = issue.state.strip().lower()
@@ -378,7 +414,9 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     # we can flag in-flight beads. Mirrors api_issues; both paths read
     # from the orchestrator's _unmerged_review_branches cache populated
     # in _handle_review_check.
-    unmerged_branches: set[str] = set(getattr(orch, "_unmerged_review_branches", set()) or set())
+    unmerged_branches: set[str] = set(
+        getattr(orch, "_unmerged_review_branches", set()) or set()
+    )
 
     result: dict[str, list] = {}
     for issue in all_issues:
@@ -478,8 +516,9 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         # Send initial state + issues immediately
         orch = _get_orchestrator()
-        await ws.send_text(json.dumps(
-            {"type": "state", "data": orch.get_snapshot()}, default=str))
+        await ws.send_text(
+            json.dumps({"type": "state", "data": orch.get_snapshot()}, default=str)
+        )
         # Send initial issues (fetch in thread to avoid blocking)
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
@@ -494,8 +533,11 @@ async def websocket_endpoint(ws: WebSocket):
             try:
                 msg = json.loads(data)
                 if msg.get("action") == "refresh":
-                    await ws.send_text(json.dumps(
-                        {"type": "state", "data": orch.get_snapshot()}, default=str))
+                    await ws.send_text(
+                        json.dumps(
+                            {"type": "state", "data": orch.get_snapshot()}, default=str
+                        )
+                    )
                     await broadcast_issues()
                 elif msg.get("type") == "console_input":
                     # Per-project ACP console (oompah-zlz_2-ebwe).
@@ -540,16 +582,20 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     if not project_id or not text.strip():
         return
     if _console_manager is None:
-        await ws.send_text(json.dumps({
-            "type": "console_event",
-            "project_id": project_id,
-            "event": {
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "kind": "error",
-                "is_error": True,
-                "text": "console manager not initialized",
-            },
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "console_event",
+                    "project_id": project_id,
+                    "event": {
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "kind": "error",
+                        "is_error": True,
+                        "text": "console manager not initialized",
+                    },
+                }
+            )
+        )
         return
     # Reject unknown project_id before touching the manager so we
     # don't spawn an orphan session.
@@ -559,32 +605,40 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
     except Exception:
         project = None
     if project is None:
-        await ws.send_text(json.dumps({
-            "type": "console_event",
-            "project_id": project_id,
-            "event": {
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "kind": "error",
-                "is_error": True,
-                "text": f"unknown project_id {project_id!r}",
-            },
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "console_event",
+                    "project_id": project_id,
+                    "event": {
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "kind": "error",
+                        "is_error": True,
+                        "text": f"unknown project_id {project_id!r}",
+                    },
+                }
+            )
+        )
         return
     attachments_raw = msg.get("attachments") or []
     attachments = [str(a) for a in attachments_raw if a]
     try:
         session = _console_manager.get(project_id)
     except Exception as exc:
-        await ws.send_text(json.dumps({
-            "type": "console_event",
-            "project_id": project_id,
-            "event": {
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "kind": "error",
-                "is_error": True,
-                "text": str(exc),
-            },
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "console_event",
+                    "project_id": project_id,
+                    "event": {
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "kind": "error",
+                        "is_error": True,
+                        "text": str(exc),
+                    },
+                }
+            )
+        )
         return
     # session.send() awaits the turn to completion. The serial queue
     # inside the session guarantees concurrent operator inputs from
@@ -595,16 +649,20 @@ async def _handle_console_input(ws: WebSocket, msg: dict) -> None:
         # The session already records an internal ``error`` event on
         # most failure paths; only emit an out-of-band one here when
         # send itself raised (closed session, etc.).
-        await ws.send_text(json.dumps({
-            "type": "console_event",
-            "project_id": project_id,
-            "event": {
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "kind": "error",
-                "is_error": True,
-                "text": f"console send failed: {exc}",
-            },
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "console_event",
+                    "project_id": project_id,
+                    "event": {
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "kind": "error",
+                        "is_error": True,
+                        "text": f"console send failed: {exc}",
+                    },
+                }
+            )
+        )
 
 
 # Hard cap on transcript pagination to keep responses bounded.
@@ -652,8 +710,12 @@ async def api_console_transcript(
     """
     if _console_manager is None:
         return JSONResponse(
-            {"error": {"code": "not_ready",
-                       "message": "console manager not initialized"}},
+            {
+                "error": {
+                    "code": "not_ready",
+                    "message": "console manager not initialized",
+                }
+            },
             status_code=503,
         )
     orch = _get_orchestrator()
@@ -663,8 +725,12 @@ async def api_console_transcript(
         project = None
     if project is None:
         return JSONResponse(
-            {"error": {"code": "no_project",
-                       "message": f"Unknown project_id {project_id!r}"}},
+            {
+                "error": {
+                    "code": "no_project",
+                    "message": f"Unknown project_id {project_id!r}",
+                }
+            },
             status_code=404,
         )
     capped_limit = _coerce_transcript_limit(limit)
@@ -679,20 +745,21 @@ async def api_console_transcript(
     try:
         events = store.read_all(project_id, since_ts=since_ts, limit=capped_limit)
     except Exception as exc:
-        logger.warning("Console transcript read failed for %s: %s",
-                       project_id, exc)
+        logger.warning("Console transcript read failed for %s: %s", project_id, exc)
         events = []
     try:
         meta = store.load_meta(project_id)
     except Exception:
         meta = {}
-    return JSONResponse({
-        "project_id": project_id,
-        "events": events,
-        "meta": meta,
-        "limit": capped_limit,
-        "since": since_ts,
-    })
+    return JSONResponse(
+        {
+            "project_id": project_id,
+            "events": events,
+            "meta": meta,
+            "limit": capped_limit,
+            "since": since_ts,
+        }
+    )
 
 
 @app.post("/api/v1/console/{project_id}/backend")
@@ -715,8 +782,12 @@ async def api_console_backend(project_id: str, request: Request):
     """
     if _console_manager is None:
         return JSONResponse(
-            {"error": {"code": "not_ready",
-                       "message": "console manager not initialized"}},
+            {
+                "error": {
+                    "code": "not_ready",
+                    "message": "console manager not initialized",
+                }
+            },
             status_code=503,
         )
     orch = _get_orchestrator()
@@ -726,8 +797,12 @@ async def api_console_backend(project_id: str, request: Request):
         project = None
     if project is None:
         return JSONResponse(
-            {"error": {"code": "no_project",
-                       "message": f"Unknown project_id {project_id!r}"}},
+            {
+                "error": {
+                    "code": "no_project",
+                    "message": f"Unknown project_id {project_id!r}",
+                }
+            },
             status_code=404,
         )
     try:
@@ -736,22 +811,31 @@ async def api_console_backend(project_id: str, request: Request):
         body = None
     if not isinstance(body, dict):
         return JSONResponse(
-            {"error": {"code": "bad_request",
-                       "message": "request body must be a JSON object"}},
+            {
+                "error": {
+                    "code": "bad_request",
+                    "message": "request body must be a JSON object",
+                }
+            },
             status_code=400,
         )
     backend = body.get("backend")
     if not isinstance(backend, str) or not backend.strip():
         return JSONResponse(
-            {"error": {"code": "bad_request",
-                       "message": "missing 'backend' string field"}},
+            {
+                "error": {
+                    "code": "bad_request",
+                    "message": "missing 'backend' string field",
+                }
+            },
             status_code=400,
         )
     backend = backend.strip()
     model_role_raw = body.get("model_role", "default")
     model_role = (
-        model_role_raw.strip() if isinstance(model_role_raw, str) and
-        model_role_raw.strip() else "default"
+        model_role_raw.strip()
+        if isinstance(model_role_raw, str) and model_role_raw.strip()
+        else "default"
     )
     try:
         session = _console_manager.get(project_id)
@@ -771,15 +855,16 @@ async def api_console_backend(project_id: str, request: Request):
     except RuntimeError as exc:
         # Turn in flight (per ConsoleSession.switch_backend contract).
         return JSONResponse(
-            {"error": {"code": "turn_in_flight",
-                       "message": "turn in flight"}},
+            {"error": {"code": "turn_in_flight", "message": "turn in flight"}},
             status_code=409,
         )
     meta = session.get_meta()
-    return JSONResponse({
-        "backend": meta.get("backend"),
-        "model_role": meta.get("model_role"),
-    })
+    return JSONResponse(
+        {
+            "backend": meta.get("backend"),
+            "model_role": meta.get("model_role"),
+        }
+    )
 
 
 @app.delete("/api/v1/console/{project_id}")
@@ -795,8 +880,12 @@ async def api_console_delete(project_id: str):
     """
     if _console_manager is None:
         return JSONResponse(
-            {"error": {"code": "not_ready",
-                       "message": "console manager not initialized"}},
+            {
+                "error": {
+                    "code": "not_ready",
+                    "message": "console manager not initialized",
+                }
+            },
             status_code=503,
         )
     orch = _get_orchestrator()
@@ -806,8 +895,12 @@ async def api_console_delete(project_id: str):
         project = None
     if project is None:
         return JSONResponse(
-            {"error": {"code": "no_project",
-                       "message": f"Unknown project_id {project_id!r}"}},
+            {
+                "error": {
+                    "code": "no_project",
+                    "message": f"Unknown project_id {project_id!r}",
+                }
+            },
             status_code=404,
         )
     # Drop the in-memory session first (forces shutdown of its runner
@@ -816,15 +909,15 @@ async def api_console_delete(project_id: str):
     try:
         await _console_manager.remove(project_id)
     except Exception as exc:
-        logger.warning("Console DELETE: manager.remove raised for %s: %s",
-                       project_id, exc)
+        logger.warning(
+            "Console DELETE: manager.remove raised for %s: %s", project_id, exc
+        )
     # Then clear on-disk transcript + meta. ConsoleStore.clear is
     # idempotent (missing files are ignored).
     try:
         _console_manager.store.clear(project_id)
     except Exception as exc:
-        logger.warning("Console DELETE: store.clear raised for %s: %s",
-                       project_id, exc)
+        logger.warning("Console DELETE: store.clear raised for %s: %s", project_id, exc)
     return JSONResponse({"ok": True})
 
 
@@ -871,8 +964,9 @@ async def api_issues(request: Request):
         t_fetch = time.monotonic()
         fetch_ms = (t_fetch - t_start) * 1000
         if fetch_ms > 1000:
-            logger.warning("Issues API slow: fetch=%.0fms issues=%d",
-                           fetch_ms, len(all_issues))
+            logger.warning(
+                "Issues API slow: fetch=%.0fms issues=%d", fetch_ms, len(all_issues)
+            )
 
         # Build a map for epic child counts
         epics: dict[str, dict] = {}
@@ -882,7 +976,12 @@ async def api_issues(request: Request):
                 parent_ids.add(issue.parent_id)
         for issue in all_issues:
             if issue.id in parent_ids or issue.issue_type == "epic":
-                epics[issue.id] = {"deferred": 0, "open": 0, "in_progress": 0, "closed": 0}
+                epics[issue.id] = {
+                    "deferred": 0,
+                    "open": 0,
+                    "in_progress": 0,
+                    "closed": 0,
+                }
 
         # Count children per parent per state
         for issue in all_issues:
@@ -895,7 +994,9 @@ async def api_issues(request: Request):
         # so we can flag issues whose work is still in flight on a PR.
         # Falls back to empty set if the orchestrator hasn't done its
         # first review_check tick yet.
-        unmerged_branches: set[str] = set(getattr(orch, "_unmerged_review_branches", set()) or set())
+        unmerged_branches: set[str] = set(
+            getattr(orch, "_unmerged_review_branches", set()) or set()
+        )
 
         result: dict[str, list] = {}
         for issue in all_issues:
@@ -932,7 +1033,9 @@ async def api_issues(request: Request):
             result[state].append(entry)
         # Sort each column by priority
         for state in result:
-            result[state].sort(key=lambda i: i["priority"] if i["priority"] is not None else 999)
+            result[state].sort(
+                key=lambda i: i["priority"] if i["priority"] is not None else 999
+            )
         if not filter_project:
             _api_cache.set("issues:all", result, ttl_ms=5000)
         return JSONResponse(result)
@@ -1086,7 +1189,8 @@ async def api_create_issue(request: Request):
                 logger.warning(
                     "issue_enhancer: apply-mode failed for project=%s, "
                     "writing verbatim: %s",
-                    project_id, exc,
+                    project_id,
+                    exc,
                 )
                 enhancement = None
             if enhance_mode == "true":
@@ -1125,15 +1229,18 @@ async def api_create_issue(request: Request):
 
         _api_cache.invalidate("issues:all")
         await broadcast_issues()
-        return JSONResponse({
-            "ok": True,
-            "issue": {
-                "id": issue.id,
-                "identifier": issue.identifier,
-                "title": issue.title,
-                "state": issue.state,
+        return JSONResponse(
+            {
+                "ok": True,
+                "issue": {
+                    "id": issue.id,
+                    "identifier": issue.identifier,
+                    "title": issue.title,
+                    "state": issue.state,
+                },
             },
-        }, status_code=201)
+            status_code=201,
+        )
     except Exception as exc:
         logger.error("Create issue API error: %s", exc)
         return JSONResponse(
@@ -1171,10 +1278,9 @@ def _run_issue_enhancement(
     if provider is None:
         provider = orch.provider_store.get_default()
         if provider is not None:
-            model = (
-                (getattr(provider, "model_roles", None) or {}).get("default")
-                or getattr(provider, "default_model", None)
-            )
+            model = (getattr(provider, "model_roles", None) or {}).get(
+                "default"
+            ) or getattr(provider, "default_model", None)
             if not model:
                 models = getattr(provider, "models", None) or []
                 if models:
@@ -1212,6 +1318,7 @@ async def api_issue_quality_source(project_id: str):
         kind = ""
         if has:
             from oompah.issue_enhancer import load_quality_source
+
             kind, _ = load_quality_source(repo_path)
         return JSONResponse({"has_source": has, "kind": kind})
     except Exception as exc:
@@ -1268,8 +1375,14 @@ async def api_update_issue(identifier: str, request: Request):
             if status_norm != "in_progress":
                 for issue_id, entry in list(orch.state.running.items()):
                     if entry.identifier == identifier:
-                        logger.info("Terminating agent for %s (moved to %s via UI)", identifier, new_status)
-                        await orch._terminate_running(issue_id, cleanup_workspace=(status_norm in terminal))
+                        logger.info(
+                            "Terminating agent for %s (moved to %s via UI)",
+                            identifier,
+                            new_status,
+                        )
+                        await orch._terminate_running(
+                            issue_id, cleanup_workspace=(status_norm in terminal)
+                        )
                         break
 
                 # Also cancel any *pending retry* for this identifier so a
@@ -1287,7 +1400,8 @@ async def api_update_issue(identifier: str, request: Request):
                             orch.state.completed.add(retry_iid)
                         logger.info(
                             "Cancelled pending retry for %s (moved to %s via UI)",
-                            identifier, new_status,
+                            identifier,
+                            new_status,
                         )
 
         _api_cache.invalidate("issues:all")
@@ -1368,7 +1482,12 @@ async def api_get_comments(identifier: str, request: Request):
         )
         if tracker is None or issue is None:
             return JSONResponse(
-                {"error": {"code": "issue_not_found", "message": f"Issue {identifier} not found"}},
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {identifier} not found",
+                    }
+                },
                 status_code=404,
             )
         comments = tracker.fetch_comments(identifier)
@@ -1396,7 +1515,12 @@ async def api_add_comment(identifier: str, request: Request):
         text = body.get("text", "").strip()
         if not text:
             return JSONResponse(
-                {"error": {"code": "validation", "message": "Comment text is required"}},
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "Comment text is required",
+                    }
+                },
                 status_code=400,
             )
         author = body.get("author", "user")
@@ -1422,7 +1546,8 @@ async def api_add_comment(identifier: str, request: Request):
             except Exception as exc:
                 logger.debug(
                     "Failed to check/remove asking_question label on %s: %s",
-                    identifier, exc,
+                    identifier,
+                    exc,
                 )
 
         _api_cache.invalidate(f"comments:{project_id}:{identifier}")
@@ -1459,7 +1584,12 @@ async def api_issue_full_detail(identifier: str, request: Request):
         )
         if tracker is None or issue is None:
             return JSONResponse(
-                {"error": {"code": "issue_not_found", "message": f"Issue {identifier} not found"}},
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {identifier} not found",
+                    }
+                },
                 status_code=404,
             )
         # Use the resolved project_id (may differ from query param if it was None)
@@ -1510,12 +1640,14 @@ async def api_agent_activity(identifier: str):
         orch = _get_orchestrator()
         for entry in orch.state.running.values():
             if entry.identifier == identifier:
-                return JSONResponse({
-                    "identifier": identifier,
-                    "profile": entry.agent_profile_name,
-                    "started_at": entry.started_at.isoformat(),
-                    "activity": [a.to_dict() for a in entry.activity_log],
-                })
+                return JSONResponse(
+                    {
+                        "identifier": identifier,
+                        "profile": entry.agent_profile_name,
+                        "started_at": entry.started_at.isoformat(),
+                        "activity": [a.to_dict() for a in entry.activity_log],
+                    }
+                )
         return JSONResponse({"identifier": identifier, "activity": []})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -1556,11 +1688,13 @@ async def api_orchestrator_restart(request: Request):
         drain_timeout = body.get("drain_timeout_s", 60)
         running_count = len(orch.state.running)
         asyncio.create_task(orch.graceful_restart(drain_timeout_s=drain_timeout))
-        return JSONResponse({
-            "ok": True,
-            "draining": running_count,
-            "drain_timeout_s": drain_timeout,
-        })
+        return JSONResponse(
+            {
+                "ok": True,
+                "draining": running_count,
+                "drain_timeout_s": drain_timeout,
+            }
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -1591,7 +1725,10 @@ async def api_orchestrator_dispatch(identifier: str):
         candidates = orch._fetch_all_candidates()
         issue = next((i for i in candidates if i.identifier == identifier), None)
         if not issue:
-            return JSONResponse({"error": f"Issue {identifier} not found or not dispatchable"}, status_code=404)
+            return JSONResponse(
+                {"error": f"Issue {identifier} not found or not dispatchable"},
+                status_code=404,
+            )
         await orch._dispatch(issue, attempt=None)
         return JSONResponse({"ok": True, "dispatched": identifier})
     except Exception as exc:
@@ -1653,11 +1790,13 @@ async def api_list_acp_backends():
             "supports_model_selection": has_catalog,
             "fetch_note": fetch_note,
         }
-    return JSONResponse({
-        "backends": sorted(BACKENDS.keys()),
-        "default": "claude",
-        "descriptors": descriptors,
-    })
+    return JSONResponse(
+        {
+            "backends": sorted(BACKENDS.keys()),
+            "default": "claude",
+            "descriptors": descriptors,
+        }
+    )
 
 
 @app.post("/api/v1/providers")
@@ -1689,7 +1828,12 @@ async def api_create_provider(request: Request):
         # OpenAI-compatible client can't dispatch a single call.
         if mode == "api" and not base_url:
             return JSONResponse(
-                {"error": {"code": "validation", "message": "base_url is required for api-mode providers"}},
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "base_url is required for api-mode providers",
+                    }
+                },
                 status_code=400,
             )
         provider = _provider_store.create(
@@ -1768,7 +1912,8 @@ async def api_update_provider(provider_id: str, request: Request):
         if "billing_model" in fields:
             val = fields["billing_model"]
             if not isinstance(val, str) or val.lower() not in (
-                "subscription", "per_token",
+                "subscription",
+                "per_token",
             ):
                 fields["billing_model"] = "subscription"
             else:
@@ -1778,20 +1923,35 @@ async def api_update_provider(provider_id: str, request: Request):
         existing = _provider_store.get(provider_id)
         if existing is None:
             return JSONResponse(
-                {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Provider {provider_id} not found",
+                    }
+                },
                 status_code=404,
             )
         effective_mode = fields.get("mode", existing.mode)
         effective_base_url = fields.get("base_url", existing.base_url)
         if effective_mode == "api" and not (effective_base_url or "").strip():
             return JSONResponse(
-                {"error": {"code": "validation", "message": "base_url is required for api-mode providers"}},
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "base_url is required for api-mode providers",
+                    }
+                },
                 status_code=400,
             )
         provider = _provider_store.update(provider_id, **fields)
         if not provider:
             return JSONResponse(
-                {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Provider {provider_id} not found",
+                    }
+                },
                 status_code=404,
             )
         return JSONResponse(provider.to_safe_dict())
@@ -1809,7 +1969,12 @@ async def api_delete_provider(provider_id: str):
     if _provider_store.delete(provider_id):
         return JSONResponse({"ok": True})
     return JSONResponse(
-        {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+        {
+            "error": {
+                "code": "not_found",
+                "message": f"Provider {provider_id} not found",
+            }
+        },
         status_code=404,
     )
 
@@ -1954,15 +2119,18 @@ async def api_create_agent_profile(request: Request):
         body = await request.json()
     except Exception as exc:  # noqa: BLE001 — malformed JSON body
         return JSONResponse(
-            {"error": {"code": "validation",
-                       "message": f"Invalid JSON: {exc}"}},
+            {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
             status_code=400,
         )
     try:
         if not isinstance(body, dict):
             return JSONResponse(
-                {"error": {"code": "validation",
-                           "message": "Request body must be a JSON object"}},
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "Request body must be a JSON object",
+                    }
+                },
                 status_code=400,
             )
         try:
@@ -2008,27 +2176,35 @@ async def api_update_agent_profile(name: str, request: Request):
         body = await request.json()
     except Exception as exc:  # noqa: BLE001 — malformed JSON body
         return JSONResponse(
-            {"error": {"code": "validation",
-                       "message": f"Invalid JSON: {exc}"}},
+            {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
             status_code=400,
         )
     try:
         if not isinstance(body, dict):
             return JSONResponse(
-                {"error": {"code": "validation",
-                           "message": "Request body must be a JSON object"}},
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "Request body must be a JSON object",
+                    }
+                },
                 status_code=400,
             )
         existing = _agent_profile_store.get(name)
         if existing is None:
             return JSONResponse(
-                {"error": {"code": "not_found",
-                           "message": f"Agent profile {name!r} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Agent profile {name!r} not found",
+                    }
+                },
                 status_code=404,
             )
         try:
             body, warnings = _validate_profile_payload_acp_aware(
-                body, existing_profile=existing,
+                body,
+                existing_profile=existing,
             )
         except ValueError as exc:
             return JSONResponse(
@@ -2044,8 +2220,12 @@ async def api_update_agent_profile(name: str, request: Request):
             )
         if profile is None:
             return JSONResponse(
-                {"error": {"code": "not_found",
-                           "message": f"Agent profile {name!r} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Agent profile {name!r} not found",
+                    }
+                },
                 status_code=404,
             )
         out = profile.to_dict()
@@ -2071,8 +2251,12 @@ async def api_delete_agent_profile(name: str):
     if _agent_profile_store.delete(name):
         return JSONResponse({"ok": True})
     return JSONResponse(
-        {"error": {"code": "not_found",
-                   "message": f"Agent profile {name!r} not found"}},
+        {
+            "error": {
+                "code": "not_found",
+                "message": f"Agent profile {name!r} not found",
+            }
+        },
         status_code=404,
     )
 
@@ -2110,9 +2294,12 @@ def _reload_orchestrator_config_after_profile_change() -> None:
         return
     try:
         from oompah.config import (
-            ServiceConfig, WorkflowError, load_workflow,
+            ServiceConfig,
+            WorkflowError,
+            load_workflow,
             validate_dispatch_config,
         )
+
         wf = load_workflow(_orchestrator.workflow_path)
         new_config = ServiceConfig.from_workflow(wf)
         errs = validate_dispatch_config(new_config)
@@ -2310,8 +2497,12 @@ async def api_put_roles(request: Request):
         )
     if not isinstance(body, dict):
         return JSONResponse(
-            {"error": {"code": "validation",
-                       "message": "request body must be a JSON object"}},
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
             status_code=400,
         )
 
@@ -2381,8 +2572,12 @@ async def api_put_roles(request: Request):
             logger.error("role-store rollback failed: %s", rollback_exc)
         logger.error("role update failed: %s", exc)
         return JSONResponse(
-            {"error": {"code": "update_failed",
-                       "message": f"role update failed: {exc}"}},
+            {
+                "error": {
+                    "code": "update_failed",
+                    "message": f"role update failed: {exc}",
+                }
+            },
             status_code=500,
         )
 
@@ -2431,6 +2626,7 @@ async def api_fetch_models(req: Request):
       ``<base_url>/models`` path. Unchanged.
     """
     import asyncio, urllib.request, ssl
+
     data = await req.json()
     raw_mode = str(data.get("mode") or "").lower()
     backend_name = (data.get("backend") or "claude").strip() or "claude"
@@ -2439,16 +2635,20 @@ async def api_fetch_models(req: Request):
     if raw_mode == "acp":
         try:
             from oompah.acp_backends import BACKENDS, get_backend
+
             backend_cls = get_backend(backend_name)
             if backend_cls is None:
-                return JSONResponse({
-                    "models": [],
-                    "note": (
-                        f"Unknown ACP backend: {backend_name!r}. "
-                        f"Registered backends: {sorted(BACKENDS)}."
-                    ),
-                    "supports_model_selection": False,
-                }, status_code=200)
+                return JSONResponse(
+                    {
+                        "models": [],
+                        "note": (
+                            f"Unknown ACP backend: {backend_name!r}. "
+                            f"Registered backends: {sorted(BACKENDS)}."
+                        ),
+                        "supports_model_selection": False,
+                    },
+                    status_code=200,
+                )
             backend = backend_cls()
             # Honour an optional fetch_models() hook on the backend.
             # Today's ClaudeAcpBackend has none — the SDK manages
@@ -2460,10 +2660,12 @@ async def api_fetch_models(req: Request):
                     models = await asyncio.to_thread(fetch_hook)
                     if not isinstance(models, list):
                         models = []
-                    return JSONResponse({
-                        "models": sorted(str(m) for m in models),
-                        "supports_model_selection": True,
-                    })
+                    return JSONResponse(
+                        {
+                            "models": sorted(str(m) for m in models),
+                            "supports_model_selection": True,
+                        }
+                    )
                 except Exception as exc:
                     return JSONResponse(
                         {"models": [], "error": str(exc)},
@@ -2474,11 +2676,13 @@ async def api_fetch_models(req: Request):
             note = "Claude SDK manages model selection via subscription."
             if backend_name != "claude":
                 note = f"Backend {backend_name!r} does not expose a model catalog."
-            return JSONResponse({
-                "models": [],
-                "note": note,
-                "supports_model_selection": False,
-            })
+            return JSONResponse(
+                {
+                    "models": [],
+                    "note": note,
+                    "supports_model_selection": False,
+                }
+            )
         except Exception as exc:
             return JSONResponse(
                 {"models": [], "error": f"ACP fetch failed: {exc}"},
@@ -2535,6 +2739,7 @@ def _fetch_openrouter_contexts() -> dict[str, int]:
     if _openrouter_context_cache is not None:
         return _openrouter_context_cache
     import urllib.request, ssl
+
     try:
         rq = urllib.request.Request("https://openrouter.ai/api/v1/models")
         rq.add_header("User-Agent", "oompah/0.1")
@@ -2642,7 +2847,12 @@ async def api_auto_populate_contexts(provider_id: str):
     provider = _provider_store.get(provider_id)
     if not provider:
         return JSONResponse(
-            {"error": {"code": "not_found", "message": f"Provider {provider_id} not found"}},
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"Provider {provider_id} not found",
+                }
+            },
             status_code=404,
         )
 
@@ -2680,7 +2890,9 @@ async def api_auto_populate_contexts(provider_id: str):
     upstream_by_id = {m.get("id"): m for m in upstream_models if m.get("id")}
     logger.info(
         "auto-populate %s: upstream fetched %d model(s); error=%s",
-        provider_id, len(upstream_models), upstream_error,
+        provider_id,
+        len(upstream_models),
+        upstream_error,
     )
 
     openrouter = await asyncio.to_thread(_fetch_openrouter_contexts)
@@ -2692,7 +2904,7 @@ async def api_auto_populate_contexts(provider_id: str):
 
     new_contexts: dict[str, int] = dict(provider.model_contexts or {})
 
-    for model_id in (provider.models or []):
+    for model_id in provider.models or []:
         if model_id in new_contexts and new_contexts[model_id] > 0:
             preserved.append(model_id)
             continue
@@ -2718,20 +2930,22 @@ async def api_auto_populate_contexts(provider_id: str):
     if new_contexts != (provider.model_contexts or {}):
         _provider_store.update(provider_id, model_contexts=new_contexts)
 
-    return JSONResponse({
-        "ok": True,
-        "provider_id": provider_id,
-        "model_contexts": new_contexts,
-        "resolved_via_upstream": resolved_via_upstream,
-        "resolved_via_openrouter": resolved_via_openrouter,
-        "unresolved": unresolved,
-        "preserved": preserved,
-        "diagnostics": {
-            "upstream_models_fetched": len(upstream_models),
-            "upstream_error": upstream_error,
-            "openrouter_catalog_size": len(openrouter),
-        },
-    })
+    return JSONResponse(
+        {
+            "ok": True,
+            "provider_id": provider_id,
+            "model_contexts": new_contexts,
+            "resolved_via_upstream": resolved_via_upstream,
+            "resolved_via_openrouter": resolved_via_openrouter,
+            "unresolved": unresolved,
+            "preserved": preserved,
+            "diagnostics": {
+                "upstream_models_fetched": len(upstream_models),
+                "upstream_error": upstream_error,
+                "openrouter_catalog_size": len(openrouter),
+            },
+        }
+    )
 
 
 # --- Project API ---
@@ -2762,8 +2976,11 @@ async def api_create_project(request: Request):
         git_user_email = body.get("git_user_email", "").strip() or None
         access_token = (body.get("access_token") or "").strip() or None
         project = orch.project_store.create(
-            repo_url=repo_url, name=name, branch=branch,
-            git_user_name=git_user_name, git_user_email=git_user_email,
+            repo_url=repo_url,
+            name=name,
+            branch=branch,
+            git_user_name=git_user_name,
+            git_user_email=git_user_email,
             access_token=access_token,
         )
         # Sync log watchers in case the new project has a log_path
@@ -2790,7 +3007,12 @@ async def api_get_project(project_id: str):
     project = orch.project_store.get(project_id)
     if not project:
         return JSONResponse(
-            {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"Project {project_id} not found",
+                }
+            },
             status_code=404,
         )
     return JSONResponse(project.to_safe_dict())
@@ -2803,8 +3025,16 @@ async def api_update_project(project_id: str, request: Request):
         orch = _get_orchestrator()
         body = await request.json()
         fields = {}
-        for key in ("name", "repo_url", "branch", "git_user_name", "git_user_email",
-                    "log_path", "webhook_secret", "access_token"):
+        for key in (
+            "name",
+            "repo_url",
+            "branch",
+            "git_user_name",
+            "git_user_email",
+            "log_path",
+            "webhook_secret",
+            "access_token",
+        ):
             if key in body:
                 fields[key] = body[key]
         if "yolo" in body:
@@ -2815,14 +3045,22 @@ async def api_update_project(project_id: str, request: Request):
                 val = int(raw)
             except (TypeError, ValueError):
                 return JSONResponse(
-                    {"error": {"code": "validation",
-                               "message": "max_in_flight_prs must be a positive integer"}},
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "max_in_flight_prs must be a positive integer",
+                        }
+                    },
                     status_code=400,
                 )
             if val < 1:
                 return JSONResponse(
-                    {"error": {"code": "validation",
-                               "message": "max_in_flight_prs must be >= 1"}},
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "max_in_flight_prs must be >= 1",
+                        }
+                    },
                     status_code=400,
                 )
             fields["max_in_flight_prs"] = val
@@ -2837,8 +3075,12 @@ async def api_update_project(project_id: str, request: Request):
                 val = body[key]
                 if val is not None and not isinstance(val, str):
                     return JSONResponse(
-                        {"error": {"code": "validation",
-                                   "message": f"{key} must be a string or null"}},
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": f"{key} must be a string or null",
+                            }
+                        },
                         status_code=400,
                     )
                 fields[key] = val
@@ -2850,8 +3092,12 @@ async def api_update_project(project_id: str, request: Request):
                 fields["test_skip_paths"] = val
             else:
                 return JSONResponse(
-                    {"error": {"code": "validation",
-                               "message": "test_skip_paths must be a list of strings or null"}},
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "test_skip_paths must be a list of strings or null",
+                        }
+                    },
                     status_code=400,
                 )
         if "epic_strategy" in body:
@@ -2859,19 +3105,30 @@ async def api_update_project(project_id: str, request: Request):
             if val is None:
                 fields["epic_strategy"] = "flat"
             elif isinstance(val, str) and val.strip().lower() in (
-                "flat", "stacked", "shared",
+                "flat",
+                "stacked",
+                "shared",
             ):
                 fields["epic_strategy"] = val.strip().lower()
             else:
                 return JSONResponse(
-                    {"error": {"code": "validation",
-                               "message": "epic_strategy must be one of: flat, stacked, shared"}},
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "epic_strategy must be one of: flat, stacked, shared",
+                        }
+                    },
                     status_code=400,
                 )
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(
-                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Project {project_id} not found",
+                    }
+                },
                 status_code=404,
             )
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
@@ -2921,7 +3178,12 @@ async def api_project_pause(project_id: str):
         project = orch.project_store.update(project_id, paused=True)
         if not project:
             return JSONResponse(
-                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Project {project_id} not found",
+                    }
+                },
                 status_code=404,
             )
         return JSONResponse({"ok": True, "id": project_id, "paused": True})
@@ -2943,7 +3205,12 @@ async def api_project_resume(project_id: str):
         project = orch.project_store.update(project_id, paused=False)
         if not project:
             return JSONResponse(
-                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Project {project_id} not found",
+                    }
+                },
                 status_code=404,
             )
         return JSONResponse({"ok": True, "id": project_id, "paused": False})
@@ -2991,9 +3258,14 @@ async def api_create_focus(request: Request):
             )
         # Load existing user foci, replace if same name exists
         foci = load_foci()
-        user_foci = [f for f in foci if f.name not in {b.name for b in BUILTIN_FOCI} or f.name == new_focus.name]
+        user_foci = [
+            f
+            for f in foci
+            if f.name not in {b.name for b in BUILTIN_FOCI} or f.name == new_focus.name
+        ]
         # Actually, just load the user file directly
         import os, json as _json
+
         user_path = ".oompah/foci.json"
         existing_user: list[Focus] = []
         if os.path.exists(user_path):
@@ -3018,10 +3290,16 @@ async def api_create_focus(request: Request):
 async def api_delete_focus(name: str):
     """Delete a user focus by name. Cannot delete builtins."""
     import os, json as _json
+
     user_path = ".oompah/foci.json"
     if not os.path.exists(user_path):
         return JSONResponse(
-            {"error": {"code": "not_found", "message": f"Focus '{name}' not found in user foci"}},
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"Focus '{name}' not found in user foci",
+                }
+            },
             status_code=404,
         )
     try:
@@ -3032,7 +3310,12 @@ async def api_delete_focus(name: str):
     new_list = [f for f in existing if f.name != name]
     if len(new_list) == len(existing):
         return JSONResponse(
-            {"error": {"code": "not_found", "message": f"Focus '{name}' not found in user foci"}},
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"Focus '{name}' not found in user foci",
+                }
+            },
             status_code=404,
         )
     save_foci(new_list)
@@ -3043,12 +3326,18 @@ async def api_delete_focus(name: str):
 async def api_update_focus(name: str, request: Request):
     """Update a focus (status, fields). For builtins, creates a user override."""
     import os, json as _json
+
     user_path = ".oompah/foci.json"
     body = await request.json()
     new_status = body.get("status")
     if new_status and new_status not in ("active", "inactive", "proposed"):
         return JSONResponse(
-            {"error": {"code": "validation", "message": "status must be active, inactive, or proposed"}},
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "status must be active, inactive, or proposed",
+                }
+            },
             status_code=400,
         )
 
@@ -3123,7 +3412,12 @@ async def api_update_focus_suggestion(name: str, request: Request):
     status = body.get("status", "")
     if status not in ("accepted", "dismissed"):
         return JSONResponse(
-            {"error": {"code": "validation", "message": "status must be 'accepted' or 'dismissed'"}},
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "status must be 'accepted' or 'dismissed'",
+                }
+            },
             status_code=400,
         )
     if update_suggestion_status(name, status):
@@ -3140,19 +3434,22 @@ async def api_budget():
     try:
         orch = _get_orchestrator()
         snapshot = orch.get_snapshot()
-        return JSONResponse({
-            "budget": snapshot["budget"],
-            "cost_by_profile": snapshot["cost_by_profile"],
-            "agent_profiles": snapshot["agent_profiles"],
-            # "json" (default) means the dashboard's Agent Profiles
-            # section can add/edit/delete via /api/v1/agent-profiles.
-            # "workflow" means OOMPAH_AGENT_PROFILES_SOURCE=workflow
-            # is set and the UI should be read-only. See
-            # docs/agent-profiles.md.
-            "agent_profiles_source": snapshot.get(
-                "agent_profiles_source", "json",
-            ),
-        })
+        return JSONResponse(
+            {
+                "budget": snapshot["budget"],
+                "cost_by_profile": snapshot["cost_by_profile"],
+                "agent_profiles": snapshot["agent_profiles"],
+                # "json" (default) means the dashboard's Agent Profiles
+                # section can add/edit/delete via /api/v1/agent-profiles.
+                # "workflow" means OOMPAH_AGENT_PROFILES_SOURCE=workflow
+                # is set and the UI should be read-only. See
+                # docs/agent-profiles.md.
+                "agent_profiles_source": snapshot.get(
+                    "agent_profiles_source",
+                    "json",
+                ),
+            }
+        )
     except Exception as exc:
         logger.error("Budget API error: %s", exc)
         return JSONResponse(
@@ -3213,13 +3510,23 @@ async def api_rebase_review(project_id: str, review_id: str):
         project = orch.project_store.get(project_id)
         if not project:
             return JSONResponse(
-                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Project {project_id} not found",
+                    }
+                },
                 status_code=404,
             )
         provider = detect_provider(project.repo_url, access_token=project.access_token)
         if not provider:
             return JSONResponse(
-                {"error": {"code": "unsupported", "message": "No SCM provider detected for this project"}},
+                {
+                    "error": {
+                        "code": "unsupported",
+                        "message": "No SCM provider detected for this project",
+                    }
+                },
                 status_code=400,
             )
         slug = extract_repo_slug(project.repo_url)
@@ -3229,7 +3536,11 @@ async def api_rebase_review(project_id: str, review_id: str):
         if not success and "conflict" in message.lower():
             # Try to find and notify the original bead
             notified_issue = _notify_conflict_on_bead(
-                orch, project_id, provider, slug, review_id,
+                orch,
+                project_id,
+                provider,
+                slug,
+                review_id,
             )
 
         status_code = 200 if success else 409
@@ -3258,13 +3569,23 @@ async def api_retry_review(project_id: str, review_id: str):
         project = orch.project_store.get(project_id)
         if not project:
             return JSONResponse(
-                {"error": {"code": "not_found", "message": f"Project {project_id} not found"}},
+                {
+                    "error": {
+                        "code": "not_found",
+                        "message": f"Project {project_id} not found",
+                    }
+                },
                 status_code=404,
             )
         provider = detect_provider(project.repo_url, access_token=project.access_token)
         if not provider:
             return JSONResponse(
-                {"error": {"code": "unsupported", "message": "No SCM provider detected"}},
+                {
+                    "error": {
+                        "code": "unsupported",
+                        "message": "No SCM provider detected",
+                    }
+                },
                 status_code=400,
             )
         slug = extract_repo_slug(project.repo_url)
@@ -3295,12 +3616,17 @@ async def api_retry_review(project_id: str, review_id: str):
                 priority=0,
                 initial_status="open",
             )
-            logger.info("Created bead %s for external review #%s (branch %s)",
-                         matched.identifier, review_id, branch)
+            logger.info(
+                "Created bead %s for external review #%s (branch %s)",
+                matched.identifier,
+                review_id,
+                branch,
+            )
         else:
             tracker.update_issue(
                 matched.identifier,
-                status="open", priority="0",
+                status="open",
+                priority="0",
                 **{"add-label": "ci-fix"},
             )
         tracker.add_comment(
@@ -3327,7 +3653,11 @@ async def api_retry_review(project_id: str, review_id: str):
 
 
 def _notify_conflict_on_bead(
-    orch, project_id: str, provider, slug: str, review_id: str,
+    orch,
+    project_id: str,
+    provider,
+    slug: str,
+    review_id: str,
 ) -> str | None:
     """Find the bead that owns a review's source branch, comment, and reopen.
 
@@ -3363,8 +3693,12 @@ def _notify_conflict_on_bead(
                 priority=0,
                 initial_status="open",
             )
-            logger.info("Created bead %s for external review #%s conflict (branch %s)",
-                         issue.identifier, review_id, source_branch)
+            logger.info(
+                "Created bead %s for external review #%s conflict (branch %s)",
+                issue.identifier,
+                review_id,
+                source_branch,
+            )
 
         # Post a comment about the conflict
         comment_text = (
@@ -3384,28 +3718,39 @@ def _notify_conflict_on_bead(
         if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
             tracker.update_issue(
                 issue.identifier,
-                status="open", priority="0",
+                status="open",
+                priority="0",
                 **{"add-label": "merge-conflict"},
             )
             logger.info(
                 "Reopened bead %s as P0 for merge conflict resolution (review #%s)",
-                issue.identifier, review_id,
+                issue.identifier,
+                review_id,
             )
         else:
             try:
-                tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
+                tracker.update_issue(
+                    issue.identifier, **{"add-label": "merge-conflict"}
+                )
             except Exception as label_exc:
-                logger.warning("Failed to add merge-conflict label to %s: %s",
-                             issue.identifier, label_exc)
+                logger.warning(
+                    "Failed to add merge-conflict label to %s: %s",
+                    issue.identifier,
+                    label_exc,
+                )
             logger.info(
                 "Commented on bead %s about merge conflict (review #%s), already in state '%s'",
-                issue.identifier, review_id, issue.state,
+                issue.identifier,
+                review_id,
+                issue.state,
             )
 
         return issue.identifier
 
     except Exception as exc:
-        logger.warning("Failed to notify bead about conflict for review #%s: %s", review_id, exc)
+        logger.warning(
+            "Failed to notify bead about conflict for review #%s: %s", review_id, exc
+        )
         return None
 
 
@@ -3462,14 +3807,22 @@ async def api_refresh():
 # ---------------------------------------------------------------------------
 
 _ATTACHMENT_MIME_BY_EXT = {
-    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-    ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
     ".pdf": "application/pdf",
-    ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
     ".mp4": "video/mp4",
 }
 
-_SVG_SCRIPT_RE = re.compile(rb"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)
+_SVG_SCRIPT_RE = re.compile(
+    rb"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL
+)
 _SVG_EVENT_ATTR_RE = re.compile(rb'\son\w+\s*=\s*"[^"]*"', re.IGNORECASE)
 
 
@@ -3501,10 +3854,7 @@ def _resolve_attachment_path(orch, rel: str) -> tuple[str | None, str | None]:
         attach_root = os.path.realpath(
             os.path.join(repo_path, ".oompah", "attachments")
         )
-        if (
-            candidate.startswith(attach_root + os.sep)
-            and os.path.isfile(candidate)
-        ):
+        if candidate.startswith(attach_root + os.sep) and os.path.isfile(candidate):
             return project.id, candidate
     return None, None
 
@@ -3516,14 +3866,26 @@ async def api_list_attachments(identifier: str):
     try:
         orch = _get_orchestrator()
     except Exception as exc:
-        return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}}, status_code=503
+        )
     tracker, _project_id, _issue = _find_tracker_for_issue(orch, identifier)
     if tracker is None:
-        return JSONResponse({"error": {"code": "not_found", "message": f"Issue {identifier} not found"}}, status_code=404)
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"Issue {identifier} not found",
+                }
+            },
+            status_code=404,
+        )
     try:
         records = tracker.fetch_attachments(identifier)
     except Exception as exc:
-        return JSONResponse({"error": {"code": "tracker_error", "message": str(exc)}}, status_code=500)
+        return JSONResponse(
+            {"error": {"code": "tracker_error", "message": str(exc)}}, status_code=500
+        )
     return JSONResponse(records)
 
 
@@ -3533,38 +3895,69 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
     try:
         orch = _get_orchestrator()
     except Exception as exc:
-        return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}}, status_code=503
+        )
 
     tracker, project_id, _issue = _find_tracker_for_issue(orch, identifier)
     if tracker is None:
-        return JSONResponse({"error": {"code": "not_found", "message": f"Issue {identifier} not found"}}, status_code=404)
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"Issue {identifier} not found",
+                }
+            },
+            status_code=404,
+        )
     if not project_id:
-        return JSONResponse({"error": {"code": "no_project", "message": "Attachments require a project-backed issue"}}, status_code=400)
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "no_project",
+                    "message": "Attachments require a project-backed issue",
+                }
+            },
+            status_code=400,
+        )
     project = orch.project_store.get(project_id)
     if not project or not project.repo_path:
-        return JSONResponse({"error": {"code": "no_repo", "message": "Project has no repo_path"}}, status_code=500)
+        return JSONResponse(
+            {"error": {"code": "no_repo", "message": "Project has no repo_path"}},
+            status_code=500,
+        )
 
     # Validate mime up-front from the file's name (uploads usually have
     # accurate content_type but the AttachmentStore re-validates from the
     # extension as the canonical source of truth).
     from oompah.attachments import (
-        ALLOWED_MIME_TYPES, AttachmentStore, AttachmentMimeRejected,
+        ALLOWED_MIME_TYPES,
+        AttachmentStore,
+        AttachmentMimeRejected,
         AttachmentTooLarge,
     )
+
     ext = os.path.splitext(file.filename or "")[1].lower()
     mime = _ATTACHMENT_MIME_BY_EXT.get(ext) or file.content_type or ""
     if mime not in ALLOWED_MIME_TYPES:
         return JSONResponse(
-            {"error": {"code": "unsupported_media_type",
-                       "message": f"mime {mime!r} not allowed"}},
+            {
+                "error": {
+                    "code": "unsupported_media_type",
+                    "message": f"mime {mime!r} not allowed",
+                }
+            },
             status_code=415,
         )
 
     # Stage to a temp file then hand to AttachmentStore.add.
     import tempfile
+
     contents = await file.read()
     with tempfile.NamedTemporaryFile(
-        delete=False, suffix=ext, dir=tempfile.gettempdir(),
+        delete=False,
+        suffix=ext,
+        dir=tempfile.gettempdir(),
     ) as tmp:
         tmp.write(contents)
         tmp_path = tmp.name
@@ -3595,7 +3988,10 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
 
         # Commit the file so it travels with the repo.
         try:
-            store.commit([rec.path], f"Add attachment {os.path.basename(rec.path)} for {identifier}")
+            store.commit(
+                [rec.path],
+                f"Add attachment {os.path.basename(rec.path)} for {identifier}",
+            )
         except Exception as exc:
             logger.warning("attachment commit failed for %s: %s", identifier, exc)
 
@@ -3641,7 +4037,9 @@ async def api_delete_attachment(path: str, request: Request):
     try:
         orch = _get_orchestrator()
     except Exception as exc:
-        return JSONResponse({"error": {"code": "unavailable", "message": str(exc)}}, status_code=503)
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}}, status_code=503
+        )
 
     project_id, abs_path = _resolve_attachment_path(orch, path)
     if not project_id:
@@ -3674,12 +4072,17 @@ async def api_delete_attachment(path: str, request: Request):
         )
     if target.get("generated") and request.query_params.get("force") != "generated":
         return JSONResponse(
-            {"error": {"code": "confirm_generated",
-                       "message": "Generated attachments require ?force=generated"}},
+            {
+                "error": {
+                    "code": "confirm_generated",
+                    "message": "Generated attachments require ?force=generated",
+                }
+            },
             status_code=409,
         )
 
     from oompah.attachments import AttachmentStore
+
     store = AttachmentStore(project.repo_path)
     try:
         store.remove(path)
@@ -3701,7 +4104,12 @@ async def api_report_error(request: Request):
     """Accept error reports from the frontend and create beads."""
     if not _error_watcher:
         return JSONResponse(
-            {"error": {"code": "unavailable", "message": "Error watcher not initialized"}},
+            {
+                "error": {
+                    "code": "unavailable",
+                    "message": "Error watcher not initialized",
+                }
+            },
             status_code=503,
         )
     body = await request.json()
@@ -3722,11 +4130,13 @@ async def api_report_error(request: Request):
         priority=priority,
         error_class=error_class,
     )
-    return JSONResponse({
-        "created": identifier is not None,
-        "identifier": identifier,
-        "deduplicated": identifier is None,
-    })
+    return JSONResponse(
+        {
+            "created": identifier is not None,
+            "identifier": identifier,
+            "deduplicated": identifier is None,
+        }
+    )
 
 
 # --- Forge Webhook Receivers ---
@@ -3760,7 +4170,8 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         # callers can track the last-seen delivery time per-project.
         now = datetime.now(timezone.utc)
         orch.project_store.update(
-            project.id, last_webhook_received_at=now,
+            project.id,
+            last_webhook_received_at=now,
         )
 
     orch.event_bus.emit(EventType.FORGE_WEBHOOK_RECEIVED, payload)
@@ -3877,23 +4288,29 @@ def _label_bead_merged_from_merge_group(orch, event, project) -> None:
         if issue is None:
             logger.debug(
                 "merge_group: no bead found for branch %r (head_ref=%r)",
-                branch_name, head_ref,
+                branch_name,
+                head_ref,
             )
             return
         if "merged" not in issue.labels:
             tracker.add_label(issue.identifier, "merged")
             logger.info(
                 "merge_group: labelled %s as merged (head_ref=%r)",
-                issue.identifier, head_ref,
+                issue.identifier,
+                head_ref,
             )
     except Exception as exc:
         logger.warning(
-            "merge_group: failed to label bead for head_ref %r: %s", head_ref, exc,
+            "merge_group: failed to label bead for head_ref %r: %s",
+            head_ref,
+            exc,
         )
 
 
 def _sync_project_after_webhook(
-    orch, project_id: str, project_name: str,
+    orch,
+    project_id: str,
+    project_name: str,
 ) -> None:
     """Pull source + beads for a single project after a relevant webhook.
 
@@ -3904,7 +4321,9 @@ def _sync_project_after_webhook(
         status = orch.project_store.sync_project_sources(project_id)
         logger.info(
             "Webhook sync %s: git=%s beads=%s",
-            project_name, status.get("git", "?"), status.get("beads", "?"),
+            project_name,
+            status.get("git", "?"),
+            status.get("beads", "?"),
         )
     except Exception as exc:
         logger.warning("Webhook sync failed for %s: %s", project_name, exc)
@@ -3944,7 +4363,9 @@ async def api_webhook_github(request: Request):
         event = parse_github_webhook(event_type, payload)
         if event is None:
             # Non-PR event — acknowledge but don't process
-            return JSONResponse({"ok": True, "action": "ignored", "event_type": event_type})
+            return JSONResponse(
+                {"ok": True, "action": "ignored", "event_type": event_type}
+            )
 
         # Find matching project
         orch = _get_orchestrator()
@@ -3953,10 +4374,13 @@ async def api_webhook_github(request: Request):
 
         # Validate signature if project has a webhook_secret
         if project and project.webhook_secret:
-            if not validate_github_signature(body_bytes, signature, project.webhook_secret):
+            if not validate_github_signature(
+                body_bytes, signature, project.webhook_secret
+            ):
                 logger.warning(
                     "GitHub webhook signature validation failed for %s (delivery=%s)",
-                    event.repo_slug, delivery_id,
+                    event.repo_slug,
+                    delivery_id,
                 )
                 return JSONResponse(
                     {"error": "Invalid signature"},
@@ -3964,14 +4388,16 @@ async def api_webhook_github(request: Request):
                 )
 
         _handle_webhook_event(event, project)
-        return JSONResponse({
-            "ok": True,
-            "action": "processed",
-            "event_type": event_type,
-            "delivery_id": delivery_id,
-            "review_id": event.review_id,
-            "pr_action": event.action,
-        })
+        return JSONResponse(
+            {
+                "ok": True,
+                "action": "processed",
+                "event_type": event_type,
+                "delivery_id": delivery_id,
+                "review_id": event.review_id,
+                "pr_action": event.action,
+            }
+        )
 
     except Exception as exc:
         logger.error("GitHub webhook error: %s", exc, exc_info=True)
@@ -4012,7 +4438,9 @@ async def api_webhook_gitlab(request: Request):
         # Parse the webhook
         event = parse_gitlab_webhook(event_type, payload)
         if event is None:
-            return JSONResponse({"ok": True, "action": "ignored", "event_type": event_type})
+            return JSONResponse(
+                {"ok": True, "action": "ignored", "event_type": event_type}
+            )
 
         # Find matching project
         orch = _get_orchestrator()
@@ -4032,13 +4460,15 @@ async def api_webhook_gitlab(request: Request):
                 )
 
         _handle_webhook_event(event, project)
-        return JSONResponse({
-            "ok": True,
-            "action": "processed",
-            "event_type": event_type,
-            "review_id": event.review_id,
-            "mr_action": event.action,
-        })
+        return JSONResponse(
+            {
+                "ok": True,
+                "action": "processed",
+                "event_type": event_type,
+                "review_id": event.review_id,
+                "mr_action": event.action,
+            }
+        )
 
     except Exception as exc:
         logger.error("GitLab webhook error: %s", exc, exc_info=True)
@@ -4111,24 +4541,24 @@ async def dashboard_content():
     <div class="stats">
       <div class="stat-card">
         <div class="label">Running</div>
-        <div class="value running">{counts['running']}</div>
+        <div class="value running">{counts["running"]}</div>
       </div>
       <div class="stat-card">
         <div class="label">Retrying</div>
-        <div class="value retrying">{counts['retrying']}</div>
+        <div class="value retrying">{counts["retrying"]}</div>
       </div>
       <div class="stat-card">
         <div class="label">Total Tokens</div>
-        <div class="value tokens">{fmt_tokens(totals['total_tokens'])}</div>
+        <div class="value tokens">{fmt_tokens(totals["total_tokens"])}</div>
       </div>
       <div class="stat-card">
         <div class="label">Runtime</div>
-        <div class="value">{fmt_duration(totals['seconds_running'])}</div>
+        <div class="value">{fmt_duration(totals["seconds_running"])}</div>
       </div>
     </div>
     """
 
-    html += '<h2>Running Sessions</h2>'
+    html += "<h2>Running Sessions</h2>"
     if running:
         html += """
         <table>
@@ -4142,20 +4572,20 @@ async def dashboard_content():
             tokens = row.get("tokens", {})
             html += f"""
             <tr>
-              <td class="mono">{_esc(row['issue_identifier'])}</td>
-              <td><span class="badge badge-running">{_esc(row['state'])}</span></td>
-              <td>{row['turn_count']}</td>
-              <td class="mono">{_esc(row.get('last_event') or '-')}</td>
-              <td class="truncate">{_esc(row.get('last_message') or '-')}</td>
-              <td class="mono">{fmt_time(row.get('started_at'))}</td>
-              <td class="mono">{fmt_tokens(tokens.get('total_tokens', 0))}</td>
+              <td class="mono">{_esc(row["issue_identifier"])}</td>
+              <td><span class="badge badge-running">{_esc(row["state"])}</span></td>
+              <td>{row["turn_count"]}</td>
+              <td class="mono">{_esc(row.get("last_event") or "-")}</td>
+              <td class="truncate">{_esc(row.get("last_message") or "-")}</td>
+              <td class="mono">{fmt_time(row.get("started_at"))}</td>
+              <td class="mono">{fmt_tokens(tokens.get("total_tokens", 0))}</td>
             </tr>
             """
         html += "</tbody></table>"
     else:
         html += '<p class="empty">No running sessions</p>'
 
-    html += '<h2>Retry Queue</h2>'
+    html += "<h2>Retry Queue</h2>"
     if retrying:
         html += """
         <table>
@@ -4167,17 +4597,19 @@ async def dashboard_content():
         for row in retrying:
             html += f"""
             <tr>
-              <td class="mono">{_esc(row['issue_identifier'])}</td>
-              <td>{row['attempt']}</td>
-              <td class="mono">{fmt_time(row.get('due_at'))}</td>
-              <td class="truncate"><span class="badge badge-error">{_esc(row.get('error') or '-')}</span></td>
+              <td class="mono">{_esc(row["issue_identifier"])}</td>
+              <td>{row["attempt"]}</td>
+              <td class="mono">{fmt_time(row.get("due_at"))}</td>
+              <td class="truncate"><span class="badge badge-error">{_esc(row.get("error") or "-")}</span></td>
             </tr>
             """
         html += "</tbody></table>"
     else:
         html += '<p class="empty">No pending retries</p>'
 
-    html += f'<p class="updated">Last updated: {fmt_time(snapshot.get("generated_at"))}</p>'
+    html += (
+        f'<p class="updated">Last updated: {fmt_time(snapshot.get("generated_at"))}</p>'
+    )
     return HTMLResponse(html)
 
 
