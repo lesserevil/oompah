@@ -2940,6 +2940,9 @@ class Orchestrator:
                 considered += 1
                 considered_ids.add(str(review.id))
                 review_id = review.id
+                # tracker used by _clear_merge_conflict_label_for_branch and
+                # by the external-rebase stale-label check (oompah-zlz_2-683l)
+                tracker = self._tracker_for_project(project.id)
 
                 # Conflict check FIRST — before the auto_merge_enabled
                 # idempotency guard. A PR enqueued for auto-merge can
@@ -3033,6 +3036,9 @@ class Orchestrator:
                                 "success", "", tick=tick,
                             )
                             self._clear_already_mergeable_switch(project.id, str(review_id))
+                            self._clear_merge_conflict_label_for_branch(
+                                project, tracker, review.source_branch,
+                            )
                             actions_fired += 1
                             # Merge-queue mode: GitHub's queue handles
                             # serialization, so a successful enqueue does
@@ -3080,6 +3086,9 @@ class Orchestrator:
                                 "success", "", tick=tick,
                             )
                             self._clear_already_mergeable_switch(project.id, str(review_id))
+                            self._clear_merge_conflict_label_for_branch(
+                                project, tracker, review.source_branch,
+                            )
                             actions_fired += 1
                             # Direct merge (fallback path): each merge
                             # changes the target branch, so subsequent
@@ -3115,6 +3124,9 @@ class Orchestrator:
                                 project.id, str(review_id), "merge",
                                 "success", "", tick=tick,
                             )
+                            self._clear_merge_conflict_label_for_branch(
+                                project, tracker, review.source_branch,
+                            )
                             actions_fired += 1
                             # Direct-merge mode: each merge changes the
                             # target branch, so subsequent PRs would
@@ -3140,6 +3152,16 @@ class Orchestrator:
                             continue
 
                 # MR doesn't match any action condition (e.g. CI running/pending)
+                # **External-rebase check** (oompah-zlz_2-683l): PR might have
+                # carried merge-conflict from a prior tick but the branch was
+                # rebased externally (e.g. operator or CI script). GitHub now
+                # reports has_conflicts=False and the label is stale. Clear it
+                # here so the bead doesn't stay blocked by a wrong label while
+                # CI runs its pipeline.
+                elif review.source_branch and not review.has_conflicts:
+                    self._clear_merge_conflict_label_for_branch(
+                        project, tracker, review.source_branch,
+                    )
                 logger.debug("YOLO: skipping %s MR #%s branch=%s (ci=%s, conflicts=%s, needs_rebase=%s)",
                              project.name, review_id, review.source_branch,
                              review.ci_status, review.has_conflicts, review.needs_rebase)
@@ -3735,6 +3757,52 @@ class Orchestrator:
                     pass
         except Exception as exc:
             logger.warning("YOLO: conflict notification failed for MR #%s: %s", review_id, exc)
+
+    def _clear_merge_conflict_label_for_branch(
+        self, project, tracker, source_branch: str,
+    ) -> None:
+        """Remove the merge-conflict label from a bead if it is stale.
+
+        Called from two contexts (oompah-zlz_2-683l):
+
+        1. **Successful YOLO merge / enqueue** — when GitHub has accepted a
+           merge the PR is by definition conflict-free. Clear the label
+           asynchronously so a future tick that re-notices the branch name
+           (e.g. after the PR disappears from the open-reviews list) does
+           not re-label a resolved conflict.
+
+        2. **External conflict-resolution check** — each YOLO tick loop
+           iteration ends with a ``has_conflicts=False`` guard. If a PR
+           previously had ``merge-conflict`` label but GitHub now reports
+           ``has_conflicts=False`` the label is stale (someone rebased the
+           branch without going through the YOLO agent path). Clear it.
+
+        The removal is safe to re-issue idempotently; ``remove-label`` is a
+        no-op when the label is absent.
+        """
+        if not source_branch:
+            return
+        try:
+            issue = tracker.fetch_issue_detail(source_branch)
+            if not issue:
+                return
+            labels = {l.lower() for l in (issue.labels or [])}
+            if "merge-conflict" not in labels:
+                return
+            tracker.update_issue(issue.identifier, **{"remove-label": "merge-conflict"})
+            # Update in-memory state so the completed-set is consistent.
+            if issue.id:
+                self.state.completed.discard(issue.id)
+            logger.info(
+                "Cleared stale merge-conflict label from %s "
+                "(PR #%s branch=%s, GitHub reports no conflicts)",
+                issue.identifier, getattr(issue, "id", "?"), source_branch,
+            )
+        except Exception as exc:
+            logger.debug(
+                "_clear_merge_conflict_label_for_branch failed for %s: %s",
+                source_branch, exc,
+            )
 
     def _yolo_retry_ci(self, project, review) -> None:
         """Re-file a ticket to fix failed CI tests (YOLO mode)."""
