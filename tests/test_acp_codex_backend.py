@@ -636,6 +636,7 @@ class TestCodexToolBridging:
         """Codex catalog has the same cardinality as Claude's — if
         someone adds a tool to one builder but forgets the other,
         this surfaces the drift."""
+        pytest.importorskip("claude_agent_sdk")
         sdk = _make_mock_sdk_module(
             stream_events_factory=lambda: _async_iter([]),
             usage=None,
