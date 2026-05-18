@@ -34,6 +34,36 @@ oompah
 
 > [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 
+## Backends
+
+Oompah supports two ACP (Agent Control Protocol) backends for running AI coding agents. The base install is lightweight — backend SDKs are optional extras you install only for the backends you use.
+
+### Install matrix
+
+| Backend | Dispatch mode | What drives the agent | Install command |
+|---|---|---|---|
+| `claude` | ACP (subscription) | Claude Agent SDK → `claude` CLI | `uv pip install 'oompah[claude]'` |
+| `codex` | ACP (per-token or subscription) | OpenAI Agents SDK → `codex` CLI | `uv pip install 'oompah[codex]'` |
+| *(none)* | API | Direct HTTP to any OpenAI-compatible API | `uv pip install oompah` (base install) |
+
+### Installing backend extras
+
+```bash
+# Claude backend only (recommended default — bills against Pro/Max subscription)
+uv pip install -e '.[claude]'
+
+# Codex backend only
+uv pip install -e '.[codex]'
+
+# Both backends
+uv pip install -e '.[all]'
+
+# Development dependencies only (no ACP backend)
+uv pip install -e '.[dev]'
+```
+
+**Why are SDKs optional?** The Claude Agent SDK and OpenAI Agents SDK are large dependencies that operators running in pure API mode (or using only one backend) should not have to install. The base `oompah` package ships with no ACP backend SDK; each backend's SDK is gated behind a lazy import that surfaces a clear install hint when the SDK is missing. See `plans/acp-agent.md` for the architectural rationale.
+
 ## Configuration
 
 Oompah is configured through a single `WORKFLOW.md` file that combines YAML front matter (service configuration) with a Liquid template (agent prompt).
