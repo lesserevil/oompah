@@ -37,6 +37,11 @@ DEFAULT_INITIAL_STATUS = "deferred"
 # (~150ms each) hitting the same "no beads database found" failure.
 _MISSING_DB_TTL_SECONDS = 60.0
 
+# Safety-net TTL for the Dolt-unavailable cache. 60s matches the missing-DB
+# cache so they share the same sampling cadence; the server is typically
+# healthy again within one full-sync interval.
+_DOLT_UNAVAILABLE_TTL_SECONDS = 60.0
+
 # Default subprocess timeout for ``bd`` commands. Beads is backed by Dolt
 # and a fresh sql-server start, a large issues table, or contention can push
 # even simple ``bd list`` calls past 30s. The previous 30s default surfaced
@@ -98,6 +103,27 @@ class TrackerTimeoutError(TrackerError):
     """
 
 
+class TrackerDoltUnavailableError(TrackerError):
+    """Raised when the Dolt SQL server is unreachable or failed to start.
+
+    This covers the transient case where ``bd``'s auto-started Dolt server
+    either fails to bind a port or doesn't become ready within the health-
+    check timeout (typically 10s). On the next poll tick the server may
+    already be up and responding normally — treating it as a real bug
+    that warrants auto-filed beads causes duplicate noise in the queue.
+
+    The error message from ``bd`` looks like::
+
+        failed to open database: Dolt server unreachable at 127.0.0.1:0
+        and auto-start failed: server started (PID N) but not accepting
+        connections on port M: timeout after 10s waiting for server at
+        127.0.0.1:M
+
+    Callers should log at WARNING and let the next poll tick retry.
+    See oompah-zlz_2-tjyj.
+    """
+
+
 class BeadsTracker:
     """Issue tracker client backed by the bd (beads) CLI."""
 
@@ -118,6 +144,11 @@ class BeadsTracker:
         # to monotonic_time + TTL so subsequent calls short-circuit
         # without spawning subprocesses (and without spamming logs).
         self._missing_db_until: float = 0.0
+        # When ``bd`` fails because the Dolt SQL server is unreachable
+        # or failed to start (transient startup/port-binding failure),
+        # we set this to monotonic_time + TTL so subsequent calls
+        # short-circuit without hammering an already-strained server.
+        self._dolt_unavailable_until: float = 0.0
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Fetch issues in active states, sorted for dispatch.
@@ -166,6 +197,13 @@ class BeadsTracker:
             # log at WARNING so the error_watcher does NOT auto-file a
             # duplicate bug bead every poll tick. Re-raise so the
             # orchestrator skips this project for the tick.
+            logger.warning("Failed to fetch candidates: %s", exc)
+            raise
+        except TrackerDoltUnavailableError as exc:
+            # Transient: Dolt server is down/unavailable.  Log at WARNING
+            # so the error_watcher does NOT auto-file a duplicate bead
+            # every poll tick.  Re-raise so the orchestrator skips this
+            # project for the tick.
             logger.warning("Failed to fetch candidates: %s", exc)
             raise
         except TrackerError as exc:
@@ -686,6 +724,15 @@ class BeadsTracker:
                 f"bd workspace at {self.cwd!r} has no beads database "
                 f"(cached for {int(self._missing_db_until - time.monotonic())}s)"
             )
+        # Short-circuit if a recent call already proved the Dolt server
+        # is down/unavailable (transient startup failure). Same TTL as the
+        # missing-DB cache so both environmental conditions share a single
+        # sampling cadence.
+        if self._dolt_unavailable_until and time.monotonic() < self._dolt_unavailable_until:
+            raise TrackerDoltUnavailableError(
+                f"bd workspace at {self.cwd!r} has unavailable Dolt server "
+                f"(cached for {int(self._dolt_unavailable_until - time.monotonic())}s)"
+            )
         cmd = ["bd"] + args
         # Explicit per-call timeout wins; otherwise honour the env-var
         # (OOMPAH_BD_TIMEOUT_SECONDS) so operators can tune for slow
@@ -736,6 +783,33 @@ class BeadsTracker:
                     f"bd workspace at {self.cwd!r} has no beads database: "
                     f"{stderr.splitlines()[0] if stderr else ''}"
                 )
+            # Detect the transient "Dolt server unreachable" / auto-start
+            # failure pattern.  This means the Dolt SQL server either
+            # failed to bind a port or didn't become ready within the
+            # health-check timeout.  On the next tick it may already be
+            # up; we treat it as transient (WARNING logging, TTL cache)
+            # rather than a bug that auto-files beads every poll tick.
+            # See oompah-zlz_2-tjyj.
+            stderr_lower = stderr.lower()
+            if ("dolt server" in stderr_lower and "unreachable" in stderr_lower) or (
+                "dolt server" in stderr_lower and "auto-start failed" in stderr_lower
+            ):
+                logger.warning(
+                    "bd workspace at %r has Dolt server unavailable "
+                    "(transient startup/port-binding failure) — "
+                    "skipping for %ds. Server may recover automatically; "
+                    "to start manually: bd dolt start; "
+                    "to disable auto-start: set dolt.auto-start: false "
+                    "in .beads/config.yaml",
+                    self.cwd, int(_DOLT_UNAVAILABLE_TTL_SECONDS),
+                )
+                self._dolt_unavailable_until = (
+                    time.monotonic() + _DOLT_UNAVAILABLE_TTL_SECONDS
+                )
+                raise TrackerDoltUnavailableError(
+                    f"bd workspace at {self.cwd!r} has unavailable Dolt server: "
+                    f"{stderr.splitlines()[0] if stderr else ''}"
+                )
             raise TrackerError(
                 f"bd command failed (exit {result.returncode}): {stderr}"
             )
@@ -743,6 +817,10 @@ class BeadsTracker:
         # Successful call — reset the missing-DB cache in case someone
         # just ran ``bd init`` to fix the workspace.
         self._missing_db_until = 0.0
+        # Also reset the Dolt-unavailable cache: if a prior call failed
+        # with auto-start failure and the server is now up, we want the
+        # next tick to succeed rather than keeping the short-circuit live.
+        self._dolt_unavailable_until = 0.0
 
         stdout = result.stdout.strip()
         if not stdout:

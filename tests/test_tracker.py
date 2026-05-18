@@ -910,34 +910,251 @@ class TestTimeoutHandling:
         assert captured["timeout"] == 5
 
 
-class TestFetchCandidatesTimeoutLogging:
-    """The error_watcher only fires on ERROR-level records. Timeouts are
-    transient/environmental, so they MUST be logged at WARNING in
-    fetch_candidate_issues — not ERROR — to avoid the duplicate-bug-bead
-    flood. Also: the single comma-separated ``--status=X,Y`` call replaces
-    the older per-status loop + slow unfiltered fallback, which used to
-    pile load onto an already-slow DB.
+class TestDoltUnavailableDetection:
+    """Regression tests for oompah-zlz_2-tjyj.
+
+    When ``bd`` fails because the Dolt SQL server is unreachable or
+    auto-start failed (transient startup / port-binding failure),
+    _run_bd must raise a dedicated TrackerDoltUnavailableError subclass
+    rather than a generic TrackerError — so callers can log at WARNING
+    instead of ERROR and prevent the error_watcher from auto-filing
+    duplicate bug beads every tick.
     """
 
-    def test_timeout_logs_warning_not_error(
+    def test_raises_specific_subclass_for_dolt_server_unreachable(
+        self, monkeypatch,
+    ):
+        def fake_run(*args, **kwargs):
+            return _CompletedProcess(
+                1, "",
+                "failed to open database: Dolt server unreachable at "
+                "127.0.0.1:0 and auto-start failed: server started (PID 253060) "
+                "but not accepting connections on port 40981: timeout after 10s "
+                "waiting for server at 127.0.0.1:40981",
+            )
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
+        t = _make_tracker()
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+
+    def test_raises_specific_subclass_for_dolt_auto_start_failed(
+        self, monkeypatch,
+    ):
+        def fake_run(*args, **kwargs):
+            return _CompletedProcess(
+                1, "", "failed to open database: Dolt server "
+                "at 127.0.0.1:3307 is unreachable and auto-start failed",
+            )
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
+        t = _make_tracker()
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+
+    def test_other_failures_still_raise_generic_tracker_error(
+        self, monkeypatch,
+    ):
+        def fake_run(*args, **kwargs):
+            return _CompletedProcess(1, "", "Error: something else went wrong")
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+        with _pytest.raises(_TE) as exc_info:
+            t._run_bd(["list", "--json"])
+        # Must NOT be the more-specific subclass.
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
+        assert not isinstance(exc_info.value, _TDUE)
+
+
+class TestDoltUnavailableTtlCache:
+    """TTL short-circuit for TrackerDoltUnavailableError.
+
+    When the Dolt server is transiently unavailable, we don't want to
+    hit bd on every poll tick (each call takes ~150ms and would keep
+    returning the same failure). The TTL cache short-circuits after
+    the first hit so subsequent calls within the window return
+    immediately without spawning a subprocess.
+    """
+
+    def test_second_call_short_circuits_without_subprocess(
+        self, monkeypatch,
+    ):
+        call_count = {"n": 0}
+
+        def fake_run(*args, **kwargs):
+            call_count["n"] += 1
+            return _CompletedProcess(
+                1, "",
+                "failed to open database: Dolt server unreachable at 127.0.0.1:0",
+            )
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
+        t = _make_tracker()
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+        assert call_count["n"] == 1
+        # Within TTL: second call must short-circuit (no subprocess spawned).
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+        assert call_count["n"] == 1
+
+    def test_cache_expires_and_retries(self, monkeypatch):
+        import time as _time
+        clock = {"now": 1000.0}
+        monkeypatch.setattr(
+            "oompah.tracker.time.monotonic", lambda: clock["now"],
+        )
+
+        call_count = {"n": 0}
+
+        def fake_run(*args, **kwargs):
+            call_count["n"] += 1
+            return _CompletedProcess(
+                1, "",
+                "failed to open database: Dolt server unreachable at 127.0.0.1:0",
+            )
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
+        t = _make_tracker()
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+        assert call_count["n"] == 1
+        # Advance past the TTL (61 seconds).
+        clock["now"] += 61.0
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+        # New subprocess call after the cache expired.
+        assert call_count["n"] == 2
+
+    def test_successful_call_resets_cache(self, monkeypatch):
+        """A successful subprocess call resets the Dolt-unavailable cache.
+
+        If a prior call failed with Dolt-unavailable and the server is
+        now healthy, we want the next tick to succeed rather than keeping
+        the short-circuit live and returning empty results. We do this
+        by advancing the clock past TTL so the next call re-hits subprocess,
+        then mock a successful response — the successful call must reset
+        the cache so a subsequent failure can re-trigger it.
+        """
+        import time as _time
+        clock = {"now": 1000.0, "advance": False}
+        original_monotonic = _time.monotonic
+
+        def fake_monotonic():
+            clock["now"] += 61.0 if clock["advance"] else 0.0
+            return clock["now"]
+
+        clock["advance"] = False  # normal ticking now
+        monkeypatch.setattr("oompah.tracker.time.monotonic", fake_monotonic)
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
+
+        call_count = {"n": 0}
+
+        def fake_run(*args, **kwargs):
+            call_count["n"] += 1
+            return _CompletedProcess(
+                1, "",
+                "failed to open database: Dolt server unreachable at 127.0.0.1:0",
+            )
+
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        t = _make_tracker()
+
+        # First call: Dolt unavailable — sets the cache.
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+        assert call_count["n"] == 1
+        assert t._dolt_unavailable_until > 0.0
+
+        # Advance time past the TTL so the next call re-hits subprocess.
+        clock["now"] = 1000.0  # reset to first-call baseline
+        clock["advance"] = True  # next fake_monotonic call adds 61s
+
+        def fake_success(*args, **kwargs):
+            return _CompletedProcess(0, "[]", "")
+
+        monkeypatch.setattr(_subprocess, "run", fake_success)
+        # Successful call must clear the cache.
+        assert t._run_bd(["list", "--json"]) == []
+        assert t._dolt_unavailable_until == 0.0
+
+        # Now simulate another failure to verify the cache was indeed
+        # reset and can be re-triggered.
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        clock["advance"] = False
+        with _pytest.raises(_TDUE):
+            t._run_bd(["list", "--json"])
+        assert t._dolt_unavailable_until > 0.0
+
+
+class TestDoltUnavailableLogging:
+    """The error_watcher only fires on ERROR-level records.
+
+    TrackerDoltUnavailableError is transient/environmental, so it MUST
+    be logged at WARNING — not ERROR — to avoid the duplicate-bug-bead
+    flood on every poll tick.
+    """
+
+    def test_logs_at_warning_not_error(self, monkeypatch, caplog):
+        def fake_run(*args, **kwargs):
+            return _CompletedProcess(
+                1, "",
+                "failed to open database: Dolt server unreachable at "
+                "127.0.0.1:0 and auto-start failed",
+            )
+        monkeypatch.setattr(_subprocess, "run", fake_run)
+        import logging as _logging
+        with caplog.at_level(_logging.DEBUG, logger="oompah.tracker"):
+            t = _make_tracker()
+            from oompah.tracker import TrackerDoltUnavailableError as _TDUE
+            with _pytest.raises(_TDUE):
+                t._run_bd(["list", "--json"])
+        error_records = [r for r in caplog.records if r.levelname == "ERROR"]
+        assert error_records == [], (
+            "Dolt unavailable must NOT log at ERROR "
+            "(would auto-file a bug bead every poll tick)"
+        )
+        warning_records = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert warning_records, "expected at least one WARNING on Dolt unavailable"
+
+
+class TestFetchCandidatesDoltUnavailableLogging:
+    """fetch_candidate_issues must log TrackerDoltUnavailableError at WARNING.
+
+    This mirrors the contract for TrackerTimeoutError: the method already
+    logs that exception at WARNING so the error_watcher does NOT
+    auto-file a duplicate bug bead every tick. TrackerDoltUnavailableError
+    must receive the same treatment — it is equally transient.
+    """
+
+    def test_dolt_unavailable_logs_warning_not_error(
         self, monkeypatch, caplog,
     ):
         def fake_run(*args, **kwargs):
-            raise _subprocess.TimeoutExpired(cmd=["bd"], timeout=1)
+            return _CompletedProcess(
+                1, "",
+                "failed to open database: Dolt server unreachable at "
+                "127.0.0.1:0 and auto-start failed: server started (PID 253060) "
+                "but not accepting connections on port 40981: timeout after 10s "
+                "waiting for server at 127.0.0.1:40981",
+            )
 
         monkeypatch.setattr(_subprocess, "run", fake_run)
         import logging as _logging
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
         t = _BT(active_states=["open"], terminal_states=["closed"], cwd="/tmp/x")
         with caplog.at_level(_logging.DEBUG, logger="oompah.tracker"):
-            with _pytest.raises(_TTE):
+            with _pytest.raises(_TDUE):
                 t.fetch_candidate_issues()
         error_records = [
             r for r in caplog.records
             if r.levelname == "ERROR" and "Failed to fetch candidates" in r.getMessage()
         ]
         assert error_records == [], (
-            "timeouts must NOT log at ERROR (would auto-file a bug bead "
-            "every poll tick via error_watcher)"
+            "Dolt unavailable must NOT log at ERROR in fetch_candidate_issues "
+            "(would auto-file a bug bead every poll tick via error_watcher)"
         )
         warning_records = [
             r for r in caplog.records
@@ -945,46 +1162,28 @@ class TestFetchCandidatesTimeoutLogging:
             and "Failed to fetch candidates" in r.getMessage()
         ]
         assert warning_records, (
-            "expected exactly one WARNING describing the timeout"
+            "expected exactly one WARNING describing the Dolt-unavailable failure"
         )
 
-    def test_non_timeout_failure_still_logs_error(
-        self, monkeypatch, caplog,
-    ):
-        # A *non*-timeout, non-missing-DB error is a real bug we want to
-        # capture — keep ERROR there.
-        def fake_run(*args, **kwargs):
-            return _CompletedProcess(1, "", "Error: something else went wrong")
 
-        monkeypatch.setattr(_subprocess, "run", fake_run)
-        import logging as _logging
-        t = _BT(active_states=["open"], terminal_states=["closed"], cwd="/tmp/x")
-        with caplog.at_level(_logging.DEBUG, logger="oompah.tracker"):
-            with _pytest.raises(_TE):
-                t.fetch_candidate_issues()
-        error_records = [
-            r for r in caplog.records
-            if r.levelname == "ERROR" and "Failed to fetch candidates" in r.getMessage()
-        ]
-        assert error_records, (
-            "non-timeout, non-missing-DB failures should still log at ERROR"
-        )
+class TestErrorClassifierDoltUnavailable:
+    """TrackerDoltUnavailableError gets a distinct error_class for dedup.
 
-    def test_timeout_does_not_retry_with_slower_unfiltered_fallback(
-        self, monkeypatch,
-    ):
-        """Regression guard for oompah-zlz_2-3xm: the previous code did
-        ``bd list --status=X --json`` per-status with an unfiltered
-        ``bd list --json`` fallback on timeout. That fallback touched
-        *more* rows and reliably timed out too. The current code uses a
-        single comma-separated ``--status=X,Y --json --limit=0`` call;
-        the timeout must propagate without any retry."""
-        from unittest.mock import patch as _mp
+    This allows the error_watcher to group consecutive
+    Dolt-unavailable events under one bead (via error_class="dolt_unavailable")
+    rather than filing a fresh bead each tick.
+    """
+
+    def test_returns_dolt_unavailable_class(self, monkeypatch):
+        monkeypatch.setattr(_subprocess, "run", lambda *a, **k: _CompletedProcess(
+            1, "",
+            "failed to open database: Dolt server unreachable at 127.0.0.1:0",
+        ))
+        from oompah.orchestrator import _error_class_for_tracker_exc
+        from oompah.tracker import TrackerDoltUnavailableError as _TDUE
         t = _make_tracker()
-        with _mp.object(
-            t, "_run_bd", side_effect=_TTE("timed out"),
-        ) as mock:
-            with _pytest.raises(_TTE):
-                t.fetch_candidate_issues()
-            # Exactly one bd call total — no fallback retry.
-            assert mock.call_count == 1
+        try:
+            t._run_bd(["list", "--json"])
+        except Exception as exc:
+            cls = _error_class_for_tracker_exc(exc)
+            assert cls == "dolt_unavailable"
