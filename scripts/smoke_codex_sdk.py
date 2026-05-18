@@ -152,8 +152,9 @@ def main() -> int:
         import agents
     except ImportError as exc:
         _fail(
-            f"openai-agents not installed: {exc}. Install with: "
-            f"pip install 'openai-agents>=0.17.2,<0.18'"
+            f"openai-agents SDK not installed. Codex ACP backend requires "
+            f"the OpenAI Agents Python SDK. Install with: "
+            f"uv pip install 'oompah[codex]'"
         )
     version = getattr(agents, "__version__", "?")
     _check_exports(agents, version)

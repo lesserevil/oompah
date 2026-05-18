@@ -367,6 +367,38 @@ class TestClaudeSessionMcpServerGuard:
 # ---------------------------------------------------------------------------
 
 
+class TestSmokeScriptInstallHint:
+    """Verify scripts/smoke_codex_sdk.py surfaces the same install hint
+    as the ACP backend guards.
+
+    The smoke script is the last Codex-path surface that printed a bare
+    ``pip install 'openai-agents>=...'`` (the original PyPI package name).
+    After oompah-zlz_2-jrkz.2 all Codex error paths should consistently
+    say ``uv pip install 'oompah[codex]'``.  See oompah-zlz_2-j1kw.
+    """
+
+    def test_smoke_script_uses_oompah_codex_hint(self):
+        import pathlib
+
+        smoke_path = (
+            pathlib.Path(__file__).resolve().parents[1]
+            / "scripts"
+            / "smoke_codex_sdk.py"
+        )
+        source = smoke_path.read_text()
+        # The only _fail call in main() is the "not installed" guard.
+        # Verify it no longer mentions bare 'pip install openai-agents'.
+        assert "pip install 'openai-agents" not in source, (
+            "smoke_codex_sdk.py still has a bare 'pip install openai-agents' "
+            "hint — should use 'uv pip install oompah[codex]'"
+        )
+        # And verify it uses the canonical project hint.
+        assert "uv pip install 'oompah[codex]'" in source, (
+            "smoke_codex_sdk.py install hint missing "
+            "uv pip install 'oompah[codex]'"
+        )
+
+
 class TestInstallHintStrings:
     """Smoke-check the exact install hint strings in each error path."""
 
