@@ -59,6 +59,11 @@ from oompah.acp_backends.registry import (
 from oompah.acp_backends import claude as _claude  # noqa: F401, E402
 from oompah.acp_backends import codex as _codex  # noqa: F401, E402
 from oompah.acp_backends import opencode as _opencode  # noqa: F401, E402
+from oompah.acp_backends import opencode as _opencode  # noqa: F401, E402
+from oompah.acp_backends.opencode import (  # noqa: F401, E402
+    OpencodeAcpBackend,
+    OpencodeAcpBackendSession,
+)
 
 __all__ = [
     "AcpBackend",
@@ -70,4 +75,6 @@ __all__ = [
     "get_backend",
     "get_backend_or_raise",
     "validate_provider_backend",
+    "OpencodeAcpBackend",
+    "OpencodeAcpBackendSession",
 ]

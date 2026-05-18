@@ -1,54 +1,27 @@
-"""OpenCode ACP backend (the third registered ACP backend).
+"""Opencode CLI backend (child C of the multi-backend ACP epic).
 
-This backend implements :class:`AcpBackend` against the OpenCode
-Python SDK — a session-shaped agent framework with async streaming
-support, similar in spirit to the Claude and Codex backends.
+This backend drives the ``opencode serve`` CLI subprocess, communicating
+via JSON-lines over stdin/stdout. It is similar in spirit to the Claude
+backend (subprocess-driven, async generator run_turn()) but uses the
+opencode binary instead of the claude CLI.
 
-# OpenCode SDK choice
+Design decisions:
 
-OpenCode is chosen for its:
-
-* Session-shaped API with async ``Chat`` streaming.
-* ``function_tool`` / ``@tool`` interface for tool injection.
-* Streaming event model that maps cleanly to ``BackendEvent``.
-* Open-source / self-hostable (reduces vendor dependency).
-
-The SDK is lazily imported so installations that never use the
-OpenCode backend don't pay the import cost. If the SDK is missing
-we surface a clear install hint rather than a cryptic
-``ModuleNotFound``.
-
-# Tool bridging
-
-The OpenCode SDK tool format uses ``@tool`` decorator (same surface
-as Claude, distinct from Codex's ``@function_tool``). The
-:func:`oompah.acp_tools.build_opencode_tool_catalog` function wires
-the shared ``_exec_*`` helpers from :mod:`oompah.api_agent` so cd-
-guard, BEADS_DIR routing, and per-command timeouts apply identically
-across all three backends. The backend ignores any
-``options.tool_catalog`` passed in (Claude-formatted) and rebuilds
-from the workspace path.
-
-# Permission handling
-
-OpenCode SDK does not expose a ``can_use_tool`` callback or hard
-``disallowed_tools`` denylist. The bridged catalog is the only safety
-surface. ``permission_mode`` is recorded in the ``session_start``
-event for audit but does not change SDK behavior.
-
-# Cost reporting
-
-Per-token billing: we read the ``OOMPAH_OPENCODE_BILLING`` env var
-(default ``"per_token"``) to mirror the Codex pattern. ``cost_usd`` on
-the terminal event is ``None`` for subscription tiers (no per-token
-bill); per-token tiers surface the SDK's reported cost or leave it as
-``None`` until a future billing child computes it from tokens +
-model_costs.
+* Subscription auth (empty api_key OK at provider level) — the opencode
+  CLI handles its own OAuth flow, same as the Codex backend.
+* base_url validation mirrors the Codex pattern: must be http(s):// when
+  overridden from the default endpoint.
+* The subprocess is spawned lazily on the first ``run_turn`` call, so
+  ``start_session`` errors don't poison the registry.
+* Tool bridging: oompah's MCP catalog round-trips through the same
+  ``_exec_*`` helpers from ``oompah/acp_tools.py`` so cd-guard /
+  BEADS_DIR routing are identical between backends.
 """
 
 from __future__ import annotations
 
-import contextlib
+import asyncio
+import json
 import logging
 import os
 import time
@@ -70,29 +43,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _import_sdk():
-    """Lazy import of the OpenCode Python SDK.
-
-    The canonical PyPI package installs as the ``opencode`` module.
-    Raises :class:`ImportError` with an install hint if the SDK is not
-    available so operators see a clear action to take.
-    """
-    try:
-        import opencode as sdk  # type: ignore
-        return sdk
-    except ImportError as exc:
-        raise ImportError(
-            "OpenCode SDK not installed. OpenCode ACP backend "
-            "requires the OpenCode Python SDK. Install with: "
-            "pip install opencode"
-        ) from exc
-
-
 @dataclass
-class _OpenCodeCounters:
-    """Token-usage counters scraped from SDK events.
+class _OpencodeCounters:
+    """Token-usage counters scraped from opencode JSON messages.
 
-    Mirrors the pattern from the Claude and Codex backends.
+    Mirrors the pattern used by ClaudeAcpBackendSession._SessionCounters
+    and CodexAcpBackendSession._CodexCounters.
     """
 
     input_tokens: int = 0
@@ -101,15 +57,9 @@ class _OpenCodeCounters:
     turn_count: int = 0
     last_event: str | None = None
 
-    def absorb_usage(self, usage: Any) -> None:
-        """Pull token counts from whatever ``usage`` shape the SDK
-        version exposes.
-
-        Accepts:
-        * A dict with ``input_tokens`` / ``output_tokens`` keys.
-        * An OpenCode ``Usage`` object with those attributes.
-        * ``None`` / unrecognized — ignored.
-        """
+    def absorb_usage(self, usage: dict[str, Any] | None) -> None:
+        """Pull token counts from a usage dict as emitted by opencode
+        serve in its session_start or result messages."""
         if usage is None:
             return
         if isinstance(usage, dict):
@@ -130,14 +80,12 @@ class _OpenCodeCounters:
             elif in_t is not None or out_t is not None:
                 self.total_tokens = self.input_tokens + self.output_tokens
         except (TypeError, ValueError):
-            return
+            pass
 
 
 def _truncate(value: Any, limit: int = 1500) -> Any:
-    """Shrink large tool inputs/outputs so the JSONL log stays readable.
-
-    Same truncation policy as the Claude and Codex backends.
-    """
+    """Same truncation policy as the other backends — keeps the JSONL
+    log readable when tool inputs/outputs are huge."""
     if isinstance(value, str):
         return value if len(value) <= limit else value[:limit] + " …[truncated]"
     if isinstance(value, dict):
@@ -147,37 +95,30 @@ def _truncate(value: Any, limit: int = 1500) -> Any:
     return value
 
 
-class OpenCodeAcpBackendSession(AcpBackendSession):
-    """OpenCode-SDK-driven session handle.
+class OpencodeAcpBackendSession(AcpBackendSession):
+    """Opencode-serve-driven session handle.
 
-    Mirrors :class:`CodexAcpBackendSession` / :class:`ClaudeAcpBackendSession`
-    in surface and lifecycle. Drives the OpenCode ``Chat`` async
-    streaming interface.
+    Mirrors the lifecycle of :class:`ClaudeAcpBackendSession` and
+    :class:`CodexAcpBackendSession` but drives the ``opencode serve``
+    subprocess via JSON-lines over stdin/stdout.
     """
 
     def __init__(self, options: AcpBackendOptions):
         self._options = options
-        self._counters = _OpenCodeCounters()
+        self._counters = _OpencodeCounters()
         self._stop_requested = False
         self._session_id: str | None = None
         self._final_cost_usd: float | None = None
         self._permission_denials: list[Any] = []
         self._last_error: str | None = None
         self._status: str = "pending"
-        # Runtime SDK objects. Populated lazily on first run_turn.
-        self._chat: Any = None
-        self._billing_model: str = self._billing_model_from_env()
+        # Tracks whether close() killed the subprocess so run_turn()
+        # can distinguish "user cancelled" from "process crashed".
+        self._killed_by_close: bool = False
+        # The subprocess handle. Populated lazily on first run_turn.
+        self._proc: Any = None
 
-    def _billing_model_from_env(self) -> str:
-        """Resolve billing model from options.env.
-
-        Mirrors the Codex backend's pattern:
-        reads ``OOMPAH_OPENCODE_BILLING`` (default ``"per_token"``).
-        """
-        env = self._options.env or {}
-        return (env.get("OOMPAH_OPENCODE_BILLING") or "per_token").strip() or "per_token"
-
-    # ---- AcpBackendSession protocol properties ----
+    # ---- AcpBackendSession protocol property accessors ----
 
     @property
     def status(self) -> str:
@@ -220,26 +161,33 @@ class OpenCodeAcpBackendSession(AcpBackendSession):
     # ---- Lifecycle ----
 
     async def close(self) -> None:
-        """Request that the active session stop. Idempotent.
-
-        Stops the OpenCode chat session if active.
-        """
+        """Request that the active subprocess stop. Idempotent.  When called
+        before the subprocess is spawned (``_proc is None``) the session
+        is marked ``interrupted`` so that a subsequent ``run_turn`` exits
+        immediately without attempting to start the opencode binary."""
         self._stop_requested = True
-        chat = self._chat
-        if chat is not None:
-            stop = getattr(chat, "stop", None)
-            if stop is not None:
-                with contextlib.suppress(Exception):
-                    result = stop()
-                    if hasattr(result, "__await__"):
-                        await result
+        proc = self._proc
+        if proc is not None:
+            self._killed_by_close = True
+            try:
+                proc.terminate()
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        else:
+            # No subprocess yet — mark interrupted so run_turn bails out.
+            self._status = "interrupted"
 
     # ---- Internal: event emission ----
 
     def _emit_agent_event(
         self, kind: str, *, payload: dict[str, Any] | None = None
     ) -> None:
-        """Forward a translated AgentEvent to options.on_event (if any)."""
+        """Forward a translated AgentEvent to options.on_event (if any).
+        Keeps the ``acp_`` prefix for back-compat with the orchestrator's
+        JSONL-logging path."""
         on_event = self._options.on_event
         if on_event is None:
             return
@@ -262,7 +210,11 @@ class OpenCodeAcpBackendSession(AcpBackendSession):
     def _make_backend_event(
         self, kind: str, payload: dict[str, Any]
     ) -> BackendEvent:
-        """Build a BackendEvent mirroring the AgentEvent we just emitted."""
+        """Build a BackendEvent mirroring the AgentEvent we just emitted.
+
+        BackendEvent.kind drops the ``acp_`` prefix while AgentEvent uses
+        it — keeps this side clean.
+        """
         prefix = "acp_"
         clean_kind = kind[len(prefix):] if kind.startswith(prefix) else kind
         return BackendEvent(
@@ -284,80 +236,70 @@ class OpenCodeAcpBackendSession(AcpBackendSession):
         self._emit_agent_event(kind, payload=payload)
         return self._make_backend_event(kind, payload or {})
 
-    # ---- Build the SDK-native tool catalog ----
+    # ---- Cost payload for terminal result ----
+
+    def _cost_payload(self) -> dict[str, Any]:
+        """Normalized cost dict for the terminal result event.
+
+        Mirrors the Codex backend's _cost_payload so child C can read
+        a uniform shape from any backend.
+        """
+        return {
+            "input_tokens": self._counters.input_tokens,
+            "output_tokens": self._counters.output_tokens,
+            "total_tokens": self.total_tokens,
+            "cost_usd": self._final_cost_usd,
+        }
+
+    # ---- Internal: build the tool catalog ----
 
     def _build_tool_catalog(self) -> list[Any]:
-        """Build the OpenCode SDK-flavored tool catalog for this run.
+        """Build the opencode tool catalog for this run.
 
-        Ignores ``options.tool_catalog`` (Claude-formatted) and rebuilds
-        from ``workspace_path`` using the same ``_exec_*`` helpers as
-        the other backends so safety rails are identical.
-        See :func:`oompah.acp_tools.build_opencode_tool_catalog`.
+        Rebuilds from workspace_path so the underlying ``_exec_*``
+        helpers (cd-guard, BEADS_DIR routing) apply identically to
+        other backends. See :func:`oompah.acp_tools.build_tool_catalog`
+        (same helper for all subprocess backends; opencode uses the
+        same @tool-decorated format as the claude backend).
         """
-        from oompah.acp_tools import build_opencode_tool_catalog
+        # Opencode uses the same @tool-decorated catalog as Claude
+        # (openai-agents uses @function_tool which is different).
+        from oompah.acp_tools import build_tool_catalog
 
         env = self._options.env or {}
         beads_dir = env.get("BEADS_DIR")
-        return build_opencode_tool_catalog(
+        return build_tool_catalog(
             self._options.workspace_path,
             beads_dir=beads_dir,
         )
 
-    # ---- run_turn ----
+    # ---- run_turn: drive the opencode serve subprocess ----
 
     async def run_turn(self) -> AsyncIterator[BackendEvent]:
-        """Open an OpenCode Chat session, run the prompt, stream events,
-        yield :class:`BackendEvent` objects until completion.
+        """Spawn ``opencode serve``, send the prompt as JSON on stdin,
+        stream JSON-lines from stdout, yield :class:`BackendEvent`
+        objects until completion.
 
         After run_turn returns, ``self.status`` is one of:
 
-        * ``"succeeded"`` — clean completion.
-        * ``"failed"`` — terminal event flagged an error.
-        * ``"stalled"`` — turn_timeout_s exceeded.
-        * ``"interrupted"`` — caller invoked ``close()``.
-        * ``"errored"`` — SDK / subprocess crashed.
+        * ``"succeeded"`` — subprocess exited 0 with no error
+        * ``"failed"`` — subprocess exited non-zero
+        * ``"stalled"`` — turn_timeout_s exceeded; killed
+        * ``"interrupted"`` — caller invoked ``close()``
+        * ``"errored"`` — unexpected exception
         """
         if self._stop_requested:
             self._status = "interrupted"
             return
 
-        try:
-            sdk = _import_sdk()
-        except ImportError as exc:
-            self._last_error = str(exc)
-            logger.error("OpenCode ACP backend: %s", self._last_error)
-            self._status = "errored"
-            return
-
-        Chat = getattr(sdk, "Chat", None)
-        if Chat is None:
-            self._last_error = (
-                "OpenCode SDK is missing 'Chat'; "
-                "OpenCode backend requires the session-shaped Chat interface."
-            )
-            logger.error(self._last_error)
-            self._status = "errored"
-            return
-
-        # Compose env with api_key if present.
-        agent_env = dict(os.environ)
-        if self._options.env:
-            agent_env.update(self._options.env)
-        # Allow OPENCODE_API_KEY or fall back to OPENAI_API_KEY (OpenCode
-        # can proxy to OpenAI-compatible endpoints).
-        api_key = (
-            agent_env.get("OPENCODE_API_KEY")
-            or agent_env.get("OPENAI_API_KEY")
-            or agent_env.get("OOMPAH_OPENCODE_API_KEY")
-        )
-        if api_key:
-            os.environ.setdefault("OPENCODE_API_KEY", api_key)
-
-        # Build the tool catalog.
+        # Build the tool catalog before spawning so we can surface
+        # NotImplementedError early rather than mid-stream.
         try:
             tools = self._build_tool_catalog()
         except NotImplementedError as exc:
-            self._last_error = f"OpenCode backend cannot bridge tools: {exc}"
+            self._last_error = (
+                f"Opencode backend cannot bridge required tools: {exc}"
+            )
             logger.warning(self._last_error)
             self._status = "errored"
             return
@@ -367,52 +309,97 @@ class OpenCodeAcpBackendSession(AcpBackendSession):
             self._status = "errored"
             return
 
-        chat_kwargs: dict[str, Any] = {
-            "model": self._options.model or "opencode",
-            "tools": tools,
-        }
+        # Compose env. opencode serve reads OPENAI_API_KEY from the
+        # process env; if the provider configured a custom api_key it
+        # will already be in options.env.
+        agent_env = dict(os.environ)
+        if self._options.env:
+            agent_env.update(self._options.env)
+        # Forward api_key into the process env if present.
+        api_key = agent_env.get("OOMPAH_OPENCODE_API_KEY")
         if api_key:
-            chat_kwargs["api_key"] = api_key
-        # base_url from provider (for proxy/custom endpoints).
-        base_url = agent_env.get("OPENCODE_BASE_URL") or agent_env.get(
-            "OOMPAH_OPENCODE_BASE_URL"
-        )
-        if base_url:
-            chat_kwargs["base_url"] = base_url
+            os.environ.setdefault("OPENAI_API_KEY", api_key)
 
-        try:
-            chat = Chat(**chat_kwargs)
-        except Exception as exc:
-            self._last_error = f"Chat construction failed: {exc!r}"
-            logger.warning(self._last_error)
-            self._status = "errored"
-            return
+        # Build the tool catalog names for the session_start event payload.
+        tool_names = [
+            getattr(t, "name", getattr(t, "__name__", str(t)))
+            for t in tools
+        ]
 
-        self._chat = chat
-
-        # Emit session_start before any async activity.
+        # Emit session_start before spawning so consumers can wire up
+        # loggers before the subprocess starts streaming.
         yield self._emit(
             "acp_session_start",
             payload={
-                "model": chat_kwargs.get("model"),
+                "model": self._options.model,
                 "fallback_model": self._options.fallback_model,
                 "max_turns": self._options.max_turns,
                 "permission_mode": self._options.permission_mode,
-                "tool_policy": "opencode:bridged_catalog_only",
-                "tool_catalog": [
-                    getattr(t, "name", getattr(t, "__name__", str(t)))
-                    for t in tools
-                ],
-                "billing_model": self._billing_model,
+                "tool_policy": "opencode:tool_catalog",
+                "tool_catalog": tool_names,
+                "billing_model": "subscription",
                 "cwd": self._options.workspace_path,
             },
         )
 
+        # Spawn the opencode serve subprocess.
+        cmd = ["opencode", "serve"]
+        try:
+            self._proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=agent_env,
+                cwd=self._options.workspace_path,
+            )
+        except FileNotFoundError as exc:
+            self._last_error = (
+                "opencode binary not found in PATH. Opencode ACP backend "
+                "requires the opencode CLI to be installed and in PATH. "
+                f"Original error: {exc}"
+            )
+            logger.error(self._last_error)
+            self._status = "errored"
+            yield self._emit(
+                "acp_session_error", payload={"error": self._last_error},
+            )
+            return
+        except Exception as exc:
+            self._last_error = f"failed to spawn opencode serve: {exc!r}"
+            logger.warning(self._last_error)
+            self._status = "errored"
+            yield self._emit(
+                "acp_session_error", payload={"error": self._last_error},
+            )
+            return
+
+        # Send the initial prompt as a JSON message on stdin.
+        init_msg = {
+            "type": "init",
+            "prompt": self._options.prompt,
+            "model": self._options.model,
+            "tools": tool_names,
+        }
+        try:
+            stdin = self._proc.stdin
+            stdin.write((json.dumps(init_msg) + "\n").encode())
+            await stdin.drain()
+        except Exception as exc:
+            self._last_error = f"failed to send init message: {exc!r}"
+            logger.warning(self._last_error)
+            self._status = "errored"
+            yield self._emit(
+                "acp_session_error", payload={"error": self._last_error},
+            )
+            return
+
         deadline = time.monotonic() + self._options.turn_timeout_s
-        tool_call_stack: dict[str, Any] = {}
 
         try:
-            async for event, data in chat.stream(self._options.prompt):
+            # Read JSON-lines from stdout.
+            stdout = self._proc.stdout
+            async for line in stdout:
                 if self._stop_requested:
                     self._status = "interrupted"
                     return
@@ -424,13 +411,64 @@ class OpenCodeAcpBackendSession(AcpBackendSession):
                     self._status = "stalled"
                     return
 
-                async for be in self._translate_stream_event(
-                    event, data, tool_call_stack
-                ):
+                line_text = line.decode("utf-8").strip()
+                if not line_text:
+                    continue
+
+                try:
+                    msg = json.loads(line_text)
+                except json.JSONDecodeError:
+                    logger.debug("skipping unparseable line: %s", line_text)
+                    continue
+
+                async for be in self._translate_message(msg):
                     yield be
 
-            # Stream ended cleanly. Emit the terminal result event.
-            self._absorb_counters()
+                # After a result message, stop streaming.
+                msg_type = msg.get("type", "")
+                if msg_type == "result":
+                    break
+
+            # Stream exhausted. If close() was called during iteration,
+            # _stop_requested will be True and the stream ended because
+            # of that — treat as interrupted, not succeeded.  We detect
+            # this by checking _stop_requested BEFORE calling wait()
+            # (wait() would return 0 even for an interrupted session).
+            if self._stop_requested:
+                self._status = "interrupted"
+                return
+
+            # subprocess has closed its stdout — wait for it to finish.
+            return_code = await self._proc.wait()
+            if return_code != 0:
+                # Distinguish "user closed the session" from "crash":
+                # _killed_by_close is set by close() → terminate/kill.
+                if self._killed_by_close:
+                    self._status = "interrupted"
+                    return
+                stderr_lines = []
+                if self._proc.stderr:
+                    try:
+                        stderr_data = await asyncio.wait_for(
+                            self._proc.stderr.read(), timeout=2.0
+                        )
+                        stderr_lines = stderr_data.decode(
+                            "utf-8", errors="replace"
+                        ).splitlines()
+                    except Exception:
+                        pass
+                self._last_error = (
+                    f"opencode serve exited with code {return_code}. "
+                    f"stderr: {'; '.join(stderr_lines[-5:])}"
+                )
+                logger.warning("Opencode ACP session failed: %s", self._last_error)
+                yield self._emit(
+                    "acp_session_error", payload={"error": self._last_error},
+                )
+                self._status = "errored"
+                return
+
+            # Clean exit: emit the terminal result.
             yield self._emit(
                 "acp_result",
                 payload={
@@ -446,133 +484,92 @@ class OpenCodeAcpBackendSession(AcpBackendSession):
             self._status = "succeeded"
         except Exception as exc:
             self._last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("OpenCode ACP session failed: %s", self._last_error)
+            logger.warning("Opencode ACP session failed: %s", self._last_error)
             yield self._emit(
-                "acp_session_error", payload={"error": self._last_error}
+                "acp_session_error", payload={"error": self._last_error},
             )
             self._status = "errored"
         finally:
-            self._chat = None
+            if self._proc is not None:
+                with __import__("contextlib").suppress(Exception):
+                    self._proc.terminate()
+                self._proc = None
 
-    # ---- Internal: per-event translation ----
+    # ---- Internal: message translation ----
 
-    async def _translate_stream_event(
-        self, event: str, data: Any, tool_call_stack: dict[str, Any]
+    async def _translate_message(
+        self, msg: dict[str, Any]
     ) -> AsyncIterator[BackendEvent]:
-        """Map an OpenCode Chat stream event to one or more BackendEvents.
+        """Map a single opencode serve JSON message to one or more
+        :class:`BackendEvent` instances.
 
-        OpenCode Chat emits text chunks, tool calls, tool results, and
-        completion events. We pattern-match on the event string since
-        the concrete shapes are SDK-version dependent.
+        Expected message types from opencode serve:
+
+        * ``session_start`` — metadata; may carry session_id + usage.
+        * ``text`` — assistant text delta.
+        * ``tool_use`` — a tool call request.
+        * ``tool_result`` — result of a tool call.
+        * ``result`` — terminal success / failure.
+        * ``error`` — error message.
         """
-        # ---- Text delta ----
-        if event == "text":
-            text = data if isinstance(data, str) else ""
+        msg_type = msg.get("type", "")
+
+        if msg_type == "session_start":
+            # Capture session_id for the protocol consumer.
+            sid = msg.get("session_id")
+            if isinstance(sid, str) and self._session_id is None:
+                self._session_id = sid
+            # Absorb any usage data.
+            usage = msg.get("usage")
+            if usage:
+                self._counters.absorb_usage(usage)
+
+        elif msg_type == "text":
+            text = msg.get("text", "")
             if text:
                 self._counters.last_event = "text"
-                yield self._emit("acp_text", payload={"text": text[:2000]})
+                yield self._emit(
+                    "acp_text", payload={"text": str(text)[:2000]}
+                )
 
-        elif event == "text_done":
-            # Final accumulated text — emit as a single block.
-            text = data if isinstance(data, str) else ""
-            if text:
-                self._counters.last_event = "text"
-                yield self._emit("acp_text", payload={"text": text[:2000]})
-
-        # ---- Tool use ----
-        elif event == "tool_call":
+        elif msg_type == "tool_use":
             self._counters.last_event = "tool_use"
             self._counters.turn_count += 1
-            # OpenCode's tool_call data is a dict with name, args, id.
-            tool_name = (
-                data.get("name") if isinstance(data, dict) else getattr(data, "name", "?")
-            )
-            tool_args = (
-                data.get("arguments", {})
-                if isinstance(data, dict)
-                else getattr(data, "arguments", {})
-            )
-            tool_id = (
-                data.get("id")
-                if isinstance(data, dict)
-                else getattr(data, "id", None)
-            )
-            tool_call_stack[str(tool_id or id(data))] = tool_name
+            tool_name = msg.get("tool", "?")
+            tool_input = _truncate(msg.get("input", {}))
+            tool_id = msg.get("id")
             yield self._emit(
                 "acp_tool_use",
                 payload={
-                    "tool": str(tool_name),
-                    "input": _truncate(tool_args),
-                    "id": str(tool_id) if tool_id else None,
+                    "tool": tool_name,
+                    "input": tool_input,
+                    "id": tool_id,
                 },
             )
 
-        # ---- Tool result ----
-        elif event == "tool_result":
-            result = data if isinstance(data, dict) else {}
-            tool_use_id = str(result.get("tool_call_id", "")) or ""
-            content = result.get("content") or ""
-            is_error = bool(result.get("is_error", False))
+        elif msg_type == "tool_result":
             self._counters.last_event = "tool_result"
             yield self._emit(
                 "acp_tool_result",
                 payload={
-                    "tool_use_id": tool_use_id,
-                    "is_error": is_error,
-                    "content": _truncate(content),
+                    "tool_use_id": msg.get("tool_use_id"),
+                    "is_error": bool(msg.get("is_error", False)),
+                    "content": _truncate(msg.get("content", "")),
                 },
             )
 
-        # ---- Thinking / reasoning ----
-        elif event in ("thinking", "reasoning", "thought"):
-            text = data if isinstance(data, str) else ""
-            if text:
-                self._counters.last_event = "thinking"
-                yield self._emit("acp_thinking", payload={"text": text[:2000]})
-
-        # ---- Token usage from streaming events ----
-        elif event == "usage" or event == "usage_update":
-            self._counters.absorb_usage(data)
-
-        # ---- Session ID ----
-        elif event == "session_id":
-            if isinstance(data, str) and not self._session_id:
-                self._session_id = data
-
-        # ---- Error ----
-        elif event == "error":
-            err_msg = data if isinstance(data, str) else str(data)
-            self._last_error = err_msg
-            yield self._emit(
-                "acp_assistant_error", payload={"error": err_msg}
-            )
-
-        # else: unknown event type — silently ignore so SDK version
-        # churn doesn't cause spurious errors.
-
-    def _absorb_counters(self) -> None:
-        """Read final token counts from the chat session handle."""
-        chat = self._chat
-        if chat is None:
-            return
-        for attr in ("usage", "_usage"):
-            usage = getattr(chat, attr, None)
-            if usage is not None:
+        elif msg_type in ("result", "error"):
+            # Terminal messages. Don't yield a BackendEvent here —
+            # run_turn itself emits the final result/error after the
+            # loop. Just absorb usage if present.
+            usage = msg.get("usage")
+            if usage:
                 self._counters.absorb_usage(usage)
-                break
-
-    def _cost_payload(self) -> dict[str, Any]:
-        """Build the normalized cost dict for the terminal result event.
-
-        Mirrors the Codex backend's _cost_payload so child C can
-        consume a uniform dict regardless of which backend ran.
-        """
-        return {
-            "input_tokens": self._counters.input_tokens,
-            "output_tokens": self._counters.output_tokens,
-            "total_tokens": self.total_tokens,
-            "cost_usd": self._final_cost_usd,
-        }
+            cost = msg.get("total_cost_usd") or msg.get("cost_usd")
+            if isinstance(cost, (int, float)):
+                self._final_cost_usd = float(cost)
+            if msg_type == "error":
+                self._last_error = msg.get("error", "unknown error")
 
 
 # ----------------------------------------------------------------------
@@ -580,11 +577,11 @@ class OpenCodeAcpBackendSession(AcpBackendSession):
 # ----------------------------------------------------------------------
 
 
-class OpenCodeAcpBackend(AcpBackend):
-    """OpenCode-SDK-driven ACP backend.
+class OpencodeAcpBackend(AcpBackend):
+    """Opencode-serve-driven ACP backend.
 
-    Implements the pluggable :class:`AcpBackend` interface using the
-    OpenCode Chat Python SDK.
+    Validates the multi-backend abstraction by implementing a third
+    concrete :class:`AcpBackend` against the opencode CLI.
     """
 
     @classmethod
@@ -592,34 +589,16 @@ class OpenCodeAcpBackend(AcpBackend):
         return "opencode"
 
     def start_session(self, options: AcpBackendOptions) -> AcpBackendSession:
-        return OpenCodeAcpBackendSession(options)
+        return OpencodeAcpBackendSession(options)
 
     def validate_provider(self, provider: "ModelProvider") -> list[str]:
-        """Backend-specific provider validation.
+        """Opencode uses subscription auth at the CLI level (the opencode
+        binary handles OAuth) — no api_key required at the provider level.
 
-        Rules:
-
-        * Per-token tier (default): requires ``api_key``.
-        * Subscription tier: ``api_key`` optional.
-        * ``base_url`` (when overridden) must be a well-formed
-          ``http://`` or ``https://`` URL.
-
-        Mirrors the Codex backend's rules since both target
-        OpenAI-compatible endpoints.
+        base_url is optional but must be a well-formed http(s) URL when
+        overridden from the default opencode endpoint.
         """
         errors: list[str] = []
-        billing_model = (
-            (getattr(provider, "billing_model", None) or "per_token")
-            .strip()
-            .lower()
-        )
-        if billing_model != "subscription":
-            if not (provider.api_key or "").strip():
-                errors.append(
-                    "api_key required for per-token OpenCode. "
-                    "Set billing_model='subscription' on the provider "
-                    "for subscription billing."
-                )
 
         base_url = (provider.base_url or "").strip()
         if base_url:
@@ -629,14 +608,12 @@ class OpenCodeAcpBackend(AcpBackend):
             ):
                 errors.append(
                     f"base_url must start with http:// or https://; got "
-                    f"{base_url!r}. Leave empty to use the default "
-                    f"OpenCode endpoint."
+                    f"{base_url!r}. Leave empty to use the default opencode "
+                    f"endpoint."
                 )
 
         return errors
 
 
-# Register on import. ``oompah/acp_backends/__init__.py`` imports all
-# backend modules so importing the package wires all backends into
-# the registry.
-register_backend(OpenCodeAcpBackend.name(), OpenCodeAcpBackend)
+# Register on import.
+register_backend(OpencodeAcpBackend.name(), OpencodeAcpBackend)

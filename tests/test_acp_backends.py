@@ -53,13 +53,13 @@ class TestRegistry:
         so the GET /api/v1/acp-backends endpoint surfaces it in the
         provider edit dialog's Backend dropdown
         (oompah-zlz_2-llk2)."""
-        from oompah.acp_backends.opencode import OpenCodeAcpBackend
+        from oompah.acp_backends.opencode import OpencodeAcpBackend
 
         assert "opencode" in BACKENDS
-        assert BACKENDS["opencode"] is OpenCodeAcpBackend
-        assert get_backend("opencode") is OpenCodeAcpBackend
+        assert BACKENDS["opencode"] is OpencodeAcpBackend
+        assert get_backend("opencode") is OpencodeAcpBackend
         # Also reachable through the convenience raise-variant.
-        assert get_backend_or_raise("opencode") is OpenCodeAcpBackend
+        assert get_backend_or_raise("opencode") is OpencodeAcpBackend
 
     def test_get_backend_unknown_returns_none(self):
         assert get_backend("does-not-exist") is None
@@ -199,18 +199,18 @@ class TestClaudeAcpBackend:
 # ----------------------------------------------------------------------
 
 
-class TestOpenCodeAcpBackend:
-    """Tests for OpenCodeAcpBackend (oompah-zlz_2-llk2)."""
+class TestOpencodeAcpBackend:
+    """Tests for OpencodeAcpBackend (oompah-zlz_2-llk2)."""
 
     def test_name_returns_opencode(self):
-        from oompah.acp_backends.opencode import OpenCodeAcpBackend
+        from oompah.acp_backends.opencode import OpencodeAcpBackend
 
-        assert OpenCodeAcpBackend.name() == "opencode"
+        assert OpencodeAcpBackend.name() == "opencode"
 
     def test_validate_provider_subscription_skips_api_key(self):
-        from oompah.acp_backends.opencode import OpenCodeAcpBackend
+        from oompah.acp_backends.opencode import OpencodeAcpBackend
 
-        backend = OpenCodeAcpBackend()
+        backend = OpencodeAcpBackend()
         # Subscription billing: api_key is optional (OpenCode CLI OAuth).
         provider = ModelProvider(
             id="p1", name="opencode-provider", base_url="https://api.opencode.ai",
@@ -221,17 +221,17 @@ class TestOpenCodeAcpBackend:
 
     def test_start_session_returns_opencode_session(self):
         from oompah.acp_backends.opencode import (
-            OpenCodeAcpBackend,
-            OpenCodeAcpBackendSession,
+            OpencodeAcpBackend,
+            OpencodeAcpBackendSession,
         )
 
-        backend = OpenCodeAcpBackend()
+        backend = OpencodeAcpBackend()
         options = AcpBackendOptions(
             workspace_path="/tmp/ws",
             prompt="hello",
         )
         session = backend.start_session(options)
-        assert isinstance(session, OpenCodeAcpBackendSession)
+        assert isinstance(session, OpencodeAcpBackendSession)
 
 
 # ----------------------------------------------------------------------
