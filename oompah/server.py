@@ -1130,6 +1130,30 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
     return all_issues
 
 
+def _verify_epic_state_after_update(
+    tracker, identifier: str, expected_status: str,
+) -> bool:
+    """Verify that an Epic issue's state is at the expected value after update.
+
+    Used by :func:`api_update_issue` to detect when the bd backend
+    post-update epic-state hook has reverted a manual state transition.
+    Returns ``True`` when the issue's state matches expected_status,
+    ``False`` when the backend has already reverted it.
+
+    This is a synchronous function (runs in the bd CLI thread pool from
+    the async API handler).
+    """
+    try:
+        issue = tracker.fetch_issue_detail(identifier)
+        if issue is None:
+            return True  # can no longer verify — treat as settled
+        actual = (issue.state or "").strip().lower()
+        expected = expected_status.strip().lower()
+        return actual == expected
+    except Exception:  # noqa: BLE001 — verification failures are best-effort
+        return True
+
+
 @app.post("/api/v1/issues")
 async def api_create_issue(request: Request):
     """Create a new issue.
@@ -1331,7 +1355,20 @@ async def api_issue_quality_source(project_id: str):
 
 @app.patch("/api/v1/issues/{identifier}")
 async def api_update_issue(identifier: str, request: Request):
-    """Update an issue's state, priority, or title."""
+    """Update an issue's state, priority, or title.
+
+    Epic issues have special semantics around state: the bd backend may
+    re-evaluate the epic's effective state from children's states after
+    a manual update and overwrite the just-written value. We detect
+    this by re-reading the issue state after the write and returning a
+    clear 409 rejection when a manual state on an epic is immediately
+    reverted by the backend.
+
+    This lets the operator understand that epic state is derived
+    (controlled by children's states) and that manual transitions must
+    either go through the child-issue flow or be done directly with the
+    bd CLI bypassing any backend hooks.
+    """
     try:
         orch = _get_orchestrator()
         body = await request.json()
@@ -1342,6 +1379,15 @@ async def api_update_issue(identifier: str, request: Request):
         new_priority = body.get("priority")
         new_title = body.get("title")
         new_description = body.get("description")
+
+        # Determine issue type for Epic-specific state handling.
+        # We need this before the update so we know whether to apply
+        # post-update verification.
+        existing_issue = tracker.fetch_issue_detail(identifier)
+        is_epic = (
+            existing_issue is not None
+            and (existing_issue.issue_type or "").strip().lower() == "epic"
+        )
 
         if new_status == "closed":
             # bd close is a separate command; apply other fields first if any
@@ -1367,6 +1413,56 @@ async def api_update_issue(identifier: str, request: Request):
                 update_fields["description"] = new_description
             if update_fields:
                 tracker.update_issue(identifier, **update_fields)
+
+        # --- Epic state verification (oompah-zlz_2-sytm) ---
+        # For Epic issues the bd backend may have a post-update hook that
+        # reverts a manual state transition to the state computed from
+        # children's states. We re-read the issue state immediately after
+        # the write and, if it has already been reverted, retry up to
+        # 2 more times with a small delay to let the hook settle.
+        # If the state still reverts we return 409 so the operator knows
+        # the backend overrode their intent rather than silently failing.
+        #
+        # Only applies to non-terminal transitions: Bd's hook overwrites
+        # the user's intended "active" state (open/in_progress) for epics
+        # but does not block terminal transitions (close/archive).
+        if new_status is not None and is_epic:
+            terminal = {s.strip().lower() for s in getattr(orch.config, "tracker_terminal_states", ["closed"])}
+            if new_status.strip().lower() not in terminal:
+                for attempt in range(3):
+                    await asyncio.sleep(0.3)
+                    loop = asyncio.get_event_loop()
+                    verified = await loop.run_in_executor(
+                        _api_thread_pool,
+                        _verify_epic_state_after_update,
+                        tracker,
+                        identifier,
+                        new_status,
+                    )
+                    if verified:
+                        break
+                else:
+                    # All attempts failed: the backend reverted or ignored the update.
+                    _api_cache.invalidate("issues:all")
+                    _api_cache.invalidate_prefix(
+                        f"detail:{project_id}:{identifier}"
+                    )
+                    await broadcast_issues()
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "epic_state_reverted",
+                                "message": (
+                                    f"Epic {identifier} state could not be changed "
+                                    f"to {new_status!r}: the bd backend reverted the "
+                                    f"update. Epic state is derived from children's "
+                                    f"states; to change the epic state, first "
+                                    f"resolve or update the child issues."
+                                ),
+                            }
+                        },
+                        status_code=409,
+                    )
 
         # Terminate agent whenever issue is moved away from in_progress
         if new_status is not None:
