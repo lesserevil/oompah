@@ -643,6 +643,7 @@ class TestOpencodeToolBridging:
     def test_opencode_catalog_uses_same_builder_as_claude(self, tmp_path):
         """OpencodeAcpBackendSession._build_tool_catalog calls the same
         build_tool_catalog() helper used by the Claude backend."""
+        pytest.importorskip("claude_agent_sdk")
         from oompah.acp_tools import build_tool_catalog
 
         cat = build_tool_catalog(str(tmp_path))
@@ -659,6 +660,7 @@ class TestOpencodeToolBridging:
     def test_opencode_tool_catalog_includes_run_command(self, tmp_path):
         """run_command is in the opencode catalog (cd-guard routing is
         identical across all subprocess backends)."""
+        pytest.importorskip("claude_agent_sdk")
         from oompah.acp_tools import build_tool_catalog
 
         cat = build_tool_catalog(str(tmp_path))
