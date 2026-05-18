@@ -30,6 +30,11 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
+    # ACP backends: installed in CI so tests that import claude_agent_sdk
+    # or openai_agents (via oompah.acp_tools / oompah.acp_backends.claude)
+    # can run.  See bead oompah-zlz_2-bqkz.
+    "claude-agent-sdk>=0.1.0",
+    "openai-agents>=0.17.2,<0.18",
 ]
 
 [project.scripts]
