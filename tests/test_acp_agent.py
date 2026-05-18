@@ -184,6 +184,7 @@ class TestAcpAgentSession:
         return status, session, events
 
     def test_succeeded_path(self):
+        pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import ResultMessage
         result = ResultMessage(
             subtype="success",
@@ -213,6 +214,7 @@ class TestAcpAgentSession:
         assert "acp_result" in kinds
 
     def test_failed_path(self):
+        pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import ResultMessage
         result = ResultMessage(
             subtype="error",
@@ -264,6 +266,7 @@ class TestAcpAgentSession:
         assert status == "interrupted"
 
     def test_emits_session_start_with_bypass_permissions(self):
+        pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import ResultMessage
         result = ResultMessage(
             subtype="success", duration_ms=1, duration_api_ms=1,
@@ -442,6 +445,7 @@ class TestCanUseToolStrictAllowlist:
             assert builtin in denied, f"missing {builtin!r} in disallowed_tools"
 
     def test_oompah_tool_allowed(self):
+        pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import PermissionResultAllow
         callback, events = self._capture_callback()
         result = asyncio.run(callback(
@@ -450,6 +454,7 @@ class TestCanUseToolStrictAllowlist:
         assert isinstance(result, PermissionResultAllow)
 
     def test_native_bash_denied(self):
+        pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import PermissionResultDeny
         callback, _ = self._capture_callback()
         result = asyncio.run(callback("Bash", {"command": "ls"}, MagicMock()))
@@ -460,12 +465,14 @@ class TestCanUseToolStrictAllowlist:
         assert result.interrupt is False
 
     def test_native_read_denied(self):
+        pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import PermissionResultDeny
         callback, _ = self._capture_callback()
         result = asyncio.run(callback("Read", {"file_path": "/etc/passwd"}, MagicMock()))
         assert isinstance(result, PermissionResultDeny)
 
     def test_native_write_denied(self):
+        pytest.importorskip('claude_agent_sdk')
         from claude_agent_sdk import PermissionResultDeny
         callback, _ = self._capture_callback()
         result = asyncio.run(callback("Write", {"file_path": "x", "content": "y"}, MagicMock()))
@@ -582,6 +589,15 @@ class TestCanUseToolStrictAllowlist:
 # ----------------------------------------------------------------------
 # Tool catalog bridging
 # ----------------------------------------------------------------------
+
+
+# TestToolCatalogBridging calls build_tool_catalog() which requires
+# claude_agent_sdk. Skip when it is not installed (base install without
+# [claude] extra).
+try:
+    import claude_agent_sdk
+except ImportError:
+    pytest.skip("claude_agent_sdk not installed; install with uv pip install 'oompah[claude]'", allow_module_level=True)
 
 
 class TestToolCatalogBridging:

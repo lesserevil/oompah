@@ -616,6 +616,24 @@ class TestOpencodeSessionLifecycle:
 # ----------------------------------------------------------------------
 
 
+# TestOpencodeToolBridging calls build_tool_catalog() which requires
+# claude_agent_sdk. Skip when it is not installed (base install without
+# [claude] extra).
+try:
+    import claude_agent_sdk
+except ImportError:
+    pytest.skip("claude_agent_sdk not installed; install with uv pip install 'oompah[claude]'", allow_module_level=True)
+
+
+# TestOpencodeToolBridging calls build_tool_catalog() which requires
+# claude_agent_sdk. Skip when it is not installed (base install without
+# [claude] extra).
+try:
+    import claude_agent_sdk
+except ImportError:
+    pytest.skip("claude_agent_sdk not installed; install with uv pip install 'oompah[claude]'", allow_module_level=True)
+
+
 class TestOpencodeToolBridging:
     """Opencode uses the same @tool-decorated catalog as Claude
     (not the openai-agents @function_tool decorator). The backend
