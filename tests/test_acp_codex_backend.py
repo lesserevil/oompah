@@ -582,6 +582,24 @@ class TestCodexSessionLifecycle:
 # ----------------------------------------------------------------------
 
 
+# TestCodexToolBridging calls build_tool_catalog() which requires
+# claude_agent_sdk. Skip when it is not installed (base install without
+# [claude] extra).
+try:
+    import claude_agent_sdk
+except ImportError:
+    pytest.skip("claude_agent_sdk not installed; install with uv pip install 'oompah[claude]'", allow_module_level=True)
+
+
+# TestCodexToolBridging calls build_tool_catalog() which requires
+# claude_agent_sdk. Skip when it is not installed (base install without
+# [claude] extra).
+try:
+    import claude_agent_sdk
+except ImportError:
+    pytest.skip("claude_agent_sdk not installed; install with uv pip install 'oompah[claude]'", allow_module_level=True)
+
+
 class TestCodexToolBridging:
     """A focus's MCP catalog round-trips through to Codex's tool
     format. We feed the SDK a no-op ``function_tool`` decorator and

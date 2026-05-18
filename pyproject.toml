@@ -17,15 +17,27 @@ dependencies = [
     "python-liquid>=1.12",
     "httpx>=0.27",
     "python-multipart>=0.0.9",
-    # Claude Agent SDK: drives the bundled `claude` CLI as a subprocess so
-    # ACP-mode dispatches are billed against the operator's Pro/Max
-    # subscription rather than the per-token API meter. See
-    # docs/acp-agent.md and bead oompah-zlz_2-bcl.
-    "claude-agent-sdk>=0.1.0",
-    "openai-agents>=0.17.2",
 ]
 
 [project.optional-dependencies]
+# Claude ACP backend: drives the bundled `claude` CLI via the Claude Agent
+# SDK so ACP-mode dispatches bill against the operator's Pro/Max
+# subscription rather than the per-token API meter.
+# See docs/acp-agent.md and bead oompah-zlz_2-bcl.
+claude = [
+    "claude-agent-sdk>=0.1.0",
+]
+# Codex ACP backend: drives OpenAI's Codex CLI via the openai-agents SDK.
+# Pin verified against the TResponseInputItem union shape; see
+# tests/test_codex_sdk_shape_smoke.py and bead oompah-zlz_2-jrkz.1.
+codex = [
+    "openai-agents>=0.17.2,<0.18",
+]
+# Install both ACP backends at once.
+all = [
+    "oompah[claude]",
+    "oompah[codex]",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
