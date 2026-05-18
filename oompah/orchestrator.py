@@ -54,6 +54,7 @@ from oompah.tracker import (
     TrackerError,
     TrackerNotConfiguredError,
     TrackerTimeoutError,
+    TrackerDoltUnavailableError,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
 from oompah.yolo_watchdog import (
@@ -81,6 +82,7 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
     watcher fingerprint:
       - "bd_timeout"           — TrackerTimeoutError (subprocess timeout)
       - "tracker_not_configured" — TrackerNotConfiguredError (no DB)
+      - "dolt_unavailable"     — TrackerDoltUnavailableError (transient server down)
       - "bd_failed"            — generic TrackerError
       - "project_error"        — ProjectError fallback
 
@@ -92,6 +94,8 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
         return "bd_timeout"
     if isinstance(exc, TrackerNotConfiguredError):
         return "tracker_not_configured"
+    if isinstance(exc, TrackerDoltUnavailableError):
+        return "dolt_unavailable"
     if isinstance(exc, TrackerError):
         return "bd_failed"
     return "project_error"
@@ -1416,6 +1420,14 @@ class Orchestrator:
                 # not auto-file a duplicate bug bead every tick.
                 logger.warning("Tracker fetch timed out: %s", exc)
                 return []
+            except TrackerDoltUnavailableError as exc:
+                # Transient: Dolt server down.  Same WARN treatment as
+                # a subprocess timeout so the error_watcher does NOT
+                # auto-file duplicate beads every poll tick.
+                logger.warning(
+                    "Tracker fetch failed (Dolt unavailable): %s", exc,
+                )
+                return []
             except TrackerError as exc:
                 logger.error(
                     "Tracker fetch failed: %s", exc,
@@ -1439,6 +1451,15 @@ class Orchestrator:
                 # not auto-file a duplicate bug bead every tick.
                 logger.warning(
                     "Fetch timed out for project %s: %s", project.name, exc,
+                )
+                return []
+            except TrackerDoltUnavailableError as exc:
+                # Transient Dolt server down — log at WARNING (same
+                # treatment as timeout) so the error_watcher does NOT
+                # auto-file duplicate beads every poll tick.
+                logger.warning(
+                    "Fetch failed for project %s (Dolt unavailable): %s",
+                    project.name, exc,
                 )
                 return []
             except (TrackerError, ProjectError) as exc:
