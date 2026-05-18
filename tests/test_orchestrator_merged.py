@@ -836,6 +836,217 @@ class TestYoloRetryCi:
         tracker.create_issue.assert_not_called()
 
 
+class TestYoloMergeConflictLabelClearing:
+    """Tests for stale merge-conflict label clearing (oompah-zlz_2-683l).
+
+    The merge-conflict label is added by ``_yolo_notify_conflict`` when a PR
+    has ``has_conflicts=True``. It must be removed:
+    - When YOLO successfully merges / enqueues a PR (GitHub confirmed no conflicts).
+    - When a PR no longer has conflicts but also no longer triggers a YOLO
+      action (e.g. CI is still running; the owner rebased the branch outside
+      the YOLO agent path).
+
+    These tests verify both paths.
+    """
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_successful_merge_clears_merge_conflict_label(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        """When YOLO merges a PR whose bead carries merge-conflict, the label
+        is removed so the bead doesn't stay stale."""
+        project = _make_project()
+        project.yolo = True
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        mock_tracker = MagicMock()
+        # Bead with merge-conflict label
+        mock_bead = MagicMock()
+        mock_bead.labels = ["bug", "merge-conflict"]
+        mock_bead.id = "bead-001"
+        mock_bead.identifier = "oompah-zlz_2-001"
+        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        orch._project_trackers[project.id] = mock_tracker
+
+        reviews = [
+            _make_review("1", source_branch="bead-001", ci_status="passed"),
+        ]
+        orch._reviews_cache = {project.id: reviews}
+
+        orch._yolo_review_actions_sync()
+
+        # merge_review called (PR merged)
+        provider.merge_review.assert_called_once_with("org/repo", "1")
+        # merge-conflict label removed from the matching bead
+        tracker_call_kwargs = mock_tracker.update_issue.call_args
+        assert tracker_call_kwargs is not None
+        kwargs_dict = tracker_call_kwargs[1]
+        assert kwargs_dict.get("remove-label") == "merge-conflict"
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_successful_enqueue_clears_merge_conflict_label(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        """When YOLO enqueues a PR (merge queue mode) whose bead carries
+        merge-conflict, the label is removed."""
+        project = _make_project()
+        project.yolo = True
+        project.merge_queue_enabled = True
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        mock_tracker = MagicMock()
+        mock_bead = MagicMock()
+        mock_bead.labels = ["merge-conflict", "tech-debt"]
+        mock_bead.id = "bead-002"
+        mock_bead.identifier = "oompah-zlz_2-002"
+        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        orch._project_trackers[project.id] = mock_tracker
+
+        reviews = [
+            _make_review("2", source_branch="bead-002", ci_status="passed"),
+        ]
+        orch._reviews_cache = {project.id: reviews}
+
+        orch._yolo_review_actions_sync()
+
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "2")
+        tracker_call_kwargs = mock_tracker.update_issue.call_args
+        assert tracker_call_kwargs is not None
+        assert tracker_call_kwargs[1].get("remove-label") == "merge-conflict"
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_stale_label_cleared_when_conflicts_resolved_externally(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        """When a PR no longer has merge conflicts (external rebase) and CI is
+        still running, the stale merge-conflict label is still cleared — the
+        tick's end-of-iteration check sees has_conflicts=False and removes the
+        stale label."""
+        project = _make_project()
+        project.yolo = True
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        mock_tracker = MagicMock()
+        mock_bead = MagicMock()
+        mock_bead.labels = ["merge-conflict"]  # stale label
+        mock_bead.id = "bead-003"
+        mock_bead.identifier = "oompah-zlz_2-003"
+        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        orch._project_trackers[project.id] = mock_tracker
+
+        # CI is still running; has_conflicts=False (externally rebased)
+        reviews = [
+            _make_review("3", source_branch="bead-003",
+                         ci_status="running", has_conflicts=False),
+        ]
+        orch._reviews_cache = {project.id: reviews}
+
+        orch._yolo_review_actions_sync()
+
+        # No merge/enqueue attempted (CI still running)
+        provider.merge_review.assert_not_called()
+        provider.enable_auto_merge.assert_not_called()
+        # But the stale merge-conflict label on the matching bead was cleared
+        tracker_call_kwargs = mock_tracker.update_issue.call_args
+        assert tracker_call_kwargs is not None
+        assert tracker_call_kwargs[1].get("remove-label") == "merge-conflict"
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_noop_when_bead_has_no_merge_conflict_label(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        """When a merged PR matches a bead that does NOT have merge-conflict
+        label, no tracker update is issued (reduces API chatter)."""
+        project = _make_project()
+        project.yolo = True
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        mock_tracker = MagicMock()
+        mock_bead = MagicMock()
+        mock_bead.labels = ["bug"]  # no merge-conflict
+        mock_bead.id = "bead-004"
+        mock_bead.identifier = "oompah-zlz_2-004"
+        mock_tracker.fetch_issue_detail.return_value = mock_bead
+        orch._project_trackers[project.id] = mock_tracker
+
+        reviews = [
+            _make_review("4", source_branch="bead-004", ci_status="passed"),
+        ]
+        orch._reviews_cache = {project.id: reviews}
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_called()
+        mock_tracker.update_issue.assert_not_called()  # no label to remove
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_noop_when_no_matching_bead(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        """When a PR is merged and has no matching bead (orphan branch), the
+        clear-label step is a silent no-op and does not crash."""
+        project = _make_project()
+        project.yolo = True
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = None  # no matching bead
+        orch._project_trackers[project.id] = mock_tracker
+
+        reviews = [
+            _make_review("5", source_branch="orphan-branch", ci_status="passed"),
+        ]
+        orch._reviews_cache = {project.id: reviews}
+
+        # Should not raise
+        orch._yolo_review_actions_sync()
+        provider.merge_review.assert_called()
+        mock_tracker.update_issue.assert_not_called()
+
+
 class TestProjectHasOpenReview:
     """Tests for _project_has_open_review dispatch gating."""
 
