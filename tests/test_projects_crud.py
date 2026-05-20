@@ -23,6 +23,7 @@ from oompah.projects import ProjectError, ProjectStore
 # ProjectStore unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestProjectStoreUpdate:
     """Tests for ProjectStore.update() with validation."""
 
@@ -30,8 +31,11 @@ class TestProjectStoreUpdate:
     def store(self, tmp_path):
         """Create a ProjectStore with a pre-loaded project."""
         path = str(tmp_path / "projects.json")
-        self.store = ProjectStore(path=path, repos_root=str(tmp_path / "repos"),
-                                   worktree_root=str(tmp_path / "wt"))
+        self.store = ProjectStore(
+            path=path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
         # Manually insert a project (bypass git clone)
         p = Project(
             id="proj-abc",
@@ -56,7 +60,9 @@ class TestProjectStoreUpdate:
         assert updated.branch == "develop"
 
     def test_update_repo_url(self):
-        updated = self.store.update("proj-abc", repo_url="https://github.com/org/other.git")
+        updated = self.store.update(
+            "proj-abc", repo_url="https://github.com/org/other.git"
+        )
         assert updated.repo_url == "https://github.com/org/other.git"
 
     def test_update_git_user_name(self):
@@ -134,8 +140,11 @@ class TestProjectStoreGet:
     @pytest.fixture(autouse=True)
     def store(self, tmp_path):
         path = str(tmp_path / "projects.json")
-        self.store = ProjectStore(path=path, repos_root=str(tmp_path / "repos"),
-                                   worktree_root=str(tmp_path / "wt"))
+        self.store = ProjectStore(
+            path=path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
         p = Project(
             id="proj-get1",
             name="gettest",
@@ -169,8 +178,11 @@ class TestProjectStoreDelete:
     @pytest.fixture(autouse=True)
     def store(self, tmp_path):
         path = str(tmp_path / "projects.json")
-        self.store = ProjectStore(path=path, repos_root=str(tmp_path / "repos"),
-                                   worktree_root=str(tmp_path / "wt"))
+        self.store = ProjectStore(
+            path=path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
         for i in range(3):
             p = Project(
                 id=f"proj-del{i}",
@@ -225,8 +237,10 @@ class TestProjectStoreListAll:
         )
         for i in range(3):
             p = Project(
-                id=f"proj-list{i}", name=f"list{i}",
-                repo_url=f"https://x/{i}", repo_path=f"/tmp/{i}",
+                id=f"proj-list{i}",
+                name=f"list{i}",
+                repo_url=f"https://x/{i}",
+                repo_path=f"/tmp/{i}",
             )
             store._projects[p.id] = p
         store._save()
@@ -236,6 +250,7 @@ class TestProjectStoreListAll:
 # ---------------------------------------------------------------------------
 # Server API tests (using FastAPI TestClient)
 # ---------------------------------------------------------------------------
+
 
 class TestProjectAPI:
     """Integration tests for project REST endpoints."""
@@ -276,6 +291,7 @@ class TestProjectAPI:
 
         # Patch the global orchestrator
         import oompah.server as srv
+
         old_orch = srv._orchestrator
         srv._orchestrator = orch
         self.client = TestClient(app)
@@ -410,12 +426,27 @@ class TestProjectStoreUpdatableFields:
     """Verify the UPDATABLE_FIELDS constant matches expected set."""
 
     def test_updatable_fields_are_correct(self):
-        expected = {"name", "repo_url", "branch", "git_user_name",
-                    "git_user_email", "yolo", "log_path", "webhook_secret",
-                    "access_token", "last_webhook_received_at",
-                    "max_in_flight_prs", "merge_queue_enabled", "paused",
-                    "test_command", "test_command_full", "test_skip_paths",
-                    "epic_strategy"}
+        expected = {
+            "name",
+            "repo_url",
+            "branch",
+            "branches",
+            "default_branch",
+            "git_user_name",
+            "git_user_email",
+            "yolo",
+            "log_path",
+            "webhook_secret",
+            "access_token",
+            "last_webhook_received_at",
+            "max_in_flight_prs",
+            "merge_queue_enabled",
+            "paused",
+            "test_command",
+            "test_command_full",
+            "test_skip_paths",
+            "epic_strategy",
+        }
         assert ProjectStore.UPDATABLE_FIELDS == expected
 
     def test_id_is_not_updatable(self):
@@ -434,7 +465,10 @@ class TestProjectAccessToken:
 
     def test_round_trip_through_to_dict(self):
         p = Project(
-            id="p", name="n", repo_url="u", repo_path="/tmp/x",
+            id="p",
+            name="n",
+            repo_url="u",
+            repo_path="/tmp/x",
             access_token="ghp_abcdefghij1234567890",
         )
         d = p.to_dict()
@@ -448,7 +482,10 @@ class TestProjectAccessToken:
 
     def test_to_safe_dict_masks_token(self):
         p = Project(
-            id="p", name="n", repo_url="u", repo_path="/tmp/x",
+            id="p",
+            name="n",
+            repo_url="u",
+            repo_path="/tmp/x",
             access_token="ghp_abcdefghij1234567890",
         )
         d = p.to_safe_dict()
@@ -466,7 +503,10 @@ class TestProjectAccessToken:
 
     def test_to_safe_dict_short_token_fully_masked(self):
         p = Project(
-            id="p", name="n", repo_url="u", repo_path="/tmp/x",
+            id="p",
+            name="n",
+            repo_url="u",
+            repo_path="/tmp/x",
             access_token="short",
         )
         d = p.to_safe_dict()
@@ -491,7 +531,10 @@ class TestProjectAccessToken:
             worktree_root=str(tmp_path / "wt"),
         )
         p = Project(
-            id="proj-tok", name="n", repo_url="u", repo_path="/tmp/x",
+            id="proj-tok",
+            name="n",
+            repo_url="u",
+            repo_path="/tmp/x",
             access_token="glpat-XYZ",
         )
         store._projects[p.id] = p
@@ -552,6 +595,7 @@ class TestProjectAccessTokenAPI:
         orch.get_snapshot.return_value = {"counts": {}, "running": {}}
 
         import oompah.server as srv
+
         old_orch = srv._orchestrator
         srv._orchestrator = orch
         self.client = TestClient(app)
@@ -613,7 +657,8 @@ class TestProjectStoreTestCommand:
     def store(self, tmp_path):
         path = str(tmp_path / "projects.json")
         self.store = ProjectStore(
-            path=path, repos_root=str(tmp_path / "repos"),
+            path=path,
+            repos_root=str(tmp_path / "repos"),
             worktree_root=str(tmp_path / "wt"),
         )
         p = Project(
@@ -634,11 +679,15 @@ class TestProjectStoreTestCommand:
         assert p.test_skip_paths == []
 
     def test_update_test_command(self):
-        updated = self.store.update("proj-tc", test_command="cargo test --workspace --lib")
+        updated = self.store.update(
+            "proj-tc", test_command="cargo test --workspace --lib"
+        )
         assert updated.test_command == "cargo test --workspace --lib"
 
     def test_update_test_command_full(self):
-        updated = self.store.update("proj-tc", test_command_full="cargo test --workspace")
+        updated = self.store.update(
+            "proj-tc", test_command_full="cargo test --workspace"
+        )
         assert updated.test_command_full == "cargo test --workspace"
 
     def test_update_test_skip_paths(self):
@@ -758,6 +807,7 @@ class TestProjectAPITestCommand:
         orch.get_snapshot.return_value = {"counts": {}, "running": {}}
 
         import oompah.server as srv
+
         old_orch = srv._orchestrator
         srv._orchestrator = orch
         self.client = TestClient(app)
@@ -771,7 +821,9 @@ class TestProjectAPITestCommand:
             json={"test_command": "cargo test --workspace --lib"},
         )
         assert res.status_code == 200
-        assert self.store.get("proj-tcapi").test_command == "cargo test --workspace --lib"
+        assert (
+            self.store.get("proj-tcapi").test_command == "cargo test --workspace --lib"
+        )
 
     def test_patch_clears_test_command_with_null(self):
         self.store.update("proj-tcapi", test_command="make test")
@@ -788,7 +840,9 @@ class TestProjectAPITestCommand:
             json={"test_command_full": "cargo test --workspace"},
         )
         assert res.status_code == 200
-        assert self.store.get("proj-tcapi").test_command_full == "cargo test --workspace"
+        assert (
+            self.store.get("proj-tcapi").test_command_full == "cargo test --workspace"
+        )
 
     def test_patch_test_skip_paths(self):
         res = self.client.patch(
@@ -797,7 +851,8 @@ class TestProjectAPITestCommand:
         )
         assert res.status_code == 200
         assert self.store.get("proj-tcapi").test_skip_paths == [
-            "tests/hw/*", "tests/integration/*",
+            "tests/hw/*",
+            "tests/integration/*",
         ]
 
     def test_patch_test_command_invalid_type(self):

@@ -131,8 +131,17 @@
         <input type="text" id="add-name" placeholder="">
       </div>
       <div class="form-group">
-        <label>Branch</label>
+        <label>Branch (legacy single branch &mdash; use Branches below for multiple)</label>
         <input type="text" id="add-branch" placeholder="main" value="main">
+      </div>
+      <div class="form-group">
+        <label>Branches (comma-separated, supports globs like release/*, hotfix/*)</label>
+        <input type="text" id="add-branches" placeholder="main, release/*, hotfix/*" value="main">
+        <span style="font-size:0.7rem;color:var(--text-muted);">First entry becomes default_branch</span>
+      </div>
+      <div class="form-group">
+        <label>Default Branch (for new beads)</label>
+        <input type="text" id="add-default-branch" placeholder="main" value="main">
       </div>
       <div class="form-group">
         <label>Git User Name (defaults to global git config)</label>
@@ -202,6 +211,14 @@ async function loadProjects() {
       <div class="field-row">
         <span class="field-label">Branch:</span>
         <span class="field-value">${esc(p.branch)}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Branches:</span>
+        <span class="field-value">${esc((p.branches || []).join(', '))}</span>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Default Branch:</span>
+        <span class="field-value">${esc(p.default_branch)}</span>
       </div>
       ${p.git_user_name ? `<div class="field-row">
         <span class="field-label">Git User:</span>
@@ -273,8 +290,17 @@ async function loadProjects() {
           <input type="text" id="edit-repo-url-${esc(p.id)}" value="${esc(p.repo_url)}">
         </div>
         <div class="form-group">
-          <label>Branch</label>
+          <label>Branch (legacy single branch &mdash; use Branches below for multiple)</label>
           <input type="text" id="edit-branch-${esc(p.id)}" value="${esc(p.branch)}">
+        </div>
+        <div class="form-group">
+          <label>Branches (comma-separated, supports globs like release/*, hotfix/*)</label>
+          <input type="text" id="edit-branches-${esc(p.id)}" value="${esc((p.branches || []).join(', '))}">
+          <span style="font-size:0.7rem;color:var(--text-muted);">First entry becomes default_branch if not explicitly set</span>
+        </div>
+        <div class="form-group">
+          <label>Default Branch (for new beads)</label>
+          <input type="text" id="edit-default-branch-${esc(p.id)}" value="${esc(p.default_branch)}">
         </div>
         <div class="form-group">
           <label>Git User Name</label>
@@ -361,6 +387,9 @@ async function addProject() {
   const repo = document.getElementById('add-repo').value.trim();
   const name = document.getElementById('add-name').value.trim() || undefined;
   const branch = document.getElementById('add-branch').value.trim() || 'main';
+  const branchesRaw = document.getElementById('add-branches').value.trim();
+  const branches = branchesRaw ? branchesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0) : undefined;
+  const defaultBranch = document.getElementById('add-default-branch').value.trim() || undefined;
   const gitUserName = document.getElementById('add-git-user-name').value.trim() || undefined;
   const gitUserEmail = document.getElementById('add-git-user-email').value.trim() || undefined;
   const accessToken = document.getElementById('add-access-token').value.trim() || undefined;
@@ -375,7 +404,7 @@ async function addProject() {
     res = await fetch('/api/v1/projects', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({repo_url: repo, name, branch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken}),
+      body: JSON.stringify({repo_url: repo, name, branch, branches, default_branch: defaultBranch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken}),
     });
   } catch (err) {
     console.error('addProject fetch failed:', err);
@@ -388,6 +417,8 @@ async function addProject() {
     document.getElementById('add-name').value = '';
     document.getElementById('add-repo').value = '';
     document.getElementById('add-branch').value = 'main';
+    document.getElementById('add-branches').value = 'main';
+    document.getElementById('add-default-branch').value = 'main';
     document.getElementById('add-git-user-name').value = '';
     document.getElementById('add-git-user-email').value = '';
     document.getElementById('add-access-token').value = '';
@@ -467,6 +498,9 @@ async function saveProject(id) {
   const name = document.getElementById('edit-name-' + id).value.trim();
   const repoUrl = document.getElementById('edit-repo-url-' + id).value.trim();
   const branch = document.getElementById('edit-branch-' + id).value.trim();
+  const branchesRaw = document.getElementById('edit-branches-' + id).value.trim();
+  const branches = branchesRaw ? branchesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0) : undefined;
+  const defaultBranch = document.getElementById('edit-default-branch-' + id).value.trim() || undefined;
   const gitUserName = document.getElementById('edit-git-user-name-' + id).value.trim();
   const gitUserEmail = document.getElementById('edit-git-user-email-' + id).value.trim();
   const logPath = document.getElementById('edit-log-path-' + id).value.trim();
@@ -495,7 +529,7 @@ async function saveProject(id) {
   // radio is always pre-checked).
   const epicStrategyEl = document.querySelector('input[name="edit-epic-strategy-' + id + '"]:checked');
   const epicStrategy = epicStrategyEl ? epicStrategyEl.value : 'flat';
-  const body = {name, branch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy};
+  const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;

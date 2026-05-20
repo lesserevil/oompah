@@ -20,6 +20,7 @@ Covers:
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch, call
+import fnmatch
 
 import pytest
 
@@ -34,6 +35,7 @@ from oompah.webhooks import (
 # imports httpx which may not be available in all test environments.
 try:
     from oompah.scm import ReviewRequest as _ReviewRequest  # noqa: F401
+
     _SCM_AVAILABLE = True
 except ModuleNotFoundError:
     _SCM_AVAILABLE = False
@@ -71,6 +73,7 @@ def _make_review(
     mergeable_state: str = "",
 ):
     from oompah.scm import ReviewRequest
+
     return ReviewRequest(
         id=review_id,
         title=f"PR #{review_id}",
@@ -103,20 +106,25 @@ class TestProjectMergeQueueEnabled:
         assert p.merge_queue_enabled is False
 
     def test_to_dict_includes_field(self):
-        p = Project(id="p1", name="n", repo_url="u", repo_path="r",
-                    merge_queue_enabled=True)
+        p = Project(
+            id="p1", name="n", repo_url="u", repo_path="r", merge_queue_enabled=True
+        )
         d = p.to_dict()
         assert d["merge_queue_enabled"] is True
 
     def test_to_dict_false_included(self):
-        p = Project(id="p1", name="n", repo_url="u", repo_path="r",
-                    merge_queue_enabled=False)
+        p = Project(
+            id="p1", name="n", repo_url="u", repo_path="r", merge_queue_enabled=False
+        )
         d = p.to_dict()
         assert d["merge_queue_enabled"] is False
 
     def test_from_dict_parses_true(self):
         d = {
-            "id": "p1", "name": "n", "repo_url": "u", "repo_path": "r",
+            "id": "p1",
+            "name": "n",
+            "repo_url": "u",
+            "repo_path": "r",
             "merge_queue_enabled": True,
         }
         p = Project.from_dict(d)
@@ -124,7 +132,10 @@ class TestProjectMergeQueueEnabled:
 
     def test_from_dict_parses_false(self):
         d = {
-            "id": "p1", "name": "n", "repo_url": "u", "repo_path": "r",
+            "id": "p1",
+            "name": "n",
+            "repo_url": "u",
+            "repo_path": "r",
             "merge_queue_enabled": False,
         }
         p = Project.from_dict(d)
@@ -137,8 +148,9 @@ class TestProjectMergeQueueEnabled:
         assert p.merge_queue_enabled is False
 
     def test_round_trip(self):
-        p = Project(id="p1", name="n", repo_url="u", repo_path="r",
-                    merge_queue_enabled=True)
+        p = Project(
+            id="p1", name="n", repo_url="u", repo_path="r", merge_queue_enabled=True
+        )
         p2 = Project.from_dict(p.to_dict())
         assert p2.merge_queue_enabled is True
 
@@ -159,7 +171,9 @@ class TestGitHubEnableAutoMerge:
     """
 
     class _FakeResponse:
-        def __init__(self, status_code: int, text: str = "", payload: dict | None = None):
+        def __init__(
+            self, status_code: int, text: str = "", payload: dict | None = None
+        ):
             self.status_code = status_code
             self.text = text
             self._payload = payload if payload is not None else {}
@@ -177,18 +191,31 @@ class TestGitHubEnableAutoMerge:
     ):
         """Build a GitHubProvider with both _api (PR lookup) and _graphql (mutation) mocked."""
         from oompah.scm import GitHubProvider
+
         provider = GitHubProvider(access_token="t")
         provider._api = MagicMock(
             return_value=self._FakeResponse(
                 pr_status,
-                payload=pr_payload if pr_payload is not None else {"node_id": "PR_kwDOABCD123"},
+                payload=pr_payload
+                if pr_payload is not None
+                else {"node_id": "PR_kwDOABCD123"},
             )
         )
         provider._graphql = MagicMock(
             return_value=self._FakeResponse(
                 gql_status,
-                payload=gql_payload if gql_payload is not None else {
-                    "data": {"enablePullRequestAutoMerge": {"pullRequest": {"autoMergeRequest": {"enabledAt": "2026-05-06T01:00:00Z"}}}}
+                payload=gql_payload
+                if gql_payload is not None
+                else {
+                    "data": {
+                        "enablePullRequestAutoMerge": {
+                            "pullRequest": {
+                                "autoMergeRequest": {
+                                    "enabledAt": "2026-05-06T01:00:00Z"
+                                }
+                            }
+                        }
+                    }
                 },
             )
         )
@@ -218,6 +245,7 @@ class TestGitHubEnableAutoMerge:
     def test_pr_lookup_http_exception(self):
         import httpx
         from oompah.scm import GitHubProvider
+
         provider = GitHubProvider(access_token="t")
         provider._api = MagicMock(side_effect=httpx.HTTPError("connection refused"))
         provider._graphql = MagicMock()
@@ -235,6 +263,7 @@ class TestGitHubEnableAutoMerge:
 
     def test_graphql_http_exception(self):
         import httpx
+
         provider = self._make_provider()
         provider._graphql = MagicMock(side_effect=httpx.HTTPError("EOF"))
         ok, msg = provider.enable_auto_merge("org/repo", "42")
@@ -246,7 +275,9 @@ class TestGitHubEnableAutoMerge:
         provider = self._make_provider(
             gql_payload={
                 "errors": [
-                    {"message": "Pull request Auto merge is not allowed for this repository"}
+                    {
+                        "message": "Pull request Auto merge is not allowed for this repository"
+                    }
                 ]
             },
         )
@@ -258,11 +289,7 @@ class TestGitHubEnableAutoMerge:
     def test_pr_already_mergeable(self):
         """PR in 'clean' status is already mergeable — auto-merge can't attach."""
         provider = self._make_provider(
-            gql_payload={
-                "errors": [
-                    {"message": "Pull request is in clean status"}
-                ]
-            },
+            gql_payload={"errors": [{"message": "Pull request is in clean status"}]},
         )
         ok, msg = provider.enable_auto_merge("org/repo", "42")
         assert ok is False
@@ -288,9 +315,9 @@ class TestGitHubEnableAutoMerge:
         for c in provider._api.call_args_list:
             method = c[0][0]
             path = c[0][1]
-            assert not (
-                method == "POST" and "/auto-merge" in path
-            ), f"legacy broken REST URL called: {method} {path}"
+            assert not (method == "POST" and "/auto-merge" in path), (
+                f"legacy broken REST URL called: {method} {path}"
+            )
 
     def test_calls_graphql_mutation_with_squash(self):
         provider = self._make_provider()
@@ -324,19 +351,17 @@ class TestGitLabEnableAutoMerge:
 
     def test_fallback_to_direct_merge_on_success(self):
         from oompah.scm import GitLabProvider
+
         provider = GitLabProvider(access_token="t")
-        provider._api = MagicMock(
-            return_value=self._FakeResponse(200)
-        )
+        provider._api = MagicMock(return_value=self._FakeResponse(200))
         ok, msg = provider.enable_auto_merge("group/project", "7")
         assert ok is True
 
     def test_fallback_to_direct_merge_on_failure(self):
         from oompah.scm import GitLabProvider
+
         provider = GitLabProvider(access_token="t")
-        provider._api = MagicMock(
-            return_value=self._FakeResponse(422, "cannot merge")
-        )
+        provider._api = MagicMock(return_value=self._FakeResponse(422, "cannot merge"))
         ok, msg = provider.enable_auto_merge("group/project", "7")
         assert ok is False
         assert "422" in msg
@@ -378,9 +403,7 @@ class TestYoloEnqueueMode:
         mock_slug.return_value = "org/repo"
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
@@ -399,9 +422,7 @@ class TestYoloEnqueueMode:
         mock_slug.return_value = "org/repo"
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
@@ -421,15 +442,16 @@ class TestYoloEnqueueMode:
         project = _make_project(merge_queue_enabled=True)
 
         provider = MagicMock()
-        provider.enable_auto_merge.return_value = (False, "Pull request is not mergeable: merge conflict in foo.py")
+        provider.enable_auto_merge.return_value = (
+            False,
+            "Pull request is not mergeable: merge conflict in foo.py",
+        )
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._yolo_notify_conflict = MagicMock()
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
@@ -453,9 +475,7 @@ class TestYoloEnqueueMode:
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._yolo_notify_conflict = MagicMock()
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
@@ -491,11 +511,13 @@ class TestYoloEnqueueMode:
         orch._yolo_review_actions_sync()
 
         assert provider.enable_auto_merge.call_count == 3
-        provider.enable_auto_merge.assert_has_calls([
-            call("org/repo", "1"),
-            call("org/repo", "2"),
-            call("org/repo", "3"),
-        ])
+        provider.enable_auto_merge.assert_has_calls(
+            [
+                call("org/repo", "1"),
+                call("org/repo", "2"),
+                call("org/repo", "3"),
+            ]
+        )
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
@@ -577,10 +599,12 @@ class TestYoloEnqueueMode:
         # Both PRs attempted in the same tick — fix A (failed enqueue
         # does not break) AND fix B (successful enqueue does not break).
         assert provider.enable_auto_merge.call_count == 2
-        provider.enable_auto_merge.assert_has_calls([
-            call("org/repo", "100"),
-            call("org/repo", "101"),
-        ])
+        provider.enable_auto_merge.assert_has_calls(
+            [
+                call("org/repo", "100"),
+                call("org/repo", "101"),
+            ]
+        )
         # Neither has_conflicts so no conflict notification.
         orch._yolo_notify_conflict.assert_not_called()
 
@@ -662,9 +686,7 @@ class TestYoloEnqueueMode:
         mock_slug.return_value = "org/repo"
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="pending")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="pending")]}
 
         orch._yolo_review_actions_sync()
 
@@ -691,7 +713,9 @@ class TestYoloEnqueueMode:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_queue_mode_skips_already_enqueued_pr(self, mock_slug, mock_detect, tmp_path):
+    def test_queue_mode_skips_already_enqueued_pr(
+        self, mock_slug, mock_detect, tmp_path
+    ):
         """Idempotency: when auto_merge is already enabled, do NOT call enable_auto_merge again.
 
         Once GitHub has accepted the PR into the merge queue (auto_merge.enabled_by != null),
@@ -707,8 +731,7 @@ class TestYoloEnqueueMode:
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._reviews_cache = {
-            project.id: [_make_review("9", ci_status="passed",
-                                       auto_merge_enabled=True)]
+            project.id: [_make_review("9", ci_status="passed", auto_merge_enabled=True)]
         }
 
         orch._yolo_review_actions_sync()
@@ -918,6 +941,7 @@ class TestClassifyYoloMergeError:
 
     def test_config_error_repo_allow_auto_merge(self):
         from oompah.orchestrator import _classify_yolo_merge_error
+
         # Real GitHub error from the bug report.
         msg = (
             "Auto-merge not allowed by repo (set allow_auto_merge=true on "
@@ -927,6 +951,7 @@ class TestClassifyYoloMergeError:
 
     def test_config_error_auto_merge_is_not_enabled(self):
         from oompah.orchestrator import _classify_yolo_merge_error
+
         assert (
             _classify_yolo_merge_error(
                 "Pull request auto-merge is not enabled for this repository"
@@ -936,54 +961,43 @@ class TestClassifyYoloMergeError:
 
     def test_config_error_branch_protection(self):
         from oompah.orchestrator import _classify_yolo_merge_error
+
         assert (
-            _classify_yolo_merge_error(
-                "Branch protection rules block this merge"
-            )
+            _classify_yolo_merge_error("Branch protection rules block this merge")
             == "config"
         )
 
     def test_config_error_404_with_auto_merge_keyword(self):
         from oompah.orchestrator import _classify_yolo_merge_error
+
         assert (
-            _classify_yolo_merge_error(
-                "404 Not Found on auto-merge endpoint"
-            )
+            _classify_yolo_merge_error("404 Not Found on auto-merge endpoint")
             == "config"
         )
 
     def test_conflict_error_merge_conflict(self):
         from oompah.orchestrator import _classify_yolo_merge_error
-        assert (
-            _classify_yolo_merge_error(
-                "Merge conflict in src/foo.py"
-            )
-            == "conflict"
-        )
+
+        assert _classify_yolo_merge_error("Merge conflict in src/foo.py") == "conflict"
 
     def test_conflict_error_not_mergeable(self):
         from oompah.orchestrator import _classify_yolo_merge_error
-        assert (
-            _classify_yolo_merge_error("Pull request is not mergeable")
-            == "conflict"
-        )
+
+        assert _classify_yolo_merge_error("Pull request is not mergeable") == "conflict"
 
     def test_transient_error_405(self):
         from oompah.orchestrator import _classify_yolo_merge_error
-        assert (
-            _classify_yolo_merge_error("405 Method Not Allowed")
-            == "transient"
-        )
+
+        assert _classify_yolo_merge_error("405 Method Not Allowed") == "transient"
 
     def test_transient_error_rate_limit(self):
         from oompah.orchestrator import _classify_yolo_merge_error
-        assert (
-            _classify_yolo_merge_error("API rate limit exceeded")
-            == "transient"
-        )
+
+        assert _classify_yolo_merge_error("API rate limit exceeded") == "transient"
 
     def test_transient_empty_message(self):
         from oompah.orchestrator import _classify_yolo_merge_error
+
         assert _classify_yolo_merge_error("") == "transient"
         assert _classify_yolo_merge_error(None) == "transient"  # type: ignore[arg-type]
 
@@ -991,6 +1005,7 @@ class TestClassifyYoloMergeError:
         """If a message mentions both auto-merge config and 'conflicts',
         classify as config — fixing the toggle is the correct first move."""
         from oompah.orchestrator import _classify_yolo_merge_error
+
         msg = "Auto-merge not allowed by repo. Status: has conflicts."
         assert _classify_yolo_merge_error(msg) == "config"
 
@@ -998,6 +1013,7 @@ class TestClassifyYoloMergeError:
         """Acceptance criterion from the issue: five sample messages
         classify as 3 config / 1 conflict / 1 transient."""
         from oompah.orchestrator import _classify_yolo_merge_error
+
         samples = [
             ("Auto-merge not allowed by repo", "config"),
             ("Auto merge is not allowed for this repository", "config"),
@@ -1054,9 +1070,7 @@ class TestYoloMergeFailureRouting:
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._yolo_notify_conflict = MagicMock()
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
@@ -1080,21 +1094,23 @@ class TestYoloMergeFailureRouting:
 
         provider = MagicMock()
         provider.enable_auto_merge.return_value = (
-            False, "Pull request is not mergeable: merge conflict",
+            False,
+            "Pull request is not mergeable: merge conflict",
         )
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._yolo_notify_conflict = MagicMock()
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
         orch._yolo_notify_conflict.assert_called_once_with(
-            project, provider, "org/repo", "42",
+            project,
+            provider,
+            "org/repo",
+            "42",
         )
         # Conflicts are NOT recorded as repo-config errors.
         assert (project.id, "42") not in orch._yolo_repo_config_errors
@@ -1115,9 +1131,7 @@ class TestYoloMergeFailureRouting:
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._yolo_notify_conflict = MagicMock()
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
@@ -1132,6 +1146,7 @@ class TestYoloMergeFailureRouting:
         """Acceptance criterion: identical config errors collapse to one
         log entry, not one-per-tick-per-PR."""
         import logging
+
         project = _make_project(merge_queue_enabled=True)
 
         provider = MagicMock()
@@ -1155,10 +1170,20 @@ class TestYoloMergeFailureRouting:
         # Force-process both PRs by calling the helper directly twice.
         with caplog.at_level(logging.ERROR, logger="oompah.orchestrator"):
             orch._handle_yolo_merge_failure(
-                project, provider, "org/repo", "42", msg, operation="enqueue",
+                project,
+                provider,
+                "org/repo",
+                "42",
+                msg,
+                operation="enqueue",
             )
             orch._handle_yolo_merge_failure(
-                project, provider, "org/repo", "43", msg, operation="enqueue",
+                project,
+                provider,
+                "org/repo",
+                "43",
+                msg,
+                operation="enqueue",
             )
 
         # Both PRs are recorded.
@@ -1166,9 +1191,9 @@ class TestYoloMergeFailureRouting:
         assert (project.id, "43") in orch._yolo_repo_config_errors
         # But only one ERROR log line — the second was deduped.
         error_records = [
-            r for r in caplog.records
-            if r.levelno >= logging.ERROR
-            and "blocked on" in r.getMessage()
+            r
+            for r in caplog.records
+            if r.levelno >= logging.ERROR and "blocked on" in r.getMessage()
         ]
         assert len(error_records) == 1, (
             f"Expected 1 deduplicated ERROR, got {len(error_records)}: "
@@ -1192,12 +1217,11 @@ class TestYoloMergeFailureRouting:
 
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._yolo_repo_config_errors[(project.id, "42")] = {
-            "msg": "Auto merge is not allowed", "fingerprint": "abc",
+            "msg": "Auto merge is not allowed",
+            "fingerprint": "abc",
             "operation": "enqueue",
         }
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
 
         orch._yolo_review_actions_sync()
 
@@ -1211,10 +1235,14 @@ class TestYoloMergeFailureRouting:
         orch = self._make_orchestrator(tmp_path, projects=[project])
         # Two PRs tracked.
         orch._yolo_repo_config_errors[(project.id, "42")] = {
-            "msg": "x", "fingerprint": "f1", "operation": "enqueue",
+            "msg": "x",
+            "fingerprint": "f1",
+            "operation": "enqueue",
         }
         orch._yolo_repo_config_errors[(project.id, "43")] = {
-            "msg": "x", "fingerprint": "f1", "operation": "enqueue",
+            "msg": "x",
+            "fingerprint": "f1",
+            "operation": "enqueue",
         }
         # Only PR #42 is still open this tick.
         live_cache = {project.id: [_make_review("42", ci_status="passed")]}
@@ -1246,9 +1274,7 @@ class TestReviewsSummaryNeedsRepoConfig:
     def test_needs_repo_config_zero_when_no_errors(self, tmp_path):
         project = _make_project(merge_queue_enabled=True)
         orch = self._make_orchestrator(tmp_path, projects=[project])
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
         summary = orch._reviews_summary()
         assert summary["needs_repo_config"] == 0
 
@@ -1262,10 +1288,14 @@ class TestReviewsSummaryNeedsRepoConfig:
             ]
         }
         orch._yolo_repo_config_errors[(project.id, "42")] = {
-            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+            "msg": "Auto merge not allowed",
+            "fingerprint": "f",
+            "operation": "enqueue",
         }
         orch._yolo_repo_config_errors[(project.id, "43")] = {
-            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+            "msg": "Auto merge not allowed",
+            "fingerprint": "f",
+            "operation": "enqueue",
         }
         summary = orch._reviews_summary()
         assert summary["needs_repo_config"] == 2
@@ -1277,15 +1307,17 @@ class TestReviewsSummaryNeedsRepoConfig:
         project = _make_project(merge_queue_enabled=True)
         orch = self._make_orchestrator(tmp_path, projects=[project])
         # Only PR #42 is in this tick's cache.
-        orch._reviews_cache = {
-            project.id: [_make_review("42", ci_status="passed")]
-        }
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
         # But errors are tracked for both #42 and stale #43.
         orch._yolo_repo_config_errors[(project.id, "42")] = {
-            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+            "msg": "Auto merge not allowed",
+            "fingerprint": "f",
+            "operation": "enqueue",
         }
         orch._yolo_repo_config_errors[(project.id, "43")] = {
-            "msg": "Auto merge not allowed", "fingerprint": "f", "operation": "enqueue",
+            "msg": "Auto merge not allowed",
+            "fingerprint": "f",
+            "operation": "enqueue",
         }
         summary = orch._reviews_summary()
         assert summary["needs_repo_config"] == 1
@@ -1319,8 +1351,9 @@ class TestReviewsSummaryQueued:
         project = _make_project(merge_queue_enabled=True)
         orch = self._make_orchestrator(tmp_path, projects=[project])
         orch._reviews_cache = {
-            project.id: [_make_review("1", ci_status="passed",
-                                       auto_merge_enabled=False)]
+            project.id: [
+                _make_review("1", ci_status="passed", auto_merge_enabled=False)
+            ]
         }
         summary = orch._reviews_summary()
         assert summary["total"] == 1
@@ -1348,8 +1381,9 @@ class TestReviewsSummaryQueued:
         non_yolo = _make_project(project_id="p-non", yolo=False)
         orch = self._make_orchestrator(tmp_path, projects=[non_yolo])
         orch._reviews_cache = {
-            non_yolo.id: [_make_review("1", ci_status="passed",
-                                        auto_merge_enabled=True)]
+            non_yolo.id: [
+                _make_review("1", ci_status="passed", auto_merge_enabled=True)
+            ]
         }
         summary = orch._reviews_summary()
         assert summary["total"] == 1
@@ -1480,6 +1514,9 @@ class TestWebhookAdvancedTrackedBranchMergeGroup:
     def _make_project_obj(self, branch: str = "main") -> MagicMock:
         p = MagicMock()
         p.branch = branch
+        p.default_branch = branch
+        p.branches = [branch]
+        p.matches_branch = lambda b: fnmatch.fnmatch(b, branch)
         return p
 
     def _make_merge_group_event(
@@ -1497,18 +1534,21 @@ class TestWebhookAdvancedTrackedBranchMergeGroup:
 
     def test_merge_group_merged_and_target_matches(self):
         from oompah.server import _webhook_advanced_tracked_branch
+
         project = self._make_project_obj("main")
         event = self._make_merge_group_event(merged=True, target_branch="main")
         assert _webhook_advanced_tracked_branch(event, project) is True
 
     def test_merge_group_not_merged_does_not_advance(self):
         from oompah.server import _webhook_advanced_tracked_branch
+
         project = self._make_project_obj("main")
         event = self._make_merge_group_event(merged=False, target_branch="main")
         assert _webhook_advanced_tracked_branch(event, project) is False
 
     def test_merge_group_merged_but_different_branch(self):
         from oompah.server import _webhook_advanced_tracked_branch
+
         project = self._make_project_obj("develop")
         event = self._make_merge_group_event(merged=True, target_branch="main")
         assert _webhook_advanced_tracked_branch(event, project) is False
@@ -1516,6 +1556,7 @@ class TestWebhookAdvancedTrackedBranchMergeGroup:
     def test_push_event_unaffected(self):
         """Sanity: push event still works as before."""
         from oompah.server import _webhook_advanced_tracked_branch
+
         project = self._make_project_obj("main")
         event = WebhookEvent(
             provider="github",
@@ -1528,6 +1569,7 @@ class TestWebhookAdvancedTrackedBranchMergeGroup:
     def test_pull_request_merged_unaffected(self):
         """Sanity: PR closed+merged event still works as before."""
         from oompah.server import _webhook_advanced_tracked_branch
+
         project = self._make_project_obj("main")
         event = WebhookEvent(
             provider="github",
@@ -1567,10 +1609,9 @@ class TestLabelBeadMergedFromMergeGroup:
 
     def test_labels_bead_merged_on_success(self):
         from oompah.server import _label_bead_merged_from_merge_group
+
         # head_ref: gh-readonly-queue/main/pr-42-oompah-zlz_2-xyz
-        orch, tracker, issue = self._make_orch_with_tracker(
-            "oompah-zlz_2-xyz", []
-        )
+        orch, tracker, issue = self._make_orch_with_tracker("oompah-zlz_2-xyz", [])
         project = self._make_project()
         event = WebhookEvent(
             provider="github",
@@ -1586,6 +1627,7 @@ class TestLabelBeadMergedFromMergeGroup:
 
     def test_skips_already_merged_bead(self):
         from oompah.server import _label_bead_merged_from_merge_group
+
         orch, tracker, issue = self._make_orch_with_tracker(
             "oompah-zlz_2-xyz", ["merged"]
         )
@@ -1604,6 +1646,7 @@ class TestLabelBeadMergedFromMergeGroup:
 
     def test_no_project_is_noop(self):
         from oompah.server import _label_bead_merged_from_merge_group
+
         orch = MagicMock()
         event = WebhookEvent(
             provider="github",
@@ -1619,6 +1662,7 @@ class TestLabelBeadMergedFromMergeGroup:
 
     def test_empty_source_branch_is_noop(self):
         from oompah.server import _label_bead_merged_from_merge_group
+
         orch = MagicMock()
         project = self._make_project()
         event = WebhookEvent(
@@ -1634,6 +1678,7 @@ class TestLabelBeadMergedFromMergeGroup:
 
     def test_tracker_error_does_not_raise(self):
         from oompah.server import _label_bead_merged_from_merge_group
+
         orch = MagicMock()
         orch._tracker_for_project.side_effect = Exception("db offline")
         project = self._make_project()
@@ -1650,6 +1695,7 @@ class TestLabelBeadMergedFromMergeGroup:
 
     def test_bead_not_found_is_noop(self):
         from oompah.server import _label_bead_merged_from_merge_group
+
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_detail.return_value = None
         orch = MagicMock()
@@ -1677,6 +1723,7 @@ class TestProjectStoreUpdatableFields:
 
     def test_merge_queue_enabled_in_updatable_fields(self):
         from oompah.projects import ProjectStore
+
         assert "merge_queue_enabled" in ProjectStore.UPDATABLE_FIELDS
 
     def test_update_accepts_merge_queue_enabled(self, tmp_path):

@@ -20,7 +20,12 @@ from oompah.agent import AgentError, AgentEvent, AgentSession
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.completion_verifier import VerifierResult, verify_completion
-from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
+from oompah.config import (
+    ServiceConfig,
+    WorkflowError,
+    load_workflow,
+    validate_dispatch_config,
+)
 from oompah.dolt_sync import (
     DoltSyncResult,
     DoltSyncState,
@@ -40,7 +45,10 @@ from oompah.models import (
     RunningEntry,
 )
 from oompah.focus import (
-    analyze_completed_issue, load_foci, save_suggestion, select_focus,
+    analyze_completed_issue,
+    load_foci,
+    save_suggestion,
+    select_focus,
     select_focus_async,
 )
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
@@ -99,6 +107,7 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
     if isinstance(exc, TrackerError):
         return "bd_failed"
     return "project_error"
+
 
 DEFAULT_SERVICE_STATE_PATH = ".oompah/service_state.json"
 
@@ -225,6 +234,7 @@ def _yolo_error_fingerprint(project_id: str, msg: str) -> str:
     cases the message.
     """
     import hashlib
+
     normalized = " ".join((msg or "").lower().split())
     return hashlib.sha1(f"{project_id}|{normalized}".encode("utf-8")).hexdigest()[:12]
 
@@ -232,12 +242,16 @@ def _yolo_error_fingerprint(project_id: str, msg: str) -> str:
 class Orchestrator:
     """Owns the poll tick, dispatch decisions, and in-memory runtime state."""
 
-    def __init__(self, config: ServiceConfig, workflow_path: str,
-                 provider_store: ProviderStore | None = None,
-                 project_store: ProjectStore | None = None,
-                 agent_profile_store: AgentProfileStore | None = None,
-                 role_store: RoleStore | None = None,
-                 state_path: str | None = None):
+    def __init__(
+        self,
+        config: ServiceConfig,
+        workflow_path: str,
+        provider_store: ProviderStore | None = None,
+        project_store: ProjectStore | None = None,
+        agent_profile_store: AgentProfileStore | None = None,
+        role_store: RoleStore | None = None,
+        state_path: str | None = None,
+    ):
         self.config = config
         self.workflow_path = workflow_path
         self.provider_store = provider_store or ProviderStore()
@@ -286,7 +300,9 @@ class Orchestrator:
         self._paused = self._load_paused_state()
         self._restore_budget_state()
         self._restart_requested = False
-        self._alerts: list[dict[str, str]] = []  # {"level": "warning", "message": "..."}
+        self._alerts: list[
+            dict[str, str]
+        ] = []  # {"level": "warning", "message": "..."}
         self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
         # EventBus: typed pub/sub for internal event-driven communication.
         # The legacy _observers/_state_only_observers/_activity_observers lists
@@ -308,9 +324,7 @@ class Orchestrator:
         self._last_full_sync: float = 0.0
         # Dedicated thread pool for tick operations so they don't compete
         # with agent tool-execution threads on the default pool.
-        self._tick_pool = ThreadPoolExecutor(
-            max_workers=8, thread_name_prefix="tick"
-        )
+        self._tick_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="tick")
         # Watchdog state
         self._last_watchdog_run: float = 0.0
         self._watchdog_interval_s: float = 300.0  # 5 minutes
@@ -422,20 +436,20 @@ class Orchestrator:
         silences the dashboard banner without restart.
         """
         # Always drop any previously-armed drift alert before re-checking.
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != "profile_drift"
-        ]
+        self._alerts = [a for a in self._alerts if a.get("source") != "profile_drift"]
         if getattr(self.config, "agent_profiles_drift", False):
-            self._alerts.append({
-                "level": "warning",
-                "source": "profile_drift",
-                "message": (
-                    "WORKFLOW.md agent.profiles block detected and "
-                    "differs from persisted profile store — using the "
-                    "persisted store. Delete the agent.profiles "
-                    "section from WORKFLOW.md to clear this warning."
-                ),
-            })
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": "profile_drift",
+                    "message": (
+                        "WORKFLOW.md agent.profiles block detected and "
+                        "differs from persisted profile store — using the "
+                        "persisted store. Delete the agent.profiles "
+                        "section from WORKFLOW.md to clear this warning."
+                    ),
+                }
+            )
 
     def _load_state(self) -> dict:
         """Load persisted service state from disk."""
@@ -445,7 +459,9 @@ class Orchestrator:
             with open(self._state_path, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("Failed to load service state from %s: %s", self._state_path, exc)
+            logger.warning(
+                "Failed to load service state from %s: %s", self._state_path, exc
+            )
             return {}
 
     def _load_paused_state(self) -> bool:
@@ -487,7 +503,10 @@ class Orchestrator:
             logger.info(
                 "Restored budget spend: $%.4f within %s window "
                 "(%.0fs elapsed, %.0fs until next boundary)",
-                persisted_cost, persisted_kind, elapsed, remaining,
+                persisted_cost,
+                persisted_kind,
+                elapsed,
+                remaining,
             )
 
     def _save_state(self, **updates: object) -> None:
@@ -499,7 +518,9 @@ class Orchestrator:
             with open(self._state_path, "w") as f:
                 json.dump(data, f, indent=2)
         except OSError as exc:
-            logger.warning("Failed to save service state to %s: %s", self._state_path, exc)
+            logger.warning(
+                "Failed to save service state to %s: %s", self._state_path, exc
+            )
 
     def _save_paused_state(self) -> None:
         """Persist paused state to disk."""
@@ -528,9 +549,7 @@ class Orchestrator:
             if store_profiles:
                 self.config.agent_profiles = store_profiles
         except Exception as exc:  # pragma: no cover - defensive
-            logger.warning(
-                "reload_config: agent profile store reload failed: %s", exc
-            )
+            logger.warning("reload_config: agent profile store reload failed: %s", exc)
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents
@@ -553,7 +572,7 @@ class Orchestrator:
         # Reset last full sync so the new full_sync_interval_ms takes effect
         # immediately rather than waiting for the old interval to expire.
         self._last_full_sync = 0.0
-       # File-watcher reload supersedes any pending API-path profile swap —
+        # File-watcher reload supersedes any pending API-path profile swap —
         # the new ServiceConfig already carries the authoritative profile list.
         with self._pending_profiles_lock:
             self._pending_agent_profiles = None
@@ -562,9 +581,12 @@ class Orchestrator:
         # the drift) updates the dashboard banner immediately
         # (oompah-zlz_2-hye).
         self._arm_profile_drift_alert()
-        logger.info("Config reloaded poll_interval_ms=%d full_sync_interval_ms=%d max_agents=%d",
-                     config.poll_interval_ms, config.full_sync_interval_ms,
-                     config.max_concurrent_agents)
+        logger.info(
+            "Config reloaded poll_interval_ms=%d full_sync_interval_ms=%d max_agents=%d",
+            config.poll_interval_ms,
+            config.full_sync_interval_ms,
+            config.max_concurrent_agents,
+        )
 
     def replace_agent_profiles(
         self,
@@ -594,17 +616,19 @@ class Orchestrator:
         with self._pending_profiles_lock:
             self._pending_agent_profiles = snapshot
         logger.info(
-            "Agent profiles reload queued (source=%s, count=%d) — "
-            "applies at next tick",
-            source, len(snapshot),
+            "Agent profiles reload queued (source=%s, count=%d) — applies at next tick",
+            source,
+            len(snapshot),
         )
         # Wake the dispatch loop so the swap takes effect immediately rather
         # than waiting for the next safety-net full-sync. The loop will call
         # _apply_pending_agent_profiles() at the start of _tick().
-        self._post_event(DispatchEvent(
-            event_type=DispatchEventType.REFRESH_REQUESTED,
-            payload={"reason": f"agent_profiles_reload:{source}"},
-        ))
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.REFRESH_REQUESTED,
+                payload={"reason": f"agent_profiles_reload:{source}"},
+            )
+        )
 
     def _apply_pending_agent_profiles(self) -> bool:
         """Apply a queued profile swap to ``self.config.agent_profiles``.
@@ -629,7 +653,8 @@ class Orchestrator:
         self.config.agent_profiles = pending
         logger.info(
             "Agent profiles reloaded: before=%s after=%s",
-            before_names, after_names,
+            before_names,
+            after_names,
         )
         # Surface the change to dashboard observers so the budget/profiles
         # snapshot refreshes without waiting for the next tick to publish.
@@ -676,10 +701,12 @@ class Orchestrator:
         # Post a REFRESH_REQUESTED event so the dispatch loop wakes immediately.
         # Also set the legacy event for any code that still awaits it.
         self._refresh_requested.set()
-        self._post_event(DispatchEvent(
-            event_type=DispatchEventType.REFRESH_REQUESTED,
-            payload={"reason": "unpaused"},
-        ))
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.REFRESH_REQUESTED,
+                payload={"reason": "unpaused"},
+            )
+        )
         self.event_bus.emit(EventType.ORCHESTRATOR_RESUMED, {})
         self._notify_observers()
 
@@ -704,22 +731,29 @@ class Orchestrator:
         deadline = time.monotonic() + drain_timeout_s
         while self.state.running and time.monotonic() < deadline:
             remaining = len(self.state.running)
-            logger.info("Draining: %d agent(s) still running, %.0fs remaining",
-                        remaining, deadline - time.monotonic())
+            logger.info(
+                "Draining: %d agent(s) still running, %.0fs remaining",
+                remaining,
+                deadline - time.monotonic(),
+            )
             await asyncio.sleep(2)
 
         # Save issue IDs of anything still running for re-dispatch
         restart_issues = []
         for issue_id, entry in self.state.running.items():
-            restart_issues.append({
-                "issue_id": issue_id,
-                "identifier": entry.issue.identifier if entry.issue else issue_id,
-                "project_id": entry.issue.project_id if entry.issue else None,
-            })
+            restart_issues.append(
+                {
+                    "issue_id": issue_id,
+                    "identifier": entry.issue.identifier if entry.issue else issue_id,
+                    "project_id": entry.issue.project_id if entry.issue else None,
+                }
+            )
 
         if restart_issues:
-            logger.info("Saving %d undrained issue(s) for re-dispatch after restart",
-                        len(restart_issues))
+            logger.info(
+                "Saving %d undrained issue(s) for re-dispatch after restart",
+                len(restart_issues),
+            )
 
         # Preserve user's explicit pause across the restart; otherwise
         # come up unpaused so the saved restart_issues can re-dispatch.
@@ -775,9 +809,7 @@ class Orchestrator:
         """
         self._error_watchers[project_id] = watcher
 
-    def _error_watchers_for_project(
-        self, project_id: str | None
-    ) -> list[ErrorWatcher]:
+    def _error_watchers_for_project(self, project_id: str | None) -> list[ErrorWatcher]:
         """Return the watchers that may have observed errors from a
         given project's worker run.
 
@@ -793,9 +825,7 @@ class Orchestrator:
             watchers.append(self._error_watchers[None])
         return watchers
 
-    def _auto_close_transient_errors_for_entry(
-        self, entry: RunningEntry
-    ) -> None:
+    def _auto_close_transient_errors_for_entry(self, entry: RunningEntry) -> None:
         """Best-effort auto-close of error beads tied to ``entry.issue``.
 
         Called from ``_on_worker_exit`` when ``reason == "normal"`` and
@@ -815,12 +845,15 @@ class Orchestrator:
                 if closed:
                     logger.info(
                         "Auto-closed %d transient error bead(s) for %s: %s",
-                        len(closed), entry.identifier, ", ".join(closed),
+                        len(closed),
+                        entry.identifier,
+                        ", ".join(closed),
                     )
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug(
                     "auto_close_for_issue failed for %s: %s",
-                    entry.identifier, exc,
+                    entry.identifier,
+                    exc,
                 )
 
     @property
@@ -834,10 +867,12 @@ class Orchestrator:
     def request_refresh(self) -> None:
         """Request an immediate poll+reconciliation cycle."""
         self._refresh_requested.set()
-        self._post_event(DispatchEvent(
-            event_type=DispatchEventType.REFRESH_REQUESTED,
-            payload={"reason": "api_request"},
-        ))
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.REFRESH_REQUESTED,
+                payload={"reason": "api_request"},
+            )
+        )
 
     async def startup_cleanup(self) -> None:
         """Remove workspaces/worktrees for issues in terminal states."""
@@ -851,14 +886,25 @@ class Orchestrator:
                     )
                     for issue in terminal_issues:
                         try:
-                            self.project_store.remove_worktree(project.id, issue.identifier)
-                            logger.info("Cleaned terminal worktree project=%s issue=%s",
-                                        project.name, issue.identifier)
+                            self.project_store.remove_worktree(
+                                project.id, issue.identifier
+                            )
+                            logger.info(
+                                "Cleaned terminal worktree project=%s issue=%s",
+                                project.name,
+                                issue.identifier,
+                            )
                         except Exception as exc:
-                            logger.warning("Failed to clean worktree project=%s issue=%s error=%s",
-                                           project.name, issue.identifier, exc)
+                            logger.warning(
+                                "Failed to clean worktree project=%s issue=%s error=%s",
+                                project.name,
+                                issue.identifier,
+                                exc,
+                            )
                 except (TrackerError, ProjectError) as exc:
-                    logger.warning("Startup cleanup failed for project %s: %s", project.name, exc)
+                    logger.warning(
+                        "Startup cleanup failed for project %s: %s", project.name, exc
+                    )
         else:
             try:
                 terminal_issues = self.tracker.fetch_issues_by_states(
@@ -867,11 +913,16 @@ class Orchestrator:
                 for issue in terminal_issues:
                     try:
                         self.workspace_mgr.remove_workspace(issue.identifier)
-                        logger.info("Cleaned terminal workspace issue_identifier=%s",
-                                    issue.identifier)
+                        logger.info(
+                            "Cleaned terminal workspace issue_identifier=%s",
+                            issue.identifier,
+                        )
                     except Exception as exc:
-                        logger.warning("Failed to clean workspace issue_identifier=%s error=%s",
-                                       issue.identifier, exc)
+                        logger.warning(
+                            "Failed to clean workspace issue_identifier=%s error=%s",
+                            issue.identifier,
+                            exc,
+                        )
             except TrackerError as exc:
                 logger.warning("Startup terminal cleanup failed: %s", exc)
 
@@ -899,7 +950,9 @@ class Orchestrator:
                     tracker = self.tracker
                 # Re-open the issue so it gets picked up on the next tick
                 tracker.update_issue(identifier, status="open")
-                logger.info("Marked %s as open for re-dispatch after restart", identifier)
+                logger.info(
+                    "Marked %s as open for re-dispatch after restart", identifier
+                )
             except (TrackerError, ProjectError) as exc:
                 logger.warning("Failed to recover issue %s: %s", identifier, exc)
 
@@ -927,7 +980,9 @@ class Orchestrator:
             self._dispatch_queue.put_nowait(event)
         except asyncio.QueueFull:
             # The queue is unbounded, so this should never happen in practice.
-            logger.warning("Dispatch queue unexpectedly full; dropping event %s", event.event_type)
+            logger.warning(
+                "Dispatch queue unexpectedly full; dropping event %s", event.event_type
+            )
 
     async def _full_sync_loop(self) -> None:
         """Background task: post FULL_SYNC events at the configured safety-net interval.
@@ -974,7 +1029,8 @@ class Orchestrator:
         # know the budget gate doesn't apply to them. Mirrors the
         # existing rate-limit / budget startup logging.
         acp_profiles = [
-            p.name for p in self.config.agent_profiles
+            p.name
+            for p in self.config.agent_profiles
             if (p.mode or "auto").lower() == "acp"
         ]
         if acp_profiles:
@@ -1013,8 +1069,11 @@ class Orchestrator:
                 if self._stopping:
                     break
 
-                logger.debug("Dispatch loop received event: %s issue_id=%s",
-                             event.event_type, event.issue_id)
+                logger.debug(
+                    "Dispatch loop received event: %s issue_id=%s",
+                    event.event_type,
+                    event.issue_id,
+                )
 
                 # All current event types result in a full _tick().
                 # Future optimisations can add targeted handlers per event type
@@ -1110,7 +1169,10 @@ class Orchestrator:
                 (t1 - t0) * 1000,
                 (t2 - t1) * 1000,
                 (t3 - t3_start) * 1000,
-                yolo_ms, archive_ms, merged_ms, dolt_ms,
+                yolo_ms,
+                archive_ms,
+                merged_ms,
+                dolt_ms,
             )
 
         self._notify_observers()
@@ -1140,7 +1202,9 @@ class Orchestrator:
         reviews_task = loop.run_in_executor(self._tick_pool, self._fetch_all_reviews)
 
         if self._merged_branches_dirty:
-            merged_task = loop.run_in_executor(self._tick_pool, self._fetch_all_merged_branches)
+            merged_task = loop.run_in_executor(
+                self._tick_pool, self._fetch_all_merged_branches
+            )
             reviews_by_project, merged_branches = await asyncio.gather(
                 reviews_task, merged_task
             )
@@ -1157,7 +1221,9 @@ class Orchestrator:
             for r in reviews
             if r.source_branch
         }
-        logger.debug("Unmerged review branches: %s", sorted(self._unmerged_review_branches))
+        logger.debug(
+            "Unmerged review branches: %s", sorted(self._unmerged_review_branches)
+        )
 
     async def _handle_dispatch_needed(self) -> None:
         """Fetch candidates, resolve blockers, and dispatch eligible issues."""
@@ -1260,9 +1326,7 @@ class Orchestrator:
         """
         if self._last_dolt_sync_monotonic == 0.0:
             return True
-        elapsed_ms = (
-            time.monotonic() - self._last_dolt_sync_monotonic
-        ) * 1000
+        elapsed_ms = (time.monotonic() - self._last_dolt_sync_monotonic) * 1000
         return elapsed_ms >= self.config.full_sync_interval_ms
 
     async def _handle_dolt_sync(self) -> float:
@@ -1317,9 +1381,9 @@ class Orchestrator:
         # we drop ghosts up front so any reader observing _alerts mid-tick
         # never sees stale entries for deleted projects.
         self._alerts = [
-            a for a in self._alerts
-            if a.get("source") != "dolt_sync"
-            or a.get("project_id") in live_ids
+            a
+            for a in self._alerts
+            if a.get("source") != "dolt_sync" or a.get("project_id") in live_ids
         ]
 
         interval_s = max(self.config.full_sync_interval_ms / 1000.0, 1.0)
@@ -1328,22 +1392,23 @@ class Orchestrator:
             try:
                 state = _dolt_get_or_create_state(self._dolt_sync_state, project.id)
                 result = sync_project_dolt(
-                    project, state, full_sync_interval_s=interval_s,
+                    project,
+                    state,
+                    full_sync_interval_s=interval_s,
                 )
                 results[project.id] = result
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning(
                     "Dolt sync raised unexpectedly for %s: %s",
-                    project.name, exc,
+                    project.name,
+                    exc,
                 )
         self._dolt_sync_last_results = results
 
         # Refresh alerts. Drop any prior dolt_sync entries, then re-add
         # for currently-problematic projects. Same idempotent pattern as
         # _arm_profile_drift_alert / auto_update alert handling.
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != "dolt_sync"
-        ]
+        self._alerts = [a for a in self._alerts if a.get("source") != "dolt_sync"]
         projects_by_id = {p.id: p for p in projects}
         for entry in _dolt_summarize_for_alerts(self._dolt_sync_state, projects_by_id):
             self._alerts.append(entry)
@@ -1364,19 +1429,30 @@ class Orchestrator:
         try:
             subprocess.run(
                 ["git", "fetch", "origin"],
-                cwd=repo_dir, capture_output=True, text=True, timeout=30,
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             result = subprocess.run(
                 ["git", "rev-list", "HEAD..origin/main", "--count"],
-                cwd=repo_dir, capture_output=True, text=True, timeout=10,
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             count = int(result.stdout.strip()) if result.returncode == 0 else 0
             if count == 0:
                 # Clear any previous auto-update alert
-                self._alerts = [a for a in self._alerts if a.get("source") != "auto_update"]
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != "auto_update"
+                ]
                 return
 
-            logger.info("Auto-update: %d new commit(s) on origin/main, pulling and restarting", count)
+            logger.info(
+                "Auto-update: %d new commit(s) on origin/main, pulling and restarting",
+                count,
+            )
             # --autostash handles the routine case where ``bd`` has
             # written to .beads/issues.jsonl since the last commit.
             # Without it, ``--ff-only`` refuses with "Your local changes
@@ -1385,14 +1461,23 @@ class Orchestrator:
             # diverged (i.e. real merge required).
             pull = subprocess.run(
                 ["git", "pull", "--ff-only", "--autostash", "origin", "main"],
-                cwd=repo_dir, capture_output=True, text=True, timeout=60,
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
             if pull.returncode != 0:
                 msg = f"Auto-update failed: git pull returned error — {pull.stderr.strip()[:200]}"
-                logger.warning("Auto-update: git pull failed: %s", pull.stderr.strip()[:200])
+                logger.warning(
+                    "Auto-update: git pull failed: %s", pull.stderr.strip()[:200]
+                )
                 # Replace any existing auto-update alert
-                self._alerts = [a for a in self._alerts if a.get("source") != "auto_update"]
-                self._alerts.append({"level": "warning", "source": "auto_update", "message": msg})
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != "auto_update"
+                ]
+                self._alerts.append(
+                    {"level": "warning", "source": "auto_update", "message": msg}
+                )
                 return
 
             # Trigger graceful restart
@@ -1402,7 +1487,9 @@ class Orchestrator:
             msg = f"Auto-update failed: {exc}"
             logger.debug("Auto-update check failed: %s", exc)
             self._alerts = [a for a in self._alerts if a.get("source") != "auto_update"]
-            self._alerts.append({"level": "warning", "source": "auto_update", "message": msg})
+            self._alerts.append(
+                {"level": "warning", "source": "auto_update", "message": msg}
+            )
 
     def _fetch_all_candidates(self) -> list[Issue]:
         """Fetch candidate issues from all configured projects (parallel)."""
@@ -1425,12 +1512,14 @@ class Orchestrator:
                 # a subprocess timeout so the error_watcher does NOT
                 # auto-file duplicate beads every poll tick.
                 logger.warning(
-                    "Tracker fetch failed (Dolt unavailable): %s", exc,
+                    "Tracker fetch failed (Dolt unavailable): %s",
+                    exc,
                 )
                 return []
             except TrackerError as exc:
                 logger.error(
-                    "Tracker fetch failed: %s", exc,
+                    "Tracker fetch failed: %s",
+                    exc,
                     extra={"error_class": _error_class_for_tracker_exc(exc)},
                 )
                 return []
@@ -1450,7 +1539,9 @@ class Orchestrator:
                 # Transient — log at WARNING so the error_watcher does
                 # not auto-file a duplicate bug bead every tick.
                 logger.warning(
-                    "Fetch timed out for project %s: %s", project.name, exc,
+                    "Fetch timed out for project %s: %s",
+                    project.name,
+                    exc,
                 )
                 return []
             except TrackerDoltUnavailableError as exc:
@@ -1459,12 +1550,15 @@ class Orchestrator:
                 # auto-file duplicate beads every poll tick.
                 logger.warning(
                     "Fetch failed for project %s (Dolt unavailable): %s",
-                    project.name, exc,
+                    project.name,
+                    exc,
                 )
                 return []
             except (TrackerError, ProjectError) as exc:
                 logger.error(
-                    "Fetch failed for project %s: %s", project.name, exc,
+                    "Fetch failed for project %s: %s",
+                    project.name,
+                    exc,
                     extra={"error_class": _error_class_for_tracker_exc(exc)},
                 )
                 return []
@@ -1591,7 +1685,9 @@ class Orchestrator:
         ``_project_max_in_flight``. Retained so callers (tests, subclasses)
         that reference the old name continue to work unchanged.
         """
-        return self._count_open_reviews(project_id) >= self._project_max_in_flight(project_id)
+        return self._count_open_reviews(project_id) >= self._project_max_in_flight(
+            project_id
+        )
 
     def _should_dispatch_epic(self, issue: Issue) -> bool:
         """Check whether an epic should be dispatched for planning.
@@ -1616,9 +1712,13 @@ class Orchestrator:
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
         state_norm = issue.state.strip().lower()
-        if state_norm not in [s.strip().lower() for s in self.config.tracker_active_states]:
+        if state_norm not in [
+            s.strip().lower() for s in self.config.tracker_active_states
+        ]:
             return False
-        if state_norm in [s.strip().lower() for s in self.config.tracker_terminal_states]:
+        if state_norm in [
+            s.strip().lower() for s in self.config.tracker_terminal_states
+        ]:
             return False
         if issue.id in self.state.running:
             return False
@@ -1647,7 +1747,9 @@ class Orchestrator:
             tracker = self._tracker_for_issue(epic)
             return tracker.fetch_children(epic.id)
         except Exception as exc:
-            logger.debug("Failed to fetch children for epic %s: %s", epic.identifier, exc)
+            logger.debug(
+                "Failed to fetch children for epic %s: %s", epic.identifier, exc
+            )
             return []
 
     def _project_epic_strategy(self, project_id: str | None) -> str:
@@ -1685,7 +1787,9 @@ class Orchestrator:
         except Exception as exc:
             logger.debug(
                 "Failed to fetch parent epic %s for child %s: %s",
-                parent_id, issue.identifier, exc,
+                parent_id,
+                issue.identifier,
+                exc,
             )
             return None
         if not parent:
@@ -1700,7 +1804,8 @@ class Orchestrator:
         return parent
 
     def _create_workspace_for_issue(
-        self, issue: Issue,
+        self,
+        issue: Issue,
     ) -> tuple[str, Issue | None]:
         """Resolve and create the workspace path used to dispatch ``issue``.
 
@@ -1733,12 +1838,15 @@ class Orchestrator:
             parent_epic = self._resolve_parent_epic(issue)
             if parent_epic is not None:
                 wp = self.project_store.create_epic_worktree(
-                    issue.project_id, parent_epic.identifier,
+                    issue.project_id,
+                    parent_epic.identifier,
                 )
                 return wp, parent_epic
 
         wp = self.project_store.create_worktree(
-            issue.project_id, issue.identifier,
+            issue.project_id,
+            issue.identifier,
+            base_branch=issue.target_branch,
         )
         return wp, None
 
@@ -1750,7 +1858,9 @@ class Orchestrator:
         four-condition gate (terminal children + branch merges +
         not-already-closed). See oompah-zlz_2-lvcd.
         """
-        terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
+        terminal_norms = {
+            s.strip().lower() for s in self.config.tracker_terminal_states
+        }
 
         for issue in candidates:
             if issue.issue_type != "epic":
@@ -1767,7 +1877,7 @@ class Orchestrator:
 
         1. Every child in a terminal state per ``tracker_terminal_states``.
         2. For every child whose branch produced a PR/MR, that PR was
-           merged into the project's default branch (``project.branch``).
+           merged into the project's default branch (``project.default_branch``).
         3. Children with no PR/MR (research/triage tasks that closed
            without code) are treated as eligible — no merge check.
         4. Epic itself is not already in a terminal state (don't
@@ -1797,8 +1907,7 @@ class Orchestrator:
 
         # Condition 1: every child in a terminal state.
         non_terminal_children = [
-            c for c in children
-            if c.state.strip().lower() not in terminal_norms
+            c for c in children if c.state.strip().lower() not in terminal_norms
         ]
         if non_terminal_children:
             # Clear any previous stuck alert — work is still in
@@ -1809,17 +1918,13 @@ class Orchestrator:
         # Conditions 2 + 3: per-child branch-merge check.
         merged_summaries: list[str] = []
         unmerged_children: list[tuple[Issue, ReviewRequest | None]] = []
-        project = (
-            self.project_store.get(epic.project_id)
-            if epic.project_id
-            else None
-        )
-        target_branch = (project.branch or "main") if project else "main"
+        project = self.project_store.get(epic.project_id) if epic.project_id else None
+        target_branch = (project.default_branch or "main") if project else "main"
 
         # Children of stacked/shared epics target the epic's own
-        # branch (``epic-<identifier>``), not ``project.branch`` —
+        # branch (``epic-<identifier>``), not ``project.default_branch`` —
         # the epic→main merge happens via ``_open_epic_main_prs``.
-        # For flat mode the expected child target is project.branch.
+        # For flat mode the expected child target is project.default_branch.
         strategy = self._project_epic_strategy(epic.project_id)
         if strategy in ("stacked", "shared"):
             try:
@@ -1836,13 +1941,15 @@ class Orchestrator:
         if project and project.repo_url:
             try:
                 provider = detect_provider(
-                    project.repo_url, access_token=project.access_token,
+                    project.repo_url,
+                    access_token=project.access_token,
                 )
                 slug = extract_repo_slug(project.repo_url)
             except Exception as exc:
                 logger.debug(
                     "Failed to resolve SCM provider for epic %s: %s",
-                    epic.identifier, exc,
+                    epic.identifier,
+                    exc,
                 )
 
         for child in children:
@@ -1854,25 +1961,22 @@ class Orchestrator:
                 except Exception as exc:
                     logger.debug(
                         "find_pr_for_branch failed for %s (%s): %s",
-                        child.identifier, branch, exc,
+                        child.identifier,
+                        branch,
+                        exc,
                     )
                     review = None
 
             if review is None:
                 # Condition 3: no PR ever opened for this branch — treat
                 # as a research/triage closure that needs no merge check.
-                merged_summaries.append(
-                    f"{child.identifier} (closed without PR)"
-                )
+                merged_summaries.append(f"{child.identifier} (closed without PR)")
                 continue
 
             if review.state == "merged":
                 # Verify the merge landed on the expected target.
                 merged_target = (review.target_branch or "").strip()
-                if (
-                    not merged_target
-                    or merged_target == expected_child_target
-                ):
+                if not merged_target or merged_target == expected_child_target:
                     merged_summaries.append(
                         f"{child.identifier} (merged via PR #{review.id})"
                     )
@@ -1886,13 +1990,15 @@ class Orchestrator:
 
         if unmerged_children:
             self._arm_stuck_epic_alert(
-                epic, unmerged_children, expected_child_target,
+                epic,
+                unmerged_children,
+                expected_child_target,
             )
             return False
 
         # For stacked/shared mode epics, an additional gate: the
         # epic's OWN branch (``epic-<id>``) must be merged to
-        # ``project.branch`` before we auto-close. Otherwise we'd
+        # ``project.default_branch`` before we auto-close. Otherwise we'd
         # close the bead while its merge-train work is still pending.
         # No "stuck_epic" alert is raised here — the epic→main PR is
         # owned by ``_open_epic_main_prs`` and merging is the
@@ -1912,7 +2018,8 @@ class Orchestrator:
             except Exception as exc:
                 logger.debug(
                     "find_pr_for_branch failed for epic branch %s: %s",
-                    epic_branch, exc,
+                    epic_branch,
+                    exc,
                 )
                 return False
             if (
@@ -1939,14 +2046,17 @@ class Orchestrator:
             tracker.close_issue(epic.identifier, reason=reason)
             self._clear_stuck_epic_alert(epic.identifier)
             logger.info(
-                "Auto-closed epic %s — all %d children closed and merged "
-                "to %s",
-                epic.identifier, len(children), expected_child_target,
+                "Auto-closed epic %s — all %d children closed and merged to %s",
+                epic.identifier,
+                len(children),
+                expected_child_target,
             )
             return True
         except Exception as exc:
             logger.warning(
-                "Failed to auto-close epic %s: %s", epic.identifier, exc,
+                "Failed to auto-close epic %s: %s",
+                epic.identifier,
+                exc,
             )
             return False
 
@@ -1976,33 +2086,30 @@ class Orchestrator:
                     f"{review.target_branch or '?'}, expected {target_branch})"
                 )
             else:
-                details.append(
-                    f"{child.identifier} (PR #{review.id} {review.state})"
-                )
+                details.append(f"{child.identifier} (PR #{review.id} {review.state})")
         message = (
             f"Epic {epic.identifier} has {len(unmerged)} child(ren) closed "
             f"with unmerged branches: " + ", ".join(details)
         )
         # Drop any prior alert for this epic, then re-arm.
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != source
-        ]
-        self._alerts.append({
-            "level": "warning",
-            "source": source,
-            "message": message,
-        })
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
+        self._alerts.append(
+            {
+                "level": "warning",
+                "source": source,
+                "message": message,
+            }
+        )
 
     def _clear_stuck_epic_alert(self, epic_identifier: str) -> None:
         """Drop any ``stuck_epic`` alert previously armed for this epic."""
         source = f"stuck_epic:{epic_identifier}"
         before = len(self._alerts)
-        self._alerts = [
-            a for a in self._alerts if a.get("source") != source
-        ]
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
         if len(self._alerts) != before:
             logger.debug(
-                "Cleared stuck_epic alert for %s", epic_identifier,
+                "Cleared stuck_epic alert for %s",
+                epic_identifier,
             )
 
     def _maybe_auto_close_parent_epic(self, child: Issue | None) -> None:
@@ -2028,7 +2135,9 @@ class Orchestrator:
         except Exception as exc:
             logger.debug(
                 "Failed to fetch parent epic %s for %s: %s",
-                parent_id, child.identifier, exc,
+                parent_id,
+                child.identifier,
+                exc,
             )
             return
         if parent is None:
@@ -2041,7 +2150,8 @@ class Orchestrator:
         except Exception as exc:
             logger.warning(
                 "Epic auto-close check failed for %s: %s",
-                parent.identifier, exc,
+                parent.identifier,
+                exc,
             )
 
     def _plan_open_epics(self, candidates: list[Issue]) -> list[Issue]:
@@ -2075,7 +2185,7 @@ class Orchestrator:
           source=``epic-<identifier>`` PR targeting the resolved branch:
 
           - For top-level epics (no parent epic, or non-shared strategy):
-            targets ``project.branch`` (typically ``main``).
+            targets ``project.default_branch`` (typically ``main``).
           - For nested epics in ``shared`` mode (the epic itself has a
             parent epic): targets the parent epic's branch. This creates
             a multi-level merge chain where child epic B's PR targets
@@ -2110,8 +2220,7 @@ class Orchestrator:
             # criteria). This intentionally treats deferred or blocked as
             # incomplete — operator action required to advance them.
             all_terminal = all(
-                (c.state or "").strip().lower() in terminal_norms
-                for c in children
+                (c.state or "").strip().lower() in terminal_norms for c in children
             )
             if not all_terminal:
                 continue
@@ -2120,7 +2229,8 @@ class Orchestrator:
             if not project or not project.repo_url:
                 continue
             provider = detect_provider(
-                project.repo_url, access_token=project.access_token,
+                project.repo_url,
+                access_token=project.access_token,
             )
             if provider is None:
                 continue
@@ -2145,30 +2255,38 @@ class Orchestrator:
             except Exception as exc:
                 logger.warning(
                     "Failed to push epic branch %s for epic %s: %s",
-                    epic_branch, issue.identifier, exc,
+                    epic_branch,
+                    issue.identifier,
+                    exc,
                 )
                 continue
 
             # Resolve the target branch: for nested epics in shared mode,
             # the child epic's PR targets its parent's branch rather than main.
-            # For top-level epics (or non-shared strategies), targets project.branch.
+            # For top-level epics (or non-shared strategies), targets project.default_branch.
             target_branch = self._resolve_epic_target_branch(issue, project)
 
             title = (
                 f"{issue.identifier}: {issue.title}"
-                if issue.title else f"Epic {issue.identifier}"
+                if issue.title
+                else f"Epic {issue.identifier}"
             )
             description = issue.description or ""
             try:
                 result = provider.create_review(
-                    slug, title, epic_branch,
+                    slug,
+                    title,
+                    epic_branch,
                     target_branch=target_branch,
                     description=description,
                 )
             except Exception as exc:
                 logger.warning(
                     "Failed to create epic PR for %s on %s (target=%s): %s",
-                    issue.identifier, project.name, target_branch, exc,
+                    issue.identifier,
+                    project.name,
+                    target_branch,
+                    exc,
                 )
                 continue
 
@@ -2176,13 +2294,19 @@ class Orchestrator:
                 logger.warning(
                     "Failed to create epic PR for %s on %s (target=%s) "
                     "(provider returned None)",
-                    issue.identifier, project.name, target_branch,
+                    issue.identifier,
+                    project.name,
+                    target_branch,
                 )
                 continue
 
             logger.info(
                 "Opened epic PR for %s on %s (review #%s, source=%s, target=%s)",
-                issue.identifier, project.name, result.id, epic_branch, target_branch,
+                issue.identifier,
+                project.name,
+                result.id,
+                epic_branch,
+                target_branch,
             )
             opened += 1
         return opened
@@ -2197,7 +2321,7 @@ class Orchestrator:
         top-level epic lands on main.
 
         For all other cases (top-level epic, non-shared mode, or no parent
-        epic), the PR targets ``project.branch`` (typically ``main``).
+        epic), the PR targets ``project.default_branch`` (typically ``main``).
 
         Only fires for ``epic_strategy='shared'`` — stacked mode is handled
         differently (per-child PRs already target the parent's branch
@@ -2208,7 +2332,7 @@ class Orchestrator:
             parent_epic = self._resolve_parent_epic(epic)
             if parent_epic is not None:
                 return self.project_store.epic_branch_name(parent_epic.identifier)
-        return project.branch
+        return project.default_branch
 
     def _push_epic_branch(self, project, epic_identifier: str) -> None:
         """Push the shared epic branch from the local repo to origin.
@@ -2224,7 +2348,10 @@ class Orchestrator:
         subprocess.run(
             ["git", "push", "origin", epic_branch],
             cwd=project.repo_path,
-            capture_output=True, text=True, check=True, timeout=60,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
         )
 
     def _should_dispatch(self, issue: Issue) -> bool:
@@ -2238,11 +2365,16 @@ class Orchestrator:
                 count = 1
             self.state.reject_streak[key] = (reason, count)
             if count >= 10 and count % 10 == 0:
-                logger.warning("Stuck issue %s: rejected %d consecutive ticks (%s)",
-                               issue.identifier, count, reason)
+                logger.warning(
+                    "Stuck issue %s: rejected %d consecutive ticks (%s)",
+                    issue.identifier,
+                    count,
+                    reason,
+                )
             else:
                 logger.debug("Dispatch reject %s: %s", issue.identifier, reason)
             return False
+
         if self._paused:
             return _reject("paused")
         # Per-project pause composes with the global pause: dispatch
@@ -2277,9 +2409,13 @@ class Orchestrator:
         if "decomposed" in issue.labels:
             return _reject("decomposed")
         state_norm = issue.state.strip().lower()
-        if state_norm not in [s.strip().lower() for s in self.config.tracker_active_states]:
+        if state_norm not in [
+            s.strip().lower() for s in self.config.tracker_active_states
+        ]:
             return _reject(f"inactive_state={state_norm}")
-        if state_norm in [s.strip().lower() for s in self.config.tracker_terminal_states]:
+        if state_norm in [
+            s.strip().lower() for s in self.config.tracker_terminal_states
+        ]:
             return _reject(f"terminal_state={state_norm}")
         if issue.id in self.state.running:
             return _reject("running")
@@ -2304,7 +2440,9 @@ class Orchestrator:
         # gates above still apply and remain the operator's escape
         # hatch when a P0 must wait for a human. (oompah-zlz_2-dyi)
         if not is_p0 and state_norm in ("open", "todo"):
-            terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
+            terminal_norms = {
+                s.strip().lower() for s in self.config.tracker_terminal_states
+            }
             for blocker in issue.blocked_by:
                 blocker_state = (blocker.state or "").strip().lower()
                 # If blocker state is unknown, look it up
@@ -2361,8 +2499,11 @@ class Orchestrator:
         if not self._check_budget():
             if not self.state.budget_exceeded:
                 self.state.budget_exceeded = True
-                logger.warning("Budget limit exceeded (%.2f/%.2f), halting paid dispatch",
-                             self.state.agent_totals.estimated_cost, self.config.budget_limit)
+                logger.warning(
+                    "Budget limit exceeded (%.2f/%.2f), halting paid dispatch",
+                    self.state.agent_totals.estimated_cost,
+                    self.config.budget_limit,
+                )
             free_model = self._would_dispatch_on_free_model(issue)
             if free_model:
                 self.state.free_tier_dispatches_this_window += 1
@@ -2423,9 +2564,8 @@ class Orchestrator:
                 and self._is_safety_critical_issue(issue)
             ):
                 acp_profile = self._find_acp_profile()
-                if (
-                    acp_profile is not None
-                    and self._acp_profile_is_subscription(acp_profile)
+                if acp_profile is not None and self._acp_profile_is_subscription(
+                    acp_profile
                 ):
                     return True
             return False
@@ -2480,8 +2620,10 @@ class Orchestrator:
             # Use the default catch-all profile on the first dispatch when
             # default_first_dispatch is enabled; otherwise use the natural match.
             profile: AgentProfile | None
-            is_first = (issue.id not in self.state.running and
-                        issue.id not in self.state.retry_attempts)
+            is_first = (
+                issue.id not in self.state.running
+                and issue.id not in self.state.retry_attempts
+            )
             if (
                 self.config.default_first_dispatch
                 and is_first
@@ -2510,7 +2652,9 @@ class Orchestrator:
             return False
         except Exception as exc:
             # Don't let the dispatch path crash on a budget-introspection bug.
-            logger.debug("free-model resolution failed for %s: %s", issue.identifier, exc)
+            logger.debug(
+                "free-model resolution failed for %s: %s", issue.identifier, exc
+            )
             return False
 
     def _pre_resolve_blockers(self, candidates: list[Issue]) -> None:
@@ -2569,7 +2713,9 @@ class Orchestrator:
             # Skip polling for webhook-healthy projects
             if self.is_webhook_healthy(project.id):
                 return (project.id, [])
-            provider = detect_provider(project.repo_url, access_token=project.access_token)
+            provider = detect_provider(
+                project.repo_url, access_token=project.access_token
+            )
             if not provider:
                 return (project.id, [])
             slug = extract_repo_slug(project.repo_url)
@@ -2577,7 +2723,9 @@ class Orchestrator:
                 reviews = provider.list_open_reviews(slug)
                 return (project.id, reviews)
             except Exception as exc:
-                logger.debug("Failed to fetch open reviews for %s: %s", project.name, exc)
+                logger.debug(
+                    "Failed to fetch open reviews for %s: %s", project.name, exc
+                )
                 return (project.id, [])
 
         result: dict[str, list] = {}
@@ -2600,14 +2748,18 @@ class Orchestrator:
             # Skip polling for webhook-healthy projects
             if self.is_webhook_healthy(project.id):
                 return set()
-            provider = detect_provider(project.repo_url, access_token=project.access_token)
+            provider = detect_provider(
+                project.repo_url, access_token=project.access_token
+            )
             if not provider:
                 return set()
             slug = extract_repo_slug(project.repo_url)
             try:
                 return provider.list_merged_branches(slug)
             except Exception as exc:
-                logger.debug("Failed to fetch merged branches for %s: %s", project.name, exc)
+                logger.debug(
+                    "Failed to fetch merged branches for %s: %s", project.name, exc
+                )
                 return set()
 
         result: set[str] = set()
@@ -2637,13 +2789,24 @@ class Orchestrator:
             # Orphaned — reset to open
             try:
                 project_id = issue.project_id
-                tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+                tracker = (
+                    self._tracker_for_project(project_id)
+                    if project_id
+                    else self.tracker
+                )
                 tracker.update_issue(issue.identifier, status="open")
-                self._orphan_reset_counts[issue.id] = self._orphan_reset_counts.get(issue.id, 0) + 1
-                logger.info("Reset orphaned in_progress issue %s to open (no agent attached, count=%d)",
-                            issue.identifier, self._orphan_reset_counts[issue.id])
+                self._orphan_reset_counts[issue.id] = (
+                    self._orphan_reset_counts.get(issue.id, 0) + 1
+                )
+                logger.info(
+                    "Reset orphaned in_progress issue %s to open (no agent attached, count=%d)",
+                    issue.identifier,
+                    self._orphan_reset_counts[issue.id],
+                )
             except Exception as exc:
-                logger.debug("Failed to reset orphaned issue %s: %s", issue.identifier, exc)
+                logger.debug(
+                    "Failed to reset orphaned issue %s: %s", issue.identifier, exc
+                )
 
     # ------------------------------------------------------------------
     # Watchdog: periodic health checks for stuck issues
@@ -2680,8 +2843,11 @@ class Orchestrator:
                     stale.append(issue)
         for issue in stale:
             self.state.completed.discard(issue.id)
-            logger.warning("Watchdog: cleared stale completed entry for %s "
-                           "(tracker state=%s)", issue.identifier, issue.state)
+            logger.warning(
+                "Watchdog: cleared stale completed entry for %s (tracker state=%s)",
+                issue.identifier,
+                issue.state,
+            )
         return len(stale)
 
     def _watchdog_orphan_loops(self) -> int:
@@ -2693,8 +2859,12 @@ class Orchestrator:
                     if c.id == issue_id:
                         identifier = c.identifier
                         break
-                logger.warning("Watchdog: issue %s reset from in_progress %d times "
-                               "— possible state loop", identifier, count)
+                logger.warning(
+                    "Watchdog: issue %s reset from in_progress %d times "
+                    "— possible state loop",
+                    identifier,
+                    count,
+                )
                 self._orphan_reset_counts[issue_id] = 0
         return 0
 
@@ -2719,9 +2889,13 @@ class Orchestrator:
                     # Check if blocker_id matches any open branch
                     has_branch = any(blocker_id in b for b in open_branches)
                     if not has_branch:
-                        logger.warning("Watchdog: clearing stale unmerged_review block "
-                                       "on %s (blocker %s has no open review after %d ticks)",
-                                       identifier, blocker_id, count)
+                        logger.warning(
+                            "Watchdog: clearing stale unmerged_review block "
+                            "on %s (blocker %s has no open review after %d ticks)",
+                            identifier,
+                            blocker_id,
+                            count,
+                        )
                         cache = getattr(self, "_blocker_state_cache", {})
                         cache.pop(blocker_id, None)
                         del self.state.reject_streak[issue_id]
@@ -2737,7 +2911,9 @@ class Orchestrator:
         for project in self.project_store.list_all():
             if not project.yolo:
                 continue
-            provider = detect_provider(project.repo_url, access_token=project.access_token)
+            provider = detect_provider(
+                project.repo_url, access_token=project.access_token
+            )
             if not provider:
                 continue
             slug = extract_repo_slug(project.repo_url)
@@ -2757,27 +2933,44 @@ class Orchestrator:
                 tick_count = self._yolo_limbo_ticks[key]
                 if tick_count >= 3:
                     if review.ci_status == "passed" and review.needs_rebase:
-                        logger.warning("Watchdog: YOLO limbo MR #%s on %s needs rebase "
-                                       "(CI passed, %d cycles). Dispatching conflict agent.",
-                                       review.id, project.name, tick_count)
+                        logger.warning(
+                            "Watchdog: YOLO limbo MR #%s on %s needs rebase "
+                            "(CI passed, %d cycles). Dispatching conflict agent.",
+                            review.id,
+                            project.name,
+                            tick_count,
+                        )
                         try:
-                            self._yolo_notify_conflict(project, provider, slug, review.id)
+                            self._yolo_notify_conflict(
+                                project, provider, slug, review.id
+                            )
                             fixed += 1
                         except Exception as exc:
-                            logger.warning("Watchdog: conflict notify failed for %s #%s: %s",
-                                           project.name, review.id, exc)
+                            logger.warning(
+                                "Watchdog: conflict notify failed for %s #%s: %s",
+                                project.name,
+                                review.id,
+                                exc,
+                            )
                     else:
-                        logger.warning("Watchdog: YOLO limbo MR #%s on %s — "
-                                       "ci=%r rebase=%s (%d cycles)",
-                                       review.id, project.name, review.ci_status,
-                                       review.needs_rebase, tick_count)
+                        logger.warning(
+                            "Watchdog: YOLO limbo MR #%s on %s — "
+                            "ci=%r rebase=%s (%d cycles)",
+                            review.id,
+                            project.name,
+                            review.ci_status,
+                            review.needs_rebase,
+                            tick_count,
+                        )
         # Clear resolved limbo entries
         for key in list(self._yolo_limbo_ticks):
             if key not in current_limbo:
                 del self._yolo_limbo_ticks[key]
         return fixed
 
-    def _ensure_review_exists(self, entry: RunningEntry, project_id: str | None) -> None:
+    def _ensure_review_exists(
+        self, entry: RunningEntry, project_id: str | None
+    ) -> None:
         """Create a review (PR/MR) if the agent pushed a branch but none exists.
 
         Honors the project's ``epic_strategy``:
@@ -2814,13 +3007,14 @@ class Orchestrator:
             logger.debug(
                 "Skip per-child review for %s: epic_strategy=shared "
                 "(child shares branch with epic %s)",
-                entry.identifier, parent_epic.identifier,
+                entry.identifier,
+                parent_epic.identifier,
             )
             return
 
         branch = entry.identifier  # branch is named after the issue
         # Stacked mode: the child PR targets the epic branch instead of main.
-        target_branch = project.branch
+        target_branch = project.default_branch
         if strategy == "stacked" and parent_epic is not None:
             target_branch = self.project_store.epic_branch_name(
                 parent_epic.identifier,
@@ -2833,19 +3027,31 @@ class Orchestrator:
                 return  # review already exists
         # Create the review
         try:
-            title = f"{entry.identifier}: {entry.issue.title}" if entry.issue else entry.identifier
+            title = (
+                f"{entry.identifier}: {entry.issue.title}"
+                if entry.issue
+                else entry.identifier
+            )
             result = provider.create_review(
-                slug, title, branch, target_branch=target_branch,
+                slug,
+                title,
+                branch,
+                target_branch=target_branch,
             )
             if result:
                 logger.info(
                     "Auto-created review for %s on %s (review #%s, base=%s)",
-                    entry.identifier, project.name, result.id, target_branch,
+                    entry.identifier,
+                    project.name,
+                    result.id,
+                    target_branch,
                 )
             else:
                 logger.warning(
                     "Failed to create review for %s on %s (base=%s)",
-                    entry.identifier, project.name, target_branch,
+                    entry.identifier,
+                    project.name,
+                    target_branch,
                 )
         except Exception as exc:
             logger.warning("Error creating review for %s: %s", entry.identifier, exc)
@@ -2872,9 +3078,15 @@ class Orchestrator:
                 if branch in merged:
                     try:
                         tracker.add_label(issue.identifier, "merged")
-                        logger.info("Labelled %s as merged (branch %s)", issue.identifier, branch)
+                        logger.info(
+                            "Labelled %s as merged (branch %s)",
+                            issue.identifier,
+                            branch,
+                        )
                     except TrackerError as exc:
-                        logger.debug("Failed to label %s as merged: %s", issue.identifier, exc)
+                        logger.debug(
+                            "Failed to label %s as merged: %s", issue.identifier, exc
+                        )
 
     def _yolo_review_actions_sync(self) -> None:
         """Auto-manage reviews for projects with YOLO enabled.
@@ -2922,7 +3134,9 @@ class Orchestrator:
         for project in self.project_store.list_all():
             if not project.yolo:
                 continue
-            provider = detect_provider(project.repo_url, access_token=project.access_token)
+            provider = detect_provider(
+                project.repo_url, access_token=project.access_token
+            )
             if not provider:
                 continue
             slug = extract_repo_slug(project.repo_url)
@@ -2953,12 +3167,19 @@ class Orchestrator:
                 # GitHub will never make progress on a DIRTY queued PR.
                 # (oompah-zlz_2-l81)
                 if review.has_conflicts:
-                    logger.info("YOLO: conflicts on %s review #%s — dispatching conflict agent",
-                                project.name, review_id)
+                    logger.info(
+                        "YOLO: conflicts on %s review #%s — dispatching conflict agent",
+                        project.name,
+                        review_id,
+                    )
                     self._yolo_notify_conflict(project, provider, slug, review_id)
                     self._record_yolo_action(
-                        project.id, str(review_id), "notify_conflict",
-                        "success", "", tick=tick,
+                        project.id,
+                        str(review_id),
+                        "notify_conflict",
+                        "success",
+                        "",
+                        tick=tick,
                     )
                     actions_fired += 1
                     continue
@@ -2974,12 +3195,19 @@ class Orchestrator:
                 # all ci_status=='failed' dispatches for the
                 # auto_merge_enabled subset. (oompah-zlz_2-wjz)
                 if review.ci_status == "failed":
-                    logger.info("YOLO: auto-retrying failed CI on %s MR #%s",
-                                project.name, review_id)
+                    logger.info(
+                        "YOLO: auto-retrying failed CI on %s MR #%s",
+                        project.name,
+                        review_id,
+                    )
                     self._yolo_retry_ci(project, review)
                     self._record_yolo_action(
-                        project.id, str(review_id), "retry_ci",
-                        "success", "", tick=tick,
+                        project.id,
+                        str(review_id),
+                        "retry_ci",
+                        "success",
+                        "",
+                        tick=tick,
                     )
                     actions_fired += 1
                     # ci-fix relabel is an idempotent tracker write — no
@@ -3000,15 +3228,20 @@ class Orchestrator:
                 if getattr(review, "auto_merge_enabled", False):
                     logger.debug(
                         "YOLO: %s MR #%s already enqueued (auto_merge_enabled=true) — skipping",
-                        project.name, review_id,
+                        project.name,
+                        review_id,
                     )
                     # Treat "already enqueued" as a successful enqueue
                     # outcome for watchdog purposes — clears any prior
                     # consecutive-failure run and prevents D1 from
                     # firing on PRs GitHub is already handling.
                     self._record_yolo_action(
-                        project.id, str(review_id), "enqueue",
-                        "success", "", tick=tick,
+                        project.id,
+                        str(review_id),
+                        "enqueue",
+                        "success",
+                        "",
+                        tick=tick,
                     )
                     continue
 
@@ -3022,22 +3255,37 @@ class Orchestrator:
                     # (oompah-zlz_2-jg4)
                     switch_key = (project.id, str(review_id))
                     use_direct_merge_fallback = (
-                        merge_queue and switch_key in self._yolo_already_mergeable_switched
+                        merge_queue
+                        and switch_key in self._yolo_already_mergeable_switched
                     )
                     if merge_queue and not use_direct_merge_fallback:
-                        logger.info("YOLO: enqueued for merge %s MR #%s (ci=%s)",
-                                    project.name, review_id, review.ci_status)
+                        logger.info(
+                            "YOLO: enqueued for merge %s MR #%s (ci=%s)",
+                            project.name,
+                            review_id,
+                            review.ci_status,
+                        )
                         success, msg = provider.enable_auto_merge(slug, review_id)
                         if success:
-                            logger.info("YOLO: enqueued %s MR #%s", project.name, review_id)
+                            logger.info(
+                                "YOLO: enqueued %s MR #%s", project.name, review_id
+                            )
                             self._clear_repo_config_error(project.id, str(review_id))
                             self._record_yolo_action(
-                                project.id, str(review_id), "enqueue",
-                                "success", "", tick=tick,
+                                project.id,
+                                str(review_id),
+                                "enqueue",
+                                "success",
+                                "",
+                                tick=tick,
                             )
-                            self._clear_already_mergeable_switch(project.id, str(review_id))
+                            self._clear_already_mergeable_switch(
+                                project.id, str(review_id)
+                            )
                             self._clear_merge_conflict_label_for_branch(
-                                project, tracker, review.source_branch,
+                                project,
+                                tracker,
+                                review.source_branch,
                             )
                             actions_fired += 1
                             # Merge-queue mode: GitHub's queue handles
@@ -3048,15 +3296,24 @@ class Orchestrator:
                             continue
                         else:
                             self._record_yolo_action(
-                                project.id, str(review_id), "enqueue",
-                                "failure", msg or "", tick=tick,
+                                project.id,
+                                str(review_id),
+                                "enqueue",
+                                "failure",
+                                msg or "",
+                                tick=tick,
                             )
                             # D4: check whether to switch strategy now.
                             self._maybe_switch_to_direct_merge(
-                                project.id, str(review_id),
+                                project.id,
+                                str(review_id),
                             )
                             self._handle_yolo_merge_failure(
-                                project, provider, slug, review_id, msg,
+                                project,
+                                provider,
+                                slug,
+                                review_id,
+                                msg,
                                 operation="enqueue",
                             )
                             actions_fired += 1
@@ -3071,23 +3328,32 @@ class Orchestrator:
                     elif use_direct_merge_fallback:
                         logger.info(
                             "YOLO: direct merge fallback (already-mergeable loop) on %s MR #%s",
-                            project.name, review_id,
+                            project.name,
+                            review_id,
                         )
                         success, msg = provider.merge_review(slug, review_id)
                         if success:
                             logger.info(
                                 "YOLO: direct-merge fallback succeeded for %s MR #%s",
-                                project.name, review_id,
+                                project.name,
+                                review_id,
                             )
                             self._clear_repo_config_error(project.id, str(review_id))
                             self._record_yolo_action(
-                                project.id, str(review_id),
+                                project.id,
+                                str(review_id),
                                 "merge_after_already_mergeable",
-                                "success", "", tick=tick,
+                                "success",
+                                "",
+                                tick=tick,
                             )
-                            self._clear_already_mergeable_switch(project.id, str(review_id))
+                            self._clear_already_mergeable_switch(
+                                project.id, str(review_id)
+                            )
                             self._clear_merge_conflict_label_for_branch(
-                                project, tracker, review.source_branch,
+                                project,
+                                tracker,
+                                review.source_branch,
                             )
                             actions_fired += 1
                             # Direct merge (fallback path): each merge
@@ -3098,12 +3364,19 @@ class Orchestrator:
                             break
                         else:
                             self._record_yolo_action(
-                                project.id, str(review_id),
+                                project.id,
+                                str(review_id),
                                 "merge_after_already_mergeable",
-                                "failure", msg or "", tick=tick,
+                                "failure",
+                                msg or "",
+                                tick=tick,
                             )
                             self._handle_yolo_merge_failure(
-                                project, provider, slug, review_id, msg,
+                                project,
+                                provider,
+                                slug,
+                                review_id,
+                                msg,
                                 operation="merge",
                             )
                             actions_fired += 1
@@ -3114,18 +3387,30 @@ class Orchestrator:
                             # (oompah-zlz_2-grw, fix A)
                             continue
                     else:
-                        logger.info("YOLO: auto-merging %s MR #%s (ci=%s)",
-                                    project.name, review_id, review.ci_status)
+                        logger.info(
+                            "YOLO: auto-merging %s MR #%s (ci=%s)",
+                            project.name,
+                            review_id,
+                            review.ci_status,
+                        )
                         success, msg = provider.merge_review(slug, review_id)
                         if success:
-                            logger.info("YOLO: merged %s MR #%s", project.name, review_id)
+                            logger.info(
+                                "YOLO: merged %s MR #%s", project.name, review_id
+                            )
                             self._clear_repo_config_error(project.id, str(review_id))
                             self._record_yolo_action(
-                                project.id, str(review_id), "merge",
-                                "success", "", tick=tick,
+                                project.id,
+                                str(review_id),
+                                "merge",
+                                "success",
+                                "",
+                                tick=tick,
                             )
                             self._clear_merge_conflict_label_for_branch(
-                                project, tracker, review.source_branch,
+                                project,
+                                tracker,
+                                review.source_branch,
                             )
                             actions_fired += 1
                             # Direct-merge mode: each merge changes the
@@ -3136,11 +3421,19 @@ class Orchestrator:
                             break
                         else:
                             self._record_yolo_action(
-                                project.id, str(review_id), "merge",
-                                "failure", msg or "", tick=tick,
+                                project.id,
+                                str(review_id),
+                                "merge",
+                                "failure",
+                                msg or "",
+                                tick=tick,
                             )
                             self._handle_yolo_merge_failure(
-                                project, provider, slug, review_id, msg,
+                                project,
+                                provider,
+                                slug,
+                                review_id,
+                                msg,
                                 operation="merge",
                             )
                             actions_fired += 1
@@ -3160,29 +3453,45 @@ class Orchestrator:
                 # CI runs its pipeline.
                 elif review.source_branch and not review.has_conflicts:
                     self._clear_merge_conflict_label_for_branch(
-                        project, tracker, review.source_branch,
+                        project,
+                        tracker,
+                        review.source_branch,
                     )
-                logger.debug("YOLO: skipping %s MR #%s branch=%s (ci=%s, conflicts=%s, needs_rebase=%s)",
-                             project.name, review_id, review.source_branch,
-                             review.ci_status, review.has_conflicts, review.needs_rebase)
+                logger.debug(
+                    "YOLO: skipping %s MR #%s branch=%s (ci=%s, conflicts=%s, needs_rebase=%s)",
+                    project.name,
+                    review_id,
+                    review.source_branch,
+                    review.ci_status,
+                    review.has_conflicts,
+                    review.needs_rebase,
+                )
 
             # Per-project end-of-loop instrumentation (D2).
-            missing_ids = sorted({
-                str(r.id) for r in reviews
-                if not r.draft and str(r.id) not in considered_ids
-            })
+            missing_ids = sorted(
+                {
+                    str(r.id)
+                    for r in reviews
+                    if not r.draft and str(r.id) not in considered_ids
+                }
+            )
             logger.info(
                 "YOLO iteration: project=%s considered=%d/%d actions=%d",
-                project.name, considered, non_draft_total, actions_fired,
+                project.name,
+                considered,
+                non_draft_total,
+                actions_fired,
             )
-            self._yolo_coverage_history.append(CoverageRecord(
-                tick=tick,
-                project_id=project.id,
-                considered=considered,
-                total=non_draft_total,
-                actions=actions_fired,
-                missing_review_ids=missing_ids,
-            ))
+            self._yolo_coverage_history.append(
+                CoverageRecord(
+                    tick=tick,
+                    project_id=project.id,
+                    considered=considered,
+                    total=non_draft_total,
+                    actions=actions_fired,
+                    missing_review_ids=missing_ids,
+                )
+            )
 
         # End-of-tick cleanup: drop tracked repo-config errors for any
         # PR that has disappeared from the per-tick reviews cache (PR
@@ -3196,8 +3505,14 @@ class Orchestrator:
         self._run_yolo_watchdog(reviews_cache)
 
     def _handle_yolo_merge_failure(
-        self, project, provider, slug: str, review_id, msg: str,
-        *, operation: str,
+        self,
+        project,
+        provider,
+        slug: str,
+        review_id,
+        msg: str,
+        *,
+        operation: str,
     ) -> None:
         """Classify and handle a failed YOLO enqueue/merge call.
 
@@ -3224,12 +3539,19 @@ class Orchestrator:
                 logger.error(
                     "YOLO: %s blocked on %s MR #%s by repo configuration (operator must fix): %s "
                     "[fingerprint=%s] — NOT dispatching agent (no code change can resolve this)",
-                    operation, project.name, review_id, msg, fingerprint,
+                    operation,
+                    project.name,
+                    review_id,
+                    msg,
+                    fingerprint,
                 )
             else:
                 logger.debug(
                     "YOLO: %s still blocked on %s MR #%s by repo config (fingerprint=%s) — suppressing log",
-                    operation, project.name, review_id, fingerprint,
+                    operation,
+                    project.name,
+                    review_id,
+                    fingerprint,
                 )
             return
 
@@ -3241,7 +3563,10 @@ class Orchestrator:
         if kind == "conflict":
             logger.warning(
                 "YOLO: %s failed for %s MR #%s: %s — dispatching conflict agent",
-                operation, project.name, review_id, msg,
+                operation,
+                project.name,
+                review_id,
+                msg,
             )
             self._yolo_notify_conflict(project, provider, slug, review_id)
             return
@@ -3251,7 +3576,10 @@ class Orchestrator:
         # network blips that resolve themselves.
         logger.warning(
             "YOLO: %s failed for %s MR #%s (transient): %s — will retry next tick",
-            operation, project.name, review_id, msg,
+            operation,
+            project.name,
+            review_id,
+            msg,
         )
 
     def _clear_repo_config_error(self, project_id: str, review_id: str) -> None:
@@ -3284,8 +3612,7 @@ class Orchestrator:
         # Key shape is (project_id, review_id, kind); strip the kind to
         # check liveness against (project_id, review_id) pairs.
         stale_orphan = [
-            k for k in self._yolo_orphan_recovery_beads
-            if (k[0], k[1]) not in live_keys
+            k for k in self._yolo_orphan_recovery_beads if (k[0], k[1]) not in live_keys
         ]
         for k in stale_orphan:
             self._yolo_orphan_recovery_beads.pop(k, None)
@@ -3335,7 +3662,8 @@ class Orchestrator:
         be) and a future recurrence should re-file freshly.
         """
         keys_to_drop = [
-            k for k in self._yolo_watchdog_filed
+            k
+            for k in self._yolo_watchdog_filed
             if k.startswith(f"d1:{project_id}:{review_id}:")
             or k == f"d4:{project_id}:{review_id}"
             or k.startswith(f"d3:{project_id}:{review_id}:")
@@ -3352,7 +3680,9 @@ class Orchestrator:
         direct-merge fallback on subsequent ticks.
         """
         run = count_consecutive_already_mergeable(
-            self._yolo_action_history, project_id, review_id,
+            self._yolo_action_history,
+            project_id,
+            review_id,
             action_type="enqueue",
         )
         if run >= D4_ALREADY_MERGEABLE_THRESHOLD:
@@ -3363,7 +3693,9 @@ class Orchestrator:
                     "YOLO watchdog: switching to direct-merge fallback for "
                     "%s MR #%s after %d consecutive 'already mergeable' "
                     "failures",
-                    project_id, review_id, run,
+                    project_id,
+                    review_id,
+                    run,
                 )
 
     def _clear_already_mergeable_switch(self, project_id: str, review_id: str) -> None:
@@ -3387,8 +3719,7 @@ class Orchestrator:
                 live_pairs.add((project_id, str(r.id)))
 
         stale_switches = [
-            k for k in self._yolo_already_mergeable_switched
-            if k not in live_pairs
+            k for k in self._yolo_already_mergeable_switched if k not in live_pairs
         ]
         for k in stale_switches:
             self._yolo_already_mergeable_switched.discard(k)
@@ -3416,7 +3747,8 @@ class Orchestrator:
         # here keeps the watchdog tight.
         if self._yolo_action_history:
             kept = [
-                r for r in self._yolo_action_history
+                r
+                for r in self._yolo_action_history
                 if (r.project_id, r.review_id) in live_pairs
             ]
             if len(kept) != len(self._yolo_action_history):
@@ -3468,16 +3800,18 @@ class Orchestrator:
                 if not issue:
                     # Bead disappeared entirely — reset the cache.
                     self._yolo_orphan_recovery_beads.pop(key, None)
-                    incoherent.append({
-                        "project_id": project.id,
-                        "review_id": review_id,
-                        "kind": kind,
-                        "source_branch": source_branch,
-                        "reason": (
-                            f"recovery bead {bead_id} no longer exists; "
-                            "PR still in failing state"
-                        ),
-                    })
+                    incoherent.append(
+                        {
+                            "project_id": project.id,
+                            "review_id": review_id,
+                            "kind": kind,
+                            "source_branch": source_branch,
+                            "reason": (
+                                f"recovery bead {bead_id} no longer exists; "
+                                "PR still in failing state"
+                            ),
+                        }
+                    )
                     continue
                 state_lower = issue.state.strip().lower()
                 terminal = {s.lower() for s in self.config.tracker_terminal_states}
@@ -3485,16 +3819,18 @@ class Orchestrator:
                     # Bead closed but PR still failing — reset cache so
                     # the next tick refiles a fresh recovery bead.
                     self._yolo_orphan_recovery_beads.pop(key, None)
-                    incoherent.append({
-                        "project_id": project.id,
-                        "review_id": review_id,
-                        "kind": kind,
-                        "source_branch": source_branch,
-                        "reason": (
-                            f"recovery bead {bead_id} is closed (state={issue.state}) "
-                            f"but PR still has {kind} condition"
-                        ),
-                    })
+                    incoherent.append(
+                        {
+                            "project_id": project.id,
+                            "review_id": review_id,
+                            "kind": kind,
+                            "source_branch": source_branch,
+                            "reason": (
+                                f"recovery bead {bead_id} is closed (state={issue.state}) "
+                                f"but PR still has {kind} condition"
+                            ),
+                        }
+                    )
         return incoherent
 
     def _run_yolo_watchdog(self, reviews_cache: dict) -> None:
@@ -3528,7 +3864,8 @@ class Orchestrator:
                         self._yolo_watchdog_d2_warned.add(pattern.pattern_key)
                         logger.warning(
                             "YOLO watchdog D2: %s\n%s",
-                            pattern.title, pattern.body,
+                            pattern.title,
+                            pattern.body,
                         )
                 continue
 
@@ -3541,13 +3878,15 @@ class Orchestrator:
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "YOLO watchdog: failed to file bead for %s: %s",
-                    pattern.pattern_key, exc,
+                    pattern.pattern_key,
+                    exc,
                 )
 
         # Clear D2-warned flags for projects that didn't hit this tick —
         # i.e. the starvation has resolved. A future recurrence will re-warn.
         d2_keys_to_drop = [
-            k for k in self._yolo_watchdog_d2_warned
+            k
+            for k in self._yolo_watchdog_d2_warned
             if k.startswith("d2:") and k not in {f"d2:{p}" for p in d2_hit_projects}
         ]
         for k in d2_keys_to_drop:
@@ -3560,7 +3899,8 @@ class Orchestrator:
         except ProjectError as exc:
             logger.warning(
                 "YOLO watchdog: cannot get tracker for %s: %s",
-                pattern.project_id, exc,
+                pattern.project_id,
+                exc,
             )
             return
         labels = list(pattern.labels)
@@ -3583,8 +3923,11 @@ class Orchestrator:
         logger.warning(
             "YOLO watchdog: filed P0 bead %s for pattern %s "
             "(project=%s review=%s detector=%s)",
-            new_issue.identifier, pattern.pattern_key,
-            pattern.project_id, pattern.review_id, pattern.detector,
+            new_issue.identifier,
+            pattern.pattern_key,
+            pattern.project_id,
+            pattern.review_id,
+            pattern.detector,
         )
 
     def _file_orphan_recovery_bead(
@@ -3619,7 +3962,9 @@ class Orchestrator:
         if key in self._yolo_orphan_recovery_beads:
             logger.debug(
                 "YOLO: orphan recovery bead already filed for %s MR #%s (%s): %s",
-                project.name, review_id, kind,
+                project.name,
+                review_id,
+                kind,
                 self._yolo_orphan_recovery_beads[key],
             )
             return
@@ -3657,7 +4002,10 @@ class Orchestrator:
         except Exception as exc:
             logger.warning(
                 "YOLO: failed to file orphan recovery bead for %s MR #%s (%s): %s",
-                project.name, review_id, kind, exc,
+                project.name,
+                review_id,
+                kind,
+                exc,
             )
             return
         try:
@@ -3665,15 +4013,23 @@ class Orchestrator:
         except Exception as exc:
             logger.warning(
                 "YOLO: filed orphan recovery bead %s but failed to add %s label: %s",
-                new_issue.identifier, label, exc,
+                new_issue.identifier,
+                label,
+                exc,
             )
         self._yolo_orphan_recovery_beads[key] = new_issue.identifier
         logger.info(
             "YOLO: filed orphan recovery bead %s for %s MR #%s (%s, branch %s)",
-            new_issue.identifier, project.name, review_id, kind, source_branch,
+            new_issue.identifier,
+            project.name,
+            review_id,
+            kind,
+            source_branch,
         )
 
-    def _yolo_notify_conflict(self, project, provider, slug: str, review_id: str) -> None:
+    def _yolo_notify_conflict(
+        self, project, provider, slug: str, review_id: str
+    ) -> None:
         """Notify the bead about a merge conflict (YOLO mode).
 
         Before falling through to the bead-notification path, attempt a
@@ -3691,7 +4047,8 @@ class Orchestrator:
             if success:
                 logger.info(
                     "YOLO: rebased %s MR #%s clean (no conflict)",
-                    slug, review_id,
+                    slug,
+                    review_id,
                 )
                 return
             msg_lower = (message or "").lower()
@@ -3701,13 +4058,17 @@ class Orchestrator:
                 # operator can see why YOLO didn't get the cheap path.
                 logger.warning(
                     "YOLO: provider rebase failed for %s MR #%s (non-conflict): %s",
-                    slug, review_id, message,
+                    slug,
+                    review_id,
+                    message,
                 )
             # else: real merge conflict — fall through to bead-notify below.
         except Exception as exc:
             logger.warning(
                 "YOLO: provider rebase raised for %s MR #%s: %s",
-                slug, review_id, exc,
+                slug,
+                review_id,
+                exc,
             )
             # Fall through to bead-notify (safety net).
 
@@ -3726,14 +4087,20 @@ class Orchestrator:
                 # the YOLO escalation chain isn't a silent dead-end.
                 # (oompah-zlz_2-975)
                 self._file_orphan_recovery_bead(
-                    project, tracker, str(review_id), source_branch,
+                    project,
+                    tracker,
+                    str(review_id),
+                    source_branch,
                     kind="merge-conflict",
                 )
                 return
             # Don't re-notify if already open/in_progress with merge-conflict label,
             # but ensure we clear the completed set so it can be re-dispatched.
             state_lower = issue.state.strip().lower()
-            if state_lower in ("open", "in_progress") and "merge-conflict" in issue.labels:
+            if (
+                state_lower in ("open", "in_progress")
+                and "merge-conflict" in issue.labels
+            ):
                 self.state.completed.discard(issue.id)
                 return
             comment_text = (
@@ -3745,21 +4112,39 @@ class Orchestrator:
             if state_lower in terminal:
                 tracker.update_issue(
                     issue.identifier,
-                    status="open", priority="0",
+                    status="open",
+                    priority="0",
                     **{"add-label": "merge-conflict"},
                 )
                 self.state.completed.discard(issue.id)
-                logger.info("YOLO: reopened %s as P0 for conflict resolution", issue.identifier)
+                logger.info(
+                    "YOLO: reopened %s as P0 for conflict resolution", issue.identifier
+                )
             else:
-                try:
-                    tracker.update_issue(issue.identifier, **{"add-label": "merge-conflict"})
-                except Exception:
-                    pass
+                # Issue is in a non-terminal, non-actionable state (e.g.
+                # "deferred", "wont_fix").  Reopen as P0 so the
+                # conflict-resolution agent can be dispatched.
+                tracker.update_issue(
+                    issue.identifier,
+                    status="open",
+                    priority=0,
+                    **{"add-label": "merge-conflict"},
+                )
+                logger.info(
+                    "YOLO: reopened %s from %r to P0 open for conflict resolution",
+                    issue.identifier,
+                    state_lower,
+                )
         except Exception as exc:
-            logger.warning("YOLO: conflict notification failed for MR #%s: %s", review_id, exc)
+            logger.warning(
+                "YOLO: conflict notification failed for MR #%s: %s", review_id, exc
+            )
 
     def _clear_merge_conflict_label_for_branch(
-        self, project, tracker, source_branch: str,
+        self,
+        project,
+        tracker,
+        source_branch: str,
     ) -> None:
         """Remove the merge-conflict label from a bead if it is stale.
 
@@ -3796,12 +4181,15 @@ class Orchestrator:
             logger.info(
                 "Cleared stale merge-conflict label from %s "
                 "(PR #%s branch=%s, GitHub reports no conflicts)",
-                issue.identifier, getattr(issue, "id", "?"), source_branch,
+                issue.identifier,
+                getattr(issue, "id", "?"),
+                source_branch,
             )
         except Exception as exc:
             logger.debug(
                 "_clear_merge_conflict_label_for_branch failed for %s: %s",
-                source_branch, exc,
+                source_branch,
+                exc,
             )
 
     def _yolo_retry_ci(self, project, review) -> None:
@@ -3817,7 +4205,10 @@ class Orchestrator:
                 # the YOLO escalation chain isn't a silent dead-end.
                 # (oompah-zlz_2-975)
                 self._file_orphan_recovery_bead(
-                    project, tracker, str(review.id), source_branch,
+                    project,
+                    tracker,
+                    str(review.id),
+                    source_branch,
                     kind="ci-fix",
                 )
                 return
@@ -3853,7 +4244,8 @@ class Orchestrator:
                 # finished and file a new one).
                 existing_sibling = next(
                     (
-                        c for c in children
+                        c
+                        for c in children
                         if c.state.strip().lower() in ("open", "in_progress")
                         and "ci-fix" in (c.labels or [])
                     ),
@@ -3863,7 +4255,8 @@ class Orchestrator:
                     logger.debug(
                         "YOLO: ci-fix sibling %s already open under "
                         "%s — skipping duplicate",
-                        existing_sibling.identifier, issue.identifier,
+                        existing_sibling.identifier,
+                        issue.identifier,
                     )
                     return
                 # Third idempotency signal: if the parent epic is already
@@ -3878,9 +4271,7 @@ class Orchestrator:
                         issue.identifier,
                     )
                     return
-                sibling_title = (
-                    f"CI fix: PR #{review.id} on branch {source_branch}"
-                )
+                sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
                 sibling_description = (
                     f"YOLO: CI tests failed on MR #{review.id} "
                     f"(branch {source_branch}). The branch's primary "
@@ -3905,8 +4296,11 @@ class Orchestrator:
                 logger.info(
                     "YOLO: filed sibling ci-fix bead %s under %s "
                     "(type=%s, %d children) for MR #%s",
-                    sibling.identifier, issue.identifier,
-                    issue.issue_type, len(children), review.id,
+                    sibling.identifier,
+                    issue.identifier,
+                    issue.issue_type,
+                    len(children),
+                    review.id,
                 )
                 return
             # Childless bead path (any issue_type): keep the existing
@@ -3926,9 +4320,7 @@ class Orchestrator:
             if issue.issue_type == "epic":
                 children = self._fetch_epic_children(issue)
                 if children:
-                    sibling_title = (
-                        f"CI fix: PR #{review.id} on branch {source_branch}"
-                    )
+                    sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
                     sibling_description = (
                         f"YOLO: CI tests failed on MR #{review.id} "
                         f"(branch {source_branch}). The branch's primary "
@@ -3950,14 +4342,16 @@ class Orchestrator:
                         initial_status="open",
                     )
                     logger.info(
-                        "YOLO: filed sibling ci-fix bead %s under epic %s "
-                        "for MR #%s",
-                        sibling.identifier, issue.identifier, review.id,
+                        "YOLO: filed sibling ci-fix bead %s under epic %s for MR #%s",
+                        sibling.identifier,
+                        issue.identifier,
+                        review.id,
                     )
                     return
             tracker.update_issue(
                 issue.identifier,
-                status="open", priority="0",
+                status="open",
+                priority="0",
                 **{"add-label": "ci-fix"},
             )
             tracker.add_comment(
@@ -3972,7 +4366,9 @@ class Orchestrator:
             self.state.completed.discard(issue.id)
             logger.info("YOLO: re-filed %s as P0 ci-fix", issue.identifier)
         except Exception as exc:
-            logger.warning("YOLO: CI retry failed for branch %s: %s", review.source_branch, exc)
+            logger.warning(
+                "YOLO: CI retry failed for branch %s: %s", review.source_branch, exc
+            )
 
     def _resolve_blocker_state(self, blocker: BlockerRef, issue: Issue) -> str:
         """Look up a blocker's current state, using a per-tick cache."""
@@ -4022,6 +4418,7 @@ class Orchestrator:
             pri = issue.priority if issue.priority is not None else 999
             created = issue.created_at or datetime.max.replace(tzinfo=timezone.utc)
             return (pri, created, issue.identifier)
+
         return sorted(issues, key=sort_key)
 
     def _select_dispatchable(self, candidates: list[Issue]) -> list[Issue]:
@@ -4089,7 +4486,12 @@ class Orchestrator:
                 score += 3
 
             # Default fallback (no constraints)
-            if not profile.issue_types and not profile.keywords and profile.min_priority is None and profile.max_priority is None:
+            if (
+                not profile.issue_types
+                and not profile.keywords
+                and profile.min_priority is None
+                and profile.max_priority is None
+            ):
                 score = 0  # lowest priority, but valid
 
             if score > best_score:
@@ -4109,8 +4511,9 @@ class Orchestrator:
     # Profiles not listed here won't be escalated to.
     _PROFILE_HIERARCHY = ["default", "quick", "standard", "deep"]
 
-    def _escalate_profile(self, current_profile: AgentProfile | None,
-                          issue: Issue) -> AgentProfile | None:
+    def _escalate_profile(
+        self, current_profile: AgentProfile | None, issue: Issue
+    ) -> AgentProfile | None:
         """Return the next higher profile for an issue that keeps stalling.
 
         Escalation follows _PROFILE_HIERARCHY. Returns None if already at the
@@ -4126,13 +4529,15 @@ class Orchestrator:
             return None  # profile not in hierarchy, no escalation
 
         # Walk up the hierarchy looking for the next configured profile
-        for higher_name in hierarchy[idx + 1:]:
+        for higher_name in hierarchy[idx + 1 :]:
             higher = self._get_profile_by_name(higher_name)
             if higher:
                 return higher
         return None
 
-    def _next_profile_for_retry(self, entry: "RunningEntry") -> tuple[AgentProfile | None, str]:
+    def _next_profile_for_retry(
+        self, entry: "RunningEntry"
+    ) -> tuple[AgentProfile | None, str]:
         """Compute the next profile for a retry, respecting default_first_dispatch semantics.
 
         When ``default_first_dispatch`` is enabled and the issue was first
@@ -4168,8 +4573,11 @@ class Orchestrator:
         any new artifacts.
         """
         from oompah.attachments import (
-            ATTACHMENTS_SUBDIR, AttachmentStore, Attachment,
+            ATTACHMENTS_SUBDIR,
+            AttachmentStore,
+            Attachment,
         )
+
         store = AttachmentStore(workspace_path)
         try:
             disk_records = store.list(issue.identifier)
@@ -4210,11 +4618,15 @@ class Orchestrator:
 
         try:
             tracker.set_attachments(
-                issue.identifier, merged, project_root=workspace_path,
+                issue.identifier,
+                merged,
+                project_root=workspace_path,
             )
         except Exception as exc:
             logger.warning(
-                "set_attachments failed for %s: %s", issue.identifier, exc,
+                "set_attachments failed for %s: %s",
+                issue.identifier,
+                exc,
             )
             return
 
@@ -4223,7 +4635,9 @@ class Orchestrator:
         msg = "Agent produced " + ", ".join(names)
         try:
             self._post_comment(
-                issue.identifier, msg, project_id=issue.project_id,
+                issue.identifier,
+                msg,
+                project_id=issue.project_id,
             )
         except Exception:
             pass
@@ -4233,16 +4647,23 @@ class Orchestrator:
         per-issue size cap. Posts a warning comment listing what was
         removed."""
         from oompah.attachments import (
-            ATTACHMENTS_SUBDIR, MAX_PER_ISSUE_BYTES,
+            ATTACHMENTS_SUBDIR,
+            MAX_PER_ISSUE_BYTES,
         )
+
         out_dir = os.path.join(
-            workspace_path, ATTACHMENTS_SUBDIR, issue.identifier, "outputs",
+            workspace_path,
+            ATTACHMENTS_SUBDIR,
+            issue.identifier,
+            "outputs",
         )
         if not os.path.isdir(out_dir):
             return
         # Sum across both inputs and outputs to compute total.
         in_dir = os.path.join(
-            workspace_path, ATTACHMENTS_SUBDIR, issue.identifier,
+            workspace_path,
+            ATTACHMENTS_SUBDIR,
+            issue.identifier,
         )
         total = 0
         for d in (in_dir, out_dir):
@@ -4261,7 +4682,9 @@ class Orchestrator:
         for entry in os.listdir(out_dir):
             full = os.path.join(out_dir, entry)
             if os.path.isfile(full):
-                files.append((os.path.getmtime(full), full, entry, os.path.getsize(full)))
+                files.append(
+                    (os.path.getmtime(full), full, entry, os.path.getsize(full))
+                )
         files.sort(reverse=True)  # newest first
 
         dropped: list[str] = []
@@ -4284,7 +4707,9 @@ class Orchestrator:
             logger.warning("%s for %s", msg, issue.identifier)
             try:
                 self._post_comment(
-                    issue.identifier, msg, project_id=issue.project_id,
+                    issue.identifier,
+                    msg,
+                    project_id=issue.project_id,
                 )
             except Exception:
                 pass
@@ -4303,11 +4728,15 @@ class Orchestrator:
             subprocess.run(
                 ["git", "lfs", "pull", f"--include={include}"],
                 cwd=workspace_path,
-                capture_output=True, text=True,
-                timeout=60, check=False,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
             )
         except FileNotFoundError:
-            logger.debug("git lfs not installed; skipping pull for %s", issue_identifier)
+            logger.debug(
+                "git lfs not installed; skipping pull for %s", issue_identifier
+            )
         except subprocess.TimeoutExpired:
             logger.warning("git lfs pull timed out for %s", issue_identifier)
         except Exception as exc:
@@ -4372,7 +4801,8 @@ class Orchestrator:
                 return p
             logger.warning(
                 "Focus %r references unknown provider_id=%r; falling back to profile/default",
-                focus.name, focus.provider_id,
+                focus.name,
+                focus.provider_id,
             )
         # Role-based resolution (epic xau7). focus's role wins over profile's role.
         focus_role = getattr(focus, "model_role", None) if focus is not None else None
@@ -4416,7 +4846,9 @@ class Orchestrator:
                     logger.warning(
                         "Focus %r model_role=%r not defined in RoleStore "
                         "or on provider %s; falling back to profile",
-                        focus.name, role, provider.name,
+                        focus.name,
+                        role,
+                        provider.name,
                     )
 
         # Profile-level resolution. profile.model_role wins over
@@ -4430,7 +4862,11 @@ class Orchestrator:
                 m = provider.model_roles.get(profile.model_role)
                 if m:
                     return m
-        return profile.model or provider.default_model or (provider.models[0] if provider.models else None)
+        return (
+            profile.model
+            or provider.default_model
+            or (provider.models[0] if provider.models else None)
+        )
 
     def _describe_rate_limit_context(
         self,
@@ -4462,11 +4898,15 @@ class Orchestrator:
                 reason = "quota"
 
         if not entry:
-            return f"an upstream API — Reason: {reason}" if reason else "an upstream API"
+            return (
+                f"an upstream API — Reason: {reason}" if reason else "an upstream API"
+            )
 
         profile = self._get_profile_by_name(entry.agent_profile_name)
         if not profile:
-            return f"an upstream API — Reason: {reason}" if reason else "an upstream API"
+            return (
+                f"an upstream API — Reason: {reason}" if reason else "an upstream API"
+            )
 
         mode = (getattr(profile, "mode", "auto") or "auto").lower()
         # ACP mode — SDK manages models internally; show backend name only.
@@ -4550,8 +4990,7 @@ class Orchestrator:
                 # Defensive: malformed SDK output → fall through to
                 # local calc rather than crashing or charging $0.
                 pass
-        return (input_tokens / 1000.0) * cost_in + \
-               (output_tokens / 1000.0) * cost_out
+        return (input_tokens / 1000.0) * cost_in + (output_tokens / 1000.0) * cost_out
 
     def _check_budget(self) -> bool:
         """Return True if within budget, False if budget exceeded.
@@ -4662,11 +5101,15 @@ class Orchestrator:
             days_since_sunday = (now.weekday() + 1) % 7
             sunday_date = (now - timedelta(days=days_since_sunday)).date()
             boundary = datetime.combine(
-                sunday_date, datetime.min.time(), tzinfo=tz,
+                sunday_date,
+                datetime.min.time(),
+                tzinfo=tz,
             )
         else:  # "day" (and any unknown value via the parser fallback)
             boundary = datetime.combine(
-                now.date(), datetime.min.time(), tzinfo=tz,
+                now.date(),
+                datetime.min.time(),
+                tzinfo=tz,
             )
         return boundary.timestamp()
 
@@ -4685,12 +5128,16 @@ class Orchestrator:
         elif kind == "week":
             next_date = prev_dt.date() + timedelta(days=7)
             next_dt = datetime.combine(
-                next_date, datetime.min.time(), tzinfo=tz,
+                next_date,
+                datetime.min.time(),
+                tzinfo=tz,
             )
         else:  # "day"
             next_date = prev_dt.date() + timedelta(days=1)
             next_dt = datetime.combine(
-                next_date, datetime.min.time(), tzinfo=tz,
+                next_date,
+                datetime.min.time(),
+                tzinfo=tz,
             )
         next_ts = next_dt.timestamp()
         # If `ts` happened to land exactly on a boundary, prev_ts == ts;
@@ -4784,11 +5231,18 @@ class Orchestrator:
             budget_window_kind=self.config.budget_window,
         )
 
-    def _post_comment(self, identifier: str, text: str, author: str = "oompah",
-                      project_id: str | None = None) -> None:
+    def _post_comment(
+        self,
+        identifier: str,
+        text: str,
+        author: str = "oompah",
+        project_id: str | None = None,
+    ) -> None:
         """Post a comment on an issue (best-effort, non-blocking)."""
         try:
-            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            tracker = (
+                self._tracker_for_project(project_id) if project_id else self.tracker
+            )
             tracker.add_comment(identifier, text, author=author)
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
@@ -4866,7 +5320,9 @@ class Orchestrator:
                     mp_in, mp_out = provider.get_model_costs(model_id)
                     if mp_in or mp_out:
                         pc_in, pc_out = mp_in, mp_out
-            cost_usd = (input_tokens / 1000.0) * pc_in + (output_tokens / 1000.0) * pc_out
+            cost_usd = (input_tokens / 1000.0) * pc_in + (
+                output_tokens / 1000.0
+            ) * pc_out
 
         # Per-token ACP providers: prefer SDK-reported total_cost_usd
         # over the local model_costs lookup (the SDK knows tier
@@ -4994,7 +5450,8 @@ class Orchestrator:
             except Exception as exc:
                 logger.warning(
                     "cost_record: tracker lookup failed for %s: %s",
-                    entry.identifier, exc,
+                    entry.identifier,
+                    exc,
                 )
                 return
 
@@ -5015,7 +5472,8 @@ class Orchestrator:
             except Exception as exc:
                 logger.debug(
                     "cost_record: failed to fetch metadata for %s: %s",
-                    entry.identifier, exc,
+                    entry.identifier,
+                    exc,
                 )
                 # Proceed with empty metadata — we'll write what we have
 
@@ -5029,10 +5487,14 @@ class Orchestrator:
 
             # Persist merged metadata
             try:
-                tracker._run_bd([
-                    "update", issue.identifier,
-                    "--metadata", json.dumps(existing_meta),
-                ])
+                tracker._run_bd(
+                    [
+                        "update",
+                        issue.identifier,
+                        "--metadata",
+                        json.dumps(existing_meta),
+                    ]
+                )
                 logger.info(
                     "cost_record: wrote %s total=$%.4f models=%s",
                     entry.identifier,
@@ -5042,12 +5504,14 @@ class Orchestrator:
             except Exception as exc:
                 logger.warning(
                     "cost_record: failed to write metadata for %s: %s",
-                    entry.identifier, exc,
+                    entry.identifier,
+                    exc,
                 )
         except Exception as exc:
             logger.warning(
                 "cost_record: unexpected error for %s: %s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
 
     def _fire_task_cost_record(self, entry: RunningEntry) -> None:
@@ -5061,7 +5525,8 @@ class Orchestrator:
         except Exception as exc:
             logger.warning(
                 "cost_record: failed to submit background write for %s: %s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
 
     # ------------------------------------------------------------------
@@ -5131,7 +5596,8 @@ class Orchestrator:
         return count
 
     def _resolve_run_provider_and_model(
-        self, entry: RunningEntry,
+        self,
+        entry: RunningEntry,
     ) -> tuple[str, str, str, bool]:
         """Resolve (provider_name, model_id, mode, is_subscription_acp).
 
@@ -5145,7 +5611,9 @@ class Orchestrator:
         formatter to render "(subscription)" instead of a $0 cost number.
         """
         profile = self._get_profile_by_name(entry.agent_profile_name)
-        mode = (getattr(profile, "mode", "auto") or "auto").lower() if profile else "auto"
+        mode = (
+            (getattr(profile, "mode", "auto") or "auto").lower() if profile else "auto"
+        )
         provider = self._resolve_provider(profile) if profile else None
         if entry.provider_name:
             provider_name = entry.provider_name
@@ -5156,7 +5624,9 @@ class Orchestrator:
         if entry.model_name:
             model_id = entry.model_name
         else:
-            model_id = self._resolve_model(profile, provider) if profile and provider else None
+            model_id = (
+                self._resolve_model(profile, provider) if profile and provider else None
+            )
             model_id = model_id or "unknown"
         is_subscription_acp = bool(
             mode == "acp"
@@ -5166,7 +5636,10 @@ class Orchestrator:
         return provider_name, model_id, mode, is_subscription_acp
 
     def _format_telemetry_comment(
-        self, entry: RunningEntry, exit_reason: str, elapsed_seconds: float,
+        self,
+        entry: RunningEntry,
+        exit_reason: str,
+        elapsed_seconds: float,
     ) -> str:
         """Build the per-agent telemetry comment text for ``entry``.
 
@@ -5215,7 +5688,9 @@ class Orchestrator:
                     profile,
                     input_tokens,
                     output_tokens,
-                    sdk_cost_usd=getattr(session, "sdk_cost_usd", None) if session else None,
+                    sdk_cost_usd=getattr(session, "sdk_cost_usd", None)
+                    if session
+                    else None,
                 )
                 cost_str = f"${cost_value:.4f}"
             else:
@@ -5251,7 +5726,10 @@ class Orchestrator:
         return "\n".join(lines)
 
     def _write_telemetry_comment(
-        self, entry: RunningEntry, exit_reason: str, elapsed_seconds: float,
+        self,
+        entry: RunningEntry,
+        exit_reason: str,
+        elapsed_seconds: float,
     ) -> None:
         """Post the per-agent telemetry comment for ``entry`` (sync).
 
@@ -5261,20 +5739,28 @@ class Orchestrator:
         """
         try:
             comment = self._format_telemetry_comment(
-                entry, exit_reason, elapsed_seconds,
+                entry,
+                exit_reason,
+                elapsed_seconds,
             )
             project_id = entry.issue.project_id if entry.issue else None
             self._post_comment(
-                entry.identifier, comment, project_id=project_id,
+                entry.identifier,
+                comment,
+                project_id=project_id,
             )
         except Exception as exc:
             logger.warning(
                 "telemetry_comment: failed to write for %s: %s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
 
     def _fire_telemetry_comment(
-        self, entry: RunningEntry, exit_reason: str, elapsed_seconds: float,
+        self,
+        entry: RunningEntry,
+        exit_reason: str,
+        elapsed_seconds: float,
     ) -> None:
         """Fire-and-forget: post the per-agent telemetry comment in a
         background thread.
@@ -5286,12 +5772,15 @@ class Orchestrator:
         try:
             self._tick_pool.submit(
                 self._write_telemetry_comment,
-                entry, exit_reason, elapsed_seconds,
+                entry,
+                exit_reason,
+                elapsed_seconds,
             )
         except Exception as exc:
             logger.warning(
                 "telemetry_comment: failed to submit background write for %s: %s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
 
     def _clear_handoff_labels(self, issue: Issue) -> None:
@@ -5307,10 +5796,13 @@ class Orchestrator:
                 tracker.remove_label(issue.identifier, label)
                 logger.info("Cleared handoff label %s from %s", label, issue.identifier)
         except Exception as exc:
-            logger.debug("Failed to clear handoff labels on %s: %s", issue.identifier, exc)
+            logger.debug(
+                "Failed to clear handoff labels on %s: %s", issue.identifier, exc
+            )
 
-    def _is_first_dispatch(self, issue: Issue, attempt: int | None,
-                           override_profile: str | None) -> bool:
+    def _is_first_dispatch(
+        self, issue: Issue, attempt: int | None, override_profile: str | None
+    ) -> bool:
         """Return True if this is the very first dispatch of an issue.
 
         First dispatch means: no retry attempt number, no explicit profile
@@ -5355,10 +5847,18 @@ class Orchestrator:
         text = f"{issue.title or ''} {issue.description or ''}".lower()
         for kw in (
             # merge_conflict keywords
-            "merge conflict", "rebase conflict", "resolve conflict",
+            "merge conflict",
+            "rebase conflict",
+            "resolve conflict",
             # ci_fix keywords
-            "ci fix", "ci-fix", "failed ci", "fix ci", "failing tests",
-            "tier-", "matrix-verify", "github actions failure",
+            "ci fix",
+            "ci-fix",
+            "failed ci",
+            "fix ci",
+            "failing tests",
+            "tier-",
+            "matrix-verify",
+            "github actions failure",
         ):
             if re.search(r"\b" + re.escape(kw) + r"\b", text):
                 return True
@@ -5376,7 +5876,12 @@ class Orchestrator:
             return explicit
         # Fall back to the first profile with no constraints at all
         for p in self.config.agent_profiles:
-            if not p.issue_types and not p.keywords and p.min_priority is None and p.max_priority is None:
+            if (
+                not p.issue_types
+                and not p.keywords
+                and p.min_priority is None
+                and p.max_priority is None
+            ):
                 return p
         return None
 
@@ -5424,8 +5929,9 @@ class Orchestrator:
                 return p
         return None
 
-    async def _dispatch(self, issue: Issue, attempt: int | None,
-                        override_profile: str | None = None) -> None:
+    async def _dispatch(
+        self, issue: Issue, attempt: int | None, override_profile: str | None = None
+    ) -> None:
         """Dispatch a worker for an issue."""
         # Belt-and-suspenders: the regular dispatch loop already checks
         # _paused via _should_dispatch, but the retry path
@@ -5454,7 +5960,9 @@ class Orchestrator:
             and self._is_first_dispatch(issue, attempt, override_profile)
             and not self._has_explicit_handoff_label(issue)
             and issue.issue_type != "epic"  # epics keep existing routing
-            and not self._is_safety_critical_issue(issue)  # merge-conflict: skip cost opt
+            and not self._is_safety_critical_issue(
+                issue
+            )  # merge-conflict: skip cost opt
         ):
             # default_first_dispatch: use the catch-all profile on first dispatch,
             # but remember what the "natural" profile would be so the first retry
@@ -5464,13 +5972,17 @@ class Orchestrator:
             if default_profile is None:
                 # No default catch-all found — fall back to normal matching
                 profile = natural_matched
-            elif natural_matched and natural_matched.name != (default_profile.name if default_profile else ""):
+            elif natural_matched and natural_matched.name != (
+                default_profile.name if default_profile else ""
+            ):
                 # Natural profile differs from default — record it for escalation
                 profile = default_profile
                 natural_profile_name = natural_matched.name
                 logger.info(
                     "default_first_dispatch: using profile=%s for %s (natural=%s)",
-                    profile.name, issue.identifier, natural_profile_name,
+                    profile.name,
+                    issue.identifier,
+                    natural_profile_name,
                 )
             else:
                 # Natural match IS the default, or no natural match — no change
@@ -5546,7 +6058,8 @@ class Orchestrator:
         except Exception as exc:
             logger.debug(
                 "Pre-dispatch state recheck failed for %s: %s — proceeding anyway",
-                issue.identifier, exc,
+                issue.identifier,
+                exc,
             )
             refreshed = []
         if refreshed:
@@ -5555,7 +6068,8 @@ class Orchestrator:
             if cur_state in terminal:
                 logger.info(
                     "Aborting dispatch of %s: state moved to %r since fetch",
-                    issue.identifier, cur_state,
+                    issue.identifier,
+                    cur_state,
                 )
                 self.state.claimed.discard(issue.id)
                 self.state.completed.add(issue.id)
@@ -5572,7 +6086,11 @@ class Orchestrator:
                 lambda: tracker.update_issue(issue.identifier, status="in_progress"),
             )
         except Exception as exc:
-            logger.warning("Failed to set in_progress for %s: %s — aborting dispatch", issue.identifier, exc)
+            logger.warning(
+                "Failed to set in_progress for %s: %s — aborting dispatch",
+                issue.identifier,
+                exc,
+            )
             self.state.claimed.discard(issue.id)
             return
 
@@ -5599,26 +6117,34 @@ class Orchestrator:
         )
 
         # Post dispatch comment in thread to avoid blocking event loop
-        comment = (f"Retrying (attempt #{attempt}, agent: {profile_name})"
-                   if attempt and attempt > 1
-                   else f"Agent dispatched (profile: {profile_name})")
+        comment = (
+            f"Retrying (attempt #{attempt}, agent: {profile_name})"
+            if attempt and attempt > 1
+            else f"Agent dispatched (profile: {profile_name})"
+        )
         loop = asyncio.get_event_loop()
         loop.run_in_executor(
             self._tick_pool,
-            lambda: self._post_comment(issue.identifier, comment,
-                                       project_id=issue.project_id),
+            lambda: self._post_comment(
+                issue.identifier, comment, project_id=issue.project_id
+            ),
         )  # fire-and-forget, don't await
 
         # Emit agent dispatched event on EventBus
-        self.event_bus.emit(EventType.AGENT_DISPATCHED, {
-            "issue_id": issue.id,
-            "identifier": issue.identifier,
-            "profile": profile_name,
-            "attempt": attempt,
-        })
+        self.event_bus.emit(
+            EventType.AGENT_DISPATCHED,
+            {
+                "issue_id": issue.id,
+                "identifier": issue.identifier,
+                "profile": profile_name,
+                "attempt": attempt,
+            },
+        )
         self._notify_observers()
 
-    async def _run_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
+    async def _run_worker(
+        self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None
+    ) -> None:
         """Worker: create workspace, build prompt, run agent turns.
 
         Routing is keyed off ``profile.mode`` (default ``auto``):
@@ -5665,12 +6191,15 @@ class Orchestrator:
                 logger.warning(
                     "Profile %r is mode=api but provider did not resolve; "
                     "falling through to cli for issue %s",
-                    profile.name, issue.identifier,
+                    profile.name,
+                    issue.identifier,
                 )
 
         await self._run_cli_worker(issue, attempt, profile)
 
-    async def _run_api_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile, provider) -> None:
+    async def _run_api_worker(
+        self, issue: Issue, attempt: int | None, profile: AgentProfile, provider
+    ) -> None:
         """Worker using the OpenAI-compatible API agent."""
         exit_reason = "normal"
         error_msg = None
@@ -5682,8 +6211,9 @@ class Orchestrator:
         # call against the provider's default_model and falls back to
         # the deterministic scorer on any failure.
         focus = await select_focus_async(issue, provider=provider)
-        logger.info("Issue %s assigned focus: %s (%s)",
-                    issue.identifier, focus.name, focus.role)
+        logger.info(
+            "Issue %s assigned focus: %s (%s)", issue.identifier, focus.name, focus.role
+        )
 
         # Apply focus-level provider override if any. If the focus changes
         # the provider, log it.
@@ -5691,7 +6221,9 @@ class Orchestrator:
         if focus_provider is not None and focus_provider is not provider:
             logger.info(
                 "Focus %r overrides provider: %s -> %s",
-                focus.name, provider.name, focus_provider.name,
+                focus.name,
+                provider.name,
+                focus_provider.name,
             )
             provider = focus_provider
 
@@ -5700,12 +6232,13 @@ class Orchestrator:
         # the SDK picks the model from the operator's subscription,
         # so no model name is required at dispatch time.
         model = self._resolve_model(profile, provider, focus=focus)
-        is_acp_sdk_managed = (
-            getattr(provider, "mode", "api") == "acp"
-            and not (provider.models or [])
+        is_acp_sdk_managed = getattr(provider, "mode", "api") == "acp" and not (
+            provider.models or []
         )
         if not model and not is_acp_sdk_managed:
-            raise ValueError(f"No model resolved for profile {profile.name!r} with provider {provider.name}")
+            raise ValueError(
+                f"No model resolved for profile {profile.name!r} with provider {provider.name}"
+            )
 
         # Diagnostic: surface where the model came from.
         if is_acp_sdk_managed and not model:
@@ -5714,10 +6247,18 @@ class Orchestrator:
         elif focus.model:
             model_source = f"focus={focus.name}.model"
             model_display = model
-        elif focus.model_role and provider.model_roles and provider.model_roles.get(focus.model_role) == model:
+        elif (
+            focus.model_role
+            and provider.model_roles
+            and provider.model_roles.get(focus.model_role) == model
+        ):
             model_source = f"focus={focus.name}.model_role={focus.model_role}"
             model_display = model
-        elif profile.model_role and provider.model_roles and provider.model_roles.get(profile.model_role) == model:
+        elif (
+            profile.model_role
+            and provider.model_roles
+            and provider.model_roles.get(profile.model_role) == model
+        ):
             model_source = f"profile={profile.name}.model_role={profile.model_role}"
             model_display = model
         elif profile.model and profile.model == model:
@@ -5726,21 +6267,52 @@ class Orchestrator:
         else:
             model_source = "provider.default"
             model_display = model
-        logger.info("Resolved provider=%s model=%s source=%s for %s",
-                    provider.name, model_display, model_source, issue.identifier)
+        logger.info(
+            "Resolved provider=%s model=%s source=%s for %s",
+            provider.name,
+            model_display,
+            model_source,
+            issue.identifier,
+        )
 
         if not is_acp_sdk_managed:
-            if profile.model_role and provider.model_roles and profile.model_role not in provider.model_roles:
-                logger.error("Model role %r not defined in provider %s (available roles: %s)",
-                             profile.model_role, provider.name, ", ".join(provider.model_roles))
-                raise ValueError(f"Model role {profile.model_role!r} not defined in provider {provider.name}")
-            if provider.models and model not in provider.models and model != provider.default_model:
-                logger.error("Model %s not available in provider %s (available: %s)",
-                             model, provider.name, ", ".join(provider.models))
-                raise ValueError(f"Model {model} not available in provider {provider.name}")
-            if provider.models and model not in provider.models and model == provider.default_model:
-                logger.warning("Model %s is provider.default_model but not in provider.models; proceeding with dispatch",
-                               model)
+            if (
+                profile.model_role
+                and provider.model_roles
+                and profile.model_role not in provider.model_roles
+            ):
+                logger.error(
+                    "Model role %r not defined in provider %s (available roles: %s)",
+                    profile.model_role,
+                    provider.name,
+                    ", ".join(provider.model_roles),
+                )
+                raise ValueError(
+                    f"Model role {profile.model_role!r} not defined in provider {provider.name}"
+                )
+            if (
+                provider.models
+                and model not in provider.models
+                and model != provider.default_model
+            ):
+                logger.error(
+                    "Model %s not available in provider %s (available: %s)",
+                    model,
+                    provider.name,
+                    ", ".join(provider.models),
+                )
+                raise ValueError(
+                    f"Model {model} not available in provider {provider.name}"
+                )
+            if (
+                provider.models
+                and model not in provider.models
+                and model == provider.default_model
+            ):
+                logger.warning(
+                    "Model %s is provider.default_model but not in provider.models; proceeding with dispatch",
+                    model,
+                )
 
         # Resolve modality capabilities for the (provider, model) pair.
         # Used by the prompt renderer to decide whether to embed
@@ -5758,8 +6330,11 @@ class Orchestrator:
                 # the shared epic worktree; otherwise per-bead path.
                 wp, _epic = self._create_workspace_for_issue(issue)
 
-                self._post_comment(issue.identifier, f"Focus: {focus.role}",
-                                   project_id=issue.project_id)
+                self._post_comment(
+                    issue.identifier,
+                    f"Focus: {focus.role}",
+                    project_id=issue.project_id,
+                )
                 self._clear_handoff_labels(issue)
 
                 # Fetch comments and memories
@@ -5781,9 +6356,13 @@ class Orchestrator:
                     self._lfs_pull_attachments(wp, issue.identifier)
 
                 rendered = render_prompt(
-                    self._prompt_template, issue, attempt,
-                    comments=comments, focus_text=focus.render(project_obj),
-                    workspace_path=wp, memories=memories,
+                    self._prompt_template,
+                    issue,
+                    attempt,
+                    comments=comments,
+                    focus_text=focus.render(project_obj),
+                    workspace_path=wp,
+                    memories=memories,
                     attachments=attachments,
                     capabilities=capabilities,
                     project_root=wp,
@@ -5802,9 +6381,12 @@ class Orchestrator:
                 elided = len(prompt.elided)
                 logger.info(
                     "Issue %s attachments: total=%d embedded=%d elided=%d caps=%s",
-                    issue.identifier, len(attachment_paths),
-                    embedded, elided, ",".join(capabilities),
-                    )
+                    issue.identifier,
+                    len(attachment_paths),
+                    embedded,
+                    elided,
+                    ",".join(capabilities),
+                )
 
             # Store focus on running entry for dashboard display
             running_entry = self.state.running.get(issue.id)
@@ -5816,9 +6398,9 @@ class Orchestrator:
             # just attach_image, gated on (a) the active focus opting in
             # and (b) the resolved model declaring image capability.
             from oompah.api_agent import TOOL_DEFINITIONS as _TD, _OPT_IN_TOOLS as _OPT
+
             base_tools = {
-                t["function"]["name"] for t in _TD
-                if t["function"]["name"] not in _OPT
+                t["function"]["name"] for t in _TD if t["function"]["name"] not in _OPT
             }
             if getattr(focus, "allow_image_output", False) and "image" in capabilities:
                 base_tools.add("attach_image")
@@ -5827,11 +6409,14 @@ class Orchestrator:
             # and activity event. One file per dispatch so the user can
             # see exactly what was sent to and returned from the model.
             log_dir = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
-                os.path.expanduser("~"), ".oompah", "agent-logs",
+                os.path.expanduser("~"),
+                ".oompah",
+                "agent-logs",
             )
             ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             agent_log_path = os.path.join(
-                log_dir, f"{issue.identifier}__{ts}.jsonl",
+                log_dir,
+                f"{issue.identifier}__{ts}.jsonl",
             )
 
             # Compute the project's main beads directory so the agent's
@@ -5859,7 +6444,9 @@ class Orchestrator:
                 beads_dir=beads_dir,
             )
             logger.info(
-                "Agent log for %s -> %s", issue.identifier, agent_log_path,
+                "Agent log for %s -> %s",
+                issue.identifier,
+                agent_log_path,
             )
 
             # Update running entry with minimal session info, log path,
@@ -5875,8 +6462,7 @@ class Orchestrator:
                 # Role: focus override wins over profile role; falls back
                 # to None when nothing role-driven was used.
                 running_entry.model_role = (
-                    getattr(focus, "model_role", None)
-                    or profile.model_role
+                    getattr(focus, "model_role", None) or profile.model_role
                 )
                 running_entry.session = LiveSession(
                     session_id=f"api-{provider.name}-{model}",
@@ -5892,9 +6478,15 @@ class Orchestrator:
                 if issue.id in self.state.running:
                     self.state.running[issue.id].activity_log.append(activity_entry)
                     if self.state.running[issue.id].session:
-                        self.state.running[issue.id].session.last_message = activity_entry.summary[:200]
-                        self.state.running[issue.id].session.last_event = activity_entry.kind
-                        self.state.running[issue.id].session.last_timestamp = datetime.now(timezone.utc)
+                        self.state.running[
+                            issue.id
+                        ].session.last_message = activity_entry.summary[:200]
+                        self.state.running[
+                            issue.id
+                        ].session.last_event = activity_entry.kind
+                        self.state.running[
+                            issue.id
+                        ].session.last_timestamp = datetime.now(timezone.utc)
                     # Broadcast activity entry to WS clients
                     self._notify_activity(issue.identifier, activity_entry)
                     # Only broadcast state (lightweight), not issues (expensive)
@@ -5910,15 +6502,19 @@ class Orchestrator:
                     refreshed = tracker.fetch_issue_states_by_ids([issue.id])
                     if refreshed:
                         state = refreshed[0].state.strip().lower()
-                        terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
+                        terminal = {
+                            s.strip().lower()
+                            for s in self.config.tracker_terminal_states
+                        }
                         if state in terminal:
                             return True
                 except Exception:
                     pass
                 return False
 
-            result = await session.run_task(prompt, on_activity=_on_activity,
-                                            is_cancelled=_is_cancelled)
+            result = await session.run_task(
+                prompt, on_activity=_on_activity, is_cancelled=_is_cancelled
+            )
 
             # Update session with final token counts
             if issue.id in self.state.running and self.state.running[issue.id].session:
@@ -5933,12 +6529,17 @@ class Orchestrator:
             if result.status == "ask_question":
                 exit_reason = "ask_question"
                 error_msg = result.question
-                logger.info("API agent asked a question on %s: %s",
-                            issue.identifier, result.question)
+                logger.info(
+                    "API agent asked a question on %s: %s",
+                    issue.identifier,
+                    result.question,
+                )
             elif result.status == "rate_limited":
                 exit_reason = "rate_limited"
                 error_msg = result.error or "Rate limited by API"
-                logger.warning("API agent rate limited on %s: %s", issue.identifier, error_msg)
+                logger.warning(
+                    "API agent rate limited on %s: %s", issue.identifier, error_msg
+                )
             elif result.status == "failed":
                 exit_reason = "abnormal"
                 error_msg = result.error or "API agent failed"
@@ -5958,14 +6559,17 @@ class Orchestrator:
                     self._reap_oversize_outputs(workspace_path, issue)
                 except Exception as exc:
                     logger.debug(
-                        "output reap failed for %s: %s", issue.identifier, exc,
+                        "output reap failed for %s: %s",
+                        issue.identifier,
+                        exc,
                     )
                 try:
                     self._record_generated_attachments(workspace_path, issue)
                 except Exception as exc:
                     logger.warning(
                         "metadata writeback failed for %s: %s",
-                        issue.identifier, exc,
+                        issue.identifier,
+                        exc,
                     )
 
         except Exception as exc:
@@ -5986,7 +6590,10 @@ class Orchestrator:
             await self._on_worker_exit(issue.id, exit_reason, error_msg)
 
     async def _run_acp_worker(
-        self, issue: Issue, attempt: int | None, profile: AgentProfile,
+        self,
+        issue: Issue,
+        attempt: int | None,
+        profile: AgentProfile,
     ) -> None:
         """Worker that drives the bundled ``claude`` CLI via the Claude
         Agent SDK so per-token costs bill against the operator's
@@ -6020,7 +6627,9 @@ class Orchestrator:
         focus = await select_focus_async(issue, provider=None)
         logger.info(
             "Issue %s assigned focus: %s (%s)",
-            issue.identifier, focus.name, focus.role,
+            issue.identifier,
+            focus.name,
+            focus.role,
         )
 
         # Resolve a provider/model purely for diagnostic and prompt-render
@@ -6042,12 +6651,14 @@ class Orchestrator:
         )
 
         try:
+
             def _setup_worker():
                 # Resolve workspace via the epic_strategy-aware helper.
                 wp, _epic = self._create_workspace_for_issue(issue)
 
                 self._post_comment(
-                    issue.identifier, f"Focus: {focus.role}",
+                    issue.identifier,
+                    f"Focus: {focus.role}",
                     project_id=issue.project_id,
                 )
                 self._clear_handoff_labels(issue)
@@ -6067,9 +6678,13 @@ class Orchestrator:
                     self._lfs_pull_attachments(wp, issue.identifier)
 
                 rendered = render_prompt(
-                    self._prompt_template, issue, attempt,
-                    comments=comments, focus_text=focus.render(project_obj),
-                    workspace_path=wp, memories=memories,
+                    self._prompt_template,
+                    issue,
+                    attempt,
+                    comments=comments,
+                    focus_text=focus.render(project_obj),
+                    workspace_path=wp,
+                    memories=memories,
                     attachments=attachments,
                     capabilities=capabilities,
                     project_root=wp,
@@ -6079,7 +6694,8 @@ class Orchestrator:
 
             loop = asyncio.get_event_loop()
             workspace_path, prompt, _attachment_paths = await loop.run_in_executor(
-                self._tick_pool, _setup_worker,
+                self._tick_pool,
+                _setup_worker,
             )
 
             running_entry = self.state.running.get(issue.id)
@@ -6095,17 +6711,22 @@ class Orchestrator:
 
             # Per-dispatch JSONL log. Reuses api_agent's location convention.
             log_dir = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
-                os.path.expanduser("~"), ".oompah", "agent-logs",
+                os.path.expanduser("~"),
+                ".oompah",
+                "agent-logs",
             )
             os.makedirs(log_dir, exist_ok=True)
             ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             agent_log_path = os.path.join(
-                log_dir, f"{issue.identifier}__{ts}.jsonl",
+                log_dir,
+                f"{issue.identifier}__{ts}.jsonl",
             )
             log_fp = open(agent_log_path, "a", encoding="utf-8")
             logger.info(
                 "ACP agent log for %s -> %s (mode=acp model=%s)",
-                issue.identifier, agent_log_path, model,
+                issue.identifier,
+                agent_log_path,
+                model,
             )
 
             # Update running entry session + telemetry snapshot. The
@@ -6121,8 +6742,7 @@ class Orchestrator:
                 )
                 running_entry_acp.model_name = model
                 running_entry_acp.model_role = (
-                    getattr(focus, "model_role", None)
-                    or profile.model_role
+                    getattr(focus, "model_role", None) or profile.model_role
                 )
                 running_entry_acp.session = LiveSession(
                     session_id=f"acp-{model}",
@@ -6155,14 +6775,21 @@ class Orchestrator:
                 """
                 # 1. Persist the raw event to per-agent JSONL.
                 try:
-                    log_fp.write(json.dumps({
-                        "ts": datetime.fromtimestamp(
-                            ev.timestamp, timezone.utc,
-                        ).isoformat(),
-                        "kind": ev.event,
-                        "usage": ev.usage,
-                        "payload": ev.payload,
-                    }, default=str) + "\n")
+                    log_fp.write(
+                        json.dumps(
+                            {
+                                "ts": datetime.fromtimestamp(
+                                    ev.timestamp,
+                                    timezone.utc,
+                                ).isoformat(),
+                                "kind": ev.event,
+                                "usage": ev.usage,
+                                "payload": ev.payload,
+                            },
+                            default=str,
+                        )
+                        + "\n"
+                    )
                     log_fp.flush()
                 except Exception:
                     pass
@@ -6201,16 +6828,19 @@ class Orchestrator:
                 if ev.event == "acp_tool_use":
                     tool_name = payload.get("tool", "?")
                     raw_input = payload.get("input")
-                    args_str = json.dumps(raw_input, default=str)[:140] \
-                        if raw_input is not None else ""
-                    summary = f"{tool_name}({args_str})"
-                    detail = json.dumps(raw_input, default=str)[:2000] \
-                        if raw_input is not None else ""
-                elif ev.event == "acp_tool_result":
-                    summary = (
-                        "tool error" if payload.get("is_error")
-                        else "tool ok"
+                    args_str = (
+                        json.dumps(raw_input, default=str)[:140]
+                        if raw_input is not None
+                        else ""
                     )
+                    summary = f"{tool_name}({args_str})"
+                    detail = (
+                        json.dumps(raw_input, default=str)[:2000]
+                        if raw_input is not None
+                        else ""
+                    )
+                elif ev.event == "acp_tool_result":
+                    summary = "tool error" if payload.get("is_error") else "tool ok"
                     detail = str(payload.get("content", ""))[:2000]
                 elif ev.event == "acp_text":
                     text = str(payload.get("text", ""))
@@ -6257,7 +6887,8 @@ class Orchestrator:
                     if sess:
                         sess.last_event = ev.event
                         sess.last_timestamp = datetime.fromtimestamp(
-                            ev.timestamp, timezone.utc,
+                            ev.timestamp,
+                            timezone.utc,
                         )
                         sess.last_message = summary[:200]
                         u = ev.usage or {}
@@ -6356,10 +6987,7 @@ class Orchestrator:
                 # See bead oompah-zlz_2-ag7h.
                 s.sdk_cost_usd = (
                     session.total_cost_usd
-                    if (
-                        provider is not None
-                        and provider.is_per_token_billed("acp")
-                    )
+                    if (provider is not None and provider.is_per_token_billed("acp"))
                     else None
                 )
                 # Emit a warning when per-token ACP runs have no usable
@@ -6381,7 +7009,9 @@ class Orchestrator:
                         "Per-token ACP provider %r has no model_costs entry for "
                         "model %r (issue %s); cost recorded as $0.00. Set rates "
                         "via /providers to enable accurate budget tracking.",
-                        provider.name, model, issue.identifier,
+                        provider.name,
+                        model,
+                        issue.identifier,
                     )
 
             if status == "succeeded":
@@ -6404,14 +7034,17 @@ class Orchestrator:
                     self._reap_oversize_outputs(workspace_path, issue)
                 except Exception as exc:
                     logger.debug(
-                        "output reap failed for %s: %s", issue.identifier, exc,
+                        "output reap failed for %s: %s",
+                        issue.identifier,
+                        exc,
                     )
                 try:
                     self._record_generated_attachments(workspace_path, issue)
                 except Exception as exc:
                     logger.warning(
                         "metadata writeback failed for %s: %s",
-                        issue.identifier, exc,
+                        issue.identifier,
+                        exc,
                     )
 
         except Exception as exc:
@@ -6431,12 +7064,18 @@ class Orchestrator:
                     pass
             await self._on_worker_exit(issue.id, exit_reason, error_msg)
 
-    async def _run_cli_worker(self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None) -> None:
+    async def _run_cli_worker(
+        self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None
+    ) -> None:
         """Worker using CLI subprocess (original behavior)."""
         exit_reason = "normal"
         error_msg = None
         agent_command = profile.command if profile else self.config.agent_command
-        max_turns = profile.max_turns if profile and profile.max_turns else self.config.max_turns
+        max_turns = (
+            profile.max_turns
+            if profile and profile.max_turns
+            else self.config.max_turns
+        )
 
         try:
             # Resolve workspace via the epic_strategy-aware helper:
@@ -6480,9 +7119,17 @@ class Orchestrator:
 
                 # Select focus tailored to this issue
                 cli_focus = select_focus(issue)
-                logger.info("Issue %s assigned focus: %s (%s)", issue.identifier, cli_focus.name, cli_focus.role)
-                self._post_comment(issue.identifier, f"Focus: {cli_focus.role}",
-                                   project_id=issue.project_id)
+                logger.info(
+                    "Issue %s assigned focus: %s (%s)",
+                    issue.identifier,
+                    cli_focus.name,
+                    cli_focus.role,
+                )
+                self._post_comment(
+                    issue.identifier,
+                    f"Focus: {cli_focus.role}",
+                    project_id=issue.project_id,
+                )
                 # Clean up handoff labels after focus selection
                 self._clear_handoff_labels(issue)
                 # Store focus on running entry for dashboard display.
@@ -6497,12 +7144,10 @@ class Orchestrator:
                     cli_running.focus_role = cli_focus.role
                     cli_running.provider_name = "cli"
                     cli_running.model_name = (
-                        (profile.model if profile and profile.model else None)
-                        or "cli-managed"
-                    )
-                    cli_running.model_role = (
-                        getattr(cli_focus, "model_role", None)
-                        or (profile.model_role if profile else None)
+                        profile.model if profile and profile.model else None
+                    ) or "cli-managed"
+                    cli_running.model_role = getattr(cli_focus, "model_role", None) or (
+                        profile.model_role if profile else None
                     )
 
                 # Fetch existing comments and memories to kick-start agent context
@@ -6518,17 +7163,21 @@ class Orchestrator:
 
                 cli_project_obj = (
                     self.project_store.get(issue.project_id)
-                    if issue.project_id else None
+                    if issue.project_id
+                    else None
                 )
 
                 for turn_number in range(1, max_turns + 1):
                     # Build prompt
                     if turn_number == 1:
                         prompt = render_prompt(
-                            self._prompt_template, current_issue, attempt,
+                            self._prompt_template,
+                            current_issue,
+                            attempt,
                             comments=cli_comments,
                             focus_text=cli_focus.render(cli_project_obj),
-                            workspace_path=workspace_path, memories=cli_memories,
+                            workspace_path=workspace_path,
+                            memories=cli_memories,
                             project=cli_project_obj,
                         )
                     else:
@@ -6543,10 +7192,17 @@ class Orchestrator:
                         issue_title=current_issue.title,
                     )
 
-                    if issue.id in self.state.running and self.state.running[issue.id].session:
+                    if (
+                        issue.id in self.state.running
+                        and self.state.running[issue.id].session
+                    ):
                         self.state.running[issue.id].session.turn_count = turn_number
-                        self.state.running[issue.id].session.turn_id = session.turn_id or ""
-                        self.state.running[issue.id].session.session_id = session.session_id or ""
+                        self.state.running[issue.id].session.turn_id = (
+                            session.turn_id or ""
+                        )
+                        self.state.running[issue.id].session.session_id = (
+                            session.session_id or ""
+                        )
 
                     def _on_event(event: AgentEvent) -> None:
                         self._handle_agent_event(issue.id, event)
@@ -6568,15 +7224,21 @@ class Orchestrator:
                     except TrackerError:
                         break
 
-                    active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
+                    active_norms = {
+                        s.strip().lower() for s in self.config.tracker_active_states
+                    }
                     if current_issue.state.strip().lower() not in active_norms:
                         break
                 else:
                     # Loop completed without break — all turns used up
-                    active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
+                    active_norms = {
+                        s.strip().lower() for s in self.config.tracker_active_states
+                    }
                     if current_issue.state.strip().lower() in active_norms:
                         exit_reason = "max_turns"
-                        logger.info("CLI agent reached max turns for %s", issue.identifier)
+                        logger.info(
+                            "CLI agent reached max turns for %s", issue.identifier
+                        )
 
             finally:
                 await session.stop()
@@ -6632,9 +7294,15 @@ class Orchestrator:
 
             # Track deltas for aggregate totals
             if new_total > 0:
-                delta_input = max(0, new_input - entry.session.last_reported_input_tokens)
-                delta_output = max(0, new_output - entry.session.last_reported_output_tokens)
-                delta_total = max(0, new_total - entry.session.last_reported_total_tokens)
+                delta_input = max(
+                    0, new_input - entry.session.last_reported_input_tokens
+                )
+                delta_output = max(
+                    0, new_output - entry.session.last_reported_output_tokens
+                )
+                delta_total = max(
+                    0, new_total - entry.session.last_reported_total_tokens
+                )
 
                 entry.session.input_tokens += delta_input
                 entry.session.output_tokens += delta_output
@@ -6689,15 +7357,17 @@ class Orchestrator:
                 project = self.project_store.get(project_id)
                 if project:
                     repo_path = project.repo_path or ""
-                    base_branch = project.branch or "main"
+                    base_branch = project.default_branch or "main"
                     access_token = getattr(project, "access_token", None)
                     if project.repo_url:
                         from oompah.scm import extract_repo_slug
+
                         slug = extract_repo_slug(project.repo_url)
             except Exception as exc:
                 logger.warning(
                     "close_gate: project lookup failed for %s: %s — failing open",
-                    entry.identifier, exc,
+                    entry.identifier,
+                    exc,
                 )
                 return True
 
@@ -6716,12 +7386,15 @@ class Orchestrator:
             if result.skip_reason:
                 logger.debug(
                     "close_gate: allowed for %s (skip_reason=%s)",
-                    entry.identifier, result.skip_reason,
+                    entry.identifier,
+                    result.skip_reason,
                 )
             else:
                 logger.debug(
                     "close_gate: allowed for %s (open_prs=%d merged_prs=%d)",
-                    entry.identifier, result.open_prs, result.merged_prs,
+                    entry.identifier,
+                    result.open_prs,
+                    result.merged_prs,
                 )
             return True
 
@@ -6736,23 +7409,30 @@ class Orchestrator:
         except Exception as exc:
             logger.warning(
                 "close_gate: failed to post refusal comment for %s: %s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
 
         # Reopen the bead
         try:
-            tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+            tracker = (
+                self._tracker_for_project(project_id) if project_id else self.tracker
+            )
             tracker.update_issue(entry.identifier, status="open")
             logger.warning(
                 "close_gate: REFUSED close for %s — %d commit(s) ahead of %s, "
                 "open_prs=%d merged_prs=%d — bead reopened",
-                entry.identifier, result.commits_ahead, base_branch,
-                result.open_prs, result.merged_prs,
+                entry.identifier,
+                result.commits_ahead,
+                base_branch,
+                result.open_prs,
+                result.merged_prs,
             )
         except Exception as exc:
             logger.warning(
                 "close_gate: failed to reopen %s after refusal: %s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
 
         return False
@@ -6782,16 +7462,19 @@ class Orchestrator:
         except Exception as exc:
             logger.warning(
                 "completion verifier: unable to resolve workspace for %s: %s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
-            return VerifierResult(passed=True, skipped=True, skip_reason=f"workspace error: {exc}")
+            return VerifierResult(
+                passed=True, skipped=True, skip_reason=f"workspace error: {exc}"
+            )
 
         base_branch = "main"
         if project_id:
             try:
                 project = self.project_store.get(project_id)
-                if project and project.branch:
-                    base_branch = project.branch
+                if project and project.default_branch:
+                    base_branch = project.default_branch
             except Exception:
                 pass
 
@@ -6825,14 +7508,18 @@ class Orchestrator:
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning(
                 "completion verifier raised for %s; failing open. err=%s",
-                entry.identifier, exc,
+                entry.identifier,
+                exc,
             )
-            return VerifierResult(passed=True, skipped=True, skip_reason=f"verifier error: {exc}")
+            return VerifierResult(
+                passed=True, skipped=True, skip_reason=f"verifier error: {exc}"
+            )
 
         if result.skipped:
             logger.info(
                 "completion verifier skipped for %s: %s",
-                entry.identifier, result.skip_reason,
+                entry.identifier,
+                result.skip_reason,
             )
         elif result.passed:
             logger.info(
@@ -6885,8 +7572,9 @@ class Orchestrator:
                 # after the day rollover would be charged to yesterday.
                 self._roll_budget_window_if_due()
                 self.state.agent_totals.estimated_cost += cost
-                self.state.cost_by_profile[entry.agent_profile_name] = \
+                self.state.cost_by_profile[entry.agent_profile_name] = (
                     self.state.cost_by_profile.get(entry.agent_profile_name, 0.0) + cost
+                )
 
                 # Reset circuit breaker if we're back under budget
                 if self.state.budget_exceeded and self._check_budget():
@@ -6923,15 +7611,22 @@ class Orchestrator:
                 project_id=project_id,
             )
             try:
-                tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+                tracker = (
+                    self._tracker_for_project(project_id)
+                    if project_id
+                    else self.tracker
+                )
                 tracker.update_issue(
                     entry.identifier,
                     status="open",
                     **{"add-label": "asking_question"},
                 )
             except Exception as exc:
-                logger.warning("Failed to set asking_question state for %s: %s",
-                               entry.identifier, exc)
+                logger.warning(
+                    "Failed to set asking_question state for %s: %s",
+                    entry.identifier,
+                    exc,
+                )
             logger.info(
                 "Worker asked question issue_id=%s issue_identifier=%s",
                 issue_id,
@@ -6943,7 +7638,11 @@ class Orchestrator:
         if reason == "normal":
             _exit_event = EventType.AGENT_COMPLETED
         elif reason in ("max_turns", "stalled"):
-            _exit_event = EventType.AGENT_STALLED if reason == "stalled" else EventType.AGENT_MAX_TURNS
+            _exit_event = (
+                EventType.AGENT_STALLED
+                if reason == "stalled"
+                else EventType.AGENT_MAX_TURNS
+            )
         else:
             _exit_event = EventType.AGENT_FAILED
 
@@ -6969,23 +7668,32 @@ class Orchestrator:
                 self._auto_close_transient_errors_for_entry(entry)
             # Check if the agent actually closed the issue
             try:
-                tracker = self._tracker_for_project(project_id) if project_id else self.tracker
+                tracker = (
+                    self._tracker_for_project(project_id)
+                    if project_id
+                    else self.tracker
+                )
                 current = tracker.fetch_issue_detail(entry.identifier)
-                terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
+                terminal = {
+                    s.strip().lower() for s in self.config.tracker_terminal_states
+                }
                 if current and current.state.strip().lower() not in terminal:
                     # Merge-conflict agents just rebase — closure happens when
                     # YOLO merges the MR.  Don't count these toward the reopen
                     # limit; just mark completed and let YOLO handle the rest.
                     current_labels = {l.lower() for l in (current.labels or [])}
                     if "merge-conflict" in current_labels:
-                        logger.info("Merge-conflict agent completed for %s — "
-                                    "closing, awaiting YOLO merge",
-                                    entry.identifier)
+                        logger.info(
+                            "Merge-conflict agent completed for %s — "
+                            "closing, awaiting YOLO merge",
+                            entry.identifier,
+                        )
                         # Close the issue — the agent resolved the conflict.
                         # YOLO will reopen it if new conflicts arise.
                         try:
-                            tracker.update_issue(entry.identifier,
-                                                 **{"remove-label": "merge-conflict"})
+                            tracker.update_issue(
+                                entry.identifier, **{"remove-label": "merge-conflict"}
+                            )
                         except Exception:
                             pass
                         # Close is a separate bd command — can't combine with update
@@ -7003,7 +7711,9 @@ class Orchestrator:
                             # Stop re-dispatching — agent can't close this issue
                             logger.warning(
                                 "Agent completed without closing %s %d times — giving up (marking deferred)",
-                                entry.identifier, reopen_count)
+                                entry.identifier,
+                                reopen_count,
+                            )
                             self._post_comment(
                                 entry.identifier,
                                 f"Agent completed {reopen_count} times without closing this issue. "
@@ -7014,7 +7724,9 @@ class Orchestrator:
                             self.state.completed.add(issue_id)
                         else:
                             # Try to escalate to a stronger profile before retrying
-                            escalated, escalated_name = self._next_profile_for_retry(entry)
+                            escalated, escalated_name = self._next_profile_for_retry(
+                                entry
+                            )
                             if escalated:
                                 delay = self._backoff_delay(reopen_count)
                                 self._post_comment(
@@ -7032,14 +7744,23 @@ class Orchestrator:
                                     error="completed_without_closing",
                                     escalated_profile=escalated_name,
                                 )
-                                logger.info("Escalating %s from %s to %s after completing without closing (%d/%d)",
-                                            entry.identifier, entry.agent_profile_name, escalated.name,
-                                            reopen_count, max_reopens)
+                                logger.info(
+                                    "Escalating %s from %s to %s after completing without closing (%d/%d)",
+                                    entry.identifier,
+                                    entry.agent_profile_name,
+                                    escalated.name,
+                                    reopen_count,
+                                    max_reopens,
+                                )
                             else:
                                 # No higher profile available — retry with same profile
                                 tracker.update_issue(entry.identifier, status="open")
-                                logger.info("Agent completed without closing %s — reset to open (%d/%d)",
-                                            entry.identifier, reopen_count, max_reopens)
+                                logger.info(
+                                    "Agent completed without closing %s — reset to open (%d/%d)",
+                                    entry.identifier,
+                                    reopen_count,
+                                    max_reopens,
+                                )
                 else:
                     # Agent successfully closed the bead.
                     #
@@ -7050,7 +7771,9 @@ class Orchestrator:
                     # diagnostic comment — we don't proceed to the
                     # verifier or mark completed.
                     gate_passed = self._run_close_gate(
-                        entry, current, project_id,
+                        entry,
+                        current,
+                        project_id,
                     )
                     if not gate_passed:
                         # Gate refused. The bead was reopened by the
@@ -7064,11 +7787,16 @@ class Orchestrator:
                         # false-success closures where the agent's diff
                         # doesn't actually satisfy the AC.
                         verifier_result = self._run_completion_verifier(
-                            entry, current, project_id,
+                            entry,
+                            current,
+                            project_id,
                         )
                         max_verifier_rejects = 3
                         reject_count = self._verifier_reject_counts.get(issue_id, 0)
-                        if not verifier_result.passed and reject_count < max_verifier_rejects:
+                        if (
+                            not verifier_result.passed
+                            and reject_count < max_verifier_rejects
+                        ):
                             # Reject the close: reopen, post diagnostics,
                             # schedule a retry. Increment reject count so
                             # we eventually give up if the agent keeps
@@ -7079,7 +7807,8 @@ class Orchestrator:
                             except Exception as exc:
                                 logger.warning(
                                     "Failed to reopen %s after verifier rejection: %s",
-                                    entry.identifier, exc,
+                                    entry.identifier,
+                                    exc,
                                 )
                                 self.state.completed.add(issue_id)
                                 self.state.reopen_counts.pop(issue_id, None)
@@ -7094,7 +7823,9 @@ class Orchestrator:
                                 except Exception as exc:
                                     logger.warning(
                                         "Failed to post verifier-rejection comment "
-                                        "to %s: %s", entry.identifier, exc,
+                                        "to %s: %s",
+                                        entry.identifier,
+                                        exc,
                                     )
                                 # Schedule a retry — try a higher profile if
                                 # available so the next attempt has more
@@ -7110,13 +7841,17 @@ class Orchestrator:
                                     identifier=entry.identifier,
                                     delay_ms=delay,
                                     error="completion_verifier_rejected",
-                                    escalated_profile=escalated_name if escalated else None,
+                                    escalated_profile=escalated_name
+                                    if escalated
+                                    else None,
                                 )
                                 logger.info(
                                     "Completion verifier rejected close for %s — "
                                     "reopened, retrying in %ds (reject %d/%d)",
-                                    entry.identifier, delay // 1000,
-                                    reject_count + 1, max_verifier_rejects,
+                                    entry.identifier,
+                                    delay // 1000,
+                                    reject_count + 1,
+                                    max_verifier_rejects,
                                 )
                         else:
                             if not verifier_result.passed:
@@ -7127,7 +7862,8 @@ class Orchestrator:
                                 logger.warning(
                                     "Completion verifier rejected %s for the %dth "
                                     "time — failing open and honoring the close",
-                                    entry.identifier, reject_count + 1,
+                                    entry.identifier,
+                                    reject_count + 1,
                                 )
                             self.state.completed.add(issue_id)
                             self.state.reopen_counts.pop(issue_id, None)
@@ -7150,11 +7886,13 @@ class Orchestrator:
             self._rate_limit_until = time.time() + cooldown_s
             self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
             rl_ctx = self._describe_rate_limit_context(entry, error)
-            self._alerts.append({
-                "level": "warning",
-                "source": "rate_limit",
-                "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
-            })
+            self._alerts.append(
+                {
+                    "level": "warning",
+                    "source": "rate_limit",
+                    "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
+                }
+            )
             next_attempt = (entry.retry_attempt or 0) + 1
             delay = max(cooldown_s * 1000, self._backoff_delay(next_attempt))
             self._post_comment(
@@ -7172,7 +7910,10 @@ class Orchestrator:
             )
             logger.warning(
                 "Rate limited by %s — pausing dispatch for %ds. issue_id=%s retrying_in_ms=%d",
-                rl_ctx, cooldown_s, issue_id, delay,
+                rl_ctx,
+                cooldown_s,
+                issue_id,
+                delay,
             )
         elif reason in ("max_turns", "stalled"):
             next_attempt = (entry.retry_attempt or 0) + 1
@@ -7180,19 +7921,27 @@ class Orchestrator:
 
             # Check if we should decompose instead of retrying
             if self._should_decompose(entry.issue, next_attempt):
-                asyncio.ensure_future(self._trigger_decomposition(
-                    issue_id, entry, next_attempt, project_id,
-                ))
+                asyncio.ensure_future(
+                    self._trigger_decomposition(
+                        issue_id,
+                        entry,
+                        next_attempt,
+                        project_id,
+                    )
+                )
                 logger.info(
                     "Triggering auto-decomposition for %s after %d attempts",
-                    entry.identifier, next_attempt,
+                    entry.identifier,
+                    next_attempt,
                 )
             else:
                 # Track stall/failure count for escalation
                 escalated = None
                 escalated_name = ""
                 if reason == "stalled":
-                    self.state.stall_counts[issue_id] = self.state.stall_counts.get(issue_id, 0) + 1
+                    self.state.stall_counts[issue_id] = (
+                        self.state.stall_counts.get(issue_id, 0) + 1
+                    )
                     stall_count = self.state.stall_counts[issue_id]
 
                 # Escalate on both stalled and max_turns once threshold is met
@@ -7201,23 +7950,37 @@ class Orchestrator:
 
                 if escalated:
                     if reason == "stalled":
-                        msg = (f"Agent stalled {self.state.stall_counts.get(issue_id, 1)} time(s) ({elapsed:.0f}s{tokens_str}). "
-                               f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
-                               f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                        msg = (
+                            f"Agent stalled {self.state.stall_counts.get(issue_id, 1)} time(s) ({elapsed:.0f}s{tokens_str}). "
+                            f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
+                            f"Retrying in {delay // 1000}s (attempt #{next_attempt})"
+                        )
                     else:
-                        msg = (f"Agent hit turn limit ({elapsed:.0f}s{tokens_str}). "
-                               f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
-                               f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
-                    logger.info("Escalating issue %s from profile %s to %s (attempt=%d, reason=%s)",
-                                entry.identifier, entry.agent_profile_name, escalated.name, next_attempt, reason)
+                        msg = (
+                            f"Agent hit turn limit ({elapsed:.0f}s{tokens_str}). "
+                            f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
+                            f"Retrying in {delay // 1000}s (attempt #{next_attempt})"
+                        )
+                    logger.info(
+                        "Escalating issue %s from profile %s to %s (attempt=%d, reason=%s)",
+                        entry.identifier,
+                        entry.agent_profile_name,
+                        escalated.name,
+                        next_attempt,
+                        reason,
+                    )
                 elif reason == "stalled":
-                    msg = (f"Agent stalled — no productive actions (writes/commands) "
-                           f"for {self.config.stall_turns} consecutive turns "
-                           f"({elapsed:.0f}s{tokens_str}). "
-                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                    msg = (
+                        f"Agent stalled — no productive actions (writes/commands) "
+                        f"for {self.config.stall_turns} consecutive turns "
+                        f"({elapsed:.0f}s{tokens_str}). "
+                        f"Retrying in {delay // 1000}s (attempt #{next_attempt})"
+                    )
                 else:
-                    msg = (f"Agent hit safety turn limit ({elapsed:.0f}s{tokens_str}). "
-                           f"Retrying in {delay // 1000}s (attempt #{next_attempt})")
+                    msg = (
+                        f"Agent hit safety turn limit ({elapsed:.0f}s{tokens_str}). "
+                        f"Retrying in {delay // 1000}s (attempt #{next_attempt})"
+                    )
                 self._post_comment(entry.identifier, msg, project_id=project_id)
                 self._schedule_retry(
                     issue_id,
@@ -7237,17 +8000,24 @@ class Orchestrator:
         else:
             # Check if the failure is actually a rate limit (e.g. from CLI agent)
             error_lower = (error or "").lower()
-            is_rate_limit = any(s in error_lower for s in ("429", "rate limit", "too many requests", "overloaded"))
+            is_rate_limit = any(
+                s in error_lower
+                for s in ("429", "rate limit", "too many requests", "overloaded")
+            )
             if is_rate_limit:
                 cooldown_s = 120
                 self._rate_limit_until = time.time() + cooldown_s
-                self._alerts = [a for a in self._alerts if a.get("source") != "rate_limit"]
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != "rate_limit"
+                ]
                 rl_ctx = self._describe_rate_limit_context(entry, error)
-                self._alerts.append({
-                    "level": "warning",
-                    "source": "rate_limit",
-                    "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
-                })
+                self._alerts.append(
+                    {
+                        "level": "warning",
+                        "source": "rate_limit",
+                        "message": f"Rate limited by {rl_ctx} — pausing dispatch for {cooldown_s}s",
+                    }
+                )
 
             next_attempt = (entry.retry_attempt or 0) + 1
             base_delay = self._backoff_delay(next_attempt)
@@ -7273,20 +8043,25 @@ class Orchestrator:
             )
 
         # Emit the agent lifecycle event on the EventBus
-        self.event_bus.emit(_exit_event, {
-            "issue_id": issue_id,
-            "identifier": entry.identifier,
-            "reason": reason,
-            "error": error,
-            "elapsed_s": elapsed,
-        })
+        self.event_bus.emit(
+            _exit_event,
+            {
+                "issue_id": issue_id,
+                "identifier": entry.identifier,
+                "reason": reason,
+                "error": error,
+                "elapsed_s": elapsed,
+            },
+        )
         self._notify_observers()
         # Wake the dispatch loop so it can pick up the next candidate immediately.
-        self._post_event(DispatchEvent(
-            event_type=DispatchEventType.WORKER_EXIT,
-            issue_id=issue_id,
-            payload={"reason": reason},
-        ))
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.WORKER_EXIT,
+                issue_id=issue_id,
+                payload={"reason": reason},
+            )
+        )
 
     def _is_rate_limited(self) -> bool:
         """Check if we're in a rate-limit cooldown period."""
@@ -7356,15 +8131,24 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 }}
 """
 
-    def _build_decomposition_prompt(self, issue: Issue, comments: list[dict], attempt: int) -> str:
+    def _build_decomposition_prompt(
+        self, issue: Issue, comments: list[dict], attempt: int
+    ) -> str:
         """Build the prompt for the decomposition planner."""
         from oompah.focus import BUILTIN_FOCI
-        foci_text = "\n".join(f"- {f.name}: {f.role}" for f in BUILTIN_FOCI
-                              if f.name not in ("epic_planner", "merge_conflict", "ci_fix"))
-        comments_text = "\n".join(
-            f"- {c.get('author', '?')} ({c.get('created_at', '?')}): {c.get('text', '')}"
-            for c in (comments or [])
-        ) or "(no comments)"
+
+        foci_text = "\n".join(
+            f"- {f.name}: {f.role}"
+            for f in BUILTIN_FOCI
+            if f.name not in ("epic_planner", "merge_conflict", "ci_fix")
+        )
+        comments_text = (
+            "\n".join(
+                f"- {c.get('author', '?')} ({c.get('created_at', '?')}): {c.get('text', '')}"
+                for c in (comments or [])
+            )
+            or "(no comments)"
+        )
         return self._DECOMPOSE_PROMPT.format(
             attempt=attempt,
             identifier=issue.identifier,
@@ -7380,7 +8164,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     ) -> None:
         """Attempt to decompose an issue into smaller child tasks."""
         issue = entry.issue
-        self.state.decompose_attempts[issue_id] = self.state.decompose_attempts.get(issue_id, 0) + 1
+        self.state.decompose_attempts[issue_id] = (
+            self.state.decompose_attempts.get(issue_id, 0) + 1
+        )
 
         self._post_comment(
             entry.identifier,
@@ -7408,21 +8194,27 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
             # Make API call (single turn, no tools)
             from oompah.api_agent import _build_ssl_context, _http_post
+
             ssl_ctx = _build_ssl_context()
             url = f"{provider.base_url}/chat/completions"
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {provider.api_key}",
             }
-            payload = json.dumps({
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": "You are a task decomposition planner. Return only valid JSON."},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.3,
-                "max_tokens": 2000,
-            }).encode()
+            payload = json.dumps(
+                {
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a task decomposition planner. Return only valid JSON.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 2000,
+                }
+            ).encode()
 
             loop = asyncio.get_event_loop()
             resp = await loop.run_in_executor(
@@ -7481,7 +8273,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
 
     async def _execute_decomposition(
-        self, parent_issue: Issue, tasks: list[dict], tracker: BeadsTracker, project_id: str | None
+        self,
+        parent_issue: Issue,
+        tasks: list[dict],
+        tracker: BeadsTracker,
+        project_id: str | None,
     ) -> None:
         """Create child issues from a decomposition plan."""
         created: list[Issue] = []
@@ -7516,7 +8312,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # Add inter-task dependencies
         for i, task in enumerate(tasks):
             for dep_idx in task.get("depends_on", []):
-                if isinstance(dep_idx, int) and 0 <= dep_idx < len(created) and dep_idx != i:
+                if (
+                    isinstance(dep_idx, int)
+                    and 0 <= dep_idx < len(created)
+                    and dep_idx != i
+                ):
                     try:
                         tracker.add_dependency(
                             created[i].identifier, created[dep_idx].identifier
@@ -7572,13 +8372,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             escalated_profile=escalated_profile,
         )
         # Emit retry scheduled event on EventBus
-        self.event_bus.emit(EventType.ISSUE_RETRY_SCHEDULED, {
-            "issue_id": issue_id,
-            "identifier": identifier,
-            "attempt": attempt,
-            "delay_ms": delay_ms,
-            "error": error,
-        })
+        self.event_bus.emit(
+            EventType.ISSUE_RETRY_SCHEDULED,
+            {
+                "issue_id": issue_id,
+                "identifier": identifier,
+                "attempt": attempt,
+                "delay_ms": delay_ms,
+                "error": error,
+            },
+        )
 
     async def _on_retry_timer(self, issue_id: str) -> None:
         """Handle retry timer expiration.
@@ -7594,10 +8397,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         # Wake the dispatch loop — even if we handle dispatch directly below,
         # the loop should run a tick to pick up any other work that appeared.
-        self._post_event(DispatchEvent(
-            event_type=DispatchEventType.RETRY_FIRED,
-            issue_id=issue_id,
-        ))
+        self._post_event(
+            DispatchEvent(
+                event_type=DispatchEventType.RETRY_FIRED,
+                issue_id=issue_id,
+            )
+        )
 
         try:
             candidates = self._fetch_all_candidates()
@@ -7616,7 +8421,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         if issue is None:
             # Issue no longer active, release claim
             self.state.claimed.discard(issue_id)
-            logger.info("Retry released claim issue_id=%s (no longer candidate)", issue_id)
+            logger.info(
+                "Retry released claim issue_id=%s (no longer candidate)", issue_id
+            )
             return
 
         if self._available_slots() <= 0:
@@ -7629,8 +8436,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
             return
 
-        await self._dispatch(issue, attempt=retry.attempt,
-                             override_profile=retry.escalated_profile)
+        await self._dispatch(
+            issue, attempt=retry.attempt, override_profile=retry.escalated_profile
+        )
 
     def _fetch_running_states(self, by_project: dict) -> dict[str, Issue]:
         """Fetch current states for running issues (blocking, runs in thread).
@@ -7705,7 +8513,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         refreshed_map = await loop.run_in_executor(
             self._tick_pool, self._fetch_running_states, by_project
         )
-        terminal_norms = {s.strip().lower() for s in self.config.tracker_terminal_states}
+        terminal_norms = {
+            s.strip().lower() for s in self.config.tracker_terminal_states
+        }
         active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
 
         for issue_id in running_ids:
@@ -7743,13 +8553,19 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     if reopen_count >= 3:
                         logger.warning(
                             "Reconcile: issue %s reverted to %s %d times — marking completed to stop loop",
-                            running_entry.identifier, state_norm, reopen_count)
+                            running_entry.identifier,
+                            state_norm,
+                            reopen_count,
+                        )
                         self.state.completed.add(issue_id)
                     else:
                         delay = self._backoff_delay(reopen_count)
                         logger.info(
                             "Reconcile: scheduling retry for %s in %dms (%d/3)",
-                            running_entry.identifier, delay, reopen_count)
+                            running_entry.identifier,
+                            delay,
+                            reopen_count,
+                        )
                         self._schedule_retry(
                             issue_id,
                             attempt=reopen_count,
@@ -7776,7 +8592,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             save_suggestion(suggestion)
             logger.info(
                 "Focus suggestion created for %s: '%s' (%s)",
-                issue.identifier, suggestion.suggested_name, suggestion.suggested_role,
+                issue.identifier,
+                suggestion.suggested_name,
+                suggestion.suggested_role,
             )
 
     def _auto_archive(self) -> None:
@@ -7796,23 +8614,31 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         for pid, tracker in trackers:
             try:
-                closed = tracker.fetch_issues_by_states(self.config.tracker_terminal_states)
+                closed = tracker.fetch_issues_by_states(
+                    self.config.tracker_terminal_states
+                )
                 for issue in closed:
                     if tracker.is_archived(issue):
                         continue
-                    if issue.closed_at and (now - issue.closed_at).days >= self._ARCHIVE_DAYS:
+                    if (
+                        issue.closed_at
+                        and (now - issue.closed_at).days >= self._ARCHIVE_DAYS
+                    ):
                         try:
                             tracker.archive_issue(issue.identifier)
-                            logger.info("Auto-archived issue %s (closed %d days ago)",
-                                        issue.identifier, (now - issue.closed_at).days)
+                            logger.info(
+                                "Auto-archived issue %s (closed %d days ago)",
+                                issue.identifier,
+                                (now - issue.closed_at).days,
+                            )
                         except TrackerError as exc:
-                            logger.debug("Failed to archive %s: %s", issue.identifier, exc)
+                            logger.debug(
+                                "Failed to archive %s: %s", issue.identifier, exc
+                            )
             except (TrackerError, ProjectError) as exc:
                 logger.debug("Auto-archive fetch failed for project %s: %s", pid, exc)
 
-    async def _terminate_running(
-        self, issue_id: str, cleanup_workspace: bool
-    ) -> None:
+    async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> None:
         """Terminate a running worker and optionally clean its workspace."""
         entry = self.state.running.pop(issue_id, None)
         if not entry:
@@ -7911,9 +8737,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         retry_rows = []
         for issue_id, retry in self.state.retry_attempts.items():
-            due_dt = datetime.fromtimestamp(
-                retry.due_at_ms / 1000.0, tz=timezone.utc
-            )
+            due_dt = datetime.fromtimestamp(retry.due_at_ms / 1000.0, tz=timezone.utc)
             retry_rows.append(
                 {
                     "issue_id": issue_id,
@@ -7975,7 +8799,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 {
                     "name": p.name,
                     "command": p.command,
-                    "provider_id": p.provider_id or (dp.id if (dp := self.provider_store.get_default()) else None),
+                    "provider_id": p.provider_id
+                    or (dp.id if (dp := self.provider_store.get_default()) else None),
                     "model": p.model,
                     "model_role": p.model_role,
                     "mode": p.mode,
@@ -7986,7 +8811,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             # JSON store (read/write through CRUD endpoints) or pinned to
             # WORKFLOW.md (read-only). See docs/agent-profiles.md.
             "agent_profiles_source": getattr(
-                self.config, "agent_profiles_source", "json",
+                self.config,
+                "agent_profiles_source",
+                "json",
             ),
             "rate_limits": self.state.rate_limits,
             "projects": [p.to_dict() for p in self.project_store.list_all()],
@@ -8023,9 +8850,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             entry = st.to_dict()
             proj = projects_by_id.get(pid)
             entry["project_name"] = proj.name if proj else pid
-            entry["repo_path"] = (
-                getattr(proj, "repo_path", None) if proj else None
-            )
+            entry["repo_path"] = getattr(proj, "repo_path", None) if proj else None
             out[pid] = entry
         return out
 
@@ -8045,7 +8870,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         therefore require human action. That's the red badge.
         """
         reviews_cache = getattr(self, "_reviews_cache", {}) or {}
-        yolo_ids = {p.id for p in self.project_store.list_all() if getattr(p, "yolo", False)}
+        yolo_ids = {
+            p.id for p in self.project_store.list_all() if getattr(p, "yolo", False)
+        }
         total = 0
         yolo_pending = 0
         queued = 0

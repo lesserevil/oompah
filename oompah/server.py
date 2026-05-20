@@ -1131,7 +1131,9 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
 
 
 def _verify_epic_state_after_update(
-    tracker, identifier: str, expected_status: str,
+    tracker,
+    identifier: str,
+    expected_status: str,
 ) -> bool:
     """Verify that an Epic issue's state is at the expected value after update.
 
@@ -1427,7 +1429,10 @@ async def api_update_issue(identifier: str, request: Request):
         # the user's intended "active" state (open/in_progress) for epics
         # but does not block terminal transitions (close/archive).
         if new_status is not None and is_epic:
-            terminal = {s.strip().lower() for s in getattr(orch.config, "tracker_terminal_states", ["closed"])}
+            terminal = {
+                s.strip().lower()
+                for s in getattr(orch.config, "tracker_terminal_states", ["closed"])
+            }
             if new_status.strip().lower() not in terminal:
                 for attempt in range(3):
                     await asyncio.sleep(0.3)
@@ -1444,9 +1449,7 @@ async def api_update_issue(identifier: str, request: Request):
                 else:
                     # All attempts failed: the backend reverted or ignored the update.
                     _api_cache.invalidate("issues:all")
-                    _api_cache.invalidate_prefix(
-                        f"detail:{project_id}:{identifier}"
-                    )
+                    _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
                     await broadcast_issues()
                     return JSONResponse(
                         {
@@ -3075,6 +3078,8 @@ async def api_create_project(request: Request):
             )
         name = body.get("name", "").strip() or None  # None = auto from URL
         branch = body.get("branch", "main").strip()
+        branches = body.get("branches")
+        default_branch = body.get("default_branch", "").strip() or None
         git_user_name = body.get("git_user_name", "").strip() or None
         git_user_email = body.get("git_user_email", "").strip() or None
         access_token = (body.get("access_token") or "").strip() or None
@@ -3082,6 +3087,8 @@ async def api_create_project(request: Request):
             repo_url=repo_url,
             name=name,
             branch=branch,
+            branches=branches,
+            default_branch=default_branch,
             git_user_name=git_user_name,
             git_user_email=git_user_email,
             access_token=access_token,
@@ -3132,6 +3139,8 @@ async def api_update_project(project_id: str, request: Request):
             "name",
             "repo_url",
             "branch",
+            "branches",
+            "default_branch",
             "git_user_name",
             "git_user_email",
             "log_path",
@@ -4324,24 +4333,21 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
 
 
 def _webhook_advanced_tracked_branch(event, project) -> bool:
-    """True when the webhook indicates ``project.branch`` advanced on origin.
+    """True when the webhook indicates any of the project's tracked branches advanced on origin.
 
     Three cases:
-      * ``push`` events on the tracked branch (target_branch == project.branch).
+      * ``push`` events on any tracked branch (target_branch matches a branch pattern).
       * ``pull_request`` events with ``merged=True`` whose base branch is
-        the tracked branch.
+        a tracked branch.
       * ``merge_group`` events with ``merged=True`` (queue dequeued
-        successfully), whose target_branch is the project's tracked branch.
+        successfully), whose target_branch is a tracked branch.
     """
-    branch = (project.branch or "").strip()
-    if not branch:
-        return False
     if event.event_type == "push":
-        return event.target_branch == branch
+        return project.matches_branch(event.target_branch)
     if event.event_type == "pull_request" and event.merged:
-        return event.target_branch == branch
+        return project.matches_branch(event.target_branch)
     if event.event_type == "merge_group" and event.merged:
-        return event.target_branch == branch
+        return project.matches_branch(event.target_branch)
     return False
 
 

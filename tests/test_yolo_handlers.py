@@ -26,9 +26,11 @@ def _make_config() -> ServiceConfig:
     return ServiceConfig()
 
 
-def _make_project(project_id: str = "proj-1",
-                  repo_url: str = "https://github.com/org/repo",
-                  yolo: bool = True):
+def _make_project(
+    project_id: str = "proj-1",
+    repo_url: str = "https://github.com/org/repo",
+    yolo: bool = True,
+):
     p = MagicMock()
     p.id = project_id
     p.repo_url = repo_url
@@ -62,6 +64,7 @@ def _make_review_request(
 def _make_orchestrator(tmp_path, projects=None):
     """Create a test orchestrator with a mocked project store."""
     from oompah.roles import RoleStore
+
     all_projects = list(projects or [])
     project_store = MagicMock()
     project_store.list_all.return_value = all_projects
@@ -120,7 +123,9 @@ class TestYoloNotifyConflictRebaseFirst:
         assert any(
             "rebased" in rec.message.lower() and "30" in rec.message
             for rec in caplog.records
-        ), f"expected YOLO rebase-success log, got: {[r.message for r in caplog.records]}"
+        ), (
+            f"expected YOLO rebase-success log, got: {[r.message for r in caplog.records]}"
+        )
 
     # --- Path 2: rebase fails with 'conflict' -> bead-notify fires ---
 
@@ -135,7 +140,8 @@ class TestYoloNotifyConflictRebaseFirst:
             "Rebase failed: merge conflicts require manual resolution",
         )
         provider.get_review.return_value = _make_review_request(
-            review_id="30", source_branch="trickle-real",
+            review_id="30",
+            source_branch="trickle-real",
         )
 
         tracker = MagicMock()
@@ -157,7 +163,9 @@ class TestYoloNotifyConflictRebaseFirst:
 
     # --- Path 3: rebase fails with non-conflict reason -> bead-notify still fires ---
 
-    def test_rebase_fails_with_network_error_still_notifies_bead(self, tmp_path, caplog):
+    def test_rebase_fails_with_network_error_still_notifies_bead(
+        self, tmp_path, caplog
+    ):
         """Network/transport failure: WARNING logged, bead notification fires anyway."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
@@ -168,7 +176,8 @@ class TestYoloNotifyConflictRebaseFirst:
             "Rebase failed: HTTPSConnectionPool(host='api.github.com'): Read timed out",
         )
         provider.get_review.return_value = _make_review_request(
-            review_id="31", source_branch="trickle-real-31",
+            review_id="31",
+            source_branch="trickle-real-31",
         )
 
         tracker = MagicMock()
@@ -191,8 +200,7 @@ class TestYoloNotifyConflictRebaseFirst:
         # WARNING surfaced so an operator can see the non-conflict failure
         # didn't get the cheap rebase path.
         assert any(
-            "non-conflict" in rec.message.lower()
-            and rec.levelname == "WARNING"
+            "non-conflict" in rec.message.lower() and rec.levelname == "WARNING"
             for rec in caplog.records
         ), (
             "expected WARNING for non-conflict rebase failure, got: "
@@ -207,7 +215,8 @@ class TestYoloNotifyConflictRebaseFirst:
         provider = MagicMock()
         provider.rebase_review.side_effect = RuntimeError("boom")
         provider.get_review.return_value = _make_review_request(
-            review_id="32", source_branch="trickle-real-32",
+            review_id="32",
+            source_branch="trickle-real-32",
         )
 
         tracker = MagicMock()
@@ -227,10 +236,42 @@ class TestYoloNotifyConflictRebaseFirst:
         tracker.add_comment.assert_called_once()
         tracker.update_issue.assert_called_once()
         # And a WARNING was emitted so we can spot the raising provider.
-        assert any(
-            "rebase raised" in rec.message.lower()
-            for rec in caplog.records
-        ), (
+        assert any("rebase raised" in rec.message.lower() for rec in caplog.records), (
             "expected WARNING for raising provider.rebase_review, got: "
             f"{[(r.levelname, r.message) for r in caplog.records]}"
+        )
+
+    def test_deferred_issue_reopened_for_conflict(self, tmp_path):
+        """Non-terminal, non-actionable states like 'deferred' are reopened as P0
+        for conflict resolution, not just labeled and left behind."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.rebase_review.return_value = (False, "merge conflict in foo.py")
+        provider.get_review.return_value = _make_review_request(
+            review_id="33",
+            source_branch="trickle-deferred-33",
+        )
+
+        tracker = MagicMock()
+        existing = MagicMock()
+        existing.state = "deferred"
+        existing.labels = ["merge-conflict"]
+        existing.identifier = "trickle-deferred-33"
+        existing.id = "trickle-deferred-33"
+        tracker.fetch_issue_detail.return_value = existing
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_notify_conflict(project, provider, "org/repo", "33")
+
+        # The comment is added every tick
+        tracker.add_comment.assert_called_once()
+        # The issue MUST be reopened from deferred -> open with P0 priority so
+        # the conflict-resolution agent can actually be dispatched.
+        tracker.update_issue.assert_called_once_with(
+            "trickle-deferred-33",
+            status="open",
+            priority=0,
+            **{"add-label": "merge-conflict"},
         )

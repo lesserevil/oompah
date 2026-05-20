@@ -10,6 +10,7 @@ target selection (stacked mode), and the epic→main PR creation
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
+import fnmatch
 
 import pytest
 
@@ -59,6 +60,9 @@ def _make_project_record(
     p.repo_url = "https://github.com/org/repo"
     p.repo_path = "/tmp/repo"
     p.branch = "main"
+    p.default_branch = "main"
+    p.branches = ["main"]
+    p.matches_branch = lambda b: fnmatch.fnmatch(b, "main")
     p.paused = paused
     p.epic_strategy = epic_strategy
     p.max_in_flight_prs = 1
@@ -72,8 +76,8 @@ def _make_orch(tmp_path, projects=None):
     project_store.get.side_effect = lambda pid: next(
         (p for p in (projects or []) if p.id == pid), None
     )
-    project_store.epic_branch_name.side_effect = (
-        lambda epic_id: f"epic-{epic_id.replace('/', '_')}"
+    project_store.epic_branch_name.side_effect = lambda epic_id: (
+        f"epic-{epic_id.replace('/', '_')}"
     )
     orch = Orchestrator(
         config=ServiceConfig(),
@@ -104,7 +108,10 @@ class TestProjectEpicStrategyField:
 
     def test_to_dict_round_trip(self):
         p = Project(
-            id="p", name="n", repo_url="u", repo_path="/tmp/x",
+            id="p",
+            name="n",
+            repo_url="u",
+            repo_path="/tmp/x",
             epic_strategy="stacked",
         )
         d = p.to_dict()
@@ -120,7 +127,10 @@ class TestProjectEpicStrategyField:
 
     def test_from_dict_unknown_value_falls_back_to_flat(self):
         d = {
-            "id": "p", "name": "n", "repo_url": "u", "repo_path": "/tmp/x",
+            "id": "p",
+            "name": "n",
+            "repo_url": "u",
+            "repo_path": "/tmp/x",
             "epic_strategy": "totally-bogus",
         }
         p = Project.from_dict(d)
@@ -128,7 +138,10 @@ class TestProjectEpicStrategyField:
 
     def test_from_dict_normalizes_case(self):
         d = {
-            "id": "p", "name": "n", "repo_url": "u", "repo_path": "/tmp/x",
+            "id": "p",
+            "name": "n",
+            "repo_url": "u",
+            "repo_path": "/tmp/x",
             "epic_strategy": "SHARED",
         }
         p = Project.from_dict(d)
@@ -145,8 +158,12 @@ class TestProjectStoreUpdateEpicStrategy:
 
     def _seed(self, store: ProjectStore, **kwargs) -> Project:
         p = Project(
-            id="p1", name="n", repo_url="u", repo_path="/tmp/x",
-            git_user_name="A", git_user_email="a@example.com",
+            id="p1",
+            name="n",
+            repo_url="u",
+            repo_path="/tmp/x",
+            git_user_name="A",
+            git_user_email="a@example.com",
             **kwargs,
         )
         store._projects[p.id] = p
@@ -207,7 +224,10 @@ class TestEpicWorktreeHelpers:
             worktree_root=str(tmp_path / "worktrees"),
         )
         p = Project(
-            id="p1", name="my-project", repo_url="u", repo_path="/tmp/repo",
+            id="p1",
+            name="my-project",
+            repo_url="u",
+            repo_path="/tmp/repo",
         )
         store._projects[p.id] = p
         return store
@@ -308,11 +328,11 @@ class TestSharedModeDispatchGating:
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         # Sibling already running on the same epic
-        self._set_up_running_sibling(orch, parent_id="epic-1",
-                                     sibling_id="task-running")
+        self._set_up_running_sibling(
+            orch, parent_id="epic-1", sibling_id="task-running"
+        )
         # Now try to dispatch another child of the same epic
-        child = _make_issue(identifier="task-2", parent_id="epic-1",
-                            state="open")
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
         # Make _count_open_reviews + per-state checks neutral
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is False
@@ -323,8 +343,7 @@ class TestSharedModeDispatchGating:
     def test_allows_when_no_sibling_running_in_shared_mode(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
-        child = _make_issue(identifier="task-only", parent_id="epic-1",
-                            state="open")
+        child = _make_issue(identifier="task-only", parent_id="epic-1", state="open")
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
 
@@ -334,10 +353,10 @@ class TestSharedModeDispatchGating:
         # Allow multiple PRs in flight at once
         proj.max_in_flight_prs = 5
         orch = _make_orch(tmp_path, projects=[proj])
-        self._set_up_running_sibling(orch, parent_id="epic-1",
-                                     sibling_id="task-running")
-        child = _make_issue(identifier="task-2", parent_id="epic-1",
-                            state="open")
+        self._set_up_running_sibling(
+            orch, parent_id="epic-1", sibling_id="task-running"
+        )
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
         orch._reviews_cache = {}
         # flat mode: passes
         assert orch._should_dispatch(child) is True
@@ -347,10 +366,10 @@ class TestSharedModeDispatchGating:
         proj = _make_project_record(epic_strategy="stacked")
         proj.max_in_flight_prs = 5
         orch = _make_orch(tmp_path, projects=[proj])
-        self._set_up_running_sibling(orch, parent_id="epic-1",
-                                     sibling_id="task-running")
-        child = _make_issue(identifier="task-2", parent_id="epic-1",
-                            state="open")
+        self._set_up_running_sibling(
+            orch, parent_id="epic-1", sibling_id="task-running"
+        )
+        child = _make_issue(identifier="task-2", parent_id="epic-1", state="open")
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
 
@@ -360,11 +379,11 @@ class TestSharedModeDispatchGating:
         proj.max_in_flight_prs = 5
         orch = _make_orch(tmp_path, projects=[proj])
         # Sibling running on epic-1
-        self._set_up_running_sibling(orch, parent_id="epic-1",
-                                     sibling_id="other-running")
+        self._set_up_running_sibling(
+            orch, parent_id="epic-1", sibling_id="other-running"
+        )
         # Child of a *different* epic
-        child = _make_issue(identifier="task-x", parent_id="epic-2",
-                            state="open")
+        child = _make_issue(identifier="task-x", parent_id="epic-2", state="open")
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
 
@@ -372,10 +391,13 @@ class TestSharedModeDispatchGating:
         """P0 issues bypass the per-epic serial cap, matching other gate bypasses."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
-        self._set_up_running_sibling(orch, parent_id="epic-1",
-                                     sibling_id="task-running")
+        self._set_up_running_sibling(
+            orch, parent_id="epic-1", sibling_id="task-running"
+        )
         child = _make_issue(
-            identifier="task-p0", parent_id="epic-1", state="open",
+            identifier="task-p0",
+            parent_id="epic-1",
+            state="open",
             priority=0,
         )
         orch._reviews_cache = {}
@@ -425,7 +447,8 @@ class TestWorkspaceAllocation:
         assert epic_ret is not None
         assert epic_ret.identifier == "epic-1"
         orch.project_store.create_epic_worktree.assert_called_once_with(
-            "proj-1", "epic-1",
+            "proj-1",
+            "epic-1",
         )
         orch.project_store.create_worktree.assert_not_called()
 
@@ -453,8 +476,9 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="42")
 
-        issue = _make_issue(identifier="task-1", parent_id="epic-1",
-                            project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", parent_id="epic-1", project_id="proj-1"
+        )
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -464,8 +488,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             started_at=MagicMock(),
             agent_profile_name="default",
         )
-        with patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"):
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
             orch._ensure_review_exists(entry, "proj-1")
         # base_branch should be project.branch (main), NOT the epic branch
         call = provider.create_review.call_args
@@ -483,8 +509,9 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         epic = _make_issue(identifier="epic-1", issue_type="epic")
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = epic
-        issue = _make_issue(identifier="task-1", parent_id="epic-1",
-                            project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", parent_id="epic-1", project_id="proj-1"
+        )
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -494,9 +521,11 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             started_at=MagicMock(),
             agent_profile_name="default",
         )
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
             orch._ensure_review_exists(entry, "proj-1")
         call = provider.create_review.call_args
         kwargs = call.kwargs
@@ -513,8 +542,9 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         epic = _make_issue(identifier="epic-1", issue_type="epic")
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = epic
-        issue = _make_issue(identifier="task-1", parent_id="epic-1",
-                            project_id="proj-1")
+        issue = _make_issue(
+            identifier="task-1", parent_id="epic-1", project_id="proj-1"
+        )
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -524,9 +554,11 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             started_at=MagicMock(),
             agent_profile_name="default",
         )
-        with patch.object(orch, "_tracker_for_issue", return_value=tracker), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"):
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
             orch._ensure_review_exists(entry, "proj-1")
         # No per-child PR is created — the epic→main PR is the only one
         provider.create_review.assert_not_called()
@@ -540,8 +572,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="42")
 
-        issue = _make_issue(identifier="task-1", parent_id=None,
-                            project_id="proj-1")
+        issue = _make_issue(identifier="task-1", parent_id=None, project_id="proj-1")
         entry = RunningEntry(
             worker_task=MagicMock(),
             identifier="task-1",
@@ -551,8 +582,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             started_at=MagicMock(),
             agent_profile_name="default",
         )
-        with patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"):
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
             orch._ensure_review_exists(entry, "proj-1")
         call = provider.create_review.call_args
         kwargs = call.kwargs
@@ -571,68 +604,87 @@ class TestOpenEpicMainPrs:
 
     def test_flat_mode_is_noop(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="flat")
-        epic = _make_issue(identifier="epic-1", issue_type="epic",
-                           project_id="proj-1", state="open")
-        with patch.object(orch, "_fetch_epic_children",
-                          return_value=[_make_issue(state="closed")]), \
-             patch("oompah.orchestrator.detect_provider") as detect_p:
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open"
+        )
+        with (
+            patch.object(
+                orch, "_fetch_epic_children", return_value=[_make_issue(state="closed")]
+            ),
+            patch("oompah.orchestrator.detect_provider") as detect_p,
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
         detect_p.assert_not_called()
 
     def test_skips_epic_with_no_children(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
-        epic = _make_issue(identifier="epic-1", issue_type="epic",
-                           project_id="proj-1", state="open")
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open"
+        )
         provider = MagicMock()
-        with patch.object(orch, "_fetch_epic_children", return_value=[]), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider):
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
         provider.create_review.assert_not_called()
 
     def test_skips_when_child_not_terminal(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
-        epic = _make_issue(identifier="epic-1", issue_type="epic",
-                           project_id="proj-1", state="open")
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open"
+        )
         child_open = _make_issue(identifier="c1", state="open")
         child_closed = _make_issue(identifier="c2", state="closed")
         provider = MagicMock()
-        with patch.object(orch, "_fetch_epic_children",
-                          return_value=[child_open, child_closed]), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider):
+        with (
+            patch.object(
+                orch, "_fetch_epic_children", return_value=[child_open, child_closed]
+            ),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
         provider.create_review.assert_not_called()
 
     def test_skips_when_epic_already_terminal(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
-        epic = _make_issue(identifier="epic-1", issue_type="epic",
-                           project_id="proj-1", state="closed")
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="closed"
+        )
         provider = MagicMock()
-        with patch.object(orch, "_fetch_epic_children",
-                          return_value=[_make_issue(state="closed")]), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider):
+        with (
+            patch.object(
+                orch, "_fetch_epic_children", return_value=[_make_issue(state="closed")]
+            ),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
         provider.create_review.assert_not_called()
 
     def test_creates_pr_for_stacked_when_all_children_closed(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
-        orch.project_store.epic_branch_name.side_effect = (
-            lambda i: f"epic-{i}"
-        )
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         epic = _make_issue(
-            identifier="epic-1", issue_type="epic", project_id="proj-1",
-            state="open", title="Epic feature", description="Body of epic",
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state="open",
+            title="Epic feature",
+            description="Body of epic",
         )
         child = _make_issue(identifier="c1", state="closed")
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="99")
-        with patch.object(orch, "_fetch_epic_children", return_value=[child]), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"), \
-             patch.object(orch, "_push_epic_branch") as push:
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 1
         push.assert_called_once_with(proj, "epic-1")
@@ -647,40 +699,45 @@ class TestOpenEpicMainPrs:
 
     def test_creates_pr_for_shared_when_all_children_closed(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
-        orch.project_store.epic_branch_name.side_effect = (
-            lambda i: f"epic-{i}"
-        )
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         epic = _make_issue(
-            identifier="epic-1", issue_type="epic", project_id="proj-1",
-            state="open", title="Shared work", description="Doc body",
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state="open",
+            title="Shared work",
+            description="Doc body",
         )
         child = _make_issue(identifier="c1", state="closed")
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="100")
-        with patch.object(orch, "_fetch_epic_children", return_value=[child]), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"), \
-             patch.object(orch, "_push_epic_branch"):
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 1
 
     def test_idempotent_when_pr_already_exists(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
-        orch.project_store.epic_branch_name.side_effect = (
-            lambda i: f"epic-{i}"
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open"
         )
-        epic = _make_issue(identifier="epic-1", issue_type="epic",
-                           project_id="proj-1", state="open")
         child = _make_issue(state="closed")
         existing_review = MagicMock()
         existing_review.source_branch = "epic-epic-1"
         existing_review.draft = False
         orch._reviews_cache = {"proj-1": [existing_review]}
         provider = MagicMock()
-        with patch.object(orch, "_fetch_epic_children", return_value=[child]), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"), \
-             patch.object(orch, "_push_epic_branch") as push:
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
         provider.create_review.assert_not_called()
@@ -688,11 +745,14 @@ class TestOpenEpicMainPrs:
 
     def test_skips_when_provider_unavailable(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
-        epic = _make_issue(identifier="epic-1", issue_type="epic",
-                           project_id="proj-1", state="open")
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open"
+        )
         child = _make_issue(state="closed")
-        with patch.object(orch, "_fetch_epic_children", return_value=[child]), \
-             patch("oompah.orchestrator.detect_provider", return_value=None):
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=None),
+        ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
 
@@ -708,8 +768,9 @@ class TestResolveEpicTargetBranch:
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         # Epic has no parent
-        top_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                parent_id=None, project_id="proj-1")
+        top_epic = _make_issue(
+            identifier="epic-A", issue_type="epic", parent_id=None, project_id="proj-1"
+        )
         with patch.object(orch, "_resolve_parent_epic", return_value=None):
             target = orch._resolve_epic_target_branch(top_epic, proj)
         assert target == "main"
@@ -720,16 +781,23 @@ class TestResolveEpicTargetBranch:
         orch = _make_orch(tmp_path, projects=[proj])
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
         # Epic A is the parent
-        parent_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                   parent_id=None, project_id="proj-1")
+        parent_epic = _make_issue(
+            identifier="epic-A", issue_type="epic", parent_id=None, project_id="proj-1"
+        )
         # Epic B is a child of A
-        child_epic = _make_issue(identifier="epic-B", issue_type="epic",
-                                  parent_id="epic-A", project_id="proj-1")
+        child_epic = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+        )
         with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
             target = orch._resolve_epic_target_branch(child_epic, proj)
         assert target == "epic-epic-A"
 
-    def test_stacked_mode_ignores_parent_epic_always_targets_project_branch(self, tmp_path):
+    def test_stacked_mode_ignores_parent_epic_always_targets_project_branch(
+        self, tmp_path
+    ):
         """Stacked mode: _resolve_epic_target_branch always returns project.branch.
 
         In stacked mode, child task PRs already target the parent epic's branch
@@ -738,33 +806,51 @@ class TestResolveEpicTargetBranch:
         """
         proj = _make_project_record(epic_strategy="stacked")
         orch = _make_orch(tmp_path, projects=[proj])
-        parent_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                   project_id="proj-1")
-        child_epic = _make_issue(identifier="epic-B", issue_type="epic",
-                                  parent_id="epic-A", project_id="proj-1")
+        parent_epic = _make_issue(
+            identifier="epic-A", issue_type="epic", project_id="proj-1"
+        )
+        child_epic = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+        )
         # Even if there is a parent epic, stacked mode doesn't use the chain
         with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
             target = orch._resolve_epic_target_branch(child_epic, proj)
         assert target == "main"
 
-    def test_flat_mode_ignores_parent_epic_always_targets_project_branch(self, tmp_path):
+    def test_flat_mode_ignores_parent_epic_always_targets_project_branch(
+        self, tmp_path
+    ):
         """Flat mode: _resolve_epic_target_branch always returns project.branch."""
         proj = _make_project_record(epic_strategy="flat")
         orch = _make_orch(tmp_path, projects=[proj])
-        parent_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                   project_id="proj-1")
-        child_epic = _make_issue(identifier="epic-B", issue_type="epic",
-                                  parent_id="epic-A", project_id="proj-1")
+        parent_epic = _make_issue(
+            identifier="epic-A", issue_type="epic", project_id="proj-1"
+        )
+        child_epic = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+        )
         with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
             target = orch._resolve_epic_target_branch(child_epic, proj)
         assert target == "main"
 
-    def test_nested_epic_shared_parent_tracker_error_returns_project_branch(self, tmp_path):
+    def test_nested_epic_shared_parent_tracker_error_returns_project_branch(
+        self, tmp_path
+    ):
         """If _resolve_parent_epic returns None (tracker error), fall back to project.branch."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
-        child_epic = _make_issue(identifier="epic-B", issue_type="epic",
-                                  parent_id="epic-A", project_id="proj-1")
+        child_epic = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+        )
         # Simulate tracker error — resolve_parent_epic returns None
         with patch.object(orch, "_resolve_parent_epic", return_value=None):
             target = orch._resolve_epic_target_branch(child_epic, proj)
@@ -788,12 +874,21 @@ class TestNestedEpicMergeChain:
     def test_child_epic_pr_targets_parent_epic_branch_not_main(self, tmp_path):
         """B's completion PR targets A's branch (epic-epic-A), NOT main."""
         orch, proj = self._setup_nested(tmp_path)
-        parent_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                   parent_id=None, project_id="proj-1",
-                                   state="open")
-        child_epic = _make_issue(identifier="epic-B", issue_type="epic",
-                                  parent_id="epic-A", project_id="proj-1",
-                                  state="open", title="Child epic B")
+        parent_epic = _make_issue(
+            identifier="epic-A",
+            issue_type="epic",
+            parent_id=None,
+            project_id="proj-1",
+            state="open",
+        )
+        child_epic = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+            state="open",
+            title="Child epic B",
+        )
         task = _make_issue(identifier="task-1", state="closed")
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="55")
@@ -801,11 +896,13 @@ class TestNestedEpicMergeChain:
         # _resolve_parent_epic returns parent_epic when called for B
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = parent_epic
-        with patch.object(orch, "_fetch_epic_children", return_value=[task]), \
-             patch.object(orch, "_tracker_for_issue", return_value=tracker), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"), \
-             patch.object(orch, "_push_epic_branch"):
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[task]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
             opened = orch._open_epic_main_prs([child_epic])
         assert opened == 1
         provider.create_review.assert_called_once()
@@ -816,20 +913,27 @@ class TestNestedEpicMergeChain:
     def test_top_level_epic_pr_still_targets_main(self, tmp_path):
         """A's completion PR targets project.branch (main), not any parent branch."""
         orch, proj = self._setup_nested(tmp_path)
-        top_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                parent_id=None, project_id="proj-1",
-                                state="open", title="Top epic A")
-        child_epic_B = _make_issue(identifier="epic-B", issue_type="epic",
-                                    state="closed")
+        top_epic = _make_issue(
+            identifier="epic-A",
+            issue_type="epic",
+            parent_id=None,
+            project_id="proj-1",
+            state="open",
+            title="Top epic A",
+        )
+        child_epic_B = _make_issue(
+            identifier="epic-B", issue_type="epic", state="closed"
+        )
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="66")
         # No parent for A: _resolve_parent_epic returns None
-        with patch.object(orch, "_fetch_epic_children",
-                          return_value=[child_epic_B]), \
-             patch.object(orch, "_resolve_parent_epic", return_value=None), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"), \
-             patch.object(orch, "_push_epic_branch"):
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child_epic_B]),
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
             opened = orch._open_epic_main_prs([top_epic])
         assert opened == 1
         provider.create_review.assert_called_once()
@@ -839,23 +943,34 @@ class TestNestedEpicMergeChain:
     def test_three_level_nesting_c_targets_b_branch(self, tmp_path):
         """Three-level nesting A→B→C: C's PR targets B's branch."""
         orch, proj = self._setup_nested(tmp_path)
-        epic_B = _make_issue(identifier="epic-B", issue_type="epic",
-                              parent_id="epic-A", project_id="proj-1",
-                              state="open")
-        epic_C = _make_issue(identifier="epic-C", issue_type="epic",
-                              parent_id="epic-B", project_id="proj-1",
-                              state="open", title="Grandchild epic C")
+        epic_B = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+            state="open",
+        )
+        epic_C = _make_issue(
+            identifier="epic-C",
+            issue_type="epic",
+            parent_id="epic-B",
+            project_id="proj-1",
+            state="open",
+            title="Grandchild epic C",
+        )
         task = _make_issue(identifier="task-1", state="closed")
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="77")
         # Return epic_B as the parent when fetching C's parent
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = epic_B
-        with patch.object(orch, "_fetch_epic_children", return_value=[task]), \
-             patch.object(orch, "_tracker_for_issue", return_value=tracker), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"), \
-             patch.object(orch, "_push_epic_branch"):
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[task]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
             opened = orch._open_epic_main_prs([epic_C])
         assert opened == 1
         provider.create_review.assert_called_once()
@@ -872,16 +987,23 @@ class TestNestedEpicMergeChain:
         # Flat mode should never reach _open_epic_main_prs for PRs because
         # the strategy check skips flat — but we verify the target resolver
         # still returns main even if called directly.
-        child_epic = _make_issue(identifier="epic-B", issue_type="epic",
-                                  parent_id="epic-A", project_id="proj-1",
-                                  state="open")
-        parent_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                   project_id="proj-1")
+        child_epic = _make_issue(
+            identifier="epic-B",
+            issue_type="epic",
+            parent_id="epic-A",
+            project_id="proj-1",
+            state="open",
+        )
+        parent_epic = _make_issue(
+            identifier="epic-A", issue_type="epic", project_id="proj-1"
+        )
         with patch.object(orch, "_resolve_parent_epic", return_value=parent_epic):
             target = orch._resolve_epic_target_branch(child_epic, proj)
         assert target == "main"
 
-    def test_shared_mode_child_epic_waits_for_all_direct_children_terminal(self, tmp_path):
+    def test_shared_mode_child_epic_waits_for_all_direct_children_terminal(
+        self, tmp_path
+    ):
         """A's completion only fires when ALL direct children (including B) are terminal.
 
         This verifies the existing completion-detection logic isn't broken
@@ -889,19 +1011,25 @@ class TestNestedEpicMergeChain:
         parent epic A should NOT open its PR yet.
         """
         orch, proj = self._setup_nested(tmp_path)
-        top_epic = _make_issue(identifier="epic-A", issue_type="epic",
-                                parent_id=None, project_id="proj-1",
-                                state="open")
+        top_epic = _make_issue(
+            identifier="epic-A",
+            issue_type="epic",
+            parent_id=None,
+            project_id="proj-1",
+            state="open",
+        )
         # Sub-epic B is still open (not terminal)
-        child_epic_B = _make_issue(identifier="epic-B", issue_type="epic",
-                                    state="open")
+        child_epic_B = _make_issue(identifier="epic-B", issue_type="epic", state="open")
         # Direct task under A is closed
         direct_task = _make_issue(identifier="task-direct", state="closed")
         provider = MagicMock()
-        with patch.object(orch, "_fetch_epic_children",
-                          return_value=[child_epic_B, direct_task]), \
-             patch("oompah.orchestrator.detect_provider", return_value=provider), \
-             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"):
+        with (
+            patch.object(
+                orch, "_fetch_epic_children", return_value=[child_epic_B, direct_task]
+            ),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
             opened = orch._open_epic_main_prs([top_epic])
         # B is still open → A's PR must NOT be opened yet
         assert opened == 0

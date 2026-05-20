@@ -31,6 +31,10 @@ class Issue:
     priority: int | None = None
     state: str = ""
     branch_name: str | None = None
+    # Target branch for this issue's work. When None, uses project's default_branch.
+    # This allows issues to target branches other than the project default (e.g.,
+    # release/*, hotfix/*, or epic branches in stacked mode).
+    target_branch: str | None = None
     url: str | None = None
     issue_type: str = "task"
     parent_id: str | None = None
@@ -128,7 +132,16 @@ class Project:
     name: str
     repo_url: str
     repo_path: str  # local clone path (derived)
+    # Legacy single branch field (deprecated, kept for backward compatibility).
+    # Use branches and default_branch instead.
     branch: str = "main"
+    # List of branch patterns that can be targets of beads. Supports glob
+    # patterns like "main", "release/*", "hotfix/*". The first entry is
+    # treated as the default if default_branch is not explicitly set.
+    branches: list[str] = field(default_factory=lambda: ["main"])
+    # Default branch for new beads. Defaults to the first entry in branches,
+    # or "main" if branches is empty.
+    default_branch: str = "main"
     git_user_name: str | None = None
     git_user_email: str | None = None
     yolo: bool = False
@@ -193,7 +206,7 @@ class Project:
     #
     # Unknown / invalid values fall back to "flat" with no migration.
     #
-    # Dataclass default is "stacked" so newly-created projects get the
+    # Dataclass default is "stacked" so newly-constructed projects get the
     # merge-train semantics out of the box (fewer merges to main, no
     # inter-child conflicts on main, single epic→main PR per epic).
     # Existing projects whose persisted dict has no epic_strategy field
@@ -202,6 +215,32 @@ class Project:
     # instances pick up "stacked".
     epic_strategy: str = "stacked"
 
+    def __post_init__(self):
+        # Ensure branches is never empty and default_branch is set
+        if not self.branches:
+            self.branches = ["main"]
+        if not self.default_branch:
+            self.default_branch = self.branches[0]
+        # Backward compatibility: if branch is set but branches only has default,
+        # use branch as the primary branch
+        if self.branch != "main" and self.branches == ["main"]:
+            self.branches = [self.branch]
+            self.default_branch = self.branch
+
+    @property
+    def primary_branch(self) -> str:
+        """Return the primary/default branch for this project."""
+        return self.default_branch
+
+    def matches_branch(self, branch_name: str) -> bool:
+        """Check if a branch name matches any of the tracked branch patterns."""
+        import fnmatch
+
+        for pattern in self.branches:
+            if fnmatch.fnmatch(branch_name, pattern):
+                return True
+        return False
+
     def to_dict(self) -> dict[str, Any]:
         d = {
             "id": self.id,
@@ -209,6 +248,8 @@ class Project:
             "repo_url": self.repo_url,
             "repo_path": self.repo_path,
             "branch": self.branch,
+            "branches": list(self.branches),
+            "default_branch": self.default_branch,
             "yolo": self.yolo,
             "lfs_available": self.lfs_available,
             "max_in_flight_prs": self.max_in_flight_prs,
@@ -284,21 +325,33 @@ class Project:
         )
         raw_epic_strategy = d.get("epic_strategy", "flat")
         epic_strategy = (
-            str(raw_epic_strategy).strip().lower()
-            if raw_epic_strategy
-            else "flat"
+            str(raw_epic_strategy).strip().lower() if raw_epic_strategy else "flat"
         )
         if epic_strategy not in ("flat", "stacked", "shared"):
             # Unknown value (e.g. typo in projects.json) → fail safe to
             # the default. No migration; the operator can re-pick from
             # the UI radio group.
             epic_strategy = "flat"
+        # Handle branches and default_branch with backward compatibility
+        raw_branches = d.get("branches")
+        if isinstance(raw_branches, list):
+            branches = [str(b).strip() for b in raw_branches if str(b).strip()]
+        else:
+            # Backward compatibility: use legacy branch field
+            branches = [str(d.get("branch", "main")).strip()]
+        raw_default_branch = d.get("default_branch")
+        if raw_default_branch:
+            default_branch = str(raw_default_branch).strip()
+        else:
+            default_branch = branches[0] if branches else "main"
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
             repo_url=str(d.get("repo_url", "")),
             repo_path=str(d.get("repo_path", "")),
             branch=str(d.get("branch", "main")),
+            branches=branches,
+            default_branch=default_branch,
             git_user_name=d.get("git_user_name"),
             git_user_email=d.get("git_user_email"),
             yolo=bool(d.get("yolo", False)),
@@ -400,7 +453,10 @@ class ModelProvider:
     def get_model_costs(self, model: str) -> tuple[float, float]:
         """Return (cost_per_1k_input, cost_per_1k_output) for a model, or (0, 0) if unknown."""
         costs = self.model_costs.get(model, {})
-        return (costs.get("cost_per_1k_input", 0.0), costs.get("cost_per_1k_output", 0.0))
+        return (
+            costs.get("cost_per_1k_input", 0.0),
+            costs.get("cost_per_1k_output", 0.0),
+        )
 
     def is_model_explicitly_free(self, model: str) -> bool:
         """True only when the model has an explicit model_costs entry whose
@@ -410,8 +466,10 @@ class ModelProvider:
         if not model or model not in self.model_costs:
             return False
         entry = self.model_costs[model] or {}
-        return (entry.get("cost_per_1k_input", -1) == 0
-                and entry.get("cost_per_1k_output", -1) == 0)
+        return (
+            entry.get("cost_per_1k_input", -1) == 0
+            and entry.get("cost_per_1k_output", -1) == 0
+        )
 
     def get_model_context(self, model: str) -> int | None:
         """Return the configured max context window for ``model`` or None."""
@@ -437,17 +495,23 @@ class ModelProvider:
         if not model_list:
             # Empty catalog: preserve the roles verbatim (ACP scenario where
             # the SDK resolves models against its own catalog at dispatch time).
-            dangling = [r for r, m in self.model_roles.items() if m not in (self.models or [])]
+            dangling = [
+                r for r, m in self.model_roles.items() if m not in (self.models or [])
+            ]
             if dangling:
                 logger.warning(
                     "Provider %s: empty models[] — %d role(s) left dangling: %s",
-                    self.name, len(dangling), dangling,
+                    self.name,
+                    len(dangling),
+                    dangling,
                 )
             return []
         # Determine the fallback: default_model if present in the catalog, else the
         # first entry in models[] (order-preserving — uses the list directly, not
         # a set, so iteration order is the operator-defined ordering).
-        fallback = self.default_model if self.default_model in model_list else model_list[0]
+        fallback = (
+            self.default_model if self.default_model in model_list else model_list[0]
+        )
         available = set(model_list)  # O(1) membership checks.
         changed: list[str] = []
         snapshot = list(self.model_roles.items())  # snapshot before mutation.
@@ -457,7 +521,10 @@ class ModelProvider:
                 changed.append(role)
                 logger.info(
                     "Provider %s: role=%s repointed from %r to %r (stale catalog)",
-                    self.name, role, model, fallback,
+                    self.name,
+                    role,
+                    model,
+                    fallback,
                 )
         return changed
 
@@ -570,7 +637,9 @@ class ModelProvider:
         # HTTP endpoint — only the dropdown label differed — so they all
         # migrate forward to "openai_compatible". A persisted "acp"
         # value (set by the new dialog) round-trips unchanged.
-        raw_ptype = str(d.get("provider_type", "openai_compatible") or "").lower().strip()
+        raw_ptype = (
+            str(d.get("provider_type", "openai_compatible") or "").lower().strip()
+        )
         if raw_ptype in ("openai", "anthropic", "custom", ""):
             provider_type = "openai_compatible"
         elif raw_ptype in ("openai_compatible", "acp"):
@@ -601,7 +670,9 @@ class ModelProvider:
             mode = "api"
         acp_perm_raw = d.get("acp_permission_mode")
         acp_permission_mode: str | None = (
-            str(acp_perm_raw) if acp_perm_raw is not None and acp_perm_raw != "" else None
+            str(acp_perm_raw)
+            if acp_perm_raw is not None and acp_perm_raw != ""
+            else None
         )
         raw_backend = d.get("backend")
         backend = str(raw_backend).strip() if raw_backend else None
@@ -716,6 +787,7 @@ class AgentProfile:
         constructor stores whatever value was on disk so callers can spot
         bad data and decide how to handle it. Unknown keys are ignored.
         """
+
         def _opt_int(v: Any) -> int | None:
             if v is None:
                 return None
@@ -805,11 +877,17 @@ class OrchestratorState:
     retry_attempts: dict[str, RetryEntry] = field(default_factory=dict)
     completed: set[str] = field(default_factory=set)
     stall_counts: dict[str, int] = field(default_factory=dict)  # issue_id → stall count
-    reopen_counts: dict[str, int] = field(default_factory=dict)  # issue_id → times agent completed without closing
-    reject_streak: dict[str, tuple[str, int]] = field(default_factory=dict)  # issue_id → (reason, count)
+    reopen_counts: dict[str, int] = field(
+        default_factory=dict
+    )  # issue_id → times agent completed without closing
+    reject_streak: dict[str, tuple[str, int]] = field(
+        default_factory=dict
+    )  # issue_id → (reason, count)
     agent_totals: AgentTotals = field(default_factory=AgentTotals)
     cost_by_profile: dict[str, float] = field(default_factory=dict)
-    decompose_attempts: dict[str, int] = field(default_factory=dict)  # issue_id → decomposition attempt count
+    decompose_attempts: dict[str, int] = field(
+        default_factory=dict
+    )  # issue_id → decomposition attempt count
     budget_exceeded: bool = False
     # Counter for dispatches that bypassed an over-budget gate because the
     # would-be model was explicitly $0/token. Reset whenever the budget

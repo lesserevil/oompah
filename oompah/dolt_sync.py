@@ -116,12 +116,15 @@ class DoltSyncState:
         return {
             "project_id": self.project_id,
             "last_push_at": self.last_push_at.isoformat()
-            if self.last_push_at else None,
+            if self.last_push_at
+            else None,
             "last_pull_at": self.last_pull_at.isoformat()
-            if self.last_pull_at else None,
+            if self.last_pull_at
+            else None,
             "last_error": self.last_error,
             "last_error_at": self.last_error_at.isoformat()
-            if self.last_error_at else None,
+            if self.last_error_at
+            else None,
             "divergent": self.divergent,
             "consecutive_errors": self.consecutive_errors,
         }
@@ -226,10 +229,13 @@ def sync_project_dolt(
                 result.divergent = True
                 result.error = "diverged: " + _truncate(stderr)
             else:
+                state.divergent = False
                 result.error = "pull failed: " + _truncate(stderr)
     except subprocess.TimeoutExpired:
+        state.divergent = False
         result.error = f"pull timed out after {timeout_s}s"
     except (FileNotFoundError, OSError) as exc:
+        state.divergent = False
         result.error = f"pull failed: {exc}"
 
     # 2. Push — only if pull succeeded and history isn't diverged.
@@ -268,14 +274,17 @@ def sync_project_dolt(
         # Log once at WARNING so error_watcher does not auto-file beads.
         logger.warning(
             "Dolt sync error for %s: %s (backoff until +%.0fs)",
-            project.name, result.error,
+            project.name,
+            result.error,
             full_sync_interval_s * ERROR_BACKOFF_MULTIPLIER,
         )
     else:
         if state.consecutive_errors or state.last_error:
             logger.info(
                 "Dolt sync recovered for %s (pulled=%s pushed=%s)",
-                project.name, result.pulled, push_attempted and result.pushed,
+                project.name,
+                result.pulled,
+                push_attempted and result.pushed,
             )
         state.last_error = None
         state.last_error_at = None
@@ -286,7 +295,8 @@ def sync_project_dolt(
 
 
 def get_or_create_state(
-    states: dict[str, DoltSyncState], project_id: str,
+    states: dict[str, DoltSyncState],
+    project_id: str,
 ) -> DoltSyncState:
     """Fetch the :class:`DoltSyncState` for a project, creating one on
     first access. Used by the orchestrator to lazily populate state
@@ -318,23 +328,27 @@ def summarize_for_alerts(
         proj = projects_by_id.get(pid)
         name = proj.name if proj else pid
         if st.divergent:
-            alerts.append({
-                "level": "error",
-                "source": "dolt_sync",
-                "project_id": pid,
-                "message": (
-                    f"Dolt sync diverged for {name} — operator must "
-                    "merge bd dolt history by hand."
-                ),
-            })
+            alerts.append(
+                {
+                    "level": "error",
+                    "source": "dolt_sync",
+                    "project_id": pid,
+                    "message": (
+                        f"Dolt sync diverged for {name} — operator must "
+                        "merge bd dolt history by hand."
+                    ),
+                }
+            )
         elif st.consecutive_errors >= 3 and st.last_error:
-            alerts.append({
-                "level": "warning",
-                "source": "dolt_sync",
-                "project_id": pid,
-                "message": (
-                    f"Dolt sync failing for {name} "
-                    f"({st.consecutive_errors}x): {st.last_error}"
-                ),
-            })
+            alerts.append(
+                {
+                    "level": "warning",
+                    "source": "dolt_sync",
+                    "project_id": pid,
+                    "message": (
+                        f"Dolt sync failing for {name} "
+                        f"({st.consecutive_errors}x): {st.last_error}"
+                    ),
+                }
+            )
     return alerts

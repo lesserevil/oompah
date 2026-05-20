@@ -16,6 +16,7 @@ reactive ``_maybe_auto_close_parent_epic`` worker-exit hook.
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
+import fnmatch
 
 import pytest
 
@@ -84,6 +85,9 @@ def _make_project(project_id: str = "proj-1", branch: str = "main") -> MagicMock
     p.repo_url = "https://github.com/org/repo"
     p.repo_path = "/tmp/repo"
     p.branch = branch
+    p.default_branch = branch
+    p.branches = [branch]
+    p.matches_branch = lambda b: fnmatch.fnmatch(b, branch)
     p.paused = False
     p.epic_strategy = "flat"
     p.max_in_flight_prs = 1
@@ -128,7 +132,10 @@ class TestAllChildrenTerminal:
         """Synthetic epic with 3 children, all closed, all merged → close."""
         project = _make_project()
         epic = _make_issue(
-            "epic-1", state="open", issue_type="epic", branch_name=None,
+            "epic-1",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-1", state="closed", branch_name="child-1"),
@@ -162,15 +169,17 @@ class TestAllChildrenTerminal:
         assert "child-3 (merged via PR #33)" in reason
         # No stuck_epic alert was raised.
         assert all(
-            a.get("source") != f"stuck_epic:{epic.identifier}"
-            for a in orch._alerts
+            a.get("source") != f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
 
     def test_non_terminal_child_blocks_close(self, tmp_path):
         """Epic stays open while any child is still in_progress / open."""
         project = _make_project()
         epic = _make_issue(
-            "epic-2", state="open", issue_type="epic", branch_name=None,
+            "epic-2",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-a", state="closed", branch_name="child-a"),
@@ -200,7 +209,10 @@ class TestMergeCheck:
         """One child's branch has no merged PR → stay open + stuck_epic alert."""
         project = _make_project()
         epic = _make_issue(
-            "epic-3", state="open", issue_type="epic", branch_name=None,
+            "epic-3",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-1", state="closed", branch_name="child-1"),
@@ -220,7 +232,9 @@ class TestMergeCheck:
                 )
             # child-2 has an OPEN PR — unmerged → stuck.
             return _make_review(
-                number=22, state="open", source_branch=branch,
+                number=22,
+                state="open",
+                source_branch=branch,
             )
 
         provider = MagicMock()
@@ -234,7 +248,8 @@ class TestMergeCheck:
         tracker.close_issue.assert_not_called()
         # stuck_epic alert raised, keyed to this epic.
         alerts_for_epic = [
-            a for a in orch._alerts
+            a
+            for a in orch._alerts
             if a.get("source") == f"stuck_epic:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
@@ -246,7 +261,10 @@ class TestMergeCheck:
         """A PR merged into something other than project.branch is stuck."""
         project = _make_project(branch="main")
         epic = _make_issue(
-            "epic-4", state="open", issue_type="epic", branch_name=None,
+            "epic-4",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-x", state="closed", branch_name="child-x"),
@@ -270,7 +288,8 @@ class TestMergeCheck:
         assert closed is False
         tracker.close_issue.assert_not_called()
         alerts_for_epic = [
-            a for a in orch._alerts
+            a
+            for a in orch._alerts
             if a.get("source") == f"stuck_epic:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
@@ -279,7 +298,10 @@ class TestMergeCheck:
         """``project.branch`` (not hardcoded 'main') is what we check."""
         project = _make_project(branch="master")
         epic = _make_issue(
-            "epic-5", state="open", issue_type="epic", branch_name=None,
+            "epic-5",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-1", state="closed", branch_name="child-1"),
@@ -288,8 +310,10 @@ class TestMergeCheck:
         tracker.fetch_children.return_value = children
         provider = MagicMock()
         provider.find_pr_for_branch.return_value = _make_review(
-            number=42, state="merged",
-            source_branch="child-1", target_branch="master",
+            number=42,
+            state="merged",
+            source_branch="child-1",
+            target_branch="master",
         )
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
@@ -309,7 +333,10 @@ class TestChildWithoutBranch:
         """Children with no PR (research/triage closures) pass condition 3."""
         project = _make_project()
         epic = _make_issue(
-            "epic-6", state="open", issue_type="epic", branch_name=None,
+            "epic-6",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("research-1", state="closed", branch_name=""),
@@ -338,7 +365,10 @@ class TestChildWithoutBranch:
         """A child with a branch name but no PR record is treated as closed-without-PR."""
         project = _make_project()
         epic = _make_issue(
-            "epic-7", state="open", issue_type="epic", branch_name=None,
+            "epic-7",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("ghost", state="closed", branch_name="ghost"),
@@ -366,7 +396,10 @@ class TestManuallyClosedEpic:
         """Epic state = closed; gate fires; no-op."""
         project = _make_project()
         epic = _make_issue(
-            "epic-8", state="closed", issue_type="epic", branch_name=None,
+            "epic-8",
+            state="closed",
+            issue_type="epic",
+            branch_name=None,
         )
         tracker = MagicMock()
         # If children were even fetched, they'd report closed/merged —
@@ -392,7 +425,10 @@ class TestEpicWithNoChildren:
         """Don't auto-close an empty epic (might still be in planning)."""
         project = _make_project()
         epic = _make_issue(
-            "epic-empty", state="open", issue_type="epic", branch_name=None,
+            "epic-empty",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         tracker = MagicMock()
         tracker.fetch_children.return_value = []
@@ -424,19 +460,29 @@ class TestCascadingAutoClose:
         """
         project = _make_project()
         top = _make_issue(
-            "epic-top", state="open", issue_type="epic", branch_name=None,
+            "epic-top",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         mid = _make_issue(
-            "epic-mid", state="open", issue_type="epic",
-            parent_id="epic-top", branch_name=None,
+            "epic-mid",
+            state="open",
+            issue_type="epic",
+            parent_id="epic-top",
+            branch_name=None,
         )
         leaves = [
             _make_issue(
-                "leaf-1", state="closed", parent_id="epic-mid",
+                "leaf-1",
+                state="closed",
+                parent_id="epic-mid",
                 branch_name="leaf-1",
             ),
             _make_issue(
-                "leaf-2", state="closed", parent_id="epic-mid",
+                "leaf-2",
+                state="closed",
+                parent_id="epic-mid",
                 branch_name="leaf-2",
             ),
         ]
@@ -462,6 +508,7 @@ class TestCascadingAutoClose:
                 mid.state = "closed"
             if identifier == "epic-top":
                 top.state = "closed"
+
         tracker.close_issue.side_effect = _fake_close
 
         provider = MagicMock()
@@ -519,7 +566,10 @@ class TestStuckEpicAlertLifecycle:
         """Two calls to the gate with the same stuck state → one alert."""
         project = _make_project()
         epic = _make_issue(
-            "epic-9", state="open", issue_type="epic", branch_name=None,
+            "epic-9",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-x", state="closed", branch_name="child-x"),
@@ -528,7 +578,9 @@ class TestStuckEpicAlertLifecycle:
         tracker.fetch_children.return_value = children
         provider = MagicMock()
         provider.find_pr_for_branch.return_value = _make_review(
-            number=1, state="open", source_branch="child-x",
+            number=1,
+            state="open",
+            source_branch="child-x",
         )
 
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
@@ -537,7 +589,8 @@ class TestStuckEpicAlertLifecycle:
             orch._epic_auto_close_check(epic)
 
         alerts_for_epic = [
-            a for a in orch._alerts
+            a
+            for a in orch._alerts
             if a.get("source") == f"stuck_epic:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
@@ -546,7 +599,10 @@ class TestStuckEpicAlertLifecycle:
         """A previously-stuck alert clears once children are non-terminal again."""
         project = _make_project()
         epic = _make_issue(
-            "epic-10", state="open", issue_type="epic", branch_name=None,
+            "epic-10",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
 
         children_stuck = [
@@ -556,14 +612,15 @@ class TestStuckEpicAlertLifecycle:
         tracker.fetch_children.return_value = children_stuck
         provider = MagicMock()
         provider.find_pr_for_branch.return_value = _make_review(
-            number=1, state="open", source_branch="child-y",
+            number=1,
+            state="open",
+            source_branch="child-y",
         )
         orch = _make_orch(tmp_path, project=project, tracker=tracker)
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
             orch._epic_auto_close_check(epic)
         assert any(
-            a.get("source") == f"stuck_epic:{epic.identifier}"
-            for a in orch._alerts
+            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
 
         # Now the child is reopened (back to in_progress) → re-running
@@ -575,8 +632,7 @@ class TestStuckEpicAlertLifecycle:
         with patch("oompah.orchestrator.detect_provider", return_value=provider):
             orch._epic_auto_close_check(epic)
         assert not any(
-            a.get("source") == f"stuck_epic:{epic.identifier}"
-            for a in orch._alerts
+            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
 
 
@@ -588,10 +644,15 @@ class TestMaybeAutoCloseParentEpic:
         """When a child closes, the parent epic is evaluated for auto-close."""
         project = _make_project()
         parent_epic = _make_issue(
-            "epic-r", state="open", issue_type="epic", branch_name=None,
+            "epic-r",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         child = _make_issue(
-            "child-r", state="closed", parent_id="epic-r",
+            "child-r",
+            state="closed",
+            parent_id="epic-r",
             branch_name="child-r",
         )
 
@@ -619,10 +680,14 @@ class TestMaybeAutoCloseParentEpic:
         """If parent isn't an epic, don't trigger the gate."""
         project = _make_project()
         parent_task = _make_issue(
-            "task-parent", state="open", issue_type="task",
+            "task-parent",
+            state="open",
+            issue_type="task",
         )
         child = _make_issue(
-            "child-r", state="closed", parent_id="task-parent",
+            "child-r",
+            state="closed",
+            parent_id="task-parent",
             branch_name="child-r",
         )
         tracker = MagicMock()
@@ -638,10 +703,14 @@ class TestMaybeAutoCloseParentEpic:
         """Errors from _epic_auto_close_check are logged, not raised."""
         project = _make_project()
         parent_epic = _make_issue(
-            "epic-boom", state="open", issue_type="epic",
+            "epic-boom",
+            state="open",
+            issue_type="epic",
         )
         child = _make_issue(
-            "child", state="closed", parent_id="epic-boom",
+            "child",
+            state="closed",
+            parent_id="epic-boom",
         )
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = parent_epic
@@ -661,12 +730,16 @@ class TestStackedModeEpic:
     """
 
     def test_stacked_children_merged_to_epic_branch_then_epic_merged_to_main(
-        self, tmp_path,
+        self,
+        tmp_path,
     ):
         project = _make_project()
         project.epic_strategy = "stacked"
         epic = _make_issue(
-            "epic-st", state="open", issue_type="epic", branch_name=None,
+            "epic-st",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("ch-1", state="closed", branch_name="ch-1"),
@@ -680,12 +753,14 @@ class TestStackedModeEpic:
             if branch in ("ch-1", "ch-2"):
                 return _make_review(
                     number={"ch-1": 11, "ch-2": 22}[branch],
-                    state="merged", source_branch=branch,
+                    state="merged",
+                    source_branch=branch,
                     target_branch="epic-epic-st",
                 )
             if branch == "epic-epic-st":
                 return _make_review(
-                    number=99, state="merged",
+                    number=99,
+                    state="merged",
                     source_branch="epic-epic-st",
                     target_branch="main",
                 )
@@ -708,12 +783,16 @@ class TestStackedModeEpic:
         assert "merged to epic-epic-st" in reason
 
     def test_stacked_epic_pending_when_epic_branch_not_yet_merged(
-        self, tmp_path,
+        self,
+        tmp_path,
     ):
         project = _make_project()
         project.epic_strategy = "stacked"
         epic = _make_issue(
-            "epic-pn", state="open", issue_type="epic", branch_name=None,
+            "epic-pn",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("c1", state="closed", branch_name="c1"),
@@ -724,14 +803,18 @@ class TestStackedModeEpic:
         def _find(repo, branch):
             if branch == "c1":
                 return _make_review(
-                    number=1, state="merged",
-                    source_branch="c1", target_branch="epic-epic-pn",
+                    number=1,
+                    state="merged",
+                    source_branch="c1",
+                    target_branch="epic-epic-pn",
                 )
             if branch == "epic-epic-pn":
                 # Epic branch PR exists but is still open (pending merge).
                 return _make_review(
-                    number=2, state="open",
-                    source_branch="epic-epic-pn", target_branch="main",
+                    number=2,
+                    state="open",
+                    source_branch="epic-epic-pn",
+                    target_branch="main",
                 )
             return None
 
@@ -749,8 +832,7 @@ class TestStackedModeEpic:
         assert closed is False
         tracker.close_issue.assert_not_called()
         assert not any(
-            a.get("source") == f"stuck_epic:{epic.identifier}"
-            for a in orch._alerts
+            a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
 
     def test_stacked_child_merged_to_wrong_branch_is_stuck(self, tmp_path):
@@ -759,7 +841,10 @@ class TestStackedModeEpic:
         project = _make_project()
         project.epic_strategy = "stacked"
         epic = _make_issue(
-            "epic-mt", state="open", issue_type="epic", branch_name=None,
+            "epic-mt",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("c1", state="closed", branch_name="c1"),
@@ -768,7 +853,8 @@ class TestStackedModeEpic:
         tracker.fetch_children.return_value = children
         provider = MagicMock()
         provider.find_pr_for_branch.return_value = _make_review(
-            number=1, state="merged",
+            number=1,
+            state="merged",
             source_branch="c1",
             target_branch="main",  # Should have been epic-epic-mt
         )
@@ -782,7 +868,8 @@ class TestStackedModeEpic:
 
         assert closed is False
         alerts_for_epic = [
-            a for a in orch._alerts
+            a
+            for a in orch._alerts
             if a.get("source") == f"stuck_epic:{epic.identifier}"
         ]
         assert len(alerts_for_epic) == 1
@@ -796,7 +883,10 @@ class TestProviderErrorHandling:
         project.repo_url = ""
 
         epic = _make_issue(
-            "epic-np", state="open", issue_type="epic", branch_name=None,
+            "epic-np",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-np", state="closed", branch_name="child-np"),
@@ -817,7 +907,10 @@ class TestProviderErrorHandling:
         """A throwing provider call is treated as 'no PR found'."""
         project = _make_project()
         epic = _make_issue(
-            "epic-bp", state="open", issue_type="epic", branch_name=None,
+            "epic-bp",
+            state="open",
+            issue_type="epic",
+            branch_name=None,
         )
         children = [
             _make_issue("child-bp", state="closed", branch_name="child-bp"),

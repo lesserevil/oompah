@@ -40,6 +40,7 @@ from oompah.orchestrator import Orchestrator
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_issue(
     identifier: str = "test-001",
     issue_id: str = "iss-1",
@@ -113,6 +114,7 @@ def event_loop():
 # Unit tests for check_close_gate()
 # ---------------------------------------------------------------------------
 
+
 class TestCheckCloseGate:
     """Tests for the pure check_close_gate() function."""
 
@@ -120,7 +122,10 @@ class TestCheckCloseGate:
         """Epic issues are always allowed (they have no own branch)."""
         issue = _make_issue(issue_type="epic")
         result = check_close_gate(
-            issue, repo_path="/tmp", slug="owner/repo", base_branch="main",
+            issue,
+            repo_path="/tmp",
+            slug="owner/repo",
+            base_branch="main",
         )
         assert result.allowed is True
         assert result.skip_reason == "epic"
@@ -129,7 +134,10 @@ class TestCheckCloseGate:
         """Issues with 'decomposed' label are always allowed."""
         issue = _make_issue(labels=["decomposed"])
         result = check_close_gate(
-            issue, repo_path="/tmp", slug="owner/repo", base_branch="main",
+            issue,
+            repo_path="/tmp",
+            slug="owner/repo",
+            base_branch="main",
         )
         assert result.allowed is True
         assert result.skip_reason == "decomposed"
@@ -138,7 +146,10 @@ class TestCheckCloseGate:
         """Operator-style close reasons bypass the gate."""
         issue = _make_issue()
         result = check_close_gate(
-            issue, repo_path="/tmp", slug="owner/repo", base_branch="main",
+            issue,
+            repo_path="/tmp",
+            slug="owner/repo",
+            base_branch="main",
             close_reason="no-op",
         )
         assert result.allowed is True
@@ -148,7 +159,10 @@ class TestCheckCloseGate:
         """wontfix close reason bypasses the gate."""
         issue = _make_issue()
         result = check_close_gate(
-            issue, repo_path="/tmp", slug="owner/repo", base_branch="main",
+            issue,
+            repo_path="/tmp",
+            slug="owner/repo",
+            base_branch="main",
             close_reason="wontfix",
         )
         assert result.allowed is True
@@ -157,11 +171,20 @@ class TestCheckCloseGate:
     def test_no_branch_resolved_skipped(self):
         """Issue with no branch name → no_branch skip."""
         issue = Issue(
-            id="x", identifier="", title="t", description="",
-            state="closed", labels=[], priority=2, issue_type="feature",
+            id="x",
+            identifier="",
+            title="t",
+            description="",
+            state="closed",
+            labels=[],
+            priority=2,
+            issue_type="feature",
         )
         result = check_close_gate(
-            issue, repo_path="/tmp", slug="owner/repo", base_branch="main",
+            issue,
+            repo_path="/tmp",
+            slug="owner/repo",
+            base_branch="main",
         )
         assert result.allowed is True
         assert result.skip_reason == "no_branch"
@@ -170,7 +193,10 @@ class TestCheckCloseGate:
         """No repo_path → no_repo_path skip."""
         issue = _make_issue()
         result = check_close_gate(
-            issue, repo_path="", slug="owner/repo", base_branch="main",
+            issue,
+            repo_path="",
+            slug="owner/repo",
+            base_branch="main",
         )
         assert result.allowed is True
         assert result.skip_reason == "no_repo_path"
@@ -181,7 +207,10 @@ class TestCheckCloseGate:
         with patch("oompah.close_gate._count_commits_ahead") as mock_git:
             mock_git.return_value = (0, [], "git error")
             result = check_close_gate(
-                issue, repo_path="/tmp/repo", slug="owner/repo", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
             )
         assert result.allowed is True
         assert result.skip_reason == "git_error"
@@ -192,7 +221,10 @@ class TestCheckCloseGate:
         with patch("oompah.close_gate._count_commits_ahead") as mock_git:
             mock_git.return_value = (0, [], "")
             result = check_close_gate(
-                issue, repo_path="/tmp/repo", slug="owner/repo", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
             )
         assert result.allowed is True
         assert result.skip_reason == "no_commits_ahead"
@@ -203,7 +235,10 @@ class TestCheckCloseGate:
         with patch("oompah.close_gate._count_commits_ahead") as mock_git:
             mock_git.return_value = (3, ["abc123 feat: something"], "")
             result = check_close_gate(
-                issue, repo_path="/tmp/repo", slug="", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="",
+                base_branch="main",
             )
         assert result.allowed is True
         assert result.skip_reason == "no_slug"
@@ -211,12 +246,17 @@ class TestCheckCloseGate:
     def test_open_pr_allows_close(self):
         """Branch ahead + open PR → allowed."""
         issue = _make_issue()
-        with patch("oompah.close_gate._count_commits_ahead") as mock_git, \
-             patch("oompah.close_gate._query_prs_for_branch") as mock_prs:
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_prs,
+        ):
             mock_git.return_value = (3, ["abc123 feat"], "")
             mock_prs.return_value = (1, 0, [], "")  # 1 open, 0 merged
             result = check_close_gate(
-                issue, repo_path="/tmp/repo", slug="owner/repo", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
             )
         assert result.allowed is True
         assert result.open_prs == 1
@@ -225,12 +265,22 @@ class TestCheckCloseGate:
     def test_merged_pr_allows_close(self):
         """Branch ahead + merged PR → allowed."""
         issue = _make_issue()
-        with patch("oompah.close_gate._count_commits_ahead") as mock_git, \
-             patch("oompah.close_gate._query_prs_for_branch") as mock_prs:
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_prs,
+        ):
             mock_git.return_value = (2, ["def456 fix: something"], "")
-            mock_prs.return_value = (0, 1, ["PR #42: https://github.com/o/r/pull/42"], "")
+            mock_prs.return_value = (
+                0,
+                1,
+                ["PR #42: https://github.com/o/r/pull/42"],
+                "",
+            )
             result = check_close_gate(
-                issue, repo_path="/tmp/repo", slug="owner/repo", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
             )
         assert result.allowed is True
         assert result.merged_prs == 1
@@ -238,12 +288,17 @@ class TestCheckCloseGate:
     def test_no_pr_refuses_close(self):
         """Branch ahead + no PR → refused."""
         issue = _make_issue()
-        with patch("oompah.close_gate._count_commits_ahead") as mock_git, \
-             patch("oompah.close_gate._query_prs_for_branch") as mock_prs:
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_prs,
+        ):
             mock_git.return_value = (5, ["abc feat1", "def feat2"], "")
             mock_prs.return_value = (0, 0, [], "")  # no PRs
             result = check_close_gate(
-                issue, repo_path="/tmp/repo", slug="owner/repo", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
             )
         assert result.allowed is False
         assert result.commits_ahead == 5
@@ -253,12 +308,22 @@ class TestCheckCloseGate:
     def test_forge_timeout_fails_open(self):
         """Forge API timeout → fail-open with error recorded."""
         issue = _make_issue()
-        with patch("oompah.close_gate._count_commits_ahead") as mock_git, \
-             patch("oompah.close_gate._query_prs_for_branch") as mock_prs:
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_prs,
+        ):
             mock_git.return_value = (3, ["abc feat"], "")
-            mock_prs.return_value = (0, 0, [], "GitHub PR query timed out: connect timeout")
+            mock_prs.return_value = (
+                0,
+                0,
+                [],
+                "GitHub PR query timed out: connect timeout",
+            )
             result = check_close_gate(
-                issue, repo_path="/tmp/repo", slug="owner/repo", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
             )
         assert result.allowed is True
         assert result.skip_reason == "forge_error"
@@ -267,9 +332,11 @@ class TestCheckCloseGate:
     def test_telemetry_logged_on_refusal(self, caplog):
         """Telemetry event is logged as INFO when close is refused."""
         issue = _make_issue()
-        with patch("oompah.close_gate._count_commits_ahead") as mock_git, \
-             patch("oompah.close_gate._query_prs_for_branch") as mock_prs, \
-             caplog.at_level(logging.INFO, logger="oompah.close_gate"):
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_prs,
+            caplog.at_level(logging.INFO, logger="oompah.close_gate"),
+        ):
             mock_git.return_value = (4, ["abc"], "")
             mock_prs.return_value = (0, 0, [], "")
             check_close_gate(
@@ -283,8 +350,7 @@ class TestCheckCloseGate:
             )
         # Find the telemetry log line
         telemetry_records = [
-            r for r in caplog.records
-            if "close_refused_unmerged_work" in r.getMessage()
+            r for r in caplog.records if "close_refused_unmerged_work" in r.getMessage()
         ]
         assert len(telemetry_records) == 1
         payload = json.loads(
@@ -300,16 +366,22 @@ class TestCheckCloseGate:
     def test_forge_warning_logged_on_timeout(self, caplog):
         """forge timeout logs a WARNING."""
         issue = _make_issue()
-        with patch("oompah.close_gate._count_commits_ahead") as mock_git, \
-             patch("oompah.close_gate._query_prs_for_branch") as mock_prs, \
-             caplog.at_level(logging.WARNING, logger="oompah.close_gate"):
+        with (
+            patch("oompah.close_gate._count_commits_ahead") as mock_git,
+            patch("oompah.close_gate._query_prs_for_branch") as mock_prs,
+            caplog.at_level(logging.WARNING, logger="oompah.close_gate"),
+        ):
             mock_git.return_value = (2, ["abc"], "")
             mock_prs.return_value = (0, 0, [], "GitHub PR query timed out")
             check_close_gate(
-                issue, repo_path="/tmp/repo", slug="owner/repo", base_branch="main",
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
             )
         warn_records = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING and "forge query failed" in r.getMessage()
         ]
         assert len(warn_records) == 1
@@ -318,6 +390,7 @@ class TestCheckCloseGate:
 # ---------------------------------------------------------------------------
 # Unit tests for build_refusal_comment()
 # ---------------------------------------------------------------------------
+
 
 class TestBuildRefusalComment:
     """Tests for the refusal comment builder."""
@@ -381,6 +454,7 @@ class TestBuildRefusalComment:
 # Orchestrator integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestOrchestratorCloseGateWiring:
     """Tests for the orchestrator wiring of the close gate."""
 
@@ -396,9 +470,7 @@ class TestOrchestratorCloseGateWiring:
         mock_tracker.fetch_issue_detail.return_value = closed
         orch.tracker = mock_tracker
 
-        event_loop.run_until_complete(
-            orch._on_worker_exit(issue.id, "normal", None)
-        )
+        event_loop.run_until_complete(orch._on_worker_exit(issue.id, "normal", None))
 
         # Issue should be in completed set (gate was disabled, close honored)
         assert issue.id in orch.state.completed
@@ -462,8 +534,11 @@ class TestOrchestratorCloseGateWiring:
         # Gate returns True (allowed)
         with patch.object(orch, "_run_close_gate", return_value=True):
             with patch.object(
-                orch, "_run_completion_verifier",
-                return_value=MagicMock(passed=True, skipped=True, skip_reason="disabled"),
+                orch,
+                "_run_completion_verifier",
+                return_value=MagicMock(
+                    passed=True, skipped=True, skip_reason="disabled"
+                ),
             ):
                 event_loop.run_until_complete(
                     orch._on_worker_exit(issue.id, "normal", None)
@@ -502,7 +577,7 @@ class TestOrchestratorCloseGateWiring:
 
         mock_project = MagicMock()
         mock_project.repo_path = "/tmp/myrepo"
-        mock_project.branch = "main"
+        mock_project.default_branch = "main"
         mock_project.repo_url = "https://github.com/myorg/myrepo.git"
         mock_project.access_token = "gh_tok"
         orch.project_store.get = MagicMock(return_value=mock_project)
@@ -514,9 +589,13 @@ class TestOrchestratorCloseGateWiring:
 
         current = _closed_issue(issue.identifier)
 
-        with patch("oompah.close_gate.check_close_gate") as mock_check, \
-             patch("oompah.close_gate.build_refusal_comment"):
-            mock_check.return_value = CloseGateResult(allowed=True, skip_reason="no_commits_ahead")
+        with (
+            patch("oompah.close_gate.check_close_gate") as mock_check,
+            patch("oompah.close_gate.build_refusal_comment"),
+        ):
+            mock_check.return_value = CloseGateResult(
+                allowed=True, skip_reason="no_commits_ahead"
+            )
             result = orch._run_close_gate(entry, current, "proj-1")
 
         assert result is True
@@ -566,15 +645,14 @@ class TestOrchestratorCloseGateWiring:
 # Unit tests for _count_commits_ahead
 # ---------------------------------------------------------------------------
 
+
 class TestCountCommitsAhead:
     """Tests for the git commit counting helper."""
 
     def test_count_zero(self):
         """Returns 0 when branch has no commits ahead of base."""
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0, stdout="0\n", stderr=""
-            )
+            mock_run.return_value = MagicMock(returncode=0, stdout="0\n", stderr="")
             count, lines, err = _count_commits_ahead("/tmp/repo", "main", "my-branch")
         assert count == 0
         assert lines == []
@@ -582,6 +660,7 @@ class TestCountCommitsAhead:
 
     def test_count_positive(self):
         """Returns N when branch has N commits ahead."""
+
         def side_effect(cmd, **kwargs):
             if "--count" in cmd:
                 return MagicMock(returncode=0, stdout="3\n", stderr="")
@@ -592,6 +671,7 @@ class TestCountCommitsAhead:
                     stdout="abc1234 feat: add foo\ndef5678 fix: bar\nghi0123 chore: baz\n",
                     stderr="",
                 )
+
         with patch("subprocess.run", side_effect=side_effect):
             count, lines, err = _count_commits_ahead("/tmp/repo", "main", "my-branch")
         assert count == 3
@@ -609,6 +689,7 @@ class TestCountCommitsAhead:
     def test_git_timeout(self):
         """TimeoutExpired → returns error string."""
         import subprocess
+
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("git", 15)):
             count, lines, err = _count_commits_ahead("/tmp/repo", "main", "my-branch")
         assert count == 0
@@ -618,6 +699,7 @@ class TestCountCommitsAhead:
 # ---------------------------------------------------------------------------
 # Unit tests for _query_prs_for_branch
 # ---------------------------------------------------------------------------
+
 
 class TestQueryPrsForBranch:
     """Tests for the GitHub PR query helper."""
@@ -633,7 +715,10 @@ class TestQueryPrsForBranch:
 
         with patch("httpx.Client", return_value=mock_client):
             open_c, merged_c, links, err = _query_prs_for_branch(
-                "tok", "owner/repo", "owner:my-branch", "main",
+                "tok",
+                "owner/repo",
+                "owner:my-branch",
+                "main",
             )
         assert open_c == 0
         assert merged_c == 0
@@ -658,7 +743,10 @@ class TestQueryPrsForBranch:
 
         with patch("httpx.Client", return_value=mock_client):
             open_c, merged_c, links, err = _query_prs_for_branch(
-                None, "owner/repo", "owner:my-branch", "main",
+                None,
+                "owner/repo",
+                "owner:my-branch",
+                "main",
             )
         assert open_c == 1
         assert merged_c == 0
@@ -682,7 +770,10 @@ class TestQueryPrsForBranch:
 
         with patch("httpx.Client", return_value=mock_client):
             open_c, merged_c, links, err = _query_prs_for_branch(
-                None, "owner/repo", "owner:my-branch", "main",
+                None,
+                "owner/repo",
+                "owner:my-branch",
+                "main",
             )
         assert open_c == 0
         assert merged_c == 1
@@ -692,12 +783,16 @@ class TestQueryPrsForBranch:
     def test_http_timeout_returns_error(self):
         """Timeout → returns ('', '', [], error_string)."""
         import httpx as _httpx
+
         mock_client = MagicMock()
         mock_client.get.side_effect = _httpx.TimeoutException("connect timed out")
 
         with patch("httpx.Client", return_value=mock_client):
             open_c, merged_c, links, err = _query_prs_for_branch(
-                None, "owner/repo", "owner:my-branch", "main",
+                None,
+                "owner/repo",
+                "owner:my-branch",
+                "main",
             )
         assert open_c == 0
         assert merged_c == 0
@@ -711,7 +806,10 @@ class TestQueryPrsForBranch:
 
         with patch("httpx.Client", return_value=mock_client):
             open_c, merged_c, links, err = _query_prs_for_branch(
-                None, "owner/repo", "owner:my-branch", "main",
+                None,
+                "owner/repo",
+                "owner:my-branch",
+                "main",
             )
         assert open_c == 0
         assert "401" in err

@@ -65,7 +65,7 @@ def _project_to_template_vars(project: Project | None) -> dict[str, Any]:
         }
     return {
         "name": project.name or "",
-        "branch": project.branch or "",
+        "branch": project.default_branch or "",
         "test_command": project.test_command or "",
         "test_command_full": project.test_command_full or "",
         "test_skip_paths": list(project.test_skip_paths or []),
@@ -156,7 +156,9 @@ def render_prompt(
     # Decide which attachments are embedded vs only mentioned in text.
     caps = set(capabilities or ["text"])
     embed_specs, text_only_specs, elided = _classify_attachments(
-        attachments or [], caps, project_root,
+        attachments or [],
+        caps,
+        project_root,
     )
 
     # Surface attachment metadata to the template (paths + per-item flags
@@ -165,14 +167,22 @@ def render_prompt(
     # capability negotiation.
     template_attachments = []
     for spec in embed_specs:
-        template_attachments.append({
-            "path": spec["path"], "mime": spec["mime"], "embedded": True,
-        })
+        template_attachments.append(
+            {
+                "path": spec["path"],
+                "mime": spec["mime"],
+                "embedded": True,
+            }
+        )
     for spec in text_only_specs:
-        template_attachments.append({
-            "path": spec["path"], "mime": spec["mime"], "embedded": False,
-            "reason": spec.get("reason", ""),
-        })
+        template_attachments.append(
+            {
+                "path": spec["path"],
+                "mime": spec["mime"],
+                "embedded": False,
+                "reason": spec.get("reason", ""),
+            }
+        )
 
     variables: dict[str, Any] = {
         "issue": _issue_to_template_vars(issue),
@@ -180,10 +190,7 @@ def render_prompt(
         "comments": comments or [],
         "focus": focus_text or "",
         "agents_md": agents_md,
-        "memories": [
-            {"key": k, "insight": v}
-            for k, v in (memories or {}).items()
-        ],
+        "memories": [{"key": k, "insight": v} for k, v in (memories or {}).items()],
         "attachments": template_attachments,
         "project": _project_to_template_vars(project),
     }
@@ -283,9 +290,7 @@ def _classify_attachments(
 
 
 def _attachment_spec(rel: str, project_root: str | None) -> dict:
-    abs_path = (
-        os.path.join(project_root, rel) if project_root else None
-    )
+    abs_path = os.path.join(project_root, rel) if project_root else None
     size = 0
     if abs_path and os.path.isfile(abs_path):
         try:

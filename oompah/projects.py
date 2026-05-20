@@ -151,7 +151,10 @@ def _is_ref_namespace_conflict_error(stderr: str, branch_name: str) -> bool:
 
 
 def _resolve_ref_namespace_conflict(
-    cwd: str, branch_name: str, *, timeout: int = 5,
+    cwd: str,
+    branch_name: str,
+    *,
+    timeout: int = 5,
 ) -> list[tuple[str, str]]:
     """Free the ``refs/heads/<branch_name>`` namespace by renaming any local
     nested refs of the form ``<branch_name>/<sub>`` to ``<branch_name>__<sub>``.
@@ -178,22 +181,28 @@ def _resolve_ref_namespace_conflict(
     try:
         r = subprocess.run(
             [
-                "git", "for-each-ref",
+                "git",
+                "for-each-ref",
                 "--format=%(refname:short)",
                 f"refs/heads/{branch_name}/",
             ],
-            cwd=cwd, capture_output=True, text=True, timeout=timeout,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         logger.warning(
             "ref-namespace-conflict: failed to enumerate refs under %s/: %s",
-            branch_name, exc,
+            branch_name,
+            exc,
         )
         return []
     if r.returncode != 0:
         logger.warning(
             "ref-namespace-conflict: git for-each-ref failed rc=%d stderr=%s",
-            r.returncode, (r.stderr or "").strip()[:200],
+            r.returncode,
+            (r.stderr or "").strip()[:200],
         )
         return []
 
@@ -210,7 +219,7 @@ def _resolve_ref_namespace_conflict(
         prefix = f"{branch_name}/"
         if not old.startswith(prefix):
             continue
-        sub = old[len(prefix):]
+        sub = old[len(prefix) :]
         # Replace any further slashes inside sub so the new name is flat.
         sub_flat = sub.replace("/", "__")
         new_base = f"{branch_name}__{sub_flat}"
@@ -220,10 +229,16 @@ def _resolve_ref_namespace_conflict(
             try:
                 check = subprocess.run(
                     [
-                        "git", "show-ref", "--verify", "--quiet",
+                        "git",
+                        "show-ref",
+                        "--verify",
+                        "--quiet",
                         f"refs/heads/{new}",
                     ],
-                    cwd=cwd, capture_output=True, text=True, timeout=timeout,
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
                 )
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
                 # If we can't check, assume free and try; rename will fail loudly.
@@ -236,32 +251,43 @@ def _resolve_ref_namespace_conflict(
             logger.warning(
                 "ref-namespace-conflict: could not find a free rename target "
                 "for %s (last tried %s); skipping",
-                old, new,
+                old,
+                new,
             )
             continue
 
         try:
             mv = subprocess.run(
                 ["git", "branch", "-m", old, new],
-                cwd=cwd, capture_output=True, text=True, timeout=timeout,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
             logger.warning(
                 "ref-namespace-conflict: git branch -m %s %s failed: %s",
-                old, new, exc,
+                old,
+                new,
+                exc,
             )
             continue
         if mv.returncode != 0:
             logger.warning(
                 "ref-namespace-conflict: git branch -m %s %s failed rc=%d stderr=%s",
-                old, new, mv.returncode, (mv.stderr or "").strip()[:200],
+                old,
+                new,
+                mv.returncode,
+                (mv.stderr or "").strip()[:200],
             )
             continue
         renames.append((old, new))
         logger.warning(
             "ref-namespace-conflict: renamed local branch %s -> %s to free "
             "refs/heads/%s namespace (commits preserved, remote untouched)",
-            old, new, branch_name,
+            old,
+            new,
+            branch_name,
         )
     return renames
 
@@ -290,8 +316,12 @@ def _branch_name_from_worktree_cmd(cmd: list[str]) -> str | None:
 
 
 def _git_worktree_add_with_recovery(
-    cmd: list[str], *, cwd: str, wt_path: str,
-    max_attempts: int = 3, timeout: int = 30,
+    cmd: list[str],
+    *,
+    cwd: str,
+    wt_path: str,
+    max_attempts: int = 3,
+    timeout: int = 30,
     sleep_fn=time.sleep,
 ) -> None:
     """Run ``git worktree add`` with retry+recovery for transient config-lock
@@ -325,8 +355,12 @@ def _git_worktree_add_with_recovery(
     for attempt in range(max_attempts):
         try:
             subprocess.run(
-                cmd, cwd=cwd,
-                capture_output=True, text=True, check=True, timeout=timeout,
+                cmd,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=timeout,
             )
             return
         except subprocess.CalledProcessError as exc:
@@ -344,7 +378,8 @@ def _git_worktree_add_with_recovery(
                     logger.warning(
                         "git worktree add: freed refs/heads/%s namespace by "
                         "renaming %d nested local branch(es); retrying",
-                        branch_name, len(renames),
+                        branch_name,
+                        len(renames),
                     )
                     # Don't consume the attempt budget for this recovery —
                     # this is a one-shot mitigation, not a transient race.
@@ -365,16 +400,20 @@ def _git_worktree_add_with_recovery(
                     "git worktree add: upstream config write failed "
                     "(.git/config lock contention) but worktree was created "
                     "path=%s attempt=%d/%d — continuing without upstream tracking",
-                    wt_path, attempt + 1, max_attempts,
+                    wt_path,
+                    attempt + 1,
+                    max_attempts,
                 )
                 return
             # No worktree on disk — back off and retry.
             if attempt < max_attempts - 1:
-                sleep_s = 0.1 * (2 ** attempt)
+                sleep_s = 0.1 * (2**attempt)
                 logger.warning(
                     "git worktree add: .git/config lock contention "
                     "attempt=%d/%d; retrying in %.2fs",
-                    attempt + 1, max_attempts, sleep_s,
+                    attempt + 1,
+                    max_attempts,
+                    sleep_s,
                 )
                 sleep_fn(sleep_s)
     # Exhausted retries on a transient error with no worktree created —
@@ -412,7 +451,9 @@ def _install_beads_merge_driver(repo_path: str) -> bool:
         r = subprocess.run(
             ["git", "config", "--local", "merge.beads-jsonl.driver"],
             cwd=repo_path,
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if r.returncode == 0 and r.stdout.strip() == driver_cmd:
             logger.debug("beads-jsonl merge driver already configured in %s", repo_path)
@@ -421,18 +462,30 @@ def _install_beads_merge_driver(repo_path: str) -> bool:
         subprocess.run(
             ["git", "config", "merge.beads-jsonl.driver", driver_cmd],
             cwd=repo_path,
-            capture_output=True, text=True, check=True, timeout=5,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
         )
         subprocess.run(
             ["git", "config", "merge.beads-jsonl.name", driver_name],
             cwd=repo_path,
-            capture_output=True, text=True, check=True, timeout=5,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
         )
         logger.info("Installed beads-jsonl merge driver in %s", repo_path)
         return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:
         logger.warning(
-            "Failed to install beads-jsonl merge driver in %s: %s", repo_path, exc,
+            "Failed to install beads-jsonl merge driver in %s: %s",
+            repo_path,
+            exc,
         )
         return False
 
@@ -441,16 +494,18 @@ def _install_beads_merge_driver(repo_path: str) -> bool:
 # block.  Lets ``_configure_beads_jsonl_ignore`` be idempotent and survive
 # operators who tweak the .gitignore by hand.
 _BEADS_JSONL_GITIGNORE_MARKER = "# beads-jsonl-ignore (managed by oompah)"
-_BEADS_JSONL_GITIGNORE_BLOCK = "\n".join([
-    "",
-    _BEADS_JSONL_GITIGNORE_MARKER,
-    "# Beads JSONL backups — dolt sync (refs/dolt/data) is the source of truth.",
-    "# Tracking these in git creates a redundant second copy that conflicts",
-    "# whenever two PRs touch beads simultaneously. See oompah-zlz_2-mp4v.",
-    ".beads/*.jsonl",
-    ".beads/backup/",
-    "",
-])
+_BEADS_JSONL_GITIGNORE_BLOCK = "\n".join(
+    [
+        "",
+        _BEADS_JSONL_GITIGNORE_MARKER,
+        "# Beads JSONL backups — dolt sync (refs/dolt/data) is the source of truth.",
+        "# Tracking these in git creates a redundant second copy that conflicts",
+        "# whenever two PRs touch beads simultaneously. See oompah-zlz_2-mp4v.",
+        ".beads/*.jsonl",
+        ".beads/backup/",
+        "",
+    ]
+)
 
 
 def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
@@ -499,7 +554,8 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
 
         if not missing_patterns:
             logger.debug(
-                "beads-jsonl gitignore block already present in %s", repo_path,
+                "beads-jsonl gitignore block already present in %s",
+                repo_path,
             )
         else:
             if len(missing_patterns) == len(required_patterns):
@@ -508,17 +564,21 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
                 lines = [""]
                 if _BEADS_JSONL_GITIGNORE_MARKER not in current:
                     lines.append(_BEADS_JSONL_GITIGNORE_MARKER)
-                lines.extend([
-                    "# Beads backup files are local-only; dolt sync is the source of truth.",
-                    *missing_patterns,
-                    "",
-                ])
+                lines.extend(
+                    [
+                        "# Beads backup files are local-only; dolt sync is the source of truth.",
+                        *missing_patterns,
+                        "",
+                    ]
+                )
                 block = "\n".join(lines)
 
             # Append block. Ensure a leading blank line if the file doesn't
             # already end with one.
-            suffix = "" if current.endswith("\n\n") or current == "" else (
-                "\n" if current.endswith("\n") else "\n\n"
+            suffix = (
+                ""
+                if current.endswith("\n\n") or current == ""
+                else ("\n" if current.endswith("\n") else "\n\n")
             )
             with open(gitignore_path, "a", encoding="utf-8") as f:
                 f.write(suffix + block)
@@ -528,7 +588,9 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
             )
     except OSError as exc:
         logger.warning(
-            "Failed to update .gitignore in %s: %s", repo_path, exc,
+            "Failed to update .gitignore in %s: %s",
+            repo_path,
+            exc,
         )
 
     # -- Step 2: git rm --cached any tracked beads JSONL backup files.
@@ -536,34 +598,43 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
         r = subprocess.run(
             ["git", "ls-files", "--", ".beads/*.jsonl", ".beads/backup"],
             cwd=repo_path,
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         tracked = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
         # ``git ls-files`` returns recursive matches for the top-level glob;
         # restrict to top-level ``.beads/<name>.jsonl`` plus the explicit
         # ``.beads/backup/`` snapshot directory.
         tracked = [
-            p for p in tracked
-            if (
-                p.startswith(".beads/")
-                and "/" not in p[len(".beads/"):]
-            ) or p.startswith(".beads/backup/")
+            p
+            for p in tracked
+            if (p.startswith(".beads/") and "/" not in p[len(".beads/") :])
+            or p.startswith(".beads/backup/")
         ]
         if tracked:
             subprocess.run(
                 ["git", "rm", "--cached", "--quiet", "--", *tracked],
                 cwd=repo_path,
-                capture_output=True, text=True, check=True, timeout=15,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=15,
             )
             logger.info(
                 "Untracked .beads/*.jsonl files in %s: %s",
-                repo_path, ", ".join(tracked),
+                repo_path,
+                ", ".join(tracked),
             )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
-            FileNotFoundError) as exc:
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:
         logger.warning(
             "Failed to git rm --cached beads JSONL backups in %s: %s",
-            repo_path, exc,
+            repo_path,
+            exc,
         )
 
     # -- Step 3: bd config set export.git-add false (idempotent).
@@ -571,15 +642,24 @@ def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
         subprocess.run(
             ["bd", "config", "set", "export.git-add", "false"],
             cwd=repo_path,
-            capture_output=True, text=True, check=True, timeout=15,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=15,
         )
         logger.debug(
-            "Set bd export.git-add=false in %s", repo_path,
+            "Set bd export.git-add=false in %s",
+            repo_path,
         )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
-            FileNotFoundError) as exc:
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ) as exc:
         logger.warning(
-            "Failed to set bd export.git-add=false in %s: %s", repo_path, exc,
+            "Failed to set bd export.git-add=false in %s: %s",
+            repo_path,
+            exc,
         )
 
     return True
@@ -621,18 +701,21 @@ def _bootstrap_beads(repo_path: str) -> bool:
         proc = subprocess.run(
             ["bd", "bootstrap"],
             cwd=repo_path,
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
             timeout=_BD_BOOTSTRAP_TIMEOUT_S,
         )
     except FileNotFoundError:
         logger.warning(
-            "bd not on PATH; skipped 'bd bootstrap' in %s", repo_path,
+            "bd not on PATH; skipped 'bd bootstrap' in %s",
+            repo_path,
         )
         return False
     except subprocess.TimeoutExpired:
         logger.warning(
             "'bd bootstrap' timed out after %ds in %s; project creation continues",
-            _BD_BOOTSTRAP_TIMEOUT_S, repo_path,
+            _BD_BOOTSTRAP_TIMEOUT_S,
+            repo_path,
         )
         return False
 
@@ -652,7 +735,9 @@ def _bootstrap_beads(repo_path: str) -> bool:
     logger.warning(
         "'bd bootstrap' failed (exit %d) in %s: %s — project creation continues; "
         "operator can re-run manually",
-        proc.returncode, repo_path, stderr or "(no stderr)",
+        proc.returncode,
+        repo_path,
+        stderr or "(no stderr)",
     )
     return False
 
@@ -670,8 +755,10 @@ def _bootstrap_lfs(repo_path: str) -> bool:
         subprocess.run(
             ["git", "lfs", "install", "--local"],
             cwd=repo_path,
-            capture_output=True, text=True,
-            check=True, timeout=15,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=15,
         )
     except FileNotFoundError:
         logger.warning("git lfs not installed; attachments disabled for %s", repo_path)
@@ -683,9 +770,12 @@ def _bootstrap_lfs(repo_path: str) -> bool:
     try:
         AttachmentStore(repo_path).ensure_lfs_configured()
     except Exception as exc:
-        logger.warning("attachments .gitattributes write failed for %s: %s", repo_path, exc)
+        logger.warning(
+            "attachments .gitattributes write failed for %s: %s", repo_path, exc
+        )
         return False
     return True
+
 
 DEFAULT_PROJECTS_PATH = ".oompah/projects.json"
 DEFAULT_REPOS_ROOT = os.path.join(os.path.expanduser("~"), ".oompah", "repos")
@@ -727,8 +817,12 @@ class ProjectError(Exception):
 class ProjectStore:
     """File-backed store for project configurations."""
 
-    def __init__(self, path: str | None = None, repos_root: str | None = None,
-                 worktree_root: str | None = None):
+    def __init__(
+        self,
+        path: str | None = None,
+        repos_root: str | None = None,
+        worktree_root: str | None = None,
+    ):
         self.path = path or DEFAULT_PROJECTS_PATH
         self.repos_root = repos_root or DEFAULT_REPOS_ROOT
         self.worktree_root = worktree_root or DEFAULT_WORKTREE_ROOT
@@ -762,20 +856,36 @@ class ProjectStore:
     def get(self, project_id: str) -> Project | None:
         return self._projects.get(project_id)
 
-    def create(self, repo_url: str, name: str | None = None,
-               branch: str = "main",
-               git_user_name: str | None = None,
-               git_user_email: str | None = None,
-               access_token: str | None = None) -> Project:
+    def create(
+        self,
+        repo_url: str,
+        name: str | None = None,
+        branch: str = "main",
+        branches: list[str] | None = None,
+        default_branch: str | None = None,
+        git_user_name: str | None = None,
+        git_user_email: str | None = None,
+        access_token: str | None = None,
+    ) -> Project:
         """Register a project by cloning its git repo.
 
         Args:
             repo_url: Git clone URL (https or ssh) or local path.
             name: Optional display name. Defaults to repo name from URL.
-            branch: Branch to track. Defaults to "main".
+            branch: Legacy single branch to track. Defaults to "main".
+                    Deprecated: use branches and default_branch instead.
+            branches: List of branch patterns to track (e.g., ["main", "release/*", "hotfix/*"]).
+                      Supports glob patterns. Defaults to ["main"].
+            default_branch: Default branch for new beads. Defaults to first entry in branches.
         """
         if not name:
             name = _repo_name_from_url(repo_url)
+
+        # Handle backward compatibility and new branch configuration
+        if branches is None:
+            branches = [branch] if branch != "main" else ["main"]
+        if default_branch is None:
+            default_branch = branches[0] if branches else "main"
 
         # Clone into ~/.oompah/repos/<name>/
         repo_path = os.path.join(self.repos_root, _sanitize_identifier(name))
@@ -786,8 +896,11 @@ class ProjectStore:
             try:
                 subprocess.run(
                     ["git", "fetch", "--all"],
-                    cwd=repo_path, capture_output=True, text=True,
-                    check=True, timeout=120,
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=120,
                 )
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                 logger.warning("git fetch failed for %s: %s", repo_path, exc)
@@ -795,8 +908,11 @@ class ProjectStore:
             os.makedirs(os.path.dirname(repo_path), exist_ok=True)
             try:
                 subprocess.run(
-                    ["git", "clone", "--branch", branch, repo_url, repo_path],
-                    capture_output=True, text=True, check=True, timeout=300,
+                    ["git", "clone", "--branch", default_branch, repo_url, repo_path],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=300,
                 )
             except subprocess.CalledProcessError as exc:
                 stderr = exc.stderr.strip()[:500] if exc.stderr else ""
@@ -826,7 +942,9 @@ class ProjectStore:
             try:
                 r = subprocess.run(
                     ["git", "config", "--global", "user.name"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 git_user_name = r.stdout.strip() or None
             except Exception:
@@ -835,7 +953,9 @@ class ProjectStore:
             try:
                 r = subprocess.run(
                     ["git", "config", "--global", "user.email"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 git_user_email = r.stdout.strip() or None
             except Exception:
@@ -856,7 +976,10 @@ class ProjectStore:
             try:
                 subprocess.run(
                     ["git", "config", key, val],
-                    cwd=repo_path, capture_output=True, text=True, timeout=5,
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
             except Exception:
                 pass
@@ -881,7 +1004,9 @@ class ProjectStore:
             name=name,
             repo_url=repo_url,
             repo_path=repo_path,
-            branch=branch,
+            branch=branch,  # Legacy field for backward compatibility
+            branches=branches,
+            default_branch=default_branch,
             git_user_name=git_user_name,
             git_user_email=git_user_email,
             access_token=access_token,
@@ -891,18 +1016,37 @@ class ProjectStore:
         self._save()
         logger.info(
             "Project created id=%s name=%s repo=%s lfs_available=%s",
-            project_id, name, repo_url, lfs_available,
+            project_id,
+            name,
+            repo_url,
+            lfs_available,
         )
         return project
 
     # Fields that may be changed via update().
-    UPDATABLE_FIELDS = frozenset({
-        "name", "repo_url", "branch", "git_user_name", "git_user_email",
-        "yolo", "log_path", "webhook_secret", "access_token",
-        "last_webhook_received_at", "max_in_flight_prs", "merge_queue_enabled",
-        "paused", "test_command", "test_command_full", "test_skip_paths",
-        "epic_strategy",
-    })
+    UPDATABLE_FIELDS = frozenset(
+        {
+            "name",
+            "repo_url",
+            "branch",
+            "branches",
+            "default_branch",
+            "git_user_name",
+            "git_user_email",
+            "yolo",
+            "log_path",
+            "webhook_secret",
+            "access_token",
+            "last_webhook_received_at",
+            "max_in_flight_prs",
+            "merge_queue_enabled",
+            "paused",
+            "test_command",
+            "test_command_full",
+            "test_skip_paths",
+            "epic_strategy",
+        }
+    )
 
     def update(self, project_id: str, **fields) -> Project | None:
         """Update a project's mutable fields.
@@ -960,17 +1104,13 @@ class ProjectStore:
                 cleaned = []
                 for item in val:
                     if not isinstance(item, str):
-                        raise ProjectError(
-                            "'test_skip_paths' entries must be strings"
-                        )
+                        raise ProjectError("'test_skip_paths' entries must be strings")
                     s = item.strip()
                     if s:
                         cleaned.append(s)
                 fields["test_skip_paths"] = cleaned
             else:
-                raise ProjectError(
-                    "'test_skip_paths' must be a list of strings"
-                )
+                raise ProjectError("'test_skip_paths' must be a list of strings")
 
         # Validate epic_strategy is one of the three allowed modes.
         if "epic_strategy" in fields:
@@ -1018,7 +1158,9 @@ class ProjectStore:
     # -- Startup sync --
 
     def sync_project_sources(
-        self, project_id: str, timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S,
+        self,
+        project_id: str,
+        timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S,
     ) -> dict[str, str]:
         """Pull latest code (git) and beads state (dolt) for one project.
 
@@ -1032,7 +1174,10 @@ class ProjectStore:
         """
         project = self._projects.get(project_id)
         if not project:
-            return {"git": "skipped: unknown project", "beads": "skipped: unknown project"}
+            return {
+                "git": "skipped: unknown project",
+                "beads": "skipped: unknown project",
+            }
         status: dict[str, str] = {}
 
         # git fetch + ff-only pull on the project's tracked branch.
@@ -1045,7 +1190,8 @@ class ProjectStore:
                 subprocess.run(
                     ["git", "fetch", "origin"],
                     cwd=project.repo_path,
-                    capture_output=True, text=True,
+                    capture_output=True,
+                    text=True,
                     timeout=timeout_s,
                 )
                 # --autostash: handle the common case where bd has written
@@ -1054,10 +1200,17 @@ class ProjectStore:
                 # changes to the following files would be overwritten by
                 # merge". --ff-only still refuses if origin has diverged.
                 pull = subprocess.run(
-                    ["git", "pull", "--ff-only", "--autostash",
-                     "origin", project.branch],
+                    [
+                        "git",
+                        "pull",
+                        "--ff-only",
+                        "--autostash",
+                        "origin",
+                        project.default_branch,
+                    ],
                     cwd=project.repo_path,
-                    capture_output=True, text=True,
+                    capture_output=True,
+                    text=True,
                     timeout=timeout_s,
                 )
                 if pull.returncode == 0:
@@ -1066,12 +1219,16 @@ class ProjectStore:
                     stderr = (pull.stderr or "").strip()[:200]
                     status["git"] = f"failed: {stderr}"
                     logger.warning(
-                        "Startup git pull failed for %s: %s", project.name, stderr,
+                        "Startup git pull failed for %s: %s",
+                        project.name,
+                        stderr,
                     )
             except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
                 status["git"] = f"failed: {exc}"
                 logger.warning(
-                    "Startup git fetch/pull failed for %s: %s", project.name, exc,
+                    "Startup git fetch/pull failed for %s: %s",
+                    project.name,
+                    exc,
                 )
 
         # Self-heal: ensure .beads/*.jsonl is gitignored and bd's
@@ -1084,7 +1241,8 @@ class ProjectStore:
             except Exception as exc:  # pragma: no cover - belt-and-suspenders
                 logger.warning(
                     "_configure_beads_jsonl_ignore failed for %s: %s",
-                    project.name, exc,
+                    project.name,
+                    exc,
                 )
 
         # bd dolt pull. Skip if there's no .beads/ directory at all.
@@ -1095,7 +1253,8 @@ class ProjectStore:
                 pull = subprocess.run(
                     ["bd", "dolt", "pull"],
                     cwd=project.repo_path,
-                    capture_output=True, text=True,
+                    capture_output=True,
+                    text=True,
                     timeout=timeout_s,
                 )
                 if pull.returncode == 0:
@@ -1104,18 +1263,24 @@ class ProjectStore:
                     stderr = (pull.stderr or "").strip()[:200]
                     status["beads"] = f"failed: {stderr}"
                     logger.warning(
-                        "Startup bd dolt pull failed for %s: %s", project.name, stderr,
+                        "Startup bd dolt pull failed for %s: %s",
+                        project.name,
+                        stderr,
                     )
             except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
                 status["beads"] = f"failed: {exc}"
                 logger.warning(
-                    "Startup bd dolt pull failed for %s: %s", project.name, exc,
+                    "Startup bd dolt pull failed for %s: %s",
+                    project.name,
+                    exc,
                 )
 
         return status
 
     def sync_all_sources(
-        self, timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S, max_workers: int = 4,
+        self,
+        timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S,
+        max_workers: int = 4,
     ) -> dict[str, dict[str, str]]:
         """Run :meth:`sync_project_sources` for every project in parallel.
 
@@ -1137,7 +1302,9 @@ class ProjectStore:
                     results[p.id] = fut.result()
                 except Exception as exc:
                     logger.warning(
-                        "sync_all_sources: project %s raised: %s", p.name, exc,
+                        "sync_all_sources: project %s raised: %s",
+                        p.name,
+                        exc,
                     )
                     results[p.id] = {
                         "git": f"exception: {exc}",
@@ -1152,7 +1319,9 @@ class ProjectStore:
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
         sanitized = _sanitize_identifier(issue_identifier)
-        return os.path.join(self.worktree_root, _sanitize_identifier(project.name), sanitized)
+        return os.path.join(
+            self.worktree_root, _sanitize_identifier(project.name), sanitized
+        )
 
     def epic_worktree_path_for(self, project_id: str, epic_identifier: str) -> str:
         """Path used for the shared epic worktree under epic_strategy='shared'.
@@ -1210,7 +1379,9 @@ class ProjectStore:
             subprocess.run(
                 ["git", "fetch", "origin"],
                 cwd=project.repo_path,
-                capture_output=True, text=True, timeout=60,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             pass  # best-effort
@@ -1223,7 +1394,9 @@ class ProjectStore:
             r = subprocess.run(
                 ["git", "rev-parse", "--verify", remote_ref],
                 cwd=project.repo_path,
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             remote_exists = r.returncode == 0
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
@@ -1232,13 +1405,12 @@ class ProjectStore:
         try:
             if remote_exists:
                 _git_worktree_add_with_recovery(
-                    ["git", "worktree", "add", "-B", branch_name,
-                     wt_path, remote_ref],
+                    ["git", "worktree", "add", "-B", branch_name, wt_path, remote_ref],
                     cwd=project.repo_path,
                     wt_path=wt_path,
                 )
             else:
-                base = f"origin/{project.branch}"
+                base = f"origin/{project.default_branch}"
                 _git_worktree_add_with_recovery(
                     ["git", "worktree", "add", "-b", branch_name, wt_path, base],
                     cwd=project.repo_path,
@@ -1268,7 +1440,10 @@ class ProjectStore:
             try:
                 subprocess.run(
                     ["git", "config", "user.name", project.git_user_name],
-                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
             except Exception:
                 pass
@@ -1276,7 +1451,10 @@ class ProjectStore:
             try:
                 subprocess.run(
                     ["git", "config", "user.email", project.git_user_email],
-                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
             except Exception:
                 pass
@@ -1287,7 +1465,10 @@ class ProjectStore:
         return wt_path
 
     def _prepare_existing_epic_worktree(
-        self, wt_path: str, branch_name: str, project: Project,
+        self,
+        wt_path: str,
+        branch_name: str,
+        project: Project,
     ) -> None:
         """Soft-prepare an existing epic worktree for reuse.
 
@@ -1297,9 +1478,15 @@ class ProjectStore:
         We still fetch, ensure the branch is checked out, and disable
         hooks; we do NOT ``git reset --hard`` or ``git clean``.
         """
+
         def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
             return subprocess.run(
-                cmd, cwd=wt_path, capture_output=True, text=True, timeout=30, **kw,
+                cmd,
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                **kw,
             )
 
         try:
@@ -1318,12 +1505,14 @@ class ProjectStore:
                 _run(["git", "checkout", branch_name], check=True)
                 logger.info(
                     "Checked out epic branch %s in worktree %s",
-                    branch_name, wt_path,
+                    branch_name,
+                    wt_path,
                 )
             except subprocess.CalledProcessError as exc:
                 logger.warning(
                     "Failed to checkout epic branch %s in %s: %s",
-                    branch_name, wt_path,
+                    branch_name,
+                    wt_path,
                     exc.stderr.strip()[:200] if exc.stderr else "",
                 )
 
@@ -1349,7 +1538,10 @@ class ProjectStore:
             subprocess.run(
                 ["git", "worktree", "remove", wt_path, "--force"],
                 cwd=project.repo_path,
-                capture_output=True, text=True, check=True, timeout=30,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,
             )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
@@ -1358,7 +1550,9 @@ class ProjectStore:
             raise ProjectError("git worktree remove timed out")
         logger.info("Epic worktree removed path=%s", wt_path)
 
-    def create_worktree(self, project_id: str, issue_identifier: str) -> str:
+    def create_worktree(
+        self, project_id: str, issue_identifier: str, base_branch: str | None = None
+    ) -> str:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
@@ -1378,17 +1572,20 @@ class ProjectStore:
             subprocess.run(
                 ["git", "fetch", "origin"],
                 cwd=project.repo_path,
-                capture_output=True, text=True, timeout=60,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             pass  # best-effort
 
-        # Create worktree on a new branch based on the project's main branch.
+        # Create worktree on a new branch based on the specified base branch,
+        # or the project's default_branch if not specified.
         # _git_worktree_add_with_recovery handles transient .git/config lock
         # contention (oompah-zlz_2-7iq) by either accepting partial success
         # (worktree dir created, only upstream-config write failed) or
         # retrying with exponential backoff.
-        base = f"origin/{project.branch}"
+        base = f"origin/{base_branch or project.default_branch}"
         try:
             _git_worktree_add_with_recovery(
                 ["git", "worktree", "add", "-b", branch_name, wt_path, base],
@@ -1418,7 +1615,10 @@ class ProjectStore:
             try:
                 subprocess.run(
                     ["git", "config", "user.name", project.git_user_name],
-                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
             except Exception:
                 pass
@@ -1426,7 +1626,10 @@ class ProjectStore:
             try:
                 subprocess.run(
                     ["git", "config", "user.email", project.git_user_email],
-                    cwd=wt_path, capture_output=True, text=True, timeout=5,
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
             except Exception:
                 pass
@@ -1442,12 +1645,21 @@ class ProjectStore:
         return wt_path
 
     def _prepare_existing_worktree(
-        self, wt_path: str, branch_name: str, project: Project,
+        self,
+        wt_path: str,
+        branch_name: str,
+        project: Project,
     ) -> None:
         """Ensure an existing worktree is on the correct branch with a clean state."""
+
         def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
             return subprocess.run(
-                cmd, cwd=wt_path, capture_output=True, text=True, timeout=30, **kw,
+                cmd,
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                **kw,
             )
 
         # Fetch latest from remote
@@ -1473,11 +1685,15 @@ class ProjectStore:
         if current_branch != branch_name:
             try:
                 _run(["git", "checkout", branch_name], check=True)
-                logger.info("Checked out branch %s in worktree %s", branch_name, wt_path)
+                logger.info(
+                    "Checked out branch %s in worktree %s", branch_name, wt_path
+                )
             except subprocess.CalledProcessError as exc:
                 logger.warning(
                     "Failed to checkout branch %s in worktree %s: %s",
-                    branch_name, wt_path, exc.stderr.strip()[:200] if exc.stderr else "",
+                    branch_name,
+                    wt_path,
+                    exc.stderr.strip()[:200] if exc.stderr else "",
                 )
 
         # Disable beads hooks in worktrees to prevent post-checkout/pre-commit
@@ -1506,7 +1722,9 @@ class ProjectStore:
             subprocess.run(
                 ["git", "config", "core.hooksPath", hooks_dir],
                 cwd=wt_path,
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             pass
@@ -1517,7 +1735,8 @@ class ProjectStore:
             _install_prepare_commit_msg_hook(wt_path)
         except Exception:  # pragma: no cover - defensive
             logger.warning(
-                "Failed to install prepare-commit-msg hook in %s", wt_path,
+                "Failed to install prepare-commit-msg hook in %s",
+                wt_path,
                 exc_info=True,
             )
 
@@ -1559,9 +1778,14 @@ class ProjectStore:
         # all gitignored, all safe to remove. ``bd`` will not regenerate
         # them as long as BEADS_DIR is set on every invocation.
         import shutil
+
         for entry in (
-            "dolt-server.pid", "dolt-server.port", "dolt-server.log",
-            "dolt-server.lock", "dolt", "embeddeddolt",
+            "dolt-server.pid",
+            "dolt-server.port",
+            "dolt-server.log",
+            "dolt-server.lock",
+            "dolt",
+            "embeddeddolt",
         ):
             path = os.path.join(beads_dir, entry)
             try:

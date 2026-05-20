@@ -25,6 +25,7 @@ def _sanitize_identifier(identifier: str) -> str:
     """
     return _SAFE_CHARS.sub("_", identifier)
 
+
 logger = logging.getLogger(__name__)
 
 # Default status for newly created issues.  Beads CLI defaults to "open",
@@ -65,13 +66,15 @@ def _resolve_bd_timeout() -> float:
     except (TypeError, ValueError):
         logger.warning(
             "Invalid OOMPAH_BD_TIMEOUT_SECONDS=%r — using default %ss",
-            raw, _DEFAULT_BD_TIMEOUT_SECONDS,
+            raw,
+            _DEFAULT_BD_TIMEOUT_SECONDS,
         )
         return _DEFAULT_BD_TIMEOUT_SECONDS
     if value <= 0:
         logger.warning(
             "OOMPAH_BD_TIMEOUT_SECONDS=%r must be > 0 — using default %ss",
-            raw, _DEFAULT_BD_TIMEOUT_SECONDS,
+            raw,
+            _DEFAULT_BD_TIMEOUT_SECONDS,
         )
         return _DEFAULT_BD_TIMEOUT_SECONDS
     return value
@@ -174,20 +177,22 @@ class BeadsTracker:
 
         status_filter = ",".join(self.active_states)
         try:
-            raw_list = self._run_bd([
-                "list",
-                # ``--all`` is needed alongside ``--status=`` because
-                # ``bd list --status=open`` (without --all) applies an
-                # additional hooked/worktree-aware filter that hides
-                # issues with an active local worktree under
-                # ``.oompah/worktrees/``. We need the full set of
-                # active issues for dispatch. See oompah-zlz_2-???
-                # for the upstream bd bug (oompah-zlz_2-7q55).
-                "--all",
-                f"--status={status_filter}",
-                "--limit=0",
-                "--json",
-            ])
+            raw_list = self._run_bd(
+                [
+                    "list",
+                    # ``--all`` is needed alongside ``--status=`` because
+                    # ``bd list --status=open`` (without --all) applies an
+                    # additional hooked/worktree-aware filter that hides
+                    # issues with an active local worktree under
+                    # ``.oompah/worktrees/``. We need the full set of
+                    # active issues for dispatch. See oompah-zlz_2-???
+                    # for the upstream bd bug (oompah-zlz_2-7q55).
+                    "--all",
+                    f"--status={status_filter}",
+                    "--limit=0",
+                    "--json",
+                ]
+            )
         except TrackerNotConfiguredError:
             # Already logged at WARNING in _run_bd; bubble up so the
             # caller skips this project's dispatch for the tick.
@@ -208,7 +213,8 @@ class BeadsTracker:
             raise
         except TrackerError as exc:
             logger.error(
-                "Failed to fetch candidates: %s", exc,
+                "Failed to fetch candidates: %s",
+                exc,
                 extra={"error_class": "bd_failed"},
             )
             raise
@@ -324,10 +330,16 @@ class BeadsTracker:
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         """Add a comment to an issue."""
-        raw = self._run_bd([
-            "comments", "add", identifier, text,
-            f"--author={author}", "--json",
-        ])
+        raw = self._run_bd(
+            [
+                "comments",
+                "add",
+                identifier,
+                text,
+                f"--author={author}",
+                "--json",
+            ]
+        )
         if isinstance(raw, dict):
             return raw
         return {}
@@ -523,12 +535,15 @@ class BeadsTracker:
 
     @staticmethod
     def _write_attachments_manifest(
-        project_root: str, identifier: str, attachments: list[dict],
+        project_root: str,
+        identifier: str,
+        attachments: list[dict],
     ) -> None:
         """Write the dashboard sidecar manifest. Best-effort — failures
         are logged, not raised."""
         import os
         from oompah.attachments import ATTACHMENTS_SUBDIR
+
         d = os.path.join(project_root, ATTACHMENTS_SUBDIR, identifier)
         try:
             os.makedirs(d, exist_ok=True)
@@ -536,13 +551,23 @@ class BeadsTracker:
                 json.dump(list(attachments), f, indent=2)
         except OSError as exc:
             logger.warning(
-                "manifest write failed for %s in %s: %s", identifier, project_root, exc,
+                "manifest write failed for %s in %s: %s",
+                identifier,
+                project_root,
+                exc,
             )
 
     def archive_issue(self, identifier: str) -> None:
         """Mark an issue as archived via set-state dimension."""
-        self._run_bd(["set-state", identifier, "archive=yes",
-                       "--reason", "Auto-archived after 7 days closed"])
+        self._run_bd(
+            [
+                "set-state",
+                identifier,
+                "archive=yes",
+                "--reason",
+                "Auto-archived after 7 days closed",
+            ]
+        )
 
     def is_archived(self, issue: Issue) -> bool:
         """Check if an issue has the archive:yes label."""
@@ -705,7 +730,10 @@ class BeadsTracker:
         return self._last_fingerprint
 
     def _run_bd(
-        self, args: list[str], *, timeout: float | None = None,
+        self,
+        args: list[str],
+        *,
+        timeout: float | None = None,
     ) -> dict | list:
         """Run a bd command and parse JSON output.
 
@@ -728,7 +756,10 @@ class BeadsTracker:
         # is down/unavailable (transient startup failure). Same TTL as the
         # missing-DB cache so both environmental conditions share a single
         # sampling cadence.
-        if self._dolt_unavailable_until and time.monotonic() < self._dolt_unavailable_until:
+        if (
+            self._dolt_unavailable_until
+            and time.monotonic() < self._dolt_unavailable_until
+        ):
             raise TrackerDoltUnavailableError(
                 f"bd workspace at {self.cwd!r} has unavailable Dolt server "
                 f"(cached for {int(self._dolt_unavailable_until - time.monotonic())}s)"
@@ -737,9 +768,7 @@ class BeadsTracker:
         # Explicit per-call timeout wins; otherwise honour the env-var
         # (OOMPAH_BD_TIMEOUT_SECONDS) so operators can tune for slow
         # dolt-sql-server setups without code changes.
-        effective_timeout = (
-            timeout if timeout is not None else _resolve_bd_timeout()
-        )
+        effective_timeout = timeout if timeout is not None else _resolve_bd_timeout()
         try:
             result = subprocess.run(
                 cmd,
@@ -757,9 +786,7 @@ class BeadsTracker:
             # only auto-files beads at ERROR level; this stays at WARNING
             # to avoid a feedback loop of duplicate "bd list timed out"
             # bug beads on every slow tick.
-            raise TrackerTimeoutError(
-                f"bd command timed out: {' '.join(cmd)}"
-            )
+            raise TrackerTimeoutError(f"bd command timed out: {' '.join(cmd)}")
 
         if result.returncode != 0:
             stderr = result.stderr.strip()
@@ -774,11 +801,10 @@ class BeadsTracker:
                 logger.warning(
                     "bd workspace at %r has no beads database — "
                     "skipping for %ds. Run `bd init` there or remove the project.",
-                    self.cwd, int(_MISSING_DB_TTL_SECONDS),
+                    self.cwd,
+                    int(_MISSING_DB_TTL_SECONDS),
                 )
-                self._missing_db_until = (
-                    time.monotonic() + _MISSING_DB_TTL_SECONDS
-                )
+                self._missing_db_until = time.monotonic() + _MISSING_DB_TTL_SECONDS
                 raise TrackerNotConfiguredError(
                     f"bd workspace at {self.cwd!r} has no beads database: "
                     f"{stderr.splitlines()[0] if stderr else ''}"
@@ -801,7 +827,8 @@ class BeadsTracker:
                     "to start manually: bd dolt start; "
                     "to disable auto-start: set dolt.auto-start: false "
                     "in .beads/config.yaml",
-                    self.cwd, int(_DOLT_UNAVAILABLE_TTL_SECONDS),
+                    self.cwd,
+                    int(_DOLT_UNAVAILABLE_TTL_SECONDS),
                 )
                 self._dolt_unavailable_until = (
                     time.monotonic() + _DOLT_UNAVAILABLE_TTL_SECONDS
@@ -857,8 +884,9 @@ class BeadsTracker:
         else:
             labels = []
 
-        # Blocked by
+        # Blocked by + parent (from discovered-from deps)
         blocked_by: list[BlockerRef] = []
+        parent_id = raw.get("parent")  # bd list --json includes this for parent-child deps
         blockers_raw = raw.get("blocked_by", raw.get("dependencies", []))
         if isinstance(blockers_raw, list):
             for b in blockers_raw:
@@ -867,17 +895,21 @@ class BeadsTracker:
                     dep_type = b.get("type") or b.get("dependency_type") or ""
                     if dep_type == "parent-child":
                         continue
+                    # discovered-from dependencies indicate parent-child hierarchy
+                    # (used by Rodgers for epic->task breakdown per AGENTS.md)
+                    if dep_type == "discovered-from":
+                        # Extract parent from discovered-from dependency
+                        # bd list uses depends_on_id; bd show uses id/identifier
+                        parent_id = (
+                            b.get("depends_on_id") or b.get("id") or b.get("identifier")
+                        )
+                        continue
                     # bd list uses depends_on_id; bd show uses id/identifier
                     blocker_id = (
-                        b.get("depends_on_id")
-                        or b.get("id")
-                        or b.get("identifier")
+                        b.get("depends_on_id") or b.get("id") or b.get("identifier")
                     )
                     # Use the explicit identifier if available, fall back to id
-                    blocker_identifier = (
-                        b.get("identifier")
-                        or blocker_id
-                    )
+                    blocker_identifier = b.get("identifier") or blocker_id
                     blocked_by.append(
                         BlockerRef(
                             id=blocker_id,
@@ -894,7 +926,6 @@ class BeadsTracker:
         closed_at = _parse_timestamp(raw.get("closed_at"))
 
         issue_type = str(raw.get("issue_type", raw.get("type", "task")))
-        parent_id = raw.get("parent")
 
         # Multimodal attachments — beads stores the rich record in
         # metadata["oompah.attachments"] (a list of objects with path/mime/
@@ -930,6 +961,9 @@ class BeadsTracker:
             # creating the git worktree, so the WORKFLOW.md prompt renders
             # the actual branch instead of empty backticks.
             branch_name=raw.get("branch_name") or _sanitize_identifier(identifier),
+            # Target branch for this issue's work. Defaults to project's default_branch
+            # if not explicitly set in the bead metadata.
+            target_branch=raw.get("target_branch"),
             url=raw.get("url"),
             labels=labels,
             blocked_by=blocked_by,
