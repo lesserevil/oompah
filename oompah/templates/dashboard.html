@@ -3134,7 +3134,12 @@ function renderActivityEntry(a) {
     // recorded before the kind_map split).
     if (!_AGENT_LOG_MESSAGE_KINDS.includes(a.kind)) return null;
     if (_isMetadataMessage(a)) return null;
-    const detail = a.detail && a.detail.trim().length > 0 ? a.detail : '';
+    // Trim leading/trailing whitespace so display is clean, and skip
+    // entries that are empty or whitespace-only.
+    const _trim = s => (s || '').trim();
+    const detail = _trim(a.detail);
+    const summary = _trim(a.summary);
+    if (!detail && !summary) return null;
     // Prefer the longer of (detail, summary) so the operator sees the
     // full message — summary is truncated to 200 chars in oompah/api_agent.py.
     const text = (detail.length > summary.length ? detail : summary) || '(empty message)';

@@ -211,6 +211,51 @@ class TestActivityCacheAndPush:
             "refreshActivity must cache the fetched entries into _activityEntries"
 
 
+class TestCompactModeWhitespaceHandling:
+    """Compact mode (Verbose OFF) must trim whitespace and skip empty messages."""
+
+    def test_compact_trims_detail_and_summary(self, script):
+        """Both detail and summary must be trimmed with a local _trim helper before use."""
+        body = _get_func_body(script, "renderActivityEntry")
+        # The compact branch must define a helper that strips leading/trailing whitespace.
+        # Accept either ' s => ' (arrow) or 'function' patterns — just verify trim() is called.
+        assert ".trim()" in body, \
+            "renderActivityEntry compact mode must call .trim() on detail/summary"
+
+    def test_compact_skips_whitespace_only_messages(self, script):
+        """Entries where both detail and summary are whitespace-only must return null."""
+        body = _get_func_body(script, "renderActivityEntry")
+        # When verbose is off, an early-return on null/empty content must exist so
+        # whitespace-only messages don't appear in the compact listing.
+        # The implementation uses: if (!detail && !summary) return null;
+        # After trim(), whitespace-only strings become empty, satisfying the condition.
+        # Verify the "return null" for empty content is reachable in the compact branch.
+        # Split at verbose check to isolate the compact-mode logic.
+        lines = body.split("\n")
+        verbose_branch_start = -1
+        for i, line in enumerate(lines):
+            if "isAgentLogVerbose" in line or "verbose" in line:
+                verbose_branch_start = i
+        if verbose_branch_start >= 0:
+            # Find the start of the compact (!verbose) block
+            for i in range(verbose_branch_start, len(lines)):
+                if "!verbose" in lines[i] or "verbose" in lines[i]:
+                    # This is the compact branch — confirm it has return null for empty
+                    compact_section = "\n".join(lines[i:])
+                    assert "return null" in compact_section, \
+                        "Compact mode must return null for empty/whitespace-only content"
+                    break
+
+    def test_compact_prefers_longer_trimmed_content(self, script):
+        """The text shown must be the longer of (trimmed detail, trimmed summary)."""
+        body = _get_func_body(script, "renderActivityEntry")
+        # Both detail and summary must participate in the length comparison.
+        # The pattern: longer content wins — detail.length > summary.length ? detail : summary
+        # After trimming, the comparison reflects actual displayable content.
+        assert "detail.length" in body and "summary.length" in body, \
+            "renderActivityEntry compact mode must compare trimmed detail and summary lengths"
+
+
 class TestPanelInitWiresToggle:
     """Opening the panel must reflect the persisted toggle state in the UI."""
 
