@@ -706,7 +706,9 @@ codex = [
     { name = "openai-agents" },
 ]
 dev = [
+    { name = "claude-agent-sdk" },
     { name = "httpx" },
+    { name = "openai-agents" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
@@ -720,6 +722,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "claude-agent-sdk", marker = "extra == 'claude'", specifier = ">=0.1.0" },
+    { name = "claude-agent-sdk", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
@@ -727,6 +730,7 @@ requires-dist = [
     { name = "oompah", extras = ["claude"], marker = "extra == 'all'" },
     { name = "oompah", extras = ["codex"], marker = "extra == 'all'" },
     { name = "openai-agents", marker = "extra == 'codex'", specifier = ">=0.17.2,<0.18" },
+    { name = "openai-agents", marker = "extra == 'dev'", specifier = ">=0.17.2,<0.18" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "python-liquid", specifier = ">=1.12" },

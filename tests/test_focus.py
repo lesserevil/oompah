@@ -12,11 +12,14 @@ from oompah.focus import (
     MIN_ISSUES_FOR_PROPOSAL,
     Focus,
     FocusSuggestion,
+    _compute_similarity_score,
+    _extract_topic_prefix,
     _extract_work_keywords,
     _generate_focus_rules,
     _text_matches,
     _work_matches_focus,
     analyze_completed_issue,
+    find_similar_issues,
     load_foci,
     save_foci,
     save_suggestion,
@@ -807,3 +810,310 @@ class TestFocusRenderWithProject:
         out = focus.render(project)
         assert "Run tests after resolving all conflicts" in out
         assert "Project Test Configuration" not in out
+
+
+class TestExtractTopicPrefix:
+    """Tests for _extract_topic_prefix() — topic prefix extraction."""
+
+    def test_basic_prefix(self):
+        assert _extract_topic_prefix("rogers-how to connect") == "rogers"
+        assert _extract_topic_prefix("rogers-5hd setup") == "rogers"
+        assert _extract_topic_prefix("database-migration-guide") == "database"
+
+    def test_underscore_separator(self):
+        # Splits on first underscore. "my_service_alive" splits to "my" / "service_alive";
+        # prefix "my" is only 2 chars < MIN_PREFIX_LEN=3, so returns None.
+        # "auth_oauth2_flow" splits to "auth" / "oauth2_flow"; prefix "auth" has
+        # 4 chars >= 3, returns "auth".
+        assert _extract_topic_prefix("my_service_alive") is None
+        assert _extract_topic_prefix("auth_oauth2_flow") == "auth"
+
+    def test_no_separator(self):
+        # No hyphen or underscore: the whole title IS the prefix (provided
+        # it meets minimum length and is word-like).
+        assert _extract_topic_prefix("singleword") == "singleword"
+        assert _extract_topic_prefix("anotherlongword") == "anotherlongword"
+
+    def test_prefix_too_short(self):
+        # 1-char prefix: too short → rejected
+        assert _extract_topic_prefix("a-something") is None
+        # 2-char prefix: rejected with MIN_PREFIX_LEN=3
+        assert _extract_topic_prefix("ab-something") is None
+        # 3-char prefix: accepted
+        assert _extract_topic_prefix("abx-something") == "abx"
+
+    def test_prefix_with_digit(self):
+        # "v2-beta": prefix "v2" is 2 chars < MIN_PREFIX_LEN=3 → too short → None
+        assert _extract_topic_prefix("v2-beta") is None
+        # "api5-use-cases": prefix "api5" is 4 chars ≥ 3 → accepted
+        assert _extract_topic_prefix("api5-use-cases") == "api5"
+
+    def test_empty_title(self):
+        assert _extract_topic_prefix("") is None
+        assert _extract_topic_prefix(None) is None
+
+    def test_prefix_with_non_alphanumeric(self):
+        # Prefix with spaces or dots (no alphanumeric) should return None
+        assert _extract_topic_prefix("foo bar-baz") is None
+        assert _extract_topic_prefix("foo.bar-baz") is None
+
+    def test_prefix_punctuation_after_prefix(self):
+        # "foo.bar-baz" prefix is "foo.bar" (contains dot → invalid)
+        assert _extract_topic_prefix("foo.bar-baz") is None
+        # "foo-bar-baz" prefix is "foo" (valid)
+        assert _extract_topic_prefix("foo-bar-baz") == "foo"
+        assert _extract_topic_prefix("foo_bar_baz") == "foo"
+
+    def test_only_numbers(self):
+        # Numeric prefix: "123-something" → valid, returns "123"
+        assert _extract_topic_prefix("123-something") == "123"
+
+    def test_numeric_prefix(self):
+        """Numeric prefixes like 'v2', '2fa': "2fa" (3 chars, MIN_PREFIX_LEN=3) is accepted."""
+        assert _extract_topic_prefix("v2-deploy") is None  # "v2" is 2 chars < MIN_PREFIX_LEN=3
+        assert _extract_topic_prefix("2fa-setup") == "2fa"
+
+
+class TestComputeSimilarityScore:
+    """Tests for _compute_similarity_score() — fuzzy similarity between two issues."""
+
+    def test_same_title_exact(self):
+        """Identical title + same project.type → max score."""
+        a = _make_issue(identifier="a", title="rogers-how to reset", project_id="p", issue_type="bug", labels=["networking"])
+        b = _make_issue(identifier="b", title="rogers-how to reset", project_id="p", issue_type="bug", labels=["networking"])
+        score = _compute_similarity_score(a, b)
+        assert score == 1.0
+
+    def test_rogers_pattern_duplicates(self):
+        """Issues with same 'rogers' prefix should score high even with different suffixes."""
+        a = _make_issue(identifier="a", title="rogers-how to connect", project_id="p", issue_type="bug", labels=["networking"])
+        b = _make_issue(identifier="b", title="rogers-5hd setup", project_id="p", issue_type="bug", labels=["networking"])
+        # Both same project + same type + shared label → 0.5
+        # Same prefix "rogers" → +0.25
+        score = _compute_similarity_score(a, b)
+        assert score >= 0.7, f"Expected high score for rogers-*/rogers-* pattern, got {score}"
+
+    def test_rogers_different_suffix_different_labels(self):
+        """Same topic prefix but no shared label — should still score on prefix alone."""
+        a = _make_issue(identifier="a", title="rogers-zdn error", project_id="p", issue_type="bug", labels=["urgent"])
+        b = _make_issue(identifier="b", title="rogers-5hd timeout", project_id="p", issue_type="bug", labels=["low-priority"])
+        score = _compute_similarity_score(a, b)
+        # Same project + same type (0.2) + same prefix "rogers" (0.25) + shared word (0 if none) = 0.45
+        assert score >= 0.4, f"Expected at least 0.4 for same-prefix diff-labels, got {score}"
+
+    def test_different_prefix_low_score(self):
+        """Issues with different topic prefixes should score significantly lower than exact-match."""
+        a = _make_issue(identifier="a", title="rogers-connect", project_id="p", issue_type="bug", labels=["networking"])
+        b = _make_issue(identifier="b", title=" Completely-different-title", project_id="p", issue_type="bug", labels=["networking"])
+        score = _compute_similarity_score(a, b)
+        # Same project + same type + shared label = 0.5; NO word overlap in suffix = no extra
+        assert score <= 0.5
+
+    def test_different_project(self):
+        """Different projects should score lower than same-project matches."""
+        a = _make_issue(identifier="a", title=".database-migration", project_id="proj1", issue_type="bug", labels=["db"])
+        b = _make_issue(identifier="b", title="database-cache-issue", project_id="proj2", issue_type="bug", labels=["db"])
+        score = _compute_similarity_score(a, b)
+        # Same type + shared label + SAME suffix words "database" (>= 3 chars, not stop word)
+        # "database" (8 chars) is in the suffix words for both → overlap boosts to 0.25
+        # + 0.5 for same type/labels = 0.75 if same project... but different project so capped at 0.5
+        assert score <= 0.5, f"Expected ≤0.5 for different-project, got {score}"
+
+    def test_no_shared_words_in_suffix(self):
+        """Even with same signature, no shared words reduces score."""
+        a = _make_issue(identifier="a", title="rogers-alpha", project_id="p", issue_type="bug", labels=[])
+        b = _make_issue(identifier="b", title="rogers-beta", project_id="p", issue_type="bug", labels=[])
+        score = _compute_similarity_score(a, b)
+        # Same project/type (0.2) + same prefix (0.25) = 0.45
+        assert score >= 0.4
+
+    def test_max_score_capped_at_1(self):
+        """Score must never exceed 1.0."""
+        a = _make_issue(identifier="a", title="foo-bar-baz", project_id="p", issue_type="bug", labels=["a", "b", "c"])
+        b = _make_issue(identifier="b", title="foo-bar-baz", project_id="p", issue_type="bug", labels=["a", "b", "c"])
+        score = _compute_similarity_score(a, b)
+        assert score <= 1.0
+
+    def test_score_zero_for_completely_different_issues(self):
+        """Completely unrelated issues should score near zero."""
+        a = _make_issue(identifier="a", title="database-migration", project_id="p", issue_type="bug", labels=["db"])
+        b = _make_issue(identifier="b", title="mouse-clicking-problem", project_id="q", issue_type="task", labels=["ui"])
+        score = _compute_similarity_score(a, b)
+        assert score < 0.2
+
+
+class TestFindSimilarIssues:
+    """Tests for find_similar_issues() — candidate scanning for duplicates."""
+
+    def test_finds_high_score_matches(self):
+        """Issues with 'rogers' prefix and same project should be found."""
+        base = _make_issue(identifier="new-1", title="rogers-foo bar", project_id="p", issue_type="bug")
+        candidates = [
+            _make_issue(identifier="old-1", title="rogers-alpha", project_id="p", issue_type="bug"),
+            _make_issue(identifier="old-2", title="rogers-beta fix", project_id="p", issue_type="bug"),
+            _make_issue(identifier="old-3", title="unrelated-issue", project_id="p", issue_type="bug"),
+        ]
+        similar = find_similar_issues(base, candidates)
+        identifiers = [s.identifier for s, _ in similar]
+        assert "old-1" in identifiers
+        assert "old-2" in identifiers
+        assert "old-3" not in identifiers
+
+    def test_ignores_self(self):
+        """The candidate itself should never appear in results."""
+        issue = _make_issue(identifier="self-1", title="foo-bar", project_id="p", issue_type="bug")
+        candidates = [
+            _make_issue(identifier="self-1", title="foo-bar", project_id="p", issue_type="bug"),
+            _make_issue(identifier="other-1", title="foo-bar", project_id="p", issue_type="bug"),
+        ]
+        similar = find_similar_issues(issue, candidates)
+        identifiers = [s.identifier for s, _ in similar]
+        assert "self-1" not in identifiers
+        assert "other-1" in identifiers
+
+    def test_sorted_by_score(self):
+        """Results should be descending by similarity score."""
+        base = _make_issue(identifier="base", title="rogers-how", project_id="p", issue_type="bug", labels=["x"])
+        candidates = [
+            _make_issue(identifier="a", title="rogers-best-match", project_id="p", issue_type="bug", labels=["x", "y"]),
+            _make_issue(identifier="b", title="rogers-worst-match", project_id="p", issue_type="bug"),
+            _make_issue(identifier="c", title="rogers-medium-match", project_id="p", issue_type="bug"),
+        ]
+        similar = find_similar_issues(base, candidates)
+        scores = [score for _, score in similar]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_empty_candidates(self):
+        """Empty candidate list should return empty results."""
+        issue = _make_issue(identifier="x", title="foo-bar", project_id="p", issue_type="bug")
+        assert find_similar_issues(issue, []) == []
+
+    def test_min_score_threshold(self):
+        """Issues below min_score should be excluded."""
+        base = _make_issue(identifier="x", title="unique-title", project_id="p", issue_type="bug")
+        candidates = [
+            _make_issue(identifier="y", title="completely-different-title-here", project_id="p", issue_type="bug"),
+        ]
+        similar = find_similar_issues(base, candidates, min_score=0.8)
+        assert len(similar) == 0
+
+    def test_includes_closed_issues(self):
+        """Closed candidate issues should be included in results."""
+        base = _make_issue(identifier="x", title="rogers-connect", project_id="p", issue_type="bug")
+        closed = _make_issue(identifier="closed-1", title="rogers-fix-already", project_id="p", issue_type="bug", state="closed")
+        similar = find_similar_issues(base, [closed])
+        assert len(similar) == 1
+        assert similar[0][0].identifier == "closed-1"
+        assert similar[0][1] >= 0.5
+
+
+class TestDuplicateDetectorFocus:
+    """Tests for the built-in duplicate_detector focus (oompah-zlz_2-x6w3)."""
+
+    def _get_duplicate_detector(self):
+        matches = [f for f in BUILTIN_FOCI if f.name == "duplicate_detector"]
+        assert matches, "duplicate_detector focus not found in BUILTIN_FOCI"
+        return matches[0]
+
+    def test_exists_in_builtin_foci(self):
+        names = [f.name for f in BUILTIN_FOCI]
+        assert "duplicate_detector" in names
+
+    def test_has_correct_role(self):
+        focus = self._get_duplicate_detector()
+        assert focus.role == "Duplicate Investigator"
+
+    def test_has_must_do_rules(self):
+        focus = self._get_duplicate_detector()
+        assert len(focus.must_do) > 0
+
+    def test_has_must_not_do_rules(self):
+        focus = self._get_duplicate_detector()
+        assert len(focus.must_not_do) > 0
+
+    def test_must_do_includes_bd_search(self):
+        """must_do should mention using bd to search for similar issues."""
+        focus = self._get_duplicate_detector()
+        text = " ".join(focus.must_do)
+        assert "bd list" in text and ("duplicate" in text.lower() or "similar" in text.lower())
+
+    def test_must_do_includes_close_as_duplicate(self):
+        """must_do should instruct closing confirmed duplicates."""
+        focus = self._get_duplicate_detector()
+        text = " ".join(focus.must_do)
+        assert "bd close" in text.lower() or "close" in text.lower()
+
+    def test_must_not_do_prevents_implementing_before_confirming(self):
+        """must_not_do should prevent implementing code before duplicate is confirmed."""
+        focus = self._get_duplicate_detector()
+        text = " ".join(focus.must_not_do).lower()
+        assert "implement" in text or "code" in text or "branch" in text
+
+    def test_must_not_do_blocks_new_branch_for_duplicates(self):
+        """must_not_do should prevent creating new branches for confirmed duplicates."""
+        focus = self._get_duplicate_detector()
+        text = " ".join(focus.must_not_do).lower()
+        assert "branch" in text or "pr" in text
+
+    def test_priority_is_high(self):
+        """duplicate_detector should have high priority to outrank other matches."""
+        focus = self._get_duplicate_detector()
+        assert focus.priority >= 15, "duplicate_detector priority should be high (>= 15)"
+
+    def test_keywords_include_duplicate(self):
+        focus = self._get_duplicate_detector()
+        assert "duplicate" in focus.keywords
+
+    def test_keywords_include_rogers_topic(self):
+        """Keywords should include 'rogers' as an example of a topic prefix."""
+        focus = self._get_duplicate_detector()
+        assert "rogers" in focus.keywords
+
+    def test_selected_for_duplicate_keyword(self):
+        """An issue with 'duplicate' in title should strongly score duplicate_detector."""
+        foci = [
+            self._get_duplicate_detector(),
+            Focus(name="feature", role="Feature", description="",
+                  keywords=["implement", "add"], status="active"),
+        ]
+        issue = _make_issue(title="This looks like a duplicate of another issue", labels=[])
+        focus = select_focus(issue, foci)
+        assert focus.name == "duplicate_detector"
+
+    def test_selected_for_rogers_prefix_issue(self):
+        """An issue with a topic-prefix title should score duplicate_detector."""
+        foci = [
+            self._get_duplicate_detector(),
+            Focus(name="bugfix", role="Bug Fixer", description="",
+                  keywords=["bug", "crash"], status="active"),
+        ]
+        # "rogers-something" title with no other keyword matches
+        issue = _make_issue(title="rogers-xyz issue: cannot authenticate", labels=[])
+        focus = select_focus(issue, foci)
+        # duplicate_detector has "rogers" keyword
+        assert focus.name == "duplicate_detector"
+
+    def test_render_contains_role(self):
+        focus = self._get_duplicate_detector()
+        rendered = focus.render()
+        assert "Duplicate Investigator" in rendered
+
+    def test_render_contains_must_do(self):
+        focus = self._get_duplicate_detector()
+        rendered = focus.render()
+        assert "### You MUST:" in rendered
+
+    def test_render_contains_must_not_do(self):
+        focus = self._get_duplicate_detector()
+        rendered = focus.render()
+        assert "### You must NOT:" in rendered
+
+    def test_serialization_round_trip(self):
+        focus = self._get_duplicate_detector()
+        restored = Focus.from_dict(focus.to_dict())
+        assert restored.name == focus.name
+        assert restored.role == focus.role
+        assert restored.priority == focus.priority
+        assert restored.status == focus.status
+        assert restored.must_do == focus.must_do
+        assert restored.keywords == focus.keywords

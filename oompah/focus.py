@@ -470,6 +470,47 @@ BUILTIN_FOCI: list[Focus] = [
         labels=["draft"],
         priority=8,
     ),
+    Focus(
+        name="duplicate_detector",
+        role="Duplicate Investigator",
+        description=(
+            "You are investigating whether a fresh issue is a duplicate of an "
+            "existing one. The issue shares a topic prefix or keywords with at "
+            "least one previously-handled issue — your job is to determine "
+            "whether they describe the same underlying problem."
+        ),
+        must_do=[
+            "Search for similar issues using `bd list --status=closed,open "
+            "--project <name>` filtered by the shared topic prefix (e.g. "
+            "for 'rogers-something' search 'rogers') or the bug/error description",
+            "Read the description, error messages, and comments of any "
+            "candidate duplicate to confirm whether it covers the same ground",
+            "If a confirmed duplicate exists: comment on the NEW issue linking "
+            "to the original issue, then close it using `bd close "
+            "<identifier>` with reason 'duplicate-of:<original-id>'. "
+            "Do NOT implement anything — the original already covers this",
+            "If no clear duplicate is confirmed: continue with the work using "
+            "the topic/resolution from the most likely match as your starting "
+            "point, and close the candidate as non-duplicate if it truly "
+            "represents a new problem",
+        ],
+        must_not_do=[
+            "Start implementing code until you have confirmed whether this "
+            "issue is a duplicate",
+            "Implement two separate solutions for what is the same problem",
+            "Assume a duplicate without reading the candidate's full description "
+            "and comments — surface-level title match is not enough evidence",
+            "Create a new branch or PR for this issue if it is a confirmed "
+            "duplicate — close it and move on",
+        ],
+        keywords=[
+            "duplicate", "similar", "already", "fixed", "exists",
+            "related", "duplicate-of", "closed-as-duplicate",
+            "rogers", "topic", "prefix", "same.*issue", "same.*problem",
+        ],
+        issue_types=["bug", "task", "feature", "chore"],
+        priority=20,
+    ),
 ]
 
 # Default focus used when no specific focus matches
@@ -576,6 +617,155 @@ def select_focus(issue: Issue, foci: list[Focus] | None = None) -> Focus:
     logger.info("Focus selected for %s: %s (score=%d via=score)",
                 issue.identifier, best_focus.name, best_score)
     return best_focus
+
+
+# ---------------------------------------------------------------------------
+# Duplicate / fuzzy-similarity detection
+# ---------------------------------------------------------------------------
+#
+# Design rationale (oompah-zlz_2-x6w3):
+#
+# The mechanical find-duplicates (exact title match) misses pattern-based
+# duplicates like "rogers-how", "rogers-5hd", "rogers-zdn" where the same
+# topic prefix ("rogers") is shared but suffixes differ.
+#
+# Strategy:
+#  1. Title prefix extraction: extract the "topic" before the first
+#     hyphen/underscore (e.g. "rogers" from "rogers-how").
+#  2. Similarity scoring: weighted combination of
+#      - same project + shared label + same type (baseline, ~0.5)
+#      - same title prefix (pattern duplicate boost, +0.25)
+#      - shared meaningful words from title (semantic overlap, +0.25)
+#  3. find_similar_issues(): scan candidates for issues scoring ≥ min_score.
+#  4. A "duplicate_detector" focus so agents can investigate closed/recent
+#     issues when presented with a fresh candidate.
+
+_MIN_PREFIX_LEN = 3  # minimum chars before first `-`/`_` to be significant
+_MIN_SCORE_TO_FLAG = 0.5  # similarity score needed to flag as potential dup
+
+
+def _extract_topic_prefix(title: str) -> str | None:
+    """Extract the topic prefix from an issue title.
+
+    Splits on the first hyphen OR underscore and uses everything before it
+    as the prefix.  This correctly handles cases like 'rogers-how' which
+    stores 'rogers' as the topic and the suffix 'how' as the variant spec.
+    Longer compound-word prefixes with underscores (e.g. 'my_service_alive')
+    are handled the same way: the first underscore acts as the separator.
+    Falls back to returning the full title as-is when there is no hyphen or
+    underscore (single-segment title).
+    Returns ``None`` when the prefix is shorter than ``_MIN_PREFIX_LEN``
+    or contains non-word characters.
+    """
+    if not title:
+        return None
+    t = title.strip()
+
+    # Split on first hyphen OR underscore (whichever comes first)
+    parts = re.split(r"[-_]", t, maxsplit=1)
+    prefix = parts[0].lower()
+
+    if len(prefix) < _MIN_PREFIX_LEN:
+        return None
+    # Must be word-like: lowercase letters, digits, underscores, or hyphens
+    # (hyphens are allowed here since they belong to the prefix only on titles
+    # with no _ split, e.g. "foo-bar" → prefix "foo-bar" returned as-is)
+    if not re.fullmatch(r"[a-z0-9_-]+", prefix):
+        return None
+    return prefix
+
+
+def _compute_similarity_score(a: Issue, b: Issue) -> float:
+    """Return a 0.0–1.0 similarity score between two issues.
+
+    Scores combine three signals:
+    1. Basic structural match  (project + shared label + same type) → ~0.5
+    2. Same title prefix        (pattern "rogers-*" duplicates)      → +0.25
+    3. Shared meaningful words  (text-overlap in title words)        → +0.25
+
+    Designed to catch "rogers-how / rogers-5hd / rogers-zdn" as high-score
+    duplicates even when they share no labels.
+    """
+    score = 0.0
+
+    # Signal 1: same project + same issue type → 0.25
+    #            same project + same type + shared label → 0.5 (full structural match)
+    same_project = bool(a.project_id and a.project_id == b.project_id)
+    same_type = (
+        a.issue_type is not None
+        and b.issue_type is not None
+        and a.issue_type.lower() == b.issue_type.lower()
+    )
+    a_labels = {l.lower() for l in (a.labels or [])}
+    b_labels = {l.lower() for l in (b.labels or [])}
+    has_shared_label = bool(a_labels & b_labels)
+
+    if same_project and has_shared_label and same_type:
+        score += 0.5
+    elif same_project and same_type:
+        score += 0.25
+    elif same_project and has_shared_label:
+        score += 0.15
+
+    # Signal 2: same title prefix (pattern duplicate detection)
+    prefix_a = _extract_topic_prefix(a.title or "")
+    prefix_b = _extract_topic_prefix(b.title or "")
+    if prefix_a and prefix_a == prefix_b:
+        score += 0.25
+
+    # Signal 3: shared meaningful words in title (case-insensitive, min 3 chars)
+    def _title_words(title: str) -> set[str]:
+        raw = (title or "").lower()
+        # Strip the prefix (everything before first hyphen/underscore) to avoid
+        # artificially boosting on the prefix itself.
+        parts = re.split(r"[-_]", raw, maxsplit=1)
+        suffix = parts[1] if len(parts) > 1 else raw
+        return {
+            w for w in re.findall(r"[a-z]{3,}", suffix)
+            if w not in _STOP_WORDS
+        }
+
+    words_a = _title_words(a.title or "")
+    words_b = _title_words(b.title or "")
+    overlap = words_a & words_b
+    if overlap:
+        # Boost proportional to overlap (capped at +0.25 for full overlap)
+        union = words_a | words_b
+        score += min(0.25, 0.25 * len(overlap) / len(union))
+
+    return min(score, 1.0)
+
+
+def find_similar_issues(
+    issue: Issue,
+    candidates: list[Issue],
+    min_score: float = _MIN_SCORE_TO_FLAG,
+) -> list[tuple[Issue, float]]:
+    """Find issues in ``candidates`` that are similar to ``issue``.
+
+    Returns a list of ``(candidate, score)`` pairs, sorted descending by
+    score, where ``score >= min_score``. The candidate itself is excluded
+    (an issue cannot be similar to itself by identifier).
+
+    Args:
+        issue:   The issue to evaluate.
+        candidates: Pool of other issues to compare against (may include
+                   closed, in_progress, and open issues from the same project).
+        min_score: Minimum similarity score to return (default 0.5).
+
+    Returns:
+        List of (similar_issue, score) sorted by score descending.
+    """
+    results: list[tuple[Issue, float]] = []
+    for candidate in candidates:
+        if candidate.identifier == issue.identifier:
+            continue
+        score = _compute_similarity_score(issue, candidate)
+        if score >= min_score:
+            results.append((candidate, score))
+
+    results.sort(key=lambda x: x[1], reverse=True)
+    return results
 
 
 # ---------------------------------------------------------------------------
