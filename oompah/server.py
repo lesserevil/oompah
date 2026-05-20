@@ -1524,7 +1524,7 @@ async def api_add_label(identifier: str, request: Request):
                 {"error": {"code": "validation", "message": "label is required"}},
                 status_code=400,
             )
-        project_id = body.get("project_id")
+        project_id = body.get("project_id") or request.query_params.get("project_id")
         tracker = _get_tracker(orch, project_id)
         tracker.add_label(identifier, label)
         _api_cache.invalidate("issues:all")
@@ -1627,7 +1627,7 @@ async def api_add_comment(identifier: str, request: Request):
                 status_code=400,
             )
         author = body.get("author", "user")
-        project_id = body.get("project_id")
+        project_id = body.get("project_id") or request.query_params.get("project_id")
         tracker = _get_tracker(orch, project_id)
         result = tracker.add_comment(identifier, text, author=author)
 
