@@ -272,6 +272,41 @@ class TestYoloNotifyConflictRebaseFirst:
         tracker.update_issue.assert_called_once_with(
             "trickle-deferred-33",
             status="open",
-            priority=0,
+            priority="0",
             **{"add-label": "merge-conflict"},
+        )
+
+    def test_orphan_recovery_cross_restart_dedup_skips_filing(self, tmp_path):
+        """When an open issue with the matching label already exists in the
+        tracker, _file_orphan_recovery_bead should reuse it rather than
+        filing a duplicate (cross-restart safety net)."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        provider = MagicMock()
+        provider.rebase_review.return_value = (False, "merge conflict in foo.py")
+        provider.get_review.return_value = _make_review_request(
+            review_id="40",
+            source_branch="orphan-branch-40",
+        )
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None  # orphan branch
+        # Cross-restart check: existing open issue with merge-conflict label
+        existing_issue = MagicMock()
+        existing_issue.identifier = "rogers-existing"
+        existing_issue.created_at = "2026-01-01T00:00:00Z"
+        tracker.fetch_issues_by_labels.return_value = [existing_issue]
+        orch._project_trackers[project.id] = tracker
+
+        orch._yolo_notify_conflict(project, provider, "org/repo", "40")
+
+        # Must NOT create a new issue
+        tracker.create_issue.assert_not_called()
+        tracker.add_label.assert_not_called()
+        # But should record the reused bead in bookkeeping
+        assert (project.id, "40", "merge-conflict") in orch._yolo_orphan_recovery_beads
+        assert (
+            orch._yolo_orphan_recovery_beads[(project.id, "40", "merge-conflict")]
+            == "rogers-existing"
         )

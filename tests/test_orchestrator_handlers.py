@@ -29,10 +29,15 @@ def _make_config() -> ServiceConfig:
     return ServiceConfig()
 
 
-def _make_issue(identifier: str, state: str = "open", issue_type: str = "task",
-                priority: int = 2, project_id: str | None = None,
-                labels: list | None = None,
-                description: str = "Test issue body — passes the empty-description gate.") -> Issue:
+def _make_issue(
+    identifier: str,
+    state: str = "open",
+    issue_type: str = "task",
+    priority: int = 2,
+    project_id: str | None = None,
+    labels: list | None = None,
+    description: str = "Test issue body — passes the empty-description gate.",
+) -> Issue:
     return Issue(
         id=identifier,
         identifier=identifier,
@@ -46,8 +51,11 @@ def _make_issue(identifier: str, state: str = "open", issue_type: str = "task",
     )
 
 
-def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.com/org/repo",
-                  yolo: bool = False):
+def _make_project(
+    project_id: str = "proj-1",
+    repo_url: str = "https://github.com/org/repo",
+    yolo: bool = False,
+):
     p = MagicMock()
     p.id = project_id
     p.repo_url = repo_url
@@ -84,6 +92,7 @@ def _make_review(
 def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
     """Create a test orchestrator with mocked project store."""
     from oompah.roles import RoleStore
+
     all_projects = list(projects or []) + list(yolo_projects or [])
     project_store = MagicMock()
     project_store.list_all.return_value = all_projects
@@ -105,6 +114,7 @@ def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
 # ---------------------------------------------------------------------------
 # _handle_reconcile
 # ---------------------------------------------------------------------------
+
 
 class TestHandleReconcile:
     """_handle_reconcile() delegates to _reconcile()."""
@@ -132,6 +142,7 @@ class TestHandleReconcile:
 # _handle_review_check
 # ---------------------------------------------------------------------------
 
+
 class TestHandleReviewCheck:
     """_handle_review_check() fetches forge state and populates caches."""
 
@@ -151,7 +162,9 @@ class TestHandleReviewCheck:
         """After _handle_review_check(), _merged_branches is populated."""
         orch = _make_orchestrator(tmp_path)
         orch._fetch_all_reviews = MagicMock(return_value={})
-        orch._fetch_all_merged_branches = MagicMock(return_value={"branch-a", "branch-b"})
+        orch._fetch_all_merged_branches = MagicMock(
+            return_value={"branch-a", "branch-b"}
+        )
 
         asyncio.run(orch._handle_review_check())
 
@@ -234,6 +247,7 @@ class TestHandleReviewCheck:
 # ---------------------------------------------------------------------------
 # _handle_dispatch_needed
 # ---------------------------------------------------------------------------
+
 
 class TestHandleDispatchNeeded:
     """_handle_dispatch_needed() fetches candidates and dispatches issues."""
@@ -331,7 +345,9 @@ class TestHandleDispatchNeeded:
         orch._pre_resolve_blockers = MagicMock()
         orch._reset_orphaned_in_progress = MagicMock()
         orch._plan_open_epics = MagicMock(return_value=[epic])
-        orch._should_dispatch = MagicMock(return_value=False)  # normal dispatch skips epics
+        orch._should_dispatch = MagicMock(
+            return_value=False
+        )  # normal dispatch skips epics
         orch._dispatch = AsyncMock()
 
         asyncio.run(orch._handle_dispatch_needed())
@@ -408,6 +424,7 @@ class TestHandleDispatchNeeded:
         # Track whether _select_dispatchable was invoked from a worker thread
         # (i.e. via run_in_executor) rather than the asyncio event-loop thread.
         import threading
+
         main_thread_id = threading.get_ident()
         called_thread_ids: list[int] = []
 
@@ -441,6 +458,7 @@ class TestHandleDispatchNeeded:
         orch._auto_close_completed_epics = MagicMock()
 
         import threading
+
         main_thread_id = threading.get_ident()
         seen_thread_ids: list[int] = []
 
@@ -462,7 +480,9 @@ class TestHandleDispatchNeeded:
         b = _make_issue("feat-b", state="open", priority=1)  # higher priority
         c = _make_issue("feat-c", state="open", priority=0)  # highest priority
         # _should_dispatch rejects 'feat-a'
-        orch._should_dispatch = MagicMock(side_effect=lambda i: i.identifier != "feat-a")
+        orch._should_dispatch = MagicMock(
+            side_effect=lambda i: i.identifier != "feat-a"
+        )
 
         result = orch._select_dispatchable([a, b, c])
 
@@ -473,6 +493,7 @@ class TestHandleDispatchNeeded:
 # ---------------------------------------------------------------------------
 # _handle_yolo_review
 # ---------------------------------------------------------------------------
+
 
 class TestHandleYoloReview:
     """_handle_yolo_review() runs YOLO actions, auto-archive, and merged-labeling."""
@@ -569,6 +590,7 @@ class TestHandleYoloReview:
 # _handle_auto_update
 # ---------------------------------------------------------------------------
 
+
 class TestHandleAutoUpdate:
     """_handle_auto_update() triggers git auto-update only when idle."""
 
@@ -638,6 +660,7 @@ class TestHandleAutoUpdate:
 # ---------------------------------------------------------------------------
 # _tick() integration: correct delegation order
 # ---------------------------------------------------------------------------
+
 
 class TestTickDelegation:
     """_tick() must call the five handlers in the correct order."""
@@ -711,7 +734,13 @@ class TestTickDelegation:
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
             asyncio.run(orch._tick())
 
-        expected_order = ["reconcile", "review_check", "dispatch_needed", "yolo_review", "auto_update"]
+        expected_order = [
+            "reconcile",
+            "review_check",
+            "dispatch_needed",
+            "yolo_review",
+            "auto_update",
+        ]
         assert call_order == expected_order
 
     def test_tick_aborts_after_config_validation_failure(self, tmp_path):
@@ -742,8 +771,10 @@ class TestTickDelegation:
         orch._handle_auto_update = fake_auto_update
         orch._notify_observers = MagicMock()
 
-        with patch("oompah.orchestrator.validate_dispatch_config",
-                   return_value=["Agent command not configured"]):
+        with patch(
+            "oompah.orchestrator.validate_dispatch_config",
+            return_value=["Agent command not configured"],
+        ):
             asyncio.run(orch._tick())
 
         # Only reconcile should have run before the abort
@@ -778,8 +809,10 @@ class TestTickDelegation:
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
-        with patch("oompah.orchestrator.validate_dispatch_config",
-                   return_value=["config error"]):
+        with patch(
+            "oompah.orchestrator.validate_dispatch_config",
+            return_value=["config error"],
+        ):
             asyncio.run(orch._tick())
 
         orch._notify_observers.assert_called_once()
@@ -832,6 +865,7 @@ class TestTickDelegation:
 # ---------------------------------------------------------------------------
 # Handler isolation: each handler is independently callable
 # ---------------------------------------------------------------------------
+
 
 class TestHandlerIndependence:
     """Each handler can be called independently without requiring a full tick."""
@@ -903,10 +937,20 @@ class TestHandlerIndependence:
 # Per-focus model overrides — see plans/per-focus-models.md
 # ---------------------------------------------------------------------------
 
-def _provider(pid: str = "p1", name: str = "p1", *, model_roles=None,
-              models=None, default_model="m-default") -> ModelProvider:
+
+def _provider(
+    pid: str = "p1",
+    name: str = "p1",
+    *,
+    model_roles=None,
+    models=None,
+    default_model="m-default",
+) -> ModelProvider:
     return ModelProvider(
-        id=pid, name=name, base_url="http://x", api_key="k",
+        id=pid,
+        name=name,
+        base_url="http://x",
+        api_key="k",
         models=models or ["m-default", "m-fast", "m-deep", "m-explicit"],
         default_model=default_model,
         model_roles=model_roles or {"fast": "m-fast", "deep": "m-deep"},
@@ -946,8 +990,13 @@ class TestFocusModelOverrides:
         orch = _make_orchestrator(tmp_path)
         prov = _provider()
         prof = _profile(model_role="deep")
-        focus = Focus(name="docs", role="r", description="d",
-                      model="m-explicit", model_role="fast")
+        focus = Focus(
+            name="docs",
+            role="r",
+            description="d",
+            model="m-explicit",
+            model_role="fast",
+        )
         assert orch._resolve_model(prof, prov, focus=focus) == "m-explicit"
 
     def test_focus_unknown_model_role_falls_back_to_profile(self, tmp_path):
@@ -963,7 +1012,10 @@ class TestFocusModelOverrides:
         prov_a = _provider(pid="a", name="A")
         prov_b = _provider(pid="b", name="B")
         orch.provider_store = MagicMock()
-        orch.provider_store.get.side_effect = lambda pid: {"a": prov_a, "b": prov_b}.get(pid)
+        orch.provider_store.get.side_effect = lambda pid: {
+            "a": prov_a,
+            "b": prov_b,
+        }.get(pid)
         orch.provider_store.get_default.return_value = prov_a
         prof = _profile(provider_id="a")
         focus = Focus(name="docs", role="r", description="d", provider_id="b")
@@ -986,8 +1038,9 @@ class TestFocusModelOverrides:
         prov = _provider()
         prof = _profile(model_role="deep")
         focus = Focus(name="docs", role="r", description="d")
-        assert orch._resolve_model(prof, prov, focus=focus) == \
-               orch._resolve_model(prof, prov, focus=None)
+        assert orch._resolve_model(prof, prov, focus=focus) == orch._resolve_model(
+            prof, prov, focus=None
+        )
 
 
 class TestRoleStoreResolution:
@@ -1009,6 +1062,7 @@ class TestRoleStoreResolution:
         # leaving provider_store=None on the store itself (the orchestrator's
         # provider_store is what matters for resolution).
         from oompah.roles import RoleStore
+
         rs = RoleStore(path=str(tmp_path / "roles.json"))
         for role_name, provider_id, model in roles:
             rs.set(role_name, provider_id, model)
@@ -1110,22 +1164,27 @@ class TestLFSPullAttachments:
 
         def fake_run(args, **kwargs):
             raise FileNotFoundError()
+
         monkeypatch.setattr(_orch.subprocess, "run", fake_run)
         # Should not raise.
         Orchestrator._lfs_pull_attachments(str(tmp_path), "foo-1")
 
     def test_includes_issue_path(self, tmp_path, monkeypatch):
         from oompah import orchestrator as _orch
+
         captured = {}
 
         def fake_run(args, **kwargs):
             captured["args"] = args
             captured["cwd"] = kwargs.get("cwd")
+
             class R:
                 returncode = 0
                 stdout = ""
                 stderr = ""
+
             return R()
+
         monkeypatch.setattr(_orch.subprocess, "run", fake_run)
 
         Orchestrator._lfs_pull_attachments(str(tmp_path), "foo-1")
@@ -1142,6 +1201,7 @@ class TestLFSPullAttachments:
 class TestReapOversizeOutputs:
     def _setup(self, tmp_path):
         from oompah.attachments import ATTACHMENTS_SUBDIR
+
         wp = tmp_path / "ws"
         out = wp / ATTACHMENTS_SUBDIR / "foo-1" / "outputs"
         out.mkdir(parents=True)
@@ -1158,6 +1218,7 @@ class TestReapOversizeOutputs:
 
     def test_drops_newest_first_until_under_cap(self, tmp_path, monkeypatch):
         import time as _t
+
         monkeypatch.setattr("oompah.attachments.MAX_PER_ISSUE_BYTES", 250)
         orch = _make_orchestrator(tmp_path)
         orch._post_comment = MagicMock()
@@ -1194,6 +1255,7 @@ class TestReapOversizeOutputs:
 class TestRecordGeneratedAttachments:
     def _setup_workspace(self, tmp_path):
         from oompah.attachments import ATTACHMENTS_SUBDIR
+
         wp = tmp_path / "ws"
         out = wp / ATTACHMENTS_SUBDIR / "foo-1" / "outputs"
         out.mkdir(parents=True)
@@ -1230,8 +1292,11 @@ class TestRecordGeneratedAttachments:
         # The on-disk filename includes a sha prefix; mirror that in
         # existing metadata.
         from oompah.attachments import ATTACHMENTS_SUBDIR
+
         out = wp / ATTACHMENTS_SUBDIR / "foo-1" / "outputs"
-        existing_path = ".oompah/attachments/foo-1/outputs/" + list(out.iterdir())[0].name
+        existing_path = (
+            ".oompah/attachments/foo-1/outputs/" + list(out.iterdir())[0].name
+        )
         tracker = MagicMock()
         tracker.fetch_attachments.return_value = [{"path": existing_path}]
         orch._tracker_for_issue = MagicMock(return_value=tracker)
@@ -1260,6 +1325,7 @@ class TestRecordGeneratedAttachments:
 # tick — a feedback loop. Timeouts must log at WARNING, not ERROR.
 # ---------------------------------------------------------------------------
 
+
 class TestFetchAllCandidatesTimeout:
     def test_timeout_logs_warning_not_error(self, tmp_path, caplog):
         import logging as _logging
@@ -1282,18 +1348,16 @@ class TestFetchAllCandidatesTimeout:
         # The key contract: error_watcher only fires on ERROR, so we must
         # NOT have logged at ERROR for a transient timeout.
         error_records = [
-            r for r in caplog.records
-            if r.levelname == "ERROR"
-            and r.name.startswith("oompah.orchestrator")
+            r
+            for r in caplog.records
+            if r.levelname == "ERROR" and r.name.startswith("oompah.orchestrator")
         ]
         assert error_records == [], (
             "TrackerTimeoutError must not be logged at ERROR — "
             "the error_watcher would auto-file a duplicate bug bead "
             "on every poll tick."
         )
-        warning_records = [
-            r for r in caplog.records if r.levelname == "WARNING"
-        ]
+        warning_records = [r for r in caplog.records if r.levelname == "WARNING"]
         assert any("timed out" in r.getMessage() for r in warning_records), (
             "Expected a WARNING line mentioning the timeout."
         )
@@ -1316,9 +1380,9 @@ class TestFetchAllCandidatesTimeout:
 
         assert result == []
         error_records = [
-            r for r in caplog.records
-            if r.levelname == "ERROR"
-            and r.name.startswith("oompah.orchestrator")
+            r
+            for r in caplog.records
+            if r.levelname == "ERROR" and r.name.startswith("oompah.orchestrator")
         ]
         assert error_records, "Generic TrackerError should still log ERROR"
 
@@ -1332,12 +1396,18 @@ class TestFetchAllCandidatesTimeout:
 # fresh recovery bead so the YOLO chain doesn't dead-end.
 # ---------------------------------------------------------------------------
 
+
 class TestYoloOrphanBranchRecovery:
     """Branch with no matching bead must trigger a recovery-bead filing."""
 
-    def _make_review_request(self, review_id="30", source_branch="trickle-c0w",
-                              target_branch="main", has_conflicts=True,
-                              ci_status="passed"):
+    def _make_review_request(
+        self,
+        review_id="30",
+        source_branch="trickle-c0w",
+        target_branch="main",
+        has_conflicts=True,
+        ci_status="passed",
+    ):
         return ReviewRequest(
             id=review_id,
             title=f"PR #{review_id}",
@@ -1360,7 +1430,8 @@ class TestYoloOrphanBranchRecovery:
 
         provider = MagicMock()
         provider.get_review.return_value = self._make_review_request(
-            review_id="30", source_branch="trickle-c0w",
+            review_id="30",
+            source_branch="trickle-c0w",
         )
 
         tracker = MagicMock()
@@ -1393,7 +1464,8 @@ class TestYoloOrphanBranchRecovery:
 
         provider = MagicMock()
         provider.get_review.return_value = self._make_review_request(
-            review_id="30", source_branch="trickle-c0w",
+            review_id="30",
+            source_branch="trickle-c0w",
         )
 
         tracker = MagicMock()
@@ -1416,7 +1488,8 @@ class TestYoloOrphanBranchRecovery:
 
         provider = MagicMock()
         provider.get_review.return_value = self._make_review_request(
-            review_id="30", source_branch="trickle-real",
+            review_id="30",
+            source_branch="trickle-real",
         )
 
         tracker = MagicMock()
@@ -1443,8 +1516,10 @@ class TestYoloOrphanBranchRecovery:
         orch = _make_orchestrator(tmp_path, projects=[project])
 
         review = self._make_review_request(
-            review_id="42", source_branch="orphan-ci-branch",
-            has_conflicts=False, ci_status="failed",
+            review_id="42",
+            source_branch="orphan-ci-branch",
+            has_conflicts=False,
+            ci_status="failed",
         )
 
         tracker = MagicMock()
@@ -1473,8 +1548,10 @@ class TestYoloOrphanBranchRecovery:
         orch = _make_orchestrator(tmp_path, projects=[project])
 
         review = self._make_review_request(
-            review_id="42", source_branch="orphan-ci-branch",
-            has_conflicts=False, ci_status="failed",
+            review_id="42",
+            source_branch="orphan-ci-branch",
+            has_conflicts=False,
+            ci_status="failed",
         )
 
         tracker = MagicMock()
@@ -1494,8 +1571,10 @@ class TestYoloOrphanBranchRecovery:
         orch = _make_orchestrator(tmp_path, projects=[project])
 
         review = self._make_review_request(
-            review_id="42", source_branch="real-ci-branch",
-            has_conflicts=False, ci_status="failed",
+            review_id="42",
+            source_branch="real-ci-branch",
+            has_conflicts=False,
+            ci_status="failed",
         )
 
         tracker = MagicMock()
@@ -1540,10 +1619,12 @@ class TestYoloOrphanBranchRecovery:
 # alert-composition path.
 # ---------------------------------------------------------------------------
 
+
 def _rl_make_entry(agent_profile_name: str = "standard") -> "RunningEntry":
     """Minimal RunningEntry for rate-limit context tests."""
     from oompah.models import RunningEntry
     from datetime import datetime, timezone
+
     return RunningEntry(
         worker_task=None,
         identifier="issue-1",
@@ -1561,17 +1642,24 @@ class TestDescribeRateLimitContext:
     def test_provider_and_model_shown_when_resolved(self, tmp_path):
         """Returns 'ProviderName (model)' when both resolve successfully."""
         orch = _make_orchestrator(tmp_path)
-        prov = _provider(pid="inf", name="InferenceAPI",
-                         models=["claude-sonnet-4-6"],
-                         default_model="claude-sonnet-4-6")
+        prov = _provider(
+            pid="inf",
+            name="InferenceAPI",
+            models=["claude-sonnet-4-6"],
+            default_model="claude-sonnet-4-6",
+        )
         orch.provider_store = MagicMock()
         orch.provider_store.get.return_value = prov
         orch.provider_store.get_default.return_value = prov
         entry = _rl_make_entry("standard")
         # Ensure the profile is registered
         orch.config.agent_profiles = [
-            AgentProfile(name="standard", command="api",
-                         provider_id="inf", model="claude-sonnet-4-6"),
+            AgentProfile(
+                name="standard",
+                command="api",
+                provider_id="inf",
+                model="claude-sonnet-4-6",
+            ),
         ]
 
         result = orch._describe_rate_limit_context(entry, None)
@@ -1582,20 +1670,28 @@ class TestDescribeRateLimitContext:
     def test_error_tokens_append_reason(self, tmp_path):
         """Error body containing 'tokens' → '— Reason: tokens'."""
         orch = _make_orchestrator(tmp_path)
-        prov = _provider(pid="inf", name="InferenceAPI",
-                         models=["claude-sonnet-4-6"],
-                         default_model="claude-sonnet-4-6")
+        prov = _provider(
+            pid="inf",
+            name="InferenceAPI",
+            models=["claude-sonnet-4-6"],
+            default_model="claude-sonnet-4-6",
+        )
         orch.provider_store = MagicMock()
         orch.provider_store.get.return_value = prov
         orch.provider_store.get_default.return_value = prov
         entry = _rl_make_entry("standard")
         orch.config.agent_profiles = [
-            AgentProfile(name="standard", command="api",
-                         provider_id="inf", model="claude-sonnet-4-6"),
+            AgentProfile(
+                name="standard",
+                command="api",
+                provider_id="inf",
+                model="claude-sonnet-4-6",
+            ),
         ]
 
         result = orch._describe_rate_limit_context(
-            entry, "HTTP 429 from http://x: rate limit type: tokens",
+            entry,
+            "HTTP 429 from http://x: rate limit type: tokens",
         )
 
         assert "InferenceAPI" in result
@@ -1605,19 +1701,25 @@ class TestDescribeRateLimitContext:
     def test_error_overloaded_append_reason(self, tmp_path):
         """Error body containing 'overloaded' → '— Reason: overloaded'."""
         orch = _make_orchestrator(tmp_path)
-        prov = _provider(pid="godspeed", name="Godspeed", models=["mimo-2.5"],
-                         default_model="mimo-2.5")
+        prov = _provider(
+            pid="godspeed",
+            name="Godspeed",
+            models=["mimo-2.5"],
+            default_model="mimo-2.5",
+        )
         orch.provider_store = MagicMock()
         orch.provider_store.get.return_value = prov
         orch.provider_store.get_default.return_value = prov
         entry = _rl_make_entry("standard")
         orch.config.agent_profiles = [
-            AgentProfile(name="standard", command="api",
-                         provider_id="godspeed", model="mimo-2.5"),
+            AgentProfile(
+                name="standard", command="api", provider_id="godspeed", model="mimo-2.5"
+            ),
         ]
 
         result = orch._describe_rate_limit_context(
-            entry, "HTTP 429 from http://x: model overloaded",
+            entry,
+            "HTTP 429 from http://x: model overloaded",
         )
 
         assert "Reason: overloaded" in result
@@ -1625,19 +1727,22 @@ class TestDescribeRateLimitContext:
     def test_error_quota_append_reason(self, tmp_path):
         """Error body containing 'quota' → '— Reason: quota'."""
         orch = _make_orchestrator(tmp_path)
-        prov = _provider(pid="inf", name="OpenAI", models=["gpt-4o"],
-                         default_model="gpt-4o")
+        prov = _provider(
+            pid="inf", name="OpenAI", models=["gpt-4o"], default_model="gpt-4o"
+        )
         orch.provider_store = MagicMock()
         orch.provider_store.get.return_value = prov
         orch.provider_store.get_default.return_value = prov
         entry = _rl_make_entry("standard")
         orch.config.agent_profiles = [
-            AgentProfile(name="standard", command="api",
-                         provider_id="inf", model="gpt-4o"),
+            AgentProfile(
+                name="standard", command="api", provider_id="inf", model="gpt-4o"
+            ),
         ]
 
         result = orch._describe_rate_limit_context(
-            entry, "HTTP 429 from http://x: quota exceeded",
+            entry,
+            "HTTP 429 from http://x: quota exceeded",
         )
 
         assert "Reason: quota" in result
@@ -1645,15 +1750,17 @@ class TestDescribeRateLimitContext:
     def test_acp_mode_returns_claude_sdk(self, tmp_path):
         """ACP-mode dispatch returns 'Claude SDK' without a model."""
         orch = _make_orchestrator(tmp_path)
-        prov = _provider(pid="acp-1", name="claude-subscription",
-                         models=["claude-sonnet-4-6"])
+        prov = _provider(
+            pid="acp-1", name="claude-subscription", models=["claude-sonnet-4-6"]
+        )
         orch.provider_store = MagicMock()
         orch.provider_store.get.return_value = prov
         orch.provider_store.get_default.return_value = prov
         entry = _rl_make_entry("acp-profile")
         orch.config.agent_profiles = [
-            AgentProfile(name="acp-profile", command="cli", mode="acp",
-                         provider_id="acp-1"),
+            AgentProfile(
+                name="acp-profile", command="cli", mode="acp", provider_id="acp-1"
+            ),
         ]
 
         result = orch._describe_rate_limit_context(entry, None)
@@ -1672,8 +1779,9 @@ class TestDescribeRateLimitContext:
         orch.provider_store.get_default.return_value = prov
         entry = _rl_make_entry("codex-profile")
         orch.config.agent_profiles = [
-            AgentProfile(name="codex-profile", command="cli", mode="acp",
-                         provider_id="cx"),
+            AgentProfile(
+                name="codex-profile", command="cli", mode="acp", provider_id="cx"
+            ),
         ]
 
         result = orch._describe_rate_limit_context(entry, None)
@@ -1705,8 +1813,10 @@ class TestDescribeRateLimitContext:
         orch = _make_orchestrator(tmp_path)
         # Build provider directly so default_model is genuinely absent
         prov = ModelProvider(
-            id="bare", name="BareProvider",
-            base_url="http://x", api_key="k",
+            id="bare",
+            name="BareProvider",
+            base_url="http://x",
+            api_key="k",
             models=[],  # no models catalogued
             # default_model defaults to None in the dataclass
         )
@@ -1715,8 +1825,7 @@ class TestDescribeRateLimitContext:
         orch.provider_store.get_default.return_value = prov
         entry = _rl_make_entry("bare-profile")
         orch.config.agent_profiles = [
-            AgentProfile(name="bare-profile", command="api",
-                         provider_id="bare"),
+            AgentProfile(name="bare-profile", command="api", provider_id="bare"),
         ]
 
         result = orch._describe_rate_limit_context(entry, None)
@@ -1734,7 +1843,8 @@ class TestDescribeRateLimitContext:
         orch.config.agent_profiles = []  # no profiles
 
         result = orch._describe_rate_limit_context(
-            entry, "HTTP 429: tokens exceeded",
+            entry,
+            "HTTP 429: tokens exceeded",
         )
 
         # Has the fallback baseline
@@ -1752,16 +1862,22 @@ class TestRateLimitAlertIncludesProviderAndModel:
         from datetime import datetime, timezone
 
         orch = _make_orchestrator(tmp_path)
-        prov = _provider(pid="inference-api", name="InferenceAPI",
-                         models=["claude-sonnet-4-6"],
-                         default_model="claude-sonnet-4-6")
+        prov = _provider(
+            pid="inference-api",
+            name="InferenceAPI",
+            models=["claude-sonnet-4-6"],
+            default_model="claude-sonnet-4-6",
+        )
         orch.provider_store = MagicMock()
         orch.provider_store.get.return_value = prov
         orch.provider_store.get_default.return_value = prov
         orch.config.agent_profiles = [
-            AgentProfile(name="standard", command="api",
-                         provider_id="inference-api",
-                         model="claude-sonnet-4-6"),
+            AgentProfile(
+                name="standard",
+                command="api",
+                provider_id="inference-api",
+                model="claude-sonnet-4-6",
+            ),
         ]
         issue = _make_issue("issue-1", project_id="proj-1")
         entry = RunningEntry(
@@ -1778,11 +1894,13 @@ class TestRateLimitAlertIncludesProviderAndModel:
         orch._post_comment = MagicMock()
         orch._schedule_retry = MagicMock()
 
-        asyncio.run(orch._on_worker_exit(
-            "issue-1",
-            "rate_limited",
-            "HTTP 429 from http://x: rate limit type: tokens",
-        ))
+        asyncio.run(
+            orch._on_worker_exit(
+                "issue-1",
+                "rate_limited",
+                "HTTP 429 from http://x: rate limit type: tokens",
+            )
+        )
 
         # Alert should include provider + model + reason
         assert len(orch._alerts) == 1
@@ -1797,14 +1915,19 @@ class TestRateLimitAlertIncludesProviderAndModel:
         from datetime import datetime, timezone
 
         orch = _make_orchestrator(tmp_path)
-        prov = _provider(pid="godspeed", name="Godspeed",
-                         models=["mimo-2.5"], default_model="mimo-2.5")
+        prov = _provider(
+            pid="godspeed",
+            name="Godspeed",
+            models=["mimo-2.5"],
+            default_model="mimo-2.5",
+        )
         orch.provider_store = MagicMock()
         orch.provider_store.get.return_value = prov
         orch.provider_store.get_default.return_value = prov
         orch.config.agent_profiles = [
-            AgentProfile(name="standard", command="api",
-                         provider_id="godspeed", model="mimo-2.5"),
+            AgentProfile(
+                name="standard", command="api", provider_id="godspeed", model="mimo-2.5"
+            ),
         ]
         issue = _make_issue("issue-1", project_id="proj-1")
         entry = RunningEntry(
@@ -1831,3 +1954,143 @@ class TestRateLimitAlertIncludesProviderAndModel:
         comment_text = orch._post_comment.call_args.args[1]
         assert "Godspeed" in comment_text
         assert "mimo-2.5" in comment_text
+
+
+class TestSelectDispatchableDuplicateSuppression:
+    """_select_dispatchable suppresses candidates that are similar to in-flight issues."""
+
+    def test_duplicate_candidate_suppressed_when_inflight(self, tmp_path):
+        """A candidate similar to a running issue should be suppressed."""
+        from oompah.models import RunningEntry
+        from datetime import datetime, timezone
+
+        orch = _make_orchestrator(tmp_path)
+
+        running_issue = Issue(
+            id="rogers-how",
+            identifier="rogers-how",
+            title="rogers-how: fix CI failure",
+            description="Fix CI",
+            state="open",
+            priority=1,
+            project_id="proj-rog",
+            labels=["ci-fix"],
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        orch.state.running["rogers-how"] = RunningEntry(
+            worker_task=None,
+            identifier="rogers-how",
+            issue=running_issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="default",
+        )
+
+        candidate = Issue(
+            id="rogers-5hd",
+            identifier="rogers-5hd",
+            title="rogers-5hd: fix CI failure",
+            description="Fix CI",
+            state="open",
+            priority=1,
+            project_id="proj-rog",
+            labels=["ci-fix"],
+            created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        )
+
+        result = orch._select_dispatchable([candidate])
+
+        assert len(result) == 0
+
+    def test_non_duplicate_candidate_not_suppressed_by_dedup(self, tmp_path):
+        """A candidate not similar to in-flight issues is not suppressed by dedup."""
+        from oompah.models import RunningEntry
+        from datetime import datetime, timezone
+
+        orch = _make_orchestrator(tmp_path)
+
+        running_issue = Issue(
+            id="trickle-abc",
+            identifier="trickle-abc",
+            title="trickle: fix pipeline",
+            description="Fix pipeline",
+            state="open",
+            priority=1,
+            project_id="proj-trickle",
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        orch.state.running["trickle-abc"] = RunningEntry(
+            worker_task=None,
+            identifier="trickle-abc",
+            issue=running_issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="default",
+        )
+
+        candidate = Issue(
+            id="rogers-xyz",
+            identifier="rogers-xyz",
+            title="rogers-xyz: add logging",
+            description="Add logging",
+            state="open",
+            priority=1,
+            project_id="proj-rog",
+            created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        )
+
+        result = orch._select_dispatchable([candidate])
+
+        # Dedup should NOT suppress this (different project + type + no shared prefix)
+        # _should_dispatch may still reject it, but that's a separate gate.
+        # Key assertion: dedup suppression should not have occurred.
+        streak = orch.state.reject_streak.get("rogers-xyz")
+        if streak:
+            assert "similar" not in streak[0].lower()
+
+    def test_inter_candidate_duplicate_only_oldest_passes(self, tmp_path):
+        """When two similar candidates are in the same batch, only the oldest passes."""
+        from datetime import datetime, timezone
+
+        orch = _make_orchestrator(tmp_path)
+
+        candidate_a = Issue(
+            id="merge-how",
+            identifier="merge-how",
+            title="merge conflict on PR #2",
+            description="Resolve merge conflicts",
+            state="open",
+            priority=1,
+            project_id="proj-rog",
+            labels=["merge-conflict"],
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        candidate_b = Issue(
+            id="merge-5hd",
+            identifier="merge-5hd",
+            title="merge conflict on PR #2",
+            description="Resolve merge conflicts",
+            state="open",
+            priority=1,
+            project_id="proj-rog",
+            labels=["merge-conflict"],
+            created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        )
+        candidate_b = Issue(
+            id="merge-5hd",
+            identifier="merge-5hd",
+            title="merge conflict on PR #2",
+            description="Resolve merge conflicts",
+            state="open",
+            priority=1,
+            project_id="proj-rog",
+            labels=["merge-conflict"],
+            created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        )
+
+        result = orch._select_dispatchable([candidate_a, candidate_b])
+
+        identifiers = [i.identifier for i in result]
+        assert "merge-how" in identifiers

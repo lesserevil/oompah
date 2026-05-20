@@ -46,6 +46,7 @@ from oompah.models import (
 )
 from oompah.focus import (
     analyze_completed_issue,
+    find_similar_issues,
     load_foci,
     save_suggestion,
     select_focus,
@@ -3969,6 +3970,42 @@ class Orchestrator:
             )
             return
         if kind == "merge-conflict":
+            label = "merge-conflict"
+        else:  # ci-fix
+            label = "ci-fix"
+        # Cross-restart safety net: query the tracker for existing open
+        # beads with the matching label. The in-memory dict above is the
+        # fast path, but it's wiped on every restart. Without this check,
+        # a process restart creates a fresh bead even though an open
+        # duplicate already exists in the tracker.
+        try:
+            active_states = [
+                s.strip().lower() for s in self.config.tracker_active_states
+            ]
+            existing = tracker.fetch_issues_by_labels([label], states=active_states)
+            if existing:
+                # Reuse the first matching open issue with this label instead
+                # of creating a new one. This prevents the "dozens of merge
+                # conflict on PR #2" duplicates seen after restarts.
+                oldest = min(existing, key=lambda i: i.created_at or "")
+                logger.info(
+                    "YOLO: reusing existing open recovery bead %s for %s MR #%s (%s) "
+                    "instead of filing a duplicate",
+                    oldest.identifier,
+                    project.name,
+                    review_id,
+                    kind,
+                )
+                self._yolo_orphan_recovery_beads[key] = oldest.identifier
+                return
+        except Exception as exc:
+            logger.debug(
+                "YOLO: cross-restart dup check failed for %s MR #%s: %s",
+                project.name,
+                review_id,
+                exc,
+            )
+        if kind == "merge-conflict":
             title = f"merge conflict on PR #{review_id} ({source_branch})"
             description = (
                 f"YOLO: conflict detected on MR #{review_id} "
@@ -4127,7 +4164,7 @@ class Orchestrator:
                 tracker.update_issue(
                     issue.identifier,
                     status="open",
-                    priority=0,
+                    priority="0",
                     **{"add-label": "merge-conflict"},
                 )
                 logger.info(
@@ -4435,7 +4472,48 @@ class Orchestrator:
         dispatch.
         """
         sorted_issues = self._sort_for_dispatch(candidates)
-        return [issue for issue in sorted_issues if self._should_dispatch(issue)]
+
+        # Build the comparison pool: running + claimed + retry_pending issues
+        # from all projects. These are the issues that already have or will get
+        # an agent, so we want to suppress duplicates from the candidate list.
+        in_flight_issues: list[Issue] = []
+        for entry in self.state.running.values():
+            if entry.issue:
+                in_flight_issues.append(entry.issue)
+
+        # claimed is a set of issue_ids — build minimal Issue stubs for similarity
+        # comparison (only title + project_id matter for the check).
+        claimed_ids: set[str] = self.state.claimed
+        # retry_attempts also tracks in-flight work by issue_id
+        retry_ids: set[str] = set(self.state.retry_attempts.keys())
+
+        # Filter out candidates that are duplicates of in-flight issues.
+        # For each candidate, check against both the in-flight set (to
+        # suppress duplicates of already-dispatched work) and the candidate
+        # list itself (to suppress inter-candidate duplicates, keeping the
+        # highest-priority/oldest instance).
+        dispatchable: list[Issue] = []
+
+        for issue in sorted_issues:
+            # Build pool: full in-flight issues + already-accepted candidates this tick
+            pool: list[Issue] = list(in_flight_issues) + list(dispatchable)
+            similar = find_similar_issues(issue, pool)
+            if similar:
+                dup_issue, score = similar[0]
+                logger.debug(
+                    "Dispatch duplicate suppressed %s (score=%.2f, dup=%s)",
+                    issue.identifier,
+                    score,
+                    dup_issue.identifier,
+                )
+                continue
+
+            if not self._should_dispatch(issue):
+                continue
+
+            dispatchable.append(issue)
+
+        return dispatchable
 
     def _match_agent_profile(self, issue: Issue) -> AgentProfile | None:
         """Select the best agent profile for an issue based on matching rules.
