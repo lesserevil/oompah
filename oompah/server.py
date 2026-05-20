@@ -1544,7 +1544,14 @@ async def api_remove_label(identifier: str, label: str, request: Request):
     """Remove a label from an issue."""
     try:
         orch = _get_orchestrator()
-        project_id = request.query_params.get("project_id")
+        # Read project_id from request body (for consistency with POST /labels)
+        # Fall back to query params for backward compatibility
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        project_id = body.get("project_id") or request.query_params.get("project_id")
         tracker = _get_tracker(orch, project_id)
         tracker.remove_label(identifier, label)
         _api_cache.invalidate("issues:all")
