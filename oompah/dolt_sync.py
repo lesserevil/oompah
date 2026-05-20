@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Per-subprocess timeout. Keep this bounded so bd/dolt network stalls do not
 # wedge the orchestrator tick and starve unrelated dispatch/reconcile work.
-DEFAULT_SUBPROCESS_TIMEOUT_S: float | None = 45.0
+DEFAULT_SUBPROCESS_TIMEOUT_S: float | None = 120.0
 
 # Backoff multiplier on the existing full_sync interval after an error.
 # A single transient error (rate limit, DNS hiccup) should not push a
@@ -144,6 +144,45 @@ def _truncate(msg: str, limit: int = 200) -> str:
     return msg[:limit] + "..."
 
 
+def _is_local_ahead_of_remote(
+    repo_path: str,
+    runner: Any = subprocess.run,
+) -> bool:
+    """Return True if local main HEAD is ahead of origin/main.
+
+    Compares commit SHAs via ``dolt log``. If they match, local has
+    nothing to push. Used to avoid expensive ``dolt push`` I/O when
+    the database is already in sync.
+    """
+    try:
+        local_proc = runner(
+            ["bd", "dolt", "log", "-1", "--format=%H"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if local_proc.returncode != 0:
+            return True  # Assume a push is needed on error
+        local_sha = local_proc.stdout.strip()
+
+        remote_proc = runner(
+            ["bd", "dolt", "log", "-1", "--format=%H", "origin/main"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if remote_proc.returncode != 0:
+            return True
+        remote_sha = remote_proc.stdout.strip()
+
+        return local_sha != remote_sha
+    except Exception:
+        # Any error means we can't determine — assume a push is needed
+        return True
+
+
 def _run_bd_dolt(
     args: list[str],
     cwd: str,
@@ -241,26 +280,35 @@ def sync_project_dolt(
     # 2. Push — only if pull succeeded and history isn't diverged.
     push_attempted = False
     if pull_ok and not pull_diverged:
-        push_attempted = True
-        try:
-            push = _run_bd_dolt(["push"], project.repo_path, timeout_s, runner)
-            if push.returncode == 0:
-                state.last_push_at = now_utc
-                result.pushed = True
-            else:
-                stderr = push.stderr or ""
-                if _is_divergent(stderr):
-                    # A fast-follow remote change between pull and push.
-                    # Pull again next tick will handle it; for now flag.
-                    state.divergent = True
-                    result.divergent = True
-                    result.error = "push diverged: " + _truncate(stderr)
+        # Quick check: if local HEAD already matches remote HEAD, skip the
+        # push. dolt push is slow (uploads internal data blocks) and this
+        # avoids unnecessary network I/O when there's nothing to push.
+        local_ahead = _is_local_ahead_of_remote(project.repo_path, runner)
+        if not local_ahead:
+            # Already in sync — record success without the expensive push.
+            state.last_push_at = now_utc
+            result.pushed = True
+        else:
+            push_attempted = True
+            try:
+                push = _run_bd_dolt(["push"], project.repo_path, timeout_s, runner)
+                if push.returncode == 0:
+                    state.last_push_at = now_utc
+                    result.pushed = True
                 else:
-                    result.error = "push failed: " + _truncate(stderr)
-        except subprocess.TimeoutExpired:
-            result.error = f"push timed out after {timeout_s}s"
-        except (FileNotFoundError, OSError) as exc:
-            result.error = f"push failed: {exc}"
+                    stderr = push.stderr or ""
+                    if _is_divergent(stderr):
+                        # A fast-follow remote change between pull and push.
+                        # Pull again next tick will handle it; for now flag.
+                        state.divergent = True
+                        result.divergent = True
+                        result.error = "push diverged: " + _truncate(stderr)
+                    else:
+                        result.error = "push failed: " + _truncate(stderr)
+            except subprocess.TimeoutExpired:
+                result.error = f"push timed out after {timeout_s}s"
+            except (FileNotFoundError, OSError) as exc:
+                result.error = f"push failed: {exc}"
 
     # 3. Update backoff state. Any error in this attempt arms the
     # backoff window. A clean attempt clears it.

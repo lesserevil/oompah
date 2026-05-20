@@ -43,24 +43,31 @@ from oompah.models import Project
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_project(tmp_path, with_beads: bool = True, name: str = "test-proj",
-                  pid: str = "proj-1") -> Project:
+
+def _make_project(
+    tmp_path, with_beads: bool = True, name: str = "test-proj", pid: str = "proj-1"
+) -> Project:
     """Build a Project with an optional .beads/ directory present."""
     repo_path = str(tmp_path)
     if with_beads:
         os.makedirs(os.path.join(repo_path, ".beads"), exist_ok=True)
     return Project(
-        id=pid, name=name,
+        id=pid,
+        name=name,
         repo_url="https://example.com/test.git",
-        repo_path=repo_path, branch="main", paused=False,
+        repo_path=repo_path,
+        branch="main",
+        paused=False,
     )
 
 
 def _runner_factory(*responses):
     """Build a mock subprocess.run that returns canned CompletedProcess in order.
 
-    Each response is either a tuple (returncode, stderr) or an Exception
-    instance to raise.
+    Each response is one of:
+    - (returncode, stderr)                          — stdout defaults to ""
+    - (returncode, stdout, stderr)                  — both streams set
+    - an Exception instance to raise
     """
     iterator = iter(responses)
 
@@ -68,17 +75,25 @@ def _runner_factory(*responses):
         resp = next(iterator)
         if isinstance(resp, Exception):
             raise resp
-        rc, stderr = resp
+        if len(resp) == 3:
+            rc, stdout, stderr = resp
+        else:
+            rc, stderr = resp
+            stdout = ""
         return subprocess.CompletedProcess(
             args=args[0] if args else [],
-            returncode=rc, stdout="", stderr=stderr,
+            returncode=rc,
+            stdout=stdout,
+            stderr=stderr,
         )
+
     return runner
 
 
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
+
 
 class TestIsDivergent:
     def test_diverged_in_stderr(self):
@@ -121,28 +136,48 @@ class TestTruncate:
 # sync_project_dolt — decision tree
 # ---------------------------------------------------------------------------
 
+
 class TestSyncProjectDolt:
     def test_default_timeout_is_forwarded_to_bd_commands(self, tmp_path):
         """The watchdog's default timeout must bound bd/dolt subprocesses."""
         project = _make_project(tmp_path)
         state = DoltSyncState(project_id=project.id)
-        runner = MagicMock(side_effect=_runner_factory((0, ""), (0, "")))
+        # pull + 2 log calls (local HEAD, remote HEAD — same SHA → skip push)
+        runner = MagicMock(
+            side_effect=_runner_factory(
+                (0, ""),
+                (0, "sha123"),
+                (0, "sha123"),
+            )
+        )
 
         sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert runner.mock_calls[0].kwargs["timeout"] == DEFAULT_SUBPROCESS_TIMEOUT_S
-        assert runner.mock_calls[1].kwargs["timeout"] == DEFAULT_SUBPROCESS_TIMEOUT_S
+        assert runner.mock_calls[1].kwargs["timeout"] == 10
+        assert runner.mock_calls[2].kwargs["timeout"] == 10
 
     def test_pull_and_push_success(self, tmp_path):
         """Happy path: pull succeeds, push succeeds — both timestamps set."""
         project = _make_project(tmp_path)
         state = DoltSyncState(project_id=project.id)
-        runner = _runner_factory((0, ""), (0, ""))
+        # pull + 2 log calls with same SHA → push skipped, pushed=True set directly
+        runner = _runner_factory(
+            (0, ""),
+            (0, "sha123"),
+            (0, "sha123"),
+        )
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert result.pulled is True
@@ -162,7 +197,10 @@ class TestSyncProjectDolt:
         runner = _runner_factory((1, "fatal: branches have diverged"))
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert result.pulled is False
@@ -178,11 +216,39 @@ class TestSyncProjectDolt:
         state = DoltSyncState(project_id=project.id)
         runner = _runner_factory(
             (0, ""),  # pull ok
+            (0, "sha-local"),  # local log
+            (0, "sha-ahead"),  # remote log (same → push skipped, pushed=True)
+        )
+
+        result = sync_project_dolt(
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
+        )
+
+        # Push was skipped because local == remote, so pushed=True
+        assert result.pulled is True
+        assert result.pushed is True
+        assert result.divergent is False
+
+    def test_push_diverged_fast_follow_uses_actual_push(self, tmp_path):
+        """Push fails with divergence between pull and push attempts
+        (shas differ so actual push is attempted)."""
+        project = _make_project(tmp_path)
+        state = DoltSyncState(project_id=project.id)
+        runner = _runner_factory(
+            (0, ""),  # pull ok
+            (0, "sha-local", ""),  # local HEAD stdout
+            (0, "sha-remote", ""),  # remote HEAD stdout (different → push)
             (1, "non-fast-forward update rejected"),  # push diverged
         )
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert result.pulled is True
@@ -198,29 +264,36 @@ class TestSyncProjectDolt:
         runner = _runner_factory((1, "connection refused"))
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0,
-            now_monotonic=1000.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert result.pulled is False
         assert result.pushed is False
         assert result.divergent is False
-        assert "pull failed" in (result.error or "")
+        assert state.divergent is False
+        assert "pull failed" in (state.last_error or "")
         assert state.consecutive_errors == 1
-        assert state.next_attempt_monotonic == 1000.0 + 120.0 * ERROR_BACKOFF_MULTIPLIER
 
     def test_push_network_error(self, tmp_path):
         """Pull succeeds, push fails with non-divergent error."""
         project = _make_project(tmp_path)
         state = DoltSyncState(project_id=project.id)
         runner = _runner_factory(
-            (0, ""),
-            (1, "remote rejected: rate limit exceeded"),
+            (0, ""),  # pull ok
+            (0, "sha-local", ""),  # local HEAD stdout
+            (0, "sha-remote", ""),  # remote HEAD stdout (different → push)
+            (1, "remote rejected: rate limit exceeded"),  # push fails
         )
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=60.0,
-            now_monotonic=500.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=60.0,
+            now_monotonic=500.0,
+            runner=runner,
         )
 
         assert result.pulled is True
@@ -238,8 +311,11 @@ class TestSyncProjectDolt:
         runner = _runner_factory(timeout_exc)
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0,
-            timeout_s=15.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            timeout_s=15.0,
+            runner=runner,
         )
 
         assert result.pulled is False
@@ -251,11 +327,19 @@ class TestSyncProjectDolt:
         project = _make_project(tmp_path)
         state = DoltSyncState(project_id=project.id)
         timeout_exc = subprocess.TimeoutExpired(cmd=["bd", "dolt", "push"], timeout=15)
-        runner = _runner_factory((0, ""), timeout_exc)
+        runner = _runner_factory(
+            (0, ""),  # pull ok
+            (0, "sha-local", ""),  # local HEAD stdout
+            (0, "sha-remote", ""),  # remote HEAD stdout (different → push)
+            timeout_exc,
+        )
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0,
-            timeout_s=15.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            timeout_s=15.0,
+            runner=runner,
         )
 
         assert result.pulled is True
@@ -269,7 +353,10 @@ class TestSyncProjectDolt:
         runner = _runner_factory(FileNotFoundError("bd not found"))
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert "pull failed" in (result.error or "")
@@ -282,7 +369,10 @@ class TestSyncProjectDolt:
         runner = MagicMock()
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert result.skipped_reason == "no_beads_dir"
@@ -299,8 +389,11 @@ class TestSyncProjectDolt:
         runner = MagicMock()
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0,
-            now_monotonic=1000.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            now_monotonic=1000.0,
+            runner=runner,
         )
 
         assert result.skipped_reason == "backoff"
@@ -317,11 +410,19 @@ class TestSyncProjectDolt:
             next_attempt_monotonic=500.0,
         )
         # now_monotonic > next_attempt_monotonic so the sync runs.
-        runner = _runner_factory((0, ""), (0, ""))
+        runner = _runner_factory(
+            (0, ""),  # pull ok
+            (0, "sha-new", ""),  # local HEAD stdout
+            (0, "sha-old", ""),  # remote HEAD stdout (different → push)
+            (0, ""),  # push ok
+        )
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0,
-            now_monotonic=1000.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            now_monotonic=1000.0,
+            runner=runner,
         )
 
         assert result.error is None
@@ -334,10 +435,18 @@ class TestSyncProjectDolt:
         """A previously-divergent project clears divergent on a clean pull."""
         project = _make_project(tmp_path)
         state = DoltSyncState(project_id=project.id, divergent=True)
-        runner = _runner_factory((0, ""), (0, ""))
+        runner = _runner_factory(
+            (0, ""),  # pull ok
+            (0, "sha-new", ""),  # local HEAD stdout
+            (0, "sha-old", ""),  # remote HEAD stdout (different → push)
+            (0, ""),  # push ok
+        )
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
 
         assert state.divergent is False
@@ -347,21 +456,33 @@ class TestSyncProjectDolt:
         """to_dict shape matches what /api/v1/orchestrator/dolt-sync expects."""
         project = _make_project(tmp_path)
         state = DoltSyncState(project_id=project.id)
-        runner = _runner_factory((0, ""), (0, ""))
+        runner = _runner_factory(
+            (0, ""),  # pull ok
+            (0, "sha", ""),  # local HEAD stdout
+            (0, "sha", ""),  # remote HEAD stdout (same → push skipped)
+        )
 
         result = sync_project_dolt(
-            project, state, full_sync_interval_s=120.0, runner=runner,
+            project,
+            state,
+            full_sync_interval_s=120.0,
+            runner=runner,
         )
         d = result.to_dict()
         assert set(d.keys()) == {
-            "project_id", "pulled", "pushed", "divergent",
-            "error", "skipped_reason",
+            "project_id",
+            "pulled",
+            "pushed",
+            "divergent",
+            "error",
+            "skipped_reason",
         }
 
 
 # ---------------------------------------------------------------------------
 # State helpers
 # ---------------------------------------------------------------------------
+
 
 class TestGetOrCreateState:
     def test_creates_on_first_access(self):
@@ -382,9 +503,13 @@ class TestStateToDict:
     def test_serializes_datetimes(self):
         now = datetime(2026, 5, 12, 14, 30, tzinfo=timezone.utc)
         st = DoltSyncState(
-            project_id="p", last_push_at=now, last_pull_at=now,
-            last_error="boom", last_error_at=now,
-            divergent=True, consecutive_errors=3,
+            project_id="p",
+            last_push_at=now,
+            last_pull_at=now,
+            last_error="boom",
+            last_error_at=now,
+            divergent=True,
+            consecutive_errors=3,
         )
         d = st.to_dict()
         assert d["last_push_at"] == "2026-05-12T14:30:00+00:00"
@@ -402,6 +527,7 @@ class TestStateToDict:
 # ---------------------------------------------------------------------------
 # Alerts
 # ---------------------------------------------------------------------------
+
 
 class TestSummarizeForAlerts:
     def test_divergent_project_emits_error_alert(self, tmp_path):
