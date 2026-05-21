@@ -38,6 +38,8 @@ from oompah.models import (
     AgentProfile,
     AgentTotals,
     BlockerRef,
+    EpicRebaseState,
+    EpicRebaseStateEntry,
     Issue,
     LiveSession,
     OrchestratorState,
@@ -425,6 +427,13 @@ class Orchestrator:
         # themselves automatically.
         self._error_watchers: dict[str | None, ErrorWatcher] = {}
 
+        # Epic rebase outcome tracking (oompah-zlz_2-82dr.3).
+        # Maps epic identifier -> EpicRebaseStateEntry.  Persisted
+        # across restarts via service_state.json so the orchestrator
+        # doesn't lose "rebase already in progress" on restart.
+        self._epic_rebase_states: dict[str, EpicRebaseStateEntry] = {}
+        self._restore_epic_rebase_states()
+
         # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
         # the dashboard shows a banner whenever WORKFLOW.md still has a
         # stale agent.profiles block that disagrees with the persisted
@@ -511,6 +520,55 @@ class Orchestrator:
                 elapsed,
                 remaining,
             )
+
+    def _restore_epic_rebase_states(self) -> None:
+        """Restore persisted epic rebase states on startup.
+
+        Loads the ``epic_rebase_states`` dict from ``service_state.json``
+        and re-hydrates it into ``self._epic_rebase_states``.  Entries
+        older than 24 h are dropped so a stale ``REBASING`` entry from
+        a crashed process doesn't block rebase dispatch forever.
+        """
+        data = self._load_state()
+        raw = data.get("epic_rebase_states")
+        if not raw or not isinstance(raw, dict):
+            return
+        now = time.time()
+        cutoff = now - 86400.0  # 24 hours
+        restored: dict[str, EpicRebaseStateEntry] = {}
+        for epic_id, entry_dict in raw.items():
+            if not isinstance(entry_dict, dict):
+                continue
+            updated_at = float(entry_dict.get("updated_at", 0) or 0)
+            if updated_at < cutoff:
+                logger.debug(
+                    "Dropping stale epic rebase state for %s (age=%.0fh)",
+                    epic_id,
+                    (now - updated_at) / 3600.0,
+                )
+                continue
+            try:
+                restored[epic_id] = EpicRebaseStateEntry.from_dict(entry_dict)
+            except Exception as exc:
+                logger.debug(
+                    "Failed to restore epic rebase state for %s: %s",
+                    epic_id,
+                    exc,
+                )
+        self._epic_rebase_states = restored
+        if restored:
+            logger.info(
+                "Restored %d epic rebase state(s) from disk",
+                len(restored),
+            )
+
+    def _persist_epic_rebase_states(self) -> None:
+        """Write ``self._epic_rebase_states`` to ``service_state.json``."""
+        payload = {
+            epic_id: entry.to_dict()
+            for epic_id, entry in self._epic_rebase_states.items()
+        }
+        self._save_state(epic_rebase_states=payload)
 
     def _save_state(self, **updates: object) -> None:
         """Persist service state to disk, merging with existing state."""
@@ -1286,6 +1344,29 @@ class Orchestrator:
         # no-op (today's behavior).
         await loop.run_in_executor(
             self._tick_pool, self._open_epic_main_prs, candidates
+        )
+
+        # Check staleness of epic branches — whether they've fallen
+        # behind main. Arms/clears per-epic staleness alerts.
+        # Only runs for stacked/shared strategies where an epic branch
+        # exists. Skip when the threshold is 0 (disabled).
+        if self.config.epic_staleness_threshold_commits > 0:
+            await loop.run_in_executor(
+                self._tick_pool, self._check_epic_staleness, candidates
+            )
+
+        # Dispatch proactive rebase agents for stale epics (oompah-zlz_2-82dr.2).
+        # Filed as merge-conflict sibling beads under the epic so the
+        # normal dispatch loop picks them up.
+        if self.config.epic_staleness_threshold_commits > 0:
+            await loop.run_in_executor(
+                self._tick_pool, self._dispatch_proactive_rebase_agents, candidates
+            )
+
+        # Prune stale epic rebase state entries so closed epics don't
+        # accumulate ghost state forever (oompah-zlz_2-82dr.3).
+        await loop.run_in_executor(
+            self._tick_pool, self._prune_stale_epic_rebase_states, candidates
         )
 
         # Reset orphaned in_progress issues (no agent, no retry).
@@ -2123,6 +2204,188 @@ class Orchestrator:
                 epic_identifier,
             )
 
+    # ------------------------------------------------------------------
+    # Epic branch staleness detection (oompah-zlz_2-82dr.1)
+    # ------------------------------------------------------------------
+
+    def _check_epic_staleness(self, candidates: list[Issue]) -> int:
+        """Check staleness of epic branches and arm/clear alerts.
+
+        For each active epic on a project whose ``epic_strategy`` is
+        'stacked' or 'shared', compares the epic branch's merge-base
+        with the target branch (usually ``main``). Triggers when:
+
+        1. The epic branch is behind by at least
+           ``epic_staleness_threshold_commits`` commits, OR
+        2. Any of the intervening commits on main touch files that the
+           epic branch also modifies.
+
+        Surfaces staleness via the alert system
+        (``source='epic_stale:<epic_identifier>'``) so the dashboard
+        can show which epics need rebasing.
+
+        Also transitions ``_epic_rebase_states``: stale → STALE,
+        rebase-succeeded → REBASED, stuck-rebasing → FAILED.
+
+        Returns the number of stale epics detected (for telemetry).
+        """
+        from oompah.epic_staleness import check_epic_branch_staleness
+        from oompah.models import EpicRebaseState
+
+        stale_count = 0
+        threshold = self.config.epic_staleness_threshold_commits
+        if threshold <= 0:
+            return 0
+
+        terminal_norms = {
+            s.strip().lower()
+            for s in self.config.tracker_terminal_states
+        }
+        rebase_timeout_s = 1800.0  # 30 min timeout for a rebase agent
+
+        for issue in candidates:
+            if issue.issue_type != "epic":
+                continue
+            state_norm = (issue.state or "").strip().lower()
+            if state_norm in terminal_norms:
+                continue
+
+            project_id = issue.project_id
+            if not project_id:
+                continue
+
+            strategy = self._project_epic_strategy(project_id)
+            if strategy not in ("stacked", "shared"):
+                continue
+
+            project = self.project_store.get(project_id)
+            if not project or not project.repo_path:
+                continue
+
+            epic_branch = self.project_store.epic_branch_name(issue.identifier)
+            target_branch = project.default_branch or "main"
+            current_state = self._get_epic_rebase_state(issue.identifier)
+            entry = self._epic_rebase_states.get(issue.identifier)
+
+            try:
+                result = check_epic_branch_staleness(
+                    project.repo_path,
+                    epic_branch,
+                    target_branch,
+                    threshold_commits=threshold,
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Staleness check failed for epic %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+                self._clear_epic_stale_alert(issue.identifier)
+                # If rebase has been in-flight for too long, mark failed
+                if current_state == EpicRebaseState.REBASING and entry:
+                    if time.time() - entry.updated_at > rebase_timeout_s:
+                        self._mark_rebase_failed(issue.identifier, project_id=project_id)
+                continue
+
+            if result.stale:
+                stale_count += 1
+                self._arm_epic_stale_alert(issue, project, result)
+                # Set STALE state if not already tracking something active
+                if current_state in (None, EpicRebaseState.REBASED):
+                    self._set_epic_rebase_state(
+                        issue.identifier,
+                        EpicRebaseState.STALE,
+                        project_id=project_id,
+                    )
+                elif current_state == EpicRebaseState.REBASING and entry:
+                    if time.time() - entry.updated_at > rebase_timeout_s:
+                        logger.warning(
+                            "Epic %s rebase stuck (>%.0f min), marking failed",
+                            issue.identifier,
+                            rebase_timeout_s / 60.0,
+                        )
+                        self._mark_rebase_failed(issue.identifier, project_id=project_id)
+            else:
+                self._clear_epic_stale_alert(issue.identifier)
+                if current_state == EpicRebaseState.REBASING:
+                    # Rebase succeeded — epic is no longer stale
+                    self._set_epic_rebase_state(
+                        issue.identifier,
+                        EpicRebaseState.REBASED,
+                        project_id=project_id,
+                    )
+                elif current_state == EpicRebaseState.STALE:
+                    # Staleness cleared (e.g., manual rebase)
+                    self._clear_epic_rebase_state(
+                        issue.identifier, project_id=project_id
+                    )
+
+        return stale_count
+
+    def _arm_epic_stale_alert(
+        self,
+        epic: Issue,
+        project,
+        result,
+    ) -> None:
+        """Add (or replace) an ``epic_stale`` alert for one epic.
+
+        The alert is keyed on ``source='epic_stale:<epic_identifier>'``.
+        """
+        from oompah.epic_staleness import StalenessResult
+
+        source = f"epic_stale:{epic.identifier}"
+
+        # Drop existing alert for this epic (if any)
+        self._alerts = [
+            a for a in self._alerts if a.get("source") != source
+        ]
+
+        shared_files_hint = ""
+        if result.shared_files:
+            files = ", ".join(result.shared_files[:10])
+            if len(result.shared_files) > 10:
+                files += f" (+{len(result.shared_files) - 10} more)"
+            shared_files_hint = f"\n\nOverlapping files: {files}"
+
+        self._alerts.append(
+            {
+                "source": source,
+                "level": "warning",
+                "title": (
+                    f"Epic {epic.identifier} on {project.name} "
+                    f"is {result.commits_behind} commits behind "
+                    f"{project.default_branch or 'main'}"
+                ),
+                "detail": (
+                    f"The epic branch for {epic.identifier} is "
+                    f"{result.commits_behind} commits behind "
+                    f"the target branch (threshold: "
+                    f"{result.threshold}).{shared_files_hint}"
+                ),
+            }
+        )
+        logger.info(
+            "Armed epic_stale alert for %s: %d commits behind, "
+            "%d overlapping files",
+            epic.identifier,
+            result.commits_behind,
+            len(result.shared_files),
+        )
+
+    def _clear_epic_stale_alert(self, epic_identifier: str) -> None:
+        """Drop any ``epic_stale`` alert previously armed for this epic."""
+        source = f"epic_stale:{epic_identifier}"
+        before = len(self._alerts)
+        self._alerts = [
+            a for a in self._alerts if a.get("source") != source
+        ]
+        if len(self._alerts) != before:
+            logger.debug(
+                "Cleared epic_stale alert for %s",
+                epic_identifier,
+            )
+
     def _maybe_auto_close_parent_epic(self, child: Issue | None) -> None:
         """If ``child`` has a parent epic, evaluate the parent for auto-close.
 
@@ -2363,6 +2626,365 @@ class Orchestrator:
             text=True,
             check=True,
             timeout=60,
+        )
+
+    # ------------------------------------------------------------------
+    # Epic rebase outcome tracking (oompah-zlz_2-82dr.3)
+    # ------------------------------------------------------------------
+
+    def _set_epic_rebase_state(
+        self,
+        epic_identifier: str,
+        state: EpicRebaseState,
+        *,
+        project_id: str | None = None,
+    ) -> None:
+        """Transition ``epic_identifier`` to ``state`` and sync labels.
+
+        Idempotent: calling twice with the same state is a no-op
+        (except for the timestamp update).  Removes any other
+        ``epic:*`` labels from the bead before adding the new one.
+        """
+        old_entry = self._epic_rebase_states.get(epic_identifier)
+        if old_entry is not None and old_entry.state == state.value:
+            # Same state — just refresh the timestamp.
+            old_entry.updated_at = time.time()
+            self._persist_epic_rebase_states()
+            return
+
+        now = time.time()
+        old_entry = self._epic_rebase_states.get(epic_identifier)
+        retry_count = old_entry.retry_count if old_entry else 0
+        # Increment retry count on FAILED transitions
+        if state == EpicRebaseState.FAILED and (old_entry is None or old_entry.state != "failed"):
+            retry_count += 1
+        self._epic_rebase_states[epic_identifier] = EpicRebaseStateEntry(
+            state=state.value,
+            updated_at=now,
+            project_id=project_id,
+            retry_count=retry_count,
+        )
+
+        # Sync labels on the bead.
+        try:
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
+            # Fetch current labels so we can remove stale epic:* ones.
+            issue = tracker.fetch_issue_detail(epic_identifier)
+            if issue and issue.labels:
+                for label in list(issue.labels):
+                    parsed = EpicRebaseState.from_label(label)
+                    if parsed is not None and parsed != state:
+                        tracker.update_issue(
+                            epic_identifier,
+                            **{"remove-label": label},
+                        )
+            # Add the new label if not already present.
+            if issue is None or state.label not in (issue.labels or []):
+                tracker.update_issue(
+                    epic_identifier,
+                    **{"add-label": state.label},
+                )
+        except Exception as exc:
+            logger.debug(
+                "Failed to sync rebase label %s for %s: %s",
+                state.label,
+                epic_identifier,
+                exc,
+            )
+
+        self._persist_epic_rebase_states()
+        logger.info(
+            "Epic %s rebase state -> %s",
+            epic_identifier,
+            state.value,
+        )
+
+    def _get_epic_rebase_state(
+        self, epic_identifier: str
+    ) -> EpicRebaseState | None:
+        """Return the current rebase state for ``epic_identifier``, or None."""
+        entry = self._epic_rebase_states.get(epic_identifier)
+        if entry is None:
+            return None
+        try:
+            return EpicRebaseState(entry.state)
+        except ValueError:
+            return None
+
+    def _clear_epic_rebase_state(
+        self,
+        epic_identifier: str,
+        *,
+        project_id: str | None = None,
+    ) -> None:
+        """Drop the tracked rebase state for ``epic_identifier`` and clear labels."""
+        if epic_identifier not in self._epic_rebase_states:
+            return
+        del self._epic_rebase_states[epic_identifier]
+        try:
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
+            issue = tracker.fetch_issue_detail(epic_identifier)
+            if issue and issue.labels:
+                for label in list(issue.labels):
+                    if EpicRebaseState.from_label(label) is not None:
+                        tracker.update_issue(
+                            epic_identifier,
+                            **{"remove-label": label},
+                        )
+        except Exception as exc:
+            logger.debug(
+                "Failed to clear rebase labels for %s: %s",
+                epic_identifier,
+                exc,
+            )
+        self._persist_epic_rebase_states()
+        logger.info("Cleared epic rebase state for %s", epic_identifier)
+
+    def _mark_rebase_failed(
+        self,
+        epic_identifier: str,
+        *,
+        project_id: str | None = None,
+    ) -> None:
+        """Transition an epic to FAILED and increment its retry count.
+
+        Wraps :meth:`_set_epic_rebase_state` so callers don't have to
+        remember to bump ``retry_count`` manually.
+        """
+        self._set_epic_rebase_state(
+            epic_identifier,
+            EpicRebaseState.FAILED,
+            project_id=project_id,
+        )
+
+    def _prune_stale_epic_rebase_states(self, candidates: list[Issue]) -> None:
+        """Drop rebase state for epics that are no longer active candidates.
+
+        Called once per tick after candidate fetch so closed/merged
+        epics don't accumulate ghost state forever.
+        """
+        active_epic_ids = {
+            issue.identifier
+            for issue in candidates
+            if issue.issue_type == "epic"
+            and issue.state.strip().lower()
+            not in {s.strip().lower() for s in self.config.tracker_terminal_states}
+        }
+        stale = [
+            epic_id
+            for epic_id in self._epic_rebase_states
+            if epic_id not in active_epic_ids
+        ]
+        for epic_id in stale:
+            entry = self._epic_rebase_states.pop(epic_id)
+            logger.debug(
+                "Pruned stale epic rebase state for %s (was %s)",
+                epic_id,
+                entry.state,
+            )
+        if stale:
+            self._persist_epic_rebase_states()
+
+    def _should_dispatch_rebase_agent(self, epic_identifier: str) -> bool:
+        """Idempotency gate: should we dispatch a rebase agent for this epic?
+
+        Returns ``False`` when:
+        - the epic is ``REBASING`` and the 30-minute in-flight timeout
+          has not yet elapsed;
+        - the epic is ``FAILED`` and the exponential backoff window
+          (``300s * 2^retry_count``, capped at 3600s) has not elapsed.
+
+        Returns ``True`` for ``STALE``, ``REBASED``, no state, or when
+        the respective timeout/backoff has elapsed.
+        """
+        entry = self._epic_rebase_states.get(epic_identifier)
+        state = self._get_epic_rebase_state(epic_identifier)
+        if state == EpicRebaseState.REBASING:
+            timeout_s = 1800.0  # 30 minutes
+            if entry and time.time() - entry.updated_at < timeout_s:
+                logger.debug(
+                    "Skipping rebase dispatch for %s: already rebasing",
+                    epic_identifier,
+                )
+                return False
+            logger.warning(
+                "Rebase dispatch for %s: rebasing timeout elapsed, allowing retry",
+                epic_identifier,
+            )
+            return True
+        if state == EpicRebaseState.FAILED:
+            if entry:
+                backoff_s = min(300 * (2 ** entry.retry_count), 3600)
+                elapsed = time.time() - entry.updated_at
+                if elapsed < backoff_s:
+                    logger.debug(
+                        "Skipping rebase dispatch for %s: backoff %.0fs/%.0fs",
+                        epic_identifier,
+                        elapsed,
+                        backoff_s,
+                    )
+                    return False
+        return True
+
+    def _is_epic_branch_being_rebased(
+        self, project_id: str, source_branch: str | None
+    ) -> bool:
+        """Return True if ``source_branch`` is an epic branch with a
+        proactive rebase currently in flight.
+
+        Used by YOLO to suppress redundant conflict-agent dispatch
+        when the orchestrator has already filed a rebase bead for
+        the epic (oompah-zlz_2-82dr.2).
+        """
+        if not source_branch or not source_branch.startswith("epic-"):
+            return False
+        for identifier, entry in self._epic_rebase_states.items():
+            if entry.project_id != project_id:
+                continue
+            expected = self.project_store.epic_branch_name(identifier)
+            if expected == source_branch:
+                state = self._get_epic_rebase_state(identifier)
+                if state == EpicRebaseState.REBASING:
+                    return True
+        return False
+
+    def _dispatch_proactive_rebase_agents(self, candidates: list[Issue]) -> int:
+        """File rebase beads for stale epics that need a rebase agent.
+
+        Iterates over ``candidates`` looking for epics in ``STALE`` or
+        ``FAILED`` state (or ``REBASING`` when the in-flight timeout has
+        elapsed).  For each such epic that passes
+        :meth:`_should_dispatch_rebase_agent`, files a sibling task
+        bead under the epic with the ``merge-conflict`` label so the
+        normal dispatch loop routes it to the merge-conflict focus.
+
+        Idempotent: checks for an existing open ``merge-conflict``
+        sibling before creating a new one.
+
+        Returns the number of rebase beads filed.
+        """
+        from oompah.models import EpicRebaseState
+
+        filed = 0
+        terminal_norms = {
+            s.strip().lower()
+            for s in self.config.tracker_terminal_states
+        }
+
+        for issue in candidates:
+            if issue.issue_type != "epic":
+                continue
+            if (issue.state or "").strip().lower() in terminal_norms:
+                continue
+
+            state = self._get_epic_rebase_state(issue.identifier)
+            if state not in (
+                EpicRebaseState.STALE,
+                EpicRebaseState.FAILED,
+                EpicRebaseState.REBASING,
+            ):
+                continue
+            if not self._should_dispatch_rebase_agent(issue.identifier):
+                continue
+
+            project = self.project_store.get(issue.project_id)
+            if not project:
+                continue
+            epic_branch = self.project_store.epic_branch_name(issue.identifier)
+            target_branch = project.default_branch or "main"
+
+            try:
+                tracker = self._tracker_for_project(issue.project_id)
+                # Idempotency: don't file duplicate if an open rebase
+                # sibling already exists under this epic.
+                children = self._fetch_epic_children(issue)
+                open_rebase = next(
+                    (
+                        c
+                        for c in children
+                        if c.state.strip().lower() in ("open", "in_progress")
+                        and "merge-conflict" in (c.labels or [])
+                        and "rebase" in c.title.lower()
+                    ),
+                    None,
+                )
+                if open_rebase is not None:
+                    logger.debug(
+                        "Rebase sibling %s already open for %s — skipping",
+                        open_rebase.identifier,
+                        issue.identifier,
+                    )
+                    # Ensure state reflects the in-flight sibling
+                    self._set_epic_rebase_state(
+                        issue.identifier,
+                        EpicRebaseState.REBASING,
+                        project_id=issue.project_id,
+                    )
+                    continue
+
+                self._file_rebase_bead(
+                    tracker, issue, epic_branch, target_branch
+                )
+                self._set_epic_rebase_state(
+                    issue.identifier,
+                    EpicRebaseState.REBASING,
+                    project_id=issue.project_id,
+                )
+                filed += 1
+            except Exception as exc:
+                logger.warning(
+                    "Failed to file rebase bead for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+
+        return filed
+
+    def _file_rebase_bead(
+        self,
+        tracker,
+        epic: Issue,
+        epic_branch: str,
+        target_branch: str,
+    ) -> None:
+        """Create a sibling task bead under ``epic`` to rebase the epic branch.
+
+        The bead is labelled ``merge-conflict`` so the dispatcher routes
+        it to the merge-conflict focus, which already knows how to
+        ``git rebase origin/<target>`` and force-push.
+        """
+        title = f"Rebase {epic_branch} onto {target_branch}"
+        description = (
+            f"The epic branch `{epic_branch}` is stale: it has fallen "
+            f"behind `{target_branch}`. Rebase the branch onto "
+            f"`origin/{target_branch}`, resolve any conflicts, and "
+            f"force-push with `git push --force-with-lease`.\n\n"
+            f"This bead was auto-filed because epic {epic.identifier} "
+            f"was detected as stale. Do NOT create a new branch or PR — "
+            f"work directly on `{epic_branch}`."
+        )
+        tracker.create_issue(
+            title=title,
+            issue_type="task",
+            description=description,
+            priority=1,
+            labels=["merge-conflict"],
+            parent=epic.identifier,
+            initial_status="open",
+        )
+        logger.info(
+            "Filed rebase bead for %s (branch=%s, target=%s)",
+            epic.identifier,
+            epic_branch,
+            target_branch,
         )
 
     def _should_dispatch(self, issue: Issue) -> bool:
@@ -2947,6 +3569,17 @@ class Orchestrator:
                 tick_count = self._yolo_limbo_ticks[key]
                 if tick_count >= 3:
                     if review.ci_status == "passed" and review.needs_rebase:
+                        # Skip if this is an epic branch being proactively rebased
+                        if self._is_epic_branch_being_rebased(
+                            project.id, review.source_branch
+                        ):
+                            logger.debug(
+                                "Watchdog: suppressing limbo conflict notify for %s MR #%s "
+                                "(proactive rebase in flight)",
+                                project.name,
+                                review.id,
+                            )
+                            continue
                         logger.warning(
                             "Watchdog: YOLO limbo MR #%s on %s needs rebase "
                             "(CI passed, %d cycles). Dispatching conflict agent.",
@@ -3181,6 +3814,19 @@ class Orchestrator:
                 # GitHub will never make progress on a DIRTY queued PR.
                 # (oompah-zlz_2-l81)
                 if review.has_conflicts:
+                    # Suppress conflict dispatch when the source branch is
+                    # an epic branch already being proactively rebased.
+                    # The rebase agent will handle any conflicts.
+                    if self._is_epic_branch_being_rebased(
+                        project.id, review.source_branch
+                    ):
+                        logger.debug(
+                            "YOLO: suppressing conflict notify for %s MR #%s "
+                            "(proactive rebase in flight)",
+                            project.name,
+                            review_id,
+                        )
+                        continue
                     logger.info(
                         "YOLO: conflicts on %s review #%s — dispatching conflict agent",
                         project.name,
@@ -9030,6 +9676,14 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             },
             "alerts": list(self._alerts),
             "reviews_summary": self._reviews_summary(),
+            "epic_rebase_states": {
+                epic_id: {
+                    "state": entry.state,
+                    "updated_at": entry.updated_at,
+                    "project_id": entry.project_id,
+                }
+                for epic_id, entry in self._epic_rebase_states.items()
+            },
             "proposed_foci_count": self._proposed_foci_count(),
             "dolt_sync": self.dolt_sync_snapshot(),
         }

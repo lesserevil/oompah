@@ -4,11 +4,80 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Epic rebase outcome states (oompah-zlz_2-82dr.3)
+#
+# Tracks whether an epic branch has been detected as stale, is currently
+# being rebased, or has been successfully rebased onto main. Persisted
+# as labels on the epic bead (epic:stale, epic:rebasing, epic:rebased)
+# AND in-memory via the Orchestrator._epic_rebase_states dict so the
+# dispatch loop can skip redundant rebase agent dispatches.
+# ---------------------------------------------------------------------------
+
+
+class EpicRebaseState(str, Enum):
+    """Possible outcomes of a proactive rebase for an epic branch."""
+
+    STALE = "stale"              # Branch detected as behind main
+    REBASING = "rebasing"       # Rebase agent dispatched / in progress
+    REBASED = "rebased"         # Rebase succeeded, branch updated
+    FAILED = "failed"           # Rebase failed (conflict, network, etc.)
+
+    @property
+    def label(self) -> str:
+        """The bead label representing this state (e.g. 'epic:stale')."""
+        return f"epic:{self.value}"
+
+    @classmethod
+    def from_label(cls, label: str) -> "EpicRebaseState | None":
+        """Parse a label like 'epic:stale' back to the enum, or None."""
+        if label.startswith("epic:"):
+            try:
+                return cls(label[len("epic:"):])
+            except ValueError:
+                return None
+        return None
+
+
+@dataclass
+class EpicRebaseStateEntry:
+    """Per-epic rebase state tracked by the orchestrator.
+
+    Kept in-memory in ``Orchestrator._epic_rebase_states`` and persisted
+    to ``service_state.json`` so restart doesn't lose rebase progress.
+    """
+
+    state: str  # EpicRebaseState.value
+    updated_at: float  # epoch seconds
+    project_id: str | None = None
+    retry_count: int = 0  # number of failed attempts (for exponential backoff)
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "state": self.state,
+            "updated_at": self.updated_at,
+            "project_id": self.project_id,
+        }
+        if self.retry_count:
+            d["retry_count"] = self.retry_count
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "EpicRebaseStateEntry":
+        return cls(
+            state=str(d.get("state", "")),
+            updated_at=float(d.get("updated_at", 0) or 0),
+            project_id=d.get("project_id") or None,
+            retry_count=int(d.get("retry_count", 0) or 0),
+        )
 
 
 @dataclass

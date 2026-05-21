@@ -399,6 +399,15 @@ class ServiceConfig:
     # signals to the orchestrator that it should raise a startup
     # alert telling the operator to delete the block.
     agent_profiles_drift: bool = False
+    # Staleness threshold for epic branches. When an epic branch's
+    # merge-base with its target branch (usually main) is behind by
+    # this many commits OR any of those intervening commits touch
+    # files the epic also modifies, the branch is considered stale.
+    # A staleness alert is surfaced via the dashboard and the
+    # orchestrator can dispatch a rebase agent. Set to 0 to disable.
+    # Configurable via OOMPAH_EPIC_STALENESS_THRESHOLD_COMMITS or
+    # agent.epic_staleness_threshold_commits in WORKFLOW.md.
+    epic_staleness_threshold_commits: int = 5
 
     def __post_init__(self):
         if not self.workspace_root:
@@ -651,6 +660,11 @@ class ServiceConfig:
             ),
             workflow_has_profiles_block=workflow_has_profiles_block,
             agent_profiles_drift=agent_profiles_drift,
+            epic_staleness_threshold_commits=_env_int(
+                "OOMPAH_EPIC_STALENESS_THRESHOLD_COMMITS",
+                agent.get("epic_staleness_threshold_commits"),
+                5,
+            ),
         )
 
 
