@@ -297,6 +297,7 @@ def _parse_merge_tree_conflicts(output: str) -> list[str]:
                 i += 1
             continue
 
+
         # Conflict marker: line starts with <<<<<<< (variant spelling)
         if "<<<<<<" in line or lower.startswith("<<<<"):
             # The next non-empty line is typically the file path
