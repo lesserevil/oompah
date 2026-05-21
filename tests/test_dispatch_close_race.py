@@ -176,7 +176,7 @@ class TestUiCloseCancelsPendingRetry:
             client = TestClient(app)
             res = client.patch(
                 "/api/v1/issues/proj-1",
-                json={"status": "closed"},
+                json={"status": "closed", "project_id": "proj-1"},
             )
         assert res.status_code == 200, res.text
 
