@@ -1178,7 +1178,28 @@ async def api_create_issue(request: Request):
     """
     try:
         orch = _get_orchestrator()
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
 
         title = body.get("title", "").strip()
         if not title:
@@ -1373,7 +1394,28 @@ async def api_update_issue(identifier: str, request: Request):
     """
     try:
         orch = _get_orchestrator()
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         project_id = body.get("project_id") or request.query_params.get("project_id")
         tracker = _get_tracker(orch, project_id)
 
@@ -1520,7 +1562,28 @@ async def api_add_label(identifier: str, request: Request):
     """Add a label to an issue."""
     try:
         orch = _get_orchestrator()
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         label = body.get("label", "").strip()
         if not label:
             return JSONResponse(
@@ -1617,7 +1680,28 @@ async def api_add_comment(identifier: str, request: Request):
     """
     try:
         orch = _get_orchestrator()
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         text = body.get("text", "").strip()
         if not text:
             return JSONResponse(
@@ -1919,7 +2003,28 @@ async def api_create_provider(request: Request):
         the operator's claude subscription.
     """
     try:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         name = body.get("name", "").strip()
         raw_mode = str(body.get("mode", "api") or "api").lower()
         mode = raw_mode if raw_mode in ("api", "acp") else "api"
@@ -1982,7 +2087,28 @@ async def api_update_provider(provider_id: str, request: Request):
         api_key remain stored but unused.
     """
     try:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         fields = {}
         for key in (
             "name",
@@ -2733,7 +2859,28 @@ async def api_fetch_models(req: Request):
     """
     import asyncio, urllib.request, ssl
 
-    data = await req.json()
+    try:
+        data = await req.json()
+    except (json.JSONDecodeError, ValueError) as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": f"Invalid JSON: {exc}",
+                }
+            },
+            status_code=400,
+        )
+    if not isinstance(data, dict):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
     raw_mode = str(data.get("mode") or "").lower()
     backend_name = (data.get("backend") or "claude").strip() or "claude"
 
@@ -3069,7 +3216,28 @@ async def api_create_project(request: Request):
     """Register a new project (git repo with beads)."""
     try:
         orch = _get_orchestrator()
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         repo_url = body.get("repo_url", "").strip()
         if not repo_url:
             return JSONResponse(
@@ -3133,7 +3301,28 @@ async def api_update_project(project_id: str, request: Request):
     """Update a project's mutable fields."""
     try:
         orch = _get_orchestrator()
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         fields = {}
         for key in (
             "name",
@@ -3361,7 +3550,28 @@ async def api_list_foci():
 async def api_create_focus(request: Request):
     """Add or update a user focus."""
     try:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
         new_focus = Focus.from_dict(body)
         if not new_focus.name:
             return JSONResponse(
@@ -3440,8 +3650,29 @@ async def api_update_focus(name: str, request: Request):
     import os, json as _json
 
     user_path = ".oompah/foci.json"
-    body = await request.json()
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError) as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": f"Invalid JSON: {exc}",
+                }
+            },
+            status_code=400,
+        )
     new_status = body.get("status")
+    if not isinstance(body, dict):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
     if new_status and new_status not in ("active", "inactive", "proposed"):
         return JSONResponse(
             {
@@ -3520,7 +3751,28 @@ async def api_list_focus_suggestions():
 @app.patch("/api/v1/foci/suggestions/{name}")
 async def api_update_focus_suggestion(name: str, request: Request):
     """Update a suggestion's status (accepted, dismissed)."""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError) as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": f"Invalid JSON: {exc}",
+                }
+            },
+            status_code=400,
+        )
+    if not isinstance(body, dict):
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": "request body must be a JSON object",
+                }
+            },
+            status_code=400,
+        )
     status = body.get("status", "")
     if status not in ("accepted", "dismissed"):
         return JSONResponse(
@@ -4224,7 +4476,18 @@ async def api_report_error(request: Request):
             },
             status_code=503,
         )
-    body = await request.json()
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError) as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation",
+                    "message": f"Invalid JSON: {exc}",
+                }
+            },
+            status_code=400,
+        )
     message = body.get("message", "").strip()
     if not message:
         return JSONResponse(
