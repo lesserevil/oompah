@@ -4516,8 +4516,8 @@ class Orchestrator:
             for candidate in proj_candidates:
                 try:
                     similar = find_similar_issues(candidate, all_pool, min_score=_MIN_SCORE_TO_FLAG)
-                except Exception:
-                    logger.debug("Duplicate detection raised for %s: %s", candidate.identifier, exc_info=True)
+                except Exception as exc:
+                    logger.debug("Duplicate detection raised for %s: %s", candidate.identifier, exc)
                     continue
 
                 for match_issue, score in similar:
