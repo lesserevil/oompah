@@ -2376,6 +2376,52 @@ class Orchestrator:
                 logger.debug("Dispatch reject %s: %s", issue.identifier, reason)
             return False
 
+        # Validation gate: check for required fields before dispatch.
+        # Required fields for dispatch:
+        #   - description: must be non-empty
+        #   - issue_type: must be present
+        #   - priority: must be explicitly set (not None)
+        #   - acceptance_criteria: must be non-empty (extracted from description)
+        #
+        # If any field is missing, add "incomplete" label and reject with
+        # a specific reason.  This prevents beads without acceptance criteria
+        # from appearing "done" when they are not (oompah-zlz_2-izq9).
+        #
+        # Epics are excluded from this check since they are planned
+        # separately and may legitimately start with sparse metadata.
+        if issue.issue_type != "epic":
+            missing_fields: list[str] = []
+            if not (issue.description or "").strip():
+                missing_fields.append("missing_description")
+            if not (issue.issue_type or "").strip():
+                missing_fields.append("missing_issue_type")
+            if issue.priority is None:
+                missing_fields.append("missing_priority")
+            # Only extract acceptance criteria when we have description
+            if not missing_fields:
+                from oompah.completion_verifier import (
+                    extract_acceptance_section,
+                )
+
+                acceptance_criteria = extract_acceptance_section(
+                    issue.description
+                )
+                if not acceptance_criteria.strip():
+                    missing_fields.append("missing_acceptance_criteria")
+
+            if missing_fields:
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    tracker.add_label(issue.identifier, "incomplete")
+                except Exception as exc:
+                    logger.debug(
+                        "Failed to add incomplete label to %s: %s",
+                        issue.identifier,
+                        exc,
+                    )
+                reason = "incomplete:" + ",".join(missing_fields)
+                return _reject(reason)
+
         if self._paused:
             return _reject("paused")
         # Per-project pause composes with the global pause: dispatch
