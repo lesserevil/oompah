@@ -1417,6 +1417,11 @@ async def api_update_issue(identifier: str, request: Request):
                 status_code=400,
             )
         project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": "project_id is required"}},
+                status_code=400,
+            )
         tracker = _get_tracker(orch, project_id)
 
         new_status = body.get("status")

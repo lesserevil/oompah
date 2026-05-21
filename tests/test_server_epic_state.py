@@ -63,6 +63,91 @@ def client():
 
 
 # ---------------------------------------------------------------------------
+# PATCH /api/v1/issues — project_id validation
+# ---------------------------------------------------------------------------
+
+class TestUpdateIssueProjectIdValidation:
+    """Tests for oompah-zlz_2-4avr: PATCH returns 400 when project_id is missing.
+
+    Previously, omitting project_id from the request body caused
+    ``_get_tracker()`` to raise ``ValueError("project_id is required")``,
+    which was caught by the generic ``except Exception`` handler and
+    returned **HTTP 500** with ``code: "update_failed"``.  The fix adds
+    an explicit validation check that returns **HTTP 400** with
+    ``code: "validation"`` and ``message: "project_id is required"``.
+    """
+
+    def test_missing_project_id_in_body_returns_400(self, client):
+        """When project_id is absent from the JSON body, return 400."""
+        mock_orch, _ = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "in_progress"},  # no project_id
+            )
+
+        assert resp.status_code == 400
+        err = resp.json()["error"]
+        assert err["code"] == "validation"
+        assert "project_id is required" in err["message"]
+
+    def test_missing_project_id_in_query_returns_400(self, client):
+        """When project_id is absent from the query string, return 400."""
+        mock_orch, _ = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "in_progress"},
+            )
+
+        assert resp.status_code == 400
+        err = resp.json()["error"]
+        assert err["code"] == "validation"
+
+    def test_empty_string_project_id_returns_400(self, client):
+        """When project_id is an empty string, return 400."""
+        mock_orch, _ = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "in_progress", "project_id": ""},
+            )
+
+        assert resp.status_code == 400
+        err = resp.json()["error"]
+        assert err["code"] == "validation"
+        assert "project_id is required" in err["message"]
+
+    def test_valid_project_id_in_body_proceeds(self, client):
+        """When project_id is present, the normal flow proceeds."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="task-1", issue_type="task", state="open"
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "in_progress", "project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+
+# ---------------------------------------------------------------------------
 # PATCH /api/v1/issues — Epic state verification
 # ---------------------------------------------------------------------------
 
