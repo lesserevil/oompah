@@ -376,6 +376,15 @@ class ServiceConfig:
     # AND no open or merged PR exists. Default False during initial
     # rollout — flip via OOMPAH_CLOSE_GATE_ENABLED=true.
     close_gate_enabled: bool = False
+    # Close audit (oompah-zlz_2-pkw5). When True, after a worker exits
+    # "normal" AND the close gate passes, the orchestrator sends the
+    # issue's acceptance criteria + evidence (commits, diff summary,
+    # PR status) to the provider's fast model and asks it to evaluate
+    # each criterion as PASS/FAIL. If any criterion fails the close
+    # is rejected: the bead is re-opened, a diagnostic comment is
+    # posted, and a retry is scheduled. Default False during initial
+    # rollout — flip via OOMPAH_CLOSE_AUDIT_ENABLED=true.
+    close_audit_enabled: bool = False
     # Strictness for the WORKFLOW.md → AgentProfileStore migration
     # (oompah-zlz_2-hye). One of:
     #   "warn"   — log a warning and surface a dashboard alert when
@@ -640,6 +649,11 @@ class ServiceConfig:
             close_gate_enabled=_env_bool(
                 "OOMPAH_CLOSE_GATE_ENABLED",
                 agent.get("close_gate_enabled"),
+                False,
+            ),
+            close_audit_enabled=_env_bool(
+                "OOMPAH_CLOSE_AUDIT_ENABLED",
+                agent.get("close_audit_enabled"),
                 False,
             ),
             strict_profile_source=_parse_strict_profile_source(
