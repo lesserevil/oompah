@@ -20,6 +20,7 @@ from oompah.agent import AgentError, AgentEvent, AgentSession
 from oompah.agent_profile_store import AgentProfileStore
 from oompah.api_agent import AgentActivity, ApiAgentSession
 from oompah.completion_verifier import VerifierResult, verify_completion
+from oompah.conflict_impact_predictor import ConflictImpactPredictor
 from oompah.config import (
     ServiceConfig,
     WorkflowError,
@@ -430,6 +431,11 @@ class Orchestrator:
         # stale agent.profiles block that disagrees with the persisted
         # store. Same channel as auto-update warnings.
         self._arm_profile_drift_alert()
+
+        # Conflict-impact predictor (oompah-zlz_2-vm1p.2): scores open PRs
+        # by downstream merge-conflict count so the YOLO loop can attempt
+        # the least-disruptive merge first.
+        self._conflict_impact_predictor = ConflictImpactPredictor()
 
     def _arm_profile_drift_alert(self) -> None:
         """Add or clear the profile-drift alert based on config state.
@@ -3156,6 +3162,15 @@ class Orchestrator:
             slug = extract_repo_slug(project.repo_url)
             reviews = reviews_cache.get(project.id, [])
 
+            # Sort merge candidates by least-disruptive-first (oompah-zlz_2-vm1p.2):
+            # compute conflict-impact score for each non-draft PR, then sort
+            # ascending so PRs with the fewest downstream conflicts are
+            # attempted first.  Conflicts and CI-failure paths still gate
+            # each review individually (the `continue` statements fire before
+            # any merge attempt), so correctness is preserved — only the
+            # merge-candidate ordering is changed.
+            reviews = self._sort_reviews_by_conflict_impact(project, reviews)
+
             # Loop-coverage tracking for D2.
             considered = 0
             actions_fired = 0
@@ -4076,6 +4091,62 @@ class Orchestrator:
             kind,
             source_branch,
         )
+
+    def _sort_reviews_by_conflict_impact(
+        self, project: Project, reviews: list[ReviewRequest]
+    ) -> list[ReviewRequest]:
+        """Sort reviews by least-disruptive-first (lowest downstream conflict count).
+
+        Uses :class:`ConflictImpactPredictor` to score each non-draft open PR
+        against all other open PRs from the same project, then sorts ascending
+        so the least-disruptive merge candidate is attempted first.
+
+        Gracefully degrades: if the project has no local clone
+        (``project.repo_path`` is empty) or any error occurs during scoring,
+        the reviews are returned in their original order.
+        """
+        # No local clone — can't run git merge-tree. Keep original order.
+        if not (project.repo_path and os.path.isdir(project.repo_path)):
+            return reviews
+
+        # Separate draft/non-draft so we don't score drafts.
+        non_draft = [r for r in reviews if not r.draft]
+        if len(non_draft) < 2:
+            # Need at least 2 open PRs for a meaningful conflict prediction.
+            return reviews
+
+        # Build the list of source branches for cross-PR comparison.
+        branch_map: dict[str, ReviewRequest] = {}
+        source_branches: list[str] = []
+        for r in non_draft:
+            if r.source_branch:
+                source_branches.append(r.source_branch)
+                branch_map[r.source_branch] = r
+
+        if len(source_branches) < 2:
+            return reviews
+
+        # Compute conflict-impact scores. Safe: predictor handles errors
+        # internally and returns score=0 on failure.
+        scores: dict[str, int] = {}
+        for branch in source_branches:
+            other_branches = [b for b in source_branches if b != branch]
+            try:
+                result = self._conflict_impact_predictor.predict(
+                    repo_path=project.repo_path,
+                    target_branch=branch,
+                    other_branches=other_branches,
+                )
+                scores[branch] = result.score
+            except Exception:
+                # Fail-safe: treat scoring errors as 0 so the PR is attempted.
+                scores[branch] = 0
+
+        def _score_key(r: ReviewRequest) -> tuple[int, str]:
+            # Sort key: (conflict_score, source_branch) — branch as tie-breaker.
+            return (scores.get(r.source_branch, 0), r.source_branch or "")
+
+        return sorted(reviews, key=_score_key)
 
     def _yolo_notify_conflict(
         self, project, provider, slug: str, review_id: str
