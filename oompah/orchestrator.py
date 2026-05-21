@@ -81,6 +81,12 @@ from oompah.yolo_watchdog import (
     run_all_detectors,
     D4_ALREADY_MERGEABLE_THRESHOLD,
 )
+from oompah.churn_magnet import (
+    ChurnMagnetStore,
+    get_store as _get_churn_store,
+    record_conflicts_for_project,
+    run_git_merge_tree,
+)
 
 import json
 import os
@@ -4228,6 +4234,56 @@ class Orchestrator:
                 review_id,
                 msg,
             )
+            # Churn-magnet: detect and record conflicted files via merge-tree
+            # for this PR (oompah-zlz_2-rxwe.1).  Fetch the review to get
+            # the branch pair; record_conflicts_for_project handles the
+            # merge-tree invocation.  Best-effort: a failure here never
+            # blocks the bead-notify path.
+            _pid = project.id
+            _rid = review_id_str
+            _repo = project.repo_path
+            _base = project.default_branch
+            _head = ""  # resolved below
+            try:
+                _review = provider.get_review(slug, review_id)
+                if _review:
+                    _head = _review.source_branch or ""
+            except Exception as _exc:
+                logger.debug(
+                    "Churn magnet: get_review failed for %s MR #%s: %s",
+                    project.name,
+                    review_id,
+                    _exc,
+                )
+            if _head:
+                try:
+                    _store = _get_churn_store()
+                    _files, _err = run_git_merge_tree(_repo, _base, _head)
+                    if _files:
+                        _store.record_conflicts(_pid, _files, _rid)
+                        logger.info(
+                            "Churn magnet: recorded %d conflicted file(s) for "
+                            "%s MR #%s (base=%s head=%s)",
+                            len(_files),
+                            project.name,
+                            review_id,
+                            _base,
+                            _head,
+                        )
+                    elif _err:
+                        logger.debug(
+                            "Churn magnet: merge-tree error for %s MR #%s: %s",
+                            project.name,
+                            review_id,
+                            _err,
+                        )
+                except Exception as _exc:
+                    logger.debug(
+                        "Churn magnet: recording failed for %s MR #%s: %s",
+                        project.name,
+                        review_id,
+                        _exc,
+                    )
             self._yolo_notify_conflict(project, provider, slug, review_id)
             return
 
@@ -4737,6 +4793,8 @@ class Orchestrator:
         unrelated transport/auth reasons) do we fall through to today's
         notify-bead behavior. See oompah-zlz_2-s56w.
         """
+        # Normalise once — used in both churn-recording and the info block.
+        review_id_str = str(review_id)
         # Step 1: try a provider-level rebase before disturbing the bead.
         try:
             success, message = provider.rebase_review(slug, review_id)
@@ -4776,6 +4834,46 @@ class Orchestrator:
             target_branch = review.target_branch
             if not source_branch:
                 return
+
+            # Record conflicted files for churn-magnet analysis (oompah-zlz_2-rxwe.1).
+            # run_git_merge_tree uses git merge-base + merge-tree to identify
+            # actual conflicting file paths.
+            _base_branch = target_branch or project.default_branch
+            try:
+                churn_files, churn_err = run_git_merge_tree(
+                    project.repo_path, _base_branch, source_branch
+                )
+                if churn_files:
+                    _get_churn_store().record_conflicts(
+                        project.id,
+                        churn_files,
+                        review_id_str,
+                    )
+                    logger.info(
+                        "Churn magnet: recorded %d conflicted file(s) for %s MR #%s "
+                        "(base=%s head=%s): %s",
+                        len(churn_files),
+                        project.name,
+                        review_id,
+                        _base_branch,
+                        source_branch,
+                        ", ".join(churn_files[:5]) + (" ..." if len(churn_files) > 5 else ""),
+                    )
+                elif churn_err:
+                    logger.debug(
+                        "Churn magnet: merge-tree failed for %s MR #%s: %s",
+                        project.name,
+                        review_id,
+                        churn_err,
+                    )
+            except Exception as _exc:
+                logger.debug(
+                    "Churn magnet: recording raised for %s MR #%s: %s",
+                    project.name,
+                    review_id,
+                    _exc,
+                )
+
             tracker = self._tracker_for_project(project.id)
             issue = tracker.fetch_issue_detail(source_branch)
             if not issue:

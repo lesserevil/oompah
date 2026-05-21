@@ -62,6 +62,7 @@ class ReviewRequest:
     # separate feature not adopted in this rollout.
     auto_merge_enabled: bool = False
     mergeable_state: str = ""
+    files: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +86,7 @@ class ReviewRequest:
             "has_conflicts": self.has_conflicts,
             "auto_merge_enabled": self.auto_merge_enabled,
             "mergeable_state": self.mergeable_state,
+            "files": self.files,
         }
 
 
@@ -183,6 +185,41 @@ class SCMProvider(ABC):
     @abstractmethod
     def provider_name(self) -> str:
         """Return the provider name (e.g. 'github', 'gitlab')."""
+        ...
+
+    @abstractmethod
+    def get_review_files(self, repo: str, review_id: str) -> list[str]:
+        """Return a list of file paths changed by the review.
+
+        Args:
+            repo: Repository identifier.
+            review_id: PR/MR number.
+
+        Returns:
+            List of file paths (e.g. ``["src/foo.py", "README.md"]``).
+        """
+        ...
+
+    @abstractmethod
+    def add_review_label(self, repo: str, review_id: str, label: str) -> None:
+        """Add a label to a pull/merge request.
+
+        Args:
+            repo: Repository identifier.
+            review_id: PR/MR number.
+            label: Label name to add.
+        """
+        ...
+
+    @abstractmethod
+    def remove_review_label(self, repo: str, review_id: str, label: str) -> None:
+        """Remove a label from a pull/merge request.
+
+        Args:
+            repo: Repository identifier.
+            review_id: PR/MR number.
+            label: Label name to remove.
+        """
         ...
 
 
@@ -1050,6 +1087,63 @@ class GitHubProvider(SCMProvider):
             return False, f"Failed to enable auto-merge: {msg}"
         return True, "Auto-merge enabled on PR"
 
+    def get_review_files(self, repo: str, review_id: str) -> list[str]:
+        """Return file paths changed by a GitHub PR via REST /pulls/{n}/files."""
+        try:
+            r = self._api("GET", f"/repos/{repo}/pulls/{review_id}/files")
+            if r.status_code != 200:
+                logger.debug(
+                    "GitHub get_review_files %s#%s: HTTP %d",
+                    repo, review_id, r.status_code,
+                )
+                return []
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitHub get_review_files failed for %s#%s: %s",
+                repo, review_id, exc,
+            )
+            return []
+        return [f.get("filename", "") for f in data if f.get("filename")]
+
+    def add_review_label(self, repo: str, review_id: str, label: str) -> None:
+        """Add a label to a GitHub PR via REST /issues/{n}/labels."""
+        try:
+            r = self._api(
+                "POST", f"/repos/{repo}/issues/{review_id}/labels",
+                json={"labels": [label]},
+            )
+            if r.status_code not in (200, 201):
+                logger.warning(
+                    "GitHub add_review_label %s#%s '%s': HTTP %d %s",
+                    repo, review_id, label, r.status_code, r.text[:200],
+                )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "GitHub add_review_label failed for %s#%s '%s': %s",
+                repo, review_id, label, exc,
+            )
+
+    def remove_review_label(self, repo: str, review_id: str, label: str) -> None:
+        """Remove a label from a GitHub PR via REST /issues/{n}/labels/{name}."""
+        try:
+            encoded = urllib.parse.quote(label, safe="")
+            r = self._api(
+                "DELETE",
+                f"/repos/{repo}/issues/{review_id}/labels/{encoded}",
+            )
+            # GitHub returns 200 on success, 404 if the label wasn't present.
+            if r.status_code not in (200, 404):
+                logger.warning(
+                    "GitHub remove_review_label %s#%s '%s': HTTP %d %s",
+                    repo, review_id, label, r.status_code, r.text[:200],
+                )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "GitHub remove_review_label failed for %s#%s '%s': %s",
+                repo, review_id, label, exc,
+            )
+
 
 class GitLabProvider(SCMProvider):
     """GitLab implementation using the REST API via httpx."""
@@ -1347,6 +1441,115 @@ class GitLabProvider(SCMProvider):
             repo, review_id,
         )
         return self.merge_review(repo, review_id)
+
+    def get_review_files(self, repo: str, review_id: str) -> list[str]:
+        """Return file paths changed by a GitLab MR via
+        /projects/:id/merge_requests/:iid/changes.
+        """
+        encoded = self._project_path(repo)
+        try:
+            r = self._api(
+                "GET", f"/projects/{encoded}/merge_requests/{review_id}/changes"
+            )
+            if r.status_code != 200:
+                logger.debug(
+                    "GitLab get_review_files %s#%s: HTTP %d",
+                    repo, review_id, r.status_code,
+                )
+                return []
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitLab get_review_files failed for %s#%s: %s",
+                repo, review_id, exc,
+            )
+            return []
+        # GitLab /changes returns {"changes": [{"old_path": ..., "new_path": ...}, ...]}.
+        changes = data.get("changes", [])
+        paths: list[str] = []
+        for c in changes:
+            if not isinstance(c, dict):
+                continue
+            # Prefer new_path (handles renames); fall back to old_path.
+            new_path = c.get("new_path") or c.get("old_path") or ""
+            if new_path:
+                paths.append(new_path)
+        return paths
+
+    def add_review_label(self, repo: str, review_id: str, label: str) -> None:
+        """Add a label to a GitLab MR via PATCH /projects/:id/merge_requests/:iid.
+
+        GitLab's MR label API uses a PATCH on the full MR resource with
+        the ``labels`` parameter set to the *entire* desired label set.
+        To add a single label without clobbering existing ones, we first
+        fetch the current labels, append the new label, and PATCH the
+        complete set back.
+        """
+        encoded = self._project_path(repo)
+        try:
+            # Fetch current labels so we don't clobber existing ones.
+            r = self._api("GET", f"/projects/{encoded}/merge_requests/{review_id}")
+            if r.status_code != 200:
+                logger.warning(
+                    "GitLab add_review_label %s#%s '%s': "
+                    "cannot fetch MR to read existing labels: HTTP %d",
+                    repo, review_id, label, r.status_code,
+                )
+                return
+            mr = r.json()
+            existing_labels: list[str] = mr.get("labels") or []
+            if label not in existing_labels:
+                existing_labels.append(label)
+            r2 = self._api(
+                "PUT", f"/projects/{encoded}/merge_requests/{review_id}",
+                json={"labels": ",".join(existing_labels)},
+            )
+            if r2.status_code != 200:
+                logger.warning(
+                    "GitLab add_review_label %s#%s '%s': HTTP %d %s",
+                    repo, review_id, label, r2.status_code, r2.text[:200],
+                )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "GitLab add_review_label failed for %s#%s '%s': %s",
+                repo, review_id, label, exc,
+            )
+
+    def remove_review_label(self, repo: str, review_id: str, label: str) -> None:
+        """Remove a label from a GitLab MR via PATCH /projects/:id/merge_requests/:iid.
+
+        Like add_review_label, this fetches the current labels first,
+        removes the target label, and PATCHes the complete set back.
+        """
+        encoded = self._project_path(repo)
+        try:
+            # Fetch current labels so we don't clobber existing ones.
+            r = self._api("GET", f"/projects/{encoded}/merge_requests/{review_id}")
+            if r.status_code != 200:
+                logger.warning(
+                    "GitLab remove_review_label %s#%s '%s': "
+                    "cannot fetch MR to read existing labels: HTTP %d",
+                    repo, review_id, label, r.status_code,
+                )
+                return
+            mr = r.json()
+            existing_labels: list[str] = mr.get("labels") or []
+            if label in existing_labels:
+                existing_labels.remove(label)
+            r2 = self._api(
+                "PUT", f"/projects/{encoded}/merge_requests/{review_id}",
+                json={"labels": ",".join(existing_labels)},
+            )
+            if r2.status_code != 200:
+                logger.warning(
+                    "GitLab remove_review_label %s#%s '%s': HTTP %d %s",
+                    repo, review_id, label, r2.status_code, r2.text[:200],
+                )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "GitLab remove_review_label failed for %s#%s '%s': %s",
+                repo, review_id, label, exc,
+            )
 
 
 # -- Helpers --
