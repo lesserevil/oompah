@@ -6515,7 +6515,18 @@ class Orchestrator:
                 workspace_path=workspace_path,
                 max_turns=max_turns,
                 stall_turns=self.config.stall_turns,
-                system_prompt="You are an autonomous coding agent. Use the provided tools to complete the task.",
+                system_prompt=(
+                    "You are an autonomous coding agent. Use the provided tools to complete the task. "
+                    "You MUST work independently. NEVER ask the human to explain how something works, "
+                    "diagnose a problem, or tell you what approach to take — that is YOUR job. "
+                    "The `ask_question` tool exists ONLY for genuine ambiguity where the issue could "
+                    "reasonably mean two different things that lead to fundamentally different implementations. "
+                    "If a competent engineer would know what to do, DO the work. "
+                    "NEVER ask for confirmation of your plan — just execute it. "
+                    "NEVER ask 'how should I proceed' or 'what should I prioritize'. "
+                    "Restating the issue as a question, asking for confirmation of your plan, or asking "
+                    "'how should I proceed' are all failures."
+                ),
                 enabled_tools=base_tools,
                 model_max_context=provider.get_model_context(model),
                 log_path=agent_log_path,

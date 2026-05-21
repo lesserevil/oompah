@@ -123,7 +123,11 @@ class TestAskQuestionAgentLoop:
         )
 
         mock_response = {
-            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+            },
             "choices": [
                 {
                     "finish_reason": "tool_calls",
@@ -136,9 +140,9 @@ class TestAskQuestionAgentLoop:
                                 "type": "function",
                                 "function": {
                                     "name": "ask_question",
-                                    "arguments": json.dumps({
-                                        "question": "What database should I use?"
-                                    }),
+                                    "arguments": json.dumps(
+                                        {"question": "What database should I use?"}
+                                    ),
                                 },
                             }
                         ],
@@ -171,7 +175,11 @@ class TestAskQuestionAgentLoop:
 
         # First call: ask_question with empty question (should error and continue)
         response_1 = {
-            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+            },
             "choices": [
                 {
                     "finish_reason": "tool_calls",
@@ -194,7 +202,79 @@ class TestAskQuestionAgentLoop:
         }
         # Second call: model finishes normally
         response_2 = {
-            "usage": {"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300},
+            "usage": {
+                "prompt_tokens": 200,
+                "completion_tokens": 100,
+                "total_tokens": 300,
+            },
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                        "content": "Done!",
+                    },
+                }
+            ],
+        }
+
+        async def _run():
+            with patch.object(session, "_call_api", new_callable=AsyncMock) as mock_api:
+                mock_api.side_effect = [response_1, response_2]
+                return await session.run_task("Test prompt")
+
+        result = asyncio.run(_run())
+        assert result.status == "succeeded"
+        assert result.question is None
+
+    def test_ask_question_confirmation_blocked(self):
+        """Confirmation-seeking ask_question calls are rejected and the agent continues."""
+        session = ApiAgentSession(
+            base_url="http://fake.test",
+            api_key="fake-key",
+            model="test-model",
+            workspace_path="/tmp/test-workspace",
+            max_turns=2,
+        )
+
+        # First call: blocked confirmation question
+        response_1 = {
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+            },
+            "choices": [
+                {
+                    "finish_reason": "tool_calls",
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "ask_question",
+                                    "arguments": json.dumps(
+                                        {
+                                            "question": "I think this is how I should be doing the task. Is that ok?"
+                                        }
+                                    ),
+                                },
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        # Second call: model finishes normally
+        response_2 = {
+            "usage": {
+                "prompt_tokens": 200,
+                "completion_tokens": 100,
+                "total_tokens": 300,
+            },
             "choices": [
                 {
                     "finish_reason": "stop",
@@ -216,7 +296,6 @@ class TestAskQuestionAgentLoop:
         assert result.question is None
 
 
-# ---------------------------------------------------------------------------
 # 3. orchestrator.py — dispatch guard for asking_question label
 # ---------------------------------------------------------------------------
 
@@ -294,7 +373,9 @@ class TestOrchestratorAskQuestionExit:
         orch.state.claimed.add(issue_id)
 
         event_loop.run_until_complete(
-            orch._on_worker_exit(issue_id, "ask_question", "What database should I use?")
+            orch._on_worker_exit(
+                issue_id, "ask_question", "What database should I use?"
+            )
         )
 
         # Verify: comment was posted with the question.
@@ -302,12 +383,10 @@ class TestOrchestratorAskQuestionExit:
         # (oompah-zlz_2-y3fy), so look up the question comment by
         # text rather than asserting call count.
         assert mock_tracker.add_comment.called
-        comment_texts = [
-            c.args[1] for c in mock_tracker.add_comment.call_args_list
-        ]
-        assert any(
-            "What database should I use?" in t for t in comment_texts
-        ), f"Question comment not found in calls: {comment_texts!r}"
+        comment_texts = [c.args[1] for c in mock_tracker.add_comment.call_args_list]
+        assert any("What database should I use?" in t for t in comment_texts), (
+            f"Question comment not found in calls: {comment_texts!r}"
+        )
         assert all(
             c.args[0] == issue.identifier
             for c in mock_tracker.add_comment.call_args_list
@@ -405,7 +484,11 @@ class TestServerAskingQuestionLabelRemoval:
 
         mock_orch = MagicMock()
         mock_orch._tracker_for_project.return_value = mock_tracker
-        mock_orch.get_snapshot.return_value = {"counts": {}, "running": [], "retrying": []}
+        mock_orch.get_snapshot.return_value = {
+            "counts": {},
+            "running": [],
+            "retrying": [],
+        }
 
         original_orch = server_mod._orchestrator
         server_mod._orchestrator = mock_orch
@@ -421,7 +504,9 @@ class TestServerAskingQuestionLabelRemoval:
                 },
             )
             assert response.status_code == 201
-            mock_tracker.remove_label.assert_called_once_with("test-001", "asking_question")
+            mock_tracker.remove_label.assert_called_once_with(
+                "test-001", "asking_question"
+            )
         finally:
             server_mod._orchestrator = original_orch
 
@@ -502,7 +587,11 @@ class TestServerAskingQuestionLabelRemoval:
 
         mock_orch = MagicMock()
         mock_orch._tracker_for_project.return_value = mock_tracker
-        mock_orch.get_snapshot.return_value = {"counts": {}, "running": [], "retrying": []}
+        mock_orch.get_snapshot.return_value = {
+            "counts": {},
+            "running": [],
+            "retrying": [],
+        }
 
         original_orch = server_mod._orchestrator
         server_mod._orchestrator = mock_orch
@@ -518,7 +607,9 @@ class TestServerAskingQuestionLabelRemoval:
                 },
             )
             assert response.status_code == 201
-            mock_tracker.remove_label.assert_called_once_with("test-001", "asking_question")
+            mock_tracker.remove_label.assert_called_once_with(
+                "test-001", "asking_question"
+            )
         finally:
             server_mod._orchestrator = original_orch
 
@@ -556,6 +647,8 @@ class TestAskQuestionApiAgentResult:
             last_message="Done",
         )
         assert result.question is None
+
+
 import asyncio
 import json
 from unittest.mock import AsyncMock, patch
@@ -567,18 +660,24 @@ from oompah.prompt import RenderedPrompt
 def _basic_response():
     return {
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-        "choices": [{
-            "finish_reason": "stop",
-            "message": {"role": "assistant", "content": "done"},
-        }],
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": "done"},
+            }
+        ],
     }
 
 
 class TestRunTaskAcceptsRenderedPrompt:
     def _session(self, **kw):
         return ApiAgentSession(
-            base_url="http://fake.test", api_key="k",
-            model="m", workspace_path="/tmp/ws", max_turns=2, **kw,
+            base_url="http://fake.test",
+            api_key="k",
+            model="m",
+            workspace_path="/tmp/ws",
+            max_turns=2,
+            **kw,
         )
 
     def test_plain_string_still_works(self):
@@ -617,7 +716,10 @@ class TestRunTaskAcceptsRenderedPrompt:
             text="hi",
             parts=[
                 {"type": "text", "text": "hi"},
-                {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AAAA"},
+                },
             ],
         )
 
@@ -657,8 +759,11 @@ class TestAttachImageGating:
 
     def test_default_session_does_not_register_attach_image(self, tmp_path):
         s = _AAS(
-            base_url="http://x", api_key="k", model="m",
-            workspace_path=str(tmp_path), max_turns=1,
+            base_url="http://x",
+            api_key="k",
+            model="m",
+            workspace_path=str(tmp_path),
+            max_turns=1,
         )
         names = [t["function"]["name"] for t in s._tool_definitions]
         assert "attach_image" not in names
@@ -667,17 +772,24 @@ class TestAttachImageGating:
 
     def test_explicit_opt_in_registers_attach_image(self, tmp_path):
         s = _AAS(
-            base_url="http://x", api_key="k", model="m",
-            workspace_path=str(tmp_path), max_turns=1,
+            base_url="http://x",
+            api_key="k",
+            model="m",
+            workspace_path=str(tmp_path),
+            max_turns=1,
             enabled_tools={"read_file", "attach_image"},
         )
         names = [t["function"]["name"] for t in s._tool_definitions]
-        assert names == ["read_file", "attach_image"] or set(names) == {"read_file", "attach_image"}
+        assert names == ["read_file", "attach_image"] or set(names) == {
+            "read_file",
+            "attach_image",
+        }
 
 
 class TestAttachImageExec:
     def test_writes_image_under_outputs(self, tmp_path):
         from pathlib import Path as _P
+
         result = _exec_attach_image(
             _P(tmp_path),
             {
@@ -698,6 +810,7 @@ class TestAttachImageExec:
 
     def test_rejects_disallowed_mime(self, tmp_path):
         from pathlib import Path as _P
+
         result = _exec_attach_image(
             _P(tmp_path),
             {
@@ -711,6 +824,7 @@ class TestAttachImageExec:
 
     def test_rejects_oversize(self, tmp_path, monkeypatch):
         from pathlib import Path as _P
+
         monkeypatch.setattr("oompah.attachments.MAX_ATTACHMENT_BYTES", 50)
         result = _exec_attach_image(
             _P(tmp_path),
@@ -724,6 +838,7 @@ class TestAttachImageExec:
 
     def test_rejects_invalid_base64(self, tmp_path):
         from pathlib import Path as _P
+
         result = _exec_attach_image(
             _P(tmp_path),
             {
@@ -736,6 +851,7 @@ class TestAttachImageExec:
 
     def test_rejects_traversal_in_issue_id(self, tmp_path):
         from pathlib import Path as _P
+
         result = _exec_attach_image(
             _P(tmp_path),
             {

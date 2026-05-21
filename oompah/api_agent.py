@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import ssl
 import subprocess
 import time
@@ -57,13 +58,16 @@ class TransientServerError(RetryableError):
         super().__init__(message)
         self.status_code = status_code
 
+
 # ---------------------------------------------------------------------------
 # Result dataclass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AgentActivity:
     """One activity entry in the agent's log."""
+
     turn: int
     kind: str  # "thinking" | "tool_call" | "tool_result" | "message" | "error"
     summary: str
@@ -327,18 +331,25 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
 # Path safety
 # ---------------------------------------------------------------------------
 
+
 def _safe_resolve(workspace: Path, relative: str) -> Path:
     """Resolve *relative* inside *workspace*, raising ValueError on traversal."""
     resolved = (workspace / relative).resolve()
     workspace_resolved = workspace.resolve()
-    if not (resolved == workspace_resolved or str(resolved).startswith(str(workspace_resolved) + os.sep)):
-        raise ValueError(f"Path traversal blocked: {relative!r} resolves outside workspace")
+    if not (
+        resolved == workspace_resolved
+        or str(resolved).startswith(str(workspace_resolved) + os.sep)
+    ):
+        raise ValueError(
+            f"Path traversal blocked: {relative!r} resolves outside workspace"
+        )
     return resolved
 
 
 # ---------------------------------------------------------------------------
 # Tool execution helpers
 # ---------------------------------------------------------------------------
+
 
 def _exec_read_file(workspace: Path, args: dict[str, Any]) -> str:
     path = _safe_resolve(workspace, args["path"])
@@ -422,11 +433,17 @@ def _exec_search_files(workspace: Path, args: dict[str, Any]) -> str:
     pattern = args["pattern"]
     include = args.get("include", "")
 
-    cmd = ["grep", "-rn", "--include", include, pattern, str(search_path)] if include else \
-          ["grep", "-rn", pattern, str(search_path)]
+    cmd = (
+        ["grep", "-rn", "--include", include, pattern, str(search_path)]
+        if include
+        else ["grep", "-rn", pattern, str(search_path)]
+    )
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=15,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=15,
             cwd=str(workspace),
         )
         output = result.stdout
@@ -458,6 +475,7 @@ def _validate_command_stays_in_workspace(command: str, workspace: Path) -> str |
     that nudges the agent to use relative paths.
     """
     import re as _re
+
     # Match leading `cd <target>` or `(cd <target>` or `pushd <target>`,
     # tolerating leading whitespace.
     m = _re.match(
@@ -560,9 +578,11 @@ def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
 
     # Reject anything not on the attachments allow-list.
     from oompah.attachments import (
-        ALLOWED_MIME_TYPES, MAX_ATTACHMENT_BYTES,
+        ALLOWED_MIME_TYPES,
+        MAX_ATTACHMENT_BYTES,
     )
     import mimetypes as _mt
+
     mime, _ = _mt.guess_type(filename)
     if not mime or mime not in ALLOWED_MIME_TYPES:
         return (
@@ -577,7 +597,9 @@ def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
 
     safe = _re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(filename)) or "file"
     sha = _h.sha256(data).hexdigest()[:12]
-    turn_part = f"{int(turn)}-" if isinstance(turn, (int, str)) and str(turn).isdigit() else ""
+    turn_part = (
+        f"{int(turn)}-" if isinstance(turn, (int, str)) and str(turn).isdigit() else ""
+    )
     fname = f"{turn_part}{sha}-{safe}"
 
     out_dir = workspace / ".oompah" / "attachments" / issue / "outputs"
@@ -592,6 +614,41 @@ def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
 # Tools that require explicit opt-in. They are NOT registered with the
 # model unless ``ApiAgentSession.enabled_tools`` includes them.
 _OPT_IN_TOOLS: frozenset[str] = frozenset({"attach_image"})
+
+
+# Phrases that indicate a confirmation-seeking question.  When an
+# ask_question call matches one of these the tool result is treated as
+# an error and the agent is told to keep working instead of stopping.
+_BLOCKED_QUESTION_PHRASES: tuple[str, ...] = (
+    "is that ok",
+    "is this ok",
+    "is it ok",
+    "does that look right",
+    "does this look right",
+    "does that look correct",
+    "does this look correct",
+    "do you agree",
+    "am i on the right track",
+    "should i proceed",
+    "should i continue",
+    "should i go ahead",
+    "how should i proceed",
+    "what should i prioritize",
+    "what approach should i take",
+    "how do i fix this",
+    "how do i solve this",
+    "how do i implement this",
+    "how do i do this",
+    "can you confirm",
+    "please confirm",
+)
+
+_ASK_QUESTION_REJECTION: str = (
+    "This question was rejected because it is confirmation-seeking or asks "
+    "for implementation guidance. You are an autonomous agent — investigate "
+    "and solve the problem yourself. Do not ask the human for approval of "
+    "your plan. Proceed with the implementation."
+)
 
 
 _TOOL_DISPATCH: dict[str, Any] = {
@@ -637,9 +694,8 @@ def _execute_tool(
         # with spaces, or ``git commit``). Detect that and redirect them
         # to ``run_command`` instead of leaving them to loop on the bare
         # "unknown tool" message.
-        looks_like_shell = (
-            " " in name
-            or name.startswith(("bd", "bd_", "git", "git_", "uv ", "make"))
+        looks_like_shell = " " in name or name.startswith(
+            ("bd", "bd_", "git", "git_", "uv ", "make")
         )
         if looks_like_shell:
             return (
@@ -663,7 +719,9 @@ def _execute_tool(
     try:
         if name == "run_command":
             return handler(
-                workspace, args, timeout=cmd_timeout,
+                workspace,
+                args,
+                timeout=cmd_timeout,
                 env_overrides=env_overrides,
             )
         return handler(workspace, args)
@@ -678,6 +736,7 @@ def _execute_tool(
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_ssl_context() -> ssl.SSLContext:
     ctx = ssl.create_default_context()
     return ctx
@@ -688,7 +747,9 @@ def _build_ssl_context() -> ssl.SSLContext:
 _HTTP_TIMEOUT = 600
 
 
-def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLContext) -> dict[str, Any]:
+def _http_post(
+    url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLContext
+) -> dict[str, Any]:
     """Blocking HTTP POST that returns parsed JSON.
 
     Raises a typed exception so the caller can decide whether to retry:
@@ -699,7 +760,9 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
     """
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, context=ssl_ctx, timeout=_HTTP_TIMEOUT) as resp:
+        with urllib.request.urlopen(
+            req, context=ssl_ctx, timeout=_HTTP_TIMEOUT
+        ) as resp:
             data = resp.read()
             return json.loads(data)
     except urllib.error.HTTPError as exc:
@@ -738,9 +801,7 @@ def _http_post(url: str, headers: dict[str, str], body: bytes, ssl_ctx: ssl.SSLC
                 status_code=exc.code,
             ) from exc
         # All other 4xx: permanent client failure — do not retry.
-        raise RuntimeError(
-            f"HTTP {exc.code} from {url}: {error_body}"
-        ) from exc
+        raise RuntimeError(f"HTTP {exc.code} from {url}: {error_body}") from exc
     except urllib.error.URLError as exc:
         # Connection refused, timeouts, DNS failures, name not resolved,
         # etc. — almost always transient (server restarting, brief network
@@ -816,10 +877,12 @@ def _prune_messages_to_fit(
     head_count = min(2, len(messages))
     removed = 0
     while True:
-        est = _estimate_tokens({
-            "messages": messages,
-            "tools": tool_definitions,
-        })
+        est = _estimate_tokens(
+            {
+                "messages": messages,
+                "tools": tool_definitions,
+            }
+        )
         if est <= max_input_tokens:
             return removed
         # Find the first assistant message after the head.
@@ -847,6 +910,7 @@ def _prune_messages_to_fit(
 # ---------------------------------------------------------------------------
 # ApiAgentSession
 # ---------------------------------------------------------------------------
+
 
 class ApiAgentSession:
     """Agent session that calls an OpenAI-compatible chat completions API."""
@@ -932,12 +996,12 @@ class ApiAgentSession:
         """Tool schemas to send to the API for this session."""
         if self.enabled_tools is None:
             return [
-                t for t in TOOL_DEFINITIONS
+                t
+                for t in TOOL_DEFINITIONS
                 if t["function"]["name"] not in _OPT_IN_TOOLS
             ]
         return [
-            t for t in TOOL_DEFINITIONS
-            if t["function"]["name"] in self.enabled_tools
+            t for t in TOOL_DEFINITIONS if t["function"]["name"] in self.enabled_tools
         ]
 
     # -- public interface ---------------------------------------------------
@@ -990,16 +1054,22 @@ class ApiAgentSession:
             except NameError:
                 pass  # _emit called before counters initialized
             entry = AgentActivity(
-                turn=turn, kind=kind, summary=summary,
-                detail=detail, timestamp=time.time(),
+                turn=turn,
+                kind=kind,
+                summary=summary,
+                detail=detail,
+                timestamp=time.time(),
                 usage=usage_snap,
             )
             activity.append(entry)
             if on_activity:
                 on_activity(entry)
             self._log_event(
-                "activity", turn=turn, event_kind=kind,
-                summary=summary, detail=detail,
+                "activity",
+                turn=turn,
+                event_kind=kind,
+                summary=summary,
+                detail=detail,
             )
 
         if self.system_prompt:
@@ -1036,11 +1106,20 @@ class ApiAgentSession:
                         recent_msgs.insert(0, m)
                     else:
                         break
-                prompt_preview = "\n".join(
-                    f"[{m.get('role')}] {(m.get('content') or '')[:500]}"
-                    for m in recent_msgs
-                ) if recent_msgs else "(system prompt + history)"
-                _emit(turn, "thinking", f"Turn {turn}: calling {self.model}...", prompt_preview)
+                prompt_preview = (
+                    "\n".join(
+                        f"[{m.get('role')}] {(m.get('content') or '')[:500]}"
+                        for m in recent_msgs
+                    )
+                    if recent_msgs
+                    else "(system prompt + history)"
+                )
+                _emit(
+                    turn,
+                    "thinking",
+                    f"Turn {turn}: calling {self.model}...",
+                    prompt_preview,
+                )
 
                 response = await self._call_api(messages)
 
@@ -1079,15 +1158,21 @@ class ApiAgentSession:
                         try:
                             parsed = json.loads(fn.get("arguments", "{}"))
                         except json.JSONDecodeError:
-                            _emit(turn, "warning",
-                                  f"Dropping truncated tool call: {tc_name}")
+                            _emit(
+                                turn,
+                                "warning",
+                                f"Dropping truncated tool call: {tc_name}",
+                            )
                             continue
                         # Also drop if required args are missing (truncation mid-JSON)
                         required = _TOOL_REQUIRED_ARGS.get(tc_name, [])
                         missing = [a for a in required if a not in parsed]
                         if missing:
-                            _emit(turn, "warning",
-                                  f"Dropping truncated tool call: {tc_name} (missing {', '.join(missing)})")
+                            _emit(
+                                turn,
+                                "warning",
+                                f"Dropping truncated tool call: {tc_name} (missing {', '.join(missing)})",
+                            )
                             continue
                         valid_tcs.append(tc)
                     assistant_msg["tool_calls"] = valid_tcs or None
@@ -1132,16 +1217,46 @@ class ApiAgentSession:
                         question_text = tool_args.get("question", "")
                         if not question_text:
                             result_str = "Error: question text is required"
-                            _emit(turn, "tool_result", f"{tool_name} → {result_str}", result_str)
-                            messages.append({
-                                "role": "tool",
-                                "tool_call_id": tc.get("id", ""),
-                                "content": result_str,
-                            })
+                            _emit(
+                                turn,
+                                "tool_result",
+                                f"{tool_name} → {result_str}",
+                                result_str,
+                            )
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc.get("id", ""),
+                                    "content": result_str,
+                                }
+                            )
                             continue
-                        _emit(turn, "tool_result",
-                              f"ask_question → Question posted, stopping agent",
-                              f"Question: {question_text}")
+                        # Guardrail: reject confirmation-seeking questions
+                        lowered = question_text.lower()
+                        if any(
+                            phrase in lowered for phrase in _BLOCKED_QUESTION_PHRASES
+                        ):
+                            result_str = _ASK_QUESTION_REJECTION
+                            _emit(
+                                turn,
+                                "tool_result",
+                                "ask_question → Rejected (confirmation-seeking)",
+                                result_str,
+                            )
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tc.get("id", ""),
+                                    "content": result_str,
+                                }
+                            )
+                            continue
+                        _emit(
+                            turn,
+                            "tool_result",
+                            f"ask_question → Question posted, stopping agent",
+                            f"Question: {question_text}",
+                        )
                         return ApiAgentResult(
                             status="ask_question",
                             input_tokens=total_input,
@@ -1162,22 +1277,32 @@ class ApiAgentSession:
                         )
                     else:
                         env_overrides = (
-                            {"BEADS_DIR": self.beads_dir}
-                            if self.beads_dir else None
+                            {"BEADS_DIR": self.beads_dir} if self.beads_dir else None
                         )
                         result_str = await asyncio.to_thread(
-                            _execute_tool, self.workspace, tool_name, tool_args,
-                            self.command_timeout, env_overrides,
+                            _execute_tool,
+                            self.workspace,
+                            tool_name,
+                            tool_args,
+                            self.command_timeout,
+                            env_overrides,
                         )
 
                     tool_failed = result_str.startswith("Error")
-                    _emit(turn, "tool_result", f"{tool_name} → {result_str[:150]}", result_str)
+                    _emit(
+                        turn,
+                        "tool_result",
+                        f"{tool_name} → {result_str[:150]}",
+                        result_str,
+                    )
 
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.get("id", ""),
-                        "content": result_str,
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id", ""),
+                            "content": result_str,
+                        }
+                    )
 
                     if tool_name in _PRODUCTIVE_TOOLS and not tool_failed:
                         turn_had_productive = True
@@ -1232,8 +1357,11 @@ class ApiAgentSession:
                     )
 
                 if turns_since_productive >= self.stall_turns:
-                    _emit(turn, "message",
-                          f"Agent stalled: {turns_since_productive} turns with no writes or commands")
+                    _emit(
+                        turn,
+                        "message",
+                        f"Agent stalled: {turns_since_productive} turns with no writes or commands",
+                    )
                     return ApiAgentResult(
                         status="stalled",
                         input_tokens=total_input,
@@ -1291,12 +1419,14 @@ class ApiAgentSession:
             if auth_err:
                 _emit(turns, "error", f"auth_error: {exc}")
                 logger.warning(
-                    "ApiAgentSession.run_task auth_error (401): %s", exc,
+                    "ApiAgentSession.run_task auth_error (401): %s",
+                    exc,
                 )
             else:
                 _emit(turns, "error", str(exc))
                 logger.warning(
-                    "ApiAgentSession.run_task transient_error: %s", exc,
+                    "ApiAgentSession.run_task transient_error: %s",
+                    exc,
                 )
             return ApiAgentResult(
                 status="failed",
@@ -1333,7 +1463,8 @@ class ApiAgentSession:
             msg = f"transport_error: {detail}"
             _emit(turns, "error", msg)
             logger.error(
-                "ApiAgentSession.run_task transport_error: %s", detail,
+                "ApiAgentSession.run_task transport_error: %s",
+                detail,
             )
             return ApiAgentResult(
                 status="failed",
@@ -1382,14 +1513,14 @@ class ApiAgentSession:
             if removed:
                 logger.warning(
                     "ApiAgentSession: pruned %d oldest message(s) to fit %d-token context window",
-                    removed, self.model_max_context,
+                    removed,
+                    self.model_max_context,
                 )
             est_input = _estimate_tokens({"messages": messages, "tools": tool_defs})
-            headroom = (
-                self.model_max_context - est_input - _TOKENIZER_SAFETY_MARGIN
+            headroom = self.model_max_context - est_input - _TOKENIZER_SAFETY_MARGIN
+            max_tokens = max(
+                _MIN_MAX_OUTPUT_TOKENS, min(_DEFAULT_MAX_OUTPUT_TOKENS, headroom)
             )
-            max_tokens = max(_MIN_MAX_OUTPUT_TOKENS,
-                             min(_DEFAULT_MAX_OUTPUT_TOKENS, headroom))
         payload = {
             "model": self.model,
             "messages": messages,
@@ -1416,21 +1547,30 @@ class ApiAgentSession:
                 # Mirror of the "request" log above so each turn has a
                 # complete sent/received pair on disk.
                 self._log_event(
-                    "response", attempt=attempt, body=response,
+                    "response",
+                    attempt=attempt,
+                    body=response,
                 )
                 return response
             except RateLimitError as exc:
                 self._log_event(
-                    "rate_limit", attempt=attempt, retry_after=exc.retry_after,
+                    "rate_limit",
+                    attempt=attempt,
+                    retry_after=exc.retry_after,
                     error=str(exc),
                 )
                 if attempt >= max_retries - 1:
                     raise
                 # Use Retry-After if provided, otherwise exponential backoff
-                delay = exc.retry_after if exc.retry_after > 0 else min(2 ** attempt * 5, 120)
+                delay = (
+                    exc.retry_after if exc.retry_after > 0 else min(2**attempt * 5, 120)
+                )
                 logger.warning(
                     "Rate limited (attempt %d/%d), retrying in %.0fs: %s",
-                    attempt + 1, max_retries, delay, exc,
+                    attempt + 1,
+                    max_retries,
+                    delay,
+                    exc,
                 )
                 await asyncio.sleep(delay)
             except TransientServerError as exc:
@@ -1448,9 +1588,12 @@ class ApiAgentSession:
                     raise
                 # 1s, 2s, 4s, 8s, capped at 30s. Faster ramp than rate
                 # limits since 5xx/network blips usually clear quickly.
-                delay = min(2 ** attempt, 30)
+                delay = min(2**attempt, 30)
                 logger.warning(
                     "Transient server error (attempt %d/%d), retrying in %.0fs: %s",
-                    attempt + 1, max_retries, delay, exc,
+                    attempt + 1,
+                    max_retries,
+                    delay,
+                    exc,
                 )
                 await asyncio.sleep(delay)
