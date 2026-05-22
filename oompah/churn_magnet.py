@@ -224,6 +224,17 @@ def _resolve_ref(repo_path: str, ref: str) -> str:
     return result.stdout.strip()
 
 
+def _looks_like_path(s: str) -> bool:
+    """Heuristic: does this string look like a file path rather than content?"""
+    # File paths typically contain / or a dot (extension), or start with ./
+    if "/" in s or "." in s:
+        return True
+    # Single-word paths without extensions are ambiguous but possible
+    # (e.g., "Makefile", "LICENSE", "README")
+    # Be conservative — skip lines that look like content
+    return False
+
+
 _CONFLICT_PATTERNS: tuple[re.Pattern[str], ...] = (
     # GitLab-style merge output: "both modified: <path>" / "both added: <path>"
     re.compile(r"^both (?:modified|added):\s*(.+)$", re.IGNORECASE | re.MULTILINE),
@@ -279,23 +290,40 @@ def _parse_merge_tree_conflicts(output: str) -> list[str]:
             i += 1
             continue
 
-        # Git merge-tree conflict header: "added in both", "modified in both", etc.
-        if _CONFLICT_HEADER_RE.match(line):
-            # Subsequent indented lines contain "our <mode> <sha> <path>"
-            # We extract the file path from those lines.
+        # git merge-tree "added in both" / "changed in both" / "deleted in both" /
+        # "content in both" blocks list the file on the next indented lines like:
+        #   our    100644 <sha> path/to/file
+        #   their  100644 <sha> path/to/file
+        if lower in ("added in both", "changed in both", "deleted in both",
+                      "content in both", "added in both versions"):
+            # Look ahead for "our" / "their" lines that carry the file path
             i += 1
             while i < len(lines):
-                next_line = lines[i]
-                m = _OUR_THEIRS_RE.match(next_line)
-                if m:
-                    path = m.group(1).strip()
-                    if path and path not in files:
-                        files.append(path)
-                elif next_line.strip():
-                    # Non-indented line: end of this conflict block
+                ahead = lines[i].strip()
+                # Stop at next section header, diff markers, or empty line
+                if (
+                    not ahead
+                    or ahead.lower() in (
+                        "added in both", "changed in both",
+                        "deleted in both", "content in both",
+                        "added in both versions",
+                    )
+                    or ahead.startswith("@@")
+                    or "<<" in ahead
+                    or ahead == "======="
+                    or ">>" in ahead
+                ):
                     break
+                # "our    mode sha path" / "their  mode sha path"
+                if ahead.startswith("our") or ahead.startswith("their"):
+                    parts = ahead.split()
+                    if len(parts) >= 4:
+                        fpath = parts[-1]
+                        if fpath not in files:
+                            files.append(fpath)
                 i += 1
             continue
+
 
         # Conflict marker: line starts with <<<<<<< (variant spelling)
         if "<<<<<<" in line or lower.startswith("<<<<"):
@@ -306,12 +334,22 @@ def _parse_merge_tree_conflicts(output: str) -> list[str]:
                 if next_line:
                     # Skip oid/ref lines that often follow <<<<<<<
                     if re.match(r"^[0-9a-f]{40}\s", next_line):
-                        pass  # skip oid lines
+                        # OID line — might be followed by path
+                        pass
+                    elif re.match(r"^[0-9a-f]{7,}$", next_line):
+                        # Short OID — skip
+                        pass
+                    elif next_line.startswith("+") or next_line.startswith("-"):
+                        # Diff hunk content line — skip
+                        pass
+                    elif next_line in ("=======", ">>>>>>>", "<<<<<<<"):
+                        # Marker lines — skip
+                        pass
                     elif next_line.lower() in ("changed in both versions",):
                         pass  # skip marker lines
-                    elif "/" in next_line or next_line.endswith(".md") or "." in next_line:
-                        # Likely a file path (has extension or directory)
-                        if next_line not in files and not next_line.startswith("changed in both"):
+                    elif _looks_like_path(next_line):
+                        # Looks like a file path
+                        if next_line not in files:
                             files.append(next_line)
                     # else: skip ambiguous lines (could be file content)
                     break
