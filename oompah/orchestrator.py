@@ -3964,6 +3964,38 @@ class Orchestrator:
                     )
                     continue
 
+                # High-risk PR gate (oompah-zlz_2-rxwe.3): when the project's
+                # churn_magnet_gate is enabled, skip merge/enqueue for PRs
+                # that have the churn-magnet label AND are stale
+                # (needs_rebase=True).  This prevents YOLO from silently
+                # merging a PR that is behind its target branch.
+                # Placed OUTSIDE the ci_ok / needs_rebase base condition so
+                # stale PRs are caught regardless of CI state.
+                if (
+                    getattr(project, "churn_magnet_gate_enabled", False)
+                    and "churn-magnet" in review.labels
+                    and review.needs_rebase
+                ):
+                    logger.warning(
+                        "YOLO GATE: skipping merge/enqueue for %s #%s — "
+                        "PR has [churn-magnet] label and is stale "
+                        "(needs_rebase=True).  Gate is enabled on project "
+                        "'%s'; rebase and re-trigger when ready.",
+                        project.name,
+                        review_id,
+                        project.name,
+                    )
+                    self._record_yolo_action(
+                        project.id,
+                        str(review_id),
+                        "gate_blocked",
+                        "success",
+                        "churn_magnet_gate: stale churn-magnet PR",
+                        tick=tick,
+                    )
+                    actions_fired += 1
+                    continue
+
                 # Merge (or enqueue) if CI passed or if there's no CI pipeline (empty status)
                 ci_ok = review.ci_status in ("passed", "", None)
                 if ci_ok and not review.needs_rebase:
@@ -3984,18 +4016,6 @@ class Orchestrator:
                             review_id,
                             review.ci_status,
                         )
-                        # Gate high-risk PR merges when churn-magnet gate is enabled
-                        if (getattr(project, "churn_magnet_gate_enabled", False) and
-                            "churn-magnet" in review.labels and
-                            getattr(review, "needs_rebase", False)):
-                            logger.info(
-                                "Skipping merge/enqueue for %s #%s: PR has churn-magnet label and is stale (needs_rebase=True). "
-                                "Gate enabled — skipping to prevent high-risk merge.",
-                                project.name,
-                                review_id,
-                            )
-                            continue  # skip this review
-
                         success, msg = provider.enable_auto_merge(slug, review_id)
                         if success:
                             logger.info(
@@ -4062,18 +4082,6 @@ class Orchestrator:
                             project.name,
                             review_id,
                         )
-                        # Gate high-risk PR merges when churn-magnet gate is enabled
-                        if (getattr(project, "churn_magnet_gate_enabled", False) and
-                            "churn-magnet" in review.labels and
-                            getattr(review, "needs_rebase", False)):
-                            logger.info(
-                                "Skipping merge/enqueue for %s #%s: PR has churn-magnet label and is stale (needs_rebase=True). "
-                                "Gate enabled — skipping to prevent high-risk merge.",
-                                project.name,
-                                review_id,
-                            )
-                            continue  # skip this review
-
                         success, msg = provider.merge_review(slug, review_id)
                         if success:
                             logger.info(
@@ -4136,18 +4144,6 @@ class Orchestrator:
                             review_id,
                             review.ci_status,
                         )
-                        # Gate high-risk PR merges when churn-magnet gate is enabled
-                        if (getattr(project, "churn_magnet_gate_enabled", False) and
-                            "churn-magnet" in review.labels and
-                            getattr(review, "needs_rebase", False)):
-                            logger.info(
-                                "Skipping merge/enqueue for %s #%s: PR has churn-magnet label and is stale (needs_rebase=True). "
-                                "Gate enabled — skipping to prevent high-risk merge.",
-                                project.name,
-                                review_id,
-                            )
-                            continue  # skip this review
-
                         success, msg = provider.merge_review(slug, review_id)
                         if success:
                             logger.info(

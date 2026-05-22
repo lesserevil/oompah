@@ -3836,6 +3836,8 @@ async def api_list_reviews():
             return JSONResponse(cached)
         orch = _get_orchestrator()
         projects = orch.project_store.list_all()
+        # Index projects by id for fast lookup in the loop below.
+        _project_by_id = {p.id: p for p in projects}
         reviews = get_all_open_reviews(projects)
         # Enrich reviews with agent status
         active_branches = {
@@ -3886,6 +3888,25 @@ async def api_list_reviews():
                                 item["churn_magnet_files"] = sorted(overlap)
                     except Exception:
                         pass
+            # Surface gate config for each PR (oompah-zlz_2-rxwe.3).
+            # Build a quick project lookup so we don't call list_all() again.
+            pid = item.get("project_id", "")
+            proj = _project_by_id.get(pid) if _project_by_id else None
+            if proj:
+                item["churn_magnet_gate_enabled"] = bool(
+                    getattr(proj, "churn_magnet_gate_enabled", False)
+                )
+                item["churn_magnet_top_n"] = max(
+                    1, int(getattr(proj, "churn_magnet_top_n", 10))
+                )
+                # gate_blocked: true when the gate would fire for this PR.
+                # Combines project-level gate-on switch + PR-level flags.
+                if (
+                    item.get("churn_magnet_gate_enabled")
+                    and item.get("churn_magnet")
+                    and r.get("needs_rebase", False)
+                ):
+                    item["gate_blocked"] = True
         _api_cache.set("reviews:all", reviews, ttl_ms=10000)
         return JSONResponse(reviews)
     except Exception as exc:
