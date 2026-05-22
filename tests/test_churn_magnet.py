@@ -48,52 +48,53 @@ from oompah.churn_magnet import (
 
 @pytest.fixture
 def tmp_dir():
-    """Create a temporary directory and change into it for a git repo."""
+    """Create a temporary directory and return as a Path."""
     with tempfile.TemporaryDirectory() as td:
-        yield td
+        yield Path(td)
 
 
 @pytest.fixture
 def git_repo(tmp_dir):
     """Create a minimal git repo with two branches for merge-tree tests."""
+    repo = Path(tmp_dir)
     # Init repo
-    subprocess.run(["git", "init"], cwd=tmp_dir, check=True, capture_output=True)
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"],
-        cwd=tmp_dir, check=True, capture_output=True
+        cwd=repo, check=True, capture_output=True
     )
     subprocess.run(
         ["git", "config", "user.name", "Test User"],
-        cwd=tmp_dir, check=True, capture_output=True
+        cwd=repo, check=True, capture_output=True
     )
     # Commit on main
-    (Path(tmp_dir) / "README.md").write_text("main content\n")
-    subprocess.run(["git", "add", "."], cwd=tmp_dir, check=True, capture_output=True)
+    (repo / "README.md").write_text("main content\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
     subprocess.run(
-        ["git", "commit", "-m", "initial"], cwd=tmp_dir, check=True, capture_output=True
+        ["git", "commit", "-m", "initial"], cwd=repo, check=True, capture_output=True
     )
     # Create feature branch with conflicting changes
     subprocess.run(
-        ["git", "checkout", "-b", "feature"], cwd=tmp_dir,
+        ["git", "checkout", "-b", "feature"], cwd=repo,
         check=True, capture_output=True
     )
-    (Path(tmp_dir) / "conflicting_file.py").write_text("feature version\n")
-    subprocess.run(["git", "add", "."], cwd=tmp_dir, check=True, capture_output=True)
+    (repo / "conflicting_file.py").write_text("feature version\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "add conflicting file"],
-        cwd=tmp_dir, check=True, capture_output=True
+        cwd=repo, check=True, capture_output=True
     )
     # Switch back to main and make conflicting change
     subprocess.run(
-        ["git", "checkout", "main"], cwd=tmp_dir, check=True, capture_output=True
+        ["git", "checkout", "main"], cwd=repo, check=True, capture_output=True
     )
-    (Path(tmp_dir) / "conflicting_file.py").write_text("main version\n")
-    subprocess.run(["git", "add", "."], cwd=tmp_dir, check=True, capture_output=True)
+    (repo / "conflicting_file.py").write_text("main version\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "conflict on main"],
-        cwd=tmp_dir, check=True, capture_output=True
+        cwd=repo, check=True, capture_output=True
     )
-    return tmp_dir
+    return str(repo)
 
 
 from pathlib import Path
@@ -461,8 +462,8 @@ class TestChurnMagnetIntegration:
             "PR#42",
         )
         assert count >= 1, "conflicting_file.py should be detected"
-        # Verify it persisted
-        store = ChurnMagnetStore(path=".oompah/churn_magnets_test.json")
+        # Verify it persisted (read from the same store the function wrote to)
+        store = get_store()
         top = store.get_top_files("test-project")
         assert len(top) >= 1
         assert top[0][0] == "conflicting_file.py"

@@ -235,6 +235,26 @@ _CONFLICT_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
+# Patterns that indicate a conflicted file in git merge-tree output.
+# "added in both", "modified in both", "deleted in both", etc.
+# The file path appears on the next indented line as:
+#   our    100644 <sha> <filepath>
+#   their  100644 <sha> <filepath>
+_CONFLICT_HEADER_RE = re.compile(
+    r"^(?:added|modified|deleted|content|mode)\s+in\s+both\s*$",
+    re.IGNORECASE,
+)
+# Also handle GitLab-style: "both modified: path" / "both added: path"
+_GITLAB_STYLE_RE = re.compile(
+    r"^both\s+(?:modified|added):\s*(.+)$",
+    re.IGNORECASE,
+)
+# Parse "our/theirs  <mode> <sha> <filepath>" lines
+_OUR_THEIRS_RE = re.compile(
+    r"^\s*(?:our|their)\s+\d+\s+[0-9a-f]+\s+(.+)$",
+)
+
+
 def _parse_merge_tree_conflicts(output: str) -> list[str]:
     """Parse conflicted file paths from git merge-tree output.
 
@@ -251,12 +271,30 @@ def _parse_merge_tree_conflicts(output: str) -> list[str]:
         lower = line.lower()
 
         # GitLab-style: "both modified: path" or "both added: path"
-        if lower.startswith("both modified:") or lower.startswith("both added:"):
-            _, sep, path = line.partition(":")
-            path = path.strip()
+        m = _GITLAB_STYLE_RE.match(line)
+        if m:
+            path = m.group(1).strip()
             if path and path not in files:
                 files.append(path)
             i += 1
+            continue
+
+        # Git merge-tree conflict header: "added in both", "modified in both", etc.
+        if _CONFLICT_HEADER_RE.match(line):
+            # Subsequent indented lines contain "our <mode> <sha> <path>"
+            # We extract the file path from those lines.
+            i += 1
+            while i < len(lines):
+                next_line = lines[i]
+                m = _OUR_THEIRS_RE.match(next_line)
+                if m:
+                    path = m.group(1).strip()
+                    if path and path not in files:
+                        files.append(path)
+                elif next_line.strip():
+                    # Non-indented line: end of this conflict block
+                    break
+                i += 1
             continue
 
         # Conflict marker: line starts with <<<<<<< (variant spelling)
@@ -267,15 +305,15 @@ def _parse_merge_tree_conflicts(output: str) -> list[str]:
                 next_line = lines[i].strip()
                 if next_line:
                     # Skip oid/ref lines that often follow <<<<<<<
-                    if re.match(r"^[0-9a-f]{40}\s", next_line) or "/" in next_line or next_line.endswith(".md") or "." in next_line:
-                        if next_line not in files and not next_line.startswith("changed in both"):
-                            files.append(next_line)
+                    if re.match(r"^[0-9a-f]{40}\s", next_line):
+                        pass  # skip oid lines
                     elif next_line.lower() in ("changed in both versions",):
                         pass  # skip marker lines
-                    else:
-                        # Likely a file path
-                        if next_line not in files:
+                    elif "/" in next_line or next_line.endswith(".md") or "." in next_line:
+                        # Likely a file path (has extension or directory)
+                        if next_line not in files and not next_line.startswith("changed in both"):
                             files.append(next_line)
+                    # else: skip ambiguous lines (could be file content)
                     break
                 i += 1
             i += 1
