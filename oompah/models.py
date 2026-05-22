@@ -284,6 +284,9 @@ class Project:
     # instances pick up "stacked".
     epic_strategy: str = "stacked"
 
+    churn_magnet_gate_enabled: bool = False
+    churn_magnet_top_n: int = 10
+
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
         if not self.branches:
