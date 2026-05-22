@@ -1424,6 +1424,16 @@ class Orchestrator:
             loop.run_in_executor(self._tick_pool, _timed_archive),
             loop.run_in_executor(self._tick_pool, _timed_merged_labels),
         )
+
+        # oompah-zlz_2-vm1p.3: periodic heuristic effectiveness log — only emit
+        # when we have at least one outcome recorded to avoid empty noise.
+        ht = self._heuristic_telemetry.snapshot()
+        non_empty = {
+            pid: m for pid, m in ht.items() if m.get("total_outcomes", 0) > 0
+        }
+        if non_empty:
+            logger.info("Heuristic telemetry: %s", non_empty)
+
         return yolo_ms, archive_ms, merged_ms
 
     def _dolt_sync_due(self) -> bool:
@@ -3740,6 +3750,10 @@ class Orchestrator:
                 # Branch name is typically the issue identifier
                 branch = issue.branch_name or issue.identifier
                 if branch in merged:
+                    # oompah-zlz_2-vm1p.3: record merge for time-to-merge and accuracy telemetry
+                    self._heuristic_telemetry.record_merge(
+                        project.id, branch, getattr(issue, "created_at", None)
+                    )
                     try:
                         tracker.add_label(issue.identifier, "merged")
                         logger.info(
@@ -4938,6 +4952,9 @@ class Orchestrator:
             # Sort key: (conflict_score, source_branch) — branch as tie-breaker.
             return (scores.get(r.source_branch, 0), r.source_branch or "")
 
+        # oompah-zlz_2-vm1p.3: record predictions so we can measure heuristic accuracy
+        self._heuristic_telemetry.record_predictions(project.id, scores)
+
         return sorted(reviews, key=_score_key)
 
     def _yolo_notify_conflict(
@@ -5034,6 +5051,9 @@ class Orchestrator:
                     review_id,
                     _exc,
                 )
+
+            # oompah-zlz_2-vm1p.3: record conflict-agent dispatch for heuristic measurement
+            self._heuristic_telemetry.record_conflict_dispatch(project.id, source_branch)
 
             tracker = self._tracker_for_project(project.id)
             issue = tracker.fetch_issue_detail(source_branch)
@@ -10115,6 +10135,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             },
             "proposed_foci_count": self._proposed_foci_count(),
             "dolt_sync": self.dolt_sync_snapshot(),
+            "heuristic_telemetry": self._heuristic_telemetry.snapshot(),
         }
 
     def dolt_sync_snapshot(self) -> dict[str, Any]:
