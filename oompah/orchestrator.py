@@ -80,6 +80,7 @@ from oompah.yolo_watchdog import (
     run_all_detectors,
     D4_ALREADY_MERGEABLE_THRESHOLD,
 )
+from oompah.heuristic_telemetry import HeuristicTelemetry
 
 import json
 import os
@@ -436,6 +437,10 @@ class Orchestrator:
         # by downstream merge-conflict count so the YOLO loop can attempt
         # the least-disruptive merge first.
         self._conflict_impact_predictor = ConflictImpactPredictor()
+        # Heuristic telemetry (oompah-zlz_2-vm1p.3): tracks whether the
+        # merge-order heuristic actually reduces conflict-agent dispatches
+        # and total time-to-merge.
+        self._heuristic_telemetry = HeuristicTelemetry()
 
     def _arm_profile_drift_alert(self) -> None:
         """Add or clear the profile-drift alert based on config state.
