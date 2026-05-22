@@ -3836,6 +3836,8 @@ async def api_list_reviews():
             return JSONResponse(cached)
         orch = _get_orchestrator()
         projects = orch.project_store.list_all()
+        # Index projects by id for fast lookup in the loop below.
+        _project_by_id = {p.id: p for p in projects}
         reviews = get_all_open_reviews(projects)
         # Enrich reviews with agent status
         active_branches = {
@@ -3846,6 +3848,16 @@ async def api_list_reviews():
         # oompah-zlz_2-btf.2: surface YOLO repo-config errors on each PR
         # so the dashboard / per-PR detail can show why YOLO can't merge.
         repo_config_errors = getattr(orch, "_yolo_repo_config_errors", {}) or {}
+        # oompah-zlz_2-rxwe.2: surface churn-magnet flag on PRs so the
+        # dashboard can render high-risk warnings. The flag is populated
+        # by the orchestrator during YOLO review sync; we also re-check
+        # here for non-YOLO projects or reviews that haven't been synced
+        # yet this tick.
+        try:
+            from oompah.churn_magnet import get_store as _get_churn_store
+            _cm_store = _get_churn_store()
+        except Exception:
+            _cm_store = None
         for item in reviews:
             r = item.get("review", {})
             item["agent_active"] = r.get("source_branch", "") in active_branches
@@ -3855,6 +3867,46 @@ async def api_list_reviews():
             if err:
                 item["repo_config_error"] = err.get("msg", "")
                 item["repo_config_error_fingerprint"] = err.get("fingerprint", "")
+            # Propagate churn_magnet flag from the review object to the
+            # top-level item so the dashboard can access it easily.
+            if r.get("churn_magnet"):
+                item["churn_magnet"] = True
+                item["churn_magnet_files"] = r.get("churn_magnet_files", [])
+            elif _cm_store is not None:
+                # For reviews not yet checked by YOLO (non-YOLO projects
+                # or first tick), do the check here.
+                pid = item.get("project_id")
+                if pid:
+                    try:
+                        top_files = set(
+                            fp for fp, _ in _cm_store.get_top_files(pid)
+                        )
+                        if top_files and r.get("files"):
+                            overlap = set(r["files"]) & top_files
+                            if overlap:
+                                item["churn_magnet"] = True
+                                item["churn_magnet_files"] = sorted(overlap)
+                    except Exception:
+                        pass
+            # Surface gate config for each PR (oompah-zlz_2-rxwe.3).
+            # Build a quick project lookup so we don't call list_all() again.
+            pid = item.get("project_id", "")
+            proj = _project_by_id.get(pid) if _project_by_id else None
+            if proj:
+                item["churn_magnet_gate_enabled"] = bool(
+                    getattr(proj, "churn_magnet_gate_enabled", False)
+                )
+                item["churn_magnet_top_n"] = max(
+                    1, int(getattr(proj, "churn_magnet_top_n", 10))
+                )
+                # gate_blocked: true when the gate would fire for this PR.
+                # Combines project-level gate-on switch + PR-level flags.
+                if (
+                    item.get("churn_magnet_gate_enabled")
+                    and item.get("churn_magnet")
+                    and r.get("needs_rebase", False)
+                ):
+                    item["gate_blocked"] = True
         _api_cache.set("reviews:all", reviews, ttl_ms=10000)
         return JSONResponse(reviews)
     except Exception as exc:

@@ -1733,3 +1733,477 @@ class TestFindPrForBranchGitLab:
     def test_returns_none_on_http_error(self):
         provider = self._provider({}, status_code=403)
         assert provider.find_pr_for_branch("group/proj", "b") is None
+
+
+# ---------------------------------------------------------------------------
+# get_review_files — GitHub (REST /pulls/{n}/files)
+# ---------------------------------------------------------------------------
+
+
+class TestGitHubGetReviewFiles:
+    """GitHubProvider.get_review_files hits /repos/{repo}/pulls/{n}/files
+    and extracts the ``filename`` field from each entry."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        @property
+        def text(self):
+            return str(self._payload)
+
+    def test_returns_filenames(self):
+        provider = GitHubProvider(access_token="t")
+        files_payload = [
+            {"filename": "src/main.py", "additions": 5, "deletions": 1},
+            {"filename": "README.md", "additions": 2, "deletions": 0},
+            {"filename": "tests/test_main.py", "additions": 30, "deletions": 0},
+        ]
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse(files_payload),
+        )
+        result = provider.get_review_files("org/repo", "42")
+        assert result == ["src/main.py", "README.md", "tests/test_main.py"]
+        provider._api.assert_called_once()
+        call_args = provider._api.call_args
+        assert call_args[0] == ("GET", "/repos/org/repo/pulls/42/files")
+
+    def test_empty_files(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse([]),
+        )
+        result = provider.get_review_files("org/repo", "1")
+        assert result == []
+
+    def test_filters_empty_filename(self):
+        provider = GitHubProvider(access_token="t")
+        files_payload = [
+            {"filename": "a.py", "additions": 1, "deletions": 0},
+            {"filename": "", "additions": 0, "deletions": 0},
+            {"filename": "b.py", "additions": 2, "deletions": 1},
+        ]
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse(files_payload),
+        )
+        result = provider.get_review_files("org/repo", "5")
+        assert result == ["a.py", "b.py"]
+
+    def test_filters_missing_filename(self):
+        provider = GitHubProvider(access_token="t")
+        files_payload = [
+            {"additions": 1, "deletions": 0},
+            {"filename": "real.py", "additions": 2, "deletions": 0},
+        ]
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse(files_payload),
+        )
+        result = provider.get_review_files("org/repo", "7")
+        assert result == ["real.py"]
+
+    def test_http_error_returns_empty(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=404),
+        )
+        result = provider.get_review_files("org/repo", "999")
+        assert result == []
+
+    def test_network_error_returns_empty(self):
+        import httpx
+
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("dns fail"))
+        result = provider.get_review_files("org/repo", "1")
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# add_review_label — GitHub (REST /issues/{n}/labels)
+# ---------------------------------------------------------------------------
+
+
+class TestGitHubAddReviewLabel:
+    """GitHubProvider.add_review_label POSTs to /issues/{n}/labels."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        @property
+        def text(self):
+            return str(self._payload)
+
+    def test_adds_label(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse([], status_code=200),
+        )
+        provider.add_review_label("org/repo", "42", "churn-magnet")
+        provider._api.assert_called_once()
+        args = provider._api.call_args
+        assert args[0] == ("POST", "/repos/org/repo/issues/42/labels")
+        assert args[1]["json"] == {"labels": ["churn-magnet"]}
+
+    def test_adds_label_returns_none(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse([], status_code=201),
+        )
+        result = provider.add_review_label("org/repo", "10", "feature")
+        assert result is None
+
+    def test_http_error_logged_no_crash(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({"message": "forbidden"}, status_code=403),
+        )
+        # Should not raise
+        provider.add_review_label("org/repo", "10", "label")
+
+    def test_network_error_no_crash(self):
+        import httpx
+
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("boom"))
+        provider.add_review_label("org/repo", "10", "label")
+
+
+# ---------------------------------------------------------------------------
+# remove_review_label — GitHub (REST DELETE /issues/{n}/labels/{name})
+# ---------------------------------------------------------------------------
+
+
+class TestGitHubRemoveReviewLabel:
+    """GitHubProvider.remove_review_label DELETEs /issues/{n}/labels/{name}."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        @property
+        def text(self):
+            return str(self._payload)
+
+    def test_removes_label(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=200),
+        )
+        provider.remove_review_label("org/repo", "42", "churn-magnet")
+        provider._api.assert_called_once()
+        args = provider._api.call_args
+        assert "DELETE" == args[0][0]
+        assert args[0][1] == "/repos/org/repo/issues/42/labels/churn-magnet"
+
+    def test_label_url_encoded(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=200),
+        )
+        provider.remove_review_label("org/repo", "42", "needs review")
+        args = provider._api.call_args
+        # Space should be percent-encoded
+        assert "needs%20review" in args[0][1]
+
+    def test_404_label_not_present_is_ok(self):
+        """GitHub returns 404 if the label wasn't present — treat as success."""
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=404),
+        )
+        result = provider.remove_review_label("org/repo", "42", "gone")
+        assert result is None
+
+    def test_http_error_no_crash(self):
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=500),
+        )
+        provider.remove_review_label("org/repo", "42", "label")
+
+    def test_network_error_no_crash(self):
+        import httpx
+
+        provider = GitHubProvider(access_token="t")
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("boom"))
+        provider.remove_review_label("org/repo", "42", "label")
+
+
+# ---------------------------------------------------------------------------
+# get_review_files — GitLab (REST /merge_requests/:iid/changes)
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabGetReviewFiles:
+    """GitLabProvider.get_review_files hits /projects/:id/merge_requests/:iid/changes
+    and extracts ``new_path`` (or ``old_path``) from each change entry."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        @property
+        def text(self):
+            return str(self._payload)
+
+    def test_returns_new_paths(self):
+        provider = GitLabProvider(access_token="t")
+        changes_payload = {
+            "changes": [
+                {"old_path": "src/old.py", "new_path": "src/new.py"},
+                {"old_path": "src/main.py", "new_path": "src/main.py"},
+                {"old_path": "README.md", "new_path": "README.md"},
+            ],
+        }
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse(changes_payload),
+        )
+        result = provider.get_review_files("group/project", "42")
+        assert result == ["src/new.py", "src/main.py", "README.md"]
+        provider._api.assert_called_once()
+        args = provider._api.call_args
+        assert "GET" == args[0][0]
+        assert "/merge_requests/42/changes" in args[0][1]
+
+    def test_falls_back_to_old_path(self):
+        """When new_path is missing (e.g., deleted file), use old_path."""
+        provider = GitLabProvider(access_token="t")
+        changes_payload = {
+            "changes": [
+                {"old_path": "removed.py", "new_path": ""},
+                {"old_path": "src/lib.py", "new_path": "src/lib.py"},
+            ],
+        }
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse(changes_payload),
+        )
+        result = provider.get_review_files("group/project", "1")
+        assert result == ["removed.py", "src/lib.py"]
+
+    def test_empty_changes(self):
+        provider = GitLabProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({"changes": []}),
+        )
+        result = provider.get_review_files("group/project", "1")
+        assert result == []
+
+    def test_http_error_returns_empty(self):
+        provider = GitLabProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=404),
+        )
+        result = provider.get_review_files("group/project", "999")
+        assert result == []
+
+    def test_network_error_returns_empty(self):
+        import httpx
+
+        provider = GitLabProvider(access_token="t")
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("dns"))
+        result = provider.get_review_files("group/project", "1")
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# add_review_label — GitLab (PUT /merge_requests/:iid with labels param)
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabAddReviewLabel:
+    """GitLabProvider.add_review_label fetches the MR to read existing labels,
+    appends the new label, and PUTs the full set back."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        @property
+        def text(self):
+            return str(self._payload)
+
+    def test_adds_label_preserving_existing(self):
+        provider = GitLabProvider(access_token="t")
+        # First call: GET to read existing labels.
+        # Second call: PUT to write them back.
+        responses = [
+            self._FakeResponse({"labels": ["feature", "backend"]}),
+            self._FakeResponse({}),
+        ]
+
+        def fake_api(method, path, **kwargs):
+            return responses.pop(0)
+
+        provider._api = mock.MagicMock(side_effect=fake_api)
+        provider.add_review_label("group/project", "42", "churn-magnet")
+        assert provider._api.call_count == 2
+        calls = provider._api.call_args_list
+        assert calls[0][0][0] == "GET"
+        assert "/merge_requests/42" in calls[0][0][1]
+        assert calls[1][0][0] == "PUT"
+        assert calls[1][1]["json"]["labels"] == "feature,backend,churn-magnet"
+
+    def test_no_duplicate_when_label_exists(self):
+        """If the label is already present, don't add it again."""
+        provider = GitLabProvider(access_token="t")
+        mr_payload = {"labels": ["feature", "churn-magnet"]}
+
+        def fake_api(method, path, **kwargs):
+            if method == "GET":
+                return self._FakeResponse(mr_payload)
+            return self._FakeResponse({})
+
+        provider._api = mock.MagicMock(side_effect=fake_api)
+        provider.add_review_label("group/project", "42", "churn-magnet")
+        # Should still do two calls (GET + PUT) but the label set is unchanged.
+        calls = provider._api.call_args_list
+        assert calls[1][1]["json"]["labels"] == "feature,churn-magnet"
+
+    def test_empty_labels(self):
+        """MR with no existing labels should work fine."""
+        provider = GitLabProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if method == "GET":
+                return self._FakeResponse({"labels": []})
+            return self._FakeResponse({})
+
+        provider._api = mock.MagicMock(side_effect=fake_api)
+        provider.add_review_label("group/project", "42", "new-label")
+        calls = provider._api.call_args_list
+        assert calls[1][1]["json"]["labels"] == "new-label"
+
+    def test_http_error_on_fetch(self):
+        """If we can't fetch the MR, log and return silently."""
+        provider = GitLabProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=500),
+        )
+        provider.add_review_label("group/project", "42", "label")
+
+    def test_network_error_no_crash(self):
+        import httpx
+
+        provider = GitLabProvider(access_token="t")
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("boom"))
+        provider.add_review_label("group/project", "42", "label")
+
+
+# ---------------------------------------------------------------------------
+# remove_review_label — GitLab (PUT /merge_requests/:iid with labels param)
+# ---------------------------------------------------------------------------
+
+
+class TestGitLabRemoveReviewLabel:
+    """GitLabProvider.remove_review_label fetches the MR, removes the target
+    label from the set, and PUTs the result back."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+        @property
+        def text(self):
+            return str(self._payload)
+
+    def test_removes_label_preserving_others(self):
+        provider = GitLabProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if method == "GET":
+                return self._FakeResponse({"labels": ["feature", "churn-magnet", "backend"]})
+            return self._FakeResponse({})
+
+        provider._api = mock.MagicMock(side_effect=fake_api)
+        provider.remove_review_label("group/project", "42", "churn-magnet")
+        calls = provider._api.call_args_list
+        assert calls[1][1]["json"]["labels"] == "feature,backend"
+
+    def test_label_not_present_no_change(self):
+        """Removing a label that isn't there should still PUT back the same set."""
+        provider = GitLabProvider(access_token="t")
+
+        def fake_api(method, path, **kwargs):
+            if method == "GET":
+                return self._FakeResponse({"labels": ["feature", "backend"]})
+            return self._FakeResponse({})
+
+        provider._api = mock.MagicMock(side_effect=fake_api)
+        provider.remove_review_label("group/project", "42", "churn-magnet")
+        calls = provider._api.call_args_list
+        assert calls[1][1]["json"]["labels"] == "feature,backend"
+
+    def test_http_error_no_crash(self):
+        provider = GitLabProvider(access_token="t")
+        provider._api = mock.MagicMock(
+            return_value=self._FakeResponse({}, status_code=500),
+        )
+        provider.remove_review_label("group/project", "42", "label")
+
+    def test_network_error_no_crash(self):
+        import httpx
+
+        provider = GitLabProvider(access_token="t")
+        provider._api = mock.MagicMock(side_effect=httpx.HTTPError("boom"))
+        provider.remove_review_label("group/project", "42", "label")
+
+
+# ---------------------------------------------------------------------------
+# ReviewRequest.files field
+# ---------------------------------------------------------------------------
+
+
+class TestReviewRequestFiles:
+    """ReviewRequest has a ``files`` field (default []) included in to_dict()."""
+
+    def test_defaults_to_empty_list(self):
+        rr = ReviewRequest(
+            id="1", title="t", url="u", author="a", state="open",
+            source_branch="b", target_branch="main",
+            created_at="", updated_at="",
+        )
+        assert rr.files == []
+
+    def test_can_be_set(self):
+        rr = ReviewRequest(
+            id="1", title="t", url="u", author="a", state="open",
+            source_branch="b", target_branch="main",
+            created_at="", updated_at="",
+            files=["a.py", "b.py"],
+        )
+        assert rr.files == ["a.py", "b.py"]
+
+    def test_to_dict_includes_files(self):
+        rr = ReviewRequest(
+            id="1", title="t", url="u", author="a", state="open",
+            source_branch="b", target_branch="main",
+            created_at="", updated_at="",
+            files=["x.py", "y.md"],
+        )
+        d = rr.to_dict()
+        assert d["files"] == ["x.py", "y.md"]

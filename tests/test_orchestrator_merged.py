@@ -28,13 +28,17 @@ def _make_issue(identifier: str, state: str = "closed", labels: list | None = No
     )
 
 
-def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.com/org/repo"):
+def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.com/org/repo",
+                 churn_magnet_gate_enabled: bool = False,
+                 churn_magnet_top_n: int = 10):
     p = MagicMock()
     p.id = project_id
     p.repo_url = repo_url
     p.name = "test-project"
     p.merge_queue_enabled = False  # default: direct-merge mode
     p.paused = False  # default: not paused
+    p.churn_magnet_gate_enabled = churn_magnet_gate_enabled
+    p.churn_magnet_top_n = churn_magnet_top_n
     return p
 
 
@@ -404,6 +408,8 @@ def _make_review(
     has_conflicts: bool = False,
     needs_rebase: bool = False,
     draft: bool = False,
+    labels: list[str] | None = None,
+    churn_magnet: bool = False,
 ) -> ReviewRequest:
     return ReviewRequest(
         id=review_id,
@@ -419,6 +425,8 @@ def _make_review(
         has_conflicts=has_conflicts,
         needs_rebase=needs_rebase,
         draft=draft,
+        labels=labels or [],
+        churn_magnet=churn_magnet,
     )
 
 
@@ -1917,3 +1925,240 @@ class TestBudgetGateFreeTierBypass:
         issue = _make_issue("feat-4", state="open")
         self._force_over_budget(orch)
         assert orch._should_dispatch(issue) is False
+
+
+class TestYoloChurnMagnetGate:
+    """Tests for the high-risk PR gate (oompah-zlz_2-rxwe.3).
+
+    When project.churn_magnet_gate_enabled is True, the YOLO sync must
+    skip merge/enqueue for PRs that have the [churn-magnet] label
+    AND are stale (needs_rebase=True).  The gate is evaluated OUTSIDE
+    the `ci_ok and not needs_rebase` base condition so stale PRs are
+    caught regardless of CI state, and it fires even when CI is
+    "passed" and mergeable.
+    """
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_gate_disabled_merge_succeeds(self, mock_slug, mock_detect, tmp_path):
+        """Gate is off → PR merges normally (baseline sanity check)."""
+        project = _make_project(churn_magnet_gate_enabled=False)
+        project.yolo = True
+
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            "proj-1": [
+                _make_review("1", source_branch="feat-1", ci_status="passed"),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_called_once_with("org/repo", "1")
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_gate_enabled_no_Churn_magnet_label_merge_succeeds(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Gate on, PR not marked churn-magnet → merges normally."""
+        project = _make_project(churn_magnet_gate_enabled=True)
+        project.yolo = True
+
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            "proj-1": [
+                _make_review("1", source_branch="feat-1", ci_status="passed"),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_called_once_with("org/repo", "1")
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_gate_enabled_churn_magnet_not_stale_merge_succeeds(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Gate on, PR is churn-magnet but not stale → merges normally."""
+        project = _make_project(churn_magnet_gate_enabled=True)
+        project.yolo = True
+
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            "proj-1": [
+                _make_review(
+                    "1",
+                    source_branch="feat-1",
+                    ci_status="passed",
+                    labels=["churn-magnet"],
+                    churn_magnet=True,
+                ),
+            ]
+        }
+
+        orch._yolo_review_actions_sync()
+
+        # Not skipped — merge should succeeds
+        provider.merge_review.assert_called_once_with("org/repo", "1")
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_gate_enabled_churn_magnet_stale_skipped(self, mock_slug, mock_detect, tmp_path):
+        """Gate on, PR is churn-magnet AND stale → SKIPPED, no merge/enqueue."""
+        project = _make_project(churn_magnet_gate_enabled=True)
+        project.yolo = True
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            "proj-1": [
+                _make_review(
+                    "1",
+                    source_branch="feat-1",
+                    ci_status="passed",
+                    needs_rebase=True,
+                    labels=["churn-magnet"],
+                    churn_magnet=True,
+                ),
+            ]
+        }
+
+        with patch.object(orch, "_record_yolo_action") as mock_record:
+            orch._yolo_review_actions_sync()
+
+            # Gate fires — neither merge_review nor enable_auto_merge called
+            provider.merge_review.assert_not_called()
+            assert not provider.enable_auto_merge.called
+
+            # _record_yolo_action called with 'gate_blocked'
+            gate_calls = [
+                c for c in mock_record.call_args_list
+                if c[0][2] == "gate_blocked"
+            ]
+            assert len(gate_calls) == 1, (
+                f"Expected one gate_blocked call; got {gate_calls}"
+            )
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_gate_enabled_stale_no_churn_magnet_not_merged(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Gate on, PR is stale but not churn-magnet: not merged (stale PR).
+
+        Stale PRs (needs_rebase=True) are not merged regardless of the gate.
+        This test confirms the gate does NOT incorrectly merge a stale PR
+        when the churn-magnet label is absent — the base condition
+        `if ci_ok and not needs_rebase` already handles this case.
+        """
+        project = _make_project(churn_magnet_gate_enabled=True)
+        project.yolo = True
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        # needs_rebase=True + no churn-magnet label → base condition fails,
+        # no merge, and gate does NOT fire (no churn-magnet label).
+        orch._reviews_cache = {
+            "proj-1": [
+                _make_review(
+                    "1",
+                    source_branch="feat-1",
+                    ci_status="passed",
+                    needs_rebase=True,
+                    labels=[],
+                    churn_magnet=False,
+                ),
+            ]
+        }
+
+        with patch.object(orch, "_record_yolo_action") as mock_record:
+            orch._yolo_review_actions_sync()
+
+            # Neither merge_review nor enable_auto_merge called (stale)
+            provider.merge_review.assert_not_called()
+            provider.enable_auto_merge.assert_not_called()
+
+            # No gate_blocked call (gate requires churn-magnet label)
+            gate_calls = [
+                c for c in mock_record.call_args_list
+                if c[0][2] == "gate_blocked"
+            ]
+            assert len(gate_calls) == 0
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_gate_enabled_merge_queue_stale_churn_magnet_enqueued(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Gate on + merge_queue: stale churn-magnet PR is skipped, not enqueued."""
+        project = _make_project(churn_magnet_gate_enabled=True)
+        project.yolo = True
+        project.merge_queue_enabled = True
+
+        provider = MagicMock()
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            "proj-1": [
+                _make_review(
+                    "1",
+                    source_branch="feat-1",
+                    ci_status="passed",
+                    needs_rebase=True,
+                    labels=["churn-magnet"],
+                    churn_magnet=True,
+                ),
+            ]
+        }
+
+        with patch.object(orch, "_record_yolo_action") as mock_record:
+            orch._yolo_review_actions_sync()
+
+            # Gate fires → enable_auto_merge NOT called
+            provider.enable_auto_merge.assert_not_called()
+            provider.merge_review.assert_not_called()
+
+            gate_calls = [
+                c for c in mock_record.call_args_list
+                if c[0][2] == "gate_blocked"
+            ]
+            assert len(gate_calls) == 1
