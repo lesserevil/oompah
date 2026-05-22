@@ -452,24 +452,35 @@ class TestModuleHelpers:
 class TestChurnMagnetIntegration:
     """Integration tests with a real git repo."""
 
-    def test_record_conflicts_for_project_real_repo(self, git_repo):
+    def test_record_conflicts_for_project_real_repo(self, git_repo, tmp_path):
         """Full round-trip with real git: detect conflict + record in store."""
-        count = record_conflicts_for_project(
-            "test-project",
-            git_repo,
-            "main",
-            "feature",
-            "PR#42",
-        )
-        assert count >= 1, "conflicting_file.py should be detected"
-        # Verify it persisted (read from the same store the function wrote to)
-        store = get_store()
-        top = store.get_top_files("test-project")
-        assert len(top) >= 1
-        assert top[0][0] == "conflicting_file.py"
-        assert top[0][1] >= 1
-        # Clean up
-        store.clear_project("test-project")
+        import oompah.churn_magnet as _cm
+
+        store_path = str(tmp_path / "churn_integration.json")
+        old = _cm._store
+        _cm._store = None
+        try:
+            from oompah.churn_magnet import get_store as _gs
+            _gs(store_path)
+
+            count = record_conflicts_for_project(
+                "test-project",
+                git_repo,
+                "main",
+                "feature",
+                "PR#42",
+            )
+            assert count >= 1, "conflicting_file.py should be detected"
+            # Verify it persisted
+            store = _cm.get_store()
+            top = store.get_top_files("test-project")
+            assert len(top) >= 1
+            assert top[0][0] == "conflicting_file.py"
+            assert top[0][1] >= 1
+            # Clean up
+            store.clear_project("test-project")
+        finally:
+            _cm._store = old
 
     def test_top_files_reflects_real_conflict_counts(self, git_repo, tmp_path):
         """After multiple PRs, top_files should rank files by conflict frequency."""
