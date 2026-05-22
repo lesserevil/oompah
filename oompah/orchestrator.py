@@ -8006,6 +8006,56 @@ class Orchestrator:
                             tracker.update_issue(entry.identifier, status="deferred")
                             self.state.completed.add(issue_id)
                         else:
+                            # Landing gate: check if the agent completed without landing
+                            # before spending tokens on a profile escalation.
+                            project = self.project_store.get(project_id)
+                            if project:
+                                branch_name = (
+                                    entry.issue.branch_name
+                                    or entry.issue.identifier
+                                )
+                                from oompah.landing_gate import (
+                                    build_telemetry_event,
+                                    check_landing_gate,
+                                )
+
+                                lg_result = check_landing_gate(
+                                    entry.issue,
+                                    workspace_path=project.repo_path,
+                                    base_branch=project.default_branch,
+                                )
+                                if not lg_result.allowed:
+                                    self._post_comment(
+                                        entry.identifier,
+                                        (
+                                            f"Agent completed without landing — "
+                                            f"no commits found on origin for branch "
+                                            f"`{branch_name}`. "
+                                            f"Skipping escalation to conserve tokens. "
+                                            f"Please check the worktree for "
+                                            f"uncommitted work, then commit, push, "
+                                            f"and close manually."
+                                        ),
+                                        project_id=project_id,
+                                    )
+                                    telemetry = build_telemetry_event(
+                                        lg_result,
+                                        entry.issue,
+                                        branch_name,
+                                        entry.agent_profile_name,
+                                        getattr(entry, "focus", None),
+                                        entry.retry_attempt or 0,
+                                        reopen_count,
+                                    )
+                                    logger.info(
+                                        json.dumps(telemetry),
+                                    )
+                                    tracker.update_issue(
+                                        entry.identifier, status="deferred",
+                                    )
+                                    self.state.completed.add(issue_id)
+                                    return
+
                             # Try to escalate to a stronger profile before retrying
                             escalated, escalated_name = self._next_profile_for_retry(
                                 entry
