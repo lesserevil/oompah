@@ -3801,6 +3801,16 @@ class Orchestrator:
             considered_ids: set[str] = set()
             non_draft_total = sum(1 for r in reviews if not r.draft)
 
+            # Pre-load the project's top-N churn-magnet files so we can
+            # flag high-risk PRs (oompah-zlz_2-rxwe.2).
+            try:
+                _cm_store = _get_churn_store()
+                _cm_top_files = set(
+                    fp for fp, _ in _cm_store.get_top_files(project.id)
+                )
+            except Exception:
+                _cm_top_files = set()
+
             for review in reviews:
                 if review.draft:
                     continue
@@ -3810,6 +3820,49 @@ class Orchestrator:
                 # tracker used by _clear_merge_conflict_label_for_branch and
                 # by the external-rebase stale-label check (oompah-zlz_2-683l)
                 tracker = self._tracker_for_project(project.id)
+
+                # Churn-magnet check (oompah-zlz_2-rxwe.2): if this PR
+                # touches a file in the project's top-N churn-magnet list,
+                # flag it on the review and add a label to the PR.
+                if _cm_top_files and not review.churn_magnet:
+                    try:
+                        pr_files = provider.get_review_files(slug, review_id)
+                        if pr_files:
+                            # Cache the file list on the review object so
+                            # downstream consumers (like /api/v1/reviews)
+                            # have access to it without another API call.
+                            review.files = pr_files
+                            if set(pr_files) & _cm_top_files:
+                                review.churn_magnet = True
+                                if "churn-magnet" not in review.labels:
+                                    provider.add_review_label(
+                                        slug, review_id, "churn-magnet"
+                                    )
+                                    review.labels.append("churn-magnet")
+                                    _overlap = sorted(
+                                        set(pr_files) & _cm_top_files
+                                    )
+                                    review.churn_magnet_files = _overlap
+                                    logger.info(
+                                        "YOLO: churn-magnet PR %s #%s "
+                                        "(touches: %s)",
+                                        project.name,
+                                        review_id,
+                                        ", ".join(_overlap[:5]),
+                                    )
+                                else:
+                                    logger.debug(
+                                        "YOLO: churn-magnet PR %s #%s already labeled",
+                                        project.name,
+                                        review_id,
+                                    )
+                    except Exception as _exc:
+                        logger.debug(
+                            "Churn-magnet: get_review_files failed for %s #%s: %s",
+                            project.name,
+                            review_id,
+                            _exc,
+                        )
 
                 # Conflict check FIRST — before the auto_merge_enabled
                 # idempotency guard. A PR enqueued for auto-merge can

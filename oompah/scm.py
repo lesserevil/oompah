@@ -62,6 +62,11 @@ class ReviewRequest:
     # separate feature not adopted in this rollout.
     auto_merge_enabled: bool = False
     mergeable_state: str = ""
+    # True when at least one file changed by this review appears in the
+    # project's top-N churn-magnet list (oompah-zlz_2-rxwe.2). Populated
+    # by the orchestrator's churn-magnet check in _yolo_review_actions_sync.
+    churn_magnet: bool = False
+    churn_magnet_files: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -87,6 +92,8 @@ class ReviewRequest:
             "auto_merge_enabled": self.auto_merge_enabled,
             "mergeable_state": self.mergeable_state,
             "files": self.files,
+            "churn_magnet": self.churn_magnet,
+            "churn_magnet_files": self.churn_magnet_files,
         }
 
 
