@@ -7720,6 +7720,111 @@ class Orchestrator:
 
         return False
 
+    def _run_unpushed_gate(
+        self,
+        entry: "RunningEntry",
+        current_issue: Issue,
+        project_id: str | None,
+    ) -> bool:
+        """Run the unpushed gate to detect agents who completed without landing.
+
+        Returns True when the completion is ALLOWED, False when REFUSED.
+
+        When refused:
+        * Posts a diagnostic comment on the bead (author=oompah).
+        * Reopens the bead so it re-enters the dispatch cycle.
+
+        Fail-open on any internal error so a gate bug can never pin a
+        bead in-progress forever.
+        """
+        from oompah.unpushed_gate import (
+            UnpushedGateResult,
+            check_unpushed_gate,
+            build_unpushed_refusal_comment,
+        )
+
+        if not getattr(self.config, "close_gate_enabled", True):
+            return True
+
+        repo_path = ""
+        base_branch = "main"
+        if project_id:
+            try:
+                project = self.project_store.get(project_id)
+                if project:
+                    repo_path = project.repo_path or ""
+                    base_branch = project.default_branch or "main"
+            except Exception as exc:
+                logger.warning(
+                    "unpushed_gate: project lookup failed for %s: %s — failing open",
+                    entry.identifier,
+                    exc,
+                )
+                return True
+
+        result = check_unpushed_gate(
+            current_issue,
+            repo_path=repo_path,
+            base_branch=base_branch,
+            entry_profile=entry.agent_profile_name,
+            entry_focus=entry.focus_name or "",
+            entry_attempt=entry.retry_attempt or 0,
+        )
+
+        if result.allowed:
+            if result.skip_reason:
+                logger.debug(
+                    "unpushed_gate: allowed for %s (skip_reason=%s)",
+                    entry.identifier,
+                    result.skip_reason,
+                )
+            else:
+                logger.debug(
+                    "unpushed_gate: allowed for %s",
+                    entry.identifier,
+                )
+            return True
+
+        # REFUSED — post comment and reopen
+        try:
+            comment = build_unpushed_refusal_comment(
+                current_issue, result, base_branch,
+            )
+            self._post_comment(
+                entry.identifier,
+                comment,
+                project_id=project_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "unpushed_gate: failed to post refusal comment for %s: %s",
+                entry.identifier,
+                exc,
+            )
+
+        try:
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
+            tracker.update_issue(entry.identifier, status="in_progress")
+            logger.warning(
+                "unpushed_gate: REFUSED completion for %s — "
+                "unpushed work detected (ahead=%d uncommitted=%s) — bead re-opened",
+                entry.identifier,
+                result.commits_ahead,
+                result.has_uncommitted,
+            )
+        except Exception as exc:
+            logger.warning(
+                "unpushed_gate: failed to re-open %s after refusal: %s",
+                entry.identifier,
+                exc,
+            )
+
+        return False
+
     def _run_completion_verifier(
         self,
         entry: "RunningEntry",
@@ -8114,16 +8219,31 @@ class Orchestrator:
                         # Skip verifier and completed tracking.
                         pass
                     else:
-                        # Step 2: Completion verifier (oompah-zlz_2-y0ns).
-                        # Run the two-stage check (regex + LLM) against the
-                        # bead's "# Acceptance criteria" section to catch
-                        # false-success closures where the agent's diff
-                        # doesn't actually satisfy the AC.
-                        verifier_result = self._run_completion_verifier(
+                        # ------------------------------------------------------------
+                        # Step 1b: Unpushed gate (oompah-zlz_2-kc2k.1).
+                        # Detect the pattern where the bead is in a terminal state
+                        # but commits are still local/uncommitted — the agent closed
+                        # the bead without ever landing.  Refuse and re-dispatch so
+                        # the next agent can push + close properly.
+                        gate_passed = self._run_unpushed_gate(
                             entry,
                             current,
                             project_id,
                         )
+                        if not gate_passed:
+                            # Gate refused; bead re-opened, skip verifier.
+                            pass
+                        else:
+                            # Step 2: Completion verifier (oompah-zlz_2-y0ns).
+                            # Run the two-stage check (regex + LLM) against the
+                            # bead's "# Acceptance criteria" section to catch
+                            # false-success closures where the agent's diff
+                            # doesn't actually satisfy the AC.
+                            verifier_result = self._run_completion_verifier(
+                                entry,
+                                current,
+                                project_id,
+                            )
                         max_verifier_rejects = 3
                         reject_count = self._verifier_reject_counts.get(issue_id, 0)
                         if (
