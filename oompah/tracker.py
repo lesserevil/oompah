@@ -107,7 +107,7 @@ class TrackerTimeoutError(TrackerError):
 
 
 class TrackerDoltUnavailableError(TrackerError):
-    """Raised when the Dolt SQL server is unreachable or failed to start.
+    """Raised when the Dolt SQL server is unreachable, failed to start, or the expected database is missing.
 
     This covers the transient case where ``bd``'s auto-started Dolt server
     either fails to bind a port or doesn't become ready within the health-
@@ -115,15 +115,23 @@ class TrackerDoltUnavailableError(TrackerError):
     already be up and responding normally — treating it as a real bug
     that warrants auto-filed beads causes duplicate noise in the queue.
 
-    The error message from ``bd`` looks like::
+    This also covers the case where the server IS reachable but serving
+    a different data directory than expected (e.g. after a branch switch)
+    so database "X" is not found on the server. The server is healthy but
+    the expected database is absent — same transient recovery path.
+
+    The error messages from ``bd`` look like::
 
         failed to open database: Dolt server unreachable at 127.0.0.1:0
         and auto-start failed: server started (PID N) but not accepting
         connections on port M: timeout after 10s waiting for server at
         127.0.0.1:M
 
+        failed to open database: database "oompah" not found on Dolt
+        server at 127.0.0.1:41749
+
     Callers should log at WARNING and let the next poll tick retry.
-    See oompah-zlz_2-tjyj.
+    See oompah-zlz_2-tjyj, oompah-zlz_2-yvur.
     """
 
 
@@ -817,13 +825,24 @@ class BeadsTracker:
             # rather than a bug that auto-files beads every poll tick.
             # See oompah-zlz_2-tjyj.
             stderr_lower = stderr.lower()
-            if ("dolt server" in stderr_lower and "unreachable" in stderr_lower) or (
-                "dolt server" in stderr_lower and "auto-start failed" in stderr_lower
-            ):
+            # Also check for "database not found on Dolt server" — the
+            # server is reachable but the expected DB is absent (e.g.
+            # after a branch switch with mismatched data-dir). Same
+            # recovery path (operator re-bootstraps or server switches
+            # data-dir). Cached so we don't file duplicate beads every
+            # tick during the window. See oompah-zlz_2-yvur.
+            dolt_unavailable = (
+                ("dolt server" in stderr_lower and "unreachable" in stderr_lower)
+                or ("dolt server" in stderr_lower and "auto-start failed" in stderr_lower)
+                or ("database" in stderr_lower and "not found on Dolt server" in stderr_lower)
+            )
+            if dolt_unavailable:
                 logger.warning(
                     "bd workspace at %r has Dolt server unavailable "
-                    "(transient startup/port-binding failure) — "
+                    "(transient startup/port-binding/database-missing failure) — "
                     "skipping for %ds. Server may recover automatically; "
+                    "run 'bd bootstrap' if this persists (branch-switch or "
+                    "stale server data-dir); "
                     "to start manually: bd dolt start; "
                     "to disable auto-start: set dolt.auto-start: false "
                     "in .beads/config.yaml",
