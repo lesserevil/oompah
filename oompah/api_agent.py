@@ -1685,3 +1685,4 @@ class ApiAgentSession:
                     remaining_messages=len(messages),
                 )
                 body = json.dumps(payload).encode("utf-8")
+                continue
