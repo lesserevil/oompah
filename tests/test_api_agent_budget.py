@@ -1542,3 +1542,290 @@ class TestRunTaskTransientServerErrorHandler:
         # The full error body — not just "401" — must be in result.error
         # The message preserves the distinctive NVIDIA error phrasing.
         assert "Server disconnected" in (result.error or "")
+
+
+# ---------------------------------------------------------------------------
+# Context-window recovery (oompah-zlz_2-vwrp).
+#
+# When provider.model_contexts has no entry for the active model,
+# model_max_context is None and no pruning fires. The API then rejects
+# the request with a 400 whose body contains the real limit. The fix:
+# _extract_context_window_limit parses the limit from the error body,
+# _is_context_window_error detects the pattern, and _call_api retries
+# once with pruning enabled using the learned limit.
+# ---------------------------------------------------------------------------
+
+from oompah.api_agent import (
+    _extract_context_window_limit,
+    _is_context_window_error,
+)
+
+
+class TestExtractContextWindowLimit:
+    def test_extracts_from_nvidia_litellm_error(self):
+        # The exact production error format from NVIDIA inference API.
+        body = json.dumps({
+            "error": {
+                "message": (
+                    "litellm.ContextWindowExceededError: litellm.BadRequestError: "
+                    "ContextWindowExceededError: OpenAIException - "
+                    "{\"message\":\"This model's maximum context length is "
+                    "131072 tokens. However, your messages resulted in 409823 tokens."
+                    " Please reduce the length of the messages.\",\"type\":\"Bad Request\"}"
+                ),
+                "type": None,
+                "param": None,
+                "code": "400",
+            }
+        })
+        assert _extract_context_window_limit(body) == 131072
+
+    def test_extracts_from_plain_message(self):
+        msg = (
+            "litellm.ContextWindowExceededError: "
+            "maximum context length is 2048 tokens. However, you sent 5000 tokens."
+        )
+        assert _extract_context_window_limit(msg) == 2048
+
+    def test_extracts_from_simple_numeric_message(self):
+        assert _extract_context_window_limit(
+            "maximum context length is 8192 tokens."
+        ) == 8192
+
+    def test_returns_none_for_unparseable(self):
+        assert _extract_context_window_limit("something went wrong") is None
+        assert _extract_context_window_limit("") is None
+        assert _extract_context_window_limit(
+            "maximum context length tokens."  # no number
+        ) is None
+        assert _extract_context_window_limit("maximum tokens 1024 bytes") is None
+
+    def test_returns_none_for_invalid_json(self):
+        # JSON parse failure should fall back to raw string search.
+        assert _extract_context_window_limit(
+            "maximum context length is 4096 tokens."
+        ) == 4096
+
+
+class TestIsContextWindowError:
+    def test_detects_litellm_nvidia_pattern(self):
+        body = json.dumps({
+            "error": {
+                "message": (
+                    "litellm.ContextWindowExceededError: something. "
+                    "Please reduce the length of the messages."
+                ),
+                "code": "400",
+            }
+        })
+        assert _is_context_window_error(body) is True
+
+    def test_false_for_ordinary_400(self):
+        assert _is_context_window_error('{"error":"bad request"}') is False
+        assert _is_context_window_error('{"error":{"message":"Not Found","code":"404"}}') is False
+
+    def test_false_for_transient_500(self):
+        assert _is_context_window_error('{"error":"Internal Server Error"}') is False
+
+
+class TestCallApiContextWindowRecovery:
+    """oompah-zlz_2-vwrp: when model_max_context is None and the API
+    returns a 400 with a ContextWindowExceededError body, _call_api must
+    extract the limit, enable budgeting on the session, prune the
+    messages, and retry once — all within the same worker turn."""
+
+    def test_context_window_400_succeeds_on_retry_after_pruning(
+        self, tmp_path, monkeypatch,
+    ):
+        """First attempt 400s with the litellm error; second attempt
+        (with pruning) succeeds."""
+        from oompah.api_agent import ApiAgentSession
+
+        call_count = {"n": 0}
+        captured = {}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            call_count["n"] += 1
+            captured["payload"] = json.loads(body)
+            if call_count["n"] == 1:
+                raise RuntimeError(
+                    'HTTP 400 from https://api.x: '
+                    '{"error":{"message":"litellm.ContextWindowExceededError: '
+                    'OpenAIException - {\\"message\\":\\"maximum context length '
+                    'is 8192 tokens. Your messages 10000 tokens.\\"}}'
+                )
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+            # model_max_context intentionally None — the bug scenario.
+        )
+        # Build history that overflows 8192 tokens.
+        msgs = [_msg("system", "agent"), _msg("user", "task")]
+        for i in range(20):
+            msgs.append(_msg(
+                "assistant", "thinking",
+                tool_calls=[{
+                    "id": f"c{i}",
+                    "function": {"name": "x", "arguments": "{}"},
+                }],
+            ))
+            msgs.append({
+                "role": "tool",
+                "tool_call_id": f"c{i}",
+                "content": "y" * 1000,
+            })
+        original_len = len(msgs)
+        result = asyncio.run(s._call_api(msgs))
+
+        # Must succeed on second attempt.
+        assert result["choices"][0]["message"]["content"] == "ok"
+        # Two calls: first 400'd, second succeeded.
+        assert call_count["n"] == 2
+        # Pruning happened on the retry.
+        assert len(msgs) < original_len
+        assert msgs[0]["role"] == "system"
+        assert msgs[1]["role"] == "user"
+        # Context limit learned and stored on session.
+        assert s.model_max_context == 8192
+        # max_tokens clamped for the pruned history.
+        mt = captured["payload"]["max_tokens"]
+        assert _MIN_MAX_OUTPUT_TOKENS <= mt <= _DEFAULT_MAX_OUTPUT_TOKENS
+
+    def test_context_window_400_propagates_after_one_retry(self, tmp_path, monkeypatch):
+        """If the retry ALSO 400s (e.g. even pruning can't fit), raise
+        after the single recovery attempt to avoid an infinite loop."""
+        from oompah.api_agent import ApiAgentSession
+
+        call_count = {"n": 0}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            call_count["n"] += 1
+            raise RuntimeError(
+                'HTTP 400: {"error":{"message":"ContextWindowExceededError: '
+                'maximum context length is 4096 tokens."}}'
+            )
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        # Already have too much content.
+        msgs = [_msg("system", "agent"), _msg("user", "task" + "x" * 5000)]
+        with pytest.raises(RuntimeError):
+            asyncio.run(s._call_api(msgs))
+
+        # Exactly two calls: first attempt + one recovery attempt.
+        assert call_count["n"] == 2, call_count
+
+    def test_non_context_400_raises_immediately(self, tmp_path, monkeypatch):
+        """A 400 that is NOT a ContextWindowExceededError (e.g. malformed
+        JSON, wrong endpoint) must propagate immediately — not enter the
+        recovery path."""
+        from oompah.api_agent import ApiAgentSession
+
+        call_count = {"n": 0}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            call_count["n"] += 1
+            raise RuntimeError(
+                'HTTP 400 from x: {"error":"invalid request format"}'
+            )
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        with pytest.raises(RuntimeError):
+            asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
+        # Exactly one call — no recovery retry for non-context 400s.
+        assert call_count["n"] == 1
+
+    def test_falls_back_to_conservative_limit_when_body_is_unparseable(
+        self, tmp_path, monkeypatch,
+    ):
+        """If the 400 body is a ContextWindowExceededError but the limit
+        can't be parsed (e.g. unusual format), use the hardcoded
+        conservative fallback (131072) so pruning still fires."""
+        from oompah.api_agent import ApiAgentSession
+
+        call_count = {"n": 0}
+        captured = {}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            call_count["n"] += 1
+            captured["payload"] = json.loads(body)
+            if call_count["n"] == 1:
+                raise RuntimeError(
+                    'HTTP 400: {"error":{"message":"ContextWindowExceededError: '
+                    'unknown reason (no limit given)"}}'
+                )
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+        )
+        msgs = [_msg("system", "agent"), _msg("user", "task")]
+        for i in range(20):
+            msgs.append(_msg(
+                "assistant", "thinking",
+                tool_calls=[{"id": f"c{i}", "function": {"name": "x", "arguments": "{}"}}],
+            ))
+            msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": "y" * 1000})
+        result = asyncio.run(s._call_api(msgs))
+
+        # Succeeded after the recovery attempt.
+        assert result["choices"][0]["message"]["content"] == "ok"
+        assert call_count["n"] == 2
+        # Conservative fallback was learned and stored.
+        assert s.model_max_context == 131072
+
+    def test_logs_context_window_retry_event(self, tmp_path, monkeypatch):
+        """The recovery retry must emit a 'context_window_retry' log event
+        so operators can audit the recovery path from the JSONL."""
+        from oompah.api_agent import ApiAgentSession
+
+        def fake_post(url, headers, body, ssl_ctx):
+            if json.loads(body)["max_tokens"] == _DEFAULT_MAX_OUTPUT_TOKENS:
+                raise RuntimeError(
+                    'HTTP 400: {"error":{"message":"ContextWindowExceededError: '
+                    'maximum context length is 8192 tokens."}}'
+                )
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        log_path = tmp_path / "agent.jsonl"
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="m",
+            workspace_path=str(tmp_path),
+            log_path=str(log_path),
+        )
+        msgs = [_msg("system", "agent"), _msg("user", "task")]
+        for i in range(10):
+            msgs.append(_msg(
+                "assistant", "thinking",
+                tool_calls=[{"id": f"c{i}", "function": {"name": "x", "arguments": "{}"}}],
+            ))
+            msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": "y" * 500})
+        asyncio.run(s._call_api(msgs))
+
+        records = [json.loads(l) for l in log_path.read_text().splitlines()]
+        kinds = [r["kind"] for r in records]
+        assert "context_window_error" in kinds
+        assert "context_window_retry" in kinds
+        retry_event = next(
+            r for r in records if r["kind"] == "context_window_retry"
+        )
+        assert "pruned" in retry_event
+        assert "max_tokens" in retry_event

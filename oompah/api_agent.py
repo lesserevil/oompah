@@ -853,6 +853,39 @@ def _estimate_tokens(payload: object) -> int:
     return max(1, len(s) // 4)
 
 
+_CONTEXT_WINDOW_RE = re.compile(
+    r"maximum context length is (\d+) tokens",
+)
+
+
+def _extract_context_window_limit(error_body: str) -> int | None:
+    """Extract the context-window limit (tokens) from a
+    ``ContextWindowExceededError`` error body.
+
+    Handles the litellm-wrapped nested-JSON format seen at
+    ``https://inference-api.nvidia.com/v1/chat/completions``::
+
+        {"error":{"message":"... ContextWindowExceededError: ...
+            \"maximum context length is 131072 tokens.\"..."}}
+
+    Returns the integer limit, or ``None`` if the pattern cannot be matched.
+    """
+    try:
+        body = json.loads(error_body)
+        msg = (body.get("error") or {}).get("message") or ""
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        msg = error_body
+    m = _CONTEXT_WINDOW_RE.search(msg)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def _is_context_window_error(error_body: str) -> bool:
+    """Return True when *error_body* describes a ``ContextWindowExceededError``."""
+    return "ContextWindowExceededError" in error_body
+
+
 def _prune_messages_to_fit(
     messages: list[dict[str, Any]],
     tool_definitions: list[dict[str, Any]],
@@ -1597,3 +1630,58 @@ class ApiAgentSession:
                     exc,
                 )
                 await asyncio.sleep(delay)
+            except RuntimeError as exc:
+                # oompah-zlz_2-vwrp: a 400 caused by an oversized prompt
+                # carries the model's actual context window in the error
+                # body. Extract it, enable session budgeting, prune the
+                # messages, and retry once — all within the same worker
+                # turn so the orchestrator never sees a failure.
+                # If this is not a context-window error, propagate
+                # immediately (permanent client failure).
+                error_body = str(exc)
+                self._log_event(
+                    "context_window_error",
+                    attempt=attempt,
+                    error=error_body,
+                )
+                if not _is_context_window_error(error_body):
+                    raise
+                if attempt >= 1:
+                    # Already retried once; don't loop.
+                    raise
+                ctx_limit = _extract_context_window_limit(error_body)
+                if ctx_limit is None:
+                    logger.warning(
+                        "ApiAgentSession: context-window 400 but limit not in error body; "
+                        "retrying with conservative fallback (128 k tokens)",
+                    )
+                    ctx_limit = 131072
+                if self.model_max_context is None:
+                    logger.warning(
+                        "ApiAgentSession: learned context-window limit %d from error "
+                        "response; enabling pruning on this session",
+                        ctx_limit,
+                    )
+                    self.model_max_context = ctx_limit
+                # Budget with the discovered limit.
+                max_input = ctx_limit - _MIN_MAX_OUTPUT_TOKENS - _TOKENIZER_SAFETY_MARGIN
+                removed = _prune_messages_to_fit(messages, tool_defs, max_input)
+                logger.warning(
+                    "ApiAgentSession: pruned %d message(s) to fit %d-token context window "
+                    "(learned from 400 response)",
+                    removed,
+                    ctx_limit,
+                )
+                est_input = _estimate_tokens({"messages": messages, "tools": tool_defs})
+                headroom = ctx_limit - est_input - _TOKENIZER_SAFETY_MARGIN
+                max_tokens = max(
+                    _MIN_MAX_OUTPUT_TOKENS, min(_DEFAULT_MAX_OUTPUT_TOKENS, headroom)
+                )
+                payload["max_tokens"] = max_tokens
+                self._log_event(
+                    "context_window_retry",
+                    pruned=removed,
+                    max_tokens=max_tokens,
+                    remaining_messages=len(messages),
+                )
+                body = json.dumps(payload).encode("utf-8")
