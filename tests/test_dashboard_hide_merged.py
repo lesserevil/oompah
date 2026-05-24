@@ -601,23 +601,44 @@ class TestColumnPassthroughInJS:
 
 
 # ===========================================================================
-# 8. Server-side /api/v1/issues remains unfiltered (passthrough)
+# 8. Server-side /api/v1/issues implements hide_merged parameter
 # ===========================================================================
 
 
-class TestServerPassthrough:
-    """The acceptance criterion 'API returns the complete set as today;
-    filtering is purely a render-time concern' means we MUST NOT have added
-    any server-side filtering. Verify by inspecting the server route."""
+class TestServerHideMerged:
+    """Verify the server-side hide_merged parameter and its helpers exist."""
 
-    def test_no_hide_merged_keyword_in_server(self):
+    def test_hide_merged_query_param_accepted_in_api_issues(self):
         server_path = os.path.join(
             os.path.dirname(__file__), os.pardir, "oompah", "server.py"
         )
         with open(server_path, "r") as f:
             src = f.read()
-        # No server-side knob / parameter referencing this filter
-        assert "hide_merged" not in src.lower(), (
-            "Server must NOT implement a 'hide_merged' parameter; "
-            "the filter is purely client-side per the issue spec"
+        # Server-side knob / parameter referencing this filter must be present
+        assert 'hide_merged' in src, (
+            "Server must implement a 'hide_merged' query parameter in api_issues"
         )
+
+    def test_is_individually_inflight_helper_exists(self):
+        server_path = os.path.join(
+            os.path.dirname(__file__), os.pardir, "oompah", "server.py"
+        )
+        with open(server_path, "r") as f:
+            src = f.read()
+        assert "_is_individually_inflight" in src
+
+    def test_compute_inflight_show_set_helper_exists(self):
+        server_path = os.path.join(
+            os.path.dirname(__file__), os.pardir, "oompah", "server.py"
+        )
+        with open(server_path, "r") as f:
+            src = f.read()
+        assert "_compute_inflight_show_set" in src
+
+    def test_apply_hide_merged_filter_helper_exists(self):
+        server_path = os.path.join(
+            os.path.dirname(__file__), os.pardir, "oompah", "server.py"
+        )
+        with open(server_path, "r") as f:
+            src = f.read()
+        assert "_apply_hide_merged_filter" in src

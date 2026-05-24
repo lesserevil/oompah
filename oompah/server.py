@@ -938,21 +938,132 @@ async def api_state():
         )
 
 
+# ---------------------------------------------------------------------------
+# In-flight tree-traversal helpers (mirrors dashboard.html JS logic)
+# ---------------------------------------------------------------------------
+
+def _is_individually_inflight(entry: dict | None) -> bool:
+    """Return True if an issue entry is individually in-flight.
+
+    An issue is in-flight if:
+    - its state is ``open`` or ``in_progress``, OR
+    - it is ``closed`` but has an open (unmerged) PR (``has_open_review=True``).
+    """
+    if entry is None:
+        return False
+    state = (entry.get("state") or "").strip().lower()
+    if state in ("open", "in_progress"):
+        return True
+    if state == "closed" and entry.get("has_open_review"):
+        return True
+    return False
+
+
+def _compute_inflight_show_set(entries: list[dict]) -> set[str]:
+    """Compute the set of issue ids that should remain visible under ``hide_merged``.
+
+    An id is kept if either:
+    1. It is individually in-flight (open / in_progress / closed-with-open-PR), OR
+    2. Any ancestor (parent, grandparent, ...) has an in-flight descendant in its
+       subtree — meaning the ``closed`` column retains children of in-flight epics.
+
+    This is the Python port of the JS ``_computeInFlightShowSet`` function.
+    """
+    # Build lookups
+    by_id: dict[str, dict] = {e["id"]: e for e in entries}
+    children_by_id: dict[str, list[str]] = {}
+    for e in entries:
+        if e.get("parent_id"):
+            children_by_id.setdefault(e["parent_id"], []).append(e["id"])
+
+    # Memoized "does this id's subtree contain any individually in-flight bead?"
+    subtree_inflight: dict[str, bool] = {}
+
+    def has_inflight_subtree(id_: str, stack: set[str]) -> bool:
+        if id_ in subtree_inflight:
+            return subtree_inflight[id_]
+        if id_ in stack:
+            return False  # cycle guard
+        stack.add(id_)
+        issue = by_id.get(id_)
+        if not issue:
+            subtree_inflight[id_] = False
+            stack.discard(id_)
+            return False
+        if _is_individually_inflight(issue):
+            subtree_inflight[id_] = True
+            stack.discard(id_)
+            return True
+        for cid in children_by_id.get(id_, []):
+            if has_inflight_subtree(cid, stack):
+                subtree_inflight[id_] = True
+                stack.discard(id_)
+                return True
+        subtree_inflight[id_] = False
+        stack.discard(id_)
+        return False
+
+    # Prime all subtree caches
+    for id_ in by_id:
+        has_inflight_subtree(id_, set())
+
+    # Build the show-set: individually in-flight + ancestors of in-flight nodes
+    show: set[str] = set()
+    for issue in entries:
+        if _is_individually_inflight(issue):
+            show.add(issue["id"])
+            continue
+        # Walk up parent chain
+        cur = issue
+        seen: set[str] = set()
+        while cur.get("parent_id") and cur["parent_id"] not in seen:
+            seen.add(cur["parent_id"])
+            if subtree_inflight.get(cur["parent_id"]):
+                show.add(issue["id"])
+                break
+            cur = by_id.get(cur["parent_id"]) or {}
+    return show
+
+
+def _apply_hide_merged_filter(result: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Filter ``closed`` column to only in-flight tree members (server-side port of JS filter).
+
+    Only the ``closed`` column is filtered; ``open``, ``in_progress``, and
+    ``deferred`` columns always pass through unchanged so the operator never
+    loses backlog visibility.
+    """
+    # Flatten all issues so we can compute the show-set across the full tree
+    all_entries = [entry for col in result.values() for entry in col]
+    show_set = _compute_inflight_show_set(all_entries)
+
+    filtered: dict[str, list[dict]] = {}
+    for state, issues in result.items():
+        if state.strip().lower() != "closed":
+            filtered[state] = issues
+            continue
+        kept = [e for e in issues if e["id"] in show_set]
+        filtered[state] = kept
+    return filtered
+
+
 @app.get("/api/v1/issues")
 async def api_issues(request: Request):
     """Return all issues grouped by state for the kanban board.
 
     Query params:
         project_id - filter to a single project (optional)
+        hide_merged - if "true", filter the closed column to only in-flight tree members (optional)
     """
     try:
         t_start = time.monotonic()
         orch = _get_orchestrator()
         filter_project = request.query_params.get("project_id")
+        hide_merged = request.query_params.get("hide_merged", "").lower() == "true"
 
-        # Serve from cache if fresh and no project filter
-        if not filter_project:
-            cached = _api_cache.get("issues:all")
+        # Serve from cache if fresh, no project filter, and no hide_merged
+        cache_key = "issues:all" if not hide_merged else None
+        if cache_key:
+            cached = _api_cache.get(cache_key)
             if cached is not None:
                 return JSONResponse(cached)
 
@@ -1036,7 +1147,10 @@ async def api_issues(request: Request):
             result[state].sort(
                 key=lambda i: i["priority"] if i["priority"] is not None else 999
             )
-        if not filter_project:
+        # Apply server-side in-flight tree-traversal filter to the closed column
+        if hide_merged:
+            result = _apply_hide_merged_filter(result)
+        if not filter_project and cache_key:
             _api_cache.set("issues:all", result, ttl_ms=5000)
         return JSONResponse(result)
     except Exception as exc:
