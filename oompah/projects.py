@@ -1419,7 +1419,7 @@ class ProjectStore:
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
             # Branch exists locally but no remote — reuse the existing branch
-            if "already exists" in stderr:
+            if "already exists" in stderr or "already used by worktree at" in stderr:
                 try:
                     _git_worktree_add_with_recovery(
                         ["git", "worktree", "add", wt_path, branch_name],
@@ -1595,7 +1595,7 @@ class ProjectStore:
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
             # Branch may already exist from a previous run — try reusing it
-            if "already exists" in stderr:
+            if "already exists" in stderr or "already used by worktree at" in stderr:
                 try:
                     _git_worktree_add_with_recovery(
                         ["git", "worktree", "add", wt_path, branch_name],
