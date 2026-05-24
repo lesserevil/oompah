@@ -150,6 +150,22 @@ def _is_ref_namespace_conflict_error(stderr: str, branch_name: str) -> bool:
     )
 
 
+def _is_worktree_branch_already_used_error(stderr: str) -> bool:
+    """Return True if ``stderr`` indicates a worktree-add failure because
+    the local branch is already checked out in *another* worktree.
+
+    Symptom (oompah-zlz_2-kcdb)::
+
+        fatal: 'epic-rogers-zql' is already used by worktree at
+        '/home/shedwards/.oompah/worktrees/rogers/rogers-gv96'
+
+    Recovery: fall back to ``git worktree add <path> <branch>`` (no
+    ``-b`` or ``-B`` flag) — this attaches the new worktree path to the
+    already-checked-out branch without attempting to create or reset it.
+    """
+    return "is already used by worktree" in (stderr or "")
+
+
 def _resolve_ref_namespace_conflict(
     cwd: str,
     branch_name: str,
@@ -1429,6 +1445,18 @@ class ProjectStore:
                 except subprocess.CalledProcessError as exc2:
                     stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
                     raise ProjectError(f"git worktree add failed: {stderr2}")
+            # Branch checked out in another worktree — reuse the existing branch
+            # by attaching our worktree path to it (no -b/-B flag, avoids conflict).
+            elif _is_worktree_branch_already_used_error(stderr):
+                try:
+                    _git_worktree_add_with_recovery(
+                        ["git", "worktree", "add", wt_path, branch_name],
+                        cwd=project.repo_path,
+                        wt_path=wt_path,
+                    )
+                except subprocess.CalledProcessError as exc2:
+                    stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
+                    raise ProjectError(f"git worktree add failed: {stderr2}")
             else:
                 raise ProjectError(f"git worktree add failed: {stderr}")
         except subprocess.TimeoutExpired:
@@ -1596,6 +1624,18 @@ class ProjectStore:
             stderr = exc.stderr.strip()[:500] if exc.stderr else ""
             # Branch may already exist from a previous run — try reusing it
             if "already exists" in stderr:
+                try:
+                    _git_worktree_add_with_recovery(
+                        ["git", "worktree", "add", wt_path, branch_name],
+                        cwd=project.repo_path,
+                        wt_path=wt_path,
+                    )
+                except subprocess.CalledProcessError as exc2:
+                    stderr2 = exc2.stderr.strip()[:500] if exc2.stderr else ""
+                    raise ProjectError(f"git worktree add failed: {stderr2}")
+            # Branch checked out in another worktree — reuse the existing branch
+            # by attaching our worktree path to it (no -b/-B flag, avoids conflict).
+            elif _is_worktree_branch_already_used_error(stderr):
                 try:
                     _git_worktree_add_with_recovery(
                         ["git", "worktree", "add", wt_path, branch_name],

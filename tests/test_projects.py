@@ -1643,3 +1643,162 @@ class TestGitWorktreeAddWithRefNamespaceConflict:
                 sleep_fn=lambda s: None,
             )
         assert attempts["n"] == 2  # initial fail + post-rename success
+
+
+# ---------------------------------------------------------------------------
+# Worktree branch already-used-in-another-worktree recovery (oompah-zlz_2-kcdb).
+#
+# When `git worktree add -B epic-<id> <path> origin/epic-<id>` fails because
+# the local branch epic-<id> is checked out in another worktree, git emits:
+#   fatal: 'epic-<id>' is already used by worktree at '<other-path>'
+#
+# Recovery: fall back to `git worktree add <path> <branch>` (no -b/-B flag),
+# which attaches the new worktree path to the already-checked-out branch.
+# ---------------------------------------------------------------------------
+
+from oompah.projects import _is_worktree_branch_already_used_error
+
+
+# Stderr verbatim from the bug report (oompah-zlz_2-kcdb).
+_ALREADY_USED_STDERR = (
+    "Preparing worktree (new branch 'epic-rogers-zql')\n"
+    "fatal: 'epic-rogers-zql' is already used by worktree at "
+    "'/home/shedwards/.oompah/worktrees/rogers/rogers-gv96'\n"
+)
+
+
+class TestIsWorktreeBranchAlreadyUsedError:
+    def test_matches_bug_report_stderr(self):
+        assert _is_worktree_branch_already_used_error(_ALREADY_USED_STDERR) is True
+
+    def test_matches_clean_variant(self):
+        """The core phrase also appears without the 'Preparing worktree' prefix."""
+        assert _is_worktree_branch_already_used_error(
+            "fatal: 'trickle-u02z' is already used by worktree at '/path/to/wt'\n",
+        ) is True
+
+    def test_not_match_already_exists(self):
+        assert _is_worktree_branch_already_used_error(
+            "fatal: '/path/to/dir' already exists",
+        ) is False
+
+    def test_not_match_lock_config_error(self):
+        assert _is_worktree_branch_already_used_error(
+            "error: could not lock config file .git/config: File exists",
+        ) is False
+
+    def test_not_match_empty(self):
+        assert _is_worktree_branch_already_used_error("") is False
+
+    def test_not_match_none(self):
+        assert _is_worktree_branch_already_used_error(None) is False
+
+    def test_not_match_namespace_conflict(self):
+        """Must not confuse with the ref-namespace D/F conflict error."""
+        assert _is_worktree_branch_already_used_error(
+            "fatal: cannot lock ref 'refs/heads/foo': "
+            "'refs/heads/foo/bar' exists; cannot create 'refs/heads/foo'\n",
+        ) is False
+
+
+class TestCreateEpicWorktreeRecoversFromBranchAlreadyUsedInAnotherWorktree:
+    """End-to-end: `create_epic_worktree` must recover when -B fails because
+    the epic branch is already checked out in another worktree (kcdb)."""
+
+    def test_create_epic_worktree_succeeds_despite_already_used_error(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        (repo / ".beads").mkdir()
+
+        store = _PS(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = _Project(
+            id="proj-epic", name="rogers",
+            repo_url="https://example.com/rogers.git",
+            repo_path=str(repo), branch="main",
+        )
+        store._projects[p.id] = p
+
+        wt_path = store.epic_worktree_path_for(p.id, "rogers-zql")
+
+        hit_used = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            # Fallback to no-flag attach (used when -B hits "already used"):
+            # git worktree add <wt_path> <branch>
+            if args[:3] == ["git", "worktree", "add"]:
+                sub = args[1:4]
+                # Pattern: git worktree add <path> <branch> (no -b/-B)
+                if sub[0] == "worktree" and sub[1] == "add":
+                    wt_elem = sub[2]
+                    if str(wt_path) in str(wt_elem) or wt_elem == str(wt_path):
+                        os.makedirs(wt_path, exist_ok=True)
+                        return _MM(returncode=0, stdout="", stderr="")
+                    # Different worktree path — pass through to hit_used check below
+            # The -B attempt: read stderr to detect the "already used" error.
+            if args[:4] == ["git", "worktree", "add", "-B"]:
+                hit_used["n"] += 1
+                raise subprocess.CalledProcessError(
+                    returncode=128, cmd=args, output="",
+                    stderr=_ALREADY_USED_STDERR,
+                )
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            returned = store.create_epic_worktree(p.id, "rogers-zql")
+
+        assert hit_used["n"] >= 1, "Expected at least one worktree add attempt"
+        assert returned == wt_path
+        assert os.path.isdir(wt_path)
+
+
+class TestCreateWorktreeRecoversFromBranchAlreadyUsedInAnotherWorktree:
+    """End-to-end: `create_worktree` must recover when -b fails because
+    the branch is already checked out in another worktree."""
+
+    def test_create_worktree_succeeds_despite_already_used_error(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        (repo / ".beads").mkdir()
+
+        store = _PS(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = _Project(
+            id="proj-wt", name="wtproj",
+            repo_url="https://example.com/wtproj.git",
+            repo_path=str(repo), branch="main",
+        )
+        store._projects[p.id] = p
+
+        wt_path = store.worktree_path_for(p.id, "some-bead")
+        hit_used = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            if args[:4] == ["git", "worktree", "add", "-b"]:
+                hit_used["n"] += 1
+                raise subprocess.CalledProcessError(
+                    returncode=128, cmd=args, output="",
+                    stderr="fatal: 'some-bead' is already used by worktree at '/other/path'\n",
+                )
+            if args[:3] == ["git", "worktree", "add"] and args[0] == "git":
+                sub = [args[args.index("worktree")]] + args[args.index("worktree")+1:]
+                # Attach fallback (no -b/-B): git worktree add /wt/path branch-name
+                if sub[:3] == ["worktree", "add", str(wt_path)]:
+                    os.makedirs(wt_path, exist_ok=True)
+                    return _MM(returncode=0, stdout="", stderr="")
+            return _MM(returncode=0, stdout="", stderr="")
+
+        with _patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            returned = store.create_worktree(p.id, "some-bead")
+
+        assert hit_used["n"] == 1
+        assert returned == wt_path
+        assert os.path.isdir(wt_path)
