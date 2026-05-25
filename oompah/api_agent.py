@@ -834,23 +834,30 @@ def _http_post(
 # Default output reservation when no per-call budget is computed.
 _DEFAULT_MAX_OUTPUT_TOKENS = 32768
 # Floor for ``max_tokens`` after pruning, so the model can always reply.
-_MIN_MAX_OUTPUT_TOKENS = 1024
-# Padding for our 4-chars-per-token approximation drift.
-_TOKENIZER_SAFETY_MARGIN = 1024
+# For model_max_context ≥ 131072 this is a fixed reservation; for smaller
+# windows it scales proportionally so _call_api's budget never goes
+# negative (guaranteeing pruning always has a meaningful budget).
+_MIN_MAX_OUTPUT_TOKENS = 2048
+# Extra safety margin on top of _estimate_tokens() to absorb tokenizer
+# approximation drift. Scales proportionally with context size to avoid
+# starving small-window budgets.
+_TOKENIZER_SAFETY_MARGIN = 3072
 
 
 def _estimate_tokens(payload: object) -> int:
     """Approximate token count for an arbitrary JSON-serializable object.
 
-    Uses the well-known 4-chars-per-token rule of thumb, which is close
-    for English-heavy content typical of agent transcripts. The caller
-    pads the result with :data:`_TOKENIZER_SAFETY_MARGIN` when budgeting.
+    Uses the well-known 3-chars-per-token rule of thumb, which is slightly
+    more conservative than the common 4-char estimate and helps ensure
+    pruning triggers well before the real token count exhausts the model's
+    context window. The caller pads the result with
+    :data:`_TOKENIZER_SAFETY_MARGIN` when budgeting.
     """
     try:
         s = json.dumps(payload, ensure_ascii=False)
     except (TypeError, ValueError):
         s = str(payload)
-    return max(1, len(s) // 4)
+    return max(1, len(s) // 3)
 
 
 _CONTEXT_WINDOW_RE = re.compile(
@@ -884,6 +891,25 @@ def _extract_context_window_limit(error_body: str) -> int | None:
 def _is_context_window_error(error_body: str) -> bool:
     """Return True when *error_body* describes a ``ContextWindowExceededError``."""
     return "ContextWindowExceededError" in error_body
+
+
+# Proportional reserve scale factor: reserve ~87.5% of context for input tokens
+# when margins would otherwise consume too much on small windows.
+_INPUT_TOKEN_BUDGET_RATIO = 0.875
+
+
+def _context_reserves(ctx: int) -> tuple[int, int]:
+    """Return (min_output_reserve, tokenizer_safety_margin) for *ctx*.
+
+    For large contexts (≥ 131072) the fixed absolute values are used,
+    keeping pruning conservative. For smaller windows the margins are
+    capped proportionally so that max_input = ctx * 0.875 remains positive
+    and guarantees pruning always has a meaningful budget to work with.
+    """
+    if ctx >= 131072:
+        return (_MIN_MAX_OUTPUT_TOKENS, _TOKENIZER_SAFETY_MARGIN)
+    # Proportional: guarantee max_input >= ctx * _INPUT_TOKEN_BUDGET_RATIO
+    return (int(ctx * 0.016), int(ctx * 0.025))
 
 
 def _prune_messages_to_fit(
@@ -1537,11 +1563,8 @@ class ApiAgentSession:
         max_tokens = _DEFAULT_MAX_OUTPUT_TOKENS
         if self.model_max_context:
             # Reserve at least the floor for output, plus the safety margin.
-            max_input = (
-                self.model_max_context
-                - _MIN_MAX_OUTPUT_TOKENS
-                - _TOKENIZER_SAFETY_MARGIN
-            )
+            min_out, safety = _context_reserves(self.model_max_context)
+            max_input = self.model_max_context - min_out - safety
             removed = _prune_messages_to_fit(messages, tool_defs, max_input)
             if removed:
                 logger.warning(
@@ -1550,7 +1573,7 @@ class ApiAgentSession:
                     self.model_max_context,
                 )
             est_input = _estimate_tokens({"messages": messages, "tools": tool_defs})
-            headroom = self.model_max_context - est_input - _TOKENIZER_SAFETY_MARGIN
+            headroom = self.model_max_context - est_input - safety
             max_tokens = max(
                 _MIN_MAX_OUTPUT_TOKENS, min(_DEFAULT_MAX_OUTPUT_TOKENS, headroom)
             )
@@ -1664,7 +1687,8 @@ class ApiAgentSession:
                     )
                     self.model_max_context = ctx_limit
                 # Budget with the discovered limit.
-                max_input = ctx_limit - _MIN_MAX_OUTPUT_TOKENS - _TOKENIZER_SAFETY_MARGIN
+                min_out, safety = _context_reserves(ctx_limit)
+                max_input = ctx_limit - min_out - safety
                 removed = _prune_messages_to_fit(messages, tool_defs, max_input)
                 logger.warning(
                     "ApiAgentSession: pruned %d message(s) to fit %d-token context window "
@@ -1673,7 +1697,7 @@ class ApiAgentSession:
                     ctx_limit,
                 )
                 est_input = _estimate_tokens({"messages": messages, "tools": tool_defs})
-                headroom = ctx_limit - est_input - _TOKENIZER_SAFETY_MARGIN
+                headroom = ctx_limit - est_input - safety
                 max_tokens = max(
                     _MIN_MAX_OUTPUT_TOKENS, min(_DEFAULT_MAX_OUTPUT_TOKENS, headroom)
                 )

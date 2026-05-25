@@ -1,0 +1,41 @@
+You are analyzing context-exceeded failure for oompah bead oompah-zlz_2-qt0l.
+
+ISSUE IDENTIFIER: oompah-zlz_2-qt0l
+ISSUE TITLE: [backend:api_agent] ApiAgentSession.run_task failed: HTTP 400 from https://inference-api.nvidia.com/v1/chat/completions: ContextWindowExceededError: ContextWindowExceededError
+
+ISSUE SUMMARY:
+The issue root-caused a token estimation bug in ApiAgentSession._estimate_tokens (4 chars/token heuristic underestimates by ~13%). The fix was to change _estimate_tokens to 3 chars/token, increase _TOKENIZER_SAFETY_MARGIN from 1024 to 3072, and increase _MIN_MAX_OUTPUT_TOKENS from 1024 to 2048. The bug caused premature context exhaustion when sending large prompts. The fix has been implemented (3 files changed) but the agent failed to land before context was hit again on re-run.
+
+ATTEMPT COUNT: 1
+CURRENT PROFILE: deep (already at deepest tier)
+ERROR: ContextWindowExceededError on nvidia/minimaxai/minimax-m2.7 (deep profile)
+
+PROBLEM: The task ran on "deep" profile and STILL hit context exceeded. This means the task is too large for one agent session.
+
+YOUR DECISION TO MAKE (read the oompah-promote-split skill first):
+1. skill_view(name='oompah-promote-split')
+2. Follow the skill protocol precisely
+
+DECISION FILE PATH: /home/shedwards/.hermes/oompah-context-decisions/oompah-zlz_2-qt0l.json
+
+WORKDIR: /home/shedwards/.oompah/worktrees/oompah/oompah-zlz_2-qt0l
+
+IMPORTANT: Write the decision file FIRST, then take the bd action.
+Use: python3 -c "import json,sys; ... " to write the JSON file.
+
+If you determine the task cannot be split meaningfully:
+- Action: ask_human
+- Apply label needs:human to oompah-zlz_2-qt0l via bd
+- Write: {"action": "ask_human", "reasoning": "..."}
+
+If you determine the task CAN be split into 2+ independent subtasks:
+- Action: split
+- Apply label context-exceeded-split to oompah-zlz_2-qt0l
+- Create subtasks via bd create with discovered-from:oompah-zlz_2-qt0l
+- Write: {"action": "split", "subtasks": ["bd-xxx", ...], "reasoning": "..."}
+
+If you determine the issue is at deep but context still exceeds:
+- This is the "ask_human" case since deep is already max
+
+After writing decision file, write a comment on oompah-zlz_2-qt0l via:
+bd comments add oompah-zlz_2-qt0l "outcome text" --author=oompah-agentic

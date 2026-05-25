@@ -33,7 +33,7 @@ class TestEstimateTokens:
         small = _estimate_tokens([{"role": "user", "content": "hi"}])
         big = _estimate_tokens([{"role": "user", "content": "x" * 4000}])
         assert big > small
-        # ~4 chars per token, with JSON serialization overhead.
+        # ~3 chars per token, with JSON serialization overhead.
         assert big >= 1000
 
     def test_minimum_one_token(self):
@@ -198,6 +198,10 @@ class TestCallApiBudget:
     def test_budgeted_session_clamps_max_tokens_when_history_is_huge(
         self, tmp_path, monkeypatch,
     ):
+        """With the conservative 3-char/token estimator + tripled _TOKENIZER_SAFETY_MARGIN,
+        pruning fires more aggressively, so max_tokens may be larger than the
+        old 96-token floor in this test. The key invariant is only that
+        max_tokens is strictly reduced from the unbudgeted default."""
         captured = {}
 
         def fake_post(url, headers, body, ssl_ctx):
@@ -207,9 +211,6 @@ class TestCallApiBudget:
         monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
 
         from oompah.api_agent import ApiAgentSession
-        # Tight 8K-token window: even with a small prompt, max_tokens
-        # must be reduced from the default 32768 to fit the window minus
-        # the prompt and safety margin.
         s = ApiAgentSession(
             base_url="http://x", api_key="", model="m",
             workspace_path=str(tmp_path),
@@ -218,7 +219,9 @@ class TestCallApiBudget:
         msgs = [_msg("system", "agent"), _msg("user", "do a thing")]
         asyncio.run(s._call_api(msgs))
         mt = captured["payload"]["max_tokens"]
-        assert mt < _DEFAULT_MAX_OUTPUT_TOKENS
+        assert mt < _DEFAULT_MAX_OUTPUT_TOKENS, (
+            f"pruning should reduce max_tokens from default { _DEFAULT_MAX_OUTPUT_TOKENS}"
+        )
         assert mt >= _MIN_MAX_OUTPUT_TOKENS
 
     def test_budgeted_session_prunes_oversized_history(
@@ -1561,6 +1564,66 @@ from oompah.api_agent import (
 )
 
 
+class TestEstimateTokensConservativeUnderestimation:
+    """oompah-zlz_2-qt0l: _estimate_tokens used 4-chars-per-token which
+    underestimates token count by ~13% on large JSON payloads, causing
+    pruning to be too timid. The 400-response retry fired but still
+    overflowed (our 128K budget still fit ~138K real tokens). Fix:
+    3-chars-per-token (more conservative), triple _TOKENIZER_SAFETY_MARGIN,
+    and double _MIN_MAX_OUTPUT_TOKENS, plus proportional scaling so
+    small-context budgets don't go negative."""
+
+    def test_estimate_tokens_diverges_from_crude_approximation(self):
+        # Sanity: 3-chars-per-token gives a larger (more conservative)
+        # token estimate than the common 4-char heuristic.
+        result = _estimate_tokens([{"role": "user", "content": "x" * 4000}])
+        # At 4-char we'd get ~1006. At 3-char we get ~1342 (33% higher).
+        assert result >= 1300, f"expected ~1342+, got {result}"
+
+    def test_context_reserves_proportional_scaling(self):
+        """For small context windows the reserves must scale proportionally
+        so max_input never goes negative."""
+        from oompah.api_agent import _context_reserves
+
+        for ctx in [1024, 2048, 4096, 8192, 131072, 200000]:
+            min_out, safety = _context_reserves(ctx)
+            max_input = ctx - min_out - safety
+            # At least 87.5% of context window gets to be the input budget.
+            assert max_input >= int(ctx * 0.875), (
+                f"context={ctx}: max_input={max_input} < {int(ctx * 0.875)}"
+            )
+
+    def test_pruning_fires_for_massive_history_on_131k_context(self):
+        """With a very large history (1000-round tool sessions), pruning
+        MUST fire even at the conservative 3-char/token estimate — the
+        old 4-char/token estimate was too optimistic and the API still
+        received too many tokens (the bug scenario)."""
+        from oompah.api_agent import _prune_messages_to_fit
+
+        ctx = 131072
+        max_input = ctx - 2048 - 3072  # 125952
+
+        # 1000 rounds of short results is enough to definitely overflow.
+        messages = [{"role": "system", "content": "Agent."}]
+        for i in range(1000):
+            messages.append({
+                "role": "assistant",
+                "content": "Step",
+                "tool_calls": [{"id": f"c{i}", "function": {"name": "x", "arguments": "{}"}}],
+            })
+            messages.append({"role": "tool", "tool_call_id": f"c{i}", "content": "y" * 100})
+
+        # est = len(str({"messages": msgs, "tools": []})) // 3
+        # Should be >> max_input.
+        removed = _prune_messages_to_fit(messages, [], max_input)
+        assert removed > 0, "pruning must fire for a massive 1000-round history"
+
+        # After aggressive pruning, only the head should remain.
+        assert len(messages) == 2, (
+            f"expected only head (sys+user) after pruning, got {len(messages)} msgs"
+        )
+
+
 class TestExtractContextWindowLimit:
     def test_extracts_from_nvidia_litellm_error(self):
         # The exact production error format from NVIDIA inference API.
@@ -1692,8 +1755,11 @@ class TestCallApiContextWindowRecovery:
         # Context limit learned and stored on session.
         assert s.model_max_context == 8192
         # max_tokens clamped for the pruned history.
+        # With 8192 context, _context_reserves(8192) gives small proportional
+        # reserves so the headroom = 8192 - est_pruned - safety ≈ 545.
         mt = captured["payload"]["max_tokens"]
-        assert _MIN_MAX_OUTPUT_TOKENS <= mt <= _DEFAULT_MAX_OUTPUT_TOKENS
+        assert mt < _DEFAULT_MAX_OUTPUT_TOKENS
+        assert mt >= _MIN_MAX_OUTPUT_TOKENS
 
     def test_context_window_400_propagates_after_one_retry(self, tmp_path, monkeypatch):
         """If the retry ALSO 400s (e.g. even pruning can't fit), raise
