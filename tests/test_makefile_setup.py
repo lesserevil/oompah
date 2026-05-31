@@ -21,14 +21,20 @@ def test_setup_depends_on_backlog_cli_check():
     assert ".PHONY: help setup ensure-backlog" in text
 
 
-def test_ensure_backlog_installs_backlog_md_package():
-    """The setup helper installs the npm package that provides `backlog`."""
+def test_ensure_backlog_installs_lesserevil_backlog_repo():
+    """The setup helper installs the Lesserevil Backlog.md repo."""
     text = _makefile_text()
 
-    assert "BACKLOG_NPM_PACKAGE := backlog.md" in text
+    assert (
+        "BACKLOG_NPM_PACKAGE := https://github.com/lesserevil/backlog.md/archive/HEAD.tar.gz"
+        in text
+    )
+    assert "BACKLOG_CLI := $(VENV)/bin/backlog" in text
+    assert "ensure-backlog: $(BACKLOG_CLI)" in text
     assert "npm install --global --prefix" in text
+    assert "--ignore-scripts" in text
     assert "$(BACKLOG_NPM_PACKAGE)" in text
-    assert "command -v backlog" in text
+    assert "$(BACKLOG_CLI): $(VENV)/.uv-setup Makefile" in text
 
 
 def test_make_targets_export_venv_bin_on_path():

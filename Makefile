@@ -3,7 +3,8 @@ PYTHON := $(VENV)/bin/python
 PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
 PORT := 8080
-BACKLOG_NPM_PACKAGE := backlog.md
+BACKLOG_NPM_PACKAGE := https://github.com/lesserevil/backlog.md/archive/HEAD.tar.gz
+BACKLOG_CLI := $(VENV)/bin/backlog
 
 export PATH := $(abspath $(VENV)/bin):$(PATH)
 
@@ -32,19 +33,17 @@ $(VENV)/.uv-setup: pyproject.toml
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
 
-ensure-backlog: $(VENV)/.uv-setup
-	@if command -v backlog >/dev/null 2>&1; then \
-		echo "Backlog.md CLI available: $$(backlog --version 2>/dev/null || echo unknown)"; \
-	else \
-		if ! command -v npm >/dev/null 2>&1; then \
-			echo "ERROR: Backlog.md CLI is missing and npm is not installed."; \
-			echo "Install npm or install Backlog.md manually with: npm install --global $(BACKLOG_NPM_PACKAGE)"; \
-			exit 1; \
-		fi; \
-		echo "Installing Backlog.md CLI ($(BACKLOG_NPM_PACKAGE)) into $(abspath $(VENV))..."; \
-		npm install --global --prefix "$(abspath $(VENV))" --no-audit --no-fund "$(BACKLOG_NPM_PACKAGE)"; \
-		echo "Backlog.md CLI installed: $$(backlog --version 2>/dev/null || echo unknown)"; \
+ensure-backlog: $(BACKLOG_CLI)
+	@echo "Backlog.md CLI available: $$(backlog --version 2>/dev/null || echo unknown)"
+
+$(BACKLOG_CLI): $(VENV)/.uv-setup Makefile
+	@if ! command -v npm >/dev/null 2>&1; then \
+		echo "ERROR: npm is required to install Backlog.md from $(BACKLOG_NPM_PACKAGE)."; \
+		exit 1; \
 	fi
+	@echo "Installing Backlog.md CLI from $(BACKLOG_NPM_PACKAGE) into $(abspath $(VENV))..."
+	npm install --global --prefix "$(abspath $(VENV))" --ignore-scripts --no-audit --no-fund "$(BACKLOG_NPM_PACKAGE)"
+	@test -x "$(VENV)/bin/backlog"
 
 start: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
