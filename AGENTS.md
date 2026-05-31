@@ -1,15 +1,16 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **Backlog.md** for issue tracking. Do **not** use `bd`
+(beads) as the task tracker for this project.
 
 ## Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd sync               # Sync with git
+backlog task list --plain                     # Find available work
+backlog task view TASK-123 --plain            # View task details
+backlog task edit TASK-123 --status "In Progress" --plain
+backlog task edit TASK-123 --status Done --plain
+backlog board --plain                         # Show the task board
 ```
 
 ## Use Makefile Targets
@@ -91,16 +92,18 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
-<!-- BEGIN BEADS INTEGRATION -->
-## Issue Tracking with bd (beads)
+<!-- BEGIN BACKLOG INTEGRATION -->
+## Issue Tracking with Backlog.md
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+**IMPORTANT**: This project uses **Backlog.md** for ALL issue tracking. Do
+NOT use `bd`, beads, markdown TODOs, task lists, or other tracking methods.
 
-### Why bd?
+### Why Backlog.md?
 
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Auto-syncs to JSONL for version control
-- Agent-optimized: JSON output, ready work detection, discovered-from links
+- Markdown-native: tasks live in `backlog/tasks` and `backlog/completed`
+- Git-friendly: task state is versioned as normal project files
+- Dependency-aware: parent tasks and blockers are stored in task frontmatter
+- Agent-friendly: `--plain` output avoids interactive UI where supported
 - Prevents duplicate tracking systems and confusion
 
 ### Quick Start
@@ -108,30 +111,35 @@ cp -rf source dest          # NOT: cp -r source dest
 **Check for ready work:**
 
 ```bash
-bd ready --json
+backlog task list --status "To Do" --plain
+backlog task list --status "In Progress" --plain
 ```
 
 **Create new issues:**
 
 ```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
+backlog task create "Issue title" --description "Detailed context" --priority medium --plain
+backlog task create "Child task" --description "Details" --parent TASK-123 --plain
+backlog task create "Blocked task" --description "Details" --depends-on TASK-123 --plain
 ```
 
 **Claim and update:**
 
 ```bash
-bd update <id> --claim --json
-bd update bd-42 --priority 1 --json
+backlog task edit TASK-123 --status "In Progress" --assignee oompah --plain
+backlog task edit TASK-123 --priority high --plain
+backlog task edit TASK-123 --comment "Progress update" --comment-author oompah --plain
 ```
 
 **Complete work:**
 
 ```bash
-bd close bd-42 --reason "Completed" --json
+backlog task edit TASK-123 --status Done --final-summary "Completed" --plain
 ```
 
 ### Issue Types
+
+Backlog.md tasks use labels for issue type:
 
 - `bug` - Something broken
 - `feature` - New functionality
@@ -139,44 +147,59 @@ bd close bd-42 --reason "Completed" --json
 - `epic` - Large feature with subtasks
 - `chore` - Maintenance (dependencies, tooling)
 
+Add or remove labels with:
+
+```bash
+backlog task edit TASK-123 --add-label bug --plain
+backlog task edit TASK-123 --remove-label bug --plain
+```
+
 ### Priorities
 
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
+- `high` - Critical or important work
+- `medium` - Default priority
+- `low` - Polish, optimization, or future ideas
 
 ### Workflow for AI Agents
 
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task atomically**: `bd update <id> --claim`
+1. **Check ready work**: `backlog task list --status "To Do" --plain`
+   shows available tasks
+2. **Claim your task**: set status to `In Progress` and assign it to `oompah`
 3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
+4. **Discover new work?** Create a linked task:
+   - Use `--parent TASK-123` for child work
+   - Use `--depends-on TASK-123` for blocked work
+5. **Complete**: set status to `Done` and add a final summary
 
-### Auto-Sync
+### Storage
 
-bd automatically syncs with git:
+Backlog.md stores tasks as markdown files:
 
-- Exports to `.beads/issues.jsonl` after changes (5s debounce)
-- Imports from JSONL when newer (e.g., after `git pull`)
-- No manual export/import needed!
+- Active tasks: `backlog/tasks/*.md`
+- Completed tasks: `backlog/completed/*.md`
+- Project config: `backlog/config.yml`
+
+Prefer the `backlog` CLI for task changes. Direct file edits are acceptable
+only when the CLI cannot represent the needed metadata change.
+
+The project was migrated from beads. Original bead IDs are preserved in task
+frontmatter under `beads.id`; they are historical references only and do not
+make `bd` the active tracker.
 
 ### Important Rules
 
-- ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Always use `--author=oompah` when posting comments: `bd comments add <id> "message" --author=oompah`
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
-- ❌ Do NOT post comments without `--author=oompah` — comments must be attributed to 'oompah', not the system user
-
-For more details, see README.md and docs/QUICKSTART.md.
+- Use Backlog.md for ALL task tracking
+- Use `--plain` when running Backlog.md commands from automation
+- Always set comment author to `oompah` when posting comments:
+  `backlog task edit TASK-123 --comment "message" --comment-author oompah --plain`
+- Link discovered work with `--parent` or `--depends-on`
+- Check `backlog task list --status "To Do" --plain` before asking
+  "what should I work on?"
+- Do NOT create markdown TODO lists
+- Do NOT use `bd` or beads for new task tracking
+- Do NOT use external issue trackers
+- Do NOT duplicate tracking systems
+- Do NOT post comments without `--comment-author oompah`
 
 ## Landing the Plane (Session Completion)
 
@@ -190,7 +213,6 @@ For more details, see README.md and docs/QUICKSTART.md.
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
@@ -204,4 +226,4 @@ For more details, see README.md and docs/QUICKSTART.md.
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
-<!-- END BEADS INTEGRATION -->
+<!-- END BACKLOG INTEGRATION -->

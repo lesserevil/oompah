@@ -27,7 +27,7 @@ each paired with a sibling `_exec_*` handler dispatched through
 
 | | Decision |
 |---|---|
-| **a. Layered, not replacing** | New native skills sit alongside `run_command`. `bd_*` / `git_*` skills (when they exist) are preferred but the bd cheat sheet stays in WORKFLOW.md as a fallback. |
+| **a. Layered, not replacing** | New native skills sit alongside `run_command`. Tracker-native skills (`bd_*` for beads, Backlog.md-specific skills for Backlog.md) and `git_*` skills are preferred when they exist, but the tracker-specific cheat sheet stays in WORKFLOW.md as a fallback. Do not add `beans` skills. |
 | **b. Defaults location** | Built-in skill defaults stay hardcoded in Python. Per-focus override goes in WORKFLOW.md frontmatter as `skills: [...]`. No `.oompah/skills.yaml` for now. |
 | **c. Safety posture** | Unchanged. No new permission system. Anything an agent can do via `run_command` it can do via a native tool. |
 | **d. Specific skills** | Deferred. Wire the registry first; add concrete skills later. |

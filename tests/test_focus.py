@@ -682,11 +682,14 @@ class TestEpicPlannerFocus:
         focus = self._get_epic_planner()
         assert "subtask" in focus.keywords
 
-    def test_epic_planner_must_do_includes_dep_add(self):
-        """epic_planner must_do should instruct use of bd dep add for dependencies."""
+    def test_epic_planner_must_do_includes_dependency_edit(self):
+        """epic_planner must_do should instruct using Backlog.md dependencies."""
         focus = self._get_epic_planner()
-        dep_add_rule = any("bd dep add" in rule for rule in focus.must_do)
-        assert dep_add_rule, "must_do should include a rule about bd dep add"
+        dep_add_rule = any(
+            "backlog task edit" in rule and "--depends-on" in rule
+            for rule in focus.must_do
+        )
+        assert dep_add_rule, "must_do should include a rule about Backlog.md dependencies"
 
     def test_epic_planner_must_do_includes_parent_child_link(self):
         """epic_planner must_do should instruct linking children to parent epic."""
@@ -700,11 +703,11 @@ class TestEpicPlannerFocus:
         remove_draft_rule = any("draft" in rule and ("remove" in rule or "label" in rule) for rule in focus.must_do)
         assert remove_draft_rule, "must_do should include a rule about removing the draft label"
 
-    def test_epic_planner_must_do_includes_set_deferred(self):
-        """epic_planner must_do should instruct setting the epic status to 'deferred'."""
+    def test_epic_planner_must_do_includes_set_to_do(self):
+        """epic_planner must_do should instruct setting the epic status to 'To Do'."""
         focus = self._get_epic_planner()
-        deferred_rule = any("deferred" in rule for rule in focus.must_do)
-        assert deferred_rule, "must_do should include a rule about setting status to deferred"
+        to_do_rule = any("To Do" in rule for rule in focus.must_do)
+        assert to_do_rule, "must_do should include a rule about setting status to To Do"
 
     def test_epic_planner_draft_label_boosts_score(self):
         """draft label on an epic should boost the epic_planner score."""
@@ -1031,17 +1034,17 @@ class TestDuplicateDetectorFocus:
         focus = self._get_duplicate_detector()
         assert len(focus.must_not_do) > 0
 
-    def test_must_do_includes_bd_search(self):
-        """must_do should mention using bd to search for similar issues."""
+    def test_must_do_includes_backlog_search(self):
+        """must_do should mention using Backlog.md to search for similar issues."""
         focus = self._get_duplicate_detector()
         text = " ".join(focus.must_do)
-        assert "bd list" in text and ("duplicate" in text.lower() or "similar" in text.lower())
+        assert "backlog search" in text and ("duplicate" in text.lower() or "similar" in text.lower())
 
     def test_must_do_includes_close_as_duplicate(self):
         """must_do should instruct closing confirmed duplicates."""
         focus = self._get_duplicate_detector()
         text = " ".join(focus.must_do)
-        assert "bd close" in text.lower() or "close" in text.lower()
+        assert "backlog task edit" in text.lower() and "--status done" in text.lower()
 
     def test_must_not_do_prevents_implementing_before_confirming(self):
         """must_not_do should prevent implementing code before duplicate is confirmed."""

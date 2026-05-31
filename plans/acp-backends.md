@@ -4,7 +4,7 @@ Child A of the multi-backend ACP epic. Introduces the registry +
 abstraction that lets oompah run ACP-mode sessions against more than
 one provider SDK (today: Claude Agent SDK; near-term: Codex).
 
-See bead `oompah-zlz_2-0hzh` for the original spec.
+See task `oompah-zlz_2-0hzh` for the original spec.
 
 ## Why a registry?
 

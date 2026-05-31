@@ -7,8 +7,8 @@ search_files / run_command) here, routing each one through the same
 ``_exec_*`` implementations the api_agent path already uses.
 
 Reusing those implementations is the whole point — they carry oompah's
-safety rails (cd-out-of-worktree guard, BEADS_DIR routing, per-command
-timeouts) that claude's native tools don't know about. See
+safety rails (cd-out-of-worktree guard, tracker environment overrides,
+per-command timeouts) that claude's native tools don't know about. See
 ``plans/acp-agent.md`` Q2 (locked decision: tool bridging via option B,
 oompah's catalog wins).
 
@@ -52,10 +52,10 @@ def build_tool_catalog(
     output), ready to be passed into
     :func:`claude_agent_sdk.create_sdk_mcp_server`.
 
-    ``beads_dir`` is forwarded into ``run_command`` as the
-    ``BEADS_DIR`` env override so that any ``bd`` calls the agent
-    issues land in the project's main beads DB, not a per-worktree
-    forked dolt. Mirrors the api_agent path.
+    ``beads_dir`` is forwarded into ``run_command`` as the legacy
+    ``BEADS_DIR`` env override when a beads-backed project needs it.
+    Backlog.md commands do not require a tracker-specific environment
+    override. Mirrors the api_agent path.
     """
     # Lazy imports: keep the SDK out of import paths that don't need it,
     # and avoid pulling api_agent's full surface (which imports _http_post
@@ -140,9 +140,9 @@ def build_tool_catalog(
     @tool(
         "run_command",
         "Run a shell command inside the workspace. Stays inside the "
-        "workspace — `cd` to absolute paths outside is refused. `bd` "
-        "commands automatically route to the project's main beads "
-        "database via BEADS_DIR. Returns stdout, stderr, and exit code.",
+        "workspace — `cd` to absolute paths outside is refused. "
+        "Project-specific tracker environment overrides are applied "
+        "when configured. Returns stdout, stderr, and exit code.",
         {"command": str},
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
@@ -182,7 +182,7 @@ def build_codex_tool_catalog(
     ``agents.function_tool`` produces). Each wrapper routes through
     the same :func:`oompah.api_agent._exec_*` helpers used by the
     Claude backend so the safety rails (cd-out-of-worktree guard,
-    BEADS_DIR routing, per-command timeouts) are identical between
+    tracker environment overrides, per-command timeouts) are identical between
     backends — that's the entire point of reusing this module.
 
     The SDK is imported lazily; callers that don't actually open a
@@ -276,9 +276,9 @@ def build_codex_tool_catalog(
     @function_tool
     def run_command(command: str) -> str:
         """Run a shell command inside the workspace. Stays inside the
-        workspace — ``cd`` to absolute paths outside is refused. ``bd``
-        commands automatically route to the project's main beads
-        database via BEADS_DIR. Returns stdout, stderr, and exit code."""
+        workspace — ``cd`` to absolute paths outside is refused.
+        Project-specific tracker environment overrides are applied when
+        configured. Returns stdout, stderr, and exit code."""
         return _exec_run_command(
             workspace,
             {"command": command},
@@ -312,8 +312,8 @@ def build_opencode_tool_catalog(
     Returns a list of ``@tool``-decorated async functions (OpenCode uses
     the same ``@tool`` surface as Claude, unlike Codex's
     ``@function_tool``). Each function routes through the same
-    :func:`oompah.api_agent._exec_*` helpers so cd-guard, BEADS_DIR
-    routing, and per-command timeouts apply identically to the Claude
+    :func:`oompah.api_agent._exec_*` helpers so cd-guard, tracker
+    environment overrides, and per-command timeouts apply identically to the Claude
     and OpenCode backends.
 
     The SDK is imported lazily; callers that don't use OpenCode never
@@ -409,9 +409,9 @@ def build_opencode_tool_catalog(
     @tool(
         "run_command",
         "Run a shell command inside the workspace. Stays inside the "
-        "workspace — `cd` to absolute paths outside is refused. `bd` "
-        "commands automatically route to the project's main beads "
-        "database via BEADS_DIR. Returns stdout, stderr, and exit code.",
+        "workspace — `cd` to absolute paths outside is refused. "
+        "Project-specific tracker environment overrides are applied "
+        "when configured. Returns stdout, stderr, and exit code.",
         {"command": str},
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:

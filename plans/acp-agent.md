@@ -99,10 +99,11 @@ search). Two approaches:
   permissions and watches for misbehavior. Simplest, least leverage.
 - **B. Bridged tools** — declare oompah's existing tool catalog
   (read_file / edit_file / run_command / search_files / list_files /
-  the bd-routing helpers) in `initialize.capabilities.tools`. The agent
+  the tracker-routing helpers) in `initialize.capabilities.tools`. The agent
   picks ours over its built-ins. This keeps the cd-guard and
-  shell-as-tool-name redirects functional, and routes `bd` commands
-  through `BEADS_DIR`.
+  shell-as-tool-name redirects functional, and routes tracker commands
+  through the backend-specific environment (`BEADS_DIR` for beads,
+  Backlog.md path/root hints for Backlog.md).
 
 Recommendation: **B**, even though it's more work, because losing the
 guards is unacceptable.
@@ -250,10 +251,14 @@ doesn't second-guess the agent's actual model selection.
 
 ---
 
-Once Q1-Q6 are answered, the next step is converting this to a beads
-work item with:
+Once Q1-Q6 are answered, the next step is converting this to tracker
+work items with the current project tracker (beads today, Backlog.md
+after `plans/tracker-backends.md` lands):
 - Parent epic for the ACP feature.
-- One bead per Files-to-touch entry (acp_agent.py, orchestrator.py
+- One task per Files-to-touch entry (acp_agent.py, orchestrator.py
   dispatch routing, models.py field, tests).
 - Dependency edges from the orchestrator wiring onto the
   acp_agent.py implementation onto the test scaffolding.
+
+Do not create a beans tracker work item or plan a beans adapter for this
+feature.

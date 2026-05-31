@@ -518,13 +518,13 @@ class TestEpicPlannerFocusSelection:
         assert focus.name == "epic_planner"
         assert focus.role == "Epic Planner"
 
-    def test_epic_planner_must_do_includes_bd_create(self):
-        """The epic_planner focus should tell the agent to use bd create."""
+    def test_epic_planner_must_do_includes_backlog_create(self):
+        """The epic_planner focus should tell the agent to use backlog task create."""
         from oompah.focus import select_focus
 
         epic = _make_epic()
         focus = select_focus(epic)
-        assert any("bd create" in rule for rule in focus.must_do)
+        assert any("backlog task create" in rule for rule in focus.must_do)
 
     def test_epic_planner_must_not_do_includes_no_coding(self):
         """The epic_planner focus should tell the agent not to implement code."""

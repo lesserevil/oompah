@@ -453,10 +453,10 @@ BUILTIN_FOCI: list[Focus] = [
             "Give each task a clear title and a description with enough context to work independently",
             "Cover the full scope of the epic — don't leave gaps",
             "Set appropriate priorities and dependencies between tasks",
-            "Use `bd create --parent <epic-id>` to file each child task linked to the parent epic (creates a parent-child relationship)",
-            "Add dependencies between children via `bd dep add` where needed",
-            "Remove the 'draft' label from the epic when planning is complete via `bd label remove <epic-id> draft`",
-            "Set the epic status to 'deferred' when planning is complete via `bd update <epic-id> --status deferred`",
+            "Use `backlog task create \"...\" --parent <epic-id> --plain` to file each child task linked to the parent epic (creates a parent-child relationship)",
+            "Set dependencies between children via `backlog task edit <child-id> --depends-on <other-id> --plain` where needed",
+            "Remove the 'draft' label from the epic when planning is complete via `backlog task edit <epic-id> --remove-label draft --plain`",
+            "Set the epic status to 'To Do' when planning is complete via `backlog task edit <epic-id> --status \"To Do\" --plain`",
         ],
         must_not_do=[
             "Start implementing code — your job is planning, not coding",
@@ -480,15 +480,16 @@ BUILTIN_FOCI: list[Focus] = [
             "whether they describe the same underlying problem."
         ),
         must_do=[
-            "Search for similar issues using `bd list --status=closed,open "
-            "--project <name>` filtered by the shared topic prefix (e.g. "
+            "Search for similar tasks using `backlog search \"<query>\" "
+            "--type task --plain` filtered by the shared topic prefix (e.g. "
             "for 'rogers-something' search 'rogers') or the bug/error description",
             "Read the description, error messages, and comments of any "
             "candidate duplicate to confirm whether it covers the same ground",
             "If a confirmed duplicate exists: comment on the NEW issue linking "
-            "to the original issue, then close it using `bd close "
-            "<identifier>` with reason 'duplicate-of:<original-id>'. "
-            "Do NOT implement anything — the original already covers this",
+            "to the original issue, then close it using `backlog task edit "
+            "<identifier> --status Done --final-summary "
+            "\"duplicate-of:<original-id>\" --plain`. Do NOT implement "
+            "anything — the original already covers this",
             "If no clear duplicate is confirmed: continue with the work using "
             "the topic/resolution from the most likely match as your starting "
             "point, and close the candidate as non-duplicate if it truly "

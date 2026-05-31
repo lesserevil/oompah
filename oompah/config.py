@@ -208,6 +208,13 @@ def _coerce_int(value: Any, default: int) -> int:
 
 _BUDGET_WINDOW_VALUES = ("hour", "day", "week")
 _PROFILE_MODE_VALUES = ("auto", "api", "cli", "acp")
+_TRACKER_KIND_ALIASES = {
+    "beads": "beads",
+    "bd": "beads",
+    "backlog_md": "backlog_md",
+    "backlog.md": "backlog_md",
+    "backlog": "backlog_md",
+}
 _STRICT_PROFILE_SOURCE_VALUES = ("warn", "strict")
 
 
@@ -296,6 +303,12 @@ def _parse_state_list(value: Any, default: list[str]) -> list[str]:
     if isinstance(value, list):
         return [str(s).strip() for s in value if str(s).strip()]
     return default
+
+
+def _parse_tracker_kind(value: Any) -> str:
+    """Normalize tracker.kind while preserving unsupported values."""
+    raw = str(value or "beads").strip().lower()
+    return _TRACKER_KIND_ALIASES.get(raw, raw)
 
 
 @dataclass
@@ -410,6 +423,7 @@ class ServiceConfig:
     epic_staleness_threshold_commits: int = 5
 
     def __post_init__(self):
+        self.tracker_kind = _parse_tracker_kind(self.tracker_kind)
         if not self.workspace_root:
             self.workspace_root = os.path.join(
                 tempfile.gettempdir(), "oompah_workspaces"
@@ -432,6 +446,17 @@ class ServiceConfig:
         c = wf.config
 
         tracker = c.get("tracker", {}) or {}
+        tracker_kind = _parse_tracker_kind(tracker.get("kind", "beads"))
+        active_default = (
+            ["To Do", "In Progress"]
+            if tracker_kind == "backlog_md"
+            else ["open", "in_progress"]
+        )
+        terminal_default = (
+            ["Done"]
+            if tracker_kind == "backlog_md"
+            else ["closed"]
+        )
         polling = c.get("polling", {}) or {}
         workspace = c.get("workspace", {}) or {}
         hooks = c.get("hooks", {}) or {}
@@ -595,12 +620,12 @@ class ServiceConfig:
             ws_root = _expand_path(env_ws)
 
         return cls(
-            tracker_kind=str(tracker.get("kind", "beads")),
+            tracker_kind=tracker_kind,
             tracker_active_states=_parse_state_list(
-                tracker.get("active_states"), ["open", "in_progress"]
+                tracker.get("active_states"), active_default
             ),
             tracker_terminal_states=_parse_state_list(
-                tracker.get("terminal_states"), ["closed"]
+                tracker.get("terminal_states"), terminal_default
             ),
             poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 120000),
             full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 120000),
@@ -674,7 +699,7 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
 
     if not config.tracker_kind:
         errors.append("tracker.kind is required")
-    elif config.tracker_kind not in ("beads",):
+    elif _parse_tracker_kind(config.tracker_kind) not in ("beads", "backlog_md"):
         errors.append(f"Unsupported tracker.kind: {config.tracker_kind}")
 
     if not config.agent_command:

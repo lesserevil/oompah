@@ -3,7 +3,7 @@
 **Status:** shipped via oompah-zlz_2-ebwe.
 
 **Why:** Operators kept a shell open next to the dashboard for planning,
-asking the model for help, closing beads by hand. oompah already drives
+asking the model for help, closing tasks by hand. oompah already drives
 ACP sessions via `acp_agent.py` for worker dispatch — the console gives
 the operator the same SDK + tool catalog, no context-switching.
 
@@ -72,12 +72,13 @@ back on the next operator message.
    * Call `resolve_backend(project_id)` — looks up project's
      `default` role → provider → provider.backend (default
      `"claude"`). Returns `{backend_name, model, permission_mode,
-     beads_dir}`.
+     tracker_env}`.
    * Build tool catalog: `build_tool_catalog(workspace_path,
-     beads_dir=...)` for Claude, `build_codex_tool_catalog(...)` for
+     tracker_env=...)` for Claude, `build_codex_tool_catalog(...)` for
      Codex. The catalogs share the same `_exec_*` helpers as the worker
-     dispatch path, so `cd`-out-of-worktree guard, `BEADS_DIR` routing,
-     and per-command timeouts apply.
+     dispatch path, so `cd`-out-of-worktree guard, tracker-specific
+     command routing (`BEADS_DIR` for beads, Backlog.md path/root hints
+     for Backlog.md), and per-command timeouts apply.
    * Build the prompt via `render_transcript_as_prompt(transcript,
      new_input=...)`. Replays Operator:/Assistant:/tool-use lines so
      the SDK has full conversational context. Caps history at 200
@@ -105,12 +106,14 @@ back on the next operator message.
 * **Permission mode `acceptEdits`.** The operator is the human gate
   sitting at the browser. The console is interactive by design.
 
-* **No worker-bead coupling.** The console session does NOT claim or
-  close beads on the operator's behalf via the dispatch loop — it
+* **No worker-tracker coupling.** The console session does NOT claim or
+  close tasks on the operator's behalf via the dispatch loop — it
   just gives the operator a chat interface with tool access. The
   operator can still ask "close oompah-zlz_2-foo with reason X" and
-  the model will use `run_command("bd close oompah-zlz_2-foo ...")`,
-  but that's an explicit tool call, not orchestrator dispatch.
+  the model will use the configured tracker's close operation
+  (`bd close ...` for beads, the Backlog.md completion operation for
+  Backlog.md), but that's an explicit tool call, not orchestrator
+  dispatch. Beans is not a supported console tracker.
 
 * **Cost accounting.** Per-token billing meters against the
   project's chosen provider via the same `_estimate_cost` path
@@ -133,8 +136,12 @@ back on the next operator message.
 * Branching conversations (single linear thread per project).
 * Real attachment upload from the console panel. v1 just stashes
   filenames in the input payload so the operator can see what's
-  queued; the bead-detail dropzone is the canonical attachment path.
+  queued; the task-detail dropzone is the canonical attachment path.
 * Hot model swap mid-turn.
+
+Tracker backend expansion is covered in `plans/tracker-backends.md`; console
+follow-up work should add Backlog.md support there rather than introducing a
+beans path.
 
 ## Testing
 

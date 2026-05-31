@@ -6,7 +6,7 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 
 ## Features
 
-- **Issue-driven orchestration** — polls [beads](https://github.com/lesserevil/beads) for open issues, dispatches agents by priority, and tracks progress through comments
+- **Issue-driven orchestration** — polls supported task trackers such as Backlog.md and [beads](https://github.com/lesserevil/beads), dispatches agents by priority, and tracks progress through comments
 - **Agent focus system** — matches issues to specialized roles (Bug Investigator, Feature Developer, Security Auditor, etc.) using keyword scoring, issue types, and labels
 - **Git worktrees** — each agent works in an isolated worktree on a named branch, preventing interference between concurrent agents
 - **Multi-project support** — manage multiple git repos, each with their own issue tracker and SCM provider
@@ -71,9 +71,9 @@ Oompah is configured through a single `WORKFLOW.md` file that combines YAML fron
 ```markdown
 ---
 tracker:
-  kind: beads
-  active_states: [open, in_progress]
-  terminal_states: [closed]
+  kind: backlog
+  active_states: ["To Do", "In Progress"]
+  terminal_states: [Done]
 
 polling:
   interval_ms: 30000
@@ -121,9 +121,9 @@ You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
 
 | Section | Key | Description | Default |
 |---|---|---|---|
-| `tracker` | `kind` | Issue tracker type | `beads` |
-| `tracker` | `active_states` | States that trigger agent dispatch | `[open, in_progress]` |
-| `tracker` | `terminal_states` | States that mean "done" | `[closed]` |
+| `tracker` | `kind` | Issue tracker type (`backlog`, `backlog_md`, or `beads`) | `beads` |
+| `tracker` | `active_states` | States that trigger agent dispatch | `[open, in_progress]` for beads, `["To Do", "In Progress"]` for Backlog.md |
+| `tracker` | `terminal_states` | States that mean "done" | `[closed]` for beads, `[Done]` for Backlog.md |
 | `polling` | `interval_ms` | Poll interval in milliseconds | `30000` |
 | `workspace` | `root` | Directory for agent workspaces | `/tmp/oompah_workspaces` |
 | `agent` | `max_concurrent_agents` | Max parallel agents | `10` |
@@ -206,7 +206,7 @@ Start the dashboard by setting `server.port` in `WORKFLOW.md`:
 - **`/`** — Kanban board with drag-and-drop, agent status, cost tracking
 - **`/reviews`** — Open PRs/MRs across all projects with rebase controls
 - **`/foci`** — Focus library management with inline editing
-- **`/projects-manage`** — Project CRUD (git repos with beads tracking)
+- **`/projects-manage`** — Project CRUD (git repos with tracker-backed tasks)
 - **`/providers`** — Model provider configuration
 
 ### Cross-agent continuity (console)
@@ -227,7 +227,7 @@ backends, with `_tool_use_id` ↔ `call_id` preserved. See
 
 Each project needs:
 
-1. A git repository with [beads](https://github.com/lesserevil/beads) initialized (`bd init`)
+1. A git repository with a supported task tracker initialized, such as Backlog.md (`backlog init`) or legacy beads (`bd init`)
 2. A `WORKFLOW.md` in the oompah working directory
 3. At least one model provider configured
 

@@ -4,16 +4,17 @@
 
 ## Motivation
 
-Agents have repeatedly closed beads with "feature shipped" / "fix shipped"
-language while only partially satisfying the bead's acceptance criteria:
+Agents have repeatedly closed tracker tasks with "feature shipped" / "fix
+shipped" language while only partially satisfying the task's acceptance
+criteria:
 
 - **trickle-icl** (2026-05-07): CI fix for PR #23's `trickle-rl5`
   branch — agent pushed to a fresh branch and opened a new PR
   instead. Operator had to manually close the wrong PR and refile.
-- **oompah-zlz_2-jg4** (2026-05-08): A bead specifying four
+- **oompah-zlz_2-jg4** (2026-05-08): A task specifying four
   watchdog detectors (D1/D2/D3/D4) was closed with only D2 shipped.
   Operator had to file `oompah-zlz_2-w9m` for the missing three.
-- **oompah-zlz_2-keb** (2026-05-10): Bead required
+- **oompah-zlz_2-keb** (2026-05-10): Task required
   `ModelProvider.mode` field + a UI Mode toggle. Agent shipped only
   the CSS badges. Closed; operator reopened as P1 the next day.
 
@@ -50,8 +51,9 @@ flowchart TD
 ### Hook point
 
 `Orchestrator._on_worker_exit` in `oompah/orchestrator.py`. When the
-worker exits with `reason="normal"` AND the bead has transitioned to
-a terminal state (the agent ran `bd close`), the orchestrator calls
+worker exits with `reason="normal"` AND the task has transitioned to
+a terminal state (for beads, the agent ran `bd close`; for Backlog.md,
+the task reached the configured Done status), the orchestrator calls
 `_run_completion_verifier(entry, current, project_id)` before
 marking the issue as completed.
 
@@ -129,12 +131,12 @@ verifier rejections per issue. After 3 rejections the verifier fails
 open and the close stands. This bound prevents a verifier that
 disagrees indefinitely with the agent (because the AC was
 ambiguously worded, or the LLM is being inconsistent) from pinning
-the bead forever.
+the task forever.
 
 ## Out of scope
 
 - Verifying tests pass (CI handles that).
-- Verifying the deliverable matches the bead's `description` (too
+- Verifying the deliverable matches the task's `description` (too
   loose — only `acceptance_criteria` is the contract).
 - Reopening already-merged PRs whose work turned out to be
   incomplete (operator handles those manually).
@@ -155,7 +157,11 @@ the bead forever.
 - `run_stage2_sync` with mocked `_http_post` (YES → pass, NO → reject, error → fail open, malformed → fail open, no provider, no base_url).
 - `should_skip_verification` (epic, ci-fix, merge-conflict, escalating attempt, no AC, normal feature).
 - `verify_completion` integration (no AC skip, full match allow, partial match reject without LLM, stage 2 YES allow, stage 2 NO reject, stage 2 timeout fail-open, meaningful symbol change allow).
-- **trickle-icl regression fixture**: bead AC mentions
+- **trickle-icl regression fixture**: task AC mentions
   `trickle-rl5-fix.rs`, agent diff touches `new_branch_work.rs`,
   verifier rejects, comment lists the missing reference.
 - `render_rejection_comment` (file-only, with LLM reasoning).
+
+Backlog.md support should reuse this verifier through the tracker abstraction
+described in `plans/tracker-backends.md`. Beans is not a planned verifier
+backend.

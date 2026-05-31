@@ -1,9 +1,10 @@
 """Tests ensuring all issue comments from oompah are attributed to 'oompah'.
 
-Bug: oompah was posting comments without --author=oompah, causing them to appear
-as the system user or git user instead of 'oompah'.
+Bug: oompah was posting comments without an explicit oompah author, causing
+them to appear as the system user or git user instead of 'oompah'.
 
-Fix: WORKFLOW.md now requires --author=oompah in all bd comments add commands.
+Fix: WORKFLOW.md requires the tracker-specific comment author flag in all
+agent-facing comment commands.
 The orchestrator's _post_comment() already uses author="oompah" by default.
 BeadsTracker.add_comment() already defaults to author="oompah".
 
@@ -168,11 +169,11 @@ class TestOrchestratorPostCommentAuthor:
 
 
 # ---------------------------------------------------------------------------
-# 3. WORKFLOW.md prompt template — rendered prompt must include --author=oompah
+# 3. WORKFLOW.md prompt template — rendered prompt must include comment author
 # ---------------------------------------------------------------------------
 
 class TestWorkflowTemplateAuthorInstruction:
-    """The rendered WORKFLOW.md prompt must instruct agents to use --author=oompah."""
+    """The rendered WORKFLOW.md prompt must tell agents to use oompah as author."""
 
     def _load_workflow_template(self) -> str:
         """Load the Liquid template portion of WORKFLOW.md (after the YAML front matter)."""
@@ -189,45 +190,48 @@ class TestWorkflowTemplateAuthorInstruction:
         return content
 
     def test_progress_comments_section_includes_author_oompah(self):
-        """The 'Progress Comments' section in WORKFLOW.md includes --author=oompah."""
+        """The 'Progress Comments' section includes the Backlog.md author flag."""
         template = self._load_workflow_template()
-        assert "--author=oompah" in template, (
-            "WORKFLOW.md must instruct agents to use --author=oompah when posting comments"
+        assert "--comment-author oompah" in template, (
+            "WORKFLOW.md must instruct agents to use --comment-author oompah "
+            "when posting comments"
         )
 
     def test_rendered_prompt_includes_author_oompah_instruction(self):
-        """The rendered prompt for an issue must contain --author=oompah."""
+        """The rendered prompt for an issue must contain the Backlog.md author flag."""
         template = self._load_workflow_template()
         issue = _make_issue("oompah-abc")
 
         rendered = render_prompt(template, issue)
 
-        assert "--author=oompah" in rendered, (
-            "Rendered prompt must contain --author=oompah instruction for agents"
+        assert "--comment-author oompah" in rendered, (
+            "Rendered prompt must contain --comment-author oompah instruction "
+            "for agents"
         )
 
-    def test_rendered_prompt_bd_comments_add_includes_author(self):
-        """All 'bd comments add' examples in the rendered prompt include --author=oompah."""
+    def test_rendered_prompt_backlog_comments_include_author(self):
+        """All Backlog.md comment examples in the rendered prompt include author."""
         template = self._load_workflow_template()
         issue = _make_issue("oompah-xyz")
 
         rendered = render_prompt(template, issue)
 
-        # Find all lines containing 'bd comments add' — each line should have --author=oompah
-        import re
-        bd_comment_lines = [
+        backlog_comment_lines = [
             line for line in rendered.splitlines()
-            if "bd comments add" in line
+            if "backlog task edit" in line and "--comment" in line
         ]
-        assert bd_comment_lines, "Expected to find 'bd comments add' lines in rendered prompt"
+        assert backlog_comment_lines, (
+            "Expected to find Backlog.md comment lines in rendered prompt"
+        )
 
-        for line in bd_comment_lines:
-            assert "--author=oompah" in line, (
-                f"'bd comments add' line is missing --author=oompah: {line!r}"
+        for line in backlog_comment_lines:
+            assert "--comment-author oompah" in line, (
+                "Backlog.md comment line is missing --comment-author oompah: "
+                f"{line!r}"
             )
 
     def test_handoff_comment_example_includes_author_oompah(self):
-        """The handoff comment example in WORKFLOW.md includes --author=oompah."""
+        """The handoff comment example includes the Backlog.md author flag."""
         template = self._load_workflow_template()
         issue = _make_issue("oompah-fc1")
 
@@ -247,38 +251,40 @@ class TestWorkflowTemplateAuthorInstruction:
                 if line.strip().startswith("```") and handoff_section.count("```") >= 2:
                     break
 
-        assert "--author=oompah" in handoff_section or "--author=oompah" in rendered, (
-            "HANDOFF comment example must include --author=oompah"
-        )
+        assert (
+            "--comment-author oompah" in handoff_section
+            or "--comment-author oompah" in rendered
+        ), "HANDOFF comment example must include --comment-author oompah"
 
     def test_important_author_rule_in_rendered_prompt(self):
-        """The rendered prompt explicitly warns agents to use --author=oompah."""
+        """The rendered prompt explicitly warns agents to use oompah as author."""
         template = self._load_workflow_template()
         issue = _make_issue("oompah-fc1")
 
         rendered = render_prompt(template, issue)
 
-        # Check for an explicit rule/warning about --author
-        assert "author=oompah" in rendered.lower() or "--author=oompah" in rendered, (
-            "Rendered prompt must contain an explicit instruction about --author=oompah"
+        assert "--comment-author oompah" in rendered, (
+            "Rendered prompt must contain an explicit instruction about "
+            "--comment-author oompah"
         )
 
 
 # ---------------------------------------------------------------------------
-# 4. AGENTS.md — must include --author=oompah rule
+# 4. AGENTS.md — must include comment author rule
 # ---------------------------------------------------------------------------
 
 class TestAgentsMdAuthorRule:
-    """AGENTS.md must instruct agents to use --author=oompah."""
+    """AGENTS.md must instruct agents to use oompah as comment author."""
 
     def test_agents_md_contains_author_oompah_rule(self):
-        """AGENTS.md must include --author=oompah in its important rules."""
+        """AGENTS.md must include the Backlog.md comment author flag."""
         agents_md_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "AGENTS.md"
         )
         with open(agents_md_path) as f:
             content = f.read()
 
-        assert "--author=oompah" in content, (
-            "AGENTS.md must instruct agents to use --author=oompah when posting comments"
+        assert "--comment-author oompah" in content, (
+            "AGENTS.md must instruct agents to use --comment-author oompah "
+            "when posting comments"
         )

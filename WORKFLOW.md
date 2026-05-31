@@ -1,11 +1,11 @@
 ---
 tracker:
-  kind: beads
+  kind: backlog
   active_states:
-    - open
-    - in_progress
+    - To Do
+    - In Progress
   terminal_states:
-    - closed
+    - Done
 
 # Agent profiles are managed via the dashboard (Providers → Agent
 # Profiles, backed by /api/v1/agent-profiles) and persisted to
@@ -55,26 +55,26 @@ Read these carefully — they preserve context and findings from prior work on t
 {% endfor %}
 {% endif %}
 
-## Beads Quick Reference
+## Backlog.md Quick Reference
 
-You manage this issue and project knowledge via the `bd` CLI. **The entries below are shell commands. Run them via the `run_command` tool — do NOT call them as tool names.** Example: `run_command(command='bd show oompah-zlz_2-4jq')`. There is no `bd_show` or `bd_comment` tool — the only commit/close/comment actions go through `run_command`.
+You manage this issue via the `backlog` CLI. **The entries below are shell commands. Run them via the `run_command` tool — do NOT call them as tool names.** Example: `run_command(command='backlog task view TASK-123 --plain')`. There is no `backlog_view` or `backlog_comment` tool — task view/comment/close actions go through `run_command`.
 
 | When                                              | Shell command (pass to `run_command`)                                                               |
 |---------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| Re-read this issue's full state                   | `bd show {{ issue.identifier }}`                                                                    |
-| Post progress (REQUIRED at the milestones below)  | `bd comments add {{ issue.identifier }} "your message" --author=oompah`                             |
-| Save a stable insight for future agents           | `bd remember "fact" --key=topic-name`                                                               |
-| Search prior insights                             | `bd memories <keyword>`                                                                             |
-| Create a follow-up issue                          | `bd create --title="..." --description="..." --type=task --priority=2`                              |
-| Add a dependency (this depends on `<other-id>`)   | `bd dep add {{ issue.identifier }} <other-id>`                                                      |
-| Hand off to a different focus                     | `bd update {{ issue.identifier }} --status=open --add-label=needs:frontend`                         |
-| Close when done                                   | `bd close {{ issue.identifier }}`                                                                   |
+| Re-read this task's full state                    | `backlog task view {{ issue.identifier }} --plain`                                                  |
+| Post progress (REQUIRED at the milestones below)  | `backlog task edit {{ issue.identifier }} --comment "your message" --comment-author oompah --plain` |
+| Search project tasks/docs/decisions               | `backlog search "<keyword>" --plain`                                                                |
+| Create a follow-up task                           | `backlog task create "..." --description "..." --priority medium --plain`                           |
+| Create a child task under this task               | `backlog task create "..." --description "..." --parent {{ issue.identifier }} --plain`             |
+| Set dependencies for this task                    | `backlog task edit {{ issue.identifier }} --depends-on <other-id> --plain`                          |
+| Hand off to a different focus                     | `backlog task edit {{ issue.identifier }} --status "To Do" --add-label needs:frontend --plain`      |
+| Close when done                                   | `backlog task edit {{ issue.identifier }} --status Done --final-summary "Done" --plain`             |
 
-**Always pass `--author=oompah`** when adding comments — comments must be attributed to `oompah`, not your git user.
+**Always pass `--comment-author oompah`** when adding comments — comments must be attributed to `oompah`, not your git user.
 
-**Do NOT run `bd edit`** — it opens an interactive editor and will hang the agent. Use `bd update --title=... --description=... --notes=...` for inline edits instead.
+**Do NOT run interactive Backlog.md commands.** Use `--plain` and pass all edits inline with `backlog task edit`.
 
-**You are NOT done until `bd close {{ issue.identifier }}` succeeds.** Pushing your branch is not enough — the orchestrator will keep re-dispatching you (escalating profiles each time) until the issue is closed. After your final commit and push, run `bd close {{ issue.identifier }}` immediately, then exit.
+**You are NOT done until `backlog task edit {{ issue.identifier }} --status Done --final-summary "..." --plain` succeeds.** Pushing your branch is not enough — the orchestrator will keep re-dispatching you (escalating profiles each time) until the task is marked Done. After your final commit and push, mark the task Done immediately, then exit.
 
 **Stay in your worktree.** You are running in `{{ issue.branch_name }}`'s worktree. Do NOT `cd` to absolute paths — the workspace IS the project from your perspective. `run_command` will refuse `cd` commands that leave the worktree. Use relative paths from where you are.
 
@@ -101,16 +101,16 @@ The following insights were collected by previous agents working on this project
 
 **Self-reliance:** You are an autonomous agent. Investigate and solve problems yourself by reading code, running commands, checking logs, and testing hypotheses. NEVER ask the human to explain how something works, diagnose a problem, or tell you what approach to take — that is YOUR job. The `ask_question` tool exists ONLY for genuine ambiguity where the issue could reasonably mean two different things that lead to fundamentally different implementations. If a competent engineer would know what to do, DO the work. Restating the issue as a question, asking for confirmation of your plan, or asking "how should I proceed" are all failures.
 
-**Missing capabilities:** If completing the task requires a capability this system lacks (a tool, API access, a vision model, a new integration), file a backlog issue with `--labels=human-only` and continue with what you *can* do. Do not block on it. Example:
+**Missing capabilities:** If completing the task requires a capability this system lacks (a tool, API access, a vision model, a new integration), file a Backlog.md task with `--labels human-only` and continue with what you *can* do. Do not block on it. Example:
 ```
-bd create --title="Add vision model support for image analysis tasks" --description="Agent on {{ issue.identifier }} needed to analyze a screenshot but no vision-capable model is configured." --type=feature --priority=4 --labels=human-only
+backlog task create "Add vision model support for image analysis tasks" --description "Agent on {{ issue.identifier }} needed to analyze a screenshot but no vision-capable model is configured." --priority low --labels human-only --plain
 ```
 
 **Handoff:** You are a specialist. If part of this issue needs expertise outside your role (e.g., backend agent hits CSS work; bug fix reveals a security issue), hand off rather than doing it poorly — see "Handoff to Another Agent" below.
 
 ## Progress Comments (Required)
 
-Post a comment at each of these milestones using `bd comments add {{ issue.identifier }} "..." --author=oompah`:
+Post a comment at each of these milestones using `backlog task edit {{ issue.identifier }} --comment "..." --comment-author oompah --plain`:
 
 1. **Understanding** — your interpretation of the issue and planned approach.
 2. **Discovery** — when you find the relevant code, root cause, or key insight.
@@ -122,14 +122,15 @@ Keep each comment concise but informative — write what a project manager needs
 
 ## Project Memory
 
-Use `bd remember` to save insights future agents will wish they had at the start. Good memories are **stable truths**: architecture, build/test commands, non-obvious gotchas, key file locations.
+Use project documentation to save insights future agents will wish they had at the start. Good entries are **stable truths**: architecture, build/test commands, non-obvious gotchas, key file locations.
 
 ```
-bd remember "the HTTP server entry point is cmd/server/main.go" --key entry-points
-bd remember "tests require a running postgres; use make test-deps" --key test-setup
+backlog search "entry-points" --type document --plain
+backlog doc create "entry-points" --type guide --path entry-points.md
+backlog doc update <doc-id> --content "The HTTP server entry point is cmd/server/main.go."
 ```
 
-- Use a descriptive `--key` so memories can be updated later (no duplicates).
+- Search first so you update existing docs instead of creating duplicates.
 - 1–2 sentences each — facts, not commentary.
 - Don't remember issue-specific details or anything already in AGENTS.md / README.
 
@@ -183,12 +184,12 @@ If you determine that this issue requires a different specialist to complete (e.
 
 1. **Post a detailed handoff comment** explaining what you've done, what you've found, and what the next agent needs to do:
    ```
-   bd comments add {{ issue.identifier }} "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments." --author=oompah
+   backlog task edit {{ issue.identifier }} --comment "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments." --comment-author oompah --plain
    ```
 
-2. **Set the issue back to open and add the routing label atomically** (to avoid race conditions where an agent is dispatched before the label is applied):
+2. **Set the task back to To Do and add the routing label atomically** (to avoid race conditions where an agent is dispatched before the label is applied):
    ```
-   bd update {{ issue.identifier }} --status=open --add-label=needs:frontend
+   backlog task edit {{ issue.identifier }} --status "To Do" --add-label needs:frontend --plain
    ```
    Available focus names: `feature`, `refactor`, `frontend`, `docs`, `test`, `security`, `devops`, `chore`
 
@@ -219,7 +220,7 @@ This issue already has a review open but CI tests are failing. Your ONLY job is 
 5. Fix ONLY the failing tests — minimal changes
 6. Run the test suite locally again to confirm the fix
 7. Commit, push, and verify CI passes
-8. Post a comment with the fix summary and close the issue using `bd close {{ issue.identifier }}`
+8. Post a comment with the fix summary and close the issue using `backlog task edit {{ issue.identifier }} --status Done --final-summary "..." --plain`
 {% else %}
 1. Read the issue carefully and understand the requirements
 2. Post a comment with your understanding and plan
@@ -230,5 +231,5 @@ This issue already has a review open but CI tests are failing. Your ONLY job is 
 7. Run any relevant tests to verify your changes
 8. Post a comment with test results
 9. Commit and push (see Git Workflow above)
-10. Post a completion summary and close the issue using `bd close {{ issue.identifier }}`
+10. Post a completion summary and close the issue using `backlog task edit {{ issue.identifier }} --status Done --final-summary "..." --plain`
 {% endif %}

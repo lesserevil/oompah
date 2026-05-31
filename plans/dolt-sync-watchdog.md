@@ -3,6 +3,10 @@
 > Internal design note for the per-project `bd dolt push/pull` watchdog
 > introduced in oompah-zlz_2-5ms2.
 
+This is beads-only infrastructure. The Backlog.md tracker planned in
+`plans/tracker-backends.md` should use ordinary git/file sync semantics, and
+there is no planned beans sync path.
+
 ## Problem
 
 Before this watchdog, oompah called `bd dolt pull` exactly once per

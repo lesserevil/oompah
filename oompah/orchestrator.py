@@ -63,6 +63,7 @@ from oompah.roles import RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
+    BacklogMdTracker,
     BeadsTracker,
     TrackerError,
     TrackerNotConfiguredError,
@@ -287,12 +288,9 @@ class Orchestrator:
             max_concurrent_agents=config.max_concurrent_agents,
         )
         # Legacy single tracker (used when no projects configured)
-        self.tracker = BeadsTracker(
-            active_states=config.tracker_active_states,
-            terminal_states=config.tracker_terminal_states,
-        )
+        self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
-        self._project_trackers: dict[str, BeadsTracker] = {}
+        self._project_trackers: dict[str, BeadsTracker | BacklogMdTracker] = {}
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -620,10 +618,7 @@ class Orchestrator:
         self._prompt_template = prompt_template
         self.state.poll_interval_ms = config.poll_interval_ms
         self.state.max_concurrent_agents = config.max_concurrent_agents
-        self.tracker = BeadsTracker(
-            active_states=config.tracker_active_states,
-            terminal_states=config.tracker_terminal_states,
-        )
+        self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()
         self.workspace_mgr = WorkspaceManager(
@@ -837,22 +832,34 @@ class Orchestrator:
     def wants_restart(self) -> bool:
         return self._restart_requested
 
-    def _tracker_for_project(self, project_id: str) -> BeadsTracker:
-        """Get or create a BeadsTracker for a project."""
+    def _new_tracker(
+        self, cwd: str | None = None,
+    ) -> BeadsTracker | BacklogMdTracker:
+        """Construct the configured tracker adapter."""
+        if self.config.tracker_kind == "backlog_md":
+            return BacklogMdTracker(
+                active_states=self.config.tracker_active_states,
+                terminal_states=self.config.tracker_terminal_states,
+                cwd=cwd,
+            )
+        return BeadsTracker(
+            active_states=self.config.tracker_active_states,
+            terminal_states=self.config.tracker_terminal_states,
+            cwd=cwd,
+        )
+
+    def _tracker_for_project(self, project_id: str) -> BeadsTracker | BacklogMdTracker:
+        """Get or create a tracker for a project."""
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
         project = self.project_store.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
-        tracker = BeadsTracker(
-            active_states=self.config.tracker_active_states,
-            terminal_states=self.config.tracker_terminal_states,
-            cwd=project.repo_path,
-        )
+        tracker = self._new_tracker(cwd=project.repo_path)
         self._project_trackers[project_id] = tracker
         return tracker
 
-    def _tracker_for_issue(self, issue: Issue) -> BeadsTracker:
+    def _tracker_for_issue(self, issue: Issue) -> BeadsTracker | BacklogMdTracker:
         """Get the appropriate tracker for an issue (project-specific or legacy)."""
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
@@ -1439,6 +1446,8 @@ class Orchestrator:
         (0 if the watchdog was skipped this tick because the interval
         hasn't elapsed yet).
         """
+        if self.config.tracker_kind != "beads":
+            return 0.0
         if not self._dolt_sync_due():
             return 0.0
         t0 = time.monotonic()
@@ -9482,7 +9491,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self,
         parent_issue: Issue,
         tasks: list[dict],
-        tracker: BeadsTracker,
+        tracker: BeadsTracker | BacklogMdTracker,
         project_id: str | None,
     ) -> None:
         """Create child issues from a decomposition plan."""
@@ -9808,7 +9817,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         now = datetime.now(timezone.utc)
         projects = self.project_store.list_all()
 
-        trackers: list[tuple[str | None, BeadsTracker]] = []
+        trackers: list[tuple[str | None, BeadsTracker | BacklogMdTracker]] = []
         if projects:
             for project in projects:
                 try:

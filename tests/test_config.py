@@ -82,6 +82,24 @@ class TestServiceConfig:
         assert cfg.budget_window == "day"
         assert cfg.workspace_root  # should have a default
 
+    def test_from_workflow_backlog_md_defaults(self):
+        wf = WorkflowDefinition(
+            config={"tracker": {"kind": "backlog_md"}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.tracker_kind == "backlog_md"
+        assert cfg.tracker_active_states == ["To Do", "In Progress"]
+        assert cfg.tracker_terminal_states == ["Done"]
+
+    def test_from_workflow_backlog_md_alias(self):
+        wf = WorkflowDefinition(
+            config={"tracker": {"kind": "Backlog.md"}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.tracker_kind == "backlog_md"
+
     def test_budget_window_explicit_in_workflow(self):
         wf = WorkflowDefinition(
             config={"agent": {"budget_window": "hour"}},
@@ -257,10 +275,25 @@ class TestValidateDispatchConfig:
         errors = validate_dispatch_config(cfg)
         assert errors == []
 
+    def test_valid_backlog_md(self):
+        cfg = ServiceConfig(tracker_kind="backlog_md")
+        errors = validate_dispatch_config(cfg)
+        assert errors == []
+
+    def test_manual_backlog_md_alias_normalizes(self):
+        cfg = ServiceConfig(tracker_kind="Backlog.md")
+        assert cfg.tracker_kind == "backlog_md"
+        assert validate_dispatch_config(cfg) == []
+
     def test_invalid_tracker(self):
         cfg = ServiceConfig(tracker_kind="jira")
         errors = validate_dispatch_config(cfg)
         assert any("Unsupported" in e for e in errors)
+
+    def test_beans_is_not_supported(self):
+        cfg = ServiceConfig(tracker_kind="beans")
+        errors = validate_dispatch_config(cfg)
+        assert any("Unsupported tracker.kind: beans" in e for e in errors)
 
     def test_empty_command(self):
         cfg = ServiceConfig(agent_command="")

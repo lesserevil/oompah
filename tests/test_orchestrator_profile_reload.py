@@ -194,11 +194,14 @@ class TestStoreOrchestratorIntegration:
             return None
         async def _no_op2():
             return (0.0, 0.0, 0.0)
+        async def _no_dolt_sync():
+            return 0.0
 
         orch._handle_reconcile = _no_op
         orch._handle_review_check = _no_op
         orch._handle_dispatch_needed = _no_op
         orch._handle_yolo_review = _no_op2
+        orch._handle_dolt_sync = _no_dolt_sync
         orch._handle_auto_update = _no_op
         orch._maybe_run_watchdog = lambda: None
 

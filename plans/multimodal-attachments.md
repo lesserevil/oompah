@@ -16,8 +16,8 @@ coherent design.
 
 ## Goals
 
-- A user can drop a screenshot, mockup, PDF page, or audio clip onto a beads
-  issue (via dashboard or CLI) and have an agent reason over it.
+- A user can drop a screenshot, mockup, PDF page, or audio clip onto a
+  tracker task (via dashboard or CLI) and have an agent reason over it.
 - An agent can produce images (diagrams, annotated screenshots, generated
   UI mocks) and attach them back to the issue as part of its work.
 - Attachments live in the project's git repository under git LFS so they
@@ -128,7 +128,10 @@ Values are repo-relative paths (e.g.
 `.oompah/attachments/oompah-9k1/abc123-mock.png`). The list is canonical:
 the dashboard, the prompt renderer, and the agent all read from it.
 
-### Beads persistence
+### Tracker persistence
+
+Attachment records are tracker-owned metadata. Beads is the existing backend;
+Backlog.md is the next supported backend. Beans is not planned.
 
 Beads has no first-class attachment field. Three options surveyed:
 
@@ -141,10 +144,10 @@ Beads has no first-class attachment field. Three options surveyed:
 3. **A sidecar file** at `.oompah/attachments/<id>/manifest.json`.
    Decoupled from beads but adds a second source of truth.
 
-**Choice: option 1, `metadata`**, with the sidecar manifest as a fallback
-cache for performance (the orchestrator reads many issues per tick;
-parsing JSON metadata from `bd list --json` is cheap, but having a
-manifest lets the dashboard render thumbnails without a `bd` call).
+**Choice for beads: option 1, `metadata`**, with the sidecar manifest as a
+fallback cache for performance (the orchestrator reads many issues per tick;
+parsing JSON metadata from `bd list --json` is cheap, but having a manifest
+lets the dashboard render thumbnails without a `bd` call).
 
 The metadata key is `oompah.attachments` and holds a list of objects:
 
@@ -162,6 +165,12 @@ The metadata key is `oompah.attachments` and holds a list of objects:
   ]
 }
 ```
+
+For Backlog.md, persist the same `oompah.attachments` records through the
+Backlog.md adapter's structured task metadata/front matter when available. If
+Backlog.md cannot store structured metadata directly, use a documented oompah
+sidecar under `.oompah/attachments/<id>/manifest.json`; do not append ad hoc
+attachment prose to the task body.
 
 The tracker layer (`oompah/tracker.py:_parse_issue`) reads
 `metadata["oompah.attachments"]` into `Issue.attachments` as
@@ -255,7 +264,7 @@ Implementation in `api_agent.py`:
 
 After the agent run, the orchestrator scans `outputs/` for new files (or
 trusts what `attach_image` returned), commits them, and updates the
-beads issue's `oompah.attachments` metadata with `generated: true`
+tracker task's `oompah.attachments` metadata with `generated: true`
 entries. The completion comment lists generated artifacts so reviewers
 see them.
 
@@ -277,7 +286,7 @@ see them.
   POST /api/v1/issues/{identifier}/attachments
   multipart/form-data: file=<binary>
   ```
-  Server pipes the file through `AttachmentStore.add`, updates beads
+  Server pipes the file through `AttachmentStore.add`, updates tracker
   metadata, commits the change. Response: the new `Attachment` record.
 - Delete button per attachment (only for user-added ones; generated ones
   require explicit "remove generated"). Deletes are commits, not file
@@ -325,11 +334,11 @@ PR is merged — no special handling needed.
 |---|---|---|
 | Store | `oompah/attachments.py` (new) | `AttachmentStore`, `Attachment` dataclass, LFS bootstrap |
 | Issue model | `oompah/models.py` | Add `attachments: list[str]` to `Issue` |
-| Tracker | `oompah/tracker.py` | Parse `metadata["oompah.attachments"]`; add `set_attachments()` |
+| Tracker | `oompah/tracker.py` | Parse backend metadata for `oompah.attachments`; add `set_attachments()` |
 | Provider model | `oompah/models.py` | Add `model_capabilities` to `ModelProvider`, `to_dict`/`from_dict` |
 | Renderer | `oompah/prompt.py` | Return `RenderedPrompt`; build content parts |
 | API agent | `oompah/api_agent.py` | Accept `RenderedPrompt`; new `attach_image` tool |
-| Orchestrator | `oompah/orchestrator.py` | Resolve capabilities; pass attachments into render; commit generated outputs; update beads metadata |
+| Orchestrator | `oompah/orchestrator.py` | Resolve capabilities; pass attachments into render; commit generated outputs; update tracker metadata |
 | Focus | `oompah/focus.py` | `allow_image_output: bool = False` field |
 | Project setup | `oompah/projects.py` | LFS bootstrap on register; `lfs_available` flag |
 | Server | `oompah/server.py` | 4 attachment endpoints; serve under `/api/v1/attachments/{path}` with path validation |
@@ -348,8 +357,9 @@ PR is merged — no special handling needed.
    `.gitattributes` write, no duplicate filters.
 3. **LFS not installed:** project registers with a warning; upload
    endpoint returns 503 with a clear message.
-4. **Issue model roundtrip:** beads metadata read+write of
-   `oompah.attachments`.
+4. **Issue model roundtrip:** tracker metadata read+write of
+   `oompah.attachments` parses into `Issue.attachments` for beads and
+   Backlog.md.
 5. **Renderer:** text-only provider gets a string; multimodal provider
    gets a content array with the right mime types.
 6. **Capability fallback:** a focus pinned to a text-only model still
@@ -402,7 +412,8 @@ LFS + tests). Phase 2 carries the modality work and is the largest.
    attachments to be referenced by another (shared mock)? If yes, paths
    are already global within the repo; we just need a UI affordance.
    Defer until requested.
-6. **Beads upstream.** Whether to push for first-class attachment
-   support upstream in beads, or stay in `metadata` indefinitely. The
-   `metadata` approach works today; a beads PR could come later if this
-   pattern proves useful to other beads consumers.
+6. **Tracker upstreams.** Whether to push for first-class attachment
+   support upstream in beads or Backlog.md, or stay in backend metadata
+   indefinitely. The metadata approach works today for beads; Backlog.md
+   should follow the tracker-backends plan before inventing another
+   storage shape.
