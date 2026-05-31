@@ -25,14 +25,13 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 # Clone and install
 git clone https://github.com/lesserevil/oompah.git
 cd oompah
-uv venv
-uv pip install -e .
+make setup
 
 # Configure WORKFLOW.md (see below), then run
-oompah
+make start
 ```
 
-> [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+> [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`. `make setup` also ensures the Backlog.md CLI (`backlog`, from the npm package `backlog.md`) is available.
 
 ## Backends
 

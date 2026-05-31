@@ -3,12 +3,15 @@ PYTHON := $(VENV)/bin/python
 PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
 PORT := 8080
+BACKLOG_NPM_PACKAGE := backlog.md
 
-.PHONY: help setup start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions
+export PATH := $(abspath $(VENV)/bin):$(PATH)
+
+.PHONY: help setup ensure-backlog start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions
 
 help:
 	@echo "oompah — make targets:"
-	@echo "  setup          Install dependencies into $(VENV) (idempotent)"
+	@echo "  setup          Install dependencies and Backlog.md CLI into $(VENV) (idempotent)"
 	@echo "  start          Start oompah on port $(PORT) in the background"
 	@echo "  stop           Stop the background oompah process"
 	@echo "  restart        Hard restart (stop + start) — use for orchestrator/agent changes"
@@ -21,13 +24,27 @@ help:
 	@echo "  install-gh-extensions  Install gh CLI extensions oompah needs (cli/gh-webhook). Idempotent."
 	@echo "  clean          Stop, then remove $(VENV), logs, pid file, and __pycache__ dirs"
 
-setup: $(VENV)/.uv-setup
+setup: $(VENV)/.uv-setup ensure-backlog
 
 $(VENV)/.uv-setup: pyproject.toml
 	@test -d $(VENV) || uv venv $(VENV)
 	uv pip install -e .
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
+
+ensure-backlog: $(VENV)/.uv-setup
+	@if command -v backlog >/dev/null 2>&1; then \
+		echo "Backlog.md CLI available: $$(backlog --version 2>/dev/null || echo unknown)"; \
+	else \
+		if ! command -v npm >/dev/null 2>&1; then \
+			echo "ERROR: Backlog.md CLI is missing and npm is not installed."; \
+			echo "Install npm or install Backlog.md manually with: npm install --global $(BACKLOG_NPM_PACKAGE)"; \
+			exit 1; \
+		fi; \
+		echo "Installing Backlog.md CLI ($(BACKLOG_NPM_PACKAGE)) into $(abspath $(VENV))..."; \
+		npm install --global --prefix "$(abspath $(VENV))" --no-audit --no-fund "$(BACKLOG_NPM_PACKAGE)"; \
+		echo "Backlog.md CLI installed: $$(backlog --version 2>/dev/null || echo unknown)"; \
+	fi
 
 start: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
