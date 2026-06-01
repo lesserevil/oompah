@@ -4,7 +4,7 @@ title: Update dashboard and APIs for canonical Backlog statuses
 status: Open
 assignee: []
 created_date: '2026-06-01 19:20'
-updated_date: '2026-06-01 19:21'
+updated_date: '2026-06-01 21:57'
 labels:
   - task
 dependencies:
@@ -49,6 +49,9 @@ Files to inspect first:
 - [ ] #2 Moving a task in the dashboard writes the intended Backlog status.
 - [ ] #3 In-flight filtering no longer depends on the merged label or closed plus has_open_review.
 - [ ] #4 Epic child counts work for all canonical statuses.
+- [ ] #5 Backlog and Open render as separate dashboard columns with separate dispatch semantics.
+- [ ] #6 The dashboard does not render a To Do column and drag/drop never writes To Do.
+- [ ] #7 Waiting and triage status groups are minimized when empty and expand automatically when they contain tasks.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -60,6 +63,12 @@ Files to inspect first:
 4. Update dashboard tests for the new statuses and remove legacy closed-with-has_open_review assumptions.
 5. Verify dashboard behavior with focused tests; use browser/screenshot checks if visual behavior changes substantially.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Dashboard column decisions from planning: Backlog and Open are distinct canonical statuses. Backlog means not ready and not dispatchable. Open means ready for work and dispatchable. To Do is not a valid oompah lifecycle status and should only be handled as a migration/bootstrap alias. The dashboard should not render a To Do column and drag/drop should never write To Do. Waiting statuses (Needs Answer, Needs Human) and triage statuses (Decomposed, Duplicate Candidate) should not consume full board width when empty; render those groups as minimized/collapsed lanes or compact affordances when they contain zero tasks, then expand automatically when tasks exist.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
