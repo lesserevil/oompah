@@ -4,12 +4,13 @@ title: Represent lifecycle labels as Backlog statuses
 status: Open
 assignee: []
 created_date: '2026-06-01 19:20'
-updated_date: '2026-06-01 19:21'
+updated_date: '2026-06-01 19:25'
 labels:
   - task
 dependencies:
   - TASK-402.1
   - TASK-402.2
+  - TASK-402.10
 parent_task_id: TASK-402
 priority: high
 ordinal: 16000
