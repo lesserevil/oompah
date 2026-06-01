@@ -1,22 +1,21 @@
 ---
 id: TASK-407.1
 title: Add multi-candidate role data model and migration
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:43'
+created_date: 2026-06-01 21:43
 labels:
-  - feature
-  - 'needs:backend'
-  - 'needs:test'
+- feature
+- needs:backend
+- needs:test
 dependencies: []
 modified_files:
-  - oompah/roles.py
-  - tests/test_role_store.py
+- oompah/roles.py
+- tests/test_role_store.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 31000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

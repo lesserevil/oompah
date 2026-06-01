@@ -1,17 +1,16 @@
 ---
 id: TASK-397
 title: Preserve custom Backlog frontmatter during task status updates
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 16:07'
-updated_date: '2026-06-01 19:43'
+created_date: 2026-06-01 16:07
+updated_date: 2026-06-01 19:43
 labels:
-  - bug
+- bug
 dependencies: []
 priority: high
 ordinal: 7000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

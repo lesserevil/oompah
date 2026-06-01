@@ -1,23 +1,22 @@
 ---
 id: TASK-407.3
 title: Add provider health check service and manual test endpoint
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:43'
+created_date: 2026-06-01 21:43
 labels:
-  - feature
-  - 'needs:backend'
-  - 'needs:test'
+- feature
+- needs:backend
+- needs:test
 dependencies: []
 modified_files:
-  - oompah/server.py
-  - oompah/orchestrator.py
-  - tests/test_providers_role_matrix.py
+- oompah/server.py
+- oompah/orchestrator.py
+- tests/test_providers_role_matrix.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 33000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

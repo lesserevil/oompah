@@ -1,20 +1,19 @@
 ---
 id: TASK-404
 title: Show dashboard warning when agent retries fail from missing credentials
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 20:25'
-updated_date: '2026-06-01 20:25'
+created_date: 2026-06-01 20:25
+updated_date: 2026-06-01 20:25
 labels:
-  - bug
-  - 'needs:frontend'
-  - 'needs:backend'
-  - 'needs:test'
+- bug
+- needs:frontend
+- needs:backend
+- needs:test
 dependencies: []
 priority: high
 ordinal: 26000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

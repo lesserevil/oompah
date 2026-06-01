@@ -1,23 +1,22 @@
 ---
 id: TASK-407.7
 title: Update Providers page role matrix to edit candidate lists
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:44'
+created_date: 2026-06-01 21:44
 labels:
-  - feature
-  - 'needs:frontend'
-  - 'needs:test'
+- feature
+- needs:frontend
+- needs:test
 dependencies:
-  - TASK-407.2
+- TASK-407.2
 modified_files:
-  - oompah/templates/providers.html
-  - tests/test_providers_role_matrix.py
+- oompah/templates/providers.html
+- tests/test_providers_role_matrix.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 37000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

@@ -1,24 +1,23 @@
 ---
 id: TASK-407.9
 title: Document and verify multi-provider role fallback end to end
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:45'
+created_date: 2026-06-01 21:45
 labels:
-  - feature
-  - 'needs:test'
+- feature
+- needs:test
 dependencies:
-  - TASK-407.6
-  - TASK-407.7
-  - TASK-407.8
+- TASK-407.6
+- TASK-407.7
+- TASK-407.8
 modified_files:
-  - docs
-  - plans
+- docs
+- plans
 parent_task_id: TASK-407
 priority: medium
 ordinal: 39000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

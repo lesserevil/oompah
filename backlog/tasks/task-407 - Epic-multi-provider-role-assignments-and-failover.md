@@ -1,20 +1,19 @@
 ---
 id: TASK-407
 title: 'Epic: multi-provider role assignments and failover'
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:43'
+created_date: 2026-06-01 21:43
 labels:
-  - feature
-  - epic
-  - 'needs:backend'
-  - 'needs:frontend'
-  - 'needs:test'
+- feature
+- epic
+- needs:backend
+- needs:frontend
+- needs:test
 dependencies: []
 priority: high
 ordinal: 30000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

@@ -1,7 +1,7 @@
 ---
 id: TASK-329
 title: Use gh webhook forward; demote polling to 2min backup
-status: To Do
+status: Backlog
 assignee: []
 created_date: 2026-05-04 23:54
 updated_date: 2026-05-05 03:45

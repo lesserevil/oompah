@@ -1,23 +1,22 @@
 ---
 id: TASK-407.2
 title: Update role assignment API for candidate lists and strategies
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:43'
+created_date: 2026-06-01 21:43
 labels:
-  - feature
-  - 'needs:backend'
-  - 'needs:test'
+- feature
+- needs:backend
+- needs:test
 dependencies:
-  - TASK-407.1
+- TASK-407.1
 modified_files:
-  - oompah/server.py
-  - tests/test_providers_role_matrix.py
+- oompah/server.py
+- tests/test_providers_role_matrix.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 32000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

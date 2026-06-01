@@ -1,24 +1,23 @@
 ---
 id: TASK-407.5
 title: Refactor orchestrator dispatch to try role candidates with failover
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:44'
+created_date: 2026-06-01 21:44
 labels:
-  - feature
-  - 'needs:backend'
-  - 'needs:test'
+- feature
+- needs:backend
+- needs:test
 dependencies:
-  - TASK-407.3
-  - TASK-407.4
+- TASK-407.3
+- TASK-407.4
 modified_files:
-  - oompah/orchestrator.py
-  - tests/test_orchestrator_handlers.py
+- oompah/orchestrator.py
+- tests/test_orchestrator_handlers.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 35000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

@@ -1,24 +1,23 @@
 ---
 id: TASK-407.4
 title: Add role candidate selector state and ordering algorithms
-status: To Do
+status: Backlog
 assignee: []
-created_date: '2026-06-01 21:44'
+created_date: 2026-06-01 21:44
 labels:
-  - feature
-  - 'needs:backend'
-  - 'needs:test'
+- feature
+- needs:backend
+- needs:test
 dependencies:
-  - TASK-407.1
+- TASK-407.1
 modified_files:
-  - oompah/roles.py
-  - oompah/orchestrator.py
-  - tests/test_role_store.py
+- oompah/roles.py
+- oompah/orchestrator.py
+- tests/test_role_store.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 34000
 ---
-
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
