@@ -141,6 +141,46 @@ _ws_clients: set[WebSocket] = set()
 # then accessed by the WS handler and the GET /api/v1/console endpoints.
 _console_manager: Any = None
 
+_BACKLOG_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(.+)$", re.IGNORECASE)
+
+
+def _project_names_by_id(orch) -> dict[str, str]:
+    """Return known project display names keyed by project id."""
+    try:
+        projects = orch.project_store.list_all()
+    except Exception:
+        return {}
+
+    names: dict[str, str] = {}
+    for project in projects:
+        project_id = getattr(project, "id", None)
+        project_name = getattr(project, "name", None)
+        if isinstance(project_id, str) and isinstance(project_name, str):
+            if project_id and project_name:
+                names[project_id] = project_name
+    return names
+
+
+def _display_identifier(identifier: str, project_name: str | None) -> str:
+    """Format Backlog task ids for display without changing their real id."""
+    if not project_name:
+        return identifier
+    match = _BACKLOG_TASK_IDENTIFIER_RE.match(identifier)
+    if not match:
+        return identifier
+    return f"{project_name}-{match.group(1)}"
+
+
+def _issue_display_fields(
+    issue,
+    project_names: dict[str, str],
+) -> dict[str, str | None]:
+    project_name = project_names.get(issue.project_id or "")
+    return {
+        "project_name": project_name,
+        "display_identifier": _display_identifier(issue.identifier, project_name),
+    }
+
 
 def set_orchestrator(orch: Orchestrator) -> None:
     global _orchestrator, _error_watcher, _log_watcher_manager
@@ -417,6 +457,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     interchangeable payloads. If you add a field to one, add it here too.
     """
     all_issues = _fetch_all_issues(orch, None)
+    project_names = _project_names_by_id(orch)
 
     # Build a map for parent child counts — any issue that has children gets counts
     # First pass: find all parent_ids referenced by children
@@ -473,6 +514,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "branch_name": issue.branch_name,
             "has_open_review": has_open_review,
             "attachments": list(getattr(issue, "attachments", []) or []),
+            **_issue_display_fields(issue, project_names),
         }
         if issue.id in parents:
             entry["children_counts"] = parents[issue.id]
@@ -993,6 +1035,7 @@ async def api_issues(request: Request):
         all_issues = await loop.run_in_executor(
             _api_thread_pool, _fetch_all_issues, orch, filter_project
         )
+        project_names = _project_names_by_id(orch)
         t_fetch = time.monotonic()
         fetch_ms = (t_fetch - t_start) * 1000
         if fetch_ms > 1000:
@@ -1061,6 +1104,7 @@ async def api_issues(request: Request):
                 "project_id": issue.project_id,
                 "branch_name": issue.branch_name,
                 "has_open_review": has_open_review,
+                **_issue_display_fields(issue, project_names),
             }
             if issue.id in epics:
                 entry["children_counts"] = epics[issue.id]
@@ -1820,9 +1864,13 @@ async def api_issue_full_detail(identifier: str, request: Request):
             )
         # Use the resolved project_id (may differ from query param if it was None)
         project_id = resolved_project_id
+        project_names = _project_names_by_id(orch)
+        project_name = project_names.get(project_id or "")
         result = {
             "id": issue.id,
             "identifier": issue.identifier,
+            "display_identifier": _display_identifier(issue.identifier, project_name),
+            "project_name": project_name,
             "title": issue.title,
             "description": issue.description,
             "priority": issue.priority,
@@ -1840,10 +1888,18 @@ async def api_issue_full_detail(identifier: str, request: Request):
                 {
                     "id": c.id,
                     "identifier": c.identifier,
+                    "display_identifier": _display_identifier(
+                        c.identifier,
+                        project_names.get(c.project_id or "") or project_name,
+                    ),
+                    "project_name": (
+                        project_names.get(c.project_id or "") or project_name
+                    ),
                     "title": c.title,
                     "state": c.state,
                     "priority": c.priority,
                     "issue_type": c.issue_type,
+                    "project_id": c.project_id or project_id,
                 }
                 for c in children
             ]
@@ -4973,6 +5029,11 @@ async def dashboard_content():
     totals = snapshot["agent_totals"]
     running = snapshot["running"]
     retrying = snapshot["retrying"]
+    project_names = {
+        p.get("id"): p.get("name")
+        for p in snapshot.get("projects", [])
+        if isinstance(p, dict) and p.get("id") and p.get("name")
+    }
 
     def fmt_tokens(n: int) -> str:
         if n >= 1_000_000:
@@ -4996,6 +5057,12 @@ async def dashboard_content():
             return dt.strftime("%H:%M:%S")
         except (ValueError, TypeError):
             return "-"
+
+    def display_issue_identifier(row: dict[str, Any]) -> str:
+        return _display_identifier(
+            row["issue_identifier"],
+            project_names.get(row.get("project_id")),
+        )
 
     html = f"""
     <div class="stats">
@@ -5032,7 +5099,7 @@ async def dashboard_content():
             tokens = row.get("tokens", {})
             html += f"""
             <tr>
-              <td class="mono">{_esc(row["issue_identifier"])}</td>
+              <td class="mono">{_esc(display_issue_identifier(row))}</td>
               <td><span class="badge badge-running">{_esc(row["state"])}</span></td>
               <td>{row["turn_count"]}</td>
               <td class="mono">{_esc(row.get("last_event") or "-")}</td>

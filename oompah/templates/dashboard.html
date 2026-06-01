@@ -1690,6 +1690,9 @@ function handleStateUpdate(state) {
   updateReviewsBadge(state.reviews_summary || null);
   updateProposedFociBadge(state.proposed_foci_count || 0);
 
+  const projects = state.projects || [];
+  currentProjects = projects;
+
   // Render running agent chips
   const container = document.getElementById('running-agents');
   const running = state.running || [];
@@ -1731,10 +1734,12 @@ function handleStateUpdate(state) {
     container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
   } else {
     container.innerHTML = running.map(r => {
-      const id = esc(r.issue_identifier);
+      const rawId = r.issue_identifier || '';
+      const id = esc(rawId);
+      const displayId = esc(displayIdentifierFor(rawId, r.project_id, r.project_name, r.display_identifier));
       return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
         '<span class="dot"></span>' +
-        id +
+        displayId +
         (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
       '</span>';
     }).join('');
@@ -1744,8 +1749,6 @@ function handleStateUpdate(state) {
   }
 
   // Update project filter dropdown
-  const projects = state.projects || [];
-  currentProjects = projects;
   const sel = document.getElementById('project-filter');
   if (sel && projects.length > 0) {
     // Use saved value from localStorage, falling back to current value
@@ -1898,7 +1901,7 @@ function scanQuestionsFromBoard() {
         '<div class="questions-dropdown-item" role="menuitem" tabindex="0"' +
           ' onclick="event.stopPropagation(); closeQuestionsDropdown(); openDetailPanel(\'' + esc(issue.identifier) + '\')"' +
           ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();event.stopPropagation();closeQuestionsDropdown();openDetailPanel(\'' + esc(issue.identifier) + '\')}">' +
-          '<span class="questions-dropdown-item-id">' + esc(issue.identifier) + '</span>' +
+          '<span class="questions-dropdown-item-id">' + esc(issueDisplayIdentifier(issue)) + '</span>' +
           '<span class="questions-dropdown-item-title">' + esc(issue.title) + '</span>' +
         '</div>'
       ).join('');
@@ -2491,6 +2494,30 @@ function getTypeIcon(issueType) {
   return TYPE_ICONS[issueType] || '📋';
 }
 
+function projectNameForId(projectId) {
+  if (!projectId || !currentProjects) return '';
+  const project = currentProjects.find(p => p.id === projectId);
+  return project ? (project.name || '') : '';
+}
+
+function displayIdentifierFor(identifier, projectId, projectName, displayIdentifier) {
+  if (displayIdentifier) return displayIdentifier;
+  const raw = identifier || '';
+  const name = projectName || projectNameForId(projectId);
+  const match = raw.match(/^TASK-(.+)$/i);
+  return name && match ? `${name}-${match[1]}` : raw;
+}
+
+function issueDisplayIdentifier(issue) {
+  if (!issue) return '';
+  return displayIdentifierFor(
+    issue.identifier,
+    issue.project_id,
+    issue.project_name,
+    issue.display_identifier
+  );
+}
+
 function createCard(issue) {
   const card = document.createElement('div');
   card.className = 'card';
@@ -2506,9 +2533,10 @@ function createCard(issue) {
   if (issue.parent_id) {
     const epic = getEpicById(issue.parent_id);
     if (epic) {
+      const epicDisplayIdentifier = issueDisplayIdentifier(epic);
       epicBadgeHtml = `
         <span class="epic-badge" onclick="event.stopPropagation()">
-          ${esc(epic.identifier)}
+          ${esc(epicDisplayIdentifier)}
           <span class="epic-tooltip">
             <div class="epic-tooltip-title">${esc(epic.title)}</div>
             <div class="epic-tooltip-desc">${esc(epic.description || 'No description')}</div>
@@ -2531,12 +2559,13 @@ function createCard(issue) {
 
   const typeIcon = getTypeIcon(issue.issue_type);
   const typeLabel = issue.issue_type || 'task';
+  const displayIdentifier = issueDisplayIdentifier(issue);
 
   card.innerHTML = `
     <div class="card-id">
       <span class="card-id-left">
         <span class="type-icon" title="${esc(typeLabel)}" aria-label="${esc(typeLabel)}">${typeIcon}</span>
-        <span class="card-identifier">${esc(issue.identifier)}</span>
+        <span class="card-identifier">${esc(displayIdentifier)}</span>
         ${epicBadgeHtml}
         ${draftEpicBadgeHtml}
         ${mergedBadgeHtml}
@@ -2988,7 +3017,11 @@ async function openActivityPanel(identifier) {
   if (summaryEl) summaryEl.textContent = 'Loading...';
 
   const agent = lastRunningAgents.find(r => r.issue_identifier === identifier);
-  let title = 'Agent: ' + identifier;
+  const issue = allIssuesFlat.find(i => i.identifier === identifier);
+  const displayIdentifier = agent
+    ? displayIdentifierFor(agent.issue_identifier, agent.project_id, agent.project_name, agent.display_identifier)
+    : (issue ? issueDisplayIdentifier(issue) : identifier);
+  let title = 'Agent: ' + displayIdentifier;
   if (agent) {
     const parts = [];
     if (agent.focus_role) parts.push(agent.focus_role);
@@ -3292,7 +3325,8 @@ async function openDetailPanel(identifier) {
     return;
   }
   const detail = await res.json();
-  document.getElementById('detail-panel-title').textContent = detail.identifier;
+  const detailDisplayIdentifier = issueDisplayIdentifier(detail);
+  document.getElementById('detail-panel-title').textContent = detailDisplayIdentifier;
   body.dataset.projectId = detail.project_id || '';
 
   const pClass = `p${detail.priority ?? 4}`;
@@ -3335,11 +3369,12 @@ async function openDetailPanel(identifier) {
   if (detail.parent_id) {
     const epic = getEpicById(detail.parent_id);
     if (epic) {
+      const epicDisplayIdentifier = issueDisplayIdentifier(epic);
       html += `
         <div class="detail-field">
           <div class="detail-field-label">Parent Epic</div>
           <div class="detail-field-value">
-            <span class="epic-badge" style="cursor:pointer" onclick="openDetailPanel('${esc(epic.identifier)}')">${esc(epic.identifier)}</span>
+            <span class="epic-badge" style="cursor:pointer" onclick="openDetailPanel('${esc(epic.identifier)}')">${esc(epicDisplayIdentifier)}</span>
             ${esc(epic.title)}
           </div>
         </div>
@@ -3363,7 +3398,7 @@ async function openDetailPanel(identifier) {
         <ul class="detail-children-list">
           ${detail.children.map(c => `
             <li onclick="openDetailPanel('${esc(c.identifier)}')">
-              <span>${esc(c.identifier)} ${esc(c.title)}</span>
+              <span>${esc(displayIdentifierFor(c.identifier, c.project_id || detail.project_id, c.project_name || detail.project_name, c.display_identifier))} ${esc(c.title)}</span>
               <span class="detail-child-state">${esc(c.state)}</span>
             </li>
           `).join('')}
@@ -3502,7 +3537,7 @@ function openCreateDialogForEpic(epicId) {
   createParentId = epicId;
   const epic = allIssuesFlat.find(i => i.id === epicId);
   document.getElementById('create-dialog-title').textContent =
-    epic ? `Create Child of ${epic.identifier}` : 'Create Child';
+    epic ? `Create Child of ${issueDisplayIdentifier(epic)}` : 'Create Child';
   document.getElementById('create-dialog').classList.add('open');
   document.getElementById('create-title').value = '';
   document.getElementById('create-desc').value = '';
