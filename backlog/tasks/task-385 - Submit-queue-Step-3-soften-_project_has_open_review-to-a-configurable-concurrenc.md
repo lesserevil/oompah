@@ -1,31 +1,20 @@
 ---
 id: TASK-385
-title: 'Submit queue Step 3: soften _project_has_open_review to a configurable concurrency
-  limit'
-status: In Progress
+title: >-
+  Submit queue Step 3: soften _project_has_open_review to a configurable
+  concurrency limit
+status: Done
 assignee: []
-created_date: 2026-05-05 20:04
-updated_date: 2026-05-05 20:14
+created_date: '2026-05-05 20:04'
+updated_date: '2026-06-01 16:01'
 labels:
-- feature
-- beads-migrated
+  - feature
+  - beads-migrated
 dependencies: []
 priority: high
 ordinal: 1000
-type: feature
-beads:
-  id: oompah-zlz_2-pt4
-  state: in_progress
-  parent_id: oompah-zlz_2-btf
-  dependencies: []
-  branch_name: oompah-zlz_2-pt4
-  target_branch: null
-  url: null
-  created_at: '2026-05-05T20:04:28Z'
-  updated_at: '2026-05-05T20:14:15Z'
-  closed_at: null
-parent: TASK-382
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -82,3 +71,9 @@ Changes needed:
 7. tests/: Full test coverage including default=1, cap=3, P0 bypass, per-project independence
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed and merged on main as commit e2f02ec / PR #60. Closing stale In Progress state; no active agent or worktree remains.
+<!-- SECTION:FINAL_SUMMARY:END -->

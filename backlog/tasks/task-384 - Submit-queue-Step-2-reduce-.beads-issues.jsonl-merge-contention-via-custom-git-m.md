@@ -1,32 +1,21 @@
 ---
 id: TASK-384
-title: 'Submit queue Step 2: reduce .beads/issues.jsonl merge contention via custom
-  git merge driver'
-status: In Progress
+title: >-
+  Submit queue Step 2: reduce .beads/issues.jsonl merge contention via custom
+  git merge driver
+status: Done
 assignee: []
-created_date: 2026-05-05 20:04
-updated_date: 2026-05-05 20:26
+created_date: '2026-05-05 20:04'
+updated_date: '2026-06-01 16:01'
 labels:
-- ci-fix
-- feature
-- beads-migrated
+  - ci-fix
+  - feature
+  - beads-migrated
 dependencies: []
 priority: high
 ordinal: 1000
-type: feature
-beads:
-  id: oompah-zlz_2-win
-  state: in_progress
-  parent_id: oompah-zlz_2-btf
-  dependencies: []
-  branch_name: oompah-zlz_2-win
-  target_branch: null
-  url: null
-  created_at: '2026-05-05T20:04:01Z'
-  updated_at: '2026-05-05T20:26:39Z'
-  closed_at: null
-parent: TASK-382
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -133,3 +122,9 @@ created: 2026-05-05T20:27:04Z
 Understanding: CI tests are failing after the feature implementation. I need to rebase onto main and fix the failing tests. Starting with rebase then local test run to identify failures.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed and merged on main as commit 303766c / PR #58. Closing stale In Progress state; no active agent or worktree remains.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -1,31 +1,20 @@
 ---
 id: TASK-386
-title: 'Submit queue Step 4: update YOLO auto-merge to support enqueue mode for merge-queue-enabled
-  projects'
-status: In Progress
+title: >-
+  Submit queue Step 4: update YOLO auto-merge to support enqueue mode for
+  merge-queue-enabled projects
+status: Done
 assignee: []
-created_date: 2026-05-05 20:04
-updated_date: 2026-05-05 20:14
+created_date: '2026-05-05 20:04'
+updated_date: '2026-06-01 16:01'
 labels:
-- feature
-- beads-migrated
+  - feature
+  - beads-migrated
 dependencies: []
 priority: high
 ordinal: 1000
-type: feature
-beads:
-  id: oompah-zlz_2-d7o
-  state: in_progress
-  parent_id: oompah-zlz_2-btf
-  dependencies: []
-  branch_name: oompah-zlz_2-d7o
-  target_branch: null
-  url: null
-  created_at: '2026-05-05T20:04:57Z'
-  updated_at: '2026-05-05T20:14:35Z'
-  closed_at: null
-parent: TASK-382
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -85,3 +74,9 @@ Key changes needed:
 This preserves backward compat: default  means direct mode unchanged.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed and merged on main as commit 89584e2 / PR #62. Closing stale In Progress state; no active agent or worktree remains.
+<!-- SECTION:FINAL_SUMMARY:END -->

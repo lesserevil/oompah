@@ -1,30 +1,20 @@
 ---
 id: TASK-390
-title: 'Budget cap: allow dispatch on zero-cost models even when window spend exceeds
-  limit'
-status: In Progress
+title: >-
+  Budget cap: allow dispatch on zero-cost models even when window spend exceeds
+  limit
+status: Done
 assignee: []
-created_date: 2026-05-05 20:23
-updated_date: 2026-05-05 20:26
+created_date: '2026-05-05 20:23'
+updated_date: '2026-06-01 16:01'
 labels:
-- feature
-- beads-migrated
+  - feature
+  - beads-migrated
 dependencies: []
 priority: high
 ordinal: 1000
-type: feature
-beads:
-  id: oompah-zlz_2-fvt
-  state: in_progress
-  parent_id: null
-  dependencies: []
-  branch_name: oompah-zlz_2-fvt
-  target_branch: null
-  url: null
-  created_at: '2026-05-05T20:23:03Z'
-  updated_at: '2026-05-05T20:26:41Z'
-  closed_at: null
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -93,3 +83,9 @@ created: 2026-05-05T20:28:02Z
 The _should_dispatch method needs a helper _would_dispatch_free_model() that replicates the profile/provider/model resolution logic from _dispatch() to check if the next dispatch would use a bash model.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed and merged on main as commit b6b2628 / PR #61. Closing stale In Progress state; no active agent or worktree remains.
+<!-- SECTION:FINAL_SUMMARY:END -->
