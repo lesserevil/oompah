@@ -1,10 +1,10 @@
 ---
 id: TASK-399
 title: Fix BacklogMdTracker cost metadata write path
-status: Backlog
+status: Done
 assignee: []
 created_date: 2026-06-01 16:07
-updated_date: 2026-06-01 20:50
+updated_date: 2026-06-01 21:08
 labels:
 - bug
 dependencies: []
@@ -20,5 +20,11 @@ During the 2026-06-01 restart, TASK-388 completed but the log reported: cost_rec
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Understanding: Bug is in orchestrator.py _write_task_cost_record (~line 6500). Calls tracker._run_bd() directly (BeadsTracker-only). When BacklogMdTracker is used, raises AttributeError. Fix: add get_cost_metadata/set_cost_metadata to both tracker classes, update _write_task_cost_record to use them.
+Fix implemented in commit 6c2369e. Added get_cost_metadata/set_cost_metadata protocol to both BeadsTracker and BacklogMdTracker. Updated _write_task_cost_record in orchestrator.py to use the uniform protocol instead of calling _run_bd() directly. Trackers lacking the protocol are skipped at DEBUG level. All 3833 tests pass.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added get_cost_metadata/set_cost_metadata protocol to BeadsTracker and BacklogMdTracker; updated _write_task_cost_record to use this uniform interface instead of calling _run_bd() directly. Trackers without the protocol are skipped cleanly at DEBUG level. All 3833 tests pass. Code committed and pushed in commit 6c2369e.
+<!-- SECTION:FINAL_SUMMARY:END -->
