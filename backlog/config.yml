@@ -2,8 +2,19 @@ project_name: oompah
 default_status: To Do
 statuses:
 - To Do
+- Backlog
+- Open
 - In Progress
+- Needs Answer
+- Needs Human
+- Decomposed
+- Duplicate Candidate
+- In Review
+- Needs CI Fix
+- Needs Rebase
 - Done
+- Merged
+- Archived
 labels:
 - archive:yes
 - beads-migrated
