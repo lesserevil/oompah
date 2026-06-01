@@ -7003,7 +7003,7 @@ class Orchestrator:
                     entry.identifier,
                     exc,
                 )
-                # Proceed with empty metadata — we'll write what we have
+                # Proceed with no existing costs — we'll write what we have
 
             # Merge new record into existing cost record
             existing_costs = existing_meta.get("oompah.task_costs")
