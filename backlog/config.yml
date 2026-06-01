@@ -1,14 +1,28 @@
-project_name: ""
-statuses: ["To Do", "In Progress", "Done"]
+projectName: ''
+statuses:
+- Backlog
+- Open
+- In Progress
+- Needs Answer
+- Needs Human
+- Needs CI Fix
+- Needs Rebase
+- In Review
+- Decomposed
+- Duplicate Candidate
+- Done
+- Merged
+- Archived
 labels: []
-date_format: yyyy-mm-dd
-max_column_width: 80
-auto_open_browser: true
-default_port: 6420
-remote_operations: true
-auto_commit: false
-filesystem_only: false
-bypass_git_hooks: false
-check_active_branches: true
-active_branch_days: 30
-task_prefix: "task"
+dateFormat: yyyy-mm-dd
+maxColumnWidth: 80
+autoOpenBrowser: true
+defaultPort: 6420
+remoteOperations: true
+autoCommit: false
+filesystemOnly: false
+bypassGitHooks: false
+checkActiveBranches: true
+activeBranchDays: 30
+taskPrefix: task
+defaultStatus: Backlog
