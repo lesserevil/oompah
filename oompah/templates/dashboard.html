@@ -1395,7 +1395,7 @@
       <select id="project-filter" onchange="saveProjectFilter(); refreshBoard(); _syncConsoleToProjectFilter()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
         <option value="">All Projects</option>
       </select>
-      <label id="hide-merged-toggle" title="Show only tasks with work still in flight: Open, In Progress, Needs CI Fix, Needs Rebase, In Review, plus completed tasks whose PR is still open." style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
+      <label id="hide-merged-toggle" title="Show Backlog plus tasks with work still in flight: Open, In Progress, Needs CI Fix, Needs Rebase, In Review, plus completed tasks whose PR is still open." style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
         <input type="checkbox" id="hide-merged-checkbox" onchange="toggleHideMerged()" style="margin:0;cursor:pointer;">
         <span id="hide-merged-label">In-flight only: ON (0 hidden)</span>
       </label>
@@ -2030,8 +2030,9 @@ function _computeInFlightShowSet(allIssues) {
 }
 
 // Strip tasks that aren't part of any in-flight tree from a grouped
-// {state: [issues]} payload. Backlog/waiting/terminal buckets are hidden
-// unless they belong to a tree with in-flight work.
+// {state: [issues]} payload. Backlog remains visible so ready/not-ready work
+// can be promoted into Open; waiting/terminal buckets are hidden unless they
+// belong to a tree with in-flight work.
 function applyHideMergedFilter(data) {
   if (!isHideMergedOn()) {
     _hideMergedHiddenCount = 0;
@@ -2046,7 +2047,7 @@ function applyHideMergedFilter(data) {
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
     const stateKey = columnKeyForStatus(state);
-    if (['open', 'in_progress', 'needs_ci_fix', 'needs_rebase', 'in_review'].includes(stateKey)) {
+    if (['backlog', 'open', 'in_progress', 'needs_ci_fix', 'needs_rebase', 'in_review'].includes(stateKey)) {
       filtered[state] = issues;
       continue;
     }

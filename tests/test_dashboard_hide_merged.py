@@ -299,8 +299,8 @@ class TestInit:
 # JS implementation expresses the same rule.
 #
 # The filter is keyed off canonical status + has_open_review + epic-subtree
-# presence. Active columns pass through; backlog/waiting/terminal columns are
-# hidden unless they belong to a tree with in-flight work.
+# presence. Backlog and active columns pass through; waiting/terminal columns
+# are hidden unless they belong to a tree with in-flight work.
 
 
 def _column_key(status: str | None) -> str:
@@ -399,7 +399,14 @@ def _apply_hide_merged_filter(
     filtered: dict = {}
     for state, issues in data.items():
         state_key = _column_key(state)
-        if state_key in {"open", "in_progress", "needs_ci_fix", "needs_rebase", "in_review"}:
+        if state_key in {
+            "backlog",
+            "open",
+            "in_progress",
+            "needs_ci_fix",
+            "needs_rebase",
+            "in_review",
+        }:
             filtered[state] = issues
             continue
         kept: list[dict] = []
@@ -447,8 +454,8 @@ class TestFilterBehavior:
         assert [i["id"] for i in out["done"]] == ["a"]
         assert [i["id"] for i in out["open"]] == ["b"]
 
-    def test_backlog_column_filtered_when_not_in_flight(self):
-        """Backlog tasks without in-flight ancestry are hidden by the filter."""
+    def test_backlog_column_unaffected_by_toggle(self):
+        """Backlog tasks stay visible so operators can promote them to Open."""
         data = {
             "backlog": [
                 {"id": "d1", "state": "backlog"},
@@ -457,8 +464,8 @@ class TestFilterBehavior:
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        assert hidden == 3
-        assert out["backlog"] == []
+        assert hidden == 0
+        assert out["backlog"] == data["backlog"]
 
     def test_open_column_unaffected_by_toggle(self):
         """Open beads always show, even ones with no parent epic and no
@@ -487,7 +494,7 @@ class TestFilterBehavior:
         assert out["in_progress"] == data["in_progress"]
 
     def test_active_columns_pass_through_with_unrelated_backlog_tasks(self):
-        """Active columns pass through; unrelated Backlog and Done tasks hide."""
+        """Backlog and active columns pass through; unrelated Done tasks hide."""
         data = {
             "open": [{"id": "o1", "state": "open"}],
             "in_progress": [{"id": "p1", "state": "in_progress"}],
@@ -503,14 +510,14 @@ class TestFilterBehavior:
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        assert hidden == 3
+        assert hidden == 1
         assert [i["id"] for i in out["open"]] == ["o1"]
         assert [i["id"] for i in out["in_progress"]] == ["p1"]
-        assert out["backlog"] == []
+        assert [i["id"] for i in out["backlog"]] == ["d1", "d2"]
         assert [i["id"] for i in out["done"]] == ["c1"]
 
-    def test_hidden_count_includes_all_hidden_non_active_tasks(self):
-        """Hidden-count label includes hidden Backlog and terminal tasks."""
+    def test_hidden_count_excludes_visible_backlog_tasks(self):
+        """Hidden-count label excludes Backlog tasks because they stay visible."""
         data = {
             "backlog": [{"id": f"d{i}", "state": "backlog"} for i in range(50)],
             "done": [
@@ -519,8 +526,8 @@ class TestFilterBehavior:
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        assert hidden == 60
-        assert out["backlog"] == []
+        assert hidden == 10
+        assert len(out["backlog"]) == 50
         assert out["done"] == []
 
     def test_done_with_in_flight_ancestor_stays_visible(self):
