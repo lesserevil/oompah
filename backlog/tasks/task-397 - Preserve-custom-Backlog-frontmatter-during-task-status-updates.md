@@ -1,10 +1,11 @@
 ---
 id: TASK-397
 title: Preserve custom Backlog frontmatter during task status updates
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - oompah
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-01 19:43'
+updated_date: '2026-06-01 19:52'
 labels:
   - bug
 dependencies: []

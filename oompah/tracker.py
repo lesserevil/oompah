@@ -1117,7 +1117,7 @@ class BacklogMdTracker:
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         """Append a comment to a Backlog.md task."""
-        self._run_backlog([
+        self._run_backlog_task_edit(identifier, [
             "task", "edit", identifier,
             "--comment", text,
             "--comment-author", author,
@@ -1147,7 +1147,7 @@ class BacklogMdTracker:
         deps = [d for d in existing if d]
         if blocker_id not in deps:
             deps.append(blocker_id)
-        self._run_backlog([
+        self._run_backlog_task_edit(blocked_id, [
             "task", "edit", blocked_id,
             "--depends-on", ",".join(deps),
             "--plain",
@@ -1205,12 +1205,12 @@ class BacklogMdTracker:
                     "Backlog.md update_issue ignoring unsupported field %s", key,
                 )
         if handled:
-            self._run_backlog(args)
+            self._run_backlog_task_edit(identifier, args)
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         """Move a Backlog.md task to the configured terminal status."""
         status = self._terminal_status()
-        self._run_backlog([
+        self._run_backlog_task_edit(identifier, [
             "task", "edit", identifier,
             "--status", status,
             "--plain",
@@ -1221,20 +1221,20 @@ class BacklogMdTracker:
 
     def reopen_issue(self, identifier: str) -> None:
         """Move a task back to the first configured active status."""
-        self._run_backlog([
+        self._run_backlog_task_edit(identifier, [
             "task", "edit", identifier,
             "--status", self._active_status(),
             "--plain",
         ])
 
     def add_label(self, identifier: str, label: str) -> None:
-        self._run_backlog([
+        self._run_backlog_task_edit(identifier, [
             "task", "edit", identifier, "--add-label", label, "--plain",
         ])
 
     def remove_label(self, identifier: str, label: str) -> None:
         try:
-            self._run_backlog([
+            self._run_backlog_task_edit(identifier, [
                 "task", "edit", identifier, "--remove-label", label, "--plain",
             ])
         except TrackerError:
@@ -1558,6 +1558,58 @@ class BacklogMdTracker:
         if value.isdigit():
             value = f"{self._task_prefix()}-{value}"
         return value.lower()
+
+    def _run_backlog_task_edit(self, identifier: str, args: list[str]) -> str:
+        """Run a ``backlog task edit`` command, restoring extra frontmatter fields.
+
+        The backlog CLI re-serializes YAML frontmatter on every write and only
+        emits the fields it owns (id, title, status, assignee, created_date,
+        updated_date, labels, dependencies, priority, ordinal).  Project-specific
+        metadata — ``type``, ``parent``, ``beads.*``, and any other custom keys
+        preserved from migrations — is silently dropped.
+
+        This wrapper snapshots the full frontmatter before the CLI runs and
+        stitches back any keys that are missing from the post-edit file.
+        """
+        # Snapshot the current frontmatter (includes custom / extra fields).
+        pre_path = self._task_path_for(identifier)
+        pre_meta: dict = {}
+        if pre_path:
+            try:
+                pre_meta, _ = _read_markdown_frontmatter(pre_path)
+            except TrackerError:
+                pass
+
+        # Run the CLI edit.
+        result = self._run_backlog(args)
+
+        # Restore any fields the CLI dropped.
+        if pre_meta:
+            post_path = self._task_path_for(identifier)
+            if post_path:
+                try:
+                    post_meta, body = _read_markdown_frontmatter(post_path)
+                    restored = {
+                        k: v for k, v in pre_meta.items() if k not in post_meta
+                    }
+                    if restored:
+                        logger.debug(
+                            "Backlog.md: restoring %d dropped frontmatter field(s) "
+                            "for %s: %s",
+                            len(restored),
+                            identifier,
+                            sorted(restored),
+                        )
+                        post_meta.update(restored)
+                        _write_markdown_frontmatter(post_path, post_meta, body)
+                except TrackerError as exc:
+                    logger.warning(
+                        "Backlog.md: could not restore frontmatter for %s: %s",
+                        identifier,
+                        exc,
+                    )
+
+        return result
 
     def _run_backlog(
         self, args: list[str], *, timeout: float | None = None,
