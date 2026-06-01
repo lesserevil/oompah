@@ -3,10 +3,10 @@ id: TASK-388
 title: >-
   Submit queue Step 5: enable GitHub Merge Queue on main branches in oompah and
   trickle
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-05 20:08'
-updated_date: '2026-06-01 16:03'
+updated_date: '2026-06-01 16:05'
 labels:
   - beads-migrated
 dependencies:
