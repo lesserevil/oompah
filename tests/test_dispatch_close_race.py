@@ -13,6 +13,7 @@ Two bugs covered:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from unittest.mock import MagicMock, patch
 
@@ -109,6 +110,33 @@ class TestDispatchRecheckSkipsClosedIssue:
         assert len(in_progress_calls) == 1, (
             f"Expected one in_progress write, got: {mock_tracker.update_issue.call_args_list!r}"
         )
+
+    def test_running_entry_uses_post_update_backlog_status(self, tmp_path, event_loop):
+        orch = _make_orchestrator(tmp_path)
+        orch.config.tracker_active_states = ["To Do", "In Progress"]
+        stale = _issue(state="To Do")
+        pre_update = _issue(state="To Do")
+        post_update = _issue(state="In Progress")
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_states_by_ids.side_effect = [
+            [pre_update],
+            [post_update],
+        ]
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=mock_tracker),
+            patch.object(orch, "_run_worker", new=MagicMock(
+                return_value=asyncio.sleep(0))),
+        ):
+            event_loop.run_until_complete(orch._dispatch(stale, attempt=None))
+
+        entry = orch.state.running[stale.id]
+        assert entry.issue.state == "In Progress"
+
+        if not entry.worker_task.done():
+            entry.worker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                event_loop.run_until_complete(entry.worker_task)
 
     def test_recheck_failure_does_not_block_dispatch(self, tmp_path, event_loop):
         """If the recheck fetch raises, fall through to the original

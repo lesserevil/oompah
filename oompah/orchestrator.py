@@ -10,7 +10,7 @@ import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from enum import Enum
@@ -122,6 +122,18 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
 
 
 DEFAULT_SERVICE_STATE_PATH = ".oompah/service_state.json"
+
+
+def _state_key(state: str | None) -> str:
+    """Normalize tracker status spelling for internal comparisons."""
+    return str(state or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _configured_in_progress_state(active_states: list[str]) -> str:
+    """Return the tracker-native status oompah treats as in-progress."""
+    if len(active_states) > 1:
+        return active_states[1]
+    return "in_progress"
 
 
 class DispatchEventType(str, Enum):
@@ -1680,14 +1692,14 @@ class Orchestrator:
         return max(self.state.max_concurrent_agents - len(self.state.running), 0)
 
     def _per_state_available(self, state: str) -> bool:
-        normalized = state.strip().lower()
+        normalized = _state_key(state)
         limit = self.config.max_concurrent_agents_by_state.get(normalized)
         if limit is None:
             return True
         count = sum(
             1
             for e in self.state.running.values()
-            if e.issue.state.strip().lower() == normalized
+            if _state_key(e.issue.state) == normalized
         )
         return count < limit
 
@@ -1818,14 +1830,14 @@ class Orchestrator:
             return False
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
-        state_norm = issue.state.strip().lower()
-        if state_norm not in [
-            s.strip().lower() for s in self.config.tracker_active_states
-        ]:
+        state_norm = _state_key(issue.state)
+        if state_norm not in {
+            _state_key(s) for s in self.config.tracker_active_states
+        }:
             return False
-        if state_norm in [
-            s.strip().lower() for s in self.config.tracker_terminal_states
-        ]:
+        if state_norm in {
+            _state_key(s) for s in self.config.tracker_terminal_states
+        }:
             return False
         if issue.id in self.state.running:
             return False
@@ -3059,14 +3071,14 @@ class Orchestrator:
         # Never dispatch candidates flagged as duplicates of existing open issues
         if "duplicate-candidate" in issue.labels:
             return _reject("duplicate-candidate")
-        state_norm = issue.state.strip().lower()
-        if state_norm not in [
-            s.strip().lower() for s in self.config.tracker_active_states
-        ]:
+        state_norm = _state_key(issue.state)
+        if state_norm not in {
+            _state_key(s) for s in self.config.tracker_active_states
+        }:
             return _reject(f"inactive_state={state_norm}")
-        if state_norm in [
-            s.strip().lower() for s in self.config.tracker_terminal_states
-        ]:
+        if state_norm in {
+            _state_key(s) for s in self.config.tracker_terminal_states
+        }:
             return _reject(f"terminal_state={state_norm}")
         if issue.id in self.state.running:
             return _reject("running")
@@ -3431,7 +3443,7 @@ class Orchestrator:
         completed_ids = self.state.completed
 
         for issue in candidates:
-            if issue.state.strip().lower() != "in_progress":
+            if _state_key(issue.state) != "in_progress":
                 continue
             if issue.id in running_ids or issue.id in retry_ids:
                 continue
@@ -3485,11 +3497,11 @@ class Orchestrator:
 
     def _watchdog_stale_completed(self) -> int:
         """Clear issues stuck in the completed set despite being active in tracker."""
-        active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
+        active_norms = {_state_key(s) for s in self.config.tracker_active_states}
         stale = []
         for issue in self._last_candidates:
             if issue.id in self.state.completed:
-                state_norm = issue.state.strip().lower()
+                state_norm = _state_key(issue.state)
                 if state_norm in active_norms:
                     stale.append(issue)
         for issue in stale:
@@ -7097,8 +7109,8 @@ class Orchestrator:
             )
             refreshed = []
         if refreshed:
-            cur_state = (refreshed[0].state or "").strip().lower()
-            terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
+            cur_state = _state_key(refreshed[0].state)
+            terminal = {_state_key(s) for s in self.config.tracker_terminal_states}
             if cur_state in terminal:
                 logger.info(
                     "Aborting dispatch of %s: state moved to %r since fetch",
@@ -7128,6 +7140,34 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             return
 
+        running_issue = replace(
+            issue,
+            state=_configured_in_progress_state(self.config.tracker_active_states),
+        )
+        try:
+            post_update = await asyncio.get_event_loop().run_in_executor(
+                self._tick_pool,
+                lambda: tracker.fetch_issue_states_by_ids([issue.id]),
+            )
+        except Exception as exc:
+            logger.debug(
+                "Post-dispatch state refresh failed for %s: %s — using optimistic in_progress snapshot",
+                issue.identifier,
+                exc,
+            )
+            post_update = []
+        if post_update:
+            running_issue = post_update[0]
+            if not running_issue.project_id:
+                running_issue.project_id = issue.project_id
+            if _state_key(running_issue.state) != "in_progress":
+                running_issue = replace(
+                    running_issue,
+                    state=_configured_in_progress_state(
+                        self.config.tracker_active_states
+                    ),
+                )
+
         # Remove from retry if present
         retry = self.state.retry_attempts.pop(issue.id, None)
         if retry and retry.timer_handle and not retry.timer_handle.cancelled():
@@ -7135,14 +7175,14 @@ class Orchestrator:
 
         now = datetime.now(timezone.utc)
         worker_task = asyncio.create_task(
-            self._run_worker(issue, attempt, profile),
+            self._run_worker(running_issue, attempt, profile),
             name=f"worker-{issue.identifier}",
         )
 
         self.state.running[issue.id] = RunningEntry(
             worker_task=worker_task,
             identifier=issue.identifier,
-            issue=issue,
+            issue=running_issue,
             session=None,
             retry_attempt=attempt or 0,
             started_at=now,
@@ -8270,16 +8310,16 @@ class Orchestrator:
                         break
 
                     active_norms = {
-                        s.strip().lower() for s in self.config.tracker_active_states
+                        _state_key(s) for s in self.config.tracker_active_states
                     }
-                    if current_issue.state.strip().lower() not in active_norms:
+                    if _state_key(current_issue.state) not in active_norms:
                         break
                 else:
                     # Loop completed without break — all turns used up
                     active_norms = {
-                        s.strip().lower() for s in self.config.tracker_active_states
+                        _state_key(s) for s in self.config.tracker_active_states
                     }
-                    if current_issue.state.strip().lower() in active_norms:
+                    if _state_key(current_issue.state) in active_norms:
                         exit_reason = "max_turns"
                         logger.info(
                             "CLI agent reached max turns for %s", issue.identifier
@@ -9727,9 +9767,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._tick_pool, self._fetch_running_states, by_project
         )
         terminal_norms = {
-            s.strip().lower() for s in self.config.tracker_terminal_states
+            _state_key(s) for s in self.config.tracker_terminal_states
         }
-        active_norms = {s.strip().lower() for s in self.config.tracker_active_states}
+        active_norms = {_state_key(s) for s in self.config.tracker_active_states}
 
         for issue_id in running_ids:
             if issue_id not in self.state.running:
@@ -9738,7 +9778,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if not issue:
                 continue
 
-            state_norm = issue.state.strip().lower()
+            state_norm = _state_key(issue.state)
             if state_norm == "in_progress":
                 # Still in progress — update issue snapshot
                 self.state.running[issue_id].issue = issue

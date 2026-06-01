@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 from fastapi.testclient import TestClient
 
 import oompah.server as server_module
-from oompah.server import app, _verify_epic_state_after_update
+from oompah.server import app, _state_key, _verify_epic_state_after_update
 from oompah.models import Issue
 
 
@@ -65,6 +65,11 @@ def client():
 # ---------------------------------------------------------------------------
 # PATCH /api/v1/issues — project_id validation
 # ---------------------------------------------------------------------------
+
+def test_state_key_normalizes_backlog_in_progress_for_ui_termination_guard():
+    assert _state_key("In Progress") == "in_progress"
+    assert _state_key("in-progress") == "in_progress"
+
 
 class TestUpdateIssueProjectIdValidation:
     """Tests for oompah-zlz_2-4avr: PATCH returns 400 when project_id is missing.

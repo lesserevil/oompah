@@ -316,6 +316,10 @@ _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
 _api_cache = TTLCache()
 
 
+def _state_key(state: str | None) -> str:
+    return str(state or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
 def _dashboard_state(state: str | None) -> str:
     """Map tracker-native states onto the dashboard's legacy columns.
 
@@ -1543,8 +1547,8 @@ async def api_update_issue(identifier: str, request: Request):
 
         # Terminate agent whenever issue is moved away from in_progress
         if new_status is not None:
-            terminal = {s.strip().lower() for s in orch.config.tracker_terminal_states}
-            status_norm = new_status.strip().lower()
+            terminal = {_state_key(s) for s in orch.config.tracker_terminal_states}
+            status_norm = _state_key(new_status)
             if status_norm != "in_progress":
                 for issue_id, entry in list(orch.state.running.items()):
                     if entry.identifier == identifier:

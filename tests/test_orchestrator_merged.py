@@ -1,11 +1,13 @@
 """Tests for orchestrator merged-issue labeling and dispatch gating."""
 
-from unittest.mock import MagicMock, patch, call
+import asyncio
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import BlockerRef, Issue
+from oompah.models import BlockerRef, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
 
@@ -313,6 +315,18 @@ class TestResetOrphanedInProgress:
 
         mock_tracker.update_issue.assert_called_once_with("feat-1", status="open")
 
+    def test_resets_backlog_in_progress_to_open(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="In Progress")
+        issue.project_id = project.id
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_called_once_with("feat-1", status="open")
+
     def test_skips_issue_with_running_agent(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])
@@ -350,6 +364,42 @@ class TestResetOrphanedInProgress:
         orch._reset_orphaned_in_progress([issue])
 
         mock_tracker.update_issue.assert_not_called()
+
+
+class TestBacklogStatusReconciliation:
+    """Tests for tracker status spelling used by Backlog.md."""
+
+    def _make_orchestrator(self, tmp_path):
+        config = _make_config()
+        config.tracker_active_states = ["To Do", "In Progress"]
+        config.tracker_terminal_states = ["Done"]
+        return Orchestrator(
+            config=config,
+            workflow_path="WORKFLOW.md",
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_reconcile_keeps_backlog_in_progress_agent_running(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        issue = _make_issue("feat-1", state="To Do")
+        fresh = _make_issue("feat-1", state="In Progress")
+        task = MagicMock()
+        task.done.return_value = True
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=task,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+        )
+        orch._fetch_running_states = MagicMock(return_value={issue.id: fresh})
+        orch._terminate_running = AsyncMock()
+
+        asyncio.run(orch._reconcile())
+
+        orch._terminate_running.assert_not_called()
+        assert orch.state.running[issue.id].issue.state == "In Progress"
 
 
 class TestShouldDispatchCompleted:
