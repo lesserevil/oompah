@@ -1,16 +1,17 @@
 ---
 id: TASK-388
-title: 'Submit queue Step 5: enable GitHub Merge Queue on main branches in oompah
-  and trickle'
-status: To Do
+title: >-
+  Submit queue Step 5: enable GitHub Merge Queue on main branches in oompah and
+  trickle
+status: In Progress
 assignee: []
-created_date: 2026-05-05 20:08
-updated_date: 2026-05-05 20:08
+created_date: '2026-05-05 20:08'
+updated_date: '2026-06-01 16:03'
 labels:
-- beads-migrated
+  - beads-migrated
 dependencies:
-- TASK-383
-- TASK-386
+  - TASK-383
+  - TASK-386
 priority: high
 ordinal: 1000
 type: task
@@ -19,8 +20,8 @@ beads:
   state: open
   parent_id: oompah-zlz_2-btf
   dependencies:
-  - oompah-zlz_2-7fp
-  - oompah-zlz_2-d7o
+    - oompah-zlz_2-7fp
+    - oompah-zlz_2-d7o
   branch_name: oompah-zlz_2-0c3
   target_branch: null
   url: null
@@ -29,6 +30,7 @@ beads:
   closed_at: null
 parent: TASK-382
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->

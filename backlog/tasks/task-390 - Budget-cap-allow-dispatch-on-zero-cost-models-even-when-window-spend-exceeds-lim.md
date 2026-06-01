@@ -13,6 +13,18 @@ labels:
 dependencies: []
 priority: high
 ordinal: 1000
+type: feature
+beads:
+  id: oompah-zlz_2-fvt
+  state: in_progress
+  parent_id: null
+  dependencies: []
+  branch_name: oompah-zlz_2-fvt
+  target_branch: null
+  url: null
+  created_at: '2026-05-05T20:23:03Z'
+  updated_at: '2026-05-05T20:26:41Z'
+  closed_at: null
 ---
 
 ## Description

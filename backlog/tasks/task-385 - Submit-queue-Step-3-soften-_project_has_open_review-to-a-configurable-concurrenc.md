@@ -13,6 +13,19 @@ labels:
 dependencies: []
 priority: high
 ordinal: 1000
+type: feature
+beads:
+  id: oompah-zlz_2-pt4
+  state: in_progress
+  parent_id: oompah-zlz_2-btf
+  dependencies: []
+  branch_name: oompah-zlz_2-pt4
+  target_branch: null
+  url: null
+  created_at: '2026-05-05T20:04:28Z'
+  updated_at: '2026-05-05T20:14:15Z'
+  closed_at: null
+parent: TASK-382
 ---
 
 ## Description
