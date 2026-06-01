@@ -1531,7 +1531,7 @@ const COLUMN_LABELS = {deferred: 'Backlog', open: 'Open', in_progress: 'In Progr
 let boardData = {};
 let allIssuesFlat = [];
 let dragState = null;
-const optimisticUpdates = {};  // identifier -> {state, priority, expiry}; cleared only on server confirmation
+const optimisticUpdates = {};  // project-scoped issue key -> {identifier, project_id, state, priority, expiry}
 let columnDragState = null;  // {sourceState, epicId (or null for flat)}
 let viewMode = 'flat';
 let collapsedSwimlanes = {};
@@ -1613,6 +1613,22 @@ function filterRunningAgentsForCurrentProject(running) {
   const pid = selectedProjectFilterValue();
   if (!pid) return running || [];
   return (running || []).filter(r => r.project_id === pid);
+}
+
+function optimisticIssueKey(identifier, projectId) {
+  const id = identifier || '';
+  const pid = projectId || '';
+  return pid ? pid + '::' + id : id;
+}
+
+function runningAgentIssueKey(agent) {
+  return optimisticIssueKey(agent && agent.issue_identifier, agent && agent.project_id);
+}
+
+function issueMatchesOptimisticUpdate(issue, update) {
+  if (!issue || !update) return false;
+  if (issue.identifier !== update.identifier) return false;
+  return !update.project_id || issue.project_id === update.project_id;
 }
 
 function renderRunningAgentChips(running, paused) {
@@ -1746,15 +1762,19 @@ function handleStateUpdate(state) {
   // we do not speculate when an entry is removed because we don't know if
   // the agent succeeded, failed, or is being retried — the next throttled
   // "issues" push will set the correct final state.
-  const previousRunningIds = new Set(
-    lastRunningAgents.map(r => r.issue_identifier).filter(Boolean)
+  const previousRunningKeys = new Set(
+    lastRunningAgents
+      .filter(r => r.issue_identifier)
+      .map(r => runningAgentIssueKey(r))
   );
-  const newDispatchIds = running
-    .map(r => r.issue_identifier)
-    .filter(id => id && !previousRunningIds.has(id));
-  if (newDispatchIds.length > 0) {
-    for (const id of newDispatchIds) {
-      optimisticUpdates[id] = {
+  const newDispatchAgents = running
+    .filter(r => r.issue_identifier && !previousRunningKeys.has(runningAgentIssueKey(r)));
+  if (newDispatchAgents.length > 0) {
+    for (const agent of newDispatchAgents) {
+      const key = runningAgentIssueKey(agent);
+      optimisticUpdates[key] = {
+        identifier: agent.issue_identifier,
+        project_id: agent.project_id || '',
         state: 'in_progress',
         priority: undefined,
         expiry: Date.now() + 10000,  // 10s window matches updateIssue()
@@ -2165,11 +2185,13 @@ async function fetchIssues() {
   return await res.json();
 }
 
-function moveIssueInBoard(identifier, newState) {
+function moveIssueInBoard(identifier, newState, projectId) {
   // Move an issue between columns in the local boardData
   if (!boardData) return;
   for (const [state, issues] of Object.entries(boardData)) {
-    const idx = issues.findIndex(i => i.identifier === identifier);
+    const idx = issues.findIndex(
+      i => i.identifier === identifier && (!projectId || i.project_id === projectId)
+    );
     if (idx !== -1) {
       const [issue] = issues.splice(idx, 1);
       issue.state = newState;
@@ -2182,7 +2204,10 @@ function moveIssueInBoard(identifier, newState) {
 
 async function updateIssue(identifier, fields) {
   // Record optimistic state to suppress rubber-banding from stale WebSocket data
-  optimisticUpdates[identifier] = {
+  const projectId = fields.project_id || '';
+  optimisticUpdates[optimisticIssueKey(identifier, projectId)] = {
+    identifier: identifier,
+    project_id: projectId,
     state: fields.status,
     priority: fields.priority,
     expiry: Date.now() + 10000,  // 10 second window
@@ -2256,15 +2281,18 @@ function applyOptimisticOverrides(data) {
   // confirms it; otherwise a stale WebSocket snapshot can clear the protection
   // after we mutate the issue locally and cause a visible rubber-band.
   const now = Date.now();
-  for (const id of Object.keys(optimisticUpdates)) {
-    if (optimisticUpdates[id].expiry < now) {
-      delete optimisticUpdates[id];
+  for (const key of Object.keys(optimisticUpdates)) {
+    if (optimisticUpdates[key].expiry < now) {
+      delete optimisticUpdates[key];
       continue;
     }
-    const upd = optimisticUpdates[id];
+    const upd = optimisticUpdates[key];
+    if (!upd.identifier) {
+      upd.identifier = key;
+    }
     // Find the issue in any column and move it to the correct one
     for (const [state, issues] of Object.entries(data)) {
-      const idx = issues.findIndex(i => i.identifier === id);
+      const idx = issues.findIndex(i => issueMatchesOptimisticUpdate(i, upd));
       if (idx !== -1) {
         const issue = issues[idx];
         const serverState = issue.state;
@@ -2283,7 +2311,7 @@ function applyOptimisticOverrides(data) {
           data[targetState].push(issue);
         }
         if (serverConfirmed) {
-          delete optimisticUpdates[id];
+          delete optimisticUpdates[key];
         }
         break;
       }
@@ -2725,7 +2753,7 @@ function setupColumnDrag(header, sourceState, epicId) {
 
     // Optimistic update
     for (const issue of cardsToMove) {
-      moveIssueInBoard(issue.identifier, targetState);
+      moveIssueInBoard(issue.identifier, targetState, issue.project_id || '');
     }
     renderBoard(boardData);
 
@@ -2823,7 +2851,7 @@ function setupDropZone(body) {
     }
 
     // Different column — move between states
-    moveIssueInBoard(identifier, targetState);
+    moveIssueInBoard(identifier, targetState, dragState.projectId);
     renderBoard(boardData);
     updateIssue(identifier, {status: targetState, project_id: dragState.projectId});
   });

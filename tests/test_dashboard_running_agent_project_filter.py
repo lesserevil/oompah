@@ -47,7 +47,7 @@ def test_project_filter_change_rerenders_running_agent_chips(dashboard_script: s
 
 def test_state_update_keeps_global_running_for_dispatch_diff(dashboard_script: str):
     assert "const running = state.running || [];" in dashboard_script
-    assert "const newDispatchIds = running" in dashboard_script
+    assert "const newDispatchAgents = running" in dashboard_script
     assert "lastRunningAgents = running;" in dashboard_script
     assert "renderRunningAgentChips(running, orchPaused);" in dashboard_script
 

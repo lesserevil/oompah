@@ -66,32 +66,28 @@ class TestDispatchOptimisticStructure:
         assert "function handleStateUpdate(" in script
 
     def test_diffs_against_last_running_agents(self, script: str):
-        """The handler must read previous running IDs from lastRunningAgents."""
+        """The handler must read previous running keys from lastRunningAgents."""
         # The optimistic block builds a Set from lastRunningAgents.
         assert re.search(
-            r"new\s+Set\(\s*lastRunningAgents\.map",
+            r"new\s+Set\(\s*lastRunningAgents\s*\.filter",
             script,
-        ), "must build a Set from lastRunningAgents to diff"
+        ), "must build a project-scoped Set from lastRunningAgents to diff"
 
     def test_filters_running_for_new_dispatches(self, script: str):
-        """Must filter running[] by !previousRunningIds.has(id)."""
+        """Must filter running[] by project-scoped running-agent key."""
         assert re.search(
-            r"!previousRunningIds\.has\(",
+            r"!previousRunningKeys\.has\(\s*runningAgentIssueKey\(r\)\s*\)",
             script,
-        ), "must compute new dispatches by exclusion against previous IDs"
+        ), "must compute new dispatches by exclusion against previous project-scoped keys"
 
-    def test_uses_issue_identifier_field(self, script: str):
-        """Must extract issue_identifier from running entries (not session_id)."""
-        # The filter uses running[].issue_identifier — same field used for chips.
-        # Allow whitespace/newlines inside the .map() call.
-        assert re.search(
-            r"running\s*\.\s*map\(\s*r\s*=>\s*r\.issue_identifier\s*\)",
-            script,
-            re.DOTALL,
-        ), "must map running entries via .issue_identifier"
+    def test_uses_issue_identifier_and_project_id_fields(self, script: str):
+        """Must key running entries by issue_identifier plus project_id."""
+        assert "function runningAgentIssueKey(agent)" in script
+        assert "agent && agent.issue_identifier" in script
+        assert "agent && agent.project_id" in script
 
     def test_writes_optimistic_in_progress(self, script: str):
-        """Must set optimisticUpdates[id] = {state: 'in_progress', ...}."""
+        """Must set optimisticUpdates[key] = {state: 'in_progress', ...}."""
         # Look for an assignment that sets state to 'in_progress' inside the
         # state handler region. We don't constrain the exact structure but
         # require the in_progress literal in proximity to optimisticUpdates.
@@ -103,7 +99,7 @@ class TestDispatchOptimisticStructure:
         )
         assert match, "could not extract handleStateUpdate body"
         body = match.group(1)
-        assert "optimisticUpdates[" in body, (
+        assert "optimisticUpdates[key]" in body, (
             "handleStateUpdate must write to optimisticUpdates on dispatch"
         )
         assert "'in_progress'" in body or '"in_progress"' in body, (
@@ -172,13 +168,32 @@ class TestDispatchOptimisticStructure:
 # optimisticUpdates map matches expectations.
 _DIFF_FN_JS = textwrap.dedent("""
     // Mirror of the production code in handleStateUpdate (dashboard.html).
-    function computeNewDispatchIds(lastRunningAgents, running) {
-        const previousRunningIds = new Set(
-            lastRunningAgents.map(r => r.issue_identifier).filter(Boolean)
+    function optimisticIssueKey(identifier, projectId) {
+        const id = identifier || '';
+        const pid = projectId || '';
+        return pid ? pid + '::' + id : id;
+    }
+
+    function runningAgentIssueKey(agent) {
+        return optimisticIssueKey(agent && agent.issue_identifier, agent && agent.project_id);
+    }
+
+    function computeNewDispatchAgents(lastRunningAgents, running) {
+        const previousRunningKeys = new Set(
+            lastRunningAgents
+                .filter(r => r.issue_identifier)
+                .map(r => runningAgentIssueKey(r))
         );
         return running
-            .map(r => r.issue_identifier)
-            .filter(id => id && !previousRunningIds.has(id));
+            .filter(r => r.issue_identifier && !previousRunningKeys.has(runningAgentIssueKey(r)));
+    }
+
+    function computeNewDispatchIds(lastRunningAgents, running) {
+        return computeNewDispatchAgents(lastRunningAgents, running).map(r => r.issue_identifier);
+    }
+
+    function computeNewDispatchKeys(lastRunningAgents, running) {
+        return computeNewDispatchAgents(lastRunningAgents, running).map(r => runningAgentIssueKey(r));
     }
 """)
 
@@ -212,6 +227,25 @@ _CASES: list[tuple[list[dict], list[dict], list[str]]] = [
     ([{"issue_identifier": ""}, {"issue_identifier": "oompah-1"}],
      [{"issue_identifier": "oompah-1"}, {"issue_identifier": "oompah-2"}],
      ["oompah-2"]),
+]
+
+
+_KEY_CASES: list[tuple[list[dict], list[dict], list[str]]] = [
+    # Same TASK id in a different project is a new dispatch.
+    (
+        [{"issue_identifier": "TASK-260", "project_id": "proj-oompah"}],
+        [
+            {"issue_identifier": "TASK-260", "project_id": "proj-oompah"},
+            {"issue_identifier": "TASK-260", "project_id": "proj-trickle"},
+        ],
+        ["proj-trickle::TASK-260"],
+    ),
+    # Same TASK id in the same project is steady-state, not a new dispatch.
+    (
+        [{"issue_identifier": "TASK-260", "project_id": "proj-trickle"}],
+        [{"issue_identifier": "TASK-260", "project_id": "proj-trickle"}],
+        [],
+    ),
 ]
 
 
@@ -259,6 +293,43 @@ class TestDispatchDiffBehaviour:
             )
         )
 
+    def test_project_scoped_duplicate_task_ids(self, tmp_path):
+        cases_js = json.dumps(_KEY_CASES)
+        script = _DIFF_FN_JS + textwrap.dedent(f"""
+            const cases = {cases_js};
+            const results = [];
+            for (const [last, running, expected] of cases) {{
+                const got = computeNewDispatchKeys(last, running);
+                results.push({{
+                    last: last,
+                    running: running,
+                    expected: expected,
+                    got: got,
+                }});
+            }}
+            process.stdout.write(JSON.stringify(results));
+        """)
+        path = tmp_path / "project_scoped_diff_test.js"
+        path.write_text(script)
+        proc = subprocess.run(
+            ["node", str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert proc.returncode == 0, f"node failed: stderr={proc.stderr!r}"
+        results = json.loads(proc.stdout)
+        failures = [
+            (r["last"], r["running"], r["expected"], r["got"])
+            for r in results
+            if r["got"] != r["expected"]
+        ]
+        assert not failures, (
+            "project-scoped diff mismatches:\n"
+            + "\n".join(
+                f"  last={last} running={running} expected={exp} got={got}"
+                for last, running, exp, got in failures
+            )
+        )
+
 
 # ---------------------------------------------------------------------------
 # (3) End-to-end behavioural test — apply optimistic + render outcome
@@ -277,13 +348,19 @@ class TestDispatchOptimisticAppliesToBoard:
     """
 
     def _extract_apply_optimistic(self, script: str) -> str:
+        helper = re.search(
+            r"function issueMatchesOptimisticUpdate\(.*?\n\}\n",
+            script,
+            re.DOTALL,
+        )
+        assert helper, "could not extract issueMatchesOptimisticUpdate()"
         match = re.search(
             r"function applyOptimisticOverrides\(.*?\n\}\n",
             script,
             re.DOTALL,
         )
         assert match, "could not extract applyOptimisticOverrides()"
-        return match.group(0)
+        return helper.group(0) + "\n" + match.group(0)
 
     def test_dispatch_moves_issue_from_open_to_in_progress(
         self, tmp_path, script: str
@@ -302,11 +379,14 @@ class TestDispatchOptimisticAppliesToBoard:
             // Simulate the dispatch diff.
             const lastRunningAgents = [];
             const running = [{issue_identifier: "oompah-1"}];
-            const newIds = computeNewDispatchIds(lastRunningAgents, running);
+            const newAgents = computeNewDispatchAgents(lastRunningAgents, running);
 
             // Apply the optimistic update like handleStateUpdate does.
-            for (const id of newIds) {
-                optimisticUpdates[id] = {
+            for (const agent of newAgents) {
+                const key = runningAgentIssueKey(agent);
+                optimisticUpdates[key] = {
+                    identifier: agent.issue_identifier,
+                    project_id: agent.project_id || '',
                     state: "in_progress",
                     priority: undefined,
                     expiry: Date.now() + 10000,
@@ -344,6 +424,56 @@ class TestDispatchOptimisticAppliesToBoard:
         assert out["inProgressIds"].count("oompah-1") == 1
         # State field also updated
         assert "in_progress" in out["inProgressStates"]
+
+    def test_dispatch_moves_duplicate_task_id_only_in_matching_project(
+        self, tmp_path, script: str
+    ):
+        """Duplicate Backlog task ids across projects must not move the wrong card."""
+        apply_fn = self._extract_apply_optimistic(script)
+        js = _DIFF_FN_JS + apply_fn + textwrap.dedent("""
+            const boardData = {
+                open: [
+                    {identifier: "TASK-260", project_id: "proj-oompah", state: "open"},
+                    {identifier: "TASK-260", project_id: "proj-trickle", state: "open"},
+                ],
+                in_progress: [],
+                closed: [],
+            };
+            const optimisticUpdates = {};
+
+            const lastRunningAgents = [];
+            const running = [
+                {issue_identifier: "TASK-260", project_id: "proj-trickle"},
+            ];
+            const newAgents = computeNewDispatchAgents(lastRunningAgents, running);
+            for (const agent of newAgents) {
+                const key = runningAgentIssueKey(agent);
+                optimisticUpdates[key] = {
+                    identifier: agent.issue_identifier,
+                    project_id: agent.project_id || '',
+                    state: "in_progress",
+                    priority: undefined,
+                    expiry: Date.now() + 10000,
+                };
+            }
+
+            const result = applyOptimisticOverrides(boardData);
+            process.stdout.write(JSON.stringify({
+                openProjects: result.open.map(i => i.project_id),
+                inProgressProjects: result.in_progress.map(i => i.project_id),
+            }));
+        """)
+        path = tmp_path / "duplicate_project_task_id.js"
+        path.write_text(js)
+        proc = subprocess.run(
+            ["node", str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert proc.returncode == 0, f"node failed: stderr={proc.stderr!r}"
+        out = json.loads(proc.stdout)
+
+        assert out["openProjects"] == ["proj-oompah"]
+        assert out["inProgressProjects"] == ["proj-trickle"]
 
     def test_stale_issues_push_does_not_clear_optimistic_update(
         self, tmp_path, script: str
