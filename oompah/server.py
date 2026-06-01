@@ -316,6 +316,32 @@ _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
 _api_cache = TTLCache()
 
 
+def _dashboard_state(state: str | None) -> str:
+    """Map tracker-native states onto the dashboard's legacy columns.
+
+    Backlog.md uses human-readable statuses such as ``To Do`` and
+    ``In Progress`` while the dashboard columns are keyed by the older
+    beads states: ``deferred``, ``open``, ``in_progress``, ``closed``.
+    Keep that translation at the API boundary so dispatch logic can keep
+    using the tracker-native configured states.
+    """
+    raw = str(state or "").strip()
+    normalized = raw.lower().replace("-", " ").replace("_", " ")
+    aliases = {
+        "to do": "deferred",
+        "todo": "deferred",
+        "backlog": "deferred",
+        "deferred": "deferred",
+        "open": "open",
+        "in progress": "in_progress",
+        "doing": "in_progress",
+        "started": "in_progress",
+        "done": "closed",
+        "closed": "closed",
+    }
+    return aliases.get(normalized, raw.lower().replace(" ", "_"))
+
+
 def _on_state_only_change(snapshot: dict) -> None:
     """Called on agent activity — broadcast state only, no issues re-fetch."""
     import time
@@ -403,10 +429,10 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
                 "open": 0,
                 "in_progress": 0,
                 "closed": 0,
-            }
+    }
     for issue in all_issues:
         if issue.parent_id and issue.parent_id in parents:
-            child_state = issue.state.strip().lower()
+            child_state = _dashboard_state(issue.state)
             if child_state in parents[issue.parent_id]:
                 parents[issue.parent_id][child_state] += 1
 
@@ -422,18 +448,20 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     for issue in all_issues:
         if "archive:yes" in issue.labels:
             continue
-        state = issue.state.strip().lower()
+        state = _dashboard_state(issue.state)
         if state not in result:
             result[state] = []
         branch = issue.branch_name or issue.identifier
         has_open_review = branch in unmerged_branches if branch else False
+        tracker_state = issue.state
         entry = {
             "id": issue.id,
             "identifier": issue.identifier,
             "title": issue.title,
             "description": issue.description,
             "priority": issue.priority,
-            "state": issue.state,
+            "state": state,
+            "tracker_state": tracker_state,
             "labels": issue.labels,
             "issue_type": issue.issue_type,
             "parent_id": issue.parent_id,
@@ -986,7 +1014,7 @@ async def api_issues(request: Request):
         # Count children per parent per state
         for issue in all_issues:
             if issue.parent_id and issue.parent_id in epics:
-                child_state = issue.state.strip().lower()
+                child_state = _dashboard_state(issue.state)
                 if child_state in epics[issue.parent_id]:
                     epics[issue.parent_id][child_state] += 1
 
@@ -1003,7 +1031,7 @@ async def api_issues(request: Request):
             # Hide archived issues
             if "archive:yes" in issue.labels:
                 continue
-            state = issue.state.strip().lower()
+            state = _dashboard_state(issue.state)
             if state not in result:
                 result[state] = []
             # has_open_review: True when this issue's branch is among the
@@ -1014,13 +1042,15 @@ async def api_issues(request: Request):
             # beads whose PR is still in queue/CI.
             branch = issue.branch_name or issue.identifier
             has_open_review = branch in unmerged_branches if branch else False
+            tracker_state = issue.state
             entry = {
                 "id": issue.id,
                 "identifier": issue.identifier,
                 "title": issue.title,
                 "description": issue.description,
                 "priority": issue.priority,
-                "state": issue.state,
+                "state": state,
+                "tracker_state": tracker_state,
                 "labels": issue.labels,
                 "issue_type": issue.issue_type,
                 "parent_id": issue.parent_id,

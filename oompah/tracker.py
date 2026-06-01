@@ -1177,7 +1177,7 @@ class BacklogMdTracker:
         for key, value in fields.items():
             key_norm = key.replace("_", "-")
             if key_norm == "status":
-                args.extend(["--status", str(value)])
+                args.extend(["--status", self._status_with_config_case(str(value))])
                 handled = True
             elif key_norm == "title":
                 args.extend(["--title", str(value)])
@@ -1501,12 +1501,12 @@ class BacklogMdTracker:
 
     def _active_status(self) -> str:
         if self.active_states:
-            return self._status_with_config_case(self.active_states[0])
+            return self._status_from_config_list(self.active_states, 0)
         return self._default_status()
 
     def _terminal_status(self) -> str:
         if self.terminal_states:
-            return self._status_with_config_case(self.terminal_states[0])
+            return self._status_from_config_list(self.terminal_states, 0)
         return "Done"
 
     def _create_status(self, initial_status: str | None) -> str:
@@ -1516,14 +1516,42 @@ class BacklogMdTracker:
 
     def _status_with_config_case(self, status: str) -> str:
         needle = status.strip().lower()
+        configured = self._configured_status_case(status)
+        if configured:
+            return configured
+        if needle in {"to do", "todo", "backlog", DEFAULT_INITIAL_STATUS}:
+            return self._default_status()
+        if needle == "open":
+            return self._status_from_config_list(self.active_states, 0)
+        if needle in {"in_progress", "in progress", "in-progress", "doing", "started"}:
+            return self._status_from_config_list(
+                self.active_states, 1,
+                fallback=self._status_from_config_list(self.active_states, 0),
+            )
+        if needle in {"closed", "done"}:
+            return self._status_from_config_list(self.terminal_states, 0)
+        return status
+
+    def _status_from_config_list(
+        self,
+        statuses: list[str],
+        index: int,
+        *,
+        fallback: str | None = None,
+    ) -> str:
+        if len(statuses) > index:
+            status = statuses[index]
+            return self._configured_status_case(status) or status
+        return fallback or self._default_status()
+
+    def _configured_status_case(self, status: str) -> str | None:
+        needle = status.strip().lower()
         statuses = self._config().get("statuses") or []
         if isinstance(statuses, list):
             for configured in statuses:
                 if str(configured).strip().lower() == needle:
                     return str(configured)
-        if needle == DEFAULT_INITIAL_STATUS:
-            return self._default_status()
-        return status
+        return None
 
     def _normalize_lookup_id(self, identifier: str) -> str:
         value = str(identifier).strip()

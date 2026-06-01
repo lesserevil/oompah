@@ -189,6 +189,26 @@ def test_close_issue_uses_done_status_and_optional_comment(tmp_path):
     add_comment.assert_called_once_with("TASK-1", "Completed")
 
 
+def test_update_issue_maps_legacy_statuses_to_backlog_statuses(tmp_path):
+    _write_config(tmp_path)
+    tracker = _tracker(tmp_path)
+
+    with patch.object(tracker, "_run_backlog", return_value="") as run_backlog:
+        tracker.update_issue("TASK-1", status="in_progress")
+        tracker.update_issue("TASK-2", status="deferred")
+        tracker.update_issue("TASK-3", status="open")
+
+    assert run_backlog.call_args_list[0].args[0] == [
+        "task", "edit", "TASK-1", "--plain", "--status", "In Progress",
+    ]
+    assert run_backlog.call_args_list[1].args[0] == [
+        "task", "edit", "TASK-2", "--plain", "--status", "To Do",
+    ]
+    assert run_backlog.call_args_list[2].args[0] == [
+        "task", "edit", "TASK-3", "--plain", "--status", "To Do",
+    ]
+
+
 def test_working_set_fingerprint_changes_when_task_changes(tmp_path):
     backlog_dir = _write_config(tmp_path)
     task_path = _write_task(backlog_dir, "TASK-1", "Fingerprint")

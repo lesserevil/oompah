@@ -646,6 +646,41 @@ class TestApiIssuesDataShape:
         assert "open" in data, "Response must have 'open' key"
         assert "in_progress" in data, "Response must have 'in_progress' key"
 
+    def test_api_issues_maps_backlog_statuses_to_dashboard_columns(self, api_client):
+        """Backlog.md statuses must land in columns the dashboard renders."""
+        issues = [
+            _make_issue(id="t1", identifier="T-TODO", state="To Do"),
+            _make_issue(id="t2", identifier="T-IP", state="In Progress"),
+            _make_issue(id="t3", identifier="T-DONE", state="Done"),
+        ]
+        mock_orch = _make_orch_with_issues(issues)
+
+        with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
+            resp = api_client.get("/api/v1/issues")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert [e["identifier"] for e in data["deferred"]] == ["T-TODO"]
+        assert [e["identifier"] for e in data["in_progress"]] == ["T-IP"]
+        assert [e["identifier"] for e in data["closed"]] == ["T-DONE"]
+        assert data["deferred"][0]["state"] == "deferred"
+        assert data["deferred"][0]["tracker_state"] == "To Do"
+
+    def test_websocket_issue_payload_maps_backlog_statuses_to_dashboard_columns(self):
+        """The initial WebSocket issue payload must match the REST shape."""
+        issues = [
+            _make_issue(id="t1", identifier="T-TODO", state="To Do"),
+            _make_issue(id="t2", identifier="T-IP", state="In Progress"),
+            _make_issue(id="t3", identifier="T-DONE", state="Done"),
+        ]
+        data = server_module._fetch_and_serialize_issues(_make_orch_with_issues(issues))
+
+        assert [e["identifier"] for e in data["deferred"]] == ["T-TODO"]
+        assert [e["identifier"] for e in data["in_progress"]] == ["T-IP"]
+        assert [e["identifier"] for e in data["closed"]] == ["T-DONE"]
+        assert data["in_progress"][0]["state"] == "in_progress"
+        assert data["in_progress"][0]["tracker_state"] == "In Progress"
+
     def test_api_issues_labels_is_list_not_null(self, api_client):
         """Labels field must be a list even when the issue has no labels."""
         issues = [

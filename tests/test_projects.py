@@ -813,12 +813,17 @@ class TestSyncProjectSources:
         )
         store._projects[p.id] = p
 
-        with _patch.object(_subprocess, "run") as mock_run:
+        with _patch.object(_subprocess, "run") as mock_run, \
+             _patch("oompah.projects._configure_beads_jsonl_ignore") as mock_cfg:
             mock_run.return_value = _MM(returncode=0, stdout="", stderr="")
             status = store.sync_project_sources("p-nobd")
 
         assert status["git"] == "ok"
         assert status["beads"].startswith("skipped"), status
+        mock_cfg.assert_not_called()
+        assert all(
+            call.args[0][0] != "bd" for call in mock_run.call_args_list
+        )
 
     def test_git_pull_failure_does_not_raise(self, tmp_path):
         store = _store_with_one_project(tmp_path)

@@ -1247,11 +1247,18 @@ class ProjectStore:
                     exc,
                 )
 
-        # Self-heal: ensure .beads/*.jsonl is gitignored and bd's
-        # export.git-add is disabled (idempotent — fixes pre-existing
-        # projects that predate oompah-zlz_2-mp4v).  Best-effort: logged
-        # but never raises.
-        if project.repo_path and os.path.isdir(project.repo_path):
+        beads_dir = (
+            os.path.join(project.repo_path, ".beads")
+            if project.repo_path
+            else None
+        )
+        has_beads_dir = bool(beads_dir and os.path.isdir(beads_dir))
+
+        # Self-heal beads repos only: ensure .beads/*.jsonl is gitignored
+        # and bd's export.git-add is disabled (idempotent — fixes
+        # pre-existing projects that predate oompah-zlz_2-mp4v).  Backlog.md
+        # repos do not have .beads/ and must not invoke bd during sync.
+        if has_beads_dir and project.repo_path and os.path.isdir(project.repo_path):
             try:
                 _configure_beads_jsonl_ignore(project.repo_path)
             except Exception as exc:  # pragma: no cover - belt-and-suspenders
@@ -1262,7 +1269,7 @@ class ProjectStore:
                 )
 
         # bd dolt pull. Skip if there's no .beads/ directory at all.
-        if not os.path.isdir(os.path.join(project.repo_path, ".beads")):
+        if not has_beads_dir:
             status["beads"] = "skipped: no .beads"
         else:
             try:
