@@ -99,6 +99,31 @@ class TestCreateIssueEpicDraftLabel:
         assert resp.status_code == 201
         mock_tracker.add_label.assert_not_called()
 
+    def test_create_child_passes_parent_at_creation(self, client):
+        """POST parent_id should pass parent into create_issue, not link afterward."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.create_issue.return_value = _make_mock_issue(
+            identifier="task-child", issue_type="task"
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Child task",
+                    "type": "task",
+                    "project_id": "proj-1",
+                    "parent_id": "TASK-1",
+                },
+            )
+
+        assert resp.status_code == 201
+        assert mock_tracker.create_issue.call_args.kwargs["parent"] == "TASK-1"
+        mock_tracker.add_parent_child.assert_not_called()
+
     def test_create_bug_does_not_add_draft_label(self, client):
         """POST type=bug should NOT call tracker.add_label."""
         mock_orch, mock_tracker = _make_mock_orchestrator()

@@ -245,6 +245,7 @@ def test_create_issue_builds_backlog_cli_command(tmp_path):
             description="Details",
             priority=1,
             labels=["api"],
+            parent="TASK-1",
         )
 
     assert run_backlog.call_args.args[0] == [
@@ -253,6 +254,7 @@ def test_create_issue_builds_backlog_cli_command(tmp_path):
         "--status", "To Do",
         "--priority", "high",
         "--labels", "api,feature",
+        "--parent", "TASK-1",
     ]
 
 

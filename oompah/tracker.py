@@ -1137,7 +1137,7 @@ class BacklogMdTracker:
         return _parse_backlog_comments(rec["body"])
 
     def add_parent_child(self, child_id: str, parent_id: str) -> None:
-        """Backlog.md parent links are set through the parent flag at creation."""
+        """Fallback for callers that could not set the Backlog.md parent at creation."""
         self.update_issue(child_id, parent=parent_id)
 
     def add_dependency(self, blocked_id: str, blocker_id: str) -> None:

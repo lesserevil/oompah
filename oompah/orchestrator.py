@@ -9510,11 +9510,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 description=description,
                 priority=priority,
                 initial_status="open",
+                parent=parent_issue.identifier,
             )
             created.append(child)
-
-            # Link as parent-child
-            tracker.add_parent_child(child.identifier, parent_issue.identifier)
 
             # Add focus hint label
             focus_hint = task.get("focus_hint", "")

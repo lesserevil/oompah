@@ -1286,23 +1286,20 @@ async def api_create_issue(request: Request):
                 description = enhancement.enhanced_description
 
         issue_type = body.get("type", "task")
+        parent_id = body.get("parent_id") or None
         issue = tracker.create_issue(
             title=title,
             issue_type=issue_type,
             description=description,
             priority=body.get("priority"),
             initial_status=body.get("status"),
+            parent=parent_id,
         )
         issue.project_id = project_id
 
         # Auto-add 'draft' label to new epics so they appear in the kanban
         if issue_type == "epic":
             tracker.add_label(issue.identifier, "draft")
-
-        # Link to parent epic if specified
-        parent_id = body.get("parent_id")
-        if parent_id:
-            tracker.add_parent_child(issue.id, parent_id)
 
         _api_cache.invalidate("issues:all")
         await broadcast_issues()

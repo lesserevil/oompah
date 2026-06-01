@@ -506,6 +506,49 @@ class TestEpicPlanningInTick:
         assert epic.identifier not in dispatched
 
 
+class TestAutoDecomposition:
+    """Tests for issue auto-decomposition child creation."""
+
+    def test_creates_children_with_parent_at_creation(self, tmp_path):
+        """Decomposition should create child tasks under the parent immediately."""
+        orch = _make_orchestrator(tmp_path)
+        parent = _make_issue(
+            "parent-1",
+            issue_type="feature",
+            title="Large task",
+            description="Too large for one agent",
+        )
+        tasks = [
+            {
+                "title": "First child",
+                "description": "Do first piece",
+                "priority": 2,
+                "focus_hint": "feature",
+                "depends_on": [],
+            },
+            {
+                "title": "Second child",
+                "description": "Do second piece",
+                "priority": 2,
+                "focus_hint": "test",
+                "depends_on": [0],
+            },
+        ]
+
+        tracker = MagicMock()
+        tracker.create_issue.side_effect = [
+            _make_issue("child-1"),
+            _make_issue("child-2"),
+        ]
+
+        asyncio.run(orch._execute_decomposition(parent, tasks, tracker, None))
+
+        for call in tracker.create_issue.call_args_list:
+            assert call.kwargs["parent"] == "parent-1"
+        tracker.add_parent_child.assert_not_called()
+        tracker.add_dependency.assert_called_once_with("child-2", "child-1")
+
+
 class TestEpicPlannerFocusSelection:
     """Tests that the epic_planner focus is selected for epic issues."""
 
