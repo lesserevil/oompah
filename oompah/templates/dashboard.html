@@ -1531,7 +1531,7 @@ const COLUMN_LABELS = {deferred: 'Backlog', open: 'Open', in_progress: 'In Progr
 let boardData = {};
 let allIssuesFlat = [];
 let dragState = null;
-const optimisticUpdates = {};  // identifier -> {state, priority, expiry}
+const optimisticUpdates = {};  // identifier -> {state, priority, expiry}; cleared only on server confirmation
 let columnDragState = null;  // {sourceState, epicId (or null for flat)}
 let viewMode = 'flat';
 let collapsedSwimlanes = {};
@@ -2220,7 +2220,10 @@ function getEpicById(epicId) {
 }
 
 function applyOptimisticOverrides(data) {
-  // Override stale server data with recent optimistic updates
+  // Override stale server data with recent optimistic updates.
+  // Only clear an optimistic update when the unmodified server payload already
+  // confirms it; otherwise a stale WebSocket snapshot can clear the protection
+  // after we mutate the issue locally and cause a visible rubber-band.
   const now = Date.now();
   for (const id of Object.keys(optimisticUpdates)) {
     if (optimisticUpdates[id].expiry < now) {
@@ -2233,17 +2236,22 @@ function applyOptimisticOverrides(data) {
       const idx = issues.findIndex(i => i.identifier === id);
       if (idx !== -1) {
         const issue = issues[idx];
-        const targetState = upd.state || issue.state;
-        if (upd.priority !== undefined) issue.priority = upd.priority;
+        const serverState = issue.state;
+        const serverPriority = issue.priority;
+        const hasStateUpdate = upd.state !== undefined;
+        const hasPriorityUpdate = upd.priority !== undefined;
+        const serverConfirmed =
+          (!hasStateUpdate || serverState === upd.state) &&
+          (!hasPriorityUpdate || serverPriority === upd.priority);
+        const targetState = hasStateUpdate ? upd.state : issue.state;
+        if (hasPriorityUpdate) issue.priority = upd.priority;
         if (targetState !== state) {
           issues.splice(idx, 1);
           if (!data[targetState]) data[targetState] = [];
           issue.state = targetState;
           data[targetState].push(issue);
         }
-        // If server confirms our update, clear it early
-        if ((!upd.state || issue.state === upd.state) &&
-            (upd.priority === undefined || issue.priority === upd.priority)) {
+        if (serverConfirmed) {
           delete optimisticUpdates[id];
         }
         break;

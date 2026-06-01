@@ -345,6 +345,98 @@ class TestDispatchOptimisticAppliesToBoard:
         # State field also updated
         assert "in_progress" in out["inProgressStates"]
 
+    def test_stale_issues_push_does_not_clear_optimistic_update(
+        self, tmp_path, script: str
+    ):
+        """A stale websocket issues payload must not clear the local override.
+
+        This is the rubber-band regression: the stale payload says the issue is
+        still open, applyOptimisticOverrides moves it locally to in_progress,
+        and the optimistic marker must remain until a raw server payload also
+        says in_progress.
+        """
+        apply_fn = self._extract_apply_optimistic(script)
+        js = apply_fn + textwrap.dedent("""
+            const boardData = {
+                open: [{identifier: "oompah-1", state: "open"}],
+                in_progress: [],
+                closed: [],
+            };
+            const optimisticUpdates = {
+                "oompah-1": {
+                    state: "in_progress",
+                    priority: undefined,
+                    expiry: Date.now() + 10000,
+                },
+            };
+
+            const result = applyOptimisticOverrides(boardData);
+
+            process.stdout.write(JSON.stringify({
+                openIds: result.open.map(i => i.identifier),
+                inProgressIds: result.in_progress.map(i => i.identifier),
+                optimisticKeysCount: Object.keys(optimisticUpdates).length,
+            }));
+        """)
+        path = tmp_path / "stale_push.js"
+        path.write_text(js)
+        proc = subprocess.run(
+            ["node", str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert proc.returncode == 0, f"node failed: stderr={proc.stderr!r}"
+        out = json.loads(proc.stdout)
+
+        assert "oompah-1" not in out["openIds"]
+        assert "oompah-1" in out["inProgressIds"]
+        assert out["optimisticKeysCount"] == 1, (
+            "stale server data must not clear the optimistic override"
+        )
+
+    def test_server_confirmation_clears_after_stale_payload(
+        self, tmp_path, script: str
+    ):
+        """After stale payloads are masked, the next confirming payload clears."""
+        apply_fn = self._extract_apply_optimistic(script)
+        js = apply_fn + textwrap.dedent("""
+            const optimisticUpdates = {
+                "oompah-1": {
+                    state: "in_progress",
+                    priority: undefined,
+                    expiry: Date.now() + 10000,
+                },
+            };
+
+            // First payload is stale: still says open.
+            applyOptimisticOverrides({
+                open: [{identifier: "oompah-1", state: "open"}],
+                in_progress: [],
+                closed: [],
+            });
+
+            // Later payload confirms: raw server state is now in_progress.
+            applyOptimisticOverrides({
+                open: [],
+                in_progress: [{identifier: "oompah-1", state: "in_progress"}],
+                closed: [],
+            });
+
+            process.stdout.write(JSON.stringify({
+                optimisticKeysCount: Object.keys(optimisticUpdates).length,
+            }));
+        """)
+        path = tmp_path / "confirm_after_stale.js"
+        path.write_text(js)
+        proc = subprocess.run(
+            ["node", str(path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert proc.returncode == 0, f"node failed: stderr={proc.stderr!r}"
+        out = json.loads(proc.stdout)
+        assert out["optimisticKeysCount"] == 0, (
+            "confirmed server data must clear the optimistic override"
+        )
+
     def test_no_speculation_on_running_removal(self, tmp_path, script: str):
         """When an agent is removed from running[], no optimistic update fires."""
         apply_fn = self._extract_apply_optimistic(script)
