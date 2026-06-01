@@ -3,10 +3,10 @@ id: TASK-389
 title: >-
   Budget window: align rolls to calendar boundaries (top of hour, midnight,
   Sunday 00:00)
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2026-05-05 20:18'
-updated_date: '2026-06-01 16:03'
+updated_date: '2026-06-01 19:43'
 labels:
   - feature
   - beads-migrated
