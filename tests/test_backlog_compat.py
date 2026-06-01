@@ -62,6 +62,33 @@ def test_ensure_backlog_compatible_migrates_legacy_statuses(tmp_path):
     for status in CANONICAL_STATUSES:
         assert status in data["statuses"]
     assert "To Do" not in data["statuses"]
+    assert "statuses: [Backlog, Open," in config_path.read_text(encoding="utf-8")
+
+
+def test_ensure_backlog_compatible_rewrites_statuses_as_inline_array(tmp_path):
+    backlog_dir = tmp_path / "backlog"
+    backlog_dir.mkdir()
+    config_path = backlog_dir / "config.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "project_name": "Current",
+                "task_prefix": "TASK",
+                "default_status": "Backlog",
+                "statuses": list(CANONICAL_STATUSES),
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = ensure_backlog_compatible(tmp_path)
+
+    assert result.changed is True
+    assert "config-format" in result.migrations
+    text = config_path.read_text(encoding="utf-8")
+    assert "statuses: [Backlog, Open," in text
+    assert "\n- Backlog\n" not in text
 
 
 def test_ensure_backlog_compatible_moves_invalid_active_task_statuses_to_backlog(tmp_path):
@@ -192,15 +219,13 @@ def test_ensure_backlog_compatible_is_idempotent_for_current_config(tmp_path):
     backlog_dir.mkdir()
     config_path = backlog_dir / "config.yml"
     config_path.write_text(
-        yaml.safe_dump(
-            {
-                "project_name": "Current",
-                "task_prefix": "TASK",
-                "default_status": "Backlog",
-                "statuses": list(CANONICAL_STATUSES),
-            },
-            sort_keys=False,
-        ),
+        "\n".join([
+            "project_name: Current",
+            "task_prefix: TASK",
+            "default_status: Backlog",
+            f"statuses: [{', '.join(CANONICAL_STATUSES)}]",
+            "",
+        ]),
         encoding="utf-8",
     )
 

@@ -1,18 +1,5 @@
 project_name: oompah
-statuses:
-- Backlog
-- Open
-- In Progress
-- Needs Answer
-- Needs Human
-- Needs CI Fix
-- Needs Rebase
-- In Review
-- Decomposed
-- Duplicate Candidate
-- Done
-- Merged
-- Archived
+statuses: [Backlog, Open, In Progress, Needs Answer, Needs Human, Needs CI Fix, Needs Rebase, In Review, Decomposed, Duplicate Candidate, Done, Merged, Archived]
 labels: []
 date_format: yyyy-mm-dd
 max_column_width: 80

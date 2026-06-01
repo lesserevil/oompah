@@ -30,6 +30,28 @@ _CAMEL_TO_SNAKE = {
 }
 
 
+class _BacklogConfigDumper(yaml.SafeDumper):
+    """YAML dumper for Backlog.md config files."""
+
+
+class _FlowStyleList(list):
+    """Marker list that should be emitted in YAML flow style."""
+
+
+def _represent_flow_style_list(
+    dumper: yaml.SafeDumper,
+    data: _FlowStyleList,
+) -> yaml.SequenceNode:
+    return dumper.represent_sequence(
+        "tag:yaml.org,2002:seq",
+        data,
+        flow_style=True,
+    )
+
+
+_BacklogConfigDumper.add_representer(_FlowStyleList, _represent_flow_style_list)
+
+
 @dataclass
 class BacklogCompatibilityResult:
     project_root: Path
@@ -95,11 +117,11 @@ def ensure_backlog_compatible(project_root: str | Path) -> BacklogCompatibilityR
         migrated["task_prefix"] = "task"
         result.migrations.append("task-prefix")
 
-    if migrated != data:
-        config_path.write_text(
-            yaml.safe_dump(migrated, sort_keys=False, allow_unicode=False),
-            encoding="utf-8",
-        )
+    serialized = _dump_backlog_config(migrated)
+    if migrated != data or serialized != original_text:
+        if migrated == data:
+            result.migrations.append("config-format")
+        config_path.write_text(serialized, encoding="utf-8")
         result.changed = True
 
     changed_tasks = _migrate_active_task_statuses(
@@ -156,6 +178,34 @@ def _list_value(value: Any) -> list[str]:
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
     return []
+
+
+def _dump_backlog_config(config: dict[str, Any]) -> str:
+    """Dump Backlog.md config in the shape its CLI validates.
+
+    Backlog.md 1.45.2 writes snake_case keys, but its status validator only
+    recognizes the ``statuses`` list when it is emitted as an inline YAML array.
+    Keep all config lists in flow style so future list-valued options get the
+    same parser-friendly treatment.
+    """
+    return yaml.dump(
+        _with_flow_style_lists(config),
+        Dumper=_BacklogConfigDumper,
+        sort_keys=False,
+        allow_unicode=False,
+        width=1000,
+    )
+
+
+def _with_flow_style_lists(value: Any) -> Any:
+    if isinstance(value, list):
+        return _FlowStyleList(_with_flow_style_lists(item) for item in value)
+    if isinstance(value, dict):
+        return {
+            key: _with_flow_style_lists(item)
+            for key, item in value.items()
+        }
+    return value
 
 
 def _migrate_active_task_statuses(
