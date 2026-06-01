@@ -11,21 +11,21 @@ import yaml
 from oompah.statuses import DEFAULT_STATUS, canonical_statuses_with
 
 
-_SNAKE_TO_CAMEL = {
-    "project_name": "projectName",
-    "default_status": "defaultStatus",
-    "date_format": "dateFormat",
-    "max_column_width": "maxColumnWidth",
-    "auto_open_browser": "autoOpenBrowser",
-    "default_port": "defaultPort",
-    "remote_operations": "remoteOperations",
-    "auto_commit": "autoCommit",
-    "filesystem_only": "filesystemOnly",
-    "bypass_git_hooks": "bypassGitHooks",
-    "check_active_branches": "checkActiveBranches",
-    "active_branch_days": "activeBranchDays",
-    "task_prefix": "taskPrefix",
-    "backlog_directory": "backlogDirectory",
+_CAMEL_TO_SNAKE = {
+    "projectName": "project_name",
+    "defaultStatus": "default_status",
+    "dateFormat": "date_format",
+    "maxColumnWidth": "max_column_width",
+    "autoOpenBrowser": "auto_open_browser",
+    "defaultPort": "default_port",
+    "remoteOperations": "remote_operations",
+    "autoCommit": "auto_commit",
+    "filesystemOnly": "filesystem_only",
+    "bypassGitHooks": "bypass_git_hooks",
+    "checkActiveBranches": "check_active_branches",
+    "activeBranchDays": "active_branch_days",
+    "taskPrefix": "task_prefix",
+    "backlogDirectory": "backlog_directory",
 }
 
 
@@ -46,10 +46,9 @@ class BacklogCompatibilityError(Exception):
 def ensure_backlog_compatible(project_root: str | Path) -> BacklogCompatibilityResult:
     """Ensure a repository's Backlog.md config contains oompah's statuses.
 
-    Backlog.md's CLI expects camelCase config keys. Older oompah task files
-    used snake_case keys, which made the CLI silently fall back to
-    ``To Do``/``In Progress``/``Done``. This helper migrates config keys and
-    status values without rewriting task files.
+    Backlog.md's CLI expects snake_case config keys in ``backlog/config.yml``.
+    This helper migrates legacy or accidental camelCase keys and status values
+    without rewriting task files.
     """
     root = Path(project_root).resolve()
     result = BacklogCompatibilityResult(project_root=root)
@@ -82,15 +81,15 @@ def ensure_backlog_compatible(project_root: str | Path) -> BacklogCompatibilityR
         result.migrations.append("canonical-statuses")
     migrated["statuses"] = new_statuses
 
-    if migrated.get("defaultStatus") != DEFAULT_STATUS:
-        migrated["defaultStatus"] = DEFAULT_STATUS
+    if migrated.get("default_status") != DEFAULT_STATUS:
+        migrated["default_status"] = DEFAULT_STATUS
         result.migrations.append("default-status")
 
-    if "projectName" not in migrated:
-        migrated["projectName"] = root.name
+    if "project_name" not in migrated:
+        migrated["project_name"] = root.name
         result.migrations.append("project-name")
-    if "taskPrefix" not in migrated:
-        migrated["taskPrefix"] = "task"
+    if "task_prefix" not in migrated:
+        migrated["task_prefix"] = "task"
         result.migrations.append("task-prefix")
 
     if migrated != data:
@@ -134,7 +133,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 def _migrate_config_dict(data: dict[str, Any]) -> dict[str, Any]:
     migrated: dict[str, Any] = {}
     for key, value in data.items():
-        migrated[_SNAKE_TO_CAMEL.get(str(key), str(key))] = value
+        migrated[_CAMEL_TO_SNAKE.get(str(key), str(key))] = value
     return migrated
 
 

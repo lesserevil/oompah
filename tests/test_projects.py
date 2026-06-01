@@ -50,9 +50,9 @@ def _write_backlog_config(repo, *, legacy: bool = False):
         ])
     else:
         content = "\n".join([
-            "projectName: Test",
-            "defaultStatus: Backlog",
-            "taskPrefix: TASK",
+            "project_name: Test",
+            "default_status: Backlog",
+            "task_prefix: TASK",
             "statuses:",
             "  - Backlog",
             "  - Open",
@@ -228,7 +228,7 @@ class TestSyncProjectSources:
 
         assert status == {"git": "ok", "backlog": "migrated"}
         config = (repo / "backlog" / "config.yml").read_text(encoding="utf-8")
-        assert "defaultStatus: Backlog" in config
+        assert "default_status: Backlog" in config
         assert "Open" in config
 
     def test_git_pull_failure_does_not_block_backlog_check(self, tmp_path):
