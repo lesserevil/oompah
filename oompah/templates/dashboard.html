@@ -1599,6 +1599,49 @@ function connectWebSocket() {
   };
 }
 
+function selectedProjectFilterValue() {
+  const sel = document.getElementById('project-filter');
+  const pid = (sel && sel.value) || localStorage.getItem('oompah_selected_project') || '';
+  if (!pid) return '';
+  if (currentProjects && currentProjects.length > 0) {
+    return currentProjects.some(p => p.id === pid) ? pid : '';
+  }
+  return pid;
+}
+
+function filterRunningAgentsForCurrentProject(running) {
+  const pid = selectedProjectFilterValue();
+  if (!pid) return running || [];
+  return (running || []).filter(r => r.project_id === pid);
+}
+
+function renderRunningAgentChips(running, paused) {
+  const visibleRunning = filterRunningAgentsForCurrentProject(running);
+  const countEl = document.getElementById('agent-count');
+  if (countEl) countEl.textContent = visibleRunning.length;
+
+  const container = document.getElementById('running-agents');
+  if (!container) return;
+  if (visibleRunning.length === 0) {
+    container.innerHTML = paused ? '<span class="paused-badge">PAUSED</span>' : '';
+    return;
+  }
+
+  container.innerHTML = visibleRunning.map(r => {
+    const rawId = r.issue_identifier || '';
+    const id = esc(rawId);
+    const displayId = esc(displayIdentifierFor(rawId, r.project_id, r.project_name, r.display_identifier));
+    return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
+      '<span class="dot"></span>' +
+      displayId +
+      (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
+    '</span>';
+  }).join('');
+  if (paused) {
+    container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
+  }
+}
+
 function handleStateUpdate(state) {
   // Update pause state
   orchPaused = state.paused || false;
@@ -1671,7 +1714,6 @@ function handleStateUpdate(state) {
   }
 
   // Update agent stats
-  document.getElementById('agent-count').textContent = state.counts.running;
   const totals = state.agent_totals || {};
   document.getElementById('agent-tokens').textContent = (totals.total_tokens || 0).toLocaleString();
   document.getElementById('agent-cost').textContent = '$' + (totals.estimated_cost || 0).toFixed(2);
@@ -1693,8 +1735,6 @@ function handleStateUpdate(state) {
   const projects = state.projects || [];
   currentProjects = projects;
 
-  // Render running agent chips
-  const container = document.getElementById('running-agents');
   const running = state.running || [];
 
   // Optimistic dispatch update: when a state push contains a newly-running
@@ -1730,23 +1770,7 @@ function handleStateUpdate(state) {
   }
 
   lastRunningAgents = running;
-  if (running.length === 0) {
-    container.innerHTML = orchPaused ? '<span class="paused-badge">PAUSED</span>' : '';
-  } else {
-    container.innerHTML = running.map(r => {
-      const rawId = r.issue_identifier || '';
-      const id = esc(rawId);
-      const displayId = esc(displayIdentifierFor(rawId, r.project_id, r.project_name, r.display_identifier));
-      return '<span class="running-agent-chip" onclick="openActivityPanel(&quot;' + id + '&quot;)">' +
-        '<span class="dot"></span>' +
-        displayId +
-        (r.agent_profile ? ' (' + esc(r.agent_profile) + ')' : '') +
-      '</span>';
-    }).join('');
-    if (orchPaused) {
-      container.innerHTML += ' <span class="paused-badge">PAUSED</span>';
-    }
-  }
+  renderRunningAgentChips(running, orchPaused);
 
   // Update project filter dropdown
   const sel = document.getElementById('project-filter');
@@ -1783,7 +1807,12 @@ function handleStateUpdate(state) {
     const agent = running.find(r => r.issue_identifier === activeId);
     if (agent && agent.focus_role) {
       // Update title with latest focus info
-      let title = 'Agent: ' + activeId;
+      let title = 'Agent: ' + displayIdentifierFor(
+        agent.issue_identifier,
+        agent.project_id,
+        agent.project_name,
+        agent.display_identifier
+      );
       const parts = [];
       if (agent.focus_role) parts.push(agent.focus_role);
       if (agent.agent_profile) parts.push(agent.agent_profile);
@@ -1937,6 +1966,7 @@ function saveProjectFilter() {
   if (sel) {
     localStorage.setItem('oompah_selected_project', sel.value);
   }
+  renderRunningAgentChips(lastRunningAgents, orchPaused);
 }
 
 // When the top-level dashboard project filter changes, mirror the
@@ -2117,8 +2147,7 @@ function isHiddenByMergedFilter(issue) {
 }
 
 function filterByProject(data) {
-  const sel = document.getElementById('project-filter');
-  const pid = sel ? sel.value : '';
+  const pid = selectedProjectFilterValue();
   if (!pid) return data;
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
@@ -2129,8 +2158,7 @@ function filterByProject(data) {
 }
 
 async function fetchIssues() {
-  const filter = document.getElementById('project-filter');
-  const pid = filter ? filter.value : '';
+  const pid = selectedProjectFilterValue();
   const url = pid ? '/api/v1/issues?project_id=' + encodeURIComponent(pid) : '/api/v1/issues';
   const res = await fetch(url);
   if (!res.ok) return null;
