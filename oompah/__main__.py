@@ -28,7 +28,7 @@ def main() -> None:
         "--port",
         type=int,
         default=None,
-        help="HTTP server port (overrides server.port in WORKFLOW.md)",
+        help="HTTP server port (overrides config and OOMPAH_SERVER_PORT)",
     )
     parser.add_argument(
         "--env-file",

@@ -15,6 +15,8 @@ from oompah.models import AgentProfile, WorkflowDefinition
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SERVER_PORT = 8080
+
 
 class WorkflowError(Exception):
     """Raised on workflow file or config errors."""
@@ -341,7 +343,7 @@ class ServiceConfig:
     stall_turns: int = 10
     escalate_after_attempts: int = 1  # escalate profile after N failed attempts (stall or max_turns)
     decompose_after_attempts: int = 2
-    server_port: int | None = None
+    server_port: int | None = DEFAULT_SERVER_PORT
     agent_profiles: list[AgentProfile] = field(default_factory=list)
     # Resolved source for the effective agent_profiles list:
     # - "json" (default): .oompah/agent_profiles.json wins; one-shot
@@ -610,8 +612,12 @@ class ServiceConfig:
         def _env_str(env_key: str, yaml_val: Any, default: str) -> str:
             return os.environ.get(env_key) or (str(yaml_val) if yaml_val is not None else default)
 
-        # Server port: env > yaml > None
-        raw_port = os.environ.get("OOMPAH_SERVER_PORT", server.get("port"))
+        # Server port: env > yaml > default. An explicit empty env value or
+        # YAML null disables the HTTP dashboard.
+        raw_port = os.environ.get(
+            "OOMPAH_SERVER_PORT",
+            server.get("port", DEFAULT_SERVER_PORT),
+        )
         server_port = _coerce_int(raw_port, None) if raw_port is not None else None
 
         # Workspace root: env > yaml > tempdir

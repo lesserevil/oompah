@@ -96,8 +96,6 @@ agent:
       model_role: deep
       issue_types: [bug, epic]
 
-server:
-  port: 8080
 ---
 
 You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
@@ -129,7 +127,7 @@ You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
 | `agent` | `stall_turns` | Turns without progress before retry | `5` |
 | `agent` | `budget_limit` | Max spend in dollars (0 = unlimited) | `0` |
 | `agent` | `profiles` | List of agent tier definitions | `[]` |
-| `server` | `port` | Dashboard HTTP port | none (no server) |
+| `server` | `port` | Dashboard HTTP port; `OOMPAH_SERVER_PORT` takes precedence | `8080` |
 
 ### Agent profiles
 
@@ -200,7 +198,9 @@ Manage foci at `http://localhost:8080/foci`.
 
 ## Web dashboard
 
-Start the dashboard by setting `server.port` in `WORKFLOW.md`:
+The dashboard starts on port 8080 by default. Override it with
+`OOMPAH_SERVER_PORT` in `.env`; set it to an empty value to disable the
+dashboard.
 
 - **`/`** — Kanban board with drag-and-drop, agent status, cost tracking
 - **`/reviews`** — Open PRs/MRs across all projects with rebase controls

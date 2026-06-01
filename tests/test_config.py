@@ -80,7 +80,29 @@ class TestServiceConfig:
         # Default rolling window is "day" — picked because most operators
         # think of $X/day rather than $X/process-lifetime.
         assert cfg.budget_window == "day"
+        assert cfg.server_port == 8080
         assert cfg.workspace_root  # should have a default
+
+    def test_server_port_env_overrides_default(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_SERVER_PORT", "8090")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.server_port == 8090
+
+    def test_server_port_env_overrides_workflow(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_SERVER_PORT", "8090")
+        wf = WorkflowDefinition(
+            config={"server": {"port": 9090}},
+            prompt_template="test",
+        )
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.server_port == 8090
+
+    def test_blank_server_port_env_disables_dashboard(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_SERVER_PORT", "")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+        cfg = ServiceConfig.from_workflow(wf)
+        assert cfg.server_port is None
 
     def test_from_workflow_backlog_md_defaults(self):
         wf = WorkflowDefinition(

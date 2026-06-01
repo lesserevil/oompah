@@ -42,3 +42,12 @@ def test_make_targets_export_venv_bin_on_path():
     text = _makefile_text()
 
     assert "export PATH := $(abspath $(VENV)/bin):$(PATH)" in text
+
+
+def test_make_start_does_not_force_default_port_flag():
+    """make start must leave OOMPAH_SERVER_PORT/.env precedence to oompah."""
+    text = _makefile_text()
+
+    assert "PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),8080)" in text
+    assert "$(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 &" in text
+    assert "$(PYTHON) -m oompah --port $(PORT)" not in text

@@ -2,7 +2,7 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
-PORT := 8080
+PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),8080)
 BACKLOG_NPM_PACKAGE := https://github.com/lesserevil/backlog.md/archive/HEAD.tar.gz
 BACKLOG_CLI := $(VENV)/bin/backlog
 
@@ -13,7 +13,7 @@ export PATH := $(abspath $(VENV)/bin):$(PATH)
 help:
 	@echo "oompah — make targets:"
 	@echo "  setup          Install dependencies and Backlog.md CLI into $(VENV) (idempotent)"
-	@echo "  start          Start oompah on port $(PORT) in the background"
+	@echo "  start          Start oompah in the background (default port: $(PORT))"
 	@echo "  stop           Stop the background oompah process"
 	@echo "  restart        Hard restart (stop + start) — use for orchestrator/agent changes"
 	@echo "  graceful       Drain running agents and restart in-place — use for cosmetic/template changes"
@@ -49,9 +49,9 @@ start: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
 		echo "oompah is already running (pid $$(cat $(PID_FILE)))"; \
 	else \
-		$(PYTHON) -m oompah --port $(PORT) >> $(LOG_FILE) 2>&1 & \
+		$(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 & \
 		echo $$! > $(PID_FILE); \
-		echo "oompah started (pid $$!) on http://0.0.0.0:$(PORT)"; \
+		echo "oompah started (pid $$!); HTTP port defaults to $(PORT)"; \
 	fi
 
 stop:
