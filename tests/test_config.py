@@ -28,9 +28,12 @@ class TestLoadWorkflow:
 
     def test_with_front_matter(self, tmp_path):
         f = tmp_path / "WORKFLOW.md"
-        f.write_text("---\ntracker:\n  kind: beads\npoll_ms: 5000\n---\nHello {{ issue.title }}")
+        f.write_text(
+            "---\ntracker:\n  kind: backlog_md\npoll_ms: 5000\n---\n"
+            "Hello {{ issue.title }}"
+        )
         wf = load_workflow(str(f))
-        assert wf.config["tracker"]["kind"] == "beads"
+        assert wf.config["tracker"]["kind"] == "backlog_md"
         assert "Hello" in wf.prompt_template
 
     def test_missing_file(self):
@@ -73,7 +76,7 @@ class TestServiceConfig:
     def test_from_workflow_defaults(self):
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
-        assert cfg.tracker_kind == "beads"
+        assert cfg.tracker_kind == "backlog_md"
         assert cfg.poll_interval_ms == 120000
         assert cfg.max_concurrent_agents == 10
         assert cfg.budget_limit == 0.0
@@ -111,8 +114,8 @@ class TestServiceConfig:
         )
         cfg = ServiceConfig.from_workflow(wf)
         assert cfg.tracker_kind == "backlog_md"
-        assert cfg.tracker_active_states == ["To Do", "In Progress"]
-        assert cfg.tracker_terminal_states == ["Done"]
+        assert cfg.tracker_active_states == ["Open", "Needs CI Fix", "Needs Rebase"]
+        assert cfg.tracker_terminal_states == ["Done", "Merged", "Archived"]
 
     def test_from_workflow_backlog_md_alias(self):
         wf = WorkflowDefinition(
@@ -186,7 +189,7 @@ class TestServiceConfig:
         )
         wf = WorkflowDefinition(
             config={
-                "tracker": {"kind": "beads", "active_states": ["open"]},
+                "tracker": {"kind": "backlog_md", "active_states": ["open"]},
                 "polling": {"interval_ms": 5000},
                 "agent": {
                     "max_concurrent_agents": 3,
@@ -316,6 +319,11 @@ class TestValidateDispatchConfig:
         cfg = ServiceConfig(tracker_kind="beans")
         errors = validate_dispatch_config(cfg)
         assert any("Unsupported tracker.kind: beans" in e for e in errors)
+
+    def test_beads_is_not_supported(self):
+        cfg = ServiceConfig(tracker_kind="beads")
+        errors = validate_dispatch_config(cfg)
+        assert any("Unsupported tracker.kind: beads" in e for e in errors)
 
     def test_empty_command(self):
         cfg = ServiceConfig(agent_command="")

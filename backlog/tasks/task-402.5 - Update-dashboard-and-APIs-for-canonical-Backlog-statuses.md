@@ -1,10 +1,11 @@
 ---
 id: TASK-402.5
 title: Update dashboard and APIs for canonical Backlog statuses
-status: Open
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-01 19:20'
-updated_date: '2026-06-01 21:57'
+updated_date: '2026-06-01 22:40'
 labels:
   - task
 dependencies:
@@ -69,6 +70,12 @@ Files to inspect first:
 <!-- SECTION:NOTES:BEGIN -->
 Dashboard column decisions from planning: Backlog and Open are distinct canonical statuses. Backlog means not ready and not dispatchable. Open means ready for work and dispatchable. To Do is not a valid oompah lifecycle status and should only be handled as a migration/bootstrap alias. The dashboard should not render a To Do column and drag/drop should never write To Do. Waiting statuses (Needs Answer, Needs Human) and triage statuses (Decomposed, Duplicate Candidate) should not consume full board width when empty; render those groups as minimized/collapsed lanes or compact affordances when they contain zero tasks, then expand automatically when tasks exist.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed as part of the Backlog-only tracker migration. Removed Beads/bd runtime paths where applicable, moved lifecycle behavior to canonical Backlog.md statuses, updated UI/API/tests/docs for Backlog-only behavior, and verified with make test: 3677 passed.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

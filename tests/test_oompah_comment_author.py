@@ -6,7 +6,7 @@ them to appear as the system user or git user instead of 'oompah'.
 Fix: WORKFLOW.md requires the tracker-specific comment author flag in all
 agent-facing comment commands.
 The orchestrator's _post_comment() already uses author="oompah" by default.
-BeadsTracker.add_comment() already defaults to author="oompah".
+BacklogMdTracker.add_comment() already defaults to author="oompah".
 
 These tests verify both the code-level defaults AND the rendered prompt template.
 """
@@ -14,15 +14,13 @@ These tests verify both the code-level defaults AND the rendered prompt template
 from __future__ import annotations
 
 import os
-from unittest.mock import MagicMock, patch, call
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.prompt import render_prompt
-from oompah.tracker import BeadsTracker
+from oompah.tracker import BacklogMdTracker
 
 
 # ---------------------------------------------------------------------------
@@ -54,49 +52,49 @@ def _make_orchestrator(tmp_path, projects=None) -> Orchestrator:
 
 
 # ---------------------------------------------------------------------------
-# 1. BeadsTracker.add_comment — code-level default
+# 1. BacklogMdTracker.add_comment — code-level default
 # ---------------------------------------------------------------------------
 
 class TestTrackerAddCommentAuthor:
-    """BeadsTracker.add_comment must always pass --author=oompah by default."""
+    """BacklogMdTracker.add_comment must always pass the Backlog author flag."""
 
-    def _tracker(self) -> BeadsTracker:
-        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+    def _tracker(self) -> BacklogMdTracker:
+        return BacklogMdTracker(active_states=["Open"], terminal_states=["Done"])
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_default_author_is_oompah(self, mock_run_bd):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_default_author_is_oompah(self, mock_run_backlog):
         """Calling add_comment without author must use 'oompah'."""
-        mock_run_bd.return_value = {}
+        mock_run_backlog.return_value = ""
         tracker = self._tracker()
         tracker.add_comment("issue-1", "Some progress note")
 
-        args = mock_run_bd.call_args[0][0]
-        assert "--author=oompah" in args, (
-            f"Expected --author=oompah in bd args, got: {args}"
+        args = mock_run_backlog.call_args[0][0]
+        assert "--comment-author" in args
+        assert args[args.index("--comment-author") + 1] == "oompah", (
+            f"Expected --comment-author oompah in backlog args, got: {args}"
         )
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_explicit_oompah_still_passes_flag(self, mock_run_bd):
-        """Explicit author='oompah' must still emit --author=oompah."""
-        mock_run_bd.return_value = {}
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_explicit_oompah_still_passes_flag(self, mock_run_backlog):
+        """Explicit author='oompah' must still emit --comment-author oompah."""
+        mock_run_backlog.return_value = ""
         tracker = self._tracker()
         tracker.add_comment("issue-1", "Note", author="oompah")
 
-        args = mock_run_bd.call_args[0][0]
-        assert "--author=oompah" in args
+        args = mock_run_backlog.call_args[0][0]
+        assert "--comment-author" in args
+        assert args[args.index("--comment-author") + 1] == "oompah"
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_no_bare_user_in_author_arg(self, mock_run_bd):
-        """The bd call must NOT have an empty or missing --author flag."""
-        mock_run_bd.return_value = {}
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_no_bare_user_in_author_arg(self, mock_run_backlog):
+        """The backlog call must NOT have an empty or missing author flag."""
+        mock_run_backlog.return_value = ""
         tracker = self._tracker()
         tracker.add_comment("issue-1", "hello")
 
-        args = mock_run_bd.call_args[0][0]
-        # Check that no --author flag is missing or set to something other than oompah
-        author_args = [a for a in args if a.startswith("--author=")]
-        assert len(author_args) == 1, f"Expected exactly one --author= flag, got: {author_args}"
-        assert author_args[0] == "--author=oompah", f"Expected --author=oompah, got: {author_args[0]}"
+        args = mock_run_backlog.call_args[0][0]
+        assert args.count("--comment-author") == 1
+        assert args[args.index("--comment-author") + 1] == "oompah"
 
 
 # ---------------------------------------------------------------------------
@@ -106,46 +104,50 @@ class TestTrackerAddCommentAuthor:
 class TestOrchestratorPostCommentAuthor:
     """Orchestrator._post_comment must use author='oompah' for all system comments."""
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_post_comment_default_author_is_oompah(self, mock_run_bd, tmp_path):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_post_comment_default_author_is_oompah(self, mock_run_backlog, tmp_path):
         """_post_comment without explicit author uses 'oompah'."""
-        mock_run_bd.return_value = {}
+        mock_run_backlog.return_value = ""
         orch = _make_orchestrator(tmp_path)
 
         orch._post_comment("issue-1", "Agent dispatched")
 
-        args = mock_run_bd.call_args[0][0]
-        assert "--author=oompah" in args, (
-            f"Expected --author=oompah in bd args from _post_comment, got: {args}"
+        args = mock_run_backlog.call_args[0][0]
+        assert "--comment-author" in args
+        assert args[args.index("--comment-author") + 1] == "oompah", (
+            "Expected --comment-author oompah in backlog args from "
+            f"_post_comment, got: {args}"
         )
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_post_comment_explicit_oompah_author(self, mock_run_bd, tmp_path):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_post_comment_explicit_oompah_author(self, mock_run_backlog, tmp_path):
         """_post_comment with explicit author='oompah' uses 'oompah'."""
-        mock_run_bd.return_value = {}
+        mock_run_backlog.return_value = ""
         orch = _make_orchestrator(tmp_path)
 
         orch._post_comment("issue-1", "Focus: Software Engineer", author="oompah")
 
-        args = mock_run_bd.call_args[0][0]
-        assert "--author=oompah" in args
+        args = mock_run_backlog.call_args[0][0]
+        assert "--comment-author" in args
+        assert args[args.index("--comment-author") + 1] == "oompah"
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_dispatch_comment_is_from_oompah(self, mock_run_bd, tmp_path):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_dispatch_comment_is_from_oompah(self, mock_run_backlog, tmp_path):
         """The 'Agent dispatched' comment posted at dispatch time is from 'oompah'."""
-        mock_run_bd.return_value = {}
+        mock_run_backlog.return_value = ""
         orch = _make_orchestrator(tmp_path)
 
         # Simulate the dispatch comment explicitly
         orch._post_comment("issue-1", "Agent dispatched (profile: standard)")
 
-        args = mock_run_bd.call_args[0][0]
-        assert "--author=oompah" in args
+        args = mock_run_backlog.call_args[0][0]
+        assert "--comment-author" in args
+        assert args[args.index("--comment-author") + 1] == "oompah"
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_stall_retry_comment_is_from_oompah(self, mock_run_bd, tmp_path):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_stall_retry_comment_is_from_oompah(self, mock_run_backlog, tmp_path):
         """The stall/retry comment posted by the orchestrator is from 'oompah'."""
-        mock_run_bd.return_value = {}
+        mock_run_backlog.return_value = ""
         orch = _make_orchestrator(tmp_path)
 
         orch._post_comment(
@@ -153,19 +155,21 @@ class TestOrchestratorPostCommentAuthor:
             "Agent stalled — retrying in 10s (attempt #2)"
         )
 
-        args = mock_run_bd.call_args[0][0]
-        assert "--author=oompah" in args
+        args = mock_run_backlog.call_args[0][0]
+        assert "--comment-author" in args
+        assert args[args.index("--comment-author") + 1] == "oompah"
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_focus_comment_is_from_oompah(self, mock_run_bd, tmp_path):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_focus_comment_is_from_oompah(self, mock_run_backlog, tmp_path):
         """The 'Focus:' comment posted at dispatch time is from 'oompah'."""
-        mock_run_bd.return_value = {}
+        mock_run_backlog.return_value = ""
         orch = _make_orchestrator(tmp_path)
 
         orch._post_comment("issue-1", "Focus: Software Engineer")
 
-        args = mock_run_bd.call_args[0][0]
-        assert "--author=oompah" in args
+        args = mock_run_backlog.call_args[0][0]
+        assert "--comment-author" in args
+        assert args[args.index("--comment-author") + 1] == "oompah"
 
 
 # ---------------------------------------------------------------------------

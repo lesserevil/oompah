@@ -93,6 +93,7 @@ def main() -> None:
 async def _run(
     workflow_path: str, cli_port: int | None, start_paused: bool = False,
 ) -> bool:
+    from oompah.backlog_compat import BacklogCompatibilityError, ensure_backlog_compatible
     from oompah.agent_profile_store import AgentProfileStore
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.orchestrator import Orchestrator
@@ -116,6 +117,18 @@ async def _run(
     if errors:
         for err in errors:
             logger.error("Config validation error: %s", err)
+        sys.exit(1)
+
+    try:
+        compat = ensure_backlog_compatible(os.path.dirname(workflow_path))
+        if compat.changed:
+            logger.info(
+                "Updated Backlog.md config at %s (%s)",
+                compat.config_path,
+                ", ".join(compat.migrations),
+            )
+    except BacklogCompatibilityError as exc:
+        logger.error("Backlog.md compatibility error: %s", exc)
         sys.exit(1)
 
     # Strict-mode profile source check (oompah-zlz_2-hye). When the
@@ -181,11 +194,9 @@ async def _run(
     # forwarder-down state surfaces as a dashboard banner.
     webhook_forwarder = WebhookForwarder(project_store=project_store)
 
-    # Pull latest code (git pull --ff-only) and beads state (bd dolt pull)
+    # Pull latest code and ensure Backlog.md config compatibility
     # for every configured project BEFORE the orchestrator starts dispatching.
-    # Without this, agents work against stale local state — both stale code
-    # in the worktree base and stale beads (e.g. tasks marked deferred on
-    # another machine still appear as open locally and get auto-dispatched).
+    # Without this, agents work against stale local state.
     # Best-effort, parallel, with per-call timeouts; failures are logged but
     # never block boot.
     projects = project_store.list_all()
@@ -195,8 +206,8 @@ async def _run(
         for pid, st in sync_results.items():
             name = next((p.name for p in projects if p.id == pid), pid)
             logger.info(
-                "Startup sync %s: git=%s beads=%s",
-                name, st.get("git", "?"), st.get("beads", "?"),
+                "Startup sync %s: git=%s backlog=%s",
+                name, st.get("git", "?"), st.get("backlog", "?"),
             )
 
     orchestrator = Orchestrator(config, workflow_path,

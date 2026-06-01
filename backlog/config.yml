@@ -1,37 +1,8 @@
-project_name: oompah
-default_status: To Do
-statuses:
-- To Do
-- Backlog
-- Open
-- In Progress
-- Needs Answer
-- Needs Human
-- Decomposed
-- Duplicate Candidate
-- In Review
-- Needs CI Fix
-- Needs Rebase
-- Done
-- Merged
-- Archived
-labels:
-- archive:yes
-- beads-migrated
-- feature
-- epic
-- merge-conflict
-- merged
-- bug
-- needs:frontend
-- needs:backend
-- ci-fix
-- needs:test
-- draft
-- event
-- decomposed
+project_name: ""
+statuses: ["To Do", "In Progress", "Done"]
+labels: []
 date_format: yyyy-mm-dd
-max_column_width: 20
+max_column_width: 80
 auto_open_browser: true
 default_port: 6420
 remote_operations: true
@@ -40,4 +11,4 @@ filesystem_only: false
 bypass_git_hooks: false
 check_active_branches: true
 active_branch_days: 30
-task_prefix: task
+task_prefix: "task"

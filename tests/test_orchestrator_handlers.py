@@ -1450,7 +1450,7 @@ class TestYoloOrphanBranchRecovery:
         assert "30" in kwargs["title"]
         assert "trickle-c0w" in kwargs["title"]
         assert kwargs["priority"] == 0
-        assert kwargs["initial_status"] == "open"
+        assert kwargs["initial_status"] == "Needs Rebase"
         # Label must be merge-conflict so the focus matcher routes correctly
         tracker.add_label.assert_called_once_with("trickle-rec1", "merge-conflict")
 
@@ -1536,7 +1536,7 @@ class TestYoloOrphanBranchRecovery:
         assert "42" in kwargs["title"]
         assert "orphan-ci-branch" in kwargs["title"]
         assert kwargs["priority"] == 0
-        assert kwargs["initial_status"] == "open"
+        assert kwargs["initial_status"] == "Needs CI Fix"
         # ci-fix label routes to the CI-fix focus
         tracker.add_label.assert_called_once_with("trickle-rec2", "ci-fix")
 
@@ -1910,7 +1910,7 @@ class TestRateLimitAlertIncludesProviderAndModel:
         assert "Reason: tokens" in alert_msg
 
     def test_rate_limited_comment_includes_provider_and_model(self, tmp_path):
-        """The per-issue comment must also name provider+model (so `bd comments` shows it)."""
+        """The per-issue comment must also name provider+model in task comments."""
         from oompah.models import RunningEntry
         from datetime import datetime, timezone
 

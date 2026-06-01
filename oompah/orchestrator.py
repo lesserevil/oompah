@@ -26,13 +26,6 @@ from oompah.config import (
     load_workflow,
     validate_dispatch_config,
 )
-from oompah.dolt_sync import (
-    DoltSyncResult,
-    DoltSyncState,
-    get_or_create_state as _dolt_get_or_create_state,
-    summarize_for_alerts as _dolt_summarize_for_alerts,
-    sync_project_dolt,
-)
 from oompah.events import EventBus, EventType
 from oompah.models import (
     AgentProfile,
@@ -46,6 +39,22 @@ from oompah.models import (
     Project,
     RetryEntry,
     RunningEntry,
+)
+from oompah.statuses import (
+    ARCHIVED,
+    BACKLOG,
+    DECOMPOSED,
+    DUPLICATE_CANDIDATE,
+    DONE,
+    IN_PROGRESS,
+    MERGED,
+    NEEDS_ANSWER,
+    NEEDS_CI_FIX,
+    NEEDS_HUMAN,
+    NEEDS_REBASE,
+    OPEN,
+    canonicalize_status,
+    is_terminal_status,
 )
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
@@ -64,11 +73,9 @@ from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
     BacklogMdTracker,
-    BeadsTracker,
     TrackerError,
     TrackerNotConfiguredError,
     TrackerTimeoutError,
-    TrackerDoltUnavailableError,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
 from oompah.yolo_watchdog import (
@@ -100,24 +107,21 @@ def _error_class_for_tracker_exc(exc: BaseException) -> str:
 
     Returned values match the documented classes used by the error
     watcher fingerprint:
-      - "bd_timeout"           — TrackerTimeoutError (subprocess timeout)
-      - "tracker_not_configured" — TrackerNotConfiguredError (no DB)
-      - "dolt_unavailable"     — TrackerDoltUnavailableError (transient server down)
-      - "bd_failed"            — generic TrackerError
+      - "tracker_timeout"      — TrackerTimeoutError (subprocess timeout)
+      - "tracker_not_configured" — TrackerNotConfiguredError
+      - "tracker_failed"       — generic TrackerError
       - "project_error"        — ProjectError fallback
 
     The returned class collapses every report with the same class to one
-    bead in the dedup window, regardless of which project/subcommand
+    task in the dedup window, regardless of which project/subcommand
     surfaced the failure.
     """
     if isinstance(exc, TrackerTimeoutError):
-        return "bd_timeout"
+        return "tracker_timeout"
     if isinstance(exc, TrackerNotConfiguredError):
         return "tracker_not_configured"
-    if isinstance(exc, TrackerDoltUnavailableError):
-        return "dolt_unavailable"
     if isinstance(exc, TrackerError):
-        return "bd_failed"
+        return "tracker_failed"
     return "project_error"
 
 
@@ -126,14 +130,25 @@ DEFAULT_SERVICE_STATE_PATH = ".oompah/service_state.json"
 
 def _state_key(state: str | None) -> str:
     """Normalize tracker status spelling for internal comparisons."""
-    return str(state or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return canonicalize_status(state).strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _terminal_state_keys(terminal_states: list[str] | tuple[str, ...]) -> set[str]:
+    """Return canonical terminal status keys including legacy aliases."""
+    keys = {_state_key(s) for s in terminal_states}
+    keys.update({_state_key(DONE), _state_key(MERGED), _state_key(ARCHIVED)})
+    keys.add(_state_key("closed"))
+    return keys
+
+
+def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str, ...]) -> bool:
+    """Return True when a tracker state is terminal in canonical oompah terms."""
+    return is_terminal_status(state) or _state_key(state) in _terminal_state_keys(terminal_states)
 
 
 def _configured_in_progress_state(active_states: list[str]) -> str:
     """Return the tracker-native status oompah treats as in-progress."""
-    if len(active_states) > 1:
-        return active_states[1]
-    return "in_progress"
+    return IN_PROGRESS
 
 
 class DispatchEventType(str, Enum):
@@ -302,7 +317,7 @@ class Orchestrator:
         # Legacy single tracker (used when no projects configured)
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
-        self._project_trackers: dict[str, BeadsTracker | BacklogMdTracker] = {}
+        self._project_trackers: dict[str, BacklogMdTracker] = {}
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -349,18 +364,6 @@ class Orchestrator:
         # Watchdog state
         self._last_watchdog_run: float = 0.0
         self._watchdog_interval_s: float = 300.0  # 5 minutes
-        # Dolt sync watchdog state (oompah-zlz_2-5ms2). One entry per
-        # project, populated lazily on first sync. The watchdog runs on
-        # every full-sync tick (full_sync_interval_ms, default 120s) and
-        # pushes/pulls bd dolt state so agent edits propagate to the
-        # configured upstream.
-        self._dolt_sync_state: dict[str, DoltSyncState] = {}
-        self._dolt_sync_last_results: dict[str, DoltSyncResult] = {}
-        # Monotonic time of the last dolt sync — gates the watchdog to
-        # the full-sync interval. Distinct from _last_full_sync (which is
-        # updated every tick) so the dolt sync only fires on the slow
-        # cadence regardless of how many event-driven ticks happen.
-        self._last_dolt_sync_monotonic: float = 0.0
         self._last_candidates: list[Issue] = []
         self._orphan_reset_counts: dict[str, int] = {}
         self._yolo_limbo_ticks: dict[str, int] = {}
@@ -846,21 +849,15 @@ class Orchestrator:
 
     def _new_tracker(
         self, cwd: str | None = None,
-    ) -> BeadsTracker | BacklogMdTracker:
-        """Construct the configured tracker adapter."""
-        if self.config.tracker_kind == "backlog_md":
-            return BacklogMdTracker(
-                active_states=self.config.tracker_active_states,
-                terminal_states=self.config.tracker_terminal_states,
-                cwd=cwd,
-            )
-        return BeadsTracker(
+    ) -> BacklogMdTracker:
+        """Construct the Backlog.md tracker adapter."""
+        return BacklogMdTracker(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
             cwd=cwd,
         )
 
-    def _tracker_for_project(self, project_id: str) -> BeadsTracker | BacklogMdTracker:
+    def _tracker_for_project(self, project_id: str) -> BacklogMdTracker:
         """Get or create a tracker for a project."""
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
@@ -871,7 +868,7 @@ class Orchestrator:
         self._project_trackers[project_id] = tracker
         return tracker
 
-    def _tracker_for_issue(self, issue: Issue) -> BeadsTracker | BacklogMdTracker:
+    def _tracker_for_issue(self, issue: Issue) -> BacklogMdTracker:
         """Get the appropriate tracker for an issue (project-specific or legacy)."""
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
@@ -1035,9 +1032,9 @@ class Orchestrator:
                 else:
                     tracker = self.tracker
                 # Re-open the issue so it gets picked up on the next tick
-                tracker.update_issue(identifier, status="open")
+                tracker.update_issue(identifier, status=OPEN)
                 logger.info(
-                    "Marked %s as open for re-dispatch after restart", identifier
+                "Marked %s as Open for re-dispatch after restart", identifier
                 )
             except (TrackerError, ProjectError) as exc:
                 logger.warning("Failed to recover issue %s: %s", identifier, exc)
@@ -1227,15 +1224,7 @@ class Orchestrator:
         yolo_ms, archive_ms, merged_ms = await self._handle_yolo_review()
         t4 = time.monotonic()
 
-        # 5a. Dolt sync watchdog (oompah-zlz_2-5ms2). Pushes/pulls bd dolt
-        # state to/from the configured upstream so agent edits propagate
-        # across machines. Gated to the full-sync interval (no-op on
-        # event-driven ticks). All subprocesses are time-bound; failures
-        # are recorded into _dolt_sync_state and surface as alerts.
-        dolt_ms = await self._handle_dolt_sync()
-        t4b = time.monotonic()
-
-        # 5b. Watchdog: detect and fix stuck issues (periodic, lightweight).
+        # 5a. Watchdog: detect and fix stuck issues (periodic, lightweight).
         # Offloaded to the tick thread pool to keep the event loop unblocked —
         # the four sub-checks iterate _last_candidates and may issue bd CLI
         # calls per stuck issue, which can block 200ms-2s. Safe because
@@ -1246,11 +1235,12 @@ class Orchestrator:
             self._tick_pool, self._maybe_run_watchdog
         )
 
+        t4b = time.monotonic()
         total_ms = (t4b - t0) * 1000
         if total_ms > 2000:
             logger.warning(
                 "Slow tick: %.0fms (reconcile=%.0f reviews=%.0f dispatch=%.0f "
-                "yolo=%.0f archive=%.0f merged=%.0f dolt_sync=%.0f)",
+                "yolo=%.0f archive=%.0f merged=%.0f)",
                 total_ms,
                 (t1 - t0) * 1000,
                 (t2 - t1) * 1000,
@@ -1258,7 +1248,6 @@ class Orchestrator:
                 yolo_ms,
                 archive_ms,
                 merged_ms,
-                dolt_ms,
             )
 
         self._notify_observers()
@@ -1434,104 +1423,6 @@ class Orchestrator:
         )
         return yolo_ms, archive_ms, merged_ms
 
-    def _dolt_sync_due(self) -> bool:
-        """Return True if the dolt sync should fire this tick.
-
-        Gates the watchdog to the full-sync interval. Returns True on
-        the very first tick (``_last_dolt_sync_monotonic == 0``) so
-        operators don't have to wait one full interval after restart.
-        """
-        if self._last_dolt_sync_monotonic == 0.0:
-            return True
-        elapsed_ms = (time.monotonic() - self._last_dolt_sync_monotonic) * 1000
-        return elapsed_ms >= self.config.full_sync_interval_ms
-
-    async def _handle_dolt_sync(self) -> float:
-        """Push/pull bd dolt state for every project (full-sync only).
-
-        Runs as a step in the full-sync tick (oompah-zlz_2-5ms2). Per
-        project, pulls then pushes via :func:`sync_project_dolt`. All
-        subprocesses are time-bound and run in the tick thread pool so
-        a slow remote can't wedge the event loop.
-
-        Returns elapsed milliseconds for inclusion in the slow-tick log
-        (0 if the watchdog was skipped this tick because the interval
-        hasn't elapsed yet).
-        """
-        if self.config.tracker_kind != "beads":
-            return 0.0
-        if not self._dolt_sync_due():
-            return 0.0
-        t0 = time.monotonic()
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(self._tick_pool, self._dolt_sync_all_sync)
-        self._last_dolt_sync_monotonic = time.monotonic()
-        return (time.monotonic() - t0) * 1000
-
-    def _dolt_sync_all_sync(self) -> None:
-        """Synchronous worker: iterate projects and call :func:`sync_project_dolt`.
-
-        Updates ``self._dolt_sync_state`` and ``self._dolt_sync_last_results``
-        in place. Merges any divergent/repeated-failure alerts into
-        ``self._alerts`` so the dashboard banner surfaces them.
-        """
-        projects = self.project_store.list_all()
-        if not projects:
-            return
-        live_ids = {p.id for p in projects}
-
-        # Prune state for projects that no longer exist (oompah-zlz_2-k7zt).
-        # Without this, _dolt_sync_state accumulates ghost entries after
-        # a project is deleted from projects.json and the watchdog keeps
-        # surfacing spurious "no beads database found" alerts for them.
-        for pid in list(self._dolt_sync_state.keys()):
-            if pid not in live_ids:
-                logger.info(
-                    "Dolt sync: pruning ghost state for deleted project %s",
-                    pid,
-                )
-                del self._dolt_sync_state[pid]
-        for pid in list(self._dolt_sync_last_results.keys()):
-            if pid not in live_ids:
-                del self._dolt_sync_last_results[pid]
-        # Drop any pre-existing dolt_sync alerts pointing at ghosts.
-        # The rebuild at the bottom of this function also clears all
-        # dolt_sync alerts and re-emits from the (now-pruned) state, but
-        # we drop ghosts up front so any reader observing _alerts mid-tick
-        # never sees stale entries for deleted projects.
-        self._alerts = [
-            a
-            for a in self._alerts
-            if a.get("source") != "dolt_sync" or a.get("project_id") in live_ids
-        ]
-
-        interval_s = max(self.config.full_sync_interval_ms / 1000.0, 1.0)
-        results: dict[str, DoltSyncResult] = {}
-        for project in projects:
-            try:
-                state = _dolt_get_or_create_state(self._dolt_sync_state, project.id)
-                result = sync_project_dolt(
-                    project,
-                    state,
-                    full_sync_interval_s=interval_s,
-                )
-                results[project.id] = result
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning(
-                    "Dolt sync raised unexpectedly for %s: %s",
-                    project.name,
-                    exc,
-                )
-        self._dolt_sync_last_results = results
-
-        # Refresh alerts. Drop any prior dolt_sync entries, then re-add
-        # for currently-problematic projects. Same idempotent pattern as
-        # _arm_profile_drift_alert / auto_update alert handling.
-        self._alerts = [a for a in self._alerts if a.get("source") != "dolt_sync"]
-        projects_by_id = {p.id: p for p in projects}
-        for entry in _dolt_summarize_for_alerts(self._dolt_sync_state, projects_by_id):
-            self._alerts.append(entry)
-
     async def _handle_auto_update(self) -> None:
         """Trigger git auto-update when the orchestrator is idle.
 
@@ -1572,8 +1463,7 @@ class Orchestrator:
                 "Auto-update: %d new commit(s) on origin/main, pulling and restarting",
                 count,
             )
-            # --autostash handles the routine case where ``bd`` has
-            # written to .beads/issues.jsonl since the last commit.
+            # --autostash handles routine local config/task changes.
             # Without it, ``--ff-only`` refuses with "Your local changes
             # would be overwritten by merge" and surfaces a UI alert
             # every poll. --ff-only still refuses if origin has actually
@@ -1618,22 +1508,12 @@ class Orchestrator:
             try:
                 return self.tracker.fetch_candidate_issues()
             except TrackerNotConfiguredError:
-                # Already logged at WARNING in tracker._run_bd; treat as
-                # an empty backlog this tick.
+                # Treat missing Backlog.md as an empty queue this tick.
                 return []
             except TrackerTimeoutError as exc:
                 # Transient — log at WARNING so the error_watcher does
-                # not auto-file a duplicate bug bead every tick.
+                # not auto-file a duplicate bug task every tick.
                 logger.warning("Tracker fetch timed out: %s", exc)
-                return []
-            except TrackerDoltUnavailableError as exc:
-                # Transient: Dolt server down.  Same WARN treatment as
-                # a subprocess timeout so the error_watcher does NOT
-                # auto-file duplicate beads every poll tick.
-                logger.warning(
-                    "Tracker fetch failed (Dolt unavailable): %s",
-                    exc,
-                )
                 return []
             except TrackerError as exc:
                 logger.error(
@@ -1652,23 +1532,12 @@ class Orchestrator:
                 return issues
             except TrackerNotConfiguredError:
                 # Project's tracker isn't initialized — environmental.
-                # Already warned in _run_bd; skip this project for the tick.
                 return []
             except TrackerTimeoutError as exc:
                 # Transient — log at WARNING so the error_watcher does
-                # not auto-file a duplicate bug bead every tick.
+                # not auto-file a duplicate bug task every tick.
                 logger.warning(
                     "Fetch timed out for project %s: %s",
-                    project.name,
-                    exc,
-                )
-                return []
-            except TrackerDoltUnavailableError as exc:
-                # Transient Dolt server down — log at WARNING (same
-                # treatment as timeout) so the error_watcher does NOT
-                # auto-file duplicate beads every poll tick.
-                logger.warning(
-                    "Fetch failed for project %s (Dolt unavailable): %s",
                     project.name,
                     exc,
                 )
@@ -1977,15 +1846,10 @@ class Orchestrator:
         four-condition gate (terminal children + branch merges +
         not-already-closed). See oompah-zlz_2-lvcd.
         """
-        terminal_norms = {
-            s.strip().lower() for s in self.config.tracker_terminal_states
-        }
-
         for issue in candidates:
             if issue.issue_type != "epic":
                 continue
-            state_norm = issue.state.strip().lower()
-            if state_norm in terminal_norms:
+            if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue  # already closed
             self._epic_auto_close_check(issue)
 
@@ -2008,13 +1872,8 @@ class Orchestrator:
             an alert with ``source='stuck_epic'`` is added to
             ``self._alerts`` so the dashboard surfaces it.
         """
-        terminal_norms = {
-            s.strip().lower() for s in self.config.tracker_terminal_states
-        }
-
         # Condition 4: don't reanimate a manually-closed epic.
-        state_norm = epic.state.strip().lower()
-        if state_norm in terminal_norms:
+        if _is_terminal_state(epic.state, self.config.tracker_terminal_states):
             self._clear_stuck_epic_alert(epic.identifier)
             return False
 
@@ -2026,7 +1885,8 @@ class Orchestrator:
 
         # Condition 1: every child in a terminal state.
         non_terminal_children = [
-            c for c in children if c.state.strip().lower() not in terminal_norms
+            c for c in children
+            if not _is_terminal_state(c.state, self.config.tracker_terminal_states)
         ]
         if non_terminal_children:
             # Clear any previous stuck alert — work is still in
@@ -2264,17 +2124,12 @@ class Orchestrator:
         if threshold <= 0:
             return 0
 
-        terminal_norms = {
-            s.strip().lower()
-            for s in self.config.tracker_terminal_states
-        }
         rebase_timeout_s = 1800.0  # 30 min timeout for a rebase agent
 
         for issue in candidates:
             if issue.issue_type != "epic":
                 continue
-            state_norm = (issue.state or "").strip().lower()
-            if state_norm in terminal_norms:
+            if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue
 
             project_id = issue.project_id
@@ -2495,15 +2350,11 @@ class Orchestrator:
 
         Returns the number of PRs opened.
         """
-        terminal_norms = {
-            s.strip().lower() for s in self.config.tracker_terminal_states
-        }
         opened = 0
         for issue in candidates:
             if issue.issue_type != "epic":
                 continue
-            state_norm = (issue.state or "").strip().lower()
-            if state_norm in terminal_norms:
+            if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue  # epic itself is closed; closing logic owns this
             project_id = issue.project_id
             if not project_id:
@@ -2521,7 +2372,8 @@ class Orchestrator:
             # criteria). This intentionally treats deferred or blocked as
             # incomplete — operator action required to advance them.
             all_terminal = all(
-                (c.state or "").strip().lower() in terminal_norms for c in children
+                _is_terminal_state(c.state, self.config.tracker_terminal_states)
+                for c in children
             )
             if not all_terminal:
                 continue
@@ -2802,8 +2654,9 @@ class Orchestrator:
             issue.identifier
             for issue in candidates
             if issue.issue_type == "epic"
-            and issue.state.strip().lower()
-            not in {s.strip().lower() for s in self.config.tracker_terminal_states}
+            and not _is_terminal_state(
+                issue.state, self.config.tracker_terminal_states
+            )
         }
         stale = [
             epic_id
@@ -2901,15 +2754,10 @@ class Orchestrator:
         from oompah.models import EpicRebaseState
 
         filed = 0
-        terminal_norms = {
-            s.strip().lower()
-            for s in self.config.tracker_terminal_states
-        }
-
         for issue in candidates:
             if issue.issue_type != "epic":
                 continue
-            if (issue.state or "").strip().lower() in terminal_norms:
+            if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue
 
             state = self._get_epic_rebase_state(issue.identifier)
@@ -2937,8 +2785,7 @@ class Orchestrator:
                     (
                         c
                         for c in children
-                        if c.state.strip().lower() in ("open", "in_progress")
-                        and "merge-conflict" in (c.labels or [])
+                        if _state_key(c.state) in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_REBASE)}
                         and "rebase" in c.title.lower()
                     ),
                     None,
@@ -3003,9 +2850,8 @@ class Orchestrator:
             issue_type="task",
             description=description,
             priority=1,
-            labels=["merge-conflict"],
             parent=epic.identifier,
-            initial_status="open",
+            initial_status=NEEDS_REBASE,
         )
         logger.info(
             "Filed rebase bead for %s (branch=%s, target=%s)",
@@ -3060,17 +2906,17 @@ class Orchestrator:
         if issue.issue_type == "epic":
             return _reject("epic")
         # Never dispatch issues that are waiting for a human answer
-        if "asking_question" in issue.labels:
-            return _reject("asking_question")
+        if canonicalize_status(issue.state) == NEEDS_ANSWER or "asking_question" in issue.labels:
+            return _reject("needs_answer")
         # Never dispatch issues reserved for human action (e.g. capability requests)
-        if "human-only" in issue.labels:
-            return _reject("human-only")
+        if canonicalize_status(issue.state) == NEEDS_HUMAN or "human-only" in issue.labels:
+            return _reject("needs_human")
         # Never dispatch issues that have been decomposed into children
-        if "decomposed" in issue.labels:
+        if canonicalize_status(issue.state) == DECOMPOSED or "decomposed" in issue.labels:
             return _reject("decomposed")
         # Never dispatch candidates flagged as duplicates of existing open issues
-        if "duplicate-candidate" in issue.labels:
-            return _reject("duplicate-candidate")
+        if canonicalize_status(issue.state) == DUPLICATE_CANDIDATE or "duplicate-candidate" in issue.labels:
+            return _reject("duplicate_candidate")
         state_norm = _state_key(issue.state)
         if state_norm not in {
             _state_key(s) for s in self.config.tracker_active_states
@@ -3103,16 +2949,15 @@ class Orchestrator:
         # gates above still apply and remain the operator's escape
         # hatch when a P0 must wait for a human. (oompah-zlz_2-dyi)
         if not is_p0 and state_norm in ("open", "todo"):
-            terminal_norms = {
-                s.strip().lower() for s in self.config.tracker_terminal_states
-            }
             for blocker in issue.blocked_by:
-                blocker_state = (blocker.state or "").strip().lower()
+                blocker_state = blocker.state or ""
                 # If blocker state is unknown, look it up
                 if not blocker_state and blocker.id:
                     resolved = self._resolve_blocker_state(blocker, issue)
                     blocker_state = resolved
-                if blocker_state not in terminal_norms:
+                if not _is_terminal_state(
+                    blocker_state, self.config.tracker_terminal_states
+                ):
                     # Blocker not yet closed — still blocked
                     return _reject(f"blocker={blocker.id} state={blocker_state}")
                 if self._blocker_has_unmerged_pr(blocker):
@@ -3323,7 +3168,7 @@ class Orchestrator:
     def _pre_resolve_blockers(self, candidates: list[Issue]) -> None:
         """Pre-resolve unknown blocker states into the cache (blocking, runs in thread).
 
-        Batches all unknown blockers into parallel bd show calls.
+        Batches all unknown blockers into parallel tracker detail calls.
         """
         # Collect all unique blocker IDs that need resolution
         to_resolve: dict[str, list[tuple[BlockerRef, Issue]]] = {}
@@ -3457,12 +3302,12 @@ class Orchestrator:
                     if project_id
                     else self.tracker
                 )
-                tracker.update_issue(issue.identifier, status="open")
+                tracker.update_issue(issue.identifier, status=OPEN)
                 self._orphan_reset_counts[issue.id] = (
                     self._orphan_reset_counts.get(issue.id, 0) + 1
                 )
                 logger.info(
-                    "Reset orphaned in_progress issue %s to open (no agent attached, count=%d)",
+                    "Reset orphaned In Progress issue %s to Open (no agent attached, count=%d)",
                     issue.identifier,
                     self._orphan_reset_counts[issue.id],
                 )
@@ -3745,15 +3590,21 @@ class Orchestrator:
             except TrackerError:
                 continue
             for issue in closed_issues:
-                if "merged" in issue.labels or "archive:yes" in issue.labels:
+                issue_status = canonicalize_status(issue.state)
+                labels = set(issue.labels or [])
+                if (
+                    issue_status in {MERGED, ARCHIVED}
+                    or "merged" in labels
+                    or "archive:yes" in labels
+                ):
                     continue
                 # Branch name is typically the issue identifier
                 branch = issue.branch_name or issue.identifier
                 if branch in merged:
                     try:
-                        tracker.add_label(issue.identifier, "merged")
+                        tracker.update_issue(issue.identifier, status=MERGED)
                         logger.info(
-                            "Labelled %s as merged (branch %s)",
+                            "Marked %s as Merged (branch %s)",
                             issue.identifier,
                             branch,
                         )
@@ -4635,9 +4486,7 @@ class Orchestrator:
                         }
                     )
                     continue
-                state_lower = issue.state.strip().lower()
-                terminal = {s.lower() for s in self.config.tracker_terminal_states}
-                if state_lower in terminal:
+                if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                     # Bead closed but PR still failing — reset cache so
                     # the next tick refiles a fresh recovery bead.
                     self._yolo_orphan_recovery_beads.pop(key, None)
@@ -4732,7 +4581,7 @@ class Orchestrator:
             description=pattern.body,
             priority=0,
             labels=labels,
-            initial_status="open",
+            initial_status=OPEN,
         )
         self._yolo_watchdog_filed[pattern.pattern_key] = new_issue.identifier
         # Log at WARNING (not ERROR): filing a P0 escalation bead is the
@@ -4790,20 +4639,18 @@ class Orchestrator:
                 self._yolo_orphan_recovery_beads[key],
             )
             return
-        if kind == "merge-conflict":
-            label = "merge-conflict"
-        else:  # ci-fix
-            label = "ci-fix"
+        status = NEEDS_REBASE if kind == "merge-conflict" else NEEDS_CI_FIX
+        label = "merge-conflict" if kind == "merge-conflict" else "ci-fix"
         # Cross-restart safety net: query the tracker for existing open
         # beads with the matching label. The in-memory dict above is the
         # fast path, but it's wiped on every restart. Without this check,
         # a process restart creates a fresh bead even though an open
         # duplicate already exists in the tracker.
         try:
-            active_states = [
-                s.strip().lower() for s in self.config.tracker_active_states
-            ]
+            active_states = list(self.config.tracker_active_states) + [status]
             existing = tracker.fetch_issues_by_labels([label], states=active_states)
+            if not existing:
+                existing = tracker.fetch_issues_by_states([status])
             if existing:
                 # Reuse the first matching open issue with this label instead
                 # of creating a new one. This prevents the "dozens of merge
@@ -4855,7 +4702,7 @@ class Orchestrator:
                 issue_type="task",
                 description=description,
                 priority=0,
-                initial_status="open",
+                initial_status=status,
             )
         except Exception as exc:
             logger.warning(
@@ -4996,9 +4843,9 @@ class Orchestrator:
                 return
             # Don't re-notify if already open/in_progress with merge-conflict label,
             # but ensure we clear the completed set so it can be re-dispatched.
-            state_lower = issue.state.strip().lower()
+            state_lower = _state_key(issue.state)
             if (
-                state_lower in ("open", "in_progress")
+                state_lower in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_REBASE)}
                 and "merge-conflict" in issue.labels
             ):
                 self.state.completed.discard(issue.id)
@@ -5008,11 +4855,11 @@ class Orchestrator:
                 f"Rebase onto {target_branch} and resolve conflicts."
             )
             tracker.add_comment(issue.identifier, comment_text, author="oompah")
-            terminal = {s.lower() for s in self.config.tracker_terminal_states}
+            terminal = {_state_key(s) for s in self.config.tracker_terminal_states}
             if state_lower in terminal:
                 tracker.update_issue(
                     issue.identifier,
-                    status="open",
+                    status=NEEDS_REBASE,
                     priority="0",
                     **{"add-label": "merge-conflict"},
                 )
@@ -5026,12 +4873,12 @@ class Orchestrator:
                 # conflict-resolution agent can be dispatched.
                 tracker.update_issue(
                     issue.identifier,
-                    status="open",
+                    status=NEEDS_REBASE,
                     priority="0",
                     **{"add-label": "merge-conflict"},
                 )
                 logger.info(
-                    "YOLO: reopened %s from %r to P0 open for conflict resolution",
+                "YOLO: reopened %s from %r to P0 Needs Rebase for conflict resolution",
                     issue.identifier,
                     state_lower,
                 )
@@ -5146,8 +4993,8 @@ class Orchestrator:
                     (
                         c
                         for c in children
-                        if c.state.strip().lower() in ("open", "in_progress")
-                        and "ci-fix" in (c.labels or [])
+                        if _state_key(c.state) in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_CI_FIX)}
+                        and ("ci-fix" in (c.labels or []) or canonicalize_status(c.state) == NEEDS_CI_FIX)
                     ),
                     None,
                 )
@@ -5164,7 +5011,7 @@ class Orchestrator:
                 # YOLO cycle marked it before this fix shipped), treat it as
                 # "a fix was already tried" — don't stack a second sibling
                 # on top of an unacted-on label.
-                if "ci-fix" in issue.labels:
+                if "ci-fix" in issue.labels or canonicalize_status(issue.state) == NEEDS_CI_FIX:
                     logger.debug(
                         "YOLO: parent %s already labeled ci-fix "
                         "(prior attempt) — skipping sibling",
@@ -5189,9 +5036,8 @@ class Orchestrator:
                     issue_type="task",
                     description=sibling_description,
                     priority=0,
-                    labels=["ci-fix"],
                     parent=issue.identifier,
-                    initial_status="open",
+                    initial_status=NEEDS_CI_FIX,
                 )
                 logger.info(
                     "YOLO: filed sibling ci-fix bead %s under %s "
@@ -5208,8 +5054,10 @@ class Orchestrator:
             # original idempotency guard — for beads with no children,
             # a ci-fix label genuinely means "a fix is already in
             # flight" because the bead itself can be dispatched.
-            state_lower = issue.state.strip().lower()
-            if state_lower in ("open", "in_progress") and "ci-fix" in issue.labels:
+            state_lower = _state_key(issue.state)
+            if state_lower in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_CI_FIX)} and (
+                "ci-fix" in issue.labels or canonicalize_status(issue.state) == NEEDS_CI_FIX
+            ):
                 return
             # If the matched bead is an epic with children, the dispatcher will
             # never dispatch it (epics-with-children are gated out of both
@@ -5237,9 +5085,8 @@ class Orchestrator:
                         issue_type="task",
                         description=sibling_description,
                         priority=0,
-                        labels=["ci-fix"],
                         parent=issue.identifier,
-                        initial_status="open",
+                        initial_status=NEEDS_CI_FIX,
                     )
                     logger.info(
                         "YOLO: filed sibling ci-fix bead %s under epic %s for MR #%s",
@@ -5250,7 +5097,7 @@ class Orchestrator:
                     return
             tracker.update_issue(
                 issue.identifier,
-                status="open",
+                status=NEEDS_CI_FIX,
                 priority="0",
                 **{"add-label": "ci-fix"},
             )
@@ -5371,19 +5218,21 @@ class Orchestrator:
                     continue
 
                 for match_issue, score in similar:
-                    match_state = (match_issue.state or "").strip().lower()
-                    terminal = {s.strip().lower() for s in self.config.tracker_terminal_states}
-
-                    if match_state not in terminal:
+                    if not _is_terminal_state(
+                        match_issue.state, self.config.tracker_terminal_states
+                    ):
                         # Match is OPEN — reject candidate as duplicate of existing open issue
                         if "duplicate-candidate" not in (candidate.labels or []):
                             try:
-                                tracker.add_label(candidate.identifier, "duplicate-candidate")
+                                tracker.update_issue(
+                                    candidate.identifier,
+                                    status=DUPLICATE_CANDIDATE,
+                                )
                                 # Update in-memory candidate so subsequent checks in this
                                 # tick (_should_dispatch) see the new label without a re-fetch.
                                 if candidate.labels is None:
                                     candidate.labels = []
-                                candidate.labels.append("duplicate-candidate")
+                                candidate.state = DUPLICATE_CANDIDATE
                                 self._post_comment(
                                     candidate.identifier,
                                     f"Potential duplicate detected (similarity={score:.2f}): "
@@ -6478,7 +6327,7 @@ class Orchestrator:
     def _write_task_cost_record(self, entry: RunningEntry) -> None:
         """Persist cost telemetry for a completed run into the issue's metadata.
 
-        Storage key: ``oompah.task_costs`` in the issue's beads metadata.
+        Storage key: ``oompah.task_costs`` in Backlog task front matter.
         Multiple runs accumulate cumulatively — per-model entries are summed.
 
         This method is designed to be called from a background thread
@@ -6504,17 +6353,7 @@ class Orchestrator:
             # Fetch existing metadata
             existing_meta: dict[str, Any] = {}
             try:
-                raw = tracker._run_bd(["show", issue.identifier, "--json"])
-                rec = raw[0] if isinstance(raw, list) and raw else raw
-                if isinstance(rec, dict):
-                    meta = rec.get("metadata") or {}
-                    if isinstance(meta, str):
-                        try:
-                            meta = json.loads(meta)
-                        except (ValueError, TypeError):
-                            meta = {}
-                    if isinstance(meta, dict):
-                        existing_meta = dict(meta)
+                existing_meta = dict(tracker.get_metadata(issue.identifier))
             except Exception as exc:
                 logger.debug(
                     "cost_record: failed to fetch metadata for %s: %s",
@@ -6533,13 +6372,10 @@ class Orchestrator:
 
             # Persist merged metadata
             try:
-                tracker._run_bd(
-                    [
-                        "update",
-                        issue.identifier,
-                        "--metadata",
-                        json.dumps(existing_meta),
-                    ]
+                tracker.set_metadata_field(
+                    issue.identifier,
+                    "oompah.task_costs",
+                    merged_costs,
                 )
                 logger.info(
                     "cost_record: wrote %s total=$%.4f models=%s",
@@ -7129,7 +6965,7 @@ class Orchestrator:
         try:
             await asyncio.get_event_loop().run_in_executor(
                 self._tick_pool,
-                lambda: tracker.update_issue(issue.identifier, status="in_progress"),
+                lambda: tracker.update_issue(issue.identifier, status=IN_PROGRESS),
             )
         except Exception as exc:
             logger.warning(
@@ -7493,17 +7329,6 @@ class Orchestrator:
                 f"{issue.identifier}__{ts}.jsonl",
             )
 
-            # Compute the project's main beads directory so the agent's
-            # ``bd`` commands write to the orchestrator's source-of-truth DB,
-            # not the worktree's forked dolt. Falls back to None for the
-            # legacy single-project path (no project_id), in which case the
-            # agent's bd commands resolve normally from cwd.
-            beads_dir = None
-            if issue.project_id:
-                proj = self.project_store.get(issue.project_id)
-                if proj and proj.repo_path:
-                    beads_dir = os.path.join(proj.repo_path, ".beads")
-
             session = ApiAgentSession(
                 base_url=provider.base_url,
                 api_key=provider.api_key,
@@ -7526,7 +7351,6 @@ class Orchestrator:
                 enabled_tools=base_tools,
                 model_max_context=provider.get_model_context(model),
                 log_path=agent_log_path,
-                beads_dir=beads_dir,
             )
             logger.info(
                 "Agent log for %s -> %s",
@@ -7696,7 +7520,7 @@ class Orchestrator:
           happens against the subscription, not a per-token meter.
         * The tool catalog comes from ``oompah/acp_tools.py``, which
           wraps the same ``_exec_*`` helpers api_agent uses. This
-          keeps cd-guard / BEADS_DIR / shell-redirect in force.
+          keeps cd-guard / shell-redirect in force.
         * Permission prompts are auto-accepted via the SDK's
           ``permission_mode="bypassPermissions"`` (mirrors
           ``--dangerously-skip-permissions``); the audit trail goes
@@ -7788,12 +7612,6 @@ class Orchestrator:
                 running_entry.focus_name = focus.name
                 running_entry.focus_role = focus.role
 
-            beads_dir = None
-            if issue.project_id:
-                proj = self.project_store.get(issue.project_id)
-                if proj and proj.repo_path:
-                    beads_dir = os.path.join(proj.repo_path, ".beads")
-
             # Per-dispatch JSONL log. Reuses api_agent's location convention.
             log_dir = os.environ.get("OOMPAH_AGENT_LOG_DIR") or os.path.join(
                 os.path.expanduser("~"),
@@ -7817,7 +7635,7 @@ class Orchestrator:
             # Update running entry session + telemetry snapshot. The
             # provider/model fields are diagnostic for ACP runs (the
             # SDK picks the actual model from the subscription) but
-            # they're still what the operator sees in `bd comments`.
+            # they're still what the operator sees in task comments.
             # See bead oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
                 running_entry_acp = self.state.running[issue.id]
@@ -7841,7 +7659,6 @@ class Orchestrator:
 
             tool_catalog = build_tool_catalog(
                 workspace_path,
-                beads_dir=beads_dir,
                 run_command_timeout_s=60,
             )
 
@@ -8022,7 +7839,6 @@ class Orchestrator:
                 prompt=prompt_text,
                 model=acp_model,
                 max_turns=max_turns,
-                env={"BEADS_DIR": beads_dir} if beads_dir else None,
                 tool_catalog=tool_catalog,
                 on_event=_on_event,
                 backend_name=acp_backend_name,
@@ -8503,7 +8319,7 @@ class Orchestrator:
             tracker = (
                 self._tracker_for_project(project_id) if project_id else self.tracker
             )
-            tracker.update_issue(entry.identifier, status="open")
+            tracker.update_issue(entry.identifier, status=OPEN)
             logger.warning(
                 "close_gate: REFUSED close for %s — %d commit(s) ahead of %s, "
                 "open_prs=%d merged_prs=%d — bead reopened",
@@ -8610,7 +8426,7 @@ class Orchestrator:
                 if project_id
                 else self.tracker
             )
-            tracker.update_issue(entry.identifier, status="in_progress")
+            tracker.update_issue(entry.identifier, status=IN_PROGRESS)
             logger.warning(
                 "unpushed_gate: REFUSED completion for %s — "
                 "unpushed work detected (ahead=%d uncommitted=%s) — bead re-opened",
@@ -8637,7 +8453,7 @@ class Orchestrator:
 
         Called from ``_on_worker_exit`` when the worker exited
         ``normal`` AND the bead has moved to a terminal state — i.e.
-        the agent successfully ran ``bd close``.
+        the agent successfully moved the task to a terminal state.
 
         Returns a ``VerifierResult``. Callers inspect ``passed`` to
         decide whether to honor the close or reopen with diagnostics.
@@ -8791,7 +8607,7 @@ class Orchestrator:
         project_id = entry.issue.project_id if entry.issue else None
 
         if reason == "ask_question":
-            # Agent asked a question — post it, label the issue, move to open
+            # Agent asked a question — post it and move the issue to Needs Answer
             self.state.claimed.discard(issue_id)
             self.state.stall_counts.pop(issue_id, None)
             question_text = error or "Agent has a question (no text provided)"
@@ -8808,8 +8624,7 @@ class Orchestrator:
                 )
                 tracker.update_issue(
                     entry.identifier,
-                    status="open",
-                    **{"add-label": "asking_question"},
+                    status=NEEDS_ANSWER,
                 )
             except Exception as exc:
                 logger.warning(
@@ -8864,15 +8679,14 @@ class Orchestrator:
                     else self.tracker
                 )
                 current = tracker.fetch_issue_detail(entry.identifier)
-                terminal = {
-                    s.strip().lower() for s in self.config.tracker_terminal_states
-                }
-                if current and current.state.strip().lower() not in terminal:
+                if current and not _is_terminal_state(
+                    current.state, self.config.tracker_terminal_states
+                ):
                     # Merge-conflict agents just rebase — closure happens when
                     # YOLO merges the MR.  Don't count these toward the reopen
                     # limit; just mark completed and let YOLO handle the rest.
                     current_labels = {l.lower() for l in (current.labels or [])}
-                    if "merge-conflict" in current_labels:
+                    if "merge-conflict" in current_labels or canonicalize_status(current.state) == NEEDS_REBASE:
                         logger.info(
                             "Merge-conflict agent completed for %s — "
                             "closing, awaiting YOLO merge",
@@ -8886,7 +8700,6 @@ class Orchestrator:
                             )
                         except Exception:
                             pass
-                        # Close is a separate bd command — can't combine with update
                         tracker.close_issue(entry.identifier)
                         self.state.completed.add(issue_id)
                         self.state.reopen_counts.pop(issue_id, None)
@@ -8910,7 +8723,7 @@ class Orchestrator:
                                 f"Deferring — needs human attention.",
                                 project_id=project_id,
                             )
-                            tracker.update_issue(entry.identifier, status="deferred")
+                            tracker.update_issue(entry.identifier, status=NEEDS_HUMAN)
                             self.state.completed.add(issue_id)
                         else:
                             # Landing gate: check if the agent completed without landing
@@ -8958,7 +8771,7 @@ class Orchestrator:
                                         json.dumps(telemetry),
                                     )
                                     tracker.update_issue(
-                                        entry.identifier, status="deferred",
+                                        entry.identifier, status=NEEDS_HUMAN,
                                     )
                                     self.state.completed.add(issue_id)
                                     return
@@ -8994,7 +8807,7 @@ class Orchestrator:
                                 )
                             else:
                                 # No higher profile available — retry with same profile
-                                tracker.update_issue(entry.identifier, status="open")
+                                tracker.update_issue(entry.identifier, status=OPEN)
                                 logger.info(
                                     "Agent completed without closing %s — reset to open (%d/%d)",
                                     entry.identifier,
@@ -9046,91 +8859,95 @@ class Orchestrator:
                                 current,
                                 project_id,
                             )
-                        max_verifier_rejects = 3
-                        reject_count = self._verifier_reject_counts.get(issue_id, 0)
-                        if (
-                            not verifier_result.passed
-                            and reject_count < max_verifier_rejects
-                        ):
-                            # Reject the close: reopen, post diagnostics,
-                            # schedule a retry. Increment reject count so
-                            # we eventually give up if the agent keeps
-                            # shipping the same gap.
-                            self._verifier_reject_counts[issue_id] = reject_count + 1
-                            try:
-                                tracker.reopen_issue(entry.identifier)
-                            except Exception as exc:
-                                logger.warning(
-                                    "Failed to reopen %s after verifier rejection: %s",
-                                    entry.identifier,
-                                    exc,
+                            max_verifier_rejects = 3
+                            reject_count = self._verifier_reject_counts.get(
+                                issue_id, 0
+                            )
+                            if (
+                                not verifier_result.passed
+                                and reject_count < max_verifier_rejects
+                            ):
+                                # Reject the close: reopen, post diagnostics,
+                                # schedule a retry. Increment reject count so
+                                # we eventually give up if the agent keeps
+                                # shipping the same gap.
+                                self._verifier_reject_counts[issue_id] = (
+                                    reject_count + 1
                                 )
-                                self.state.completed.add(issue_id)
-                                self.state.reopen_counts.pop(issue_id, None)
-                                self._ensure_review_exists(entry, project_id)
-                            else:
                                 try:
-                                    self._post_comment(
-                                        entry.identifier,
-                                        verifier_result.render_rejection_comment(),
-                                        project_id=project_id,
-                                    )
+                                    tracker.reopen_issue(entry.identifier)
                                 except Exception as exc:
                                     logger.warning(
-                                        "Failed to post verifier-rejection comment "
-                                        "to %s: %s",
+                                        "Failed to reopen %s after verifier rejection: %s",
                                         entry.identifier,
                                         exc,
                                     )
-                                # Schedule a retry — try a higher profile if
-                                # available so the next attempt has more
-                                # capacity to satisfy the AC.
-                                next_attempt = (entry.retry_attempt or 0) + 1
-                                escalated, escalated_name = (
-                                    self._next_profile_for_retry(entry)
-                                )
-                                delay = self._backoff_delay(next_attempt)
-                                self._schedule_retry(
-                                    issue_id,
-                                    attempt=next_attempt,
-                                    identifier=entry.identifier,
-                                    delay_ms=delay,
-                                    error="completion_verifier_rejected",
-                                    escalated_profile=escalated_name
-                                    if escalated
-                                    else None,
-                                )
-                                logger.info(
-                                    "Completion verifier rejected close for %s — "
-                                    "reopened, retrying in %ds (reject %d/%d)",
-                                    entry.identifier,
-                                    delay // 1000,
-                                    reject_count + 1,
-                                    max_verifier_rejects,
-                                )
-                        else:
-                            if not verifier_result.passed:
-                                # We've hit the verifier reject ceiling —
-                                # fail open and let the close stick, but
-                                # log a WARNING so the operator can
-                                # investigate.
-                                logger.warning(
-                                    "Completion verifier rejected %s for the %dth "
-                                    "time — failing open and honoring the close",
-                                    entry.identifier,
-                                    reject_count + 1,
-                                )
-                            self.state.completed.add(issue_id)
-                            self.state.reopen_counts.pop(issue_id, None)
-                            self._verifier_reject_counts.pop(issue_id, None)
-                            # Auto-create review if agent pushed a branch
-                            self._ensure_review_exists(entry, project_id)
-                            # Reactive epic auto-close: if the just-closed
-                            # bead is a child of an epic, evaluate the
-                            # parent for auto-close immediately rather
-                            # than waiting for the next full-sync tick.
-                            # See oompah-zlz_2-lvcd.
-                            self._maybe_auto_close_parent_epic(current)
+                                    self.state.completed.add(issue_id)
+                                    self.state.reopen_counts.pop(issue_id, None)
+                                    self._ensure_review_exists(entry, project_id)
+                                else:
+                                    try:
+                                        self._post_comment(
+                                            entry.identifier,
+                                            verifier_result.render_rejection_comment(),
+                                            project_id=project_id,
+                                        )
+                                    except Exception as exc:
+                                        logger.warning(
+                                            "Failed to post verifier-rejection comment "
+                                            "to %s: %s",
+                                            entry.identifier,
+                                            exc,
+                                        )
+                                    # Schedule a retry — try a higher profile if
+                                    # available so the next attempt has more
+                                    # capacity to satisfy the AC.
+                                    next_attempt = (entry.retry_attempt or 0) + 1
+                                    escalated, escalated_name = (
+                                        self._next_profile_for_retry(entry)
+                                    )
+                                    delay = self._backoff_delay(next_attempt)
+                                    self._schedule_retry(
+                                        issue_id,
+                                        attempt=next_attempt,
+                                        identifier=entry.identifier,
+                                        delay_ms=delay,
+                                        error="completion_verifier_rejected",
+                                        escalated_profile=escalated_name
+                                        if escalated
+                                        else None,
+                                    )
+                                    logger.info(
+                                        "Completion verifier rejected close for %s — "
+                                        "reopened, retrying in %ds (reject %d/%d)",
+                                        entry.identifier,
+                                        delay // 1000,
+                                        reject_count + 1,
+                                        max_verifier_rejects,
+                                    )
+                            else:
+                                if not verifier_result.passed:
+                                    # We've hit the verifier reject ceiling —
+                                    # fail open and let the close stick, but
+                                    # log a WARNING so the operator can
+                                    # investigate.
+                                    logger.warning(
+                                        "Completion verifier rejected %s for the %dth "
+                                        "time — failing open and honoring the close",
+                                        entry.identifier,
+                                        reject_count + 1,
+                                    )
+                                self.state.completed.add(issue_id)
+                                self.state.reopen_counts.pop(issue_id, None)
+                                self._verifier_reject_counts.pop(issue_id, None)
+                                # Auto-create review if agent pushed a branch
+                                self._ensure_review_exists(entry, project_id)
+                                # Reactive epic auto-close: if the just-closed
+                                # bead is a child of an epic, evaluate the
+                                # parent for auto-close immediately rather
+                                # than waiting for the next full-sync tick.
+                                # See oompah-zlz_2-lvcd.
+                                self._maybe_auto_close_parent_epic(current)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library
@@ -9531,7 +9348,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self,
         parent_issue: Issue,
         tasks: list[dict],
-        tracker: BeadsTracker | BacklogMdTracker,
+        tracker: BacklogMdTracker,
         project_id: str | None,
     ) -> None:
         """Create child issues from a decomposition plan."""
@@ -9549,7 +9366,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 issue_type="task",
                 description=description,
                 priority=priority,
-                initial_status="open",
+                initial_status=OPEN,
                 parent=parent_issue.identifier,
             )
             created.append(child)
@@ -9577,12 +9394,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     except Exception:
                         pass
 
-        # Label the original issue as decomposed and move to deferred (atomic)
+        # Move the original issue to the decomposed status.
         try:
             tracker.update_issue(
                 parent_issue.identifier,
-                status="deferred",
-                **{"add-label": "decomposed"},
+                status=DECOMPOSED,
             )
         except Exception:
             pass
@@ -9697,7 +9513,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         """Fetch current states for running issues (blocking, runs in thread).
 
         Parallelizes across projects; each project's tracker already
-        parallelizes individual bd show calls internally.
+        parallelizes individual tracker detail calls internally.
         """
         if not by_project:
             return {}
@@ -9766,9 +9582,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         refreshed_map = await loop.run_in_executor(
             self._tick_pool, self._fetch_running_states, by_project
         )
-        terminal_norms = {
-            _state_key(s) for s in self.config.tracker_terminal_states
-        }
+        terminal_norms = _terminal_state_keys(self.config.tracker_terminal_states)
         active_norms = {_state_key(s) for s in self.config.tracker_active_states}
 
         for issue_id in running_ids:
@@ -9855,7 +9669,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         now = datetime.now(timezone.utc)
         projects = self.project_store.list_all()
 
-        trackers: list[tuple[str | None, BeadsTracker | BacklogMdTracker]] = []
+        trackers: list[tuple[str | None, BacklogMdTracker]] = []
         if projects:
             for project in projects:
                 try:
@@ -9919,7 +9733,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         # Write per-agent telemetry comment for this terminated run too
         # so the operator sees every attempt — including manual kills —
-        # in `bd comments <id>`. Exit reason is "terminated" to
+        # in task comments. Exit reason is "terminated" to
         # distinguish from natural exits. See bead oompah-zlz_2-y3fy.
         self._fire_telemetry_comment(entry, "terminated", elapsed)
 
@@ -10085,35 +9899,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 for epic_id, entry in self._epic_rebase_states.items()
             },
             "proposed_foci_count": self._proposed_foci_count(),
-            "dolt_sync": self.dolt_sync_snapshot(),
         }
-
-    def dolt_sync_snapshot(self) -> dict[str, Any]:
-        """Public-facing snapshot of the dolt sync watchdog state.
-
-        Mapping of ``project_id`` -> per-project state dict with
-        ``last_push_at`` / ``last_pull_at`` / ``last_error`` / ``divergent``
-        fields. Used by both ``get_snapshot()`` (dashboard) and the
-        ``/api/v1/orchestrator/dolt-sync`` endpoint.
-
-        Each entry also carries ``project_name`` and ``repo_path``
-        (resolved from the project store) so the dashboard's
-        click-to-expand alert modal can render the project label and
-        suggested recovery commands without a second round-trip
-        (oompah-zlz_2-g8uk).
-        """
-        try:
-            projects_by_id = {p.id: p for p in self.project_store.list_all()}
-        except Exception:
-            projects_by_id = {}
-        out: dict[str, Any] = {}
-        for pid, st in self._dolt_sync_state.items():
-            entry = st.to_dict()
-            proj = projects_by_id.get(pid)
-            entry["project_name"] = proj.name if proj else pid
-            entry["repo_path"] = getattr(proj, "repo_path", None) if proj else None
-            out[pid] = entry
-        return out
 
     def _reviews_summary(self) -> dict[str, int]:
         """Aggregate per-tick review cache for the dashboard badge.

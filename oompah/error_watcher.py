@@ -1,10 +1,10 @@
-"""Error watcher: intercepts backend errors and creates beads for tracking.
+"""Error watcher: intercepts backend errors and creates Backlog tasks for tracking.
 
 Provides two mechanisms for detecting errors:
 
 1. **Python logging handler** — ``ErrorWatcher.install_log_handler()``
    hooks into Python's ``logging`` system to catch ERROR+ records from the
-   oompah backend and create beads automatically.
+   oompah backend and create tasks automatically.
 
 2. **Log file watcher** — ``LogFileWatcher`` monitors an external log file
    for error lines and feeds them to an ``ErrorWatcher``.  Any project can
@@ -25,11 +25,11 @@ from typing import TYPE_CHECKING
 from watchfiles import awatch
 
 if TYPE_CHECKING:
-    from oompah.tracker import BeadsTracker
+    from oompah.tracker import BacklogMdTracker
 
 logger = logging.getLogger(__name__)
 
-# Don't create beads for the same error more than once within this window.
+# Don't create tasks for the same error more than once within this window.
 _DEDUP_WINDOW_SECONDS = 3600  # 1 hour
 
 # Max number of fingerprints to keep in memory (LRU-ish eviction).
@@ -42,7 +42,7 @@ class _ErrorRecord:
 
     ``bead_id`` and ``issue_id`` are populated when ``report_error`` is
     called with an ``issue_id``; they let the orchestrator auto-close the
-    bead when the originating issue's retry path succeeds.
+    task when the originating issue's retry path succeeds.
     """
     fingerprint: str
     last_created: float = 0.0
@@ -51,7 +51,7 @@ class _ErrorRecord:
 
 
 # Window during which a retry-success can auto-close a previously filed
-# error bead.  Beads older than this stay deferred (operator must
+# error task. Tasks older than this stay open for operator inspection.
 # inspect manually).
 _AUTO_CLOSE_WINDOW_SECONDS = 1800  # 30 minutes
 
@@ -63,13 +63,13 @@ _AUTO_CLOSE_QUIET_SECONDS = 60
 
 
 class ErrorWatcher:
-    """Watches for errors and creates beads to track them.
+    """Watches for errors and creates Backlog tasks to track them.
 
     Hooks into Python's logging system via a custom handler. Also accepts
     explicit error reports (e.g. from a frontend error endpoint).
     """
 
-    def __init__(self, tracker: BeadsTracker, project_id: str | None = None):
+    def __init__(self, tracker: BacklogMdTracker, project_id: str | None = None):
         self._tracker = tracker
         self._project_id = project_id
         self._seen: dict[str, _ErrorRecord] = {}
@@ -278,7 +278,7 @@ class ErrorWatcher:
                 )
                 continue
             # Drop the record so a fresh occurrence of the same
-            # fingerprint will produce a new bead.
+            # fingerprint will produce a new task.
             self._seen.pop(fp, None)
 
         return closed
@@ -296,19 +296,19 @@ class ErrorWatcher:
 
         - **Explicit class** (``error_class`` given): the fingerprint hashes
           ``class=<error_class>`` alone, so every report with the same
-          class collapses to one bead within the dedup window — regardless
-          of source, message, project, or bd subcommand. This is the
-          operator's escape hatch for transient infra failures (e.g. Dolt
-          server slowdown) that fan out across many call sites in seconds.
+          class collapses to one task within the dedup window — regardless
+          of source, message, project, or Backlog subcommand. This is the
+          operator's escape hatch for transient infra failures that fan out
+          across many call sites in seconds.
 
         - **Free-form** (no class): normalize the message by stripping
           parts that vary across operationally-identical errors —
-          timestamps, hex addresses, UUIDs, project names, bd subcommand
-          args, beads-style identifiers, large numbers — then hash.
+          timestamps, hex addresses, UUIDs, project names, Backlog command
+          args, task-style identifiers, large numbers — then hash.
 
         Trade-off: broader fingerprints risk lumping unrelated errors into
-        one bead. The free-form normalization stays conservative; for the
-        cases where a *single* root cause is known (e.g. bd timeouts), the
+        one task. The free-form normalization stays conservative; for the
+        cases where a *single* root cause is known (e.g. Backlog timeouts), the
         caller opts in with ``error_class`` rather than us guessing from
         message text.
         """
@@ -335,7 +335,7 @@ class ErrorWatcher:
             normalized,
         )
 
-        # Strip quoted identifiers ("oompah-zlz_2-16h", 'bd-42'). Keep
+        # Strip quoted identifiers ("oompah-zlz_2-16h", 'TASK-42'). Keep
         # the quotes themselves so the message shape is preserved.
         normalized = re.sub(
             r"(['\"])[a-z][a-z0-9_]*(?:-[a-z0-9_]+)+\1",
@@ -343,16 +343,17 @@ class ErrorWatcher:
             normalized,
         )
 
-        # Collapse bd subcommand invocations: "bd list --json" → "bd list",
-        # "bd close oompah-zlz_2-16h" → "bd close", "bd show foo" → "bd show".
-        # Keeps just the subcommand verb; drops everything after.
+        # Collapse Backlog command invocations:
+        # "backlog task list --plain" -> "backlog task list",
+        # "backlog task view TASK-42" -> "backlog task view".
+        # Keeps the command family + verb; drops everything after.
         normalized = re.sub(
-            r"\bbd ([a-z][a-z0-9_-]*)(?:\s+\S[^\n]*)?",
-            r"bd \1",
+            r"\bbacklog\s+([a-z][a-z0-9_-]*)\s+([a-z][a-z0-9_-]*)(?:\s+\S[^\n]*)?",
+            r"backlog \1 \2",
             normalized,
         )
 
-        # Tightened identifier normalization: catches beads-style IDs
+        # Tightened identifier normalization: catches task-style IDs
         # like "oompah-zlz_2-16h", "oompah-zlz_2-aup". Requires 2+ dash
         # segments to avoid eating ordinary hyphenated English words
         # ("for-loop", "non-empty", "use-case").

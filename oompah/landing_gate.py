@@ -5,11 +5,11 @@ Motivating evidence (issue oompah-zlz_2-kc2k.1):
 * oompah-zlz_2-rxwe.1: agent ran 6 sessions across 3 profiles,
   described implementation correctly, passed inline smoke tests,
   then exited with "Agent finished (no more tool calls)" without
-  doing ``bd close`` or ``git push``. The work was stranded in the
+  marking the task done or running ``git push``. The work was stranded in the
   worktree.
 * oompah-zlz_2-kc2k: prior attempts showed the same pattern.
 
-Pattern: bead has acceptance-criteria information → agent produces
+Pattern: task has acceptance-criteria information → agent produces
 valid diff → agent calls ``exit(0)`` instead of committing and closing
 → oompah escalates the profile and retries → wrong model wastes tokens.
 
@@ -63,6 +63,7 @@ from typing import Any
 import httpx
 
 from oompah.models import Issue
+from oompah.statuses import DECOMPOSED, canonicalize_status
 
 logger = logging.getLogger(__name__)
 
@@ -108,8 +109,11 @@ def check_landing_gate(
         return result
 
     label_set = {(l or "").strip().lower() for l in (issue.labels or [])}
-    if "decomposed" in label_set:
-        result.skip_reason = "issue has decomposed label"
+    if (
+        "decomposed" in label_set
+        or canonicalize_status(getattr(issue, "state", None)) == DECOMPOSED
+    ):
+        result.skip_reason = "issue is decomposed"
         return result
 
     branch = (issue.branch_name or "").strip() or issue.identifier

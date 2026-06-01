@@ -102,10 +102,10 @@ class TestDispatchRecheckSkipsClosedIssue:
         ):
             event_loop.run_until_complete(orch._dispatch(stale, attempt=None))
 
-        # update_issue should have been called with status=in_progress.
+        # update_issue should have been called with the canonical in-progress status.
         in_progress_calls = [
             c for c in mock_tracker.update_issue.call_args_list
-            if c.kwargs.get("status") == "in_progress"
+            if c.kwargs.get("status") == "In Progress"
         ]
         assert len(in_progress_calls) == 1, (
             f"Expected one in_progress write, got: {mock_tracker.update_issue.call_args_list!r}"
@@ -157,7 +157,7 @@ class TestDispatchRecheckSkipsClosedIssue:
 
         in_progress_calls = [
             c for c in mock_tracker.update_issue.call_args_list
-            if c.kwargs.get("status") == "in_progress"
+            if c.kwargs.get("status") == "In Progress"
         ]
         assert len(in_progress_calls) == 1
 

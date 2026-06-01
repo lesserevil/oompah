@@ -336,7 +336,7 @@ def render_transcript_as_prompt(
     header_parts.append(
         ". You're talking to a human operator through the dashboard. "
         "Be concise and direct. When the operator asks you to do something "
-        "(close beads, run commands, edit files), use the available tools. "
+        "(close tasks, run commands, edit files), use the available tools. "
         "Keep prose readable in a terminal-sized panel."
     )
     lines.append("".join(header_parts))
@@ -618,25 +618,18 @@ class ConsoleSession:
         backend_name = backend_info.get("backend_name") or "claude"
         model = backend_info.get("model")
         permission_mode = backend_info.get("permission_mode") or "acceptEdits"
-        beads_dir = backend_info.get("beads_dir")
 
         # Build tool catalog for this backend.
         try:
             if backend_name == "codex":
-                tool_catalog = build_codex_tool_catalog(
-                    self.workspace_path,
-                    beads_dir=beads_dir,
-                )
+                tool_catalog = build_codex_tool_catalog(self.workspace_path)
                 tools_summary = (
-                    "read/write/edit/list/search files + run_command + bd"
+                    "read/write/edit/list/search files + run_command + backlog"
                 )
             else:
-                tool_catalog = build_tool_catalog(
-                    self.workspace_path,
-                    beads_dir=beads_dir,
-                )
+                tool_catalog = build_tool_catalog(self.workspace_path)
                 tools_summary = (
-                    "read/write/edit/list/search files + run_command + bd"
+                    "read/write/edit/list/search files + run_command + backlog"
                 )
         except ImportError as exc:
             err = f"backend {backend_name!r} unavailable: {exc}"
@@ -663,10 +656,6 @@ class ConsoleSession:
             tools_summary=tools_summary,
         )
 
-        env: dict[str, str] | None = None
-        if beads_dir:
-            env = {"BEADS_DIR": beads_dir}
-
         # Forward every backend event into the transcript + WS fan-out.
         def _on_event(ev) -> None:
             kind = getattr(ev, "event", None) or "acp_event"
@@ -678,7 +667,6 @@ class ConsoleSession:
             workspace_path=self.workspace_path,
             prompt=prompt,
             model=model,
-            env=env,
             tool_catalog=tool_catalog,
             on_event=_on_event,
             permission_mode=permission_mode,
@@ -757,7 +745,7 @@ class ConsoleManager:
         """
         :param resolve_backend: Called per-turn with project_id; returns
             a dict with optional keys: ``backend_name``, ``model``,
-            ``permission_mode``, ``beads_dir``.
+            ``permission_mode``.
         :param broadcast: Called for every console event with
             ``(project_id, event)``; should fan out to WS clients.
         :param resolve_project: Called on first session construction;

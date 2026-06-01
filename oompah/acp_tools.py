@@ -21,7 +21,7 @@ safety rails are identical:
 * :func:`build_codex_tool_catalog` — OpenAI Agents SDK
   ``@function_tool`` format (second backend).
 * :func:`build_opencode_tool_catalog` — OpenCode SDK ``@tool``
-  format (third backend, bead oompah-zlz_2-p1ti).
+  format (third backend, oompah-zlz_2-p1ti).
 
 When the operator adds a new ACP backend the convention is: add a
 parallel ``build_<backend>_tool_catalog`` here so the shared
@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 def build_tool_catalog(
     workspace_path: str,
     *,
-    beads_dir: str | None = None,
     run_command_timeout_s: int = 60,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
@@ -52,10 +51,8 @@ def build_tool_catalog(
     output), ready to be passed into
     :func:`claude_agent_sdk.create_sdk_mcp_server`.
 
-    ``beads_dir`` is forwarded into ``run_command`` as the legacy
-    ``BEADS_DIR`` env override when a beads-backed project needs it.
-    Backlog.md commands do not require a tracker-specific environment
-    override. Mirrors the api_agent path.
+    Backlog.md commands resolve from the workspace, so no tracker-specific
+    environment override is needed. Mirrors the api_agent path.
     """
     # Lazy imports: keep the SDK out of import paths that don't need it,
     # and avoid pulling api_agent's full surface (which imports _http_post
@@ -79,10 +76,6 @@ def build_tool_catalog(
     )
 
     workspace = Path(workspace_path)
-    env_overrides: dict[str, str] = {}
-    if beads_dir:
-        env_overrides["BEADS_DIR"] = beads_dir
-
     def _wrap_text(content: str) -> dict[str, Any]:
         """Package a plain-string tool result in the MCP content shape
         the SDK expects from @tool functions."""
@@ -151,7 +144,6 @@ def build_tool_catalog(
                 workspace,
                 args,
                 timeout=run_command_timeout_s,
-                env_overrides=env_overrides or None,
             )
         )
 
@@ -173,7 +165,6 @@ def build_tool_catalog(
 def build_codex_tool_catalog(
     workspace_path: str,
     *,
-    beads_dir: str | None = None,
     run_command_timeout_s: int = 60,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
@@ -228,9 +219,6 @@ def build_codex_tool_catalog(
     )
 
     workspace = Path(workspace_path)
-    env_overrides: dict[str, str] = {}
-    if beads_dir:
-        env_overrides["BEADS_DIR"] = beads_dir
 
     # Each @function_tool target is introspected by the SDK to build
     # a JSON Schema for the model — keep the signatures simple
@@ -283,7 +271,6 @@ def build_codex_tool_catalog(
             workspace,
             {"command": command},
             timeout=run_command_timeout_s,
-            env_overrides=env_overrides or None,
         )
 
     return [
@@ -304,7 +291,6 @@ def build_codex_tool_catalog(
 def build_opencode_tool_catalog(
     workspace_path: str,
     *,
-    beads_dir: str | None = None,
     run_command_timeout_s: int = 60,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
@@ -313,8 +299,7 @@ def build_opencode_tool_catalog(
     the same ``@tool`` surface as Claude, unlike Codex's
     ``@function_tool``). Each function routes through the same
     :func:`oompah.api_agent._exec_*` helpers so cd-guard, tracker
-    environment overrides, and per-command timeouts apply identically to the Claude
-    and OpenCode backends.
+    per-command timeouts apply identically to the Claude and OpenCode backends.
 
     The SDK is imported lazily; callers that don't use OpenCode never
     pay the import cost. If the SDK is missing we raise
@@ -348,9 +333,6 @@ def build_opencode_tool_catalog(
     )
 
     workspace = Path(workspace_path)
-    env_overrides: dict[str, str] = {}
-    if beads_dir:
-        env_overrides["BEADS_DIR"] = beads_dir
 
     def _wrap_text(content: str) -> dict[str, Any]:
         """Package a plain-string tool result in the MCP content shape
@@ -420,7 +402,6 @@ def build_opencode_tool_catalog(
                 workspace,
                 args,
                 timeout=run_command_timeout_s,
-                env_overrides=env_overrides or None,
             )
         )
 

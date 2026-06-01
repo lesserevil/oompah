@@ -1,10 +1,11 @@
 ---
 id: TASK-402.2
 title: Delete BeadsTracker and bd tracker runtime
-status: Open
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-01 19:20'
-updated_date: '2026-06-01 19:20'
+updated_date: '2026-06-01 22:40'
 labels:
   - task
 dependencies:
@@ -56,6 +57,12 @@ Files to inspect first:
 4. Rewrite tests to use BacklogMdTracker or delete tests that only covered bd behavior.
 5. Run focused tracker/orchestrator tests.
 <!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed as part of the Backlog-only tracker migration. Removed Beads/bd runtime paths where applicable, moved lifecycle behavior to canonical Backlog.md statuses, updated UI/API/tests/docs for Backlog-only behavior, and verified with make test: 3677 passed.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

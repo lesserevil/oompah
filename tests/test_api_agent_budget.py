@@ -956,15 +956,15 @@ class TestRunCommandRefusesCdOutsideWorkspace:
 class TestUnknownToolHelpfulErrorWhenLooksShellish:
     def test_space_in_name_redirects_to_run_command(self, tmp_path):
         from oompah.api_agent import _execute_tool
-        result = _execute_tool(tmp_path, "bd comments add", {})
+        result = _execute_tool(tmp_path, "backlog task edit", {})
         assert "is not a tool" in result
         assert "run_command" in result
         # Must still preserve the original tool list for the model.
         assert "read_file" in result
 
-    def test_bd_prefix_no_space_still_redirects(self, tmp_path):
+    def test_backlog_prefix_no_space_still_redirects(self, tmp_path):
         from oompah.api_agent import _execute_tool
-        result = _execute_tool(tmp_path, "bd_close", {})
+        result = _execute_tool(tmp_path, "backlog_edit", {})
         assert "is not a tool" in result
         assert "run_command" in result
 
@@ -976,7 +976,7 @@ class TestUnknownToolHelpfulErrorWhenLooksShellish:
 
     def test_unrelated_unknown_tool_keeps_original_message(self, tmp_path):
         from oompah.api_agent import _execute_tool
-        # Doesn't start with bd/git/uv/make and has no spaces — should
+        # Doesn't start with backlog/git/uv/make and has no spaces — should
         # use the original "unknown tool" wording without the shell hint.
         result = _execute_tool(tmp_path, "frobnicate", {})
         assert "unknown tool 'frobnicate'" in result
@@ -984,29 +984,30 @@ class TestUnknownToolHelpfulErrorWhenLooksShellish:
 
 
 # ---------------------------------------------------------------------------
-# BEADS_DIR plumbing — agents work in their worktree but their bd commands
-# must hit the project's main beads DB, not the worktree's forked dolt copy.
+# Environment override plumbing for run_command.
 # ---------------------------------------------------------------------------
 
 class TestRunCommandEnvOverrides:
     def test_no_overrides_inherits_env(self, tmp_path, monkeypatch):
         from oompah.api_agent import _exec_run_command
-        # Echoes whatever's in BEADS_DIR (or "unset" if missing) so we can
+        # Echoes whatever's in OOMPAH_TEST_OVERRIDE (or "unset" if missing) so we can
         # check whether the caller's env reached the subprocess.
-        monkeypatch.setenv("BEADS_DIR", "/from/parent")
+        monkeypatch.setenv("OOMPAH_TEST_OVERRIDE", "/from/parent")
         result = _exec_run_command(
-            tmp_path, {"command": "echo BEADS_DIR=${BEADS_DIR:-unset}"},
+            tmp_path,
+            {"command": "echo OOMPAH_TEST_OVERRIDE=${OOMPAH_TEST_OVERRIDE:-unset}"},
         )
-        assert "BEADS_DIR=/from/parent" in result
+        assert "OOMPAH_TEST_OVERRIDE=/from/parent" in result
 
     def test_overrides_replace_specific_keys(self, tmp_path):
         from oompah.api_agent import _exec_run_command
-        # Caller specifies BEADS_DIR via env_overrides — child should see it.
+        # Caller specifies a value via env_overrides — child should see it.
         result = _exec_run_command(
-            tmp_path, {"command": "echo BEADS_DIR=${BEADS_DIR:-unset}"},
-            env_overrides={"BEADS_DIR": "/main/repo/.beads"},
+            tmp_path,
+            {"command": "echo OOMPAH_TEST_OVERRIDE=${OOMPAH_TEST_OVERRIDE:-unset}"},
+            env_overrides={"OOMPAH_TEST_OVERRIDE": "/from/override"},
         )
-        assert "BEADS_DIR=/main/repo/.beads" in result
+        assert "OOMPAH_TEST_OVERRIDE=/from/override" in result
 
     def test_overrides_layer_on_existing_env(self, tmp_path, monkeypatch):
         """env_overrides should be additive — non-overridden keys still come
@@ -1015,35 +1016,21 @@ class TestRunCommandEnvOverrides:
         monkeypatch.setenv("OOMPAH_TEST_FIXTURE", "fixture-from-parent")
         result = _exec_run_command(
             tmp_path,
-            {"command": "echo PARENT=${OOMPAH_TEST_FIXTURE:-missing} OVERRIDE=${BEADS_DIR:-unset}"},
-            env_overrides={"BEADS_DIR": "/x"},
+            {
+                "command": (
+                    "echo PARENT=${OOMPAH_TEST_FIXTURE:-missing} "
+                    "OVERRIDE=${OOMPAH_TEST_OVERRIDE:-unset}"
+                )
+            },
+            env_overrides={"OOMPAH_TEST_OVERRIDE": "/x"},
         )
         assert "PARENT=fixture-from-parent" in result
         assert "OVERRIDE=/x" in result
 
 
-class TestSessionBeadsDir:
-    def test_default_is_none(self, tmp_path):
-        from oompah.api_agent import ApiAgentSession
-        s = ApiAgentSession(
-            base_url="http://x", api_key="", model="m",
-            workspace_path=str(tmp_path),
-        )
-        assert s.beads_dir is None
-
-    def test_passes_through(self, tmp_path):
-        from oompah.api_agent import ApiAgentSession
-        s = ApiAgentSession(
-            base_url="http://x", api_key="", model="m",
-            workspace_path=str(tmp_path),
-            beads_dir="/main/repo/.beads",
-        )
-        assert s.beads_dir == "/main/repo/.beads"
-
-
 class TestExecuteToolForwardsEnvOverrides:
     """When run_command goes through _execute_tool, env_overrides
-    (e.g. BEADS_DIR) must reach the subprocess. File/edit tools don't
+    must reach the subprocess. File/edit tools don't
     spawn subprocesses, so the override has no effect there but must
     not crash either."""
 
@@ -1051,10 +1038,10 @@ class TestExecuteToolForwardsEnvOverrides:
         from oompah.api_agent import _execute_tool
         result = _execute_tool(
             tmp_path, "run_command",
-            {"command": "echo BD=${BEADS_DIR:-unset}"},
-            env_overrides={"BEADS_DIR": "/sentinel/path"},
+            {"command": "echo OVERRIDE=${OOMPAH_TEST_OVERRIDE:-unset}"},
+            env_overrides={"OOMPAH_TEST_OVERRIDE": "/sentinel/path"},
         )
-        assert "BD=/sentinel/path" in result
+        assert "OVERRIDE=/sentinel/path" in result
 
     def test_other_tools_unaffected_by_env_overrides(self, tmp_path):
         from oompah.api_agent import _execute_tool
@@ -1063,7 +1050,7 @@ class TestExecuteToolForwardsEnvOverrides:
         (tmp_path / "f.txt").write_text("ok")
         result = _execute_tool(
             tmp_path, "list_files", {"path": "."},
-            env_overrides={"BEADS_DIR": "/x"},
+            env_overrides={"OOMPAH_TEST_OVERRIDE": "/x"},
         )
         assert "f.txt" in result
 

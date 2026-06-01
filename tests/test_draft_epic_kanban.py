@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 import oompah.server as server_module
 from oompah.server import app
 from oompah.models import Issue
-from oompah.tracker import BeadsTracker, TrackerError
+from oompah.tracker import BacklogMdTracker, TrackerError
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +149,8 @@ class TestApiIssuesDraftEpicInColumns:
         identifiers = [e["identifier"] for e in data["open"]]
         assert "EPIC-OPEN" in identifiers
 
-    def test_draft_epic_in_deferred_column(self, client):
-        """A draft epic in 'deferred' state must appear in the 'deferred' column."""
+    def test_draft_epic_in_legacy_deferred_column(self, client):
+        """A legacy 'deferred' draft epic appears in the 'backlog' column."""
         issues = [
             _make_issue(id="e1", identifier="EPIC-DEF", issue_type="epic",
                         labels=["draft"], state="deferred"),
@@ -161,8 +161,8 @@ class TestApiIssuesDraftEpicInColumns:
             resp = client.get("/api/v1/issues")
 
         data = resp.json()
-        assert "deferred" in data
-        identifiers = [e["identifier"] for e in data["deferred"]]
+        assert "backlog" in data
+        identifiers = [e["identifier"] for e in data["backlog"]]
         assert "EPIC-DEF" in identifiers
 
     def test_draft_epic_in_in_progress_column(self, client):
@@ -181,8 +181,8 @@ class TestApiIssuesDraftEpicInColumns:
         identifiers = [e["identifier"] for e in data["in_progress"]]
         assert "EPIC-IP" in identifiers
 
-    def test_draft_epic_in_closed_column(self, client):
-        """A draft epic in 'closed' state must appear in the 'closed' column."""
+    def test_draft_epic_in_legacy_closed_column(self, client):
+        """A legacy 'closed' draft epic appears in the 'done' column."""
         issues = [
             _make_issue(id="e1", identifier="EPIC-CL", issue_type="epic",
                         labels=["draft"], state="closed"),
@@ -193,8 +193,8 @@ class TestApiIssuesDraftEpicInColumns:
             resp = client.get("/api/v1/issues")
 
         data = resp.json()
-        assert "closed" in data
-        identifiers = [e["identifier"] for e in data["closed"]]
+        assert "done" in data
+        identifiers = [e["identifier"] for e in data["done"]]
         assert "EPIC-CL" in identifiers
 
     def test_draft_epic_has_issue_type_epic(self, client):
@@ -311,7 +311,7 @@ class TestApiIssuesNonDraftEpicIncluded:
         assert entry is not None
         assert "children_counts" in entry
         assert entry["children_counts"]["open"] == 1
-        assert entry["children_counts"]["closed"] == 1
+        assert entry["children_counts"]["done"] == 1
 
 
 # ===========================================================================
@@ -680,86 +680,92 @@ class TestLabelApiRemoveEndpoint:
 # ===========================================================================
 
 class TestTrackerAddLabel:
-    """Tests for BeadsTracker.add_label()."""
+    """Tests for BacklogMdTracker.add_label()."""
 
     def _tracker(self):
-        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+        return BacklogMdTracker(active_states=["Open"], terminal_states=["Done"])
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_add_label_calls_bd_label_add(self, mock_run_bd):
-        """add_label must call _run_bd with ['label', 'add', identifier, label]."""
-        mock_run_bd.return_value = []
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_add_label_calls_backlog_task_edit(self, mock_run_backlog):
+        """add_label must call backlog task edit with --add-label."""
+        mock_run_backlog.return_value = ""
         tracker = self._tracker()
         tracker.add_label("issue-1", "draft")
-        mock_run_bd.assert_called_once_with(["label", "add", "issue-1", "draft"])
+        mock_run_backlog.assert_called_once_with([
+            "task", "edit", "issue-1", "--add-label", "draft", "--plain",
+        ])
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_add_label_with_various_labels(self, mock_run_bd):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_add_label_with_various_labels(self, mock_run_backlog):
         """add_label works with different label values."""
-        mock_run_bd.return_value = []
+        mock_run_backlog.return_value = ""
         tracker = self._tracker()
 
         tracker.add_label("issue-1", "draft")
         tracker.add_label("issue-2", "urgent")
         tracker.add_label("issue-3", "team:alpha")
 
-        assert mock_run_bd.call_args_list == [
-            call(["label", "add", "issue-1", "draft"]),
-            call(["label", "add", "issue-2", "urgent"]),
-            call(["label", "add", "issue-3", "team:alpha"]),
+        assert mock_run_backlog.call_args_list == [
+            call(["task", "edit", "issue-1", "--add-label", "draft", "--plain"]),
+            call(["task", "edit", "issue-2", "--add-label", "urgent", "--plain"]),
+            call([
+                "task", "edit", "issue-3", "--add-label", "team:alpha", "--plain",
+            ]),
         ]
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_add_label_propagates_tracker_error(self, mock_run_bd):
-        """If _run_bd raises TrackerError, add_label propagates it."""
-        mock_run_bd.side_effect = TrackerError("bd command failed")
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_add_label_propagates_tracker_error(self, mock_run_backlog):
+        """If _run_backlog raises TrackerError, add_label propagates it."""
+        mock_run_backlog.side_effect = TrackerError("backlog command failed")
         tracker = self._tracker()
 
-        with pytest.raises(TrackerError, match="bd command failed"):
+        with pytest.raises(TrackerError, match="backlog command failed"):
             tracker.add_label("issue-1", "draft")
 
 
 class TestTrackerRemoveLabel:
-    """Tests for BeadsTracker.remove_label()."""
+    """Tests for BacklogMdTracker.remove_label()."""
 
     def _tracker(self):
-        return BeadsTracker(active_states=["open"], terminal_states=["closed"])
+        return BacklogMdTracker(active_states=["Open"], terminal_states=["Done"])
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_remove_label_calls_bd_label_remove(self, mock_run_bd):
-        """remove_label must call _run_bd with ['label', 'remove', identifier, label]."""
-        mock_run_bd.return_value = []
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_remove_label_calls_backlog_task_edit(self, mock_run_backlog):
+        """remove_label must call backlog task edit with --remove-label."""
+        mock_run_backlog.return_value = ""
         tracker = self._tracker()
         tracker.remove_label("issue-1", "draft")
-        mock_run_bd.assert_called_once_with(["label", "remove", "issue-1", "draft"])
+        mock_run_backlog.assert_called_once_with([
+            "task", "edit", "issue-1", "--remove-label", "draft", "--plain",
+        ])
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_remove_label_with_various_labels(self, mock_run_bd):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_remove_label_with_various_labels(self, mock_run_backlog):
         """remove_label works with different label values."""
-        mock_run_bd.return_value = []
+        mock_run_backlog.return_value = ""
         tracker = self._tracker()
 
         tracker.remove_label("issue-1", "draft")
         tracker.remove_label("issue-2", "urgent")
 
-        assert mock_run_bd.call_args_list == [
-            call(["label", "remove", "issue-1", "draft"]),
-            call(["label", "remove", "issue-2", "urgent"]),
+        assert mock_run_backlog.call_args_list == [
+            call(["task", "edit", "issue-1", "--remove-label", "draft", "--plain"]),
+            call(["task", "edit", "issue-2", "--remove-label", "urgent", "--plain"]),
         ]
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_remove_label_swallows_tracker_error(self, mock_run_bd):
-        """If _run_bd raises TrackerError, remove_label swallows it (label may not exist)."""
-        mock_run_bd.side_effect = TrackerError("label not found")
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_remove_label_swallows_tracker_error(self, mock_run_backlog):
+        """If _run_backlog raises TrackerError, remove_label swallows it."""
+        mock_run_backlog.side_effect = TrackerError("label not found")
         tracker = self._tracker()
 
         # Should NOT raise
         tracker.remove_label("issue-1", "nonexistent-label")
 
-    @patch.object(BeadsTracker, "_run_bd")
-    def test_remove_label_does_not_swallow_other_exceptions(self, mock_run_bd):
+    @patch.object(BacklogMdTracker, "_run_backlog")
+    def test_remove_label_does_not_swallow_other_exceptions(self, mock_run_backlog):
         """remove_label only swallows TrackerError, not other exceptions."""
-        mock_run_bd.side_effect = RuntimeError("unexpected")
+        mock_run_backlog.side_effect = RuntimeError("unexpected")
         tracker = self._tracker()
 
         with pytest.raises(RuntimeError, match="unexpected"):
@@ -773,8 +779,8 @@ class TestTrackerRemoveLabel:
 class TestDraftEpicEdgeCases:
     """Edge cases for draft epic kanban visibility."""
 
-    def test_archived_draft_epic_excluded(self, client):
-        """An archived draft epic (archive:yes label) must be excluded."""
+    def test_archived_draft_epic_in_archived_column(self, client):
+        """An archived draft epic (archive:yes label) appears in archived."""
         issues = [
             _make_issue(id="e1", identifier="EPIC-ARCH", issue_type="epic",
                         labels=["draft", "archive:yes"], state="closed"),
@@ -785,8 +791,10 @@ class TestDraftEpicEdgeCases:
             resp = client.get("/api/v1/issues")
 
         assert resp.status_code == 200
-        entry = _find_entry(resp.json(), "EPIC-ARCH")
-        assert entry is None, "Archived draft epic must be excluded"
+        data = resp.json()
+        entry = _find_entry(data, "EPIC-ARCH")
+        assert entry is not None
+        assert entry in data["archived"]
 
     def test_empty_issues_returns_empty_response(self, client):
         """No issues → empty dict response."""

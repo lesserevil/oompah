@@ -415,9 +415,9 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         finally:
             loop.close()
 
-        # Tracker used must be project-scoped — atomic update with label
+        # Tracker used must be project-scoped and move to Needs Answer.
         mock_tracker.update_issue.assert_called_once_with(
-            issue.identifier, status="open", **{"add-label": "asking_question"}
+            issue.identifier, status="Needs Answer"
         )
 
     def test_ask_question_exit_legacy_tracker_without_project(self, tmp_path):
@@ -442,9 +442,9 @@ class TestOrchestratorAskQuestionExitProjectScoped:
         finally:
             loop.close()
 
-        # Atomic update with label
+        # Canonical waiting-for-answer status
         mock_tracker.update_issue.assert_called_once_with(
-            issue.identifier, status="open", **{"add-label": "asking_question"}
+            issue.identifier, status="Needs Answer"
         )
 
     def test_ask_question_comment_format_includes_question(self, tmp_path):
@@ -946,10 +946,10 @@ class TestAskQuestionLifecycleIntegration:
         assert issue_a.id not in orch.state.running
         assert issue_b.id not in orch.state.running
 
-        # Both issues updated atomically with label
+        # Both issues updated to the canonical waiting-for-answer status
         update_calls = mock_tracker.update_issue.call_args_list
-        assert call("issue-a", status="open", **{"add-label": "asking_question"}) in update_calls
-        assert call("issue-b", status="open", **{"add-label": "asking_question"}) in update_calls
+        assert call("issue-a", status="Needs Answer") in update_calls
+        assert call("issue-b", status="Needs Answer") in update_calls
 
         # Neither in retry
         assert issue_a.id not in orch.state.retry_attempts

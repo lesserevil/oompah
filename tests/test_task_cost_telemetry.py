@@ -11,7 +11,6 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import json
 import threading
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -375,25 +374,18 @@ class TestWriteTaskCostRecord:
         )
 
         mock_tracker = MagicMock()
-        # Simulate bd show returning empty metadata
-        mock_tracker._run_bd.return_value = [{"id": "abc-001", "metadata": {}}]
+        mock_tracker.get_metadata.return_value = {}
         orch._project_trackers["__legacy__"] = mock_tracker
         orch.tracker = mock_tracker
 
         orch._write_task_cost_record(entry)
 
-        # Should have called _run_bd for show + update
-        calls = mock_tracker._run_bd.call_args_list
-        update_call = next(
-            (c for c in calls if c[0][0][0] == "update"), None
-        )
-        assert update_call is not None, "Expected an 'update' bd call"
-        # Extract the metadata arg from the update call
-        update_args = update_call[0][0]
-        meta_idx = update_args.index("--metadata") + 1
-        meta = json.loads(update_args[meta_idx])
-        assert "oompah.task_costs" in meta
-        costs = meta["oompah.task_costs"]
+        mock_tracker.get_metadata.assert_called_once_with("abc-001")
+        mock_tracker.set_metadata_field.assert_called_once()
+        args = mock_tracker.set_metadata_field.call_args.args
+        assert args[0] == "abc-001"
+        assert args[1] == "oompah.task_costs"
+        costs = args[2]
         assert costs["total_input_tokens"] == 1000
         assert costs["total_output_tokens"] == 500
         assert "gpt-4o" in costs["by_model"]
@@ -422,9 +414,7 @@ class TestWriteTaskCostRecord:
         }
 
         mock_tracker = MagicMock()
-        mock_tracker._run_bd.return_value = [
-            {"id": "abc-001", "metadata": {"oompah.task_costs": existing_costs}}
-        ]
+        mock_tracker.get_metadata.return_value = {"oompah.task_costs": existing_costs}
         orch.tracker = mock_tracker
 
         session = _make_live_session(input_tokens=1000, output_tokens=500)
@@ -436,13 +426,8 @@ class TestWriteTaskCostRecord:
 
         orch._write_task_cost_record(entry)
 
-        calls = mock_tracker._run_bd.call_args_list
-        update_call = next((c for c in calls if c[0][0][0] == "update"), None)
-        assert update_call is not None
-        update_args = update_call[0][0]
-        meta_idx = update_args.index("--metadata") + 1
-        meta = json.loads(update_args[meta_idx])
-        costs = meta["oompah.task_costs"]
+        mock_tracker.set_metadata_field.assert_called_once()
+        costs = mock_tracker.set_metadata_field.call_args.args[2]
 
         # Should have accumulated: 500+1000=1500 input, 200+500=700 output
         assert costs["total_input_tokens"] == 1500
@@ -451,7 +436,7 @@ class TestWriteTaskCostRecord:
         assert len(costs["runs"]) == 2
 
     def test_no_session_skips_write(self, tmp_path):
-        """Entry with no session produces no bd calls."""
+        """Entry with no session produces no metadata writes."""
         orch = _make_orchestrator(tmp_path)
         entry = _make_running_entry(session=None)
 
@@ -460,10 +445,11 @@ class TestWriteTaskCostRecord:
 
         orch._write_task_cost_record(entry)
 
-        mock_tracker._run_bd.assert_not_called()
+        mock_tracker.get_metadata.assert_not_called()
+        mock_tracker.set_metadata_field.assert_not_called()
 
     def test_zero_tokens_skips_write(self, tmp_path):
-        """Entry with zero tokens produces no bd calls."""
+        """Entry with zero tokens produces no metadata writes."""
         orch = _make_orchestrator(tmp_path)
         session = _make_live_session(input_tokens=0, output_tokens=0, total_tokens=0)
         entry = _make_running_entry(session=session)
@@ -473,10 +459,11 @@ class TestWriteTaskCostRecord:
 
         orch._write_task_cost_record(entry)
 
-        mock_tracker._run_bd.assert_not_called()
+        mock_tracker.get_metadata.assert_not_called()
+        mock_tracker.set_metadata_field.assert_not_called()
 
     def test_tracker_error_on_show_still_writes(self, tmp_path):
-        """If bd show fails, we still attempt the update with empty metadata."""
+        """If metadata read fails, we still attempt the write."""
         provider = _make_provider(model="gpt-4o")
         profile = _make_profile(name="standard", model="gpt-4o")
         orch = _make_orchestrator(tmp_path, providers=[provider])
@@ -484,11 +471,7 @@ class TestWriteTaskCostRecord:
 
         from oompah.tracker import TrackerError
         mock_tracker = MagicMock()
-        # show raises, update succeeds
-        mock_tracker._run_bd.side_effect = [
-            TrackerError("bd show failed"),
-            None,  # update succeeds
-        ]
+        mock_tracker.get_metadata.side_effect = TrackerError("metadata read failed")
         orch.tracker = mock_tracker
 
         session = _make_live_session(input_tokens=100, output_tokens=50)
@@ -497,17 +480,18 @@ class TestWriteTaskCostRecord:
 
         # Should not raise
         orch._write_task_cost_record(entry)
+        mock_tracker.set_metadata_field.assert_called_once()
 
     def test_tracker_error_on_update_is_swallowed(self, tmp_path):
-        """If bd update fails, exception is logged but not propagated."""
+        """If metadata write fails, exception is logged but not propagated."""
         from oompah.tracker import TrackerError
         orch = _make_orchestrator(tmp_path)
 
         mock_tracker = MagicMock()
-        mock_tracker._run_bd.side_effect = [
-            [{"id": "abc-001", "metadata": {}}],  # show OK
-            TrackerError("bd update failed"),       # update fails
-        ]
+        mock_tracker.get_metadata.return_value = {}
+        mock_tracker.set_metadata_field.side_effect = TrackerError(
+            "metadata update failed"
+        )
         orch.tracker = mock_tracker
 
         session = _make_live_session(input_tokens=100, output_tokens=50)
@@ -522,7 +506,7 @@ class TestWriteTaskCostRecord:
         orch = _make_orchestrator(tmp_path)
 
         mock_tracker = MagicMock()
-        mock_tracker._run_bd.side_effect = RuntimeError("unexpected crash")
+        mock_tracker.get_metadata.side_effect = RuntimeError("unexpected crash")
         orch.tracker = mock_tracker
 
         session = _make_live_session(input_tokens=100, output_tokens=50)
@@ -908,20 +892,15 @@ class TestMultiRunAccumulation:
         # Use a real in-memory metadata store to simulate sequential writes
         metadata_store: dict[str, dict] = {}
 
-        def fake_run_bd(args):
-            if args[0] == "show":
-                identifier = args[1]
-                meta = metadata_store.get(identifier, {})
-                return [{"id": identifier, "metadata": meta}]
-            elif args[0] == "update" and "--metadata" in args:
-                identifier = args[1]
-                meta_idx = args.index("--metadata") + 1
-                metadata_store[identifier] = json.loads(args[meta_idx])
-                return []
-            return []
-
         mock_tracker = MagicMock()
-        mock_tracker._run_bd.side_effect = lambda args: fake_run_bd(args)
+        mock_tracker.get_metadata.side_effect = (
+            lambda identifier: metadata_store.get(identifier, {})
+        )
+        mock_tracker.set_metadata_field.side_effect = (
+            lambda identifier, key, value: metadata_store.setdefault(
+                identifier, {}
+            ).__setitem__(key, value)
+        )
         orch.tracker = mock_tracker
 
         issue = _make_issue("abc-004")

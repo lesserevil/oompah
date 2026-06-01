@@ -1112,7 +1112,7 @@ function renderBackendOptions(selectedValue) {
   // per oompah-zlz_2-zvm0 §2 acceptance criteria.
   sel.disabled = acpBackends.length <= 1;
   if (sel.disabled) {
-    sel.title = 'Additional backends (Codex, etc.) will appear here once their support beads land.';
+    sel.title = 'Additional backends (Codex, etc.) will appear here once their support work lands.';
   } else {
     sel.title = '';
   }
@@ -1896,7 +1896,7 @@ document.addEventListener('keydown', e => {
       <option value="openai_compatible">OpenAI Compatible</option>
       <option value="acp">Agent Control Protocol</option>
     </select>
-    <div class="hint">OpenAI Compatible: OpenAI/vLLM/proxies speaking the chat-completions wire format. Agent Control Protocol: session-shaped SDK backends (Claude SDK today; Codex et al. as their beads land).</div>
+    <div class="hint">OpenAI Compatible: OpenAI/vLLM/proxies speaking the chat-completions wire format. Agent Control Protocol: session-shaped SDK backends (Claude SDK today; Codex et al. as support lands).</div>
 
     <div id="prov-url-row">
       <label for="prov-url">Base URL</label>

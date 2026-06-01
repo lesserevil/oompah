@@ -19,10 +19,11 @@ def _write_config(root, *, directory="backlog"):
     (backlog_dir / "completed").mkdir(parents=True, exist_ok=True)
     (backlog_dir / "config.yml").write_text(
         "\n".join([
-            'project_name: "Test"',
-            'default_status: "To Do"',
-            'statuses: ["To Do", "In Progress", "Done"]',
-            'task_prefix: "task"',
+            'projectName: "Test"',
+            'defaultStatus: "Backlog"',
+            'statuses: ["Backlog", "Open", "In Progress", "Needs CI Fix", '
+            '"Needs Rebase", "Done", "Merged", "Archived"]',
+            'taskPrefix: "task"',
             "",
         ]),
         encoding="utf-8",
@@ -35,7 +36,7 @@ def _write_task(
     task_id: str,
     title: str,
     *,
-    status: str = "To Do",
+    status: str = "Open",
     priority: str = "medium",
     labels: list[str] | None = None,
     dependencies: list[str] | None = None,
@@ -91,7 +92,7 @@ Progress note
 
 def _tracker(root):
     return BacklogMdTracker(
-        active_states=["To Do", "In Progress"],
+        active_states=["Open", "Needs CI Fix", "Needs Rebase"],
         terminal_states=["Done"],
         cwd=str(root),
     )
@@ -123,7 +124,7 @@ def test_fetch_candidate_issues_parses_and_filters(tmp_path):
     issue = issues[0]
     assert issue.title == "Fix auth"
     assert issue.description == "Investigate login failure"
-    assert issue.state == "To Do"
+    assert issue.state == "Open"
     assert issue.priority == 1
     assert issue.issue_type == "bug"
     assert issue.labels == ["bug", "auth"]
@@ -202,10 +203,10 @@ def test_update_issue_maps_legacy_statuses_to_backlog_statuses(tmp_path):
         "task", "edit", "TASK-1", "--plain", "--status", "In Progress",
     ]
     assert run_backlog.call_args_list[1].args[0] == [
-        "task", "edit", "TASK-2", "--plain", "--status", "To Do",
+        "task", "edit", "TASK-2", "--plain", "--status", "Backlog",
     ]
     assert run_backlog.call_args_list[2].args[0] == [
-        "task", "edit", "TASK-3", "--plain", "--status", "To Do",
+        "task", "edit", "TASK-3", "--plain", "--status", "Open",
     ]
 
 
@@ -251,7 +252,7 @@ def test_create_issue_builds_backlog_cli_command(tmp_path):
     assert run_backlog.call_args.args[0] == [
         "task", "create", "New feature", "--plain",
         "--description", "Details",
-        "--status", "To Do",
+        "--status", "Backlog",
         "--priority", "high",
         "--labels", "api,feature",
         "--parent", "TASK-1",
@@ -264,7 +265,7 @@ def test_orchestrator_constructs_backlog_tracker(tmp_path):
     project_store.get.return_value = None
     config = ServiceConfig(
         tracker_kind="backlog_md",
-        tracker_active_states=["To Do", "In Progress"],
+        tracker_active_states=["Open", "Needs CI Fix", "Needs Rebase"],
         tracker_terminal_states=["Done"],
         workspace_root=str(tmp_path / "workspaces"),
     )

@@ -520,11 +520,7 @@ def _exec_run_command(
     if cd_err:
         return f"Error: {cd_err}"
     # Build env from the agent's own env, layering caller-supplied overrides
-    # on top. Used most importantly to set ``BEADS_DIR`` so that any ``bd``
-    # commands the agent runs operate on the project's main beads database
-    # rather than the worktree's forked dolt copy. Without this, agent-side
-    # ``bd close`` succeeds in the worktree but is invisible to the
-    # orchestrator, and dispatch storms occur.
+    # on top.
     env = None
     if env_overrides:
         env = {**os.environ, **env_overrides}
@@ -555,8 +551,7 @@ def _exec_attach_image(workspace: Path, args: dict[str, Any]) -> str:
     .oompah/attachments/<issue>/outputs/ directory, named
     ``<turn>-<sha>-<filename>``. Returns the canonical relative path on
     success, or an error string. The orchestrator commits these on agent
-    completion (see Phase 3, oompah-e6y.3) and writes back to beads
-    metadata (oompah-e6y.4)."""
+    completion and writes the manifest back to Backlog task metadata."""
     import base64 as _b64
     import hashlib as _h
     import re as _re
@@ -690,12 +685,12 @@ def _execute_tool(
     handler = _TOOL_DISPATCH.get(name)
     if handler is None:
         # Models occasionally lift a shell command out of the WORKFLOW.md
-        # cheat sheet and call it as a tool name (e.g. ``bd comments add``
+        # cheat sheet and call it as a tool name (e.g. ``backlog task edit``
         # with spaces, or ``git commit``). Detect that and redirect them
         # to ``run_command`` instead of leaving them to loop on the bare
         # "unknown tool" message.
         looks_like_shell = " " in name or name.startswith(
-            ("bd", "bd_", "git", "git_", "uv ", "make")
+            ("backlog", "backlog_", "git", "git_", "uv ", "make")
         )
         if looks_like_shell:
             return (
@@ -961,7 +956,6 @@ class ApiAgentSession:
         enabled_tools: set[str] | None = None,
         model_max_context: int | None = None,
         log_path: str | None = None,
-        beads_dir: str | None = None,
     ):
         # Strip trailing slash for clean URL joining
         self.base_url = base_url.rstrip("/")
@@ -988,14 +982,6 @@ class ApiAgentSession:
         # Path to a JSONL file recording every request, response, and
         # activity event for this dispatch. None disables file logging.
         self.log_path = log_path
-        # When set, every ``bd`` command the agent runs via run_command
-        # gets ``BEADS_DIR=<beads_dir>`` in its env, so writes land in
-        # the orchestrator's source-of-truth DB rather than the agent's
-        # worktree-forked dolt. Without this, ``bd close`` succeeds in
-        # the worktree but is invisible to the orchestrator → dispatch
-        # storms (oompah-zlz_2-{07h,529,etc} pattern observed).
-        self.beads_dir = beads_dir
-
         self._ssl_ctx = _build_ssl_context()
         self._url = f"{self.base_url}/chat/completions"
 
@@ -1310,7 +1296,7 @@ class ApiAgentSession:
                         )
                     else:
                         env_overrides = (
-                            {"BEADS_DIR": self.beads_dir} if self.beads_dir else None
+                            None
                         )
                         result_str = await asyncio.to_thread(
                             _execute_tool,

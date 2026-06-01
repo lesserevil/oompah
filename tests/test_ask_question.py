@@ -392,9 +392,9 @@ class TestOrchestratorAskQuestionExit:
             for c in mock_tracker.add_comment.call_args_list
         )
 
-        # Verify: issue was moved to open with label added atomically
+        # Verify: issue was moved to the canonical waiting-for-answer status.
         mock_tracker.update_issue.assert_called_once_with(
-            issue.identifier, status="open", **{"add-label": "asking_question"}
+            issue.identifier, status="Needs Answer"
         )
 
         # Verify: issue_id removed from running and claimed

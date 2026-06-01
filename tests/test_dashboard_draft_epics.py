@@ -660,11 +660,11 @@ class TestApiIssuesDataShape:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert [e["identifier"] for e in data["deferred"]] == ["T-TODO"]
+        assert [e["identifier"] for e in data["backlog"]] == ["T-TODO"]
         assert [e["identifier"] for e in data["in_progress"]] == ["T-IP"]
-        assert [e["identifier"] for e in data["closed"]] == ["T-DONE"]
-        assert data["deferred"][0]["state"] == "deferred"
-        assert data["deferred"][0]["tracker_state"] == "To Do"
+        assert [e["identifier"] for e in data["done"]] == ["T-DONE"]
+        assert data["backlog"][0]["state"] == "backlog"
+        assert data["backlog"][0]["tracker_state"] == "To Do"
 
     def test_websocket_issue_payload_maps_backlog_statuses_to_dashboard_columns(self):
         """The initial WebSocket issue payload must match the REST shape."""
@@ -675,9 +675,9 @@ class TestApiIssuesDataShape:
         ]
         data = server_module._fetch_and_serialize_issues(_make_orch_with_issues(issues))
 
-        assert [e["identifier"] for e in data["deferred"]] == ["T-TODO"]
+        assert [e["identifier"] for e in data["backlog"]] == ["T-TODO"]
         assert [e["identifier"] for e in data["in_progress"]] == ["T-IP"]
-        assert [e["identifier"] for e in data["closed"]] == ["T-DONE"]
+        assert [e["identifier"] for e in data["done"]] == ["T-DONE"]
         assert data["in_progress"][0]["state"] == "in_progress"
         assert data["in_progress"][0]["tracker_state"] == "In Progress"
 
@@ -707,8 +707,8 @@ class TestApiIssuesDataShape:
 class TestApiIssuesEdgeCases:
     """Edge cases for the server-side API endpoint."""
 
-    def test_archived_issues_excluded_from_response(self, api_client):
-        """Issues with 'archive:yes' label must be excluded from the response."""
+    def test_archived_issues_returned_in_archived_column(self, api_client):
+        """Issues with 'archive:yes' label must appear in the Archived column."""
         issues = [
             _make_issue(id="t1", identifier="T-ARCHIVED", labels=["archive:yes"]),
             _make_issue(id="t2", identifier="T-VISIBLE", labels=[]),
@@ -720,9 +720,9 @@ class TestApiIssuesEdgeCases:
 
         assert resp.status_code == 200
         data = resp.json()
+        assert [e["identifier"] for e in data["archived"]] == ["T-ARCHIVED"]
         all_entries = [entry for col in data.values() for entry in col]
         identifiers = [e["identifier"] for e in all_entries]
-        assert "T-ARCHIVED" not in identifiers, "Archived issues must be excluded"
         assert "T-VISIBLE" in identifiers, "Non-archived issues must be included"
 
     def test_draft_epic_appears_in_api_response(self, api_client):

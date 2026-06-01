@@ -65,7 +65,7 @@ class TestCheckLandingGateSkipRules:
         issue = FakeIssue(labels=["decomposed"])
         result = check_landing_gate(issue, workspace_path="/fake", base_branch="main")
         assert result.allowed is True
-        assert result.skip_reason == "issue has decomposed label"
+        assert result.skip_reason == "issue is decomposed"
 
     def test_no_branch_allowed(self, monkeypatch: pytest.MonkeyPatch):
         """No branch name and no identifier — fail open."""

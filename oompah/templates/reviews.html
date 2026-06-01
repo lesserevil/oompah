@@ -54,7 +54,7 @@
     .conflict-badge { display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 8px; background: rgba(248, 81, 73, 0.15); color: var(--red); text-transform: uppercase; }
     /* Passive "Auto-resolving…" indicator shown instead of the manual
        "Resolve Conflicts" button on YOLO-enabled projects — YOLO will
-       try provider.rebase_review then fall back to notifying the bead
+       try provider.rebase_review then fall back to notifying the task
        on its own (oompah-zlz_2-zvf2). Calmer yellow tone communicates
        "in progress" rather than red "operator action required". */
     .conflict-badge.auto-resolving { background: rgba(226, 179, 64, 0.15); color: var(--yellow); text-transform: none; font-weight: 600; }
@@ -502,7 +502,7 @@ async function triggerRebase(projectId, reviewId, btn) {
         btn.className = 'btn-rebase success';
         btn.disabled = true;
       } else if (msg.includes('conflict')) {
-        btn.textContent = 'Conflicts — no matching bead found';
+        btn.textContent = 'Conflicts — no matching task found';
       } else {
         btn.textContent = 'Failed';
       }
@@ -530,7 +530,7 @@ async function resolveConflicts(projectId, reviewId, btn) {
       btn.className = 'btn-resolve success';
       setTimeout(() => loadReviews(), 2000);
     } else {
-      btn.textContent = 'No matching bead found';
+      btn.textContent = 'No matching task found';
       btn.className = 'btn-resolve';
       btn.disabled = false;
     }
@@ -554,7 +554,7 @@ async function retryReview(projectId, reviewId, btn) {
       btn.className = 'btn-retry success';
       setTimeout(() => loadReviews(), 2000);
     } else {
-      btn.textContent = data.message || 'No bead found';
+      btn.textContent = data.message || 'No task found';
       btn.disabled = false;
     }
   } catch(e) {

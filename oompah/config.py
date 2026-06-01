@@ -12,6 +12,14 @@ from typing import Any
 import yaml
 
 from oompah.models import AgentProfile, WorkflowDefinition
+from oompah.statuses import (
+    ARCHIVED,
+    DONE,
+    MERGED,
+    NEEDS_CI_FIX,
+    NEEDS_REBASE,
+    OPEN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -211,8 +219,6 @@ def _coerce_int(value: Any, default: int) -> int:
 _BUDGET_WINDOW_VALUES = ("hour", "day", "week")
 _PROFILE_MODE_VALUES = ("auto", "api", "cli", "acp")
 _TRACKER_KIND_ALIASES = {
-    "beads": "beads",
-    "bd": "beads",
     "backlog_md": "backlog_md",
     "backlog.md": "backlog_md",
     "backlog": "backlog_md",
@@ -309,7 +315,7 @@ def _parse_state_list(value: Any, default: list[str]) -> list[str]:
 
 def _parse_tracker_kind(value: Any) -> str:
     """Normalize tracker.kind while preserving unsupported values."""
-    raw = str(value or "beads").strip().lower()
+    raw = str(value or "backlog_md").strip().lower()
     return _TRACKER_KIND_ALIASES.get(raw, raw)
 
 
@@ -317,12 +323,12 @@ def _parse_tracker_kind(value: Any) -> str:
 class ServiceConfig:
     """Typed runtime configuration derived from workflow front matter."""
 
-    tracker_kind: str = "beads"
+    tracker_kind: str = "backlog_md"
     tracker_active_states: list[str] = field(
-        default_factory=lambda: ["open", "in_progress"]
+        default_factory=lambda: [OPEN, NEEDS_CI_FIX, NEEDS_REBASE]
     )
     tracker_terminal_states: list[str] = field(
-        default_factory=lambda: ["closed"]
+        default_factory=lambda: [DONE, MERGED, ARCHIVED]
     )
     poll_interval_ms: int = 120000
     full_sync_interval_ms: int = 120000  # 2 minutes — safety-net full sync
@@ -448,17 +454,9 @@ class ServiceConfig:
         c = wf.config
 
         tracker = c.get("tracker", {}) or {}
-        tracker_kind = _parse_tracker_kind(tracker.get("kind", "beads"))
-        active_default = (
-            ["To Do", "In Progress"]
-            if tracker_kind == "backlog_md"
-            else ["open", "in_progress"]
-        )
-        terminal_default = (
-            ["Done"]
-            if tracker_kind == "backlog_md"
-            else ["closed"]
-        )
+        tracker_kind = _parse_tracker_kind(tracker.get("kind", "backlog_md"))
+        active_default = [OPEN, NEEDS_CI_FIX, NEEDS_REBASE]
+        terminal_default = [DONE, MERGED, ARCHIVED]
         polling = c.get("polling", {}) or {}
         workspace = c.get("workspace", {}) or {}
         hooks = c.get("hooks", {}) or {}
@@ -705,7 +703,7 @@ def validate_dispatch_config(config: ServiceConfig) -> list[str]:
 
     if not config.tracker_kind:
         errors.append("tracker.kind is required")
-    elif _parse_tracker_kind(config.tracker_kind) not in ("beads", "backlog_md"):
+    elif _parse_tracker_kind(config.tracker_kind) != "backlog_md":
         errors.append(f"Unsupported tracker.kind: {config.tracker_kind}")
 
     if not config.agent_command:

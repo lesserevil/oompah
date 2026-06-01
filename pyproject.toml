@@ -51,7 +51,6 @@ dev = [
 
 [project.scripts]
 oompah = "oompah.__main__:main"
-oompah-migrate-beads-to-backlog = "oompah.beads_to_backlog:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["oompah"]

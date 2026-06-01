@@ -4,7 +4,7 @@ title: Fix Backlog In Progress status reconciliation
 status: Done
 assignee: []
 created_date: '2026-06-01 19:30'
-updated_date: '2026-06-01 19:35'
+updated_date: '2026-06-01 22:40'
 labels:
   - bug
 dependencies:
@@ -31,7 +31,7 @@ Oompah incorrectly treats Backlog.md status 'In Progress' as different from lega
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Fixed status normalization so Backlog 'In Progress' is treated like legacy in_progress during reconcile, orphan cleanup, dispatch snapshots, and UI termination checks. Added regression coverage and verified with make test.
+Completed as part of the Backlog-only tracker migration. Removed Beads/bd runtime paths where applicable, moved lifecycle behavior to canonical Backlog.md statuses, updated UI/API/tests/docs for Backlog-only behavior, and verified with make test: 3677 passed.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done

@@ -54,6 +54,17 @@ from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.roles import RoleError, RoleStore
+from oompah.statuses import (
+    ARCHIVED,
+    CANONICAL_STATUSES,
+    IN_PROGRESS,
+    MERGED,
+    NEEDS_ANSWER,
+    NEEDS_CI_FIX,
+    NEEDS_REBASE,
+    OPEN,
+    canonicalize_status,
+)
 from oompah.agent_profile_store import (
     AgentProfileStore,
     AgentProfileStoreError,
@@ -357,33 +368,25 @@ _api_cache = TTLCache()
 
 
 def _state_key(state: str | None) -> str:
-    return str(state or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return canonicalize_status(state).strip().lower().replace("-", "_").replace(" ", "_")
 
 
 def _dashboard_state(state: str | None) -> str:
-    """Map tracker-native states onto the dashboard's legacy columns.
+    """Map tracker-native states onto dashboard column keys."""
+    return _state_key(state)
 
-    Backlog.md uses human-readable statuses such as ``To Do`` and
-    ``In Progress`` while the dashboard columns are keyed by the older
-    beads states: ``deferred``, ``open``, ``in_progress``, ``closed``.
-    Keep that translation at the API boundary so dispatch logic can keep
-    using the tracker-native configured states.
-    """
-    raw = str(state or "").strip()
-    normalized = raw.lower().replace("-", " ").replace("_", " ")
-    aliases = {
-        "to do": "deferred",
-        "todo": "deferred",
-        "backlog": "deferred",
-        "deferred": "deferred",
-        "open": "open",
-        "in progress": "in_progress",
-        "doing": "in_progress",
-        "started": "in_progress",
-        "done": "closed",
-        "closed": "closed",
-    }
-    return aliases.get(normalized, raw.lower().replace(" ", "_"))
+
+_DASHBOARD_STATE_KEYS = tuple(_dashboard_state(status) for status in CANONICAL_STATUSES)
+
+
+def _empty_state_counts() -> dict[str, int]:
+    return {key: 0 for key in _DASHBOARD_STATE_KEYS}
+
+
+def _issue_dashboard_state(issue) -> str:
+    if "archive:yes" in (issue.labels or []):
+        return _dashboard_state(ARCHIVED)
+    return _dashboard_state(issue.state)
 
 
 def _on_state_only_change(snapshot: dict) -> None:
@@ -469,15 +472,10 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
     parents: dict[str, dict] = {}
     for issue in all_issues:
         if issue.id in parent_ids or issue.issue_type == "epic":
-            parents[issue.id] = {
-                "deferred": 0,
-                "open": 0,
-                "in_progress": 0,
-                "closed": 0,
-    }
+            parents[issue.id] = _empty_state_counts()
     for issue in all_issues:
         if issue.parent_id and issue.parent_id in parents:
-            child_state = _dashboard_state(issue.state)
+            child_state = _issue_dashboard_state(issue)
             if child_state in parents[issue.parent_id]:
                 parents[issue.parent_id][child_state] += 1
 
@@ -491,9 +489,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
 
     result: dict[str, list] = {}
     for issue in all_issues:
-        if "archive:yes" in issue.labels:
-            continue
-        state = _dashboard_state(issue.state)
+        state = _issue_dashboard_state(issue)
         if state not in result:
             result[state] = []
         branch = issue.branch_name or issue.identifier
@@ -1051,17 +1047,12 @@ async def api_issues(request: Request):
                 parent_ids.add(issue.parent_id)
         for issue in all_issues:
             if issue.id in parent_ids or issue.issue_type == "epic":
-                epics[issue.id] = {
-                    "deferred": 0,
-                    "open": 0,
-                    "in_progress": 0,
-                    "closed": 0,
-                }
+                epics[issue.id] = _empty_state_counts()
 
         # Count children per parent per state
         for issue in all_issues:
             if issue.parent_id and issue.parent_id in epics:
-                child_state = _dashboard_state(issue.state)
+                child_state = _issue_dashboard_state(issue)
                 if child_state in epics[issue.parent_id]:
                     epics[issue.parent_id][child_state] += 1
 
@@ -1075,10 +1066,7 @@ async def api_issues(request: Request):
 
         result: dict[str, list] = {}
         for issue in all_issues:
-            # Hide archived issues
-            if "archive:yes" in issue.labels:
-                continue
-            state = _dashboard_state(issue.state)
+            state = _issue_dashboard_state(issue)
             if state not in result:
                 result[state] = []
             # has_open_review: True when this issue's branch is among the
@@ -1215,12 +1203,12 @@ def _verify_epic_state_after_update(
 ) -> bool:
     """Verify that an Epic issue's state is at the expected value after update.
 
-    Used by :func:`api_update_issue` to detect when the bd backend
+    Used by :func:`api_update_issue` to detect when the tracker backend
     post-update epic-state hook has reverted a manual state transition.
     Returns ``True`` when the issue's state matches expected_status,
     ``False`` when the backend has already reverted it.
 
-    This is a synchronous function (runs in the bd CLI thread pool from
+    This is a synchronous function (runs in the API worker thread pool from
     the async API handler).
     """
     try:
@@ -1455,7 +1443,7 @@ async def api_issue_quality_source(project_id: str):
 async def api_update_issue(identifier: str, request: Request):
     """Update an issue's state, priority, or title.
 
-    Epic issues have special semantics around state: the bd backend may
+    Epic issues have special semantics around state: the tracker backend may
     re-evaluate the epic's effective state from children's states after
     a manual update and overwrite the just-written value. We detect
     this by re-reading the issue state after the write and returning a
@@ -1464,8 +1452,8 @@ async def api_update_issue(identifier: str, request: Request):
 
     This lets the operator understand that epic state is derived
     (controlled by children's states) and that manual transitions must
-    either go through the child-issue flow or be done directly with the
-    bd CLI bypassing any backend hooks.
+    either go through the child-issue flow or be done directly in Backlog.md
+    when intentionally bypassing any backend hooks.
     """
     try:
         orch = _get_orchestrator()
@@ -1513,8 +1501,8 @@ async def api_update_issue(identifier: str, request: Request):
             and (existing_issue.issue_type or "").strip().lower() == "epic"
         )
 
-        if new_status == "closed":
-            # bd close is a separate command; apply other fields first if any
+        if new_status is not None and str(new_status).strip().lower() == "closed":
+            # Legacy close alias; apply other fields first if any.
             update_fields: dict[str, str] = {}
             if new_priority is not None:
                 update_fields["priority"] = str(new_priority)
@@ -1539,7 +1527,7 @@ async def api_update_issue(identifier: str, request: Request):
                 tracker.update_issue(identifier, **update_fields)
 
         # --- Epic state verification (oompah-zlz_2-sytm) ---
-        # For Epic issues the bd backend may have a post-update hook that
+        # For Epic issues the tracker backend may have a post-update hook that
         # reverts a manual state transition to the state computed from
         # children's states. We re-read the issue state immediately after
         # the write and, if it has already been reverted, retry up to
@@ -1547,15 +1535,15 @@ async def api_update_issue(identifier: str, request: Request):
         # If the state still reverts we return 409 so the operator knows
         # the backend overrode their intent rather than silently failing.
         #
-        # Only applies to non-terminal transitions: Bd's hook overwrites
+        # Only applies to non-terminal transitions: the backend hook overwrites
         # the user's intended "active" state (open/in_progress) for epics
         # but does not block terminal transitions (close/archive).
         if new_status is not None and is_epic:
             terminal = {
-                s.strip().lower()
-                for s in getattr(orch.config, "tracker_terminal_states", ["closed"])
+                _state_key(s)
+                for s in getattr(orch.config, "tracker_terminal_states", ["Done"])
             }
-            if new_status.strip().lower() not in terminal:
+            if _state_key(new_status) not in terminal:
                 for attempt in range(3):
                     await asyncio.sleep(0.3)
                     loop = asyncio.get_event_loop()
@@ -1579,7 +1567,7 @@ async def api_update_issue(identifier: str, request: Request):
                                 "code": "epic_state_reverted",
                                 "message": (
                                     f"Epic {identifier} state could not be changed "
-                                    f"to {new_status!r}: the bd backend reverted the "
+                                    f"to {new_status!r}: the tracker backend reverted the "
                                     f"update. Epic state is derived from children's "
                                     f"states; to change the epic state, first "
                                     f"resolve or update the child issues."
@@ -1798,15 +1786,20 @@ async def api_add_comment(identifier: str, request: Request):
         tracker = _get_tracker(orch, project_id)
         result = tracker.add_comment(identifier, text, author=author)
 
-        # When a human (non-oompah) answers a question, remove the
-        # asking_question label so the orchestrator picks it back up.
+        # When a human (non-oompah) answers a question, move the task
+        # back to Open so the orchestrator picks it up.
         if author != "oompah":
             try:
                 issue = tracker.fetch_issue_detail(identifier)
-                if issue and "asking_question" in issue.labels:
-                    tracker.remove_label(identifier, "asking_question")
+                if issue and (
+                    canonicalize_status(issue.state) == NEEDS_ANSWER
+                    or "asking_question" in issue.labels
+                ):
+                    tracker.update_issue(identifier, status=OPEN)
+                    if "asking_question" in issue.labels:
+                        tracker.remove_label(identifier, "asking_question")
                     logger.info(
-                        "Removed asking_question label from %s after user comment",
+                        "Moved %s from Needs Answer to Open after user comment",
                         identifier,
                     )
                     # Trigger dispatch so the orchestrator re-dispatches promptly
@@ -1977,24 +1970,6 @@ async def api_orchestrator_restart(request: Request):
                 "drain_timeout_s": drain_timeout,
             }
         )
-    except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-@app.get("/api/v1/orchestrator/dolt-sync")
-async def api_orchestrator_dolt_sync():
-    """Return per-project Dolt sync watchdog status (oompah-zlz_2-5ms2).
-
-    Mapping of ``project_id`` → ``{last_push_at, last_pull_at, last_error,
-    last_error_at, divergent, consecutive_errors}``.
-
-    Updated on every full-sync tick. Empty if the watchdog has not yet
-    completed its first pass (typically within the first 2 minutes after
-    orchestrator startup).
-    """
-    try:
-        orch = _get_orchestrator()
-        return JSONResponse({"projects": orch.dolt_sync_snapshot()})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
@@ -3305,7 +3280,7 @@ async def api_list_projects():
 
 @app.post("/api/v1/projects")
 async def api_create_project(request: Request):
-    """Register a new project (git repo with beads)."""
+    """Register a new project (git repo with Backlog.md tasks)."""
     try:
         orch = _get_orchestrator()
         try:
@@ -4009,8 +3984,8 @@ async def api_rebase_review(project_id: str, review_id: str):
     """Trigger a rebase for a review.
 
     If the rebase fails due to merge conflicts, automatically finds the
-    original bead (by matching the review source branch to bead identifiers),
-    posts a comment about the conflict, and reopens the bead so the
+    original task (by matching the review source branch to task identifiers),
+    posts a comment about the conflict, and reopens the task so the
     agent can resolve it on its own branch.
     """
     try:
@@ -4042,7 +4017,7 @@ async def api_rebase_review(project_id: str, review_id: str):
 
         notified_issue = None
         if not success and "conflict" in message.lower():
-            # Try to find and notify the original bead
+            # Try to find and notify the original task
             notified_issue = _notify_conflict_on_bead(
                 orch,
                 project_id,
@@ -4067,9 +4042,9 @@ async def api_rebase_review(project_id: str, review_id: str):
 
 @app.post("/api/v1/reviews/{project_id}/{review_id}/retry")
 async def api_retry_review(project_id: str, review_id: str):
-    """Move a bead back to 'open' so its agent retries (e.g. after CI failure).
+    """Move a task to the CI-fix status so its agent retries.
 
-    Matches the review source branch to a bead identifier, moves it to open,
+    Matches the review source branch to a task identifier, marks it Needs CI Fix,
     and adds a comment instructing the agent to fix CI failures.
     """
     try:
@@ -4112,20 +4087,20 @@ async def api_retry_review(project_id: str, review_id: str):
                 matched = issue
                 break
         if not matched:
-            # No existing bead — create one for this external review
+            # No existing task — create one for this external review
             matched = tracker.create_issue(
                 title=f"Fix CI: {review.title or branch}",
                 issue_type="bug",
                 description=(
-                    f"Auto-created bead for external review #{review_id} "
+                    f"Auto-created task for external review #{review_id} "
                     f"(branch: {branch}).\n\n"
                     f"URL: {review.url or 'N/A'}"
                 ),
                 priority=0,
-                initial_status="open",
+                initial_status=NEEDS_CI_FIX,
             )
             logger.info(
-                "Created bead %s for external review #%s (branch %s)",
+                "Created task %s for external review #%s (branch %s)",
                 matched.identifier,
                 review_id,
                 branch,
@@ -4133,7 +4108,7 @@ async def api_retry_review(project_id: str, review_id: str):
         else:
             tracker.update_issue(
                 matched.identifier,
-                status="open",
+                status=NEEDS_CI_FIX,
                 priority="0",
                 **{"add-label": "ci-fix"},
             )
@@ -4167,9 +4142,9 @@ def _notify_conflict_on_bead(
     slug: str,
     review_id: str,
 ) -> str | None:
-    """Find the bead that owns a review's source branch, comment, and reopen.
+    """Find the task that owns a review's source branch, comment, and reopen.
 
-    Returns the bead identifier if found and notified, else None.
+    Returns the task identifier if found and notified, else None.
     """
     try:
         # Get the review details to find the source branch
@@ -4183,26 +4158,26 @@ def _notify_conflict_on_bead(
         if not source_branch:
             return None
 
-        # The branch name is the sanitized bead identifier.
-        # Look up the bead by trying the branch name as an identifier.
+        # The branch name is the sanitized task identifier.
+        # Look up the task by trying the branch name as an identifier.
         tracker = orch._tracker_for_project(project_id)
         issue = tracker.fetch_issue_detail(source_branch)
         if not issue:
-            # No existing bead — create one for this external review
+            # No existing task — create one for this external review
             review_title = review.title or source_branch
             issue = tracker.create_issue(
                 title=f"Resolve conflicts: {review_title}",
                 issue_type="bug",
                 description=(
-                    f"Auto-created bead for external review #{review_id} "
+                    f"Auto-created task for external review #{review_id} "
                     f"(branch: {source_branch}) which has merge conflicts.\n\n"
                     f"URL: {review.url or 'N/A'}"
                 ),
                 priority=0,
-                initial_status="open",
+                initial_status=NEEDS_REBASE,
             )
             logger.info(
-                "Created bead %s for external review #%s conflict (branch %s)",
+                "Created task %s for external review #%s conflict (branch %s)",
                 issue.identifier,
                 review_id,
                 source_branch,
@@ -4221,24 +4196,26 @@ def _notify_conflict_on_bead(
         )
         tracker.add_comment(issue.identifier, comment_text, author="oompah")
 
-        # Reopen the bead if it's in a terminal state, and add label atomically
+        # Mark the task if it's in a terminal state, and add label atomically
         state_lower = issue.state.strip().lower()
         if state_lower in [s.lower() for s in orch.config.tracker_terminal_states]:
             tracker.update_issue(
                 issue.identifier,
-                status="open",
+                status=NEEDS_REBASE,
                 priority="0",
                 **{"add-label": "merge-conflict"},
             )
             logger.info(
-                "Reopened bead %s as P0 for merge conflict resolution (review #%s)",
+                "Reopened task %s as P0 for merge conflict resolution (review #%s)",
                 issue.identifier,
                 review_id,
             )
         else:
             try:
                 tracker.update_issue(
-                    issue.identifier, **{"add-label": "merge-conflict"}
+                    issue.identifier,
+                    status=NEEDS_REBASE,
+                    **{"add-label": "merge-conflict"},
                 )
             except Exception as label_exc:
                 logger.warning(
@@ -4247,7 +4224,7 @@ def _notify_conflict_on_bead(
                     label_exc,
                 )
             logger.info(
-                "Commented on bead %s about merge conflict (review #%s), already in state '%s'",
+                "Commented on task %s about merge conflict (review #%s), already in state '%s'",
                 issue.identifier,
                 review_id,
                 issue.state,
@@ -4257,7 +4234,7 @@ def _notify_conflict_on_bead(
 
     except Exception as exc:
         logger.warning(
-            "Failed to notify bead about conflict for review #%s: %s", review_id, exc
+            "Failed to notify task about conflict for review #%s: %s", review_id, exc
         )
         return None
 
@@ -4808,10 +4785,10 @@ def _label_bead_merged_from_merge_group(orch, event, project) -> None:
                 head_ref,
             )
             return
-        if "merged" not in issue.labels:
-            tracker.add_label(issue.identifier, "merged")
+        if canonicalize_status(issue.state) != MERGED:
+            tracker.update_issue(issue.identifier, status=MERGED)
             logger.info(
-                "merge_group: labelled %s as merged (head_ref=%r)",
+                "merge_group: marked %s as Merged (head_ref=%r)",
                 issue.identifier,
                 head_ref,
             )
@@ -4828,7 +4805,7 @@ def _sync_project_after_webhook(
     project_id: str,
     project_name: str,
 ) -> None:
-    """Pull source + beads for a single project after a relevant webhook.
+    """Pull source + validate Backlog.md config for one project after a webhook.
 
     Best-effort: any failure is logged but does not raise. The next
     service restart's startup sync remains the safety net.
@@ -4836,10 +4813,10 @@ def _sync_project_after_webhook(
     try:
         status = orch.project_store.sync_project_sources(project_id)
         logger.info(
-            "Webhook sync %s: git=%s beads=%s",
+            "Webhook sync %s: git=%s backlog=%s",
             project_name,
             status.get("git", "?"),
-            status.get("beads", "?"),
+            status.get("backlog", "?"),
         )
     except Exception as exc:
         logger.warning("Webhook sync failed for %s: %s", project_name, exc)

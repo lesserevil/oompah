@@ -4,7 +4,7 @@ title: Show project-scoped task identifiers in UI
 status: Done
 assignee: []
 created_date: '2026-06-01 19:48'
-updated_date: '2026-06-01 20:00'
+updated_date: '2026-06-01 22:40'
 labels: []
 dependencies: []
 parent_task_id: TASK-402
@@ -21,5 +21,5 @@ Cosmetic UI-only change: wherever the dashboard displays a Backlog task identifi
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added project-scoped display identifiers for Backlog task ids in dashboard payloads and visible UI labels while preserving raw identifiers for actions, API calls, drag/drop, and mutations. Added regression coverage for REST, WebSocket, detail payloads, and dashboard template usage.
+Completed as part of the Backlog-only tracker migration. Removed Beads/bd runtime paths where applicable, moved lifecycle behavior to canonical Backlog.md statuses, updated UI/API/tests/docs for Backlog-only behavior, and verified with make test: 3677 passed.
 <!-- SECTION:FINAL_SUMMARY:END -->

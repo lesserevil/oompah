@@ -2,7 +2,7 @@
 
 Covers:
 - AcpAgentSession lifecycle (init, run_task, terminate, counters)
-- Tool catalog bridging (cd-guard, BEADS_DIR routing, shell-redirect)
+- Tool catalog bridging (cd-guard, tracker-safe shell routing)
 - Permission auto-accept emits acp_session_start with the bypass flag
 - Profile mode validation (auto/api/cli/acp + invalid → auto fallback)
 - Orchestrator dispatch routing by profile.mode
@@ -328,8 +328,8 @@ class TestCanUseToolStrictAllowlist:
     * Allows tools whose name starts with ``mcp__oompah__`` (our
       MCP-bridged catalog).
     * Denies every claude built-in (Bash, Read, Write, Edit, Glob,
-      Grep, WebFetch, Task, etc.) so the cd-out-of-worktree guard,
-      BEADS_DIR routing, and shell-redirect stay in force.
+      Grep, WebFetch, Task, etc.) so the cd-out-of-worktree guard
+      and shell-redirect stay in force.
     * Emits an `acp_permission_grant` event for allows and an
       `acp_permission_deny` event for denies, both with the tool
       name and a truncated copy of the input args so the
@@ -603,7 +603,7 @@ except ImportError:
 class TestToolCatalogBridging:
     """The catalog must declare oompah's tools (so claude doesn't
     use its native ones) and route through the existing _exec_*
-    implementations (preserving cd-guard + BEADS_DIR + shell-redirect)."""
+    implementations (preserving cd-guard + shell-redirect)."""
 
     def test_catalog_includes_oompah_tools(self, tmp_path):
         from oompah.acp_tools import build_tool_catalog

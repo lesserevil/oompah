@@ -356,17 +356,12 @@ class CodexAcpBackendSession(AcpBackendSession):
         orchestrator (which is Claude-formatted ``@tool`` functions —
         wrong shape for openai-agents) and rebuilds the catalog from
         ``options.workspace_path`` so the underlying ``_exec_*``
-        helpers (cd-guard, BEADS_DIR routing) are identical between
+        helpers (cd-guard and shell-redirect) are identical between
         backends. See :func:`oompah.acp_tools.build_codex_tool_catalog`.
         """
         from oompah.acp_tools import build_codex_tool_catalog
 
-        env = self._options.env or {}
-        beads_dir = env.get("BEADS_DIR")
-        return build_codex_tool_catalog(
-            self._options.workspace_path,
-            beads_dir=beads_dir,
-        )
+        return build_codex_tool_catalog(self._options.workspace_path)
 
     # ---- run_turn: drive the openai-agents Runner ----
 

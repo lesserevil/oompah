@@ -1354,80 +1354,6 @@
       cursor: not-allowed;
     }
 
-    /* Dolt sync alert modal (oompah-zlz_2-g8uk) */
-    .dolt-sync-row {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 0.5rem;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-    .dolt-sync-row .label {
-      flex: 0 0 130px;
-      color: var(--text-muted);
-    }
-    .dolt-sync-row .value {
-      color: var(--text);
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      word-break: break-word;
-    }
-    .dolt-sync-error-box {
-      margin-top: 0.5rem;
-      max-height: 180px;
-      overflow: auto;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 0.5rem 0.6rem;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 0.75rem;
-      white-space: pre-wrap;
-      color: var(--text);
-    }
-    .dolt-sync-cmd-box {
-      margin-top: 0.4rem;
-      display: flex;
-      align-items: stretch;
-      gap: 0.4rem;
-    }
-    .dolt-sync-cmd-box pre {
-      flex: 1;
-      margin: 0;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 0.5rem 0.6rem;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 0.78rem;
-      color: var(--text);
-      white-space: pre-wrap;
-      overflow-x: auto;
-    }
-    .dolt-sync-cmd-box .copy-btn {
-      align-self: flex-start;
-      padding: 0.35rem 0.7rem;
-      font-size: 0.75rem;
-      white-space: nowrap;
-    }
-    .dolt-sync-badge {
-      display: inline-block;
-      padding: 0.1rem 0.45rem;
-      border-radius: 4px;
-      font-size: 0.7rem;
-      font-weight: 600;
-    }
-    .dolt-sync-badge.divergent {
-      background: rgba(248, 81, 73, 0.15);
-      color: var(--red, #f85149);
-    }
-    .dolt-sync-badge.errors {
-      background: rgba(209, 134, 22, 0.15);
-      color: var(--orange, #d18616);
-    }
-    .dolt-sync-badge.ok {
-      background: rgba(63, 185, 80, 0.15);
-      color: var(--green, #3fb950);
-    }
   </style>
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -1469,7 +1395,7 @@
       <select id="project-filter" onchange="saveProjectFilter(); refreshBoard(); _syncConsoleToProjectFilter()" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
         <option value="">All Projects</option>
       </select>
-      <label id="hide-merged-toggle" title="Show only beads with work still in flight: open or in_progress beads, plus closed beads whose PR is still open (in queue/CI). Hides closed beads with no open PR (work fully landed or abandoned) and deferred beads." style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
+      <label id="hide-merged-toggle" title="Show only tasks with work still in flight: Open, In Progress, Needs CI Fix, Needs Rebase, In Review, plus completed tasks whose PR is still open." style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:0.9rem;user-select:none;">
         <input type="checkbox" id="hide-merged-checkbox" onchange="toggleHideMerged()" style="margin:0;cursor:pointer;">
         <span id="hide-merged-label">In-flight only: ON (0 hidden)</span>
       </label>
@@ -1500,9 +1426,6 @@
       &#10067; <strong id="questions-count" style="color:var(--orange,#d18616);">0</strong> <span>questions waiting</span>
       <div class="questions-dropdown" id="questions-dropdown" role="menu" aria-label="Issues asking questions"></div>
     </span>
-    <span class="agent-stat" id="dolt-sync-stat" title="Dolt sync watchdog status" style="display:none;">
-      Dolt sync: <strong id="dolt-sync-status">-</strong>
-    </span>
     <span class="agent-warning" id="agent-warnings"></span>
     <div class="running-agents" id="running-agents"></div>
   </div>
@@ -1525,8 +1448,47 @@
   </div>
 
 <script>
-const COLUMNS = ['deferred', 'open', 'in_progress', 'closed'];
-const COLUMN_LABELS = {deferred: 'Backlog', open: 'Open', in_progress: 'In Progress', closed: 'Closed'};
+const COLUMN_CONFIG = [
+  {key: 'backlog', label: 'Backlog', status: 'Backlog', base: true},
+  {key: 'open', label: 'Open', status: 'Open', base: true},
+  {key: 'in_progress', label: 'In Progress', status: 'In Progress', base: true},
+  {key: 'needs_answer', label: 'Needs Answer', status: 'Needs Answer', base: false, group: 'waiting'},
+  {key: 'needs_human', label: 'Needs Human', status: 'Needs Human', base: false, group: 'waiting'},
+  {key: 'needs_ci_fix', label: 'Needs CI Fix', status: 'Needs CI Fix', base: true},
+  {key: 'needs_rebase', label: 'Needs Rebase', status: 'Needs Rebase', base: true},
+  {key: 'in_review', label: 'In Review', status: 'In Review', base: false},
+  {key: 'decomposed', label: 'Decomposed', status: 'Decomposed', base: false, group: 'triage'},
+  {key: 'duplicate_candidate', label: 'Duplicate Candidate', status: 'Duplicate Candidate', base: false, group: 'triage'},
+  {key: 'done', label: 'Done', status: 'Done', base: true},
+  {key: 'merged', label: 'Merged', status: 'Merged', base: true},
+  {key: 'archived', label: 'Archived', status: 'Archived', base: false},
+];
+const COLUMNS = COLUMN_CONFIG.map(c => c.key);
+const COLUMN_LABELS = Object.fromEntries(COLUMN_CONFIG.map(c => [c.key, c.label]));
+const COLUMN_STATUS = Object.fromEntries(COLUMN_CONFIG.map(c => [c.key, c.status]));
+
+function statusKey(status) {
+  return String(status || '').trim().toLowerCase().replace(/[-\s]+/g, '_');
+}
+
+function columnKeyForStatus(status) {
+  const key = statusKey(status);
+  if (key === 'to_do' || key === 'todo' || key === 'deferred') return 'backlog';
+  if (key === 'closed') return 'done';
+  if (key === 'asking_question' || key === 'needs_info' || key === 'needs_information') return 'needs_answer';
+  if (key === 'human_only') return 'needs_human';
+  if (key === 'ci_fix') return 'needs_ci_fix';
+  if (key === 'merge_conflict') return 'needs_rebase';
+  return key;
+}
+
+function statusForColumn(columnKey) {
+  return COLUMN_STATUS[columnKey] || columnKey;
+}
+
+function visibleColumns(data) {
+  return COLUMN_CONFIG.filter(c => c.base || ((data && data[c.key]) || []).length > 0).map(c => c.key);
+}
 
 let boardData = {};
 let allIssuesFlat = [];
@@ -1670,63 +1632,15 @@ function handleStateUpdate(state) {
     pauseBtn.classList.remove('btn-paused');
   }
 
-  // Render alerts inline in agent bar. Dolt-sync alerts are clickable —
-  // clicking opens a modal with the full error message and suggested
-  // recovery commands (oompah-zlz_2-g8uk).
+  // Render alerts inline in agent bar.
   const warningsEl = document.getElementById('agent-warnings');
   const alerts = state.alerts || [];
   if (alerts.length > 0) {
     warningsEl.innerHTML = alerts.map(function(a) {
-      if (a.source === 'dolt_sync' && a.project_id) {
-        const pid = esc(a.project_id);
-        return '<span class="dolt-sync-alert" data-project-id="' + pid +
-               '" onclick="openDoltSyncAlertModal(\'' + pid + '\')" ' +
-               'title="Click for details and recovery commands" ' +
-               'style="cursor:pointer;text-decoration:underline dotted;">' +
-               '&#9888; ' + esc(a.message) + ' &#8250;</span>';
-      }
       return '<span>&#9888; ' + esc(a.message) + '</span>';
     }).join(' &middot; ');
   } else {
     warningsEl.textContent = '';
-  }
-
-  // Dolt sync watchdog indicator (oompah-zlz_2-5ms2). Shows "ok / N min ago"
-  // on the most-recent successful sync across all projects, or "error" if
-  // any project is divergent or has consecutive errors.
-  const doltStat = document.getElementById('dolt-sync-stat');
-  const doltStatusEl = document.getElementById('dolt-sync-status');
-  const doltSync = state.dolt_sync || {};
-  const doltProjects = Object.values(doltSync);
-  if (doltProjects.length === 0) {
-    doltStat.style.display = 'none';
-  } else {
-    doltStat.style.display = '';
-    const divergent = doltProjects.filter(p => p.divergent);
-    const errored = doltProjects.filter(p => !p.divergent && p.last_error);
-    let mostRecent = null;
-    for (const p of doltProjects) {
-      const ts = p.last_push_at || p.last_pull_at;
-      if (ts && (!mostRecent || ts > mostRecent)) mostRecent = ts;
-    }
-    let label = '-';
-    let color = 'var(--text-muted)';
-    if (divergent.length > 0) {
-      label = 'diverged (' + divergent.length + ')';
-      color = 'var(--red,#f85149)';
-    } else if (errored.length > 0) {
-      label = 'error (' + errored.length + ')';
-      color = 'var(--orange,#d18616)';
-    } else if (mostRecent) {
-      const ageMs = Date.now() - new Date(mostRecent).getTime();
-      const ageMin = Math.max(0, Math.floor(ageMs / 60000));
-      label = 'ok / ' + (ageMin === 0 ? 'just now' : ageMin + ' min ago');
-      color = 'var(--green,#3fb950)';
-    } else {
-      label = 'pending';
-    }
-    doltStatusEl.textContent = label;
-    doltStatusEl.style.color = color;
   }
 
   // Update agent stats
@@ -1927,11 +1841,12 @@ function updateProposedFociBadge(count) {
   }
 }
 
-// Scan in-memory board data for issues with the 'asking_question' label and update the
+// Scan in-memory board data for issues waiting on the operator and update the
 // questions notification widget in the agent bar.
 function scanQuestionsFromBoard() {
   const askingIssues = allIssuesFlat.filter(
-    i => (i.labels || []).includes('asking_question')
+    i => columnKeyForStatus(i.state || i.tracker_state) === 'needs_answer' ||
+         (i.labels || []).includes('asking_question')
   );
   const el = document.getElementById('questions-stat');
   const countEl = document.getElementById('questions-count');
@@ -2013,8 +1928,8 @@ function _syncConsoleToProjectFilter() {
   }
 }
 
-// --- Hide merged toggle ---------------------------------------------------
-// Render-time filter that hides closed beads with the 'merged' label.
+// --- In-flight toggle -----------------------------------------------------
+// Render-time filter that hides completed/backlog work outside in-flight trees.
 // State is persisted in localStorage('oompah_hide_merged') as 'on'|'off'.
 // Default: ON (the historical merged set is rarely useful for routine ops).
 let _hideMergedHiddenCount = 0;
@@ -2048,15 +1963,12 @@ function toggleHideMerged() {
   if (boardData) renderBoard(boardData);
 }
 
-// "In-flight" predicate for a single bead, judged on its own state alone:
-//   - state open or in_progress → in flight
-//   - state closed with has_open_review=true → in flight (PR queued/CI)
-//   - everything else (closed without PR, deferred, etc) → NOT in flight
+// "In-flight" predicate for a single task, judged on its own state alone.
 function _isIndividuallyInFlight(issue) {
   if (!issue) return false;
-  const state = (issue.state || '').trim().toLowerCase();
-  if (state === 'open' || state === 'in_progress') return true;
-  if (state === 'closed' && issue.has_open_review) return true;
+  const state = columnKeyForStatus(issue.state || issue.tracker_state);
+  if (['open', 'in_progress', 'needs_ci_fix', 'needs_rebase', 'in_review'].includes(state)) return true;
+  if (['done', 'merged'].includes(state) && issue.has_open_review) return true;
   return false;
 }
 
@@ -2117,17 +2029,9 @@ function _computeInFlightShowSet(allIssues) {
   return show;
 }
 
-// Strip beads that aren't part of any in-flight tree from a grouped
-// {state: [issues]} payload — but ONLY from the 'closed' column.
-// Open/in_progress/deferred columns ALWAYS pass through unchanged so the
-// operator never loses backlog visibility. The toggle's job is to declutter
-// the wall of done work in the closed column (which can balloon to 400+
-// entries), not to mask active work.
-//
-// The hidden-count label only reflects hidden CLOSED beads. We still need
-// _computeInFlightShowSet over the full (project-filtered) tree because the
-// closed-column decision depends on epic-subtree visibility (closed beads
-// stay visible if any ancestor epic has an in-flight subtree).
+// Strip tasks that aren't part of any in-flight tree from a grouped
+// {state: [issues]} payload. Backlog/waiting/terminal buckets are hidden
+// unless they belong to a tree with in-flight work.
 function applyHideMergedFilter(data) {
   if (!isHideMergedOn()) {
     _hideMergedHiddenCount = 0;
@@ -2141,9 +2045,8 @@ function applyHideMergedFilter(data) {
   let hidden = 0;
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
-    // Only filter the closed column. Other columns pass through unchanged so
-    // backlog (deferred) and active work (open/in_progress) are always visible.
-    if (state.toLowerCase() !== 'closed') {
+    const stateKey = columnKeyForStatus(state);
+    if (['open', 'in_progress', 'needs_ci_fix', 'needs_rebase', 'in_review'].includes(stateKey)) {
       filtered[state] = issues;
       continue;
     }
@@ -2203,19 +2106,23 @@ function moveIssueInBoard(identifier, newState, projectId) {
 }
 
 async function updateIssue(identifier, fields) {
+  const outgoing = {...fields};
+  if (outgoing.status !== undefined) {
+    outgoing.status = statusForColumn(columnKeyForStatus(outgoing.status));
+  }
   // Record optimistic state to suppress rubber-banding from stale WebSocket data
-  const projectId = fields.project_id || '';
+  const projectId = outgoing.project_id || '';
   optimisticUpdates[optimisticIssueKey(identifier, projectId)] = {
     identifier: identifier,
     project_id: projectId,
-    state: fields.status,
-    priority: fields.priority,
+    state: fields.status !== undefined ? columnKeyForStatus(fields.status) : undefined,
+    priority: outgoing.priority,
     expiry: Date.now() + 10000,  // 10 second window
   };
   const res = await fetch(`/api/v1/issues/${identifier}`, {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(fields),
+    body: JSON.stringify(outgoing),
   });
   return res.ok;
 }
@@ -2223,23 +2130,23 @@ async function updateIssue(identifier, fields) {
 async function toggleEpicDraft(epicIdentifier, isDraft, projectId) {
   try {
     if (isDraft) {
-      // Remove 'draft' label then set status to deferred
+    // Remove 'draft' label then set status to Backlog
       const delUrl = `/api/v1/issues/${encodeURIComponent(epicIdentifier)}/labels/draft` +
         (projectId ? `?project_id=${encodeURIComponent(projectId)}` : '');
       await fetch(delUrl, {method: 'DELETE'});
     } else {
-      // Add 'draft' label then set status to deferred
+      // Add 'draft' label then set status to Backlog
       await fetch(`/api/v1/issues/${encodeURIComponent(epicIdentifier)}/labels`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({label: 'draft', project_id: projectId}),
       });
     }
-    // In both cases, set status to deferred
+    // In both cases, set status to Backlog
     await fetch(`/api/v1/issues/${encodeURIComponent(epicIdentifier)}`, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({status: 'deferred', project_id: projectId}),
+      body: JSON.stringify({status: 'Backlog', project_id: projectId}),
     });
     await refreshBoard();
   } catch (err) {
@@ -2365,7 +2272,7 @@ function renderBoard(data) {
 }
 
 function renderFlatView(board, data) {
-  for (const col of COLUMNS) {
+  for (const col of visibleColumns(data)) {
     const allInCol = data[col] || [];
     // Filter out non-draft epics in flat view — they appear as swimlane headers
     // Draft epics are shown as cards so they're visible before they have children
@@ -2404,12 +2311,14 @@ function renderFlatView(board, data) {
 }
 
 function isEpicInactive(epic) {
-  // An epic is "inactive" (unopened) if it has no children in backlog, open, or in_progress.
+  // An epic is "inactive" (unopened) if it has no children in working or ready states.
   // Only epics with all active/potential work counts at 0 are considered inactive.
-  const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
-  return (counts.deferred || 0) === 0 &&
+  const counts = epic.children_counts || {};
+  return (counts.backlog || 0) === 0 &&
          (counts.open || 0) === 0 &&
-         (counts.in_progress || 0) === 0;
+         (counts.in_progress || 0) === 0 &&
+         (counts.needs_ci_fix || 0) === 0 &&
+         (counts.needs_rebase || 0) === 0;
 }
 
 function renderSwimlaneView(board, data) {
@@ -2422,7 +2331,7 @@ function renderSwimlaneView(board, data) {
   // Render each epic as a swimlane
   for (const epic of epics) {
     const children = allIssuesFlat.filter(i => i.parent_id === epic.id && !isSwimlaneParent(i));
-    const counts = epic.children_counts || {deferred: 0, open: 0, in_progress: 0, closed: 0};
+    const counts = epic.children_counts || {};
     // Auto-collapse inactive epics unless the user has explicitly toggled this swimlane
     const autoCollapse = isEpicInactive(epic);
     const isCollapsed = userToggledSwimlanes[epic.id] ? collapsedSwimlanes[epic.id] : autoCollapse;
@@ -2432,14 +2341,14 @@ function renderSwimlaneView(board, data) {
     lane.className = 'swimlane' + (isCollapsed ? ' collapsed' : '');
     lane.dataset.epicId = epic.id;
 
-    const countsStr = `${counts.deferred} / ${counts.open} / ${counts.in_progress} / ${counts.closed}`;
+    const countsStr = `${counts.backlog || 0} / ${counts.open || 0} / ${counts.in_progress || 0} / ${counts.done || 0}`;
 
     lane.innerHTML = `
       <div class="swimlane-header" onclick="toggleSwimlane('${esc(epic.id)}')">
         <span class="swimlane-toggle">&#9660;</span>
         <span class="swimlane-title">${esc(epic.title)}</span>
         ${(epic.labels || []).includes('draft') ? '<span class="swimlane-draft-badge" aria-label="Draft epic">Draft</span>' : ''}
-        <span class="swimlane-counts" title="Backlog / Open / In Progress / Closed">${countsStr}</span>
+        <span class="swimlane-counts" title="Backlog / Open / In Progress / Done">${countsStr}</span>
         <span class="swimlane-actions">
           <button onclick="event.stopPropagation(); openCreateDialogForEpic('${esc(epic.id)}')">+ Child</button>
           <button onclick="event.stopPropagation(); openDetailPanel('${esc(epic.identifier)}')">Details</button>
@@ -2450,8 +2359,8 @@ function renderSwimlaneView(board, data) {
     `;
 
     const cols = lane.querySelector('.swimlane-columns');
-    for (const col of COLUMNS) {
-      const colIssues = children.filter(c => c.state.trim().toLowerCase() === col);
+    for (const col of visibleColumns(data)) {
+      const colIssues = children.filter(c => columnKeyForStatus(c.state) === col);
       const sc = document.createElement('div');
       sc.className = 'column';
       sc.innerHTML = `
@@ -2498,8 +2407,8 @@ function renderSwimlaneView(board, data) {
     `;
 
     const cols = lane.querySelector('.swimlane-columns');
-    for (const col of COLUMNS) {
-      const colIssues = orphans.filter(o => o.state.trim().toLowerCase() === col);
+    for (const col of visibleColumns(data)) {
+      const colIssues = orphans.filter(o => columnKeyForStatus(o.state) === col);
       const sc = document.createElement('div');
       sc.className = 'column';
       sc.innerHTML = `
@@ -2608,8 +2517,8 @@ function createCard(issue) {
     ? ' <span class="draft-epic-badge" aria-label="Draft Epic">Draft Epic</span>'
     : '';
 
-  // Build merged badge if issue has the "merged" label
-  const mergedBadgeHtml = (issue.labels || []).includes('merged')
+  // Build merged badge if issue is in the Merged status
+  const mergedBadgeHtml = columnKeyForStatus(issue.state || issue.tracker_state) === 'merged'
     ? ' <span class="merged-badge">merged</span>'
     : '';
 
@@ -2646,7 +2555,7 @@ function createCard(issue) {
   card.addEventListener('dragstart', e => {
     dragState = {
       identifier: issue.identifier,
-      sourceState: issue.state.trim().toLowerCase(),
+      sourceState: columnKeyForStatus(issue.state),
       priority: issue.priority,
       projectId: issue.project_id,
     };
@@ -2867,143 +2776,6 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
-}
-
-// ---------------------------------------------------------------------
-// Dolt sync alert detail modal (oompah-zlz_2-g8uk).
-// Clicking a dolt_sync alert in the agent-bar opens this modal so the
-// operator can see the full bd CLI error and one-or-two recovery
-// commands without having to ssh in and trawl logs.
-// ---------------------------------------------------------------------
-
-function humanizeTimestamp(iso) {
-  if (!iso) return 'never';
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return String(iso);
-  const ageMs = Date.now() - t;
-  const ageSec = Math.floor(ageMs / 1000);
-  if (ageSec < 60) return ageSec + ' seconds ago';
-  const ageMin = Math.floor(ageSec / 60);
-  if (ageMin < 60) return ageMin + (ageMin === 1 ? ' minute ago' : ' minutes ago');
-  const ageHr = Math.floor(ageMin / 60);
-  if (ageHr < 24) return ageHr + (ageHr === 1 ? ' hour ago' : ' hours ago');
-  const ageDay = Math.floor(ageHr / 24);
-  return ageDay + (ageDay === 1 ? ' day ago' : ' days ago');
-}
-
-// Build the suggested recovery command for a dolt-sync entry.
-// Three branches: divergent → pull+push --force; consecutive_errors>=5
-// and not divergent → status (operator investigates); otherwise →
-// plain pull+push retry. Exposed for testability via the static template
-// assertions in tests/test_dashboard_dolt_alert.py.
-function buildDoltSyncRecoveryCommand(entry) {
-  const repo = (entry && entry.repo_path) ? entry.repo_path : '<repo_path>';
-  if (entry && entry.divergent) {
-    return 'cd ' + repo + ' && bd dolt pull && bd dolt push --force';
-  }
-  if (entry && entry.consecutive_errors >= 5) {
-    return 'cd ' + repo + ' && bd dolt status';
-  }
-  return 'cd ' + repo + ' && bd dolt pull && bd dolt push';
-}
-
-function renderDoltSyncDialog(entry) {
-  const body = document.getElementById('dolt-sync-dialog-body');
-  if (!entry) {
-    body.innerHTML = '<div style="color:var(--text-muted);">' +
-      'No sync data available for this project (the watchdog may not ' +
-      'have run yet).</div>';
-    return;
-  }
-  const lastSyncIso = entry.last_push_at || entry.last_pull_at;
-  let stateBadge;
-  if (entry.divergent) {
-    stateBadge = '<span class="dolt-sync-badge divergent">DIVERGENT</span>';
-  } else if (entry.consecutive_errors >= 3) {
-    stateBadge = '<span class="dolt-sync-badge errors">' +
-      esc(String(entry.consecutive_errors)) + ' consecutive errors</span>';
-  } else {
-    stateBadge = '<span class="dolt-sync-badge ok">' +
-      esc(String(entry.consecutive_errors || 0)) + ' errors</span>';
-  }
-  const cmd = buildDoltSyncRecoveryCommand(entry);
-  body.innerHTML = '' +
-    '<div class="dolt-sync-row"><span class="label">Project</span>' +
-    '<span class="value">' + esc(entry.project_name || entry.project_id || '') + '</span></div>' +
-    '<div class="dolt-sync-row"><span class="label">Repo path</span>' +
-    '<span class="value">' + esc(entry.repo_path || '(unknown)') + '</span></div>' +
-    '<div class="dolt-sync-row"><span class="label">State</span>' +
-    '<span class="value">' + stateBadge + '</span></div>' +
-    '<div class="dolt-sync-row"><span class="label">Last successful sync</span>' +
-    '<span class="value">' + esc(humanizeTimestamp(lastSyncIso)) + '</span></div>' +
-    '<div class="dolt-sync-row"><span class="label">Last error at</span>' +
-    '<span class="value">' + esc(humanizeTimestamp(entry.last_error_at)) + '</span></div>' +
-    '<div style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted);">Last error</div>' +
-    '<div class="dolt-sync-error-box" id="dolt-sync-error">' +
-      esc(entry.last_error || '(no error recorded)') +
-    '</div>' +
-    '<div style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted);">Suggested recovery command</div>' +
-    '<div class="dolt-sync-cmd-box">' +
-      '<pre id="dolt-sync-cmd">' + esc(cmd) + '</pre>' +
-      '<button class="copy-btn" onclick="copyDoltSyncCommand()">Copy</button>' +
-    '</div>';
-}
-
-async function openDoltSyncAlertModal(projectId) {
-  const overlay = document.getElementById('dolt-sync-dialog');
-  const body = document.getElementById('dolt-sync-dialog-body');
-  body.innerHTML = '<div style="color:var(--text-muted);">Loading…</div>';
-  overlay.classList.add('open');
-  try {
-    const resp = await fetch('/api/v1/orchestrator/dolt-sync');
-    if (!resp.ok) {
-      throw new Error('HTTP ' + resp.status);
-    }
-    const data = await resp.json();
-    const projects = (data && data.projects) || {};
-    const entry = projects[projectId] || null;
-    renderDoltSyncDialog(entry);
-  } catch (err) {
-    body.innerHTML = '<div style="color:var(--red,#f85149);">' +
-      'Failed to load sync detail: ' + esc(String(err)) + '</div>';
-  }
-}
-
-function closeDoltSyncAlertModal() {
-  document.getElementById('dolt-sync-dialog').classList.remove('open');
-}
-
-function copyDoltSyncCommand() {
-  const pre = document.getElementById('dolt-sync-cmd');
-  if (!pre) return;
-  const text = pre.textContent || '';
-  const done = function() {
-    const btn = document.querySelector('#dolt-sync-dialog-body .copy-btn');
-    if (!btn) return;
-    const prev = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(function() { btn.textContent = prev; }, 1200);
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(done).catch(function() {
-      // Fallback when clipboard API is unavailable (insecure context, etc).
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); } catch (e) {}
-      document.body.removeChild(ta);
-      done();
-    });
-  } else {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); } catch (e) {}
-    document.body.removeChild(ta);
-    done();
-  }
 }
 
 async function refreshBoard() {
@@ -4794,22 +4566,6 @@ connectWebSocket();
       <button onclick="closeCreateDialog()">Cancel</button>
       <button id="create-enhance-btn" style="display:none;" onclick="enhanceCreateDialog()" title="Run an LLM enhancement pass against the project's AGENTS.md quality criteria">✨ Enhance</button>
       <button class="btn-primary" id="create-submit" onclick="submitCreateDialog()">Create</button>
-    </div>
-  </div>
-</div>
-
-<!-- Dolt sync alert detail modal (oompah-zlz_2-g8uk).
-     Opened when the operator clicks a dolt_sync alert in the agent bar. -->
-<div class="dialog-overlay" id="dolt-sync-dialog" onclick="if(event.target===this)closeDoltSyncAlertModal()">
-  <div class="dialog" id="dolt-sync-dialog-content" style="width:560px;">
-    <h2>Dolt sync detail
-      <span style="float:right;cursor:pointer;font-size:0.9rem;color:var(--text-muted);" onclick="closeDoltSyncAlertModal()">&times;</span>
-    </h2>
-    <div id="dolt-sync-dialog-body">
-      <div style="color:var(--text-muted);">Loading…</div>
-    </div>
-    <div class="dialog-actions">
-      <button onclick="closeDoltSyncAlertModal()">Close</button>
     </div>
   </div>
 </div>

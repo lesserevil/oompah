@@ -4,7 +4,7 @@ Motivating evidence (issue oompah-zlz_2-gz8w):
 
 * trickle-icl, oompah-zlz_2-7nr, oompah-zlz_2-0hzh/yiuy/ag7h:
   agents committed+pushed work to a feature branch, then called
-  ``bd close`` without ever opening a PR. The work sits stranded on
+	  marked the task done without ever opening a PR. The work sits stranded on
   origin and never reaches main.
 
 Design

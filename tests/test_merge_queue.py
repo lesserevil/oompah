@@ -1623,7 +1623,9 @@ class TestLabelBeadMergedFromMergeGroup:
 
         _label_bead_merged_from_merge_group(orch, event, project)
 
-        tracker.add_label.assert_called_once_with("oompah-zlz_2-xyz", "merged")
+        tracker.update_issue.assert_called_once_with(
+            "oompah-zlz_2-xyz", status="Merged"
+        )
 
     def test_skips_already_merged_bead(self):
         from oompah.server import _label_bead_merged_from_merge_group

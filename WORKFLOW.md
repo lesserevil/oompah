@@ -2,10 +2,13 @@
 tracker:
   kind: backlog
   active_states:
-    - To Do
-    - In Progress
+    - Open
+    - Needs CI Fix
+    - Needs Rebase
   terminal_states:
     - Done
+    - Merged
+    - Archived
 
 # Agent profiles are managed via the dashboard (Providers → Agent
 # Profiles, backed by /api/v1/agent-profiles) and persisted to
@@ -67,7 +70,7 @@ You manage this issue via the `backlog` CLI. **The entries below are shell comma
 | Create a follow-up task                           | `backlog task create "..." --description "..." --priority medium --plain`                           |
 | Create a child task under this task               | `backlog task create "..." --description "..." --parent {{ issue.identifier }} --plain`             |
 | Set dependencies for this task                    | `backlog task edit {{ issue.identifier }} --depends-on <other-id> --plain`                          |
-| Hand off to a different focus                     | `backlog task edit {{ issue.identifier }} --status "To Do" --add-label needs:frontend --plain`      |
+| Hand off to a different focus                     | `backlog task edit {{ issue.identifier }} --status Open --add-label needs:frontend --plain`         |
 | Close when done                                   | `backlog task edit {{ issue.identifier }} --status Done --final-summary "Done" --plain`             |
 
 **Always pass `--comment-author oompah`** when adding comments — comments must be attributed to `oompah`, not your git user.
@@ -101,9 +104,9 @@ The following insights were collected by previous agents working on this project
 
 **Self-reliance:** You are an autonomous agent. Investigate and solve problems yourself by reading code, running commands, checking logs, and testing hypotheses. NEVER ask the human to explain how something works, diagnose a problem, or tell you what approach to take — that is YOUR job. The `ask_question` tool exists ONLY for genuine ambiguity where the issue could reasonably mean two different things that lead to fundamentally different implementations. If a competent engineer would know what to do, DO the work. Restating the issue as a question, asking for confirmation of your plan, or asking "how should I proceed" are all failures.
 
-**Missing capabilities:** If completing the task requires a capability this system lacks (a tool, API access, a vision model, a new integration), file a Backlog.md task with `--labels human-only` and continue with what you *can* do. Do not block on it. Example:
+**Missing capabilities:** If completing the task requires a capability this system lacks (a tool, API access, a vision model, a new integration), file a Backlog.md task in `Needs Human` and continue with what you *can* do. Do not block on it. Example:
 ```
-backlog task create "Add vision model support for image analysis tasks" --description "Agent on {{ issue.identifier }} needed to analyze a screenshot but no vision-capable model is configured." --priority low --labels human-only --plain
+backlog task create "Add vision model support for image analysis tasks" --description "Agent on {{ issue.identifier }} needed to analyze a screenshot but no vision-capable model is configured." --priority low --status "Needs Human" --plain
 ```
 
 **Handoff:** You are a specialist. If part of this issue needs expertise outside your role (e.g., backend agent hits CSS work; bug fix reveals a security issue), hand off rather than doing it poorly — see "Handoff to Another Agent" below.
@@ -187,9 +190,9 @@ If you determine that this issue requires a different specialist to complete (e.
    backlog task edit {{ issue.identifier }} --comment "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments." --comment-author oompah --plain
    ```
 
-2. **Set the task back to To Do and add the routing label atomically** (to avoid race conditions where an agent is dispatched before the label is applied):
+2. **Set the task back to Open and add the routing label atomically** (to avoid race conditions where an agent is dispatched before the label is applied):
    ```
-   backlog task edit {{ issue.identifier }} --status "To Do" --add-label needs:frontend --plain
+   backlog task edit {{ issue.identifier }} --status Open --add-label needs:frontend --plain
    ```
    Available focus names: `feature`, `refactor`, `frontend`, `docs`, `test`, `security`, `devops`, `chore`
 
@@ -206,7 +209,7 @@ If you determine that this issue requires a different specialist to complete (e.
 
 ## Instructions
 
-{% if issue.labels contains "ci-fix" %}
+{% if issue.state == "Needs CI Fix" %}
 **PRIORITY: FIX CI TESTS**
 
 This issue already has a review open but CI tests are failing. Your ONLY job is to make the tests pass so the review can merge. Do NOT rework or rewrite the feature — the feature code is done.

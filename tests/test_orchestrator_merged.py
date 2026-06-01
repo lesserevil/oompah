@@ -81,7 +81,9 @@ class TestLabelMergedIssues:
 
         orch._label_merged_issues()
 
-        mock_tracker.add_label.assert_called_once_with("feat-branch", "merged")
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-branch", status="Merged"
+        )
 
     def test_skips_already_merged_label(self, tmp_path):
         project = _make_project()
@@ -96,7 +98,7 @@ class TestLabelMergedIssues:
 
         orch._label_merged_issues()
 
-        mock_tracker.add_label.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
 
     def test_skips_archived_issues(self, tmp_path):
         project = _make_project()
@@ -111,7 +113,7 @@ class TestLabelMergedIssues:
 
         orch._label_merged_issues()
 
-        mock_tracker.add_label.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
 
     def test_skips_issue_without_matching_branch(self, tmp_path):
         project = _make_project()
@@ -126,7 +128,7 @@ class TestLabelMergedIssues:
 
         orch._label_merged_issues()
 
-        mock_tracker.add_label.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
 
     def test_uses_branch_name_field_over_identifier(self, tmp_path):
         project = _make_project()
@@ -141,7 +143,9 @@ class TestLabelMergedIssues:
 
         orch._label_merged_issues()
 
-        mock_tracker.add_label.assert_called_once_with("issue-123", "merged")
+        mock_tracker.update_issue.assert_called_once_with(
+            "issue-123", status="Merged"
+        )
 
     def test_tracker_error_does_not_crash(self, tmp_path):
         from oompah.tracker import TrackerError
@@ -157,7 +161,7 @@ class TestLabelMergedIssues:
         # Should not raise
         orch._label_merged_issues()
 
-    def test_add_label_error_does_not_crash(self, tmp_path):
+    def test_update_status_error_does_not_crash(self, tmp_path):
         from oompah.tracker import TrackerError
 
         project = _make_project()
@@ -168,7 +172,7 @@ class TestLabelMergedIssues:
         mock_tracker.fetch_issues_by_states.return_value = [
             _make_issue("feat-branch", state="closed"),
         ]
-        mock_tracker.add_label.side_effect = TrackerError("bd failed")
+        mock_tracker.update_issue.side_effect = TrackerError("tracker failed")
         orch._project_trackers[project.id] = mock_tracker
 
         # Should not raise
@@ -313,7 +317,7 @@ class TestResetOrphanedInProgress:
         issue.project_id = project.id
         orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with("feat-1", status="open")
+        mock_tracker.update_issue.assert_called_once_with("feat-1", status="Open")
 
     def test_resets_backlog_in_progress_to_open(self, tmp_path):
         project = _make_project()
@@ -325,7 +329,7 @@ class TestResetOrphanedInProgress:
         issue.project_id = project.id
         orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with("feat-1", status="open")
+        mock_tracker.update_issue.assert_called_once_with("feat-1", status="Open")
 
     def test_skips_issue_with_running_agent(self, tmp_path):
         project = _make_project()
@@ -346,7 +350,7 @@ class TestResetOrphanedInProgress:
         mock_tracker = MagicMock()
         orch._project_trackers[project.id] = mock_tracker
 
-        issue = _make_issue("feat-1", state="in_progress")
+        issue = _make_issue("feat-1", state="open")
         issue.project_id = project.id
         orch.state.retry_attempts["feat-1"] = MagicMock()
         orch._reset_orphaned_in_progress([issue])
@@ -426,7 +430,7 @@ class TestShouldDispatchCompleted:
     def test_non_completed_issue_dispatched(self, tmp_path):
         """An issue NOT in state.completed should be dispatchable."""
         orch = self._make_orchestrator(tmp_path)
-        issue = _make_issue("feat-1", state="in_progress")
+        issue = _make_issue("feat-1", state="open")
         assert orch._should_dispatch(issue) is True
 
     def test_empty_description_rejected(self, tmp_path):
@@ -779,15 +783,14 @@ class TestYoloRetryCi:
         tracker.update_issue.assert_not_called()
         tracker.add_comment.assert_not_called()
 
-        # A sibling task bead must be created, parented to the epic, with
-        # ci-fix label and P0, in the open state (not deferred backlog).
+        # A sibling task must be created, parented to the epic, as a P0
+        # Needs CI Fix work item.
         tracker.create_issue.assert_called_once()
         kwargs = tracker.create_issue.call_args.kwargs
         assert kwargs["issue_type"] == "task"
         assert kwargs["priority"] == 0
-        assert kwargs["labels"] == ["ci-fix"]
         assert kwargs["parent"] == "trickle-rl5"
-        assert kwargs["initial_status"] == "open"
+        assert kwargs["initial_status"] == "Needs CI Fix"
         assert "PR #23" in kwargs["title"]
         assert "trickle-rl5" in kwargs["title"]
         # Description should mention the parent epic and dispatch hint
@@ -819,10 +822,10 @@ class TestYoloRetryCi:
 
         orch._yolo_retry_ci(project, review)
 
-        # Existing relabel path fires: status=open, priority=0, label=ci-fix
+        # Existing relabel path fires: status=Needs CI Fix, priority=0, label=ci-fix
         tracker.update_issue.assert_called_once()
         update_kwargs = tracker.update_issue.call_args.kwargs
-        assert update_kwargs.get("status") == "open"
+        assert update_kwargs.get("status") == "Needs CI Fix"
         assert update_kwargs.get("priority") == "0"
         assert update_kwargs.get("add-label") == "ci-fix"
         # Comment is added to the existing bead
@@ -1366,7 +1369,7 @@ class TestDispatchSerializationByProject:
         """P0 issues are never blocked by the open-review gate."""
         orch = self._make_orchestrator(tmp_path)
         issue = self._make_project_issue("feat-2", project_id="proj-1",
-                                          state="in_progress", priority=0)
+                                          state="open", priority=0)
         orch._reviews_cache = {
             "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
         }

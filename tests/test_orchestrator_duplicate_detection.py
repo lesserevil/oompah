@@ -1,7 +1,7 @@
 """Integration tests for orchestrator duplicate detection (oompah-zlz_2-x6w3).
 
 Tests that find_similar_issues() is wired into the orchestrator dispatch flow:
-- Open-issue duplicates get rejected via duplicate-candidate label
+- Open-issue duplicates get rejected via Duplicate Candidate status
 - Closed-issue matches get needs:duplicate_detector label
 - _should_dispatch rejects duplicate-candidate labelled issues
 """
@@ -186,8 +186,10 @@ class TestApplyDuplicateDetection:
 
         result = orch._apply_duplicate_detection([candidate])
 
-        # Should have added duplicate-candidate label
-        mock_tracker.add_label.assert_called_with("rogers-beta", "duplicate-candidate")
+        # Should have moved the candidate to the Duplicate Candidate status.
+        mock_tracker.update_issue.assert_called_with(
+            "rogers-beta", status="Duplicate Candidate"
+        )
         # Should have posted a comment
         orch._post_comment.assert_called()
         comment_text = orch._post_comment.call_args[0][1]
@@ -382,10 +384,10 @@ class TestEndToEndDispatchFlow:
             "Candidate with duplicate-candidate label should be rejected by _should_dispatch"
         )
 
-        # Verify the duplicate-candidate label was added
-        mock_tracker.add_label.assert_called()
-        call_args = mock_tracker.add_label.call_args
-        assert call_args[0][1] == "duplicate-candidate"
+        # Verify the Duplicate Candidate status was written.
+        mock_tracker.update_issue.assert_called()
+        call_args = mock_tracker.update_issue.call_args
+        assert call_args.kwargs["status"] == "Duplicate Candidate"
 
     def test_closed_match_routes_to_duplicate_detector_focus(self):
         """When candidate matches closed issue, needs:duplicate_detector label

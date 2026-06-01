@@ -214,13 +214,13 @@ class TestEpicStateVerification:
         assert resp.json()["ok"] is True
 
     def test_epic_state_update_reverts_returns_409(self, client):
-        """When Epic state is immediately reverted by bd backend, return 409."""
+        """When Epic state is immediately reverted by tracker backend, return 409."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
         existing_epic = _make_issue(identifier="epic-1", issue_type="epic", state="deferred")
         mock_tracker.fetch_issue_detail.return_value = existing_epic
         mock_tracker.update_issue = MagicMock()
 
-        # State reverts to 'deferred' after the update (bd backend hook)
+        # State reverts to 'deferred' after the update (tracker backend hook)
         reverted_issue = _make_issue(identifier="epic-1", issue_type="epic", state="deferred")
 
         call_count = [0]
@@ -245,7 +245,7 @@ class TestEpicStateVerification:
         assert resp.status_code == 409
         err = resp.json()["error"]
         assert err["code"] == "epic_state_reverted"
-        assert "bd backend reverted" in err["message"]
+        assert "tracker backend reverted" in err["message"]
         assert "epic-1" in err["message"]
 
     def test_epic_priority_update_no_verification(self, client):

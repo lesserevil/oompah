@@ -140,7 +140,7 @@
         <span style="font-size:0.7rem;color:var(--text-muted);">First entry becomes default_branch</span>
       </div>
       <div class="form-group">
-        <label>Default Branch (for new beads)</label>
+        <label>Default Branch (for new tasks)</label>
         <input type="text" id="add-default-branch" placeholder="main" value="main">
       </div>
       <div class="form-group">
@@ -180,7 +180,7 @@ async function loadProjects() {
     // non-OK response. Surface a user-visible retry UI instead of letting
     // the rejection bubble up to window.onunhandledrejection — that handler
     // POSTs every unhandled error to /api/v1/errors, which auto-files a
-    // duplicate bug bead for what is almost always a transient hiccup.
+    // duplicate bug task for what is almost always a transient hiccup.
     console.error('loadProjects failed:', err);
     const msg = (err && err.message) ? err.message : String(err);
     container.innerHTML = '<div class="empty-state" role="alert" aria-live="polite">' +
@@ -191,7 +191,7 @@ async function loadProjects() {
     return;
   }
   if (projects.length === 0) {
-    container.innerHTML = '<div class="empty-state">No projects configured.<br>Add a git repo with beads to get started.</div>';
+    container.innerHTML = '<div class="empty-state">No projects configured.<br>Add a git repo with Backlog.md tasks to get started.</div>';
     return;
   }
   container.innerHTML = projects.map(p => `
@@ -299,7 +299,7 @@ async function loadProjects() {
           <span style="font-size:0.7rem;color:var(--text-muted);">First entry becomes default_branch if not explicitly set</span>
         </div>
         <div class="form-group">
-          <label>Default Branch (for new beads)</label>
+          <label>Default Branch (for new tasks)</label>
           <input type="text" id="edit-default-branch-${esc(p.id)}" value="${esc(p.default_branch)}">
         </div>
         <div class="form-group">
@@ -341,14 +341,14 @@ async function loadProjects() {
               <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="flat" ${(p.epic_strategy || 'flat') === 'flat' ? 'checked' : ''}>
               <div class="epic-strategy-label">
                 <div class="epic-strategy-name"><strong>flat</strong> <span class="epic-strategy-tag">default</span></div>
-                <div class="epic-strategy-desc">Every bead, including epic children, gets its own worktree off main. Each PR targets main; CI runs per child PR; merge queue serializes the merges.</div>
+                <div class="epic-strategy-desc">Every task, including epic children, gets its own worktree off main. Each PR targets main; CI runs per child PR; merge queue serializes the merges.</div>
               </div>
             </label>
             <label class="epic-strategy-option">
               <input type="radio" name="edit-epic-strategy-${esc(p.id)}" value="stacked" ${p.epic_strategy === 'stacked' ? 'checked' : ''}>
               <div class="epic-strategy-label">
                 <div class="epic-strategy-name"><strong>stacked</strong></div>
-                <div class="epic-strategy-desc">Every bead gets its own worktree, but children of an epic open their PR against the epic's branch. CI runs on each child PR; once all children land, the orchestrator pushes the epic branch and opens a single epic→main PR.</div>
+                <div class="epic-strategy-desc">Every task gets its own worktree, but children of an epic open their PR against the epic's branch. CI runs on each child PR; once all children land, the orchestrator pushes the epic branch and opens a single epic→main PR.</div>
               </div>
             </label>
             <label class="epic-strategy-option">

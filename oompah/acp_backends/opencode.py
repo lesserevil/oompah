@@ -15,7 +15,7 @@ Design decisions:
   ``start_session`` errors don't poison the registry.
 * Tool bridging: oompah's MCP catalog round-trips through the same
   ``_exec_*`` helpers from ``oompah/acp_tools.py`` so cd-guard /
-  BEADS_DIR routing are identical between backends.
+  tool-routing semantics are identical between backends.
 """
 
 from __future__ import annotations
@@ -257,7 +257,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         """Build the opencode tool catalog for this run.
 
         Rebuilds from workspace_path so the underlying ``_exec_*``
-        helpers (cd-guard, BEADS_DIR routing) apply identically to
+        helpers (cd-guard and shell-redirect) apply identically to
         other backends. See :func:`oompah.acp_tools.build_tool_catalog`
         (same helper for all subprocess backends; opencode uses the
         same @tool-decorated format as the claude backend).
@@ -266,12 +266,7 @@ class OpencodeAcpBackendSession(AcpBackendSession):
         # (openai-agents uses @function_tool which is different).
         from oompah.acp_tools import build_tool_catalog
 
-        env = self._options.env or {}
-        beads_dir = env.get("BEADS_DIR")
-        return build_tool_catalog(
-            self._options.workspace_path,
-            beads_dir=beads_dir,
-        )
+        return build_tool_catalog(self._options.workspace_path)
 
     # ---- run_turn: drive the opencode serve subprocess ----
 

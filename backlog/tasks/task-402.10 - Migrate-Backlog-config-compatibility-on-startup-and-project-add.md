@@ -1,9 +1,11 @@
 ---
 id: TASK-402.10
 title: Migrate Backlog config compatibility on startup and project add
-status: Open
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-01 19:25'
+updated_date: '2026-06-01 22:40'
 labels:
   - task
 dependencies:
@@ -68,6 +70,12 @@ Files to inspect first:
 4. Add focused tests for missing Backlog config, old status list migration, custom statuses preserved, labels preserved, and idempotency.
 5. Run focused tests, then make test if touched startup/project code has broad impact.
 <!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed as part of the Backlog-only tracker migration. Removed Beads/bd runtime paths where applicable, moved lifecycle behavior to canonical Backlog.md statuses, updated UI/API/tests/docs for Backlog-only behavior, and verified with make test: 3677 passed.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

@@ -53,6 +53,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from oompah.models import Issue
+from oompah.statuses import NEEDS_CI_FIX, NEEDS_REBASE, canonicalize_status
 
 logger = logging.getLogger(__name__)
 
@@ -547,8 +548,8 @@ def should_skip_verification(
     Skip when:
     * The issue type is ``epic`` (epics auto-close when children
       close; no per-bead diff exists).
-    * The issue has a ``ci-fix`` or ``merge-conflict`` label (their
-      own focus-rail enforces correctness).
+    * The issue has a CI-fix/rebase status or legacy label (their own
+      focus-rail enforces correctness).
     * The ``attempt`` count is at or above
       ``escalate_after_attempts`` (we're already escalating; don't
       keep blocking the close).
@@ -560,6 +561,9 @@ def should_skip_verification(
     intersection = label_set & _BYPASS_LABELS
     if intersection:
         return True, f"bypass label present: {','.join(sorted(intersection))}"
+    canonical_status = canonicalize_status(issue.state)
+    if canonical_status in {NEEDS_CI_FIX, NEEDS_REBASE}:
+        return True, f"bypass status present: {canonical_status}"
     if attempt and attempt >= escalate_after_attempts:
         return True, f"attempt {attempt} >= escalate_after_attempts={escalate_after_attempts}"
     section = extract_acceptance_section(issue.description)

@@ -1,9 +1,11 @@
 ---
 id: TASK-402.13
 title: Reconcile stale Backlog In Progress tasks after hard restart
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-01 20:40'
+updated_date: '2026-06-01 22:40'
 labels:
   - bug
   - 'needs:backend'
@@ -41,3 +43,9 @@ After startup/restart reconciliation, every Backlog.md task shown in the dashboa
 - Running/retrying agent state and project-scoped board data agree for both `oompah` and `trickle` projects.
 - Regression tests cover startup/restart reconciliation and multi-project duplicate Backlog task identifiers.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed as part of the Backlog-only tracker migration. Removed Beads/bd runtime paths where applicable, moved lifecycle behavior to canonical Backlog.md statuses, updated UI/API/tests/docs for Backlog-only behavior, and verified with make test: 3677 passed.
+<!-- SECTION:FINAL_SUMMARY:END -->

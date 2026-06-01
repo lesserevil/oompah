@@ -623,7 +623,7 @@ class TestCodexToolBridging:
         names = [getattr(t, "name", getattr(t, "__name__", str(t))) for t in cat]
         # The Q2 acceptance set — same six tools as the Claude
         # catalog, routed through the same _exec_* helpers so cd-guard
-        # / BEADS_DIR routing apply identically.
+        # and shell routing apply identically.
         for expected in (
             "read_file", "write_file", "edit_file",
             "list_files", "search_files", "run_command",

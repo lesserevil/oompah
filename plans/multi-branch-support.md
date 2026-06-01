@@ -95,7 +95,7 @@ Response includes:
 
 **Add Project Form:**
 - "Branches (comma-separated, supports globs like release/*, hotfix/*)"
-- "Default Branch (for new beads)"
+- "Default Branch (for new tasks)"
 
 **Project Cards Display:**
 - "Branches:" - comma-separated list

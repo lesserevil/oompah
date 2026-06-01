@@ -638,7 +638,7 @@ class TestOrchestratorCloseGateWiring:
         # Bead reopened
         assert mock_tracker.update_issue.called
         update_call = mock_tracker.update_issue.call_args
-        assert "open" in str(update_call)
+        assert update_call.kwargs.get("status") == "Open"
 
 
 # ---------------------------------------------------------------------------

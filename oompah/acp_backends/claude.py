@@ -336,8 +336,8 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         ) -> Any:
             """Strict allowlist: only oompah's MCP-bridged catalog is
             permitted. Claude's native built-ins (Bash, Read, Write,
-            Edit, Glob, Grep, WebFetch, ...) are denied so cd-guard,
-            BEADS_DIR routing, and shell-redirect stay in force."""
+            Edit, Glob, Grep, WebFetch, ...) are denied so cd-guard
+            and shell-redirect stay in force."""
             allowed = tool_name.startswith("mcp__oompah__")
             event_kind = (
                 "acp_permission_grant" if allowed else "acp_permission_deny"
@@ -359,7 +359,7 @@ class ClaudeAcpBackendSession(AcpBackendSession):
                     f"Tool {tool_name!r} is not in oompah's allowed catalog. "
                     f"Use one of mcp__oompah__* (read_file, write_file, "
                     f"edit_file, list_files, search_files, run_command) "
-                    f"so safety rails (cd-guard, BEADS_DIR routing) apply."
+                    f"so safety rails (cd-guard and shell-redirect) apply."
                 ),
                 interrupt=False,
             )

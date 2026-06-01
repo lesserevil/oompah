@@ -139,7 +139,7 @@ Beads has no first-class attachment field. Three options surveyed:
    `bd update --metadata`). Programmatic, structured, hidden from casual
    readers — but writable from `bd`.
 2. **A trailing block in the description** (e.g. `<!-- attachments:\n
-   ['.oompah/attachments/...'] -->`). Visible in `bd show` but ugly and
+   ['.oompah/attachments/...'] -->`). Visible in task detail output but ugly and
    re-edited by humans/agents.
 3. **A sidecar file** at `.oompah/attachments/<id>/manifest.json`.
    Decoupled from beads but adds a second source of truth.
@@ -415,5 +415,5 @@ LFS + tests). Phase 2 carries the modality work and is the largest.
 6. **Tracker upstreams.** Whether to push for first-class attachment
    support upstream in beads or Backlog.md, or stay in backend metadata
    indefinitely. The metadata approach works today for beads; Backlog.md
-   should follow the tracker-backends plan before inventing another
+   should follow the Backlog.md integration before inventing another
    storage shape.

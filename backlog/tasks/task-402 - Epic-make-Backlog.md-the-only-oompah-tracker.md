@@ -1,9 +1,11 @@
 ---
 id: TASK-402
 title: 'Epic: make Backlog.md the only oompah tracker'
-status: Open
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-01 19:17'
+updated_date: '2026-06-01 22:40'
 labels:
   - epic
 dependencies: []
@@ -48,6 +50,12 @@ Implement this epic through focused child tasks:
 7. Rewrite tests for Backlog-only behavior and remove Beads tests.
 8. Run final verification and document the migration outcome.
 <!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed the Backlog-only tracker migration. Backlog.md is now the required tracker, canonical lifecycle statuses drive dispatch and UI behavior, Beads/bd runtime support, Dolt sync, migration tooling, and obsolete docs/scripts were removed, project Backlog config compatibility is checked on startup/project add, stale In Progress reconciliation is covered, and make test passes: 3677 passed.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

@@ -1,10 +1,11 @@
 ---
 id: TASK-402.9
 title: Final verification for Backlog-only migration
-status: Open
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-01 19:20'
-updated_date: '2026-06-01 19:21'
+updated_date: '2026-06-01 22:40'
 labels:
   - task
 dependencies:
@@ -57,6 +58,12 @@ Files to inspect first:
 4. Run make restart or make start if needed to verify service startup.
 5. Post final notes to the parent epic and close it.
 <!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed as part of the Backlog-only tracker migration. Removed Beads/bd runtime paths where applicable, moved lifecycle behavior to canonical Backlog.md statuses, updated UI/API/tests/docs for Backlog-only behavior, and verified with make test: 3677 passed.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

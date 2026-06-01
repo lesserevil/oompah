@@ -195,7 +195,7 @@ class RetryEntry:
 
 @dataclass
 class Project:
-    """A git repo with beads issue tracking."""
+    """A git repo with Backlog.md issue tracking."""
 
     id: str
     name: str
@@ -204,11 +204,11 @@ class Project:
     # Legacy single branch field (deprecated, kept for backward compatibility).
     # Use branches and default_branch instead.
     branch: str = "main"
-    # List of branch patterns that can be targets of beads. Supports glob
+    # List of branch patterns that can be targets of tasks. Supports glob
     # patterns like "main", "release/*", "hotfix/*". The first entry is
     # treated as the default if default_branch is not explicitly set.
     branches: list[str] = field(default_factory=lambda: ["main"])
-    # Default branch for new beads. Defaults to the first entry in branches,
+    # Default branch for new tasks. Defaults to the first entry in branches,
     # or "main" if branches is empty.
     default_branch: str = "main"
     git_user_name: str | None = None
@@ -260,15 +260,15 @@ class Project:
     # Per-project strategy controlling how children of an epic relate to
     # branches and CI. See bead oompah-zlz_2-amd for the full design.
     #
-    # * "flat" (default) — preserves today's behavior: every bead gets
+    # * "flat" (default) — preserves today's behavior: every task gets
     #   its own worktree off main, each PR targets main, CI runs per
     #   child PR, merge queue serializes the merges.
-    # * "stacked" — every bead gets its own worktree, but children of
+    # * "stacked" — every task gets its own worktree, but children of
     #   an epic create their PR against the epic's branch (not main).
     #   Once all children land on the epic branch, the orchestrator
     #   pushes it and opens an epic→main PR.
     # * "shared" — each epic gets ONE shared worktree and ONE shared
-    #   branch; child beads commit directly to the epic branch (no
+    #   branch; child tasks commit directly to the epic branch (no
     #   per-child PRs, no per-child CI). Children dispatch SERIALLY
     #   within an epic (one agent at a time per epic worktree); multiple
     #   epics still dispatch concurrently up to ``max_in_flight_prs``.

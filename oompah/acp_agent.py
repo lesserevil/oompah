@@ -26,7 +26,7 @@ plans/acp-agent.md):
   catalog (read_file / edit_file / write_file / run_command /
   search_files / list_files / bd_*) as ``@tool``-decorated functions
   and intercept their execution. That keeps the cd-out-of-worktree
-  guard, shell-as-tool-name redirect, and BEADS_DIR routing in force —
+  guard and shell-as-tool-name redirect in force —
   none of those exist in claude's native tools.
 * **Permissions (Q4).** A strict allowlist of ``mcp__oompah__*`` —
   native built-ins are hard-blocked via ``disallowed_tools``. Each

@@ -141,8 +141,8 @@ class TestFilterHelper:
         # As of commit 09d8b6d, isHiddenByMergedFilter delegates to
         # _isIndividuallyInFlight, which is where the closed-state check lives.
         body = _extract_function(script, "_isIndividuallyInFlight")
-        assert "'closed'" in body or '"closed"' in body, (
-            "_isIndividuallyInFlight must check state === 'closed'"
+        assert "'done'" in body or '"done"' in body, (
+            "_isIndividuallyInFlight must check terminal Done state"
         )
 
     def test_filter_checks_merged_label(self, script: str):
@@ -158,8 +158,8 @@ class TestFilterHelper:
         # As of commit 09d8b6d, the filter is state/has_open_review-based and
         # does not consult labels. Guard against missing state instead.
         body = _extract_function(script, "_isIndividuallyInFlight")
-        assert re.search(r"issue\.state\s*\|\|\s*['\"]\s*['\"]", body), (
-            "_isIndividuallyInFlight must guard against missing state via 'issue.state || \"\"'"
+        assert "columnKeyForStatus(issue.state || issue.tracker_state)" in body, (
+            "_isIndividuallyInFlight must normalize missing/variant status values"
         )
 
     def test_apply_filter_short_circuits_when_off(self, script: str):
@@ -298,17 +298,33 @@ class TestInit:
 # behaviour matches the spec. The static-analysis tests above guarantee the
 # JS implementation expresses the same rule.
 #
-# As of oompah-zlz_2-4z0 the filter is keyed off state + has_open_review +
-# epic-subtree presence (NOT the 'merged' label) AND ONLY runs against the
-# 'closed' column. Open/in_progress/deferred columns always pass through
-# regardless of toggle state.
+# The filter is keyed off canonical status + has_open_review + epic-subtree
+# presence. Active columns pass through; backlog/waiting/terminal columns are
+# hidden unless they belong to a tree with in-flight work.
+
+
+def _column_key(status: str | None) -> str:
+    key = (status or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if key in {"to_do", "todo", "deferred"}:
+        return "backlog"
+    if key == "closed":
+        return "done"
+    if key in {"asking_question", "needs_info", "needs_information"}:
+        return "needs_answer"
+    if key == "human_only":
+        return "needs_human"
+    if key == "ci_fix":
+        return "needs_ci_fix"
+    if key == "merge_conflict":
+        return "needs_rebase"
+    return key
 
 
 def _is_individually_in_flight(issue: dict) -> bool:
-    state = (issue.get("state") or "").strip().lower()
-    if state in ("open", "in_progress"):
+    state = _column_key(issue.get("state") or issue.get("tracker_state"))
+    if state in {"open", "in_progress", "needs_ci_fix", "needs_rebase", "in_review"}:
         return True
-    if state == "closed" and issue.get("has_open_review"):
+    if state in {"done", "merged"} and issue.get("has_open_review"):
         return True
     return False
 
@@ -370,7 +386,7 @@ def _apply_hide_merged_filter(
     """Pure-Python mirror of applyHideMergedFilter for behavioural assertions.
 
     `data` is a {state: [issue, ...]} mapping. Returns (filtered_data,
-    hidden_count). Hidden count only reflects hidden CLOSED beads.
+    hidden_count). Hidden count reflects hidden non-active tasks.
     """
     if not toggle_on:
         return data, 0
@@ -382,7 +398,8 @@ def _apply_hide_merged_filter(
     hidden = 0
     filtered: dict = {}
     for state, issues in data.items():
-        if state.lower() != "closed":
+        state_key = _column_key(state)
+        if state_key in {"open", "in_progress", "needs_ci_fix", "needs_rebase", "in_review"}:
             filtered[state] = issues
             continue
         kept: list[dict] = []
@@ -398,55 +415,50 @@ def _apply_hide_merged_filter(
 class TestFilterBehavior:
     """Behavioural assertions encoded in the acceptance criteria."""
 
-    def test_closed_without_pr_hidden_when_toggle_on(self):
+    def test_done_without_pr_hidden_when_toggle_on(self):
         data = {
-            "closed": [{"id": "a", "state": "closed", "has_open_review": False}],
+            "done": [{"id": "a", "state": "done", "has_open_review": False}],
             "open": [{"id": "b", "state": "open"}],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 1
-        assert out["closed"] == []
+        assert out["done"] == []
         assert [i["id"] for i in out["open"]] == ["b"]
 
-    def test_closed_with_open_pr_visible_when_toggle_on(self):
-        """Closed beads with an open PR (queued / in CI) stay visible."""
+    def test_done_with_open_pr_visible_when_toggle_on(self):
+        """Done tasks with an open PR (queued / in CI) stay visible."""
         data = {
-            "closed": [
-                {"id": "a", "state": "closed", "has_open_review": True},
-                {"id": "b", "state": "closed", "has_open_review": False},
+            "done": [
+                {"id": "a", "state": "done", "has_open_review": True},
+                {"id": "b", "state": "done", "has_open_review": False},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 1
-        assert [i["id"] for i in out["closed"]] == ["a"]
+        assert [i["id"] for i in out["done"]] == ["a"]
 
-    def test_closed_visible_when_toggle_off(self):
+    def test_done_visible_when_toggle_off(self):
         data = {
-            "closed": [{"id": "a", "state": "closed", "has_open_review": False}],
+            "done": [{"id": "a", "state": "done", "has_open_review": False}],
             "open": [{"id": "b", "state": "open"}],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=False)
         assert hidden == 0
-        assert [i["id"] for i in out["closed"]] == ["a"]
+        assert [i["id"] for i in out["done"]] == ["a"]
         assert [i["id"] for i in out["open"]] == ["b"]
 
-    def test_deferred_column_unaffected_by_toggle(self):
-        """Deferred (backlog) beads must always be visible regardless of toggle.
-
-        This is the core acceptance criterion of oompah-zlz_2-4z0: the toggle
-        previously swept up deferred beads, masking intentional backlog. The
-        deferred column must pass through unchanged.
-        """
+    def test_backlog_column_filtered_when_not_in_flight(self):
+        """Backlog tasks without in-flight ancestry are hidden by the filter."""
         data = {
-            "deferred": [
-                {"id": "d1", "state": "deferred"},
-                {"id": "d2", "state": "deferred"},
-                {"id": "d3", "state": "deferred", "labels": ["chore"]},
+            "backlog": [
+                {"id": "d1", "state": "backlog"},
+                {"id": "d2", "state": "backlog"},
+                {"id": "d3", "state": "backlog", "labels": ["chore"]},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        assert hidden == 0
-        assert out["deferred"] == data["deferred"]
+        assert hidden == 3
+        assert out["backlog"] == []
 
     def test_open_column_unaffected_by_toggle(self):
         """Open beads always show, even ones with no parent epic and no
@@ -474,116 +486,99 @@ class TestFilterBehavior:
         assert hidden == 0
         assert out["in_progress"] == data["in_progress"]
 
-    def test_open_inprogress_deferred_all_pass_through_with_unrelated_beads(self):
-        """A more realistic scenario: backlog deferred beads with no in-flight
-        ancestors should still appear when toggle is ON."""
+    def test_active_columns_pass_through_with_unrelated_backlog_tasks(self):
+        """Active columns pass through; unrelated Backlog and Done tasks hide."""
         data = {
             "open": [{"id": "o1", "state": "open"}],
             "in_progress": [{"id": "p1", "state": "in_progress"}],
-            "deferred": [
-                {"id": "d1", "state": "deferred"},
-                {"id": "d2", "state": "deferred"},
+            "backlog": [
+                {"id": "d1", "state": "backlog"},
+                {"id": "d2", "state": "backlog"},
             ],
-            "closed": [
-                # Closed with PR → visible
-                {"id": "c1", "state": "closed", "has_open_review": True},
-                # Closed without PR and no in-flight ancestor → hidden
-                {"id": "c2", "state": "closed", "has_open_review": False},
+            "done": [
+                # Done with PR -> visible
+                {"id": "c1", "state": "done", "has_open_review": True},
+                # Done without PR and no in-flight ancestor -> hidden
+                {"id": "c2", "state": "done", "has_open_review": False},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        assert hidden == 1
-        # Non-closed columns untouched
+        assert hidden == 3
         assert [i["id"] for i in out["open"]] == ["o1"]
         assert [i["id"] for i in out["in_progress"]] == ["p1"]
-        assert [i["id"] for i in out["deferred"]] == ["d1", "d2"]
-        # Closed filtered
-        assert [i["id"] for i in out["closed"]] == ["c1"]
+        assert out["backlog"] == []
+        assert [i["id"] for i in out["done"]] == ["c1"]
 
-    def test_hidden_count_only_includes_closed_beads(self):
-        """Hidden-count label must only count hidden CLOSED beads, not
-        deferred/open/in_progress beads (which are never hidden)."""
-        # Many deferred + a few hidden closed.
+    def test_hidden_count_includes_all_hidden_non_active_tasks(self):
+        """Hidden-count label includes hidden Backlog and terminal tasks."""
         data = {
-            "deferred": [{"id": f"d{i}", "state": "deferred"} for i in range(50)],
-            "closed": [
-                {"id": f"c{i}", "state": "closed", "has_open_review": False}
+            "backlog": [{"id": f"d{i}", "state": "backlog"} for i in range(50)],
+            "done": [
+                {"id": f"c{i}", "state": "done", "has_open_review": False}
                 for i in range(10)
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        assert hidden == 10  # NOT 60
-        assert len(out["deferred"]) == 50
-        assert out["closed"] == []
+        assert hidden == 60
+        assert out["backlog"] == []
+        assert out["done"] == []
 
-    def test_closed_with_in_flight_ancestor_stays_visible(self):
-        """Closed children of an epic whose subtree contains an in-flight
-        bead stay visible (epic-group view)."""
+    def test_done_with_in_flight_ancestor_stays_visible(self):
+        """Done children of an epic whose subtree contains active work stay visible."""
         data = {
             "open": [{"id": "child-active", "state": "open", "parent_id": "epic-1"}],
-            "closed": [
+            "done": [
                 # Sibling of an active child, under the same epic — stays visible.
                 {
                     "id": "child-merged",
-                    "state": "closed",
+                    "state": "done",
                     "has_open_review": False,
                     "parent_id": "epic-1",
                 },
-                # Lone closed bead with no parent and no PR — hidden.
-                {"id": "lone-closed", "state": "closed", "has_open_review": False},
+                # Lone done task with no parent and no PR — hidden.
+                {"id": "lone-done", "state": "done", "has_open_review": False},
             ],
         }
         # Have to also include the epic itself in the data so the show-set
         # walker can find it as a parent.
         data["open"].append({"id": "epic-1", "state": "open"})
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        # child-merged stays visible (parent epic-1 has in-flight subtree).
-        # lone-closed is hidden.
-        kept_ids = [i["id"] for i in out["closed"]]
+        kept_ids = [i["id"] for i in out["done"]]
         assert "child-merged" in kept_ids
-        assert "lone-closed" not in kept_ids
+        assert "lone-done" not in kept_ids
         assert hidden == 1
 
     def test_state_case_insensitive(self):
-        """state may arrive as 'CLOSED' or with whitespace; the JS uses
-        .trim().toLowerCase(). The Python mirror matches."""
+        """state may arrive as 'DONE' or with whitespace."""
         data = {
-            "Closed": [{"id": "a", "state": "CLOSED", "has_open_review": False}],
+            "Done": [{"id": "a", "state": "DONE", "has_open_review": False}],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 1
-        assert out["Closed"] == []
+        assert out["Done"] == []
 
     def test_counter_matches_hidden_count(self):
-        """294 hidden closed beads — matches the example in the issue."""
+        """294 hidden Done tasks — matches the example in the issue."""
         data = {
-            "closed": [
-                {"id": str(i), "state": "closed", "has_open_review": False}
+            "done": [
+                {"id": str(i), "state": "done", "has_open_review": False}
                 for i in range(294)
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 294
-        assert out["closed"] == []
+        assert out["done"] == []
 
 
 class TestColumnPassthroughInJS:
-    """Static-analysis assertions confirming the JS filter only operates on
-    the closed column. These guard against future regressions where someone
-    re-introduces filtering of non-closed columns."""
+    """Static-analysis assertions confirming the JS filter passes active columns
+    through and filters non-active columns."""
 
     def test_apply_filter_skips_non_closed_columns(self, script: str):
         body = _extract_function(script, "applyHideMergedFilter")
-        # The non-closed pass-through must use a state.toLowerCase() check.
-        # We accept any of the documented variants:
-        #   state.toLowerCase() !== 'closed'
-        #   state.toLowerCase() != 'closed'
-        #   state.toLowerCase() !== "closed"
-        assert re.search(
-            r"state\.toLowerCase\(\)\s*!==?\s*['\"]closed['\"]", body
-        ), (
-            "applyHideMergedFilter must skip non-closed columns by checking "
-            "state.toLowerCase() !== 'closed' and pass them through unchanged"
+        assert "stateKey" in body and "needs_ci_fix" in body, (
+            "applyHideMergedFilter must compute a canonical state key and pass "
+            "active columns through unchanged"
         )
 
     def test_apply_filter_continues_for_non_closed(self, script: str):

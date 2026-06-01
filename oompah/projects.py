@@ -11,11 +11,79 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from oompah.attachments import AttachmentStore
+from oompah.attachments import ATTACHMENTS_SUBDIR, LFS_PATTERNS
+from oompah.backlog_compat import (
+    BacklogCompatibilityError,
+    ensure_backlog_compatible,
+)
 from oompah.git_hooks import hook_path as _bundled_hook_path
 from oompah.models import Project
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_PROJECTS_PATH = ".oompah/projects.json"
+DEFAULT_REPOS_ROOT = os.path.expanduser("~/.oompah/repos")
+DEFAULT_WORKTREE_ROOT = os.path.expanduser("~/.oompah/worktrees")
+DEFAULT_SOURCE_SYNC_TIMEOUT_S = 45.0
+
+
+class ProjectError(Exception):
+    """Raised when project registration or worktree management fails."""
+
+
+def _repo_name_from_url(repo_url: str) -> str:
+    """Derive a stable display/repo directory name from a git URL or path."""
+    value = (repo_url or "").strip().rstrip("/")
+    if not value:
+        return "unnamed"
+    if value.endswith(".git"):
+        value = value[:-4]
+    if ":" in value and "/" not in value.rsplit(":", 1)[0]:
+        value = value.rsplit(":", 1)[-1]
+    name = os.path.basename(value)
+    return name or "unnamed"
+
+
+def _sanitize_identifier(value: str) -> str:
+    """Make a project or task identifier safe for local branch/path names."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "").strip())
+    return cleaned.strip("._-") or "unnamed"
+
+
+def _bootstrap_lfs(repo_path: str) -> bool:
+    """Install git LFS and track supported attachment formats for a repo.
+
+    Returns False when git-lfs is unavailable or fails. The project can
+    still operate without LFS; attachments just won't get large-file
+    handling until the operator installs it.
+    """
+    if not repo_path or not os.path.isdir(repo_path):
+        return False
+    try:
+        subprocess.run(
+            ["git", "lfs", "install", "--local"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
+
+    attributes_dir = os.path.join(repo_path, ATTACHMENTS_SUBDIR)
+    attributes_path = os.path.join(attributes_dir, ".gitattributes")
+    os.makedirs(attributes_dir, exist_ok=True)
+    lines = [
+        f"{pattern} filter=lfs diff=lfs merge=lfs -text"
+        for pattern in LFS_PATTERNS
+    ]
+    try:
+        with open(attributes_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        return False
+    return True
 
 
 def _install_prepare_commit_msg_hook(wt_path: str) -> None:
@@ -439,396 +507,6 @@ def _git_worktree_add_with_recovery(
     raise last_exc
 
 
-def _install_beads_merge_driver(repo_path: str) -> bool:
-    """Register the beads-jsonl custom merge driver in ``repo_path``'s local
-    git config.  Idempotent — safe to call on every ``project.create()``.
-
-    The driver resolves conflicts in ``.beads/issues.jsonl`` by merging per
-    issue id (last-writer-wins on updated_at) so that parallel-branch changes
-    to non-overlapping issues apply cleanly with no human input.
-
-    The ``.gitattributes`` file at the repo root must already contain::
-
-        .beads/issues.jsonl merge=beads-jsonl
-
-    This function configures the *driver* half::
-
-        git config merge.beads-jsonl.driver './scripts/beads-merge.sh %A %O %B'
-        git config merge.beads-jsonl.name   'Beads JSONL issue-id merge driver'
-
-    Returns ``True`` when the driver was installed (or was already installed
-    with the same value), ``False`` on any error so callers can degrade
-    gracefully.
-    """
-    driver_cmd = "./scripts/beads-merge.sh %A %O %B"
-    driver_name = "Beads JSONL issue-id merge driver"
-    try:
-        # Check whether the driver is already configured with the right value.
-        r = subprocess.run(
-            ["git", "config", "--local", "merge.beads-jsonl.driver"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if r.returncode == 0 and r.stdout.strip() == driver_cmd:
-            logger.debug("beads-jsonl merge driver already configured in %s", repo_path)
-            return True
-
-        subprocess.run(
-            ["git", "config", "merge.beads-jsonl.driver", driver_cmd],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        subprocess.run(
-            ["git", "config", "merge.beads-jsonl.name", driver_name],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        logger.info("Installed beads-jsonl merge driver in %s", repo_path)
-        return True
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-    ) as exc:
-        logger.warning(
-            "Failed to install beads-jsonl merge driver in %s: %s",
-            repo_path,
-            exc,
-        )
-        return False
-
-
-# Marker comment used to detect oompah's managed .beads/*.jsonl gitignore
-# block.  Lets ``_configure_beads_jsonl_ignore`` be idempotent and survive
-# operators who tweak the .gitignore by hand.
-_BEADS_JSONL_GITIGNORE_MARKER = "# beads-jsonl-ignore (managed by oompah)"
-_BEADS_JSONL_GITIGNORE_BLOCK = "\n".join(
-    [
-        "",
-        _BEADS_JSONL_GITIGNORE_MARKER,
-        "# Beads JSONL backups — dolt sync (refs/dolt/data) is the source of truth.",
-        "# Tracking these in git creates a redundant second copy that conflicts",
-        "# whenever two PRs touch beads simultaneously. See oompah-zlz_2-mp4v.",
-        ".beads/*.jsonl",
-        ".beads/backup/",
-        "",
-    ]
-)
-
-
-def _configure_beads_jsonl_ignore(repo_path: str) -> bool:
-    """Configure ``repo_path`` to gitignore beads JSONL backups and disable
-    bd's git-add-on-export.  Idempotent — safe to call on every project create
-    and on every boot self-heal pass.
-
-    Three sub-steps, each best-effort (any failure is logged, never raised):
-
-    1. Ensure ``.beads/*.jsonl`` and ``.beads/backup/`` appear in the repo-root
-       ``.gitignore``. The block is wrapped with a marker comment so we can
-       detect it on subsequent runs without duplicating.
-    2. ``git rm --cached`` any currently-tracked top-level ``.beads/*.jsonl``
-       and ``.beads/backup/`` files so the gitignore actually takes effect
-       (gitignore alone doesn't untrack files that are already in the index).
-    3. ``bd config set export.git-add false`` so bd's auto-export stops
-       re-staging the JSONL files after a write.
-
-    Rationale: ``bd dolt push/pull`` over ``refs/dolt/data`` is the source
-    of truth for beads state (PR #140's watchdog keeps that in sync).
-    The JSONL files at ``.beads/issues.jsonl``, ``.beads/interactions.jsonl``,
-    and ``.beads/backup/`` are a local backup only — tracking them in git
-    produces merge conflicts whenever two PRs touch beads simultaneously, and
-    the JSONL drifts off-cycle from dolt.  See oompah-zlz_2-mp4v.
-
-    Returns ``True`` on success (or partial success — any sub-step that
-    fails is logged but doesn't abort the others), ``False`` only when
-    the repo path is unusable.
-    """
-    if not os.path.isdir(repo_path):
-        return False
-
-    # -- Step 1: ensure .gitignore contains the .beads/*.jsonl block.
-    gitignore_path = os.path.join(repo_path, ".gitignore")
-    try:
-        try:
-            with open(gitignore_path, "r", encoding="utf-8") as f:
-                current = f.read()
-        except FileNotFoundError:
-            current = ""
-
-        required_patterns = [".beads/*.jsonl", ".beads/backup/"]
-        missing_patterns = [
-            pattern for pattern in required_patterns if pattern not in current
-        ]
-
-        if not missing_patterns:
-            logger.debug(
-                "beads-jsonl gitignore block already present in %s",
-                repo_path,
-            )
-        else:
-            if len(missing_patterns) == len(required_patterns):
-                block = _BEADS_JSONL_GITIGNORE_BLOCK
-            else:
-                lines = [""]
-                if _BEADS_JSONL_GITIGNORE_MARKER not in current:
-                    lines.append(_BEADS_JSONL_GITIGNORE_MARKER)
-                lines.extend(
-                    [
-                        "# Beads backup files are local-only; dolt sync is the source of truth.",
-                        *missing_patterns,
-                        "",
-                    ]
-                )
-                block = "\n".join(lines)
-
-            # Append block. Ensure a leading blank line if the file doesn't
-            # already end with one.
-            suffix = (
-                ""
-                if current.endswith("\n\n") or current == ""
-                else ("\n" if current.endswith("\n") else "\n\n")
-            )
-            with open(gitignore_path, "a", encoding="utf-8") as f:
-                f.write(suffix + block)
-            logger.info(
-                "Appended beads JSONL backup gitignore block to %s",
-                gitignore_path,
-            )
-    except OSError as exc:
-        logger.warning(
-            "Failed to update .gitignore in %s: %s",
-            repo_path,
-            exc,
-        )
-
-    # -- Step 2: git rm --cached any tracked beads JSONL backup files.
-    try:
-        r = subprocess.run(
-            ["git", "ls-files", "--", ".beads/*.jsonl", ".beads/backup"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        tracked = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
-        # ``git ls-files`` returns recursive matches for the top-level glob;
-        # restrict to top-level ``.beads/<name>.jsonl`` plus the explicit
-        # ``.beads/backup/`` snapshot directory.
-        tracked = [
-            p
-            for p in tracked
-            if (p.startswith(".beads/") and "/" not in p[len(".beads/") :])
-            or p.startswith(".beads/backup/")
-        ]
-        if tracked:
-            subprocess.run(
-                ["git", "rm", "--cached", "--quiet", "--", *tracked],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=15,
-            )
-            logger.info(
-                "Untracked .beads/*.jsonl files in %s: %s",
-                repo_path,
-                ", ".join(tracked),
-            )
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-    ) as exc:
-        logger.warning(
-            "Failed to git rm --cached beads JSONL backups in %s: %s",
-            repo_path,
-            exc,
-        )
-
-    # -- Step 3: bd config set export.git-add false (idempotent).
-    try:
-        subprocess.run(
-            ["bd", "config", "set", "export.git-add", "false"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=15,
-        )
-        logger.debug(
-            "Set bd export.git-add=false in %s",
-            repo_path,
-        )
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-    ) as exc:
-        logger.warning(
-            "Failed to set bd export.git-add=false in %s: %s",
-            repo_path,
-            exc,
-        )
-
-    return True
-
-
-# Safety-net cap for ``bd bootstrap``. Bootstrap can be slow on large dolt
-# histories — per the no-timeouts-on-bd-dolt feedback, we don't impose a
-# short timeout. 10 minutes is well above any observed real-world case and
-# just prevents a hung subprocess from wedging project creation forever.
-_BD_BOOTSTRAP_TIMEOUT_S = 600
-
-
-def _bootstrap_beads(repo_path: str) -> bool:
-    """Run ``bd bootstrap`` in ``repo_path``. Best-effort.
-
-    When a freshly-cloned project already has beads on its dolt remote,
-    ``bd bootstrap`` populates ``.beads/embeddeddolt/`` from that remote
-    so the local database is in sync with the team's tracker. We must
-    NEVER run ``bd init`` instead — that creates divergent local history
-    that fails to push/pull.
-
-    Failure modes (all logged, none fatal):
-    - ``bd`` not on PATH (FileNotFoundError) — skipped.
-    - Repo has ``.beads/config.yaml`` but no remote configured yet
-      (operator-cloned but never pushed).
-    - The dolt remote URL requires auth the orchestrator doesn't have.
-    - Bootstrap exceeds the safety-net timeout
-      (``_BD_BOOTSTRAP_TIMEOUT_S``).
-
-    Returns ``True`` on success, ``False`` on any failure or skip. The
-    caller continues either way; the orchestrator's dolt-sync watchdog
-    will surface the resulting state.
-
-    See oompah-zlz_2-a2td.
-    """
-    if not os.path.isdir(os.path.join(repo_path, ".beads")):
-        return False
-    try:
-        proc = subprocess.run(
-            ["bd", "bootstrap"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=_BD_BOOTSTRAP_TIMEOUT_S,
-        )
-    except FileNotFoundError:
-        logger.warning(
-            "bd not on PATH; skipped 'bd bootstrap' in %s",
-            repo_path,
-        )
-        return False
-    except subprocess.TimeoutExpired:
-        logger.warning(
-            "'bd bootstrap' timed out after %ds in %s; project creation continues",
-            _BD_BOOTSTRAP_TIMEOUT_S,
-            repo_path,
-        )
-        return False
-
-    if proc.returncode == 0:
-        summary = (proc.stdout or "").strip()
-        if summary:
-            # Keep log compact — bootstrap output can be verbose.
-            summary = summary.splitlines()[-1][:300]
-        logger.info(
-            "'bd bootstrap' succeeded in %s%s",
-            repo_path,
-            f": {summary}" if summary else "",
-        )
-        return True
-
-    stderr = (proc.stderr or "").strip()[:500]
-    logger.warning(
-        "'bd bootstrap' failed (exit %d) in %s: %s — project creation continues; "
-        "operator can re-run manually",
-        proc.returncode,
-        repo_path,
-        stderr or "(no stderr)",
-    )
-    return False
-
-
-def _bootstrap_lfs(repo_path: str) -> bool:
-    """Run `git lfs install --local` in ``repo_path`` and write the
-    attachments .gitattributes. Idempotent.
-
-    Returns ``True`` when LFS is configured and ready, ``False`` when
-    ``git lfs`` isn't installed or `install` failed. The caller stores
-    this as :attr:`Project.lfs_available`; multimodal-attachment features
-    silently no-op when it's ``False``.
-    """
-    try:
-        subprocess.run(
-            ["git", "lfs", "install", "--local"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=15,
-        )
-    except FileNotFoundError:
-        logger.warning("git lfs not installed; attachments disabled for %s", repo_path)
-        return False
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        stderr = (getattr(exc, "stderr", "") or "").strip()[:200]
-        logger.warning("git lfs install failed for %s: %s", repo_path, stderr or exc)
-        return False
-    try:
-        AttachmentStore(repo_path).ensure_lfs_configured()
-    except Exception as exc:
-        logger.warning(
-            "attachments .gitattributes write failed for %s: %s", repo_path, exc
-        )
-        return False
-    return True
-
-
-DEFAULT_PROJECTS_PATH = ".oompah/projects.json"
-DEFAULT_REPOS_ROOT = os.path.join(os.path.expanduser("~"), ".oompah", "repos")
-DEFAULT_WORKTREE_ROOT = os.path.join(os.path.expanduser("~"), ".oompah", "worktrees")
-DEFAULT_SOURCE_SYNC_TIMEOUT_S = 45.0
-
-_SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
-
-
-def _repo_name_from_url(url: str) -> str:
-    """Extract a repo name from a git URL.
-
-    Examples:
-        https://github.com/org/repo.git -> repo
-        git@github.com:org/repo.git     -> repo
-        /local/path/to/repo             -> repo
-    """
-    # Strip trailing slashes and .git suffix
-    url = url.rstrip("/")
-    if url.endswith(".git"):
-        url = url[:-4]
-    # Get the last path component
-    name = url.rsplit("/", 1)[-1]
-    # Handle ssh-style git@host:org/repo
-    if ":" in name and not name.startswith("/"):
-        name = name.rsplit(":", 1)[-1].rsplit("/", 1)[-1]
-    return name or "unnamed"
-
-
-def _sanitize_identifier(identifier: str) -> str:
-    """Replace any character not in [A-Za-z0-9._-] with underscore."""
-    return _SAFE_CHARS.sub("_", identifier)
-
-
-class ProjectError(Exception):
-    """Raised when project operations fail."""
-
 
 class ProjectStore:
     """File-backed store for project configurations."""
@@ -892,7 +570,7 @@ class ProjectStore:
                     Deprecated: use branches and default_branch instead.
             branches: List of branch patterns to track (e.g., ["main", "release/*", "hotfix/*"]).
                       Supports glob patterns. Defaults to ["main"].
-            default_branch: Default branch for new beads. Defaults to first entry in branches.
+            default_branch: Default branch for new task branches. Defaults to first entry in branches.
         """
         if not name:
             name = _repo_name_from_url(repo_url)
@@ -939,19 +617,10 @@ class ProjectStore:
         # Validate clone
         if not os.path.isdir(os.path.join(repo_path, ".git")):
             raise ProjectError(f"Clone succeeded but no .git/ found in: {repo_path}")
-        if not os.path.isdir(os.path.join(repo_path, ".beads")):
-            raise ProjectError(
-                f"Repo cloned but no .beads/ directory found. "
-                f"Run 'bd init' in {repo_path} to set up beads issue tracking."
-            )
-
-        # The repo has .beads/, so it's a beads-tracked project. The right
-        # next step is 'bd bootstrap' (NOT 'bd init') — bootstrap populates
-        # .beads/embeddeddolt/ from the configured dolt remote. Failures
-        # (no remote, auth, timeout) are logged but don't fail project
-        # creation; the dolt-sync watchdog will surface the resulting state.
-        # See oompah-zlz_2-a2td.
-        _bootstrap_beads(repo_path)
+        try:
+            ensure_backlog_compatible(repo_path)
+        except BacklogCompatibilityError as exc:
+            raise ProjectError(str(exc)) from exc
 
         # If git_user_name / git_user_email not provided, read global git config
         if not git_user_name:
@@ -1003,16 +672,6 @@ class ProjectStore:
         # Bootstrap git LFS for the multimodal attachments feature.
         # Always idempotent; degrades gracefully when git lfs is missing.
         lfs_available = _bootstrap_lfs(repo_path)
-
-        # Install the custom beads-jsonl merge driver so that parallel-branch
-        # changes to .beads/issues.jsonl resolve automatically.  Idempotent.
-        _install_beads_merge_driver(repo_path)
-
-        # Gitignore .beads/*.jsonl + disable bd's git-add-on-export.
-        # Dolt sync (refs/dolt/data) is the source of truth; tracking the
-        # JSONL files causes merge conflicts.  Idempotent.  See
-        # oompah-zlz_2-mp4v.
-        _configure_beads_jsonl_ignore(repo_path)
 
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
@@ -1178,7 +837,7 @@ class ProjectStore:
         project_id: str,
         timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S,
     ) -> dict[str, str]:
-        """Pull latest code (git) and beads state (dolt) for one project.
+        """Pull latest code and ensure Backlog.md config compatibility.
 
         Best-effort: any failure is logged and recorded in the returned
         status dict but does NOT raise. The orchestrator should boot
@@ -1186,13 +845,13 @@ class ProjectStore:
         whatever local state exists.
 
         Returns ``{"git": "ok"|"failed: <reason>"|"skipped: <reason>",
-                  "beads": "ok"|"failed: <reason>"|"skipped: <reason>"}``.
+                  "backlog": "ok"|"migrated"|"failed: <reason>"}``.
         """
         project = self._projects.get(project_id)
         if not project:
             return {
                 "git": "skipped: unknown project",
-                "beads": "skipped: unknown project",
+                "backlog": "skipped: unknown project",
             }
         status: dict[str, str] = {}
 
@@ -1210,11 +869,6 @@ class ProjectStore:
                     text=True,
                     timeout=timeout_s,
                 )
-                # --autostash: handle the common case where bd has written
-                # to .beads/issues.jsonl (unstaged) since the last commit.
-                # Without it, fast-forward pulls fail with "Your local
-                # changes to the following files would be overwritten by
-                # merge". --ff-only still refuses if origin has diverged.
                 pull = subprocess.run(
                     [
                         "git",
@@ -1247,56 +901,12 @@ class ProjectStore:
                     exc,
                 )
 
-        beads_dir = (
-            os.path.join(project.repo_path, ".beads")
-            if project.repo_path
-            else None
-        )
-        has_beads_dir = bool(beads_dir and os.path.isdir(beads_dir))
-
-        # Self-heal beads repos only: ensure .beads/*.jsonl is gitignored
-        # and bd's export.git-add is disabled (idempotent — fixes
-        # pre-existing projects that predate oompah-zlz_2-mp4v).  Backlog.md
-        # repos do not have .beads/ and must not invoke bd during sync.
-        if has_beads_dir and project.repo_path and os.path.isdir(project.repo_path):
-            try:
-                _configure_beads_jsonl_ignore(project.repo_path)
-            except Exception as exc:  # pragma: no cover - belt-and-suspenders
-                logger.warning(
-                    "_configure_beads_jsonl_ignore failed for %s: %s",
-                    project.name,
-                    exc,
-                )
-
-        # bd dolt pull. Skip if there's no .beads/ directory at all.
-        if not has_beads_dir:
-            status["beads"] = "skipped: no .beads"
-        else:
-            try:
-                pull = subprocess.run(
-                    ["bd", "dolt", "pull"],
-                    cwd=project.repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout_s,
-                )
-                if pull.returncode == 0:
-                    status["beads"] = "ok"
-                else:
-                    stderr = (pull.stderr or "").strip()[:200]
-                    status["beads"] = f"failed: {stderr}"
-                    logger.warning(
-                        "Startup bd dolt pull failed for %s: %s",
-                        project.name,
-                        stderr,
-                    )
-            except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
-                status["beads"] = f"failed: {exc}"
-                logger.warning(
-                    "Startup bd dolt pull failed for %s: %s",
-                    project.name,
-                    exc,
-                )
+        try:
+            compat = ensure_backlog_compatible(project.repo_path)
+            status["backlog"] = "migrated" if compat.changed else "ok"
+        except BacklogCompatibilityError as exc:
+            status["backlog"] = f"failed: {exc}"
+            logger.warning("Backlog compatibility check failed for %s: %s", project.name, exc)
 
         return status
 
@@ -1331,7 +941,7 @@ class ProjectStore:
                     )
                     results[p.id] = {
                         "git": f"exception: {exc}",
-                        "beads": f"exception: {exc}",
+                        "backlog": f"exception: {exc}",
                     }
         return results
 
@@ -1495,7 +1105,6 @@ class ProjectStore:
                 pass
 
         self._disable_worktree_hooks(wt_path)
-        self._strip_worktree_beads_fork(wt_path)
         logger.info("Epic worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
 
@@ -1552,7 +1161,6 @@ class ProjectStore:
                 )
 
         self._disable_worktree_hooks(wt_path)
-        self._strip_worktree_beads_fork(wt_path)
 
     def remove_epic_worktree(self, project_id: str, epic_identifier: str) -> None:
         """Remove the shared epic worktree (used after the epic→main PR
@@ -1681,12 +1289,7 @@ class ProjectStore:
             except Exception:
                 pass
 
-        # Disable beads hooks to prevent state interference
         self._disable_worktree_hooks(wt_path)
-        # Remove any forked per-worktree beads dolt state and stop
-        # orphan dolt-sql-server processes — agent bd commands route
-        # to the main DB via BEADS_DIR, so the worktree's copy is dead weight.
-        self._strip_worktree_beads_fork(wt_path)
 
         logger.info("Worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
@@ -1743,20 +1346,10 @@ class ProjectStore:
                     exc.stderr.strip()[:200] if exc.stderr else "",
                 )
 
-        # Disable beads hooks in worktrees to prevent post-checkout/pre-commit
-        # hooks from syncing backup JSONL back to Dolt and reverting issue states
         self._disable_worktree_hooks(wt_path)
-        # Defensive cleanup of any forked per-worktree beads dolt state.
-        self._strip_worktree_beads_fork(wt_path)
 
     def _disable_worktree_hooks(self, wt_path: str) -> None:
-        """Point worktree hooks to an empty directory to prevent beads hook interference.
-
-        Beads git hooks (post-checkout, pre-commit) sync backup JSONL into the
-        Dolt database. When agents run git operations (rebase, checkout) in
-        worktrees, these hooks overwrite the orchestrator's in_progress state
-        back to the stale state from the backup. Disabling hooks in worktrees
-        prevents this.
+        """Point worktree hooks to oompah's isolated hook directory.
 
         The redirected hooks directory is NOT empty: we install the oompah
         ``prepare-commit-msg`` hook into it so every commit produced by an
@@ -1786,62 +1379,6 @@ class ProjectStore:
                 wt_path,
                 exc_info=True,
             )
-
-    def _strip_worktree_beads_fork(self, wt_path: str) -> None:
-        """Remove any per-worktree beads dolt detritus.
-
-        Each agent runs ``bd`` from inside its worktree. Without
-        ``BEADS_DIR`` set, ``bd`` would create its own ``.beads/dolt/``
-        and spawn a per-worktree dolt-sql-server, then write closures
-        and comments into a forked DB the orchestrator never sees.
-
-        The agent's run_command tool now sets ``BEADS_DIR`` to the
-        project's main ``.beads`` so future invocations route correctly.
-        This function defensively cleans any existing per-worktree
-        dolt files left from past runs (gitignored, so they survive
-        ``git reset --hard``) and stops orphan dolt-sql-server
-        processes referenced by ``.beads/dolt-server.pid``.
-        """
-        beads_dir = os.path.join(wt_path, ".beads")
-        if not os.path.isdir(beads_dir):
-            return
-        # Stop any orphan dolt server still tied to this worktree.
-        pid_file = os.path.join(beads_dir, "dolt-server.pid")
-        if os.path.isfile(pid_file):
-            try:
-                with open(pid_file) as f:
-                    pid_str = f.read().strip()
-                if pid_str.isdigit():
-                    pid = int(pid_str)
-                    try:
-                        os.kill(pid, 15)  # SIGTERM
-                    except ProcessLookupError:
-                        pass
-                    except OSError:
-                        pass
-            except OSError:
-                pass
-        # Drop dolt server runtime files and the embedded DB itself —
-        # all gitignored, all safe to remove. ``bd`` will not regenerate
-        # them as long as BEADS_DIR is set on every invocation.
-        import shutil
-
-        for entry in (
-            "dolt-server.pid",
-            "dolt-server.port",
-            "dolt-server.log",
-            "dolt-server.lock",
-            "dolt",
-            "embeddeddolt",
-        ):
-            path = os.path.join(beads_dir, entry)
-            try:
-                if os.path.isdir(path):
-                    shutil.rmtree(path, ignore_errors=True)
-                elif os.path.isfile(path) or os.path.islink(path):
-                    os.remove(path)
-            except OSError:
-                pass
 
     def remove_worktree(self, project_id: str, issue_identifier: str) -> None:
         project = self._projects.get(project_id)

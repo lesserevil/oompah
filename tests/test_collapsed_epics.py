@@ -42,8 +42,8 @@ class TestIsEpicInactiveFunction:
         """isEpicInactive function must be defined."""
         assert "function isEpicInactive(" in script
 
-    def test_isEpicInactive_checks_deferred(self, script):
-        """isEpicInactive must check the deferred count."""
+    def test_isEpicInactive_checks_backlog(self, script):
+        """isEpicInactive must not treat Backlog children as active work."""
         func_match = re.search(
             r"function isEpicInactive\(.*?\)\s*\{(.*?)\n\}",
             script,
@@ -51,7 +51,7 @@ class TestIsEpicInactiveFunction:
         )
         assert func_match, "Could not find isEpicInactive function body"
         body = func_match.group(1)
-        assert "deferred" in body
+        assert "backlog" in body
 
     def test_isEpicInactive_checks_open(self, script):
         """isEpicInactive must check the open count."""
@@ -210,7 +210,7 @@ class TestServerChildrenCounts:
         assert "children_counts" in source
         # Must iterate issues to count children per state
         assert "epics" in source
-        assert "child_state" in source or "deferred" in source
+        assert "child_state" in source or "backlog" in source
 
     def test_fetch_and_serialize_computes_epic_map(self):
         """The function must identify epics and build a counts map."""
@@ -218,11 +218,8 @@ class TestServerChildrenCounts:
         from oompah.server import _fetch_and_serialize_issues
 
         source = inspect.getsource(_fetch_and_serialize_issues)
-        # Should create an epics dict with state count keys
-        assert '"deferred": 0' in source or "'deferred': 0" in source
-        assert '"open": 0' in source or "'open': 0" in source
-        assert '"in_progress": 0' in source or "'in_progress': 0" in source
-        assert '"closed": 0' in source or "'closed': 0" in source
+        # Should create counts using the canonical dashboard-state helper.
+        assert "_empty_state_counts()" in source
 
     def test_fetch_and_serialize_adds_counts_to_epic_entries(self):
         """Epic entries in the result must have children_counts attached."""

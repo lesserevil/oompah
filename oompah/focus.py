@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from oompah.models import Issue, Project
+from oompah.statuses import NEEDS_CI_FIX, NEEDS_REBASE, canonicalize_status
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,19 @@ logger = logging.getLogger(__name__)
 # process lifetime since re-triage only matters when issue text or the
 # focus library changes (both reflected in the cache key).
 _triage_cache: dict[str, tuple[str, str]] = {}
+
+_STATUS_ROUTING_LABELS = {
+    NEEDS_CI_FIX: "ci-fix",
+    NEEDS_REBASE: "merge-conflict",
+}
+
+
+def _effective_issue_labels(issue: Issue) -> set[str]:
+    labels = {label.lower() for label in (issue.labels or [])}
+    status_label = _STATUS_ROUTING_LABELS.get(canonicalize_status(issue.state))
+    if status_label:
+        labels.add(status_label)
+    return labels
 
 # Hard timeout for the triage LLM call. Set to 60s because the configured
 # default model on Godspeed (nvidia/MiniMax-M2.7-NVFP4) regularly takes
@@ -396,7 +410,7 @@ BUILTIN_FOCI: list[Focus] = [
             "fix to that branch. Do NOT create a new branch or PR."
         ),
         must_do=[
-            "Identify the existing branch from the bead body (look for source_branch / branch X / PR #N notes).",
+            "Identify the existing branch from the task body (look for source_branch / branch X / PR #N notes).",
             "Check out that branch: git fetch origin && git checkout <branch> && git pull --ff-only",
             "Pull the failing job logs from GitHub Actions and read the actual errors. Do not assume — read.",
             "Reproduce the failure locally where possible. If the failure is platform-specific (Windows-only, target-specific matrix entry), work from log analysis.",
@@ -405,11 +419,11 @@ BUILTIN_FOCI: list[Focus] = [
             "Verify on GitHub that the original PR's checks have re-run after your push.",
         ],
         must_not_do=[
-            "Create a new branch named after this bead.",
+            "Create a new branch named after this task.",
             "Open a new pull request.",
             "Modify code beyond what is needed to make the failing tests pass.",
             "Touch unrelated workflow files. Only edit .github/workflows/* if the failure is genuinely in that workflow.",
-            "Make speculative fixes. If you cannot diagnose from logs, comment on the original PR with findings and close the bead asking for human review.",
+            "Make speculative fixes. If you cannot diagnose from logs, comment on the original PR with findings and close the task asking for human review.",
             "Refactor or 'improve' surrounding code while you're in there.",
         ],
         keywords=["ci fix", "ci-fix", "failed ci", "fix ci", "failing tests", "tier-", "matrix-verify", "github actions failure"],
@@ -575,8 +589,8 @@ def score_focus(focus: Focus, issue: Issue) -> int:
             return 0  # hard mismatch — no keyword/label hits and wrong type
 
     # Label match
-    if focus.labels and issue.labels:
-        issue_labels = {l.lower() for l in issue.labels}
+    if focus.labels:
+        issue_labels = _effective_issue_labels(issue)
         for fl in focus.labels:
             if fl.lower() in issue_labels:
                 score += 30

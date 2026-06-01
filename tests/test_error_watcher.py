@@ -402,26 +402,41 @@ class TestFingerprintNormalization:
 
     def test_project_name_collapses(self):
         w, _ = self._make_watcher()
-        a = "Fetch failed for project oompah: bd command failed (exit 1): boom"
-        b = "Fetch failed for project trickle: bd command failed (exit 1): boom"
+        a = "Fetch failed for project oompah: backlog command failed (exit 1): boom"
+        b = "Fetch failed for project trickle: backlog command failed (exit 1): boom"
         assert self._fp(w, a) == self._fp(w, b)
 
-    # --- new: bd subcommand args stripped ---
+    # --- new: Backlog command args stripped ---
 
-    def test_bd_subcommand_args_stripped(self):
-        """Different bd subcommand args must collapse to one fingerprint."""
+    def test_backlog_subcommand_args_stripped(self):
+        """Different Backlog command args must collapse to one fingerprint."""
         w, _ = self._make_watcher()
-        a = "Fetch failed for project oompah: bd command timed out: bd list --json"
-        b = "Fetch failed for project oompah: bd command timed out: bd close oompah-zlz_2-16h"
-        c = "Fetch failed for project oompah: bd command timed out: bd show oompah-zlz_2-7st"
+        a = (
+            "Fetch failed for project oompah: backlog command timed out: "
+            "backlog task list --plain"
+        )
+        b = (
+            "Fetch failed for project oompah: backlog command timed out: "
+            "backlog task edit TASK-16 --status Done --plain"
+        )
+        c = (
+            "Fetch failed for project oompah: backlog command timed out: "
+            "backlog task view TASK-7 --plain"
+        )
         assert self._fp(w, a) == self._fp(w, b)
         assert self._fp(w, b) == self._fp(w, c)
 
-    def test_bd_subcommand_args_stripped_across_projects(self):
-        """Combination: project name + bd args stripped → all collapse."""
+    def test_backlog_subcommand_args_stripped_across_projects(self):
+        """Combination: project name + Backlog args stripped -> all collapse."""
         w, _ = self._make_watcher()
-        a = "Fetch failed for project oompah: bd command timed out: bd list --json"
-        b = "Fetch failed for project trickle: bd command timed out: bd close oompah-zlz_2-aup"
+        a = (
+            "Fetch failed for project oompah: backlog command timed out: "
+            "backlog task list --plain"
+        )
+        b = (
+            "Fetch failed for project trickle: backlog command timed out: "
+            "backlog task edit TASK-42 --status Done --plain"
+        )
         assert self._fp(w, a) == self._fp(w, b)
 
     # --- new: identifier normalization ---
@@ -505,32 +520,32 @@ class TestReportErrorWithErrorClass:
         watcher, tracker = self._make_watcher()
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project oompah: bd command timed out: bd list --json",
-            error_class="bd_timeout",
+            "Fetch failed for project oompah: backlog command timed out: backlog task list --plain",
+            error_class="backlog_timeout",
         )
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project trickle: bd command timed out: bd list --json",
-            error_class="bd_timeout",
+            "Fetch failed for project trickle: backlog command timed out: backlog task list --plain",
+            error_class="backlog_timeout",
         )
         watcher.report_error(
             "backend:tracker",
-            "Failed to fetch candidates: bd command timed out: bd list --json",
-            error_class="bd_timeout",
+            "Failed to fetch candidates: backlog command timed out: backlog task list --plain",
+            error_class="backlog_timeout",
         )
         assert tracker.create_issue.call_count == 1
 
     def test_no_error_class_falls_back_to_freeform(self):
         """Without error_class, free-form normalization still applies — and
-        the new project/bd-args normalization collapses these three to one."""
+        the new project/Backlog-args normalization collapses these to one."""
         watcher, tracker = self._make_watcher()
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project oompah: bd command failed (exit 1): bd list --json",
+            "Fetch failed for project oompah: backlog command failed (exit 1): backlog task list --plain",
         )
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project trickle: bd command failed (exit 1): bd close oompah-zlz_2-16h",
+            "Fetch failed for project trickle: backlog command failed (exit 1): backlog task edit TASK-16 --status Done --plain",
         )
         # Same source, same template after normalization → collapsed.
         assert tracker.create_issue.call_count == 1
@@ -547,13 +562,13 @@ class TestReportErrorWithErrorClass:
         watcher, tracker = self._make_watcher()
         watcher.report_error(
             "backend:orchestrator",
-            "Fetch failed for project oompah: bd command timed out: bd list --json",
-            error_class="bd_timeout",
+            "Fetch failed for project oompah: backlog command timed out: backlog task list --plain",
+            error_class="backlog_timeout",
         )
         call_kwargs = tracker.create_issue.call_args
         description = call_kwargs.kwargs.get("description", "")
-        assert "error_class=bd_timeout" in description
-        assert "bd list --json" in description
+        assert "error_class=backlog_timeout" in description
+        assert "backlog task list --plain" in description
 
 
 class TestBeadLoggingHandlerErrorClass:
@@ -611,10 +626,13 @@ class TestBeadLoggingHandlerErrorClass:
 class TestErrorClassForTrackerExc:
     """Helper that maps tracker/project exceptions to error_class names."""
 
-    def test_bd_timeout(self):
+    def test_tracker_timeout(self):
         from oompah.orchestrator import _error_class_for_tracker_exc
         from oompah.tracker import TrackerTimeoutError
-        assert _error_class_for_tracker_exc(TrackerTimeoutError("x")) == "bd_timeout"
+        assert (
+            _error_class_for_tracker_exc(TrackerTimeoutError("x"))
+            == "tracker_timeout"
+        )
 
     def test_tracker_not_configured(self):
         from oompah.orchestrator import _error_class_for_tracker_exc
@@ -627,7 +645,7 @@ class TestErrorClassForTrackerExc:
     def test_generic_tracker_error(self):
         from oompah.orchestrator import _error_class_for_tracker_exc
         from oompah.tracker import TrackerError
-        assert _error_class_for_tracker_exc(TrackerError("x")) == "bd_failed"
+        assert _error_class_for_tracker_exc(TrackerError("x")) == "tracker_failed"
 
     def test_project_error_fallback(self):
         from oompah.orchestrator import _error_class_for_tracker_exc

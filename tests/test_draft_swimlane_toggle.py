@@ -7,7 +7,7 @@ display a 'Mark as Draft' button.
 The toggleEpicDraft() JS function must:
 - DELETE the 'draft' label when isDraft is true
 - POST the 'draft' label when isDraft is false
-- PATCH status to 'deferred' in both cases
+- PATCH status to 'Backlog' in both cases
 - Call refreshBoard() after completion
 
 See issue: oompah-ude
@@ -251,14 +251,14 @@ class TestSwimlaneDraftToggleButton:
         )
 
     # -----------------------------------------------------------------------
-    # toggleEpicDraft sets status to 'deferred' in both cases
+    # toggleEpicDraft sets status to 'Backlog' in both cases
     # -----------------------------------------------------------------------
 
-    def test_toggle_epic_draft_patches_status_to_deferred(self, script):
-        """toggleEpicDraft must PATCH {status: 'deferred'} in both draft and non-draft cases."""
+    def test_toggle_epic_draft_patches_status_to_backlog(self, script):
+        """toggleEpicDraft must PATCH {status: 'Backlog'} in both draft and non-draft cases."""
         body = _get_toggle_epic_draft_body(script)
-        assert "deferred" in body, (
-            "toggleEpicDraft must set status to 'deferred' via PATCH"
+        assert "Backlog" in body, (
+            "toggleEpicDraft must set status to 'Backlog' via PATCH"
         )
 
     def test_toggle_epic_draft_patch_uses_patch_method(self, script):

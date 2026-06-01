@@ -49,7 +49,11 @@ start: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
 		echo "oompah is already running (pid $$(cat $(PID_FILE)))"; \
 	else \
-		$(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 & \
+		if command -v setsid >/dev/null 2>&1; then \
+			setsid $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 & \
+		else \
+			nohup $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 & \
+		fi; \
 		echo $$! > $(PID_FILE); \
 		echo "oompah started (pid $$!); HTTP port defaults to $(PORT)"; \
 	fi

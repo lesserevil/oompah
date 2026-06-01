@@ -271,7 +271,7 @@ class TestYoloNotifyConflictRebaseFirst:
         # the conflict-resolution agent can actually be dispatched.
         tracker.update_issue.assert_called_once_with(
             "trickle-deferred-33",
-            status="open",
+            status="Needs Rebase",
             priority="0",
             **{"add-label": "merge-conflict"},
         )
