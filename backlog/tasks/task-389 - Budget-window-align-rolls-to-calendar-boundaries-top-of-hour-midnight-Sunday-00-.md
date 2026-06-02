@@ -54,5 +54,5 @@ Plan: pairs with the existing windowed-budget work (commit 331a895). This is a r
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implemented in commit a971be9 (PR #64): calendar-aware budget window boundaries using zoneinfo. Added _budget_tz(), _previous_budget_boundary(), _next_budget_boundary(), _roll_budget_window_if_due() with DST-safe top-of-hour/midnight/Sunday-00:00 snapping. OOMPAH_BUDGET_TIMEZONE env var for explicit IANA zones. Cold-start snaps to previous boundary. Persists as Unix timestamp. All 3804 tests pass.
+Duplicate investigation complete: TASK-389 is not a duplicate. Implementation was previously completed in commit a971be9 (PR #64): calendar-aware budget window boundaries using zoneinfo with _budget_tz(), _previous_budget_boundary(), _next_budget_boundary(), OOMPAH_BUDGET_TIMEZONE env var support. DST-safe top-of-hour/midnight/Sunday-00:00 snapping, cold-start boundary snap, and 17 new test cases all confirmed in place.
 <!-- SECTION:FINAL_SUMMARY:END -->
