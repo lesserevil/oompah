@@ -131,6 +131,28 @@ def test_fetch_candidate_issues_parses_and_filters(tmp_path):
     assert issue.blocked_by[0].identifier == "TASK-9"
 
 
+def test_fetch_candidate_issues_parses_numeric_p0_priority(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "P0 task", priority="0")
+    _write_task(backlog_dir, "TASK-2", "P1 task", priority="high")
+
+    issues = _tracker(tmp_path).fetch_candidate_issues()
+
+    assert [issue.identifier for issue in issues] == ["TASK-1", "TASK-2"]
+    assert issues[0].priority == 0
+    assert issues[1].priority == 1
+
+
+def test_fetch_candidate_issues_parses_critical_priority_as_p0(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Critical task", priority="critical")
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.priority == 0
+
+
 def test_fetch_all_issues_includes_completed_folder(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "Open task")
@@ -314,6 +336,64 @@ def test_update_issue_preserves_custom_frontmatter_dropped_by_cli(tmp_path):
     assert meta["oompah.custom"] == {"kept": True}
 
 
+def test_update_issue_priority_zero_writes_numeric_frontmatter_without_cli(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "P0 target", priority="high")
+    tracker = _tracker(tmp_path)
+
+    with patch.object(tracker, "_run_backlog", return_value="") as run_backlog:
+        tracker.update_issue("TASK-1", priority=0)
+
+    run_backlog.assert_not_called()
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["priority"] == 0
+    assert tracker.fetch_issue_detail("TASK-1").priority == 0
+
+
+def test_update_issue_priority_zero_survives_other_cli_updates(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "P0 with status", priority="high")
+    tracker = _tracker(tmp_path)
+
+    def fake_cli_rewrite(_args):
+        meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+        body = task_path.read_text(encoding="utf-8").split("---\n", 2)[2]
+        meta["status"] = "In Progress"
+        meta["priority"] = "high"
+        task_path.write_text(
+            "---\n"
+            + yaml.safe_dump(meta, sort_keys=False)
+            + "---\n"
+            + body,
+            encoding="utf-8",
+        )
+        return ""
+
+    with patch.object(tracker, "_run_backlog", side_effect=fake_cli_rewrite) as run_backlog:
+        tracker.update_issue("TASK-1", status="In Progress", priority="P0")
+
+    assert run_backlog.call_args.args[0] == [
+        "task", "edit", "TASK-1", "--plain", "--status", "In Progress",
+    ]
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["priority"] == 0
+    assert tracker.fetch_issue_detail("TASK-1").priority == 0
+
+
+def test_update_issue_critical_priority_writes_numeric_p0_frontmatter(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "Critical target", priority="high")
+    tracker = _tracker(tmp_path)
+
+    with patch.object(tracker, "_run_backlog", return_value="") as run_backlog:
+        tracker.update_issue("TASK-1", priority="critical")
+
+    run_backlog.assert_not_called()
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["priority"] == 0
+    assert tracker.fetch_issue_detail("TASK-1").priority == 0
+
+
 def test_mark_needs_human_updates_status_then_appends_comment(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "Needs human")
@@ -394,6 +474,24 @@ def test_create_issue_builds_backlog_cli_command(tmp_path):
         "--labels", "api,feature",
         "--parent", "TASK-1",
     ]
+
+
+def test_create_issue_priority_zero_does_not_collapse_to_high(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-7", "Critical feature", priority="medium")
+    tracker = _tracker(tmp_path)
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        return_value="Task TASK-7 - Critical feature\n",
+    ) as run_backlog:
+        issue = tracker.create_issue("Critical feature", priority=0)
+
+    assert "--priority" not in run_backlog.call_args.args[0]
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["priority"] == 0
+    assert issue.priority == 0
 
 
 def test_orchestrator_constructs_backlog_tracker(tmp_path):

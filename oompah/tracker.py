@@ -68,8 +68,9 @@ _BACKLOG_PRIORITY_TO_INT = {
     "low": 3,
     "backlog": 4,
 }
-_INT_TO_BACKLOG_PRIORITY = {
-    0: "high",
+# Backlog.md's CLI only accepts high/medium/low even though oompah supports P0.
+# P0/critical is therefore written directly to task frontmatter.
+_INT_TO_BACKLOG_CLI_PRIORITY = {
     1: "high",
     2: "medium",
     3: "low",
@@ -209,7 +210,8 @@ class BacklogMdTracker:
         status = self._create_status(initial_status)
         if status:
             args.extend(["--status", status])
-        priority_name = _backlog_priority_name(priority)
+        priority_name = _backlog_cli_priority_name(priority)
+        direct_priority = _backlog_direct_priority_value(priority)
         if priority_name:
             args.extend(["--priority", priority_name])
         effective_labels = list(labels or [])
@@ -222,11 +224,18 @@ class BacklogMdTracker:
         output = self._run_backlog(args)
         identifier = _parse_backlog_plain_identifier(output)
         if identifier:
+            if direct_priority is not None:
+                self._set_frontmatter_field(identifier, "priority", direct_priority)
             issue = self.fetch_issue_detail(identifier)
             if issue:
                 return issue
         created = self._find_task_by_title(title)
         if created:
+            if direct_priority is not None:
+                self._set_frontmatter_field(created.identifier, "priority", direct_priority)
+                refreshed = self.fetch_issue_detail(created.identifier)
+                if refreshed:
+                    return refreshed
             return created
         raise TrackerError("Unexpected response from backlog task create")
 
@@ -303,6 +312,7 @@ class BacklogMdTracker:
         with self._task_lock(identifier):
             args = ["task", "edit", identifier, "--plain"]
             handled = False
+            direct_priority = None
             for key, value in fields.items():
                 key_norm = key.replace("_", "-")
                 if key_norm == "status":
@@ -315,7 +325,8 @@ class BacklogMdTracker:
                     args.extend(["--description", str(value)])
                     handled = True
                 elif key_norm == "priority":
-                    pri = _backlog_priority_name(value)
+                    direct_priority = _backlog_direct_priority_value(value)
+                    pri = _backlog_cli_priority_name(value)
                     if pri:
                         args.extend(["--priority", pri])
                         handled = True
@@ -341,6 +352,8 @@ class BacklogMdTracker:
                     )
             if handled:
                 self._run_backlog_task_edit(args, identifier)
+            if direct_priority is not None:
+                self._set_frontmatter_field(identifier, "priority", direct_priority)
 
     def mark_needs_human(
         self, identifier: str, comment: str, author: str = "oompah"
@@ -1041,19 +1054,50 @@ def _backlog_priority_int(value) -> int | None:
         return None
     if isinstance(value, int):
         return value
-    return _BACKLOG_PRIORITY_TO_INT.get(str(value).strip().lower())
+    raw = str(value).strip().lower()
+    if raw.isdigit():
+        return int(raw)
+    if raw.startswith("p") and raw[1:].isdigit():
+        return int(raw[1:])
+    return _BACKLOG_PRIORITY_TO_INT.get(raw)
 
 
-def _backlog_priority_name(value) -> str | None:
+def _backlog_cli_priority_name(value) -> str | None:
+    """Return the priority name accepted by Backlog.md's CLI, if any."""
     if value is None:
         return None
     if isinstance(value, int):
-        return _INT_TO_BACKLOG_PRIORITY.get(value)
+        if value == 0:
+            return None
+        return _INT_TO_BACKLOG_CLI_PRIORITY.get(value)
     raw = str(value).strip().lower()
     if raw.isdigit():
-        return _INT_TO_BACKLOG_PRIORITY.get(int(raw))
+        numeric = int(raw)
+        if numeric == 0:
+            return None
+        return _INT_TO_BACKLOG_CLI_PRIORITY.get(numeric)
+    if raw.startswith("p") and raw[1:].isdigit():
+        numeric = int(raw[1:])
+        if numeric == 0:
+            return None
+        return _INT_TO_BACKLOG_CLI_PRIORITY.get(numeric)
+    if raw == "critical":
+        return None
     if raw in _BACKLOG_PRIORITY_TO_INT:
         return "medium" if raw == "normal" else raw
+    return None
+
+
+def _backlog_direct_priority_value(value) -> int | None:
+    """Return a priority value that must be written directly to frontmatter.
+
+    Backlog.md's CLI only supports ``high``, ``medium``, and ``low``. Oompah
+    needs P0 to be distinct from P1, so numeric zero is oompah-owned metadata
+    written directly to the task file after any CLI operation completes.
+    """
+    priority = _backlog_priority_int(value)
+    if priority == 0:
+        return 0
     return None
 
 
