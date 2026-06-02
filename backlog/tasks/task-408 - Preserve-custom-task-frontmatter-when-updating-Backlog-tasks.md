@@ -4,7 +4,7 @@ title: Preserve custom task frontmatter when updating Backlog tasks
 status: Done
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-02 03:05'
+updated_date: '2026-06-02 03:21'
 labels:
   - bug
 dependencies: []
@@ -36,8 +36,14 @@ Implementation guidance:
 - [ ] #3 Tests cover status updates and at least one other mutation path that uses BacklogTracker task edits.
 <!-- AC:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Re-dispatched agent verification (2026-06-02): Implementation confirmed present in branch (commits e2286a6, 07e4a1a). _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper preserve custom frontmatter across all 7 mutation methods. 13/13 tracker tests pass. TASK-397 is canonical issue; TASK-408 is its implementation branch.
+<!-- SECTION:NOTES:END -->
+
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implementation complete: added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 CLI mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) now snapshot unknown frontmatter before the Backlog CLI call and restore any dropped keys after. Preserves historical fields such as type and beads.* from the beads migration. 4 regression tests added; all 13 tracker tests pass. Code pushed to branch TASK-408.
+Implementation complete: Added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) now snapshot custom frontmatter before CLI edits and re-inject any dropped keys afterwards. 13 regression tests pass. TASK-397 is the canonical issue; this branch is the implementation.
 <!-- SECTION:FINAL_SUMMARY:END -->
