@@ -4,7 +4,7 @@ title: Preserve custom task frontmatter when updating Backlog tasks
 status: Done
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-02 01:24'
+updated_date: '2026-06-02 03:05'
 labels:
   - bug
 dependencies: []
@@ -39,13 +39,5 @@ Implementation guidance:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implemented: added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 CLI mutation methods now snapshot unknown frontmatter before the Backlog CLI call and restore any dropped keys after. Closes TASK-397. 4 regression tests added; all 13 tracker tests pass. Pushed to branch TASK-408.
+Implementation complete: added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 CLI mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) now snapshot unknown frontmatter before the Backlog CLI call and restore any dropped keys after. Preserves historical fields such as type and beads.* from the beads migration. 4 regression tests added; all 13 tracker tests pass. Code pushed to branch TASK-408.
 <!-- SECTION:FINAL_SUMMARY:END -->
-
-<!-- COMMENT:BEGIN -->
-index: 729ffa81-705b-40dd-adae-3a7d1bf9633f
-author: oompah
-created: 2026-06-01T23:59:00Z
-
-Duplicate of TASK-397 ("Preserve custom Backlog frontmatter during task status updates", filed 2026-06-01 16:07). Both describe the identical root cause: the Backlog CLI rewrites YAML frontmatter on task edits and silently drops custom fields such as `type` and `beads`. TASK-397 predates this issue and covers the same fix scope. The detailed acceptance criteria and implementation guidance in TASK-408 have been noted for reference on TASK-397. Closing as duplicate-of:TASK-397.
-<!-- COMMENT:END -->
