@@ -1,20 +1,20 @@
 ---
 id: TASK-407.4
 title: Add role candidate selector state and ordering algorithms
-status: In Progress
+status: Done
 assignee: []
-created_date: 2026-06-01 21:44
-updated_date: 2026-06-02 15:12
+created_date: '2026-06-01 21:44'
+updated_date: '2026-06-02 15:21'
 labels:
-- feature
-- needs:backend
-- needs:test
+  - feature
+  - 'needs:backend'
+  - 'needs:test'
 dependencies:
-- TASK-407.1
+  - TASK-407.1
 modified_files:
-- oompah/roles.py
-- oompah/orchestrator.py
-- tests/test_role_store.py
+  - oompah/roles.py
+  - oompah/orchestrator.py
+  - tests/test_role_store.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 34000
@@ -58,6 +58,12 @@ Required behavior:
 7. Add unit tests for empty state, priority order, round-robin order, usage updates, ties, and removed candidates.
 <!-- SECTION:PLAN:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added CandidateSelector class to oompah/roles.py implementing priority (configured order) and round-robin (LRU-first, never-used before used, tie-break by configured index) ordering algorithms. Runtime usage state stored in .oompah/role_usage.json (separate from roles.json). Thread-safe via threading.Lock. 56 tests in tests/test_candidate_selector.py covering all 6 acceptance criteria. All tests pass without HTTP server dependency.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Selector state and ordering tests run without depending on the HTTP server.
@@ -93,5 +99,19 @@ author: oompah
 created: 2026-06-02 15:35
 
 IMPLEMENTATION: Added CandidateSelector class to oompah/roles.py with DEFAULT_USAGE_PATH constant. Implemented: (1) ordered_candidates(role) - returns priority order for priority strategy, LRU order for round_robin with never-used-first and configured-index tiebreaking; (2) record_used(role_name, candidate) - persists ISO timestamp to role_usage.json under lock; (3) thread-safe lock around all state mutations. Usage state uses nested dict {role: {provider_id: {model: ts}}}. Stale entries silently ignored.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-02 15:40
+
+VERIFICATION: All 56 new tests in tests/test_candidate_selector.py pass. All 389 tests in combined suite (test_candidate_selector, test_role_store, test_roles_api, test_providers_role_matrix, test_providers, test_orchestrator_handlers) pass. No regressions. Tests cover all 6 acceptance criteria and run without any HTTP server dependency.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-02 15:41
+
+COMPLETION: Delivered CandidateSelector in oompah/roles.py (150 lines) + 56 tests in tests/test_candidate_selector.py. Feature: priority strategy returns configured order; round-robin returns LRU-first with never-used-before-used ordering and deterministic tiebreaking by configured index; usage state is separate from roles.json (.oompah/role_usage.json); thread-safe via Lock. All acceptance criteria verified by tests.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
