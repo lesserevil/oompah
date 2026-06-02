@@ -46,6 +46,27 @@ def _make_orchestrator(projects: list[Project] | None = None):
     )
 
 
+def _make_review(
+    review_id: str = "PR-1",
+    source_branch: str = "feat-1",
+) -> ReviewRequest:
+    return ReviewRequest(
+        id=review_id,
+        title=f"Review {review_id}",
+        url=f"https://github.com/org/repo/pull/{review_id}",
+        author="alice",
+        state="open",
+        source_branch=source_branch,
+        target_branch="main",
+        created_at="2025-01-01",
+        updated_at="2025-01-01",
+        ci_status="passed",
+        has_conflicts=False,
+        needs_rebase=False,
+        draft=False,
+    )
+
+
 # ---------------------------------------------------------------------------
 # is_webhook_healthy
 # ---------------------------------------------------------------------------
@@ -167,6 +188,24 @@ class TestFetchAllReviewsSkipsHealthy:
             # Result for the project should be empty
             assert result.get("healthy") == []
 
+    def test_skipped_healthy_project_preserves_cached_reviews(self):
+        """Webhook-health skip is not proof that existing open PRs closed."""
+        recent = datetime.now(timezone.utc) - timedelta(seconds=30)
+        proj = _make_project(
+            project_id="healthy",
+            last_webhook_received_at=recent,
+            repo_url="https://github.com/org/repo",
+        )
+        cached_review = _make_review("PR-88", source_branch="feat-cached")
+        orch = _make_orchestrator_with_store([proj])
+        orch._reviews_cache = {"healthy": [cached_review]}
+
+        with patch("oompah.orchestrator.detect_provider") as mock_detect:
+            result = orch._fetch_all_reviews()
+
+        mock_detect.assert_not_called()
+        assert result.get("healthy") == [cached_review]
+
     def test_polls_unhealthy_project(self):
         """Unhealthy project (missing timestamp) is polled."""
         proj = _make_project(
@@ -218,6 +257,27 @@ class TestFetchAllReviewsSkipsHealthy:
             result = orch._fetch_all_reviews()
             mock_provider.list_open_reviews.assert_called_once()
             assert result.get("stale") == []
+
+    def test_successful_empty_poll_clears_cached_reviews(self):
+        """Only a successful provider response may clear known open reviews."""
+        stale_proj = _make_project(
+            project_id="stale",
+            last_webhook_received_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+            repo_url="https://github.com/org/repo",
+        )
+        cached_review = _make_review("PR-99", source_branch="feat-old")
+        mock_provider = MagicMock()
+        mock_provider.list_open_reviews.return_value = []
+        orch = _make_orchestrator_with_store([stale_proj])
+        orch._reviews_cache = {"stale": [cached_review]}
+
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=mock_provider
+        ):
+            result = orch._fetch_all_reviews()
+
+        mock_provider.list_open_reviews.assert_called_once()
+        assert result.get("stale") == []
 
     def test_mixed_healthy_and_unhealthy(self):
         """Only unhealthy projects are polled; healthy ones are skipped."""
@@ -477,6 +537,27 @@ class TestFetchAllReviewsWithErrors:
         # Failing project gets empty list, no exception propagates
         assert result.get("error-p") == []
         assert result.get("healthy", []) == []
+
+    def test_provider_exception_preserves_cached_reviews(self):
+        """A failed poll must not erase known open PRs from dashboard state."""
+        error_proj = _make_project(
+            project_id="error-p",
+            last_webhook_received_at=None,
+            repo_url="https://github.com/org/error-p",
+        )
+        cached_review = _make_review("PR-66", source_branch="feat-known")
+        error_provider = MagicMock()
+        error_provider.list_open_reviews.side_effect = Exception("connection timeout")
+        orch = _make_orchestrator_with_store([error_proj])
+        orch._reviews_cache = {"error-p": [cached_review]}
+
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=error_provider
+        ):
+            result = orch._fetch_all_reviews()
+
+        error_provider.list_open_reviews.assert_called_once()
+        assert result.get("error-p") == [cached_review]
 
     def test_partial_success_some_projects_fail(self):
         """Mixed: one success, one exception, one skipped (healthy)."""

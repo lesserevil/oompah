@@ -3443,29 +3443,45 @@ class Orchestrator:
         Projects with recent webhook deliveries (within 2.5 minutes) are
         skipped — webhooks serve as the primary signal for those repos.
         Stale-projects are polled to catch anything webhooks may have missed.
+
+        A skipped or failed fetch is not evidence that a project has zero
+        open reviews. Preserve the previous cache entry in those cases so
+        dashboard state does not briefly erase real open PRs. A successful
+        provider response of [] still clears the cache for that project.
         """
         projects = self.project_store.list_all()
         if not projects:
             return {}
 
+        previous_cache = {
+            str(project_id): list(reviews or [])
+            for project_id, reviews in (
+                getattr(self, "_reviews_cache", {}) or {}
+            ).items()
+        }
+
+        def _cached_reviews(project_id: str) -> list:
+            return list(previous_cache.get(str(project_id), []))
+
         def _fetch_for_project(project) -> tuple[str, list]:
+            project_id = str(project.id)
             # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project.id):
-                return (project.id, [])
+            if self.is_webhook_healthy(project_id):
+                return (project_id, _cached_reviews(project_id))
             provider = detect_provider(
                 project.repo_url, access_token=project.access_token
             )
             if not provider:
-                return (project.id, [])
+                return (project_id, _cached_reviews(project_id))
             slug = extract_repo_slug(project.repo_url)
             try:
                 reviews = provider.list_open_reviews(slug)
-                return (project.id, reviews)
+                return (project_id, reviews)
             except Exception as exc:
                 logger.debug(
                     "Failed to fetch open reviews for %s: %s", project.name, exc
                 )
-                return (project.id, [])
+                return (project_id, _cached_reviews(project_id))
 
         result: dict[str, list] = {}
         with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
