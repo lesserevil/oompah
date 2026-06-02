@@ -7541,6 +7541,7 @@ class Orchestrator:
             # oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
                 running_entry = self.state.running[issue.id]
+                running_entry.workspace_path = workspace_path
                 running_entry.agent_log_path = agent_log_path
                 running_entry.provider_name = provider.name
                 running_entry.model_name = model
@@ -7815,6 +7816,7 @@ class Orchestrator:
             # See bead oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
                 running_entry_acp = self.state.running[issue.id]
+                running_entry_acp.workspace_path = workspace_path
                 running_entry_acp.agent_log_path = agent_log_path
                 running_entry_acp.provider_name = (
                     provider.name if provider is not None else "acp"
@@ -8159,6 +8161,8 @@ class Orchestrator:
             # under epic_strategy='shared' a child of an epic uses
             # the shared epic worktree; otherwise per-bead path.
             workspace_path, _epic = self._create_workspace_for_issue(issue)
+            if issue.id in self.state.running:
+                self.state.running[issue.id].workspace_path = workspace_path
 
             # Start agent session
             session = AgentSession(
@@ -8718,6 +8722,57 @@ class Orchestrator:
             )
         return result
 
+    def _fetch_terminal_issue_from_worker_workspace(
+        self,
+        entry: "RunningEntry",
+    ) -> Issue | None:
+        """Return a terminal Backlog task from the worker workspace, if present.
+
+        Project trackers read the managed checkout. Agents edit Backlog task
+        files in their own worktree, so a valid close can exist there before
+        the managed checkout sees it.
+        """
+        workspace_path = (entry.workspace_path or "").strip()
+        if not workspace_path:
+            return None
+        if not os.path.isdir(workspace_path):
+            logger.debug(
+                "worker workspace missing for %s: %s",
+                entry.identifier,
+                workspace_path,
+            )
+            return None
+        try:
+            tracker = self._new_tracker(cwd=workspace_path)
+            issue = tracker.fetch_issue_detail(entry.identifier)
+        except Exception as exc:
+            logger.warning(
+                "Failed to read worker workspace task state for %s from %s: %s",
+                entry.identifier,
+                workspace_path,
+                exc,
+            )
+            return None
+        if not issue:
+            return None
+        if issue.identifier != entry.identifier:
+            logger.debug(
+                "Ignoring worker workspace task mismatch for %s: got %s",
+                entry.identifier,
+                issue.identifier,
+            )
+            return None
+        if not issue.project_id:
+            issue.project_id = entry.issue.project_id
+        if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
+            logger.info(
+                "Recognized terminal Backlog state for %s from worker workspace %s",
+                entry.identifier,
+                workspace_path,
+            )
+            return issue
+        return None
+
     async def _on_worker_exit(
         self, issue_id: str, reason: str, error: str | None
     ) -> None:
@@ -8855,6 +8910,11 @@ class Orchestrator:
                     else self.tracker
                 )
                 current = tracker.fetch_issue_detail(entry.identifier)
+                workspace_current = self._fetch_terminal_issue_from_worker_workspace(
+                    entry
+                )
+                if workspace_current is not None:
+                    current = workspace_current
                 if current and not _is_terminal_state(
                     current.state, self.config.tracker_terminal_states
                 ):

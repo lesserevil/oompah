@@ -1,14 +1,13 @@
 ---
 id: TASK-402.14
 title: Recognize Backlog task closure from agent worktrees
-status: Open
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-02 15:23'
-updated_date: '2026-06-02 15:23'
+updated_date: '2026-06-02 15:31'
 labels:
   - bug
-  - 'needs:backend'
-  - 'needs:test'
 dependencies: []
 parent_task_id: TASK-402
 priority: high
@@ -43,15 +42,38 @@ Implementation guidance for a junior developer:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Tests cover both recognized worktree closure and non-terminal worktree fallback.
-- [ ] #2 Branch-local Backlog task closure is recognized on normal agent exit.
-- [ ] #3 TASK-407.2-style branch-local closure does not produce Duplicate Investigator retries or Needs Human escalation.
-- [ ] #4 Existing close gate, unpushed gate, completion verifier, review creation, and parent-epic behavior still run for recognized worktree closures.
+- [x] #1 Tests cover both recognized worktree closure and non-terminal worktree fallback.
+- [x] #2 Branch-local Backlog task closure is recognized on normal agent exit.
+- [x] #3 TASK-407.2-style branch-local closure does not produce Duplicate Investigator retries or Needs Human escalation.
+- [x] #4 Existing close gate, unpushed gate, completion verifier, review creation, and parent-epic behavior still run for recognized worktree closures.
 <!-- AC:END -->
-
-
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 make test passes.
+- [x] #1 make test passes.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-02 15:27
+
+Claiming this to fix the Backlog worktree closure detection bug found with TASK-407.2.
+<!-- COMMENT:END -->
+
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-02 15:31
+
+Implemented the worktree Backlog closure fix. RunningEntry now records the worker workspace path, worker setup populates it for API/ACP/CLI agents, and _on_worker_exit reads a terminal Backlog task from that workspace before treating a normal exit as completed_without_closing. Added regression coverage for terminal worktree closure and non-terminal fallback. Verification: targeted TestNeedsHumanTransitions passed, make test passed with 3896 passed and 17 warnings, and make check-secrets passed.
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed the TASK-407.2 closure-detection bug by teaching _on_worker_exit to honor terminal Backlog task state written in the agent worktree. The running entry now records the exact workspace path used by API, ACP, and CLI workers. On normal worker exit, oompah checks that workspace for the same task in a terminal status and routes it through the existing close gate, unpushed gate, completion verifier, review creation, and parent epic handling instead of escalating completed_without_closing. Added regression tests for recognized worktree closure and non-terminal fallback. Verification: make test passed with 3896 passed and 17 warnings; make check-secrets passed.
+<!-- SECTION:FINAL_SUMMARY:END -->

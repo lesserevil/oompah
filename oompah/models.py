@@ -943,6 +943,10 @@ class RunningEntry:
     # the telemetry comment). May be "unknown" for ACP runs using
     # the subscription default.
     model_name: str | None = None
+    # Absolute path to the workspace/worktree used for this dispatch.
+    # Backlog.md task edits made by agents live here until the branch is
+    # merged, so worker-exit closure checks must be able to read it.
+    workspace_path: str | None = None
 
 
 @dataclass

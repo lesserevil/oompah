@@ -2017,6 +2017,36 @@ class TestRateLimitAlertIncludesProviderAndModel:
 
 
 class TestNeedsHumanTransitions:
+    def _write_workspace_backlog_task(
+        self,
+        tmp_path,
+        *,
+        identifier: str = "TASK-1",
+        status: str = "Done",
+    ):
+        workspace = tmp_path / f"worker-{status.replace(' ', '-').lower()}"
+        task_dir = workspace / "backlog" / "tasks"
+        task_dir.mkdir(parents=True)
+        (task_dir / f"task-1 - Test task.md").write_text(
+            f"""---
+id: {identifier}
+title: Test task
+status: {status}
+labels: []
+dependencies: []
+priority: medium
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Test issue body.
+<!-- SECTION:DESCRIPTION:END -->
+""",
+            encoding="utf-8",
+        )
+        return workspace
+
     def test_completed_without_closing_marks_needs_human_with_comment(self, tmp_path):
         project = _make_project("proj-1")
         orch = _make_orchestrator(tmp_path, projects=[project])
@@ -2046,6 +2076,91 @@ class TestNeedsHumanTransitions:
         assert args[0] == "TASK-1"
         assert "Human action required" in args[1]
         assert "move it back to Open" in args[1]
+        assert issue.id in orch.state.completed
+
+    def test_worker_workspace_done_status_honored_before_needs_human(self, tmp_path):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("TASK-1", state="Open", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+            workspace_path=str(
+                self._write_workspace_backlog_task(
+                    tmp_path,
+                    identifier=issue.identifier,
+                    status="Done",
+                )
+            ),
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.reopen_counts[issue.id] = 2
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.mark_needs_human = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._run_close_gate = MagicMock(return_value=True)
+        orch._run_unpushed_gate = MagicMock(return_value=True)
+        orch._run_completion_verifier = MagicMock(
+            return_value=MagicMock(passed=True, skipped=True, skip_reason="disabled")
+        )
+        orch._ensure_review_exists = MagicMock()
+        orch._maybe_auto_close_parent_epic = MagicMock()
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        tracker.mark_needs_human.assert_not_called()
+        assert issue.id not in orch.state.reopen_counts
+        assert issue.id in orch.state.completed
+        closed_issue = orch._run_close_gate.call_args.args[1]
+        assert closed_issue.identifier == issue.identifier
+        assert closed_issue.state == "Done"
+        orch._run_unpushed_gate.assert_called_once()
+        orch._run_completion_verifier.assert_called_once()
+        orch._ensure_review_exists.assert_called_once()
+        orch._maybe_auto_close_parent_epic.assert_called_once()
+
+    def test_nonterminal_worker_workspace_state_still_needs_human(self, tmp_path):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("TASK-1", state="Open", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+            workspace_path=str(
+                self._write_workspace_backlog_task(
+                    tmp_path,
+                    identifier=issue.identifier,
+                    status="In Progress",
+                )
+            ),
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.reopen_counts[issue.id] = 2
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.mark_needs_human = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._run_close_gate = MagicMock(return_value=True)
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        tracker.mark_needs_human.assert_called_once()
+        orch._run_close_gate.assert_not_called()
         assert issue.id in orch.state.completed
 
 
