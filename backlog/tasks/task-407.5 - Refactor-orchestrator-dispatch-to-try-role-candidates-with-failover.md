@@ -1,23 +1,23 @@
 ---
 id: TASK-407.5
 title: Refactor orchestrator dispatch to try role candidates with failover
-status: Backlog
+status: In Progress
 assignee: []
-created_date: 2026-06-01 21:44
+created_date: '2026-06-01 21:44'
+updated_date: '2026-06-02 16:47'
 labels:
-- feature
-- needs:backend
-- needs:test
+  - feature
 dependencies:
-- TASK-407.3
-- TASK-407.4
+  - TASK-407.3
+  - TASK-407.4
 modified_files:
-- oompah/orchestrator.py
-- tests/test_orchestrator_handlers.py
+  - oompah/orchestrator.py
+  - tests/test_orchestrator_handlers.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 35000
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -59,8 +59,41 @@ Required behavior:
 8. Add tests that mock candidate failures and verify the next candidate starts.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+UNDERSTANDING [oompah 2026-06-02]: Investigating duplicates. Confirmed NOT a duplicate. TASK-407.5 is a distinct part of the TASK-407 epic. TASK-407.4 (Merged) provides CandidateSelector. This task adds DispatchTarget dataclass and candidate failover loop in orchestrator dispatch. Proceeding with implementation.
+
+DISCOVERY [oompah 2026-06-02]: Key findings from codebase exploration: (1) CandidateSelector already implemented in oompah/roles.py (TASK-407.4, Merged). (2) orchestrator.py has _resolve_role/_resolve_provider/_resolve_model that need updating. (3) _run_api_worker raises ValueError before its try: block for startup validation — these need to become ProviderStartupError to propagate correctly to the failover loop. (4) _run_worker needs to resolve ordered DispatchTargets and loop with failover. (5) When target is explicit, focus overrides must use _resolve_focus_provider_override() to avoid re-resolving profile.model_role (which would always return first candidate). (6) All-candidates-fail case must explicitly call _on_worker_exit since inner workers won't have done so.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Orchestrator tests cover priority fallback, round-robin fallback, explicit override precedence, and non-provider failure behavior.
 - [ ] #2 No real providers are called in tests.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-02 16:05
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-02 16:06
+
+Focus: Test Engineer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-02 16:34
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->

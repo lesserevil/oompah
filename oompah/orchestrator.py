@@ -69,7 +69,7 @@ from oompah.focus import (
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
-from oompah.roles import RoleStore
+from oompah.roles import CandidateSelector, RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
@@ -213,6 +213,67 @@ class DispatchEvent:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
+class ProviderStartupError(Exception):
+    """A provider-level startup failure that may be retried with the next dispatch candidate.
+
+    Raised before the agent worker actually starts executing task turns.
+    :meth:`~Orchestrator._run_worker` catches this and tries the next
+    :class:`DispatchTarget` in the ordered candidate list.  Non-provider
+    task failures (bugs in the agent, task-level errors) should NOT use
+    this exception — they must propagate normally so the existing
+    retry/escalation machinery handles them.
+
+    Attributes:
+        candidate_key:  Human-readable ``provider_id/model`` string for
+                        logging (e.g. ``"openai/gpt-4o"``).
+        reason:         Short machine-readable reason code
+                        (e.g. ``"no_model"``, ``"invalid_model"``).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        candidate_key: str = "",
+        reason: str = "startup_failed",
+    ) -> None:
+        super().__init__(message)
+        self.candidate_key = candidate_key
+        self.reason = reason
+
+
+@dataclass
+class DispatchTarget:
+    """A resolved provider/model candidate for a single dispatch attempt.
+
+    Produced by :meth:`~Orchestrator._resolve_dispatch_targets` before
+    the worker is launched.  Workers receive the target explicitly so
+    they do not re-resolve the provider/model from the role config (which
+    would always return the *first* candidate, defeating failover).
+
+    Attributes:
+        role_name:      The role this target was drawn from, or ``None``
+                        for legacy profile-level targets.
+        provider:       Resolved :class:`~oompah.models.ModelProvider`.
+        model:          Model name string, or ``None`` for ACP-SDK-managed
+                        providers that let the SDK choose.
+        candidate_key:  Short ``provider_id/model`` string for log messages.
+        source:         Human-readable description of where this target
+                        came from (e.g. ``"role:fast[0]"``,
+                        ``"profile.provider_id"``, ``"default"``).
+        candidate:      The original :class:`~oompah.roles.Candidate`
+                        object; ``None`` for legacy single-provider paths.
+                        Used by :meth:`~Orchestrator._run_worker` to
+                        record usage via :class:`~oompah.roles.CandidateSelector`.
+    """
+
+    role_name: str | None
+    provider: Any  # ModelProvider
+    model: str | None
+    candidate_key: str
+    source: str
+    candidate: Any | None = None  # oompah.roles.Candidate | None
+
+
 # ---------------------------------------------------------------------------
 # YOLO merge-failure classification (oompah-zlz_2-btf.2)
 #
@@ -339,6 +400,14 @@ class Orchestrator:
         # (see _resolve_provider / _resolve_model). See epic xau7.
         self.role_store = role_store or RoleStore(
             provider_store=self.provider_store,
+        )
+        # CandidateSelector tracks per-role last-used timestamps so the
+        # round-robin strategy can pick the least-recently-used candidate.
+        # The usage file lives next to the service-state file so it shares
+        # the same directory isolation in tests.
+        _state_dir = os.path.dirname(state_path or DEFAULT_SERVICE_STATE_PATH) or "."
+        self._candidate_selector = CandidateSelector(
+            path=os.path.join(_state_dir, "role_usage.json")
         )
         self._state_path = state_path or DEFAULT_SERVICE_STATE_PATH
         self.state = OrchestratorState(
@@ -6092,6 +6161,117 @@ class Orchestrator:
             or (provider.models[0] if provider.models else None)
         )
 
+    def _resolve_focus_provider_override(self, focus) -> "Any | None":
+        """Return the provider specified by *focus*'s own overrides, or ``None``.
+
+        Unlike :meth:`_resolve_provider`, this helper checks **only** the
+        focus-level fields (``focus.provider_id`` and ``focus.model_role``)
+        and returns ``None`` when the focus does not actively override the
+        provider.  The profile-level fallback chain (``profile.model_role``,
+        ``profile.provider_id``, default) is intentionally omitted so callers
+        that already hold an explicit :class:`DispatchTarget` can preserve it
+        unless the focus overrides it.
+        """
+        if focus is None:
+            return None
+        pid = getattr(focus, "provider_id", None)
+        if pid:
+            p = self.provider_store.get(pid)
+            if p is not None:
+                return p
+            logger.warning(
+                "Focus %r references unknown provider_id=%r; ignoring focus provider override",
+                focus.name,
+                pid,
+            )
+        role = getattr(focus, "model_role", None)
+        if role:
+            p, _ = self._resolve_role(role)
+            if p is not None:
+                return p
+        return None
+
+    def _resolve_dispatch_targets(
+        self, profile: AgentProfile
+    ) -> "list[DispatchTarget]":
+        """Resolve an ordered list of :class:`DispatchTarget` for *profile*.
+
+        The candidates reflect the multi-candidate selection order from the
+        role assigned to ``profile.model_role`` (if set and known to
+        :attr:`role_store`), falling back to the legacy single-provider paths.
+
+        Priority:
+        1. ``profile.model_role`` → :class:`~oompah.roles.CandidateSelector`
+           ordered candidates.  Candidates whose ``provider_id`` no longer
+           exists in :attr:`provider_store` are silently skipped.
+        2. ``profile.provider_id`` → single target.
+        3. :meth:`~oompah.providers.ProviderStore.get_default` → single target.
+
+        Focus-level overrides (``focus.provider_id``, ``focus.model_role``)
+        are applied *inside* the worker after focus selection, not here.
+
+        Returns an empty list when no provider can be resolved at all (e.g.
+        a CLI-only deployment with no provider configured).
+        """
+        if profile.model_role:
+            role = self.role_store.get(profile.model_role)
+            if role and role.candidates:
+                ordered = self._candidate_selector.ordered_candidates(role)
+                targets: list[DispatchTarget] = []
+                for i, cand in enumerate(ordered):
+                    prov = self.provider_store.get(cand.provider_id)
+                    if prov is None:
+                        logger.debug(
+                            "Skipping candidate %s/%s for role %r: provider not found in store",
+                            cand.provider_id,
+                            cand.model,
+                            profile.model_role,
+                        )
+                        continue
+                    targets.append(
+                        DispatchTarget(
+                            role_name=profile.model_role,
+                            provider=prov,
+                            model=cand.model,
+                            candidate_key=f"{cand.provider_id}/{cand.model}",
+                            source=f"role:{profile.model_role}[{i}]",
+                            candidate=cand,
+                        )
+                    )
+                if targets:
+                    return targets
+
+        # Legacy: profile.provider_id
+        if profile.provider_id:
+            prov = self.provider_store.get(profile.provider_id)
+            if prov is not None:
+                return [
+                    DispatchTarget(
+                        role_name=None,
+                        provider=prov,
+                        model=profile.model,
+                        candidate_key=prov.id,
+                        source="profile.provider_id",
+                        candidate=None,
+                    )
+                ]
+
+        # Default provider
+        prov = self.provider_store.get_default()
+        if prov is not None:
+            return [
+                DispatchTarget(
+                    role_name=None,
+                    provider=prov,
+                    model=None,
+                    candidate_key=prov.id,
+                    source="default",
+                    candidate=None,
+                )
+            ]
+
+        return []
+
     def _describe_rate_limit_context(
         self,
         entry: "RunningEntry",
@@ -7417,44 +7597,108 @@ class Orchestrator:
         Invalid mode strings get normalized to ``auto`` at config-load
         time, so by the time we get here only the four valid values
         are in play.
+
+        Candidate failover:
+        :meth:`_resolve_dispatch_targets` produces an ordered list of
+        :class:`DispatchTarget` values for the profile.  Each candidate is
+        tried in order; a :class:`ProviderStartupError` (raised before the
+        agent actually starts task turns) causes the next candidate to be
+        attempted.  Non-provider task failures propagate normally so the
+        existing retry/escalation machinery handles them.
         """
         mode = (profile.mode if profile else "auto").lower()
-
-        if mode == "acp":
-            await self._run_acp_worker(issue, attempt, profile)
-            return
 
         if mode == "cli":
             await self._run_cli_worker(issue, attempt, profile)
             return
 
-        # api or auto: dispatch by the resolved provider's mode.
-        # When the provider itself is ACP-mode, route through the ACP
-        # worker even though the profile said "api"/"auto" — RoleStore
-        # may have repointed this role at an ACP-mode provider after
-        # the profile was created (epic xau7).
-        if profile:
-            provider = self._resolve_provider(profile)
-            if provider:
-                if getattr(provider, "mode", "api") == "acp":
-                    await self._run_acp_worker(issue, attempt, profile)
-                    return
-                await self._run_api_worker(issue, attempt, profile, provider)
+        # acp / api / auto: resolve ordered dispatch targets for candidate failover.
+        targets = self._resolve_dispatch_targets(profile) if profile else []
+
+        if not targets:
+            # No resolvable provider targets.
+            if mode == "acp":
+                # ACP can run without a specific provider — the SDK manages it.
+                await self._run_acp_worker(issue, attempt, profile, target=None)
                 return
             if mode == "api":
                 logger.warning(
-                    "Profile %r is mode=api but provider did not resolve; "
+                    "Profile %r is mode=api but no provider resolved; "
                     "falling through to cli for issue %s",
-                    profile.name,
+                    profile.name if profile else "unknown",
                     issue.identifier,
                 )
+            await self._run_cli_worker(issue, attempt, profile)
+            return
 
-        await self._run_cli_worker(issue, attempt, profile)
+        # Try each target in dispatch order; fall back on provider startup failure.
+        last_startup_error: ProviderStartupError | None = None
+        for target in targets:
+            try:
+                if mode == "acp" or getattr(target.provider, "mode", "api") == "acp":
+                    await self._run_acp_worker(issue, attempt, profile, target=target)
+                else:
+                    await self._run_api_worker(
+                        issue, attempt, profile, target.provider, target=target
+                    )
+                # Candidate started successfully — record usage for role candidates
+                # so the round-robin strategy picks a different one next time.
+                if target.role_name and target.candidate is not None:
+                    try:
+                        self._candidate_selector.record_used(
+                            target.role_name, target.candidate
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to record candidate usage for role=%s candidate=%s",
+                            target.role_name,
+                            target.candidate_key,
+                        )
+                return  # Worker completed (task-level errors handled inside the worker)
+            except ProviderStartupError as e:
+                last_startup_error = e
+                logger.warning(
+                    "Candidate %s startup failed (reason=%s): %s — trying next candidate",
+                    target.candidate_key,
+                    e.reason,
+                    e,
+                )
+
+        # All candidates exhausted — no inner worker completed, so _on_worker_exit
+        # was never called.  Call it here so the issue is properly unregistered.
+        error_msg = (
+            f"All {len(targets)} dispatch candidates failed at provider startup: "
+            f"{last_startup_error}"
+        )
+        logger.error(
+            "All dispatch candidates failed for issue %s: %s",
+            issue.identifier,
+            error_msg,
+        )
+        await self._on_worker_exit(issue.id, "abnormal", error_msg)
 
     async def _run_api_worker(
-        self, issue: Issue, attempt: int | None, profile: AgentProfile, provider
+        self,
+        issue: Issue,
+        attempt: int | None,
+        profile: AgentProfile,
+        provider,
+        target: "DispatchTarget | None" = None,
     ) -> None:
-        """Worker using the OpenAI-compatible API agent."""
+        """Worker using the OpenAI-compatible API agent.
+
+        When *target* is supplied (i.e. the caller is the candidate-failover
+        loop in :meth:`_run_worker`), the *provider* argument comes directly
+        from ``target.provider`` and the method uses ``target.model`` as the
+        model baseline.  Focus-level overrides still apply, but the full
+        ``profile.model_role`` resolution chain is **not** re-run so the
+        specific candidate being tried is preserved.
+
+        Startup failures (configuration errors before the agent turns begin)
+        raise :class:`ProviderStartupError` when *target* is provided, which
+        lets :meth:`_run_worker` try the next candidate.  When no target is
+        provided (legacy call site), the original ``ValueError`` is raised.
+        """
         exit_reason = "normal"
         error_msg = None
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
@@ -7471,7 +7715,15 @@ class Orchestrator:
 
         # Apply focus-level provider override if any. If the focus changes
         # the provider, log it.
-        focus_provider = self._resolve_provider(profile, focus=focus)
+        if target is not None:
+            # Explicit dispatch target: only apply focus-level overrides.
+            # Re-running the full _resolve_provider chain would always return
+            # the *first* role candidate (via profile.model_role) and defeat
+            # the failover logic for candidates beyond the first.
+            focus_provider = self._resolve_focus_provider_override(focus)
+        else:
+            # Legacy path: full resolution including profile.model_role.
+            focus_provider = self._resolve_provider(profile, focus=focus)
         if focus_provider is not None and focus_provider is not provider:
             logger.info(
                 "Focus %r overrides provider: %s -> %s",
@@ -7485,14 +7737,33 @@ class Orchestrator:
         # with an empty catalog (Claude SDK, etc.) are SDK-managed —
         # the SDK picks the model from the operator's subscription,
         # so no model name is required at dispatch time.
-        model = self._resolve_model(profile, provider, focus=focus)
+        if target is not None and not (
+            getattr(focus, "model", None) or getattr(focus, "model_role", None)
+        ):
+            # No focus model override: use the target's model directly.
+            # Calling _resolve_model would re-resolve via profile.model_role
+            # and return the first candidate's model, which is wrong here.
+            model: str | None = (
+                target.model
+                or provider.default_model
+                or (provider.models[0] if provider.models else None)
+            )
+        else:
+            model = self._resolve_model(profile, provider, focus=focus)
+
         is_acp_sdk_managed = getattr(provider, "mode", "api") == "acp" and not (
             provider.models or []
         )
         if not model and not is_acp_sdk_managed:
-            raise ValueError(
-                f"No model resolved for profile {profile.name!r} with provider {provider.name}"
+            msg = (
+                f"No model resolved for profile {profile.name!r} "
+                f"with provider {provider.name}"
             )
+            if target is not None:
+                raise ProviderStartupError(
+                    msg, candidate_key=target.candidate_key, reason="no_model"
+                )
+            raise ValueError(msg)
 
         # Diagnostic: surface where the model came from.
         if is_acp_sdk_managed and not model:
@@ -7507,6 +7778,9 @@ class Orchestrator:
             and provider.model_roles.get(focus.model_role) == model
         ):
             model_source = f"focus={focus.name}.model_role={focus.model_role}"
+            model_display = model
+        elif target is not None and model == target.model:
+            model_source = f"target:{target.source}"
             model_display = model
         elif (
             profile.model_role
@@ -7531,7 +7805,8 @@ class Orchestrator:
 
         if not is_acp_sdk_managed:
             if (
-                profile.model_role
+                target is None  # legacy path: model_role is a provider.model_roles key
+                and profile.model_role
                 and provider.model_roles
                 and profile.model_role not in provider.model_roles
             ):
@@ -7555,9 +7830,14 @@ class Orchestrator:
                     provider.name,
                     ", ".join(provider.models),
                 )
-                raise ValueError(
-                    f"Model {model} not available in provider {provider.name}"
-                )
+                msg = f"Model {model} not available in provider {provider.name}"
+                if target is not None:
+                    raise ProviderStartupError(
+                        msg,
+                        candidate_key=target.candidate_key,
+                        reason="invalid_model",
+                    )
+                raise ValueError(msg)
             if (
                 provider.models
                 and model not in provider.models
@@ -7848,6 +8128,7 @@ class Orchestrator:
         issue: Issue,
         attempt: int | None,
         profile: AgentProfile,
+        target: "DispatchTarget | None" = None,
     ) -> None:
         """Worker that drives the bundled ``claude`` CLI via the Claude
         Agent SDK so per-token costs bill against the operator's
@@ -7870,6 +8151,11 @@ class Orchestrator:
           ``permission_mode="bypassPermissions"`` (mirrors
           ``--dangerously-skip-permissions``); the audit trail goes
           into per-agent JSONL via on_event.
+
+        When *target* is provided, the provider/model from the target are used
+        as the starting point for informational resolution (focus can still
+        override).  This preserves the correct candidate when the failover loop
+        selects a non-first candidate.
         """
         from oompah.acp_agent import AcpAgentSession
         from oompah.acp_tools import build_tool_catalog
@@ -7890,10 +8176,23 @@ class Orchestrator:
         # purposes — the SDK doesn't need a provider URL or API key, but
         # the prompt template embeds the model name and our state response
         # surfaces it for dashboard display.
-        provider = self._resolve_provider(profile, focus=focus)
-        model: str | None = None
-        if provider is not None:
-            model = self._resolve_model(profile, provider, focus=focus)
+        if target is not None:
+            # Explicit dispatch target: start from target's provider/model,
+            # then apply focus-level overrides only (not the full profile chain).
+            provider = target.provider
+            focus_provider = self._resolve_focus_provider_override(focus)
+            if focus_provider is not None:
+                provider = focus_provider
+            model: str | None = target.model
+            if getattr(focus, "model", None) or getattr(focus, "model_role", None):
+                if provider is not None:
+                    model = self._resolve_model(profile, provider, focus=focus)
+        else:
+            # Legacy path: full _resolve_provider chain.
+            provider = self._resolve_provider(profile, focus=focus)
+            model = None
+            if provider is not None:
+                model = self._resolve_model(profile, provider, focus=focus)
         # Fallback model name when no provider is configured at all (e.g.
         # CLI-only deployments running ACP). Use whatever the profile
         # specifies; ultimately the SDK / claude CLI choose.
