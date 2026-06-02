@@ -733,6 +733,22 @@ class TestResetOrphanedInProgress:
         mock_tracker.update_issue.assert_called_once_with("feat-1", status="Open")
         assert issue.id not in orch.state.completed
 
+    def test_completed_branch_ahead_orphan_is_marked_done_not_open(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="In Progress")
+        issue.project_id = project.id
+        orch.state.completed.add(issue.id)
+        orch._done_issue_has_unmerged_review_work = MagicMock(return_value=True)
+
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_called_once_with("feat-1", status=DONE)
+        assert issue.id in orch.state.completed
+
     def test_skips_open_issues(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])
@@ -2639,3 +2655,191 @@ class TestYoloChurnMagnetGate:
                 if c[0][2] == "gate_blocked"
             ]
             assert len(gate_calls) == 1
+
+
+class TestResetOrphanedInProgressSweep:
+    """_reset_orphaned_in_progress also sweeps In Progress tasks (TASK-409).
+
+    In Progress tasks are never in the candidates list (only Open/active tasks
+    are candidates).  The fix adds a separate fetch of In Progress tasks so
+    orphans left behind after retry-claim release are still reset.
+    """
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def test_resets_in_progress_issue_not_in_candidates(self, tmp_path):
+        """An In Progress task with no agent is reset even when not in candidates."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Issue is In Progress but was NOT passed in candidates (typical post-retry-release)
+        ip_issue = _make_issue("feat-orphan", state="In Progress")
+        ip_issue.project_id = project.id
+
+        # Stub _fetch_all_in_progress_issues to return the orphaned issue
+        orch._fetch_all_in_progress_issues = MagicMock(return_value=[ip_issue])
+
+        # candidates are empty (In Progress tasks never appear here)
+        orch._reset_orphaned_in_progress([])
+
+        mock_tracker.update_issue.assert_called_once_with("feat-orphan", status="Open")
+
+    def test_skips_in_progress_issue_with_running_agent(self, tmp_path):
+        """A running agent protects an In Progress task from orphan reset."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        ip_issue = _make_issue("feat-active", state="In Progress")
+        ip_issue.project_id = project.id
+        orch.state.running["feat-active"] = MagicMock()
+        orch._fetch_all_in_progress_issues = MagicMock(return_value=[ip_issue])
+
+        orch._reset_orphaned_in_progress([])
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_skips_in_progress_issue_with_pending_retry(self, tmp_path):
+        """A pending retry protects an In Progress task from orphan reset."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        ip_issue = _make_issue("feat-retrying", state="In Progress")
+        ip_issue.project_id = project.id
+        orch.state.retry_attempts["feat-retrying"] = MagicMock()
+        orch._fetch_all_in_progress_issues = MagicMock(return_value=[ip_issue])
+
+        orch._reset_orphaned_in_progress([])
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_deduplicates_issue_appearing_in_both_candidates_and_in_progress(self, tmp_path):
+        """An issue in both candidates and the In Progress sweep is only reset once."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Edge case: same issue appears in both lists (e.g. custom active_states)
+        ip_issue = _make_issue("feat-dup", state="In Progress")
+        ip_issue.project_id = project.id
+        orch._fetch_all_in_progress_issues = MagicMock(return_value=[ip_issue])
+
+        orch._reset_orphaned_in_progress([ip_issue])
+
+        # Should only update once
+        assert mock_tracker.update_issue.call_count == 1
+
+    def test_fetch_in_progress_error_does_not_abort_candidates(self, tmp_path):
+        """If fetching In Progress issues fails, candidate sweep still runs."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Orphaned Open issue in candidates (simulates old-style scenario)
+        open_issue = _make_issue("feat-open-orphan", state="In Progress")
+        open_issue.project_id = project.id
+        # In-progress fetch raises an exception
+        orch._fetch_all_in_progress_issues = MagicMock(side_effect=RuntimeError("boom"))
+
+        # Pass the orphan as a candidate directly
+        orch._reset_orphaned_in_progress([open_issue])
+
+        # Candidate sweep still ran
+        mock_tracker.update_issue.assert_called_once_with("feat-open-orphan", status="Open")
+
+
+class TestFetchIssueAcrossTrackers:
+    """Tests for _fetch_issue_across_trackers."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def test_returns_none_when_not_found_anywhere(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = None
+        orch._project_trackers[project.id] = mock_tracker
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issue_detail.return_value = None
+
+        result = orch._fetch_issue_across_trackers("TASK-999")
+
+        assert result is None
+
+    def test_finds_issue_in_project_tracker(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("TASK-42", state="In Progress")
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = issue
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._fetch_issue_across_trackers("TASK-42")
+
+        assert result is not None
+        assert result.identifier == "TASK-42"
+        assert result.project_id == project.id
+
+    def test_falls_back_to_default_tracker_when_no_projects(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path, projects=[])
+        issue = _make_issue("TASK-99", state="In Progress")
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issue_detail.return_value = issue
+
+        result = orch._fetch_issue_across_trackers("TASK-99")
+
+        assert result is not None
+        assert result.identifier == "TASK-99"
+        # No project_id set when found via legacy tracker
+        assert result.project_id is None
+
+    def test_skips_failed_project_tracker_and_continues(self, tmp_path):
+        from oompah.tracker import TrackerError
+
+        proj1 = _make_project("proj-1")
+        proj2 = _make_project("proj-2")
+        orch = self._make_orchestrator(tmp_path, projects=[proj1, proj2])
+
+        bad_tracker = MagicMock()
+        bad_tracker.fetch_issue_detail.side_effect = TrackerError("oops")
+        good_tracker = MagicMock()
+        issue = _make_issue("TASK-77", state="In Progress")
+        good_tracker.fetch_issue_detail.return_value = issue
+        orch._project_trackers["proj-1"] = bad_tracker
+        orch._project_trackers["proj-2"] = good_tracker
+
+        result = orch._fetch_issue_across_trackers("TASK-77")
+
+        assert result is not None
+        assert result.project_id == "proj-2"

@@ -2827,6 +2827,56 @@ class Orchestrator:
                 return issue
         return None
 
+    def _fetch_all_in_progress_issues(self) -> list[Issue]:
+        """Fetch tasks in In Progress state across all configured trackers.
+
+        Complements ``_fetch_all_candidates`` for the orphan-reset sweep:
+        In Progress tasks are never candidates (they are not in active_states),
+        so a separate pass is needed to discover orphaned In Progress tasks
+        left behind after a retry claim is released (TASK-409).
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            try:
+                return self.tracker.fetch_in_progress_issues()
+            except (TrackerNotConfiguredError, TrackerError):
+                return []
+
+        all_in_progress: list[Issue] = []
+        for project in projects:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                issues = tracker.fetch_in_progress_issues()
+                for issue in issues:
+                    issue.project_id = project.id
+                all_in_progress.extend(issues)
+            except (TrackerNotConfiguredError, TrackerError, ProjectError):
+                continue
+        return all_in_progress
+
+    def _fetch_issue_across_trackers(self, identifier: str) -> Issue | None:
+        """Look up an issue by identifier across all configured trackers.
+
+        Tries project trackers first, then falls back to the legacy default
+        tracker.  Returns the first match found, or ``None``.  Sets
+        ``issue.project_id`` on the returned issue when found in a project
+        tracker.
+        """
+        for project in self.project_store.list_all():
+            try:
+                tracker = self._tracker_for_project(project.id)
+                issue = tracker.fetch_issue_detail(identifier)
+                if issue is not None:
+                    issue.project_id = project.id
+                    return issue
+            except (TrackerError, ProjectError):
+                continue
+        # Fall back to the default / legacy tracker (no-project setups)
+        try:
+            return self.tracker.fetch_issue_detail(identifier)
+        except (TrackerError, ProjectError):
+            return None
+
     def _available_slots(self) -> int:
         return max(self.state.max_concurrent_agents - len(self.state.running), 0)
 
@@ -5268,12 +5318,33 @@ class Orchestrator:
 
         An issue is orphaned if it's in_progress but has no running agent
         and no pending retry. This prevents issues from getting stuck.
+
+        Also sweeps tasks currently in In Progress state in the tracker that
+        are NOT in the candidates list (which only contains Open/active tasks).
+        This catches orphans left by the retry-release "no longer candidate"
+        path (TASK-409).
         """
         running_ids = set(self.state.running.keys())
         retry_ids = set(self.state.retry_attempts.keys())
         claimed_ids = self.state.claimed
 
-        for issue in candidates:
+        # Combine dispatch candidates with any In Progress tasks not already
+        # represented.  In Progress tasks are never candidates (they are not
+        # in active_states), so without this extra sweep orphaned In Progress
+        # tasks left behind after retry-claim release would never be reset.
+        candidate_ids = {i.id for i in candidates}
+        all_issues: list[Issue] = list(candidates)
+        try:
+            in_progress = self._fetch_all_in_progress_issues()
+            for issue in in_progress:
+                if issue.id not in candidate_ids:
+                    all_issues.append(issue)
+        except Exception as exc:
+            logger.debug(
+                "Orphan check: failed to fetch In Progress tasks: %s", exc
+            )
+
+        for issue in all_issues:
             if _state_key(issue.state) != "in_progress":
                 continue
             if issue.id in running_ids or issue.id in retry_ids:
@@ -5290,6 +5361,22 @@ class Orchestrator:
                     if project_id
                     else self.tracker
                 )
+                if issue.id in self.state.completed and project_id:
+                    project = self.project_store.get(project_id)
+                    if project and self._done_issue_has_unmerged_review_work(
+                        issue,
+                        project,
+                        project_id,
+                    ):
+                        _lock_ctx = self.project_store.project_write_lock(project_id)
+                        with _lock_ctx:
+                            tracker.update_issue(issue.identifier, status=DONE)
+                        logger.info(
+                            "Preserved completed issue %s as Done while review "
+                            "handoff waits for capacity",
+                            issue.identifier,
+                        )
+                        continue
                 labels = {str(label).lower() for label in (issue.labels or [])}
                 status = OPEN
                 updates: dict[str, str] = {}
@@ -5863,6 +5950,16 @@ class Orchestrator:
             n_open,
             limit,
         )
+        if project_id:
+            try:
+                tracker = self._tracker_for_project(project_id)
+                tracker.update_issue(entry.identifier, status=DONE)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to mark %s Done after deferred review handoff: %s",
+                    entry.identifier,
+                    exc,
+                )
         commit_noun = "commit" if commits_ahead == 1 else "commits"
         lines = [
             "Review handoff deferred: the task branch has unmerged work, but "
@@ -13605,6 +13702,28 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 issue_id,
                 issue.state,
             )
+            # TASK-409: if the task is still In Progress in the tracker and no
+            # agent is running for it, reset it to Open immediately.  The normal
+            # orphan-reset sweep (_reset_orphaned_in_progress) would catch this
+            # on the next tick, but acting here closes the window and avoids a
+            # full tick delay.  In Progress tasks are never candidates (they are
+            # not in active_states), which is exactly why we reached this branch.
+            if issue_id not in self.state.running:
+                try:
+                    orphan = self._fetch_issue_across_trackers(retry.identifier)
+                    if orphan is not None and _state_key(orphan.state) == "in_progress":
+                        orphan_tracker = self._tracker_for_issue(orphan)
+                        orphan_tracker.update_issue(retry.identifier, status=OPEN)
+                        logger.info(
+                            "Retry claim released: reset stale In Progress issue %s to Open",
+                            retry.identifier,
+                        )
+                except Exception as exc:
+                    logger.debug(
+                        "Retry claim released: failed to reset In Progress issue %s: %s",
+                        retry.identifier,
+                        exc,
+                    )
             return
 
         if self._available_slots() <= 0:

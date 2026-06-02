@@ -855,7 +855,7 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
 
         assert result is True
         provider.create_review.assert_not_called()
-        tracker.update_issue.assert_not_called()
+        tracker.update_issue.assert_called_once_with("task-1", status=DONE)
         orch._post_comment.assert_called_once()
         comment = orch._post_comment.call_args.args[1]
         assert "Review handoff deferred" in comment

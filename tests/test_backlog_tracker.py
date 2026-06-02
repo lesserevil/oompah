@@ -1314,3 +1314,39 @@ def test_set_metadata_field_stores_and_retrieves_target_branch(tmp_path):
     assert issue.target_branch == "release/4.0"
     meta = tracker.get_metadata("TASK-1")
     assert meta["oompah.target_branch"] == "release/4.0"
+
+
+def test_fetch_in_progress_issues_returns_only_in_progress(tmp_path):
+    """fetch_in_progress_issues() returns tasks in In Progress state only."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-10", "Open task", status="Open")
+    _write_task(backlog_dir, "TASK-11", "In progress task", status="In Progress")
+    _write_task(backlog_dir, "TASK-12", "Another in progress", status="in_progress")
+    _write_task(backlog_dir, "TASK-13", "Done task", status="Done", folder="completed")
+
+    issues = _tracker(tmp_path).fetch_in_progress_issues()
+
+    identifiers = {i.identifier for i in issues}
+    assert "TASK-10" not in identifiers
+    assert "TASK-11" in identifiers
+    assert "TASK-12" in identifiers
+    assert "TASK-13" not in identifiers
+
+
+def test_fetch_in_progress_issues_excludes_completed_folder(tmp_path):
+    """fetch_in_progress_issues() does not include completed tasks."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-20",
+        "Stale done",
+        status="In Progress",
+        folder="completed",
+    )
+    _write_task(backlog_dir, "TASK-21", "Active in progress", status="In Progress")
+
+    issues = _tracker(tmp_path).fetch_in_progress_issues()
+
+    identifiers = {i.identifier for i in issues}
+    assert "TASK-20" not in identifiers
+    assert "TASK-21" in identifiers
