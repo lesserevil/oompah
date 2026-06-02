@@ -4,11 +4,9 @@ title: Add role candidate selector state and ordering algorithms
 status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-02 15:21'
+updated_date: '2026-06-02 15:24'
 labels:
   - feature
-  - 'needs:backend'
-  - 'needs:test'
 dependencies:
   - TASK-407.1
 modified_files:
@@ -61,7 +59,7 @@ Required behavior:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added CandidateSelector class to oompah/roles.py implementing priority (configured order) and round-robin (LRU-first, never-used before used, tie-break by configured index) ordering algorithms. Runtime usage state stored in .oompah/role_usage.json (separate from roles.json). Thread-safe via threading.Lock. 56 tests in tests/test_candidate_selector.py covering all 6 acceptance criteria. All tests pass without HTTP server dependency.
+Delivered CandidateSelector in oompah/roles.py with priority/round-robin ordering and thread-safe usage state in .oompah/role_usage.json. 56 tests in tests/test_candidate_selector.py cover all 6 acceptance criteria. No duplicate found for this task.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
@@ -82,36 +80,41 @@ Agent dispatched (profile: standard)
 <!-- COMMENT:BEGIN -->
 index: 2
 author: oompah
-created: 2026-06-02 15:20
+created: 2026-06-02 15:12
 
-UNDERSTANDING: Task requires adding CandidateSelector - a runtime state tracker and ordering algorithm for role candidates. The data model (Candidate, Role with multi-candidates, strategy) is already implemented in oompah/roles.py. What is missing: CandidateSelector class with ordered_candidates(role) and record_used() methods, separate role_usage.json storage, thread safety. Plan: implement CandidateSelector in oompah/roles.py and write comprehensive tests.
+Focus: Test Engineer
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
 index: 3
 author: oompah
-created: 2026-06-02 15:25
+created: 2026-06-02 15:21
 
-DISCOVERY: Confirmed no CandidateSelector exists in any file. The roles.py has the Role/Candidate data model and RoleStore but no runtime selection state. The implementation plan calls for .oompah/role_usage.json with nested {role_name: {provider_id: {model: last_used_at_iso}}} structure, a threading.Lock for concurrency, and two public methods: ordered_candidates(role) and record_used(role_name, candidate).
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 82, Tool calls: 54
+- Tokens: 45 in / 26.0K out [26.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 26s
+- Log: TASK-407.4__20260602T151208Z.jsonl
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
 index: 4
 author: oompah
-created: 2026-06-02 15:35
+created: 2026-06-02 15:21
 
-IMPLEMENTATION: Added CandidateSelector class to oompah/roles.py with DEFAULT_USAGE_PATH constant. Implemented: (1) ordered_candidates(role) - returns priority order for priority strategy, LRU order for round_robin with never-used-first and configured-index tiebreaking; (2) record_used(role_name, candidate) - persists ISO timestamp to role_usage.json under lock; (3) thread-safe lock around all state mutations. Usage state uses nested dict {role: {provider_id: {model: ts}}}. Stale entries silently ignored.
+Agent completed successfully in 566s (26071 tokens)
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
 index: 5
 author: oompah
-created: 2026-06-02 15:40
+created: 2026-06-02 15:21
 
-VERIFICATION: All 56 new tests in tests/test_candidate_selector.py pass. All 389 tests in combined suite (test_candidate_selector, test_role_store, test_roles_api, test_providers_role_matrix, test_providers, test_orchestrator_handlers) pass. No regressions. Tests cover all 6 acceptance criteria and run without any HTTP server dependency.
+Agent completed without closing this issue (566s (26071 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
 index: 6
 author: oompah
-created: 2026-06-02 15:41
+created: 2026-06-02 15:21
 
-COMPLETION: Delivered CandidateSelector in oompah/roles.py (150 lines) + 56 tests in tests/test_candidate_selector.py. Feature: priority strategy returns configured order; round-robin returns LRU-first with never-used-before-used ordering and deterministic tiebreaking by configured index; usage state is separate from roles.json (.oompah/role_usage.json); thread-safe via Lock. All acceptance criteria verified by tests.
+Agent dispatched (profile: deep)
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
