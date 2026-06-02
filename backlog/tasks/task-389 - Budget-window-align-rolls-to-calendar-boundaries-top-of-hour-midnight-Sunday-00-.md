@@ -51,8 +51,8 @@ Plan: pairs with the existing windowed-budget work (commit 331a895). This is a r
 <!-- COMMENTS:BEGIN -->
 <!-- COMMENTS:END -->
 
-## Final Summary
+## Implementation Notes
 
-<!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implementation complete (originally done in commit a971be9, PR #64). Feature adds calendar-aligned budget window rolling: top-of-hour, local midnight, Sunday 00:00 for week. DST-safe via zoneinfo. OOMPAH_BUDGET_TIMEZONE env var for explicit IANA timezone. Cold-start snaps budget_window_start to previous calendar boundary. No duplicate found. All 3825 tests pass including TestBudgetWindowCalendarBoundaries (17 test cases covering hour/day/week boundaries, DST, timezone-aware roll logic).
-<!-- SECTION:FINAL_SUMMARY:END -->
+<!-- SECTION:NOTES:BEGIN -->
+Understanding (2026-06-02): This is a unique feature (no duplicate found). The task asks to replace the naive rolling-window arithmetic with calendar-aware boundary snapping. Will implement: (1) previous/next boundary helpers for hour/day/week, (2) snap budget_window_start on cold start, (3) roll check uses next-boundary instead of elapsed seconds, (4) OOMPAH_BUDGET_TIMEZONE env var, (5) DST-safe via Python zoneinfo.
+<!-- SECTION:NOTES:END -->
