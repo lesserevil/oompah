@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from oompah.statuses import (
     DONE,
     IN_PROGRESS,
     NEEDS_ANSWER,
+    NEEDS_HUMAN,
     OPEN,
     canonicalize_status,
     status_key,
@@ -156,6 +158,8 @@ class BacklogMdTracker:
         self._root = Path(cwd or os.getcwd()).resolve()
         self._configured_backlog_dir = backlog_dir
         self._last_fingerprint: str | None = None
+        self._task_locks: dict[str, threading.RLock] = {}
+        self._task_locks_guard = threading.Lock()
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Fetch tasks in active states, sorted for dispatch."""
@@ -215,12 +219,13 @@ class BacklogMdTracker:
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         """Append a comment to a Backlog.md task."""
-        self._run_backlog([
-            "task", "edit", identifier,
-            "--comment", text,
-            "--comment-author", author,
-            "--plain",
-        ])
+        with self._task_lock(identifier):
+            self._run_backlog([
+                "task", "edit", identifier,
+                "--comment", text,
+                "--comment-author", author,
+                "--plain",
+            ])
         return {"author": author, "text": text}
 
     def fetch_memories(self) -> dict[str, str]:
@@ -270,78 +275,91 @@ class BacklogMdTracker:
 
     def update_issue(self, identifier: str, **fields: str) -> None:
         """Update common Backlog.md task fields."""
-        args = ["task", "edit", identifier, "--plain"]
-        handled = False
-        for key, value in fields.items():
-            key_norm = key.replace("_", "-")
-            if key_norm == "status":
-                args.extend(["--status", self._status_with_config_case(str(value))])
-                handled = True
-            elif key_norm == "title":
-                args.extend(["--title", str(value)])
-                handled = True
-            elif key_norm in ("description", "desc"):
-                args.extend(["--description", str(value)])
-                handled = True
-            elif key_norm == "priority":
-                pri = _backlog_priority_name(value)
-                if pri:
-                    args.extend(["--priority", pri])
+        with self._task_lock(identifier):
+            args = ["task", "edit", identifier, "--plain"]
+            handled = False
+            for key, value in fields.items():
+                key_norm = key.replace("_", "-")
+                if key_norm == "status":
+                    args.extend(["--status", self._status_with_config_case(str(value))])
                     handled = True
-            elif key_norm in ("assignee", "labels", "label", "parent"):
-                if key_norm == "parent":
-                    self._set_frontmatter_field(identifier, "parent", str(value))
-                    continue
-                flag = {
-                    "label": "--label",
-                    "labels": "--label",
-                }.get(key_norm, f"--{key_norm}")
-                args.extend([flag, str(value)])
-                handled = True
-            elif key_norm == "add-label":
-                args.extend(["--add-label", str(value)])
-                handled = True
-            elif key_norm == "remove-label":
-                args.extend(["--remove-label", str(value)])
-                handled = True
-            else:
-                logger.debug(
-                    "Backlog.md update_issue ignoring unsupported field %s", key,
-                )
-        if handled:
-            self._run_backlog(args)
+                elif key_norm == "title":
+                    args.extend(["--title", str(value)])
+                    handled = True
+                elif key_norm in ("description", "desc"):
+                    args.extend(["--description", str(value)])
+                    handled = True
+                elif key_norm == "priority":
+                    pri = _backlog_priority_name(value)
+                    if pri:
+                        args.extend(["--priority", pri])
+                        handled = True
+                elif key_norm in ("assignee", "labels", "label", "parent"):
+                    if key_norm == "parent":
+                        self._set_frontmatter_field(identifier, "parent", str(value))
+                        continue
+                    flag = {
+                        "label": "--label",
+                        "labels": "--label",
+                    }.get(key_norm, f"--{key_norm}")
+                    args.extend([flag, str(value)])
+                    handled = True
+                elif key_norm == "add-label":
+                    args.extend(["--add-label", str(value)])
+                    handled = True
+                elif key_norm == "remove-label":
+                    args.extend(["--remove-label", str(value)])
+                    handled = True
+                else:
+                    logger.debug(
+                        "Backlog.md update_issue ignoring unsupported field %s", key,
+                    )
+            if handled:
+                self._run_backlog(args)
+
+    def mark_needs_human(
+        self, identifier: str, comment: str, author: str = "oompah"
+    ) -> None:
+        """Move a task to Needs Human and leave the actionable comment last."""
+        with self._task_lock(identifier):
+            self.update_issue(identifier, status=NEEDS_HUMAN)
+            self.add_comment(identifier, comment, author=author)
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         """Move a Backlog.md task to the configured terminal status."""
-        status = self._terminal_status()
-        self._run_backlog([
-            "task", "edit", identifier,
-            "--status", status,
-            "--plain",
-        ])
-        if reason:
-            self.add_comment(identifier, reason)
+        with self._task_lock(identifier):
+            status = self._terminal_status()
+            self._run_backlog([
+                "task", "edit", identifier,
+                "--status", status,
+                "--plain",
+            ])
+            if reason:
+                self.add_comment(identifier, reason)
 
     def reopen_issue(self, identifier: str) -> None:
         """Move a task back to the first configured active status."""
-        self._run_backlog([
-            "task", "edit", identifier,
-            "--status", self._active_status(),
-            "--plain",
-        ])
+        with self._task_lock(identifier):
+            self._run_backlog([
+                "task", "edit", identifier,
+                "--status", self._active_status(),
+                "--plain",
+            ])
 
     def add_label(self, identifier: str, label: str) -> None:
-        self._run_backlog([
-            "task", "edit", identifier, "--add-label", label, "--plain",
-        ])
+        with self._task_lock(identifier):
+            self._run_backlog([
+                "task", "edit", identifier, "--add-label", label, "--plain",
+            ])
 
     def remove_label(self, identifier: str, label: str) -> None:
-        try:
-            self._run_backlog([
-                "task", "edit", identifier, "--remove-label", label, "--plain",
-            ])
-        except TrackerError:
-            pass
+        with self._task_lock(identifier):
+            try:
+                self._run_backlog([
+                    "task", "edit", identifier, "--remove-label", label, "--plain",
+                ])
+            except TrackerError:
+                pass
 
     def fetch_attachments(self, identifier: str) -> list[dict]:
         """Return rich attachment records from task front matter."""
@@ -367,9 +385,10 @@ class BacklogMdTracker:
         path = self._task_path_for(identifier)
         if not path:
             raise TrackerError(f"Backlog.md task not found: {identifier}")
-        meta, body = _read_markdown_frontmatter(path)
-        meta["oompah.attachments"] = list(attachments)
-        _write_markdown_frontmatter(path, meta, body)
+        with self._task_lock(identifier):
+            meta, body = _read_markdown_frontmatter(path)
+            meta["oompah.attachments"] = list(attachments)
+            _write_markdown_frontmatter(path, meta, body)
         if project_root:
             _write_attachments_manifest(project_root, identifier, attachments)
 
@@ -392,9 +411,10 @@ class BacklogMdTracker:
         path = self._task_path_for(identifier)
         if not path:
             raise TrackerError(f"Backlog.md task not found: {identifier}")
-        meta, body = _read_markdown_frontmatter(path)
-        meta[key] = value
-        _write_markdown_frontmatter(path, meta, body)
+        with self._task_lock(identifier):
+            meta, body = _read_markdown_frontmatter(path)
+            meta[key] = value
+            _write_markdown_frontmatter(path, meta, body)
 
     def archive_issue(self, identifier: str) -> None:
         self._run_backlog(["task", "archive", identifier])
@@ -528,9 +548,10 @@ class BacklogMdTracker:
         path = self._task_path_for(identifier)
         if not path:
             raise TrackerError(f"Backlog.md task not found: {identifier}")
-        meta, body = _read_markdown_frontmatter(path)
-        meta[key] = value
-        _write_markdown_frontmatter(path, meta, body)
+        with self._task_lock(identifier):
+            meta, body = _read_markdown_frontmatter(path)
+            meta[key] = value
+            _write_markdown_frontmatter(path, meta, body)
 
     def _normalize_task(self, rec: dict) -> Issue:
         meta = rec["meta"]
@@ -717,6 +738,15 @@ class BacklogMdTracker:
         if value.isdigit():
             value = f"{self._task_prefix()}-{value}"
         return value.lower()
+
+    def _task_lock(self, identifier: str) -> threading.RLock:
+        key = self._normalize_lookup_id(identifier)
+        with self._task_locks_guard:
+            lock = self._task_locks.get(key)
+            if lock is None:
+                lock = threading.RLock()
+                self._task_locks[key] = lock
+            return lock
 
     def _run_backlog(
         self, args: list[str], *, timeout: float | None = None,

@@ -6303,6 +6303,21 @@ class Orchestrator:
         except Exception as exc:
             logger.debug("Failed to post comment on %s: %s", identifier, exc)
 
+    def _mark_needs_human(
+        self,
+        tracker,
+        identifier: str,
+        comment: str,
+        *,
+        author: str = "oompah",
+    ) -> None:
+        """Move a task to Needs Human with a final actionable comment."""
+        if hasattr(tracker, "mark_needs_human"):
+            tracker.mark_needs_human(identifier, comment, author=author)
+            return
+        tracker.update_issue(identifier, status=NEEDS_HUMAN)
+        tracker.add_comment(identifier, comment, author=author)
+
     # ------------------------------------------------------------------
     # Per-task cost telemetry
     # ------------------------------------------------------------------
@@ -8878,13 +8893,17 @@ class Orchestrator:
                                 entry.identifier,
                                 reopen_count,
                             )
-                            self._post_comment(
+                            self._mark_needs_human(
+                                tracker,
                                 entry.identifier,
-                                f"Agent completed {reopen_count} times without closing this issue. "
-                                f"Deferring — needs human attention.",
-                                project_id=project_id,
+                                (
+                                    f"Agent completed {reopen_count} times without "
+                                    "closing this issue. Human action required: "
+                                    "review the agent run history and task state, "
+                                    "then either close the task if the work is done "
+                                    "or add specific guidance and move it back to Open."
+                                ),
                             )
-                            tracker.update_issue(entry.identifier, status=NEEDS_HUMAN)
                             self.state.completed.add(issue_id)
                         else:
                             # Landing gate: check if the agent completed without landing
@@ -8906,18 +8925,19 @@ class Orchestrator:
                                     base_branch=project.default_branch,
                                 )
                                 if not lg_result.allowed:
-                                    self._post_comment(
+                                    self._mark_needs_human(
+                                        tracker,
                                         entry.identifier,
                                         (
                                             f"Agent completed without landing — "
                                             f"no commits found on origin for branch "
                                             f"`{branch_name}`. "
                                             f"Skipping escalation to conserve tokens. "
-                                            f"Please check the worktree for "
+                                            f"Human action required: check the worktree for "
                                             f"uncommitted work, then commit, push, "
-                                            f"and close manually."
+                                            f"and close manually, or add guidance and "
+                                            f"move the task back to Open."
                                         ),
-                                        project_id=project_id,
                                     )
                                     telemetry = build_telemetry_event(
                                         lg_result,
@@ -8930,9 +8950,6 @@ class Orchestrator:
                                     )
                                     logger.info(
                                         json.dumps(telemetry),
-                                    )
-                                    tracker.update_issue(
-                                        entry.identifier, status=NEEDS_HUMAN,
                                     )
                                     self.state.completed.add(issue_id)
                                     return

@@ -210,6 +210,41 @@ def test_update_issue_maps_legacy_statuses_to_backlog_statuses(tmp_path):
     ]
 
 
+def test_mark_needs_human_updates_status_then_appends_comment(tmp_path):
+    _write_config(tmp_path)
+    tracker = _tracker(tmp_path)
+
+    with patch.object(tracker, "_run_backlog", return_value="") as run_backlog:
+        tracker.mark_needs_human("TASK-1", "Human action required")
+
+    assert run_backlog.call_args_list[0].args[0] == [
+        "task", "edit", "TASK-1", "--plain", "--status", "Needs Human",
+    ]
+    assert run_backlog.call_args_list[1].args[0] == [
+        "task", "edit", "TASK-1",
+        "--comment", "Human action required",
+        "--comment-author", "oompah",
+        "--plain",
+    ]
+
+
+def test_set_metadata_field_preserves_existing_comments(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Metadata comments", comments=True)
+
+    tracker = _tracker(tmp_path)
+    tracker.set_metadata_field("TASK-1", "oompah.task_costs", {"runs": []})
+
+    comments = tracker.fetch_comments("TASK-1")
+    assert comments == [{
+        "id": "1",
+        "author": "oompah",
+        "created_at": "2026-05-31 10:06",
+        "text": "Progress note",
+    }]
+    assert tracker.get_metadata("TASK-1")["oompah.task_costs"] == {"runs": []}
+
+
 def test_working_set_fingerprint_changes_when_task_changes(tmp_path):
     backlog_dir = _write_config(tmp_path)
     task_path = _write_task(backlog_dir, "TASK-1", "Fingerprint")

@@ -42,12 +42,17 @@ def _make_mock_orchestrator(project_id: str = "proj-1") -> tuple[MagicMock, Magi
     mock_tracker.create_issue = MagicMock()
     mock_tracker.update_issue = MagicMock()
     mock_tracker.close_issue = MagicMock()
+    mock_tracker.mark_needs_human = MagicMock()
     mock_tracker.fetch_issue_detail = MagicMock()
     mock_tracker.fetch_children = MagicMock(return_value=[])
 
     mock_orch = MagicMock()
     mock_orch._tracker_for_project = MagicMock(return_value=mock_tracker)
     mock_orch.config.tracker_terminal_states = ["closed"]
+    mock_orch.state.running = {}
+    mock_orch.state.retry_attempts = {}
+    mock_orch.state.claimed = set()
+    mock_orch.state.completed = set()
 
     return mock_orch, mock_tracker
 
@@ -150,6 +155,56 @@ class TestUpdateIssueProjectIdValidation:
 
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
+
+
+class TestUpdateIssueNeedsHumanComment:
+    def test_needs_human_status_adds_actionable_comment(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="task-1", issue_type="task", state="open"
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={
+                    "status": "Needs Human",
+                    "project_id": "proj-1",
+                    "comment": "Human action required: choose the deployment path.",
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        mock_tracker.update_issue.assert_not_called()
+        mock_tracker.mark_needs_human.assert_called_once_with(
+            "task-1",
+            "Human action required: choose the deployment path.",
+            author="oompah",
+        )
+
+    def test_needs_human_status_without_comment_uses_default_action(self, client):
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="task-1", issue_type="task", state="open"
+        )
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/task-1",
+                json={"status": "Needs Human", "project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        comment = mock_tracker.mark_needs_human.call_args.args[1]
+        assert "Human action required" in comment
+        assert "move the task back to Open" in comment
 
 
 # ---------------------------------------------------------------------------

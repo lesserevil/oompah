@@ -14,13 +14,14 @@ order.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from oompah.config import ServiceConfig
 from oompah.focus import Focus
-from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry
+from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
 
@@ -2013,6 +2014,39 @@ class TestRateLimitAlertIncludesProviderAndModel:
         comment_text = orch._post_comment.call_args.args[1]
         assert "Godspeed" in comment_text
         assert "mimo-2.5" in comment_text
+
+
+class TestNeedsHumanTransitions:
+    def test_completed_without_closing_marks_needs_human_with_comment(self, tmp_path):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("TASK-1", state="Open", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.reopen_counts[issue.id] = 2
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.mark_needs_human = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        tracker.mark_needs_human.assert_called_once()
+        args = tracker.mark_needs_human.call_args.args
+        assert args[0] == "TASK-1"
+        assert "Human action required" in args[1]
+        assert "move it back to Open" in args[1]
+        assert issue.id in orch.state.completed
 
 
 class TestRetryTimerSpecificIssueLookup:

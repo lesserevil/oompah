@@ -61,6 +61,7 @@ from oompah.statuses import (
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
+    NEEDS_HUMAN,
     NEEDS_REBASE,
     OPEN,
     canonicalize_status,
@@ -387,6 +388,37 @@ def _issue_dashboard_state(issue) -> str:
     if "archive:yes" in (issue.labels or []):
         return _dashboard_state(ARCHIVED)
     return _dashboard_state(issue.state)
+
+
+def _manual_needs_human_comment(
+    identifier: str,
+    issue,
+    explicit_comment: object | None = None,
+) -> str:
+    text = str(explicit_comment or "").strip()
+    if text:
+        return text
+    title = getattr(issue, "title", None) or identifier
+    return (
+        "Moved to Needs Human from the dashboard/API. "
+        f"Human action required: inspect {identifier} ({title}), add the "
+        "specific decision, missing information, or manual fix needed, then "
+        "move the task back to Open when it is ready for agents again."
+    )
+
+
+def _mark_tracker_needs_human(
+    tracker,
+    identifier: str,
+    comment: str,
+    *,
+    author: str = "oompah",
+) -> None:
+    if hasattr(tracker, "mark_needs_human"):
+        tracker.mark_needs_human(identifier, comment, author=author)
+        return
+    tracker.update_issue(identifier, status=NEEDS_HUMAN)
+    tracker.add_comment(identifier, comment, author=author)
 
 
 def _on_state_only_change(snapshot: dict) -> None:
@@ -1491,6 +1523,7 @@ async def api_update_issue(identifier: str, request: Request):
         new_priority = body.get("priority")
         new_title = body.get("title")
         new_description = body.get("description")
+        needs_human_comment = body.get("needs_human_comment", body.get("comment"))
 
         # Determine issue type for Epic-specific state handling.
         # We need this before the update so we know whether to apply
@@ -1515,8 +1548,12 @@ async def api_update_issue(identifier: str, request: Request):
             tracker.close_issue(identifier)
         else:
             update_fields = {}
+            needs_human_status: str | None = None
             if new_status is not None:
-                update_fields["status"] = new_status
+                if canonicalize_status(new_status) == NEEDS_HUMAN:
+                    needs_human_status = str(new_status)
+                else:
+                    update_fields["status"] = new_status
             if new_priority is not None:
                 update_fields["priority"] = str(new_priority)
             if new_title is not None:
@@ -1525,6 +1562,16 @@ async def api_update_issue(identifier: str, request: Request):
                 update_fields["description"] = new_description
             if update_fields:
                 tracker.update_issue(identifier, **update_fields)
+            if needs_human_status is not None:
+                _mark_tracker_needs_human(
+                    tracker,
+                    identifier,
+                    _manual_needs_human_comment(
+                        identifier,
+                        existing_issue,
+                        needs_human_comment,
+                    ),
+                )
 
         # --- Epic state verification (oompah-zlz_2-sytm) ---
         # For Epic issues the tracker backend may have a post-update hook that
