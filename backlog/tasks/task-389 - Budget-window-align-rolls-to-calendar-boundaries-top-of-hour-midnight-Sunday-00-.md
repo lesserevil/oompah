@@ -56,3 +56,9 @@ Plan: pairs with the existing windowed-budget work (commit 331a895). This is a r
 <!-- SECTION:NOTES:BEGIN -->
 Understanding (2026-06-02): This is a unique feature (no duplicate found). The task asks to replace the naive rolling-window arithmetic with calendar-aware boundary snapping. Will implement: (1) previous/next boundary helpers for hour/day/week, (2) snap budget_window_start on cold start, (3) roll check uses next-boundary instead of elapsed seconds, (4) OOMPAH_BUDGET_TIMEZONE env var, (5) DST-safe via Python zoneinfo.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Feature fully implemented in commit a971be9 (PR #64). Calendar-aligned budget window boundaries: top-of-hour, midnight, Sunday 00:00. Implementation includes _previous_budget_boundary/_next_budget_boundary helpers, DST-safe zoneinfo arithmetic, OOMPAH_BUDGET_TIMEZONE env var, budget_timezone config field, cold-start boundary snapping. All 29 TestBudgetWindowCalendarBoundaries tests pass (3825 total). This is the 4th closure — no code changes needed, implementation was already complete.
+<!-- SECTION:FINAL_SUMMARY:END -->
