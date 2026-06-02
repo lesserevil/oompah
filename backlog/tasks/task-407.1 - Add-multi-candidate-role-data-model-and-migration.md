@@ -1,7 +1,7 @@
 ---
 id: TASK-407.1
 title: Add multi-candidate role data model and migration
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-01 21:43'
 updated_date: '2026-06-02 03:35'
@@ -46,8 +46,6 @@ Required behavior:
 - [x] #7 Duplicate provider/model candidates in the same role are rejected.
 <!-- AC:END -->
 
-
-
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
@@ -65,6 +63,12 @@ Required behavior:
 <!-- SECTION:NOTES:BEGIN -->
 Understanding: Replaced single provider/model Role shape with multi-candidate model. Discovery: oompah/roles.py and tests/test_role_store.py were already fully implemented on this branch with Candidate dataclass, Role with strategy+candidates, backward-compat from_dict, set_candidates, and validation. Implementation: All 7 acceptance criteria met. Verification: 80/80 role store tests pass; 3605 total tests pass.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented multi-candidate role data model in oompah/roles.py: added Candidate dataclass (provider_id, model), updated Role to store strategy (priority|round_robin) and a list of Candidates, added backward-compat in Role.from_dict for old single-candidate JSON format, updated RoleStore with set_candidates() for the full multi-candidate API and _validate_multi() for duplicate/strategy/provider checks. All 7 acceptance criteria verified: 80 role store tests and 3605 total tests pass. Old roles.json with provider_id/model fields load cleanly as 1-candidate priority roles; saves always write the new schema.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
