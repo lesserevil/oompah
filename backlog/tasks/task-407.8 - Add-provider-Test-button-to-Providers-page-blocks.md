@@ -1,36 +1,20 @@
 ---
 id: TASK-407.8
 title: Add provider Test button to Providers page blocks
-status: In Progress
+status: Done
 assignee: []
-created_date: 2026-06-01 21:45
-updated_date: 2026-06-02 15:57
+created_date: '2026-06-01 21:45'
+updated_date: '2026-06-02 16:00'
 labels:
-- feature
+  - feature
 dependencies:
-- TASK-407.3
+  - TASK-407.3
 modified_files:
-- oompah/templates/providers.html
-- tests/test_providers_role_matrix.py
+  - oompah/templates/providers.html
+  - tests/test_providers_role_matrix.py
 parent_task_id: TASK-407
 priority: medium
 ordinal: 38000
-oompah.task_costs:
-  total_input_tokens: 49
-  total_output_tokens: 11271
-  total_cost_usd: 0.0
-  by_model:
-    unknown:
-      input_tokens: 49
-      output_tokens: 11271
-      cost_usd: 0.0
-  runs:
-  - profile: default
-    model: unknown
-    input_tokens: 49
-    output_tokens: 11271
-    cost_usd: 0.0
-    recorded_at: '2026-06-02T15:41:52.359445+00:00'
 ---
 
 ## Description
@@ -72,6 +56,12 @@ Required behavior:
 6. Ensure failures from the HTTP layer and failures returned by the endpoint both show useful messages.
 7. Add tests or template assertions for button presence and result rendering where current test structure allows.
 <!-- SECTION:PLAN:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Not a duplicate. TASK-407.3 adds the backend provider test endpoint; TASK-407.8 adds the frontend Test button UI. Feature implemented in commit 31a0f77: Test button in each provider card, inline success/failure result rendering (model, latency, response text, error reason), loading state with duplicate-click prevention, .provider-test-result CSS classes, and 14 template smoke tests in TestProviderTestButton. Branch pushed to origin/TASK-407.8.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
