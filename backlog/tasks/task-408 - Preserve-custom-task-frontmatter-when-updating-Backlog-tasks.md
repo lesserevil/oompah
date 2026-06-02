@@ -4,7 +4,7 @@ title: Preserve custom task frontmatter when updating Backlog tasks
 status: Done
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-02 03:26'
+updated_date: '2026-06-02 03:31'
 labels:
   - bug
 dependencies: []
@@ -36,14 +36,8 @@ Implementation guidance:
 - [ ] #3 Tests cover status updates and at least one other mutation path that uses BacklogTracker task edits.
 <!-- AC:END -->
 
-## Implementation Notes
-
-<!-- SECTION:NOTES:BEGIN -->
-[oompah] Continuation run (attempt #1): Implementation verified present from previous runs. _KNOWN_BACKLOG_FIELDS and _run_backlog_for_task() wrapper in oompah/tracker.py preserve custom frontmatter across all 7 mutation methods. 13/13 tracker tests pass. TASK-397 is the canonical issue; TASK-408 is the implementation branch. Closing as Done.
-<!-- SECTION:NOTES:END -->
-
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implementation complete: Added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) now snapshot custom frontmatter before CLI edits and re-inject any dropped keys afterwards. 13 regression tests pass including 4 dedicated frontmatter-preservation tests (test_update_issue_preserves_custom_frontmatter, test_close_issue_preserves_custom_frontmatter, test_add_label_preserves_custom_frontmatter, and test_add_comment_preserves_nested_frontmatter). TASK-397 is the canonical issue; TASK-408 is the implementation branch.
+Implementation already complete on this branch (from previous agent run). Added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py that snapshots unknown frontmatter before any backlog CLI mutation and reapplies it after. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) use the wrapper. 4 regression tests pass: test_update_issue_preserves_custom_frontmatter, test_close_issue_preserves_custom_frontmatter, test_add_label_preserves_custom_frontmatter, test_update_issue_known_fields_updated_once. This issue is related to (and was originally a duplicate of) TASK-397.
 <!-- SECTION:FINAL_SUMMARY:END -->
