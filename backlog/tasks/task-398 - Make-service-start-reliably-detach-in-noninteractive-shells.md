@@ -4,7 +4,7 @@ title: Make service start reliably detach in noninteractive shells
 status: Done
 assignee: []
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-02 01:53'
+updated_date: '2026-06-02 03:15'
 labels:
   - bug
 dependencies: []
@@ -29,5 +29,5 @@ Discovery: Root cause confirmed in Makefile. (1) start target: bare '&' backgrou
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Fixed two Makefile bugs. (1) make start now redirects stdin from /dev/null in both the setsid and nohup branches, ensuring the child process does not inherit a closed/absent tty from a noninteractive automation shell - this was what caused immediate exit after .env load. (2) Added _ENV_PORT shell-grep so PORT falls back to OOMPAH_SERVER_PORT from .env when not exported in the shell environment, making make status and make graceful consistently report the actual configured port. Added two new regression tests: test_make_start_uses_setsid_with_devnull_stdin and test_port_reads_from_dotenv_file_as_fallback. 3568 tests pass.
+Fixed two Makefile bugs. (1) make start now redirects stdin from /dev/null in both the setsid and nohup branches, ensuring the child process does not inherit a closed/absent tty from a noninteractive automation shell - this was what caused immediate exit after .env load. (2) Added _ENV_PORT shell-grep so PORT falls back to OOMPAH_SERVER_PORT from .env when not exported in the shell environment, making make status and make graceful consistently report the actual configured port. Added two new regression tests: test_make_start_uses_setsid_with_devnull_stdin and test_port_reads_from_dotenv_file_as_fallback. All 6 makefile tests pass. This attempt #1 confirmed the implementation from the original run was correct; tests still pass.
 <!-- SECTION:FINAL_SUMMARY:END -->
