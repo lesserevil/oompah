@@ -664,3 +664,80 @@ class TestComputeBilling:
         # provider.backend missing => the column shows "claude" since
         # that is the registry default.
         assert "provider.backend || 'claude'" in script
+
+
+class TestProviderTestButton:
+    """Static template smoke tests for the Test button added by TASK-407.8.
+
+    Checks that providers.html contains the expected markup and JS for
+    inline provider health-check from the Providers page.
+    """
+
+    @pytest.fixture
+    def html(self) -> str:
+        path = Path(__file__).parent.parent / "oompah" / "templates" / "providers.html"
+        return path.read_text()
+
+    def test_test_button_in_provider_actions(self, html):
+        # The Test button must appear inside the provider-actions block
+        # produced by renderProviders().
+        assert "testProvider(" in html
+        assert ">Test<" in html
+
+    def test_test_button_passes_id_and_self(self, html):
+        # The onclick must pass the provider id and `this` so the
+        # function can locate the per-provider result div.
+        assert "onclick=\"testProvider('${esc(p.id)}', this)\"" in html
+
+    def test_result_div_per_provider(self, html):
+        # Each card must contain a result div whose id is keyed to the
+        # provider id so multiple cards can show independent results.
+        assert "provider-test-result-${esc(p.id)}" in html
+
+    def test_result_div_hidden_by_default(self, html):
+        # The result area must start hidden so it does not take up
+        # space before a test has been run.
+        assert 'style="display:none;"' in html
+
+    def test_testprovider_function_defined(self, html):
+        assert "async function testProvider(" in html
+
+    def test_testprovider_calls_correct_endpoint(self, html):
+        # The function must POST to the provider test endpoint from
+        # TASK-407.3.
+        assert "/api/v1/providers/" in html
+        assert "method: 'POST'" in html
+
+    def test_testprovider_disables_button_while_loading(self, html):
+        # Prevents duplicate clicks: button must be disabled during
+        # the request.
+        assert "btn.disabled = true" in html
+
+    def test_testprovider_restores_button_in_finally(self, html):
+        # The finally block must re-enable the button so a transient
+        # failure does not permanently lock the UI.
+        assert "btn.disabled = false" in html
+
+    def test_success_result_css_class(self, html):
+        assert ".test-result-ok" in html
+
+    def test_failure_result_css_class(self, html):
+        assert ".test-result-fail" in html
+
+    def test_result_shows_model(self, html):
+        # On success the inline result must include the model field.
+        assert "data.model" in html
+
+    def test_result_shows_latency(self, html):
+        # On success the inline result must include the latency field.
+        assert "latency_ms" in html
+
+    def test_result_shows_error_reason(self, html):
+        # On failure the inline result must include the normalized
+        # error reason returned by the endpoint.
+        assert "error_reason" in html
+
+    def test_result_shows_response_text(self, html):
+        # On success the inline result must include the short response
+        # text from the provider.
+        assert "response_text" in html

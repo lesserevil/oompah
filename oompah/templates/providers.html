@@ -186,6 +186,30 @@
       gap: 0.4rem;
       margin-top: 0.6rem;
     }
+    /* Inline test-result area rendered below .provider-actions (TASK-407.8). */
+    .provider-test-result {
+      margin-top: 0.5rem;
+      font-size: 0.78rem;
+      border-radius: 6px;
+      padding: 0.45rem 0.65rem;
+      line-height: 1.45;
+    }
+    .provider-test-result.test-result-ok {
+      background: rgba(63, 185, 80, 0.1);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+      color: var(--green);
+    }
+    .provider-test-result.test-result-fail {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+      color: var(--red);
+    }
+    .provider-test-result .test-meta {
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      margin-top: 0.2rem;
+    }
     .empty-state {
       text-align: center;
       padding: 3rem 1rem;
@@ -957,8 +981,10 @@ function renderProviders() {
       <div class="provider-actions">
         <button onclick="editProvider('${esc(p.id)}')">Edit</button>
         <button onclick="autoPopulateContexts('${esc(p.id)}', this)" title="Try the provider's /v1/models for max_model_len; fall back to OpenRouter">Auto-populate contexts</button>
+        <button onclick="testProvider('${esc(p.id)}', this)" title="Send a quick probe request to verify this provider is reachable and responding">Test</button>
         <button class="btn-danger" onclick="deleteProvider('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
       </div>
+      <div id="provider-test-result-${esc(p.id)}" class="provider-test-result" style="display:none;"></div>
     </div>
   `;}).join('');
 }
@@ -1320,6 +1346,71 @@ async function autoPopulateContexts(providerId, btn) {
     await loadProviders();
   } catch (e) {
     alert('Failed: ' + e.message);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
+// TASK-407.8 — Send a probe request to a provider and render the
+// result inline inside the provider card.  Never mutates provider
+// config, role config, task state, or round-robin selector state.
+async function testProvider(providerId, btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Testing…';
+  btn.disabled = true;
+
+  const resultEl = document.getElementById('provider-test-result-' + providerId);
+  if (resultEl) {
+    resultEl.style.display = 'none';
+    resultEl.className = 'provider-test-result';
+    resultEl.innerHTML = '';
+  }
+
+  try {
+    const res = await fetch('/api/v1/providers/' + encodeURIComponent(providerId) + '/test', {
+      method: 'POST',
+    });
+    let data;
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = {success: false, error_reason: 'unknown_error', error_detail: 'Unparseable response from server.'};
+    }
+
+    if (!resultEl) return;
+
+    if (data.success) {
+      const latency = typeof data.latency_ms === 'number'
+        ? data.latency_ms.toFixed(0) + ' ms'
+        : '';
+      const modelText = data.model ? esc(data.model) : '—';
+      const respText = data.response_text ? esc(data.response_text) : '';
+      resultEl.className = 'provider-test-result test-result-ok';
+      resultEl.innerHTML =
+        '<strong>✓ OK</strong>' +
+        '<div class="test-meta">' +
+          'model: ' + modelText +
+          (latency ? ' &middot; ' + esc(latency) : '') +
+        '</div>' +
+        (respText ? '<div class="test-meta" style="margin-top:0.2rem;color:var(--text);">' + respText + '</div>' : '');
+    } else {
+      const reason = data.error_reason ? esc(data.error_reason) : 'unknown_error';
+      const detail = data.error_detail ? esc(data.error_detail) : '';
+      const model  = data.model ? esc(data.model) : '';
+      resultEl.className = 'provider-test-result test-result-fail';
+      resultEl.innerHTML =
+        '<strong>✗ Failed</strong> — ' + reason +
+        (model ? '<div class="test-meta">model: ' + model + '</div>' : '') +
+        (detail ? '<div class="test-meta" style="color:var(--text-muted);">' + detail + '</div>' : '');
+    }
+    resultEl.style.display = '';
+  } catch (e) {
+    if (resultEl) {
+      resultEl.className = 'provider-test-result test-result-fail';
+      resultEl.innerHTML = '<strong>✗ Failed</strong> — network error<div class="test-meta">' + esc(e.message) + '</div>';
+      resultEl.style.display = '';
+    }
   } finally {
     btn.textContent = orig;
     btn.disabled = false;
