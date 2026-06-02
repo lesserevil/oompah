@@ -592,3 +592,153 @@ def migrate_agent_profiles_to_roles(
             "Migrated %d role(s) from agent profiles to RoleStore", migrated
         )
     return migrated
+
+
+# ---------------------------------------------------------------------------
+# CandidateSelector — runtime state and ordering for role dispatch
+# ---------------------------------------------------------------------------
+
+DEFAULT_USAGE_PATH = ".oompah/role_usage.json"
+
+
+class CandidateSelector:
+    """Runtime state and ordering for role candidate selection.
+
+    Tracks ``last_used_at`` per ``(role_name, provider_id, model)`` triple
+    in a separate state file (default: ``.oompah/role_usage.json``) so
+    normal dispatches do not touch ``.oompah/roles.json``.
+
+    Thread-safe via an in-process lock — concurrent dispatches within the
+    same server process will not race on the usage state.
+
+    Usage key format on disk::
+
+        {
+          "role_name": {
+            "provider_id": {
+              "model": "2026-01-01T12:00:00+00:00"
+            }
+          }
+        }
+
+    The nested structure lets the same provider appear with multiple models
+    without ambiguity.
+    """
+
+    def __init__(self, path: str | None = None) -> None:
+        """Open or create the usage-state store at ``path``.
+
+        ``path`` defaults to ``DEFAULT_USAGE_PATH`` if not supplied.
+        """
+        self.path = path or DEFAULT_USAGE_PATH
+        # {role_name: {provider_id: {model: last_used_at_iso_string}}}
+        self._usage: dict[str, dict[str, dict[str, str]]] = {}
+        self._lock = threading.Lock()
+        self._load()
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def _load(self) -> None:
+        """Load usage state from disk (called once at construction)."""
+        if not os.path.exists(self.path):
+            self._usage = {}
+            return
+        try:
+            with open(self.path, "r") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                self._usage = data
+            else:
+                self._usage = {}
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning(
+                "Failed to load selector usage from %s: %s", self.path, exc
+            )
+            self._usage = {}
+
+    def _save(self) -> None:
+        """Persist usage state to disk (must be called while holding self._lock)."""
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        with open(self.path, "w") as f:
+            json.dump(self._usage, f, indent=2)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _get_last_used(self, role_name: str, candidate: Candidate) -> str | None:
+        """Return the ``last_used_at`` ISO string for a candidate, or None.
+
+        None means the candidate has never been used for this role.
+        Called while holding ``self._lock``.
+        """
+        return (
+            self._usage
+            .get(role_name, {})
+            .get(candidate.provider_id, {})
+            .get(candidate.model)
+        )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def ordered_candidates(self, role: "Role") -> list[Candidate]:
+        """Return candidates in dispatch order according to ``role.strategy``.
+
+        ``priority``
+            Return candidates in configured (saved) order.
+
+        ``round_robin``
+            Return the least-recently-used candidate first.  Candidates
+            that have never been used sort before any candidate with a
+            recorded ``last_used_at``.  Ties (both never used, or the
+            same ``last_used_at``) are broken by configured candidate
+            order so results are deterministic.
+
+        Stale usage entries for candidates no longer in the role are
+        silently ignored — they never appear in the result.
+        """
+        candidates = list(role.candidates)
+        if not candidates:
+            return candidates
+
+        if role.strategy != "round_robin":
+            # priority (and any unknown strategy): configured order
+            return candidates
+
+        # round_robin: snapshot usage under lock, then sort outside lock
+        with self._lock:
+            usage_snapshot = {
+                c: self._get_last_used(role.name, c) for c in candidates
+            }
+
+        def sort_key(indexed: tuple[int, Candidate]) -> tuple:
+            idx, candidate = indexed
+            last_used = usage_snapshot[candidate]
+            if last_used is None:
+                # Never used → sorts before any used entry; tie-break by index
+                return (0, "", idx)
+            # Used → sorts after never-used; tie-break by ISO timestamp then index
+            return (1, last_used, idx)
+
+        indexed_sorted = sorted(enumerate(candidates), key=sort_key)
+        return [c for _, c in indexed_sorted]
+
+    def record_used(self, role_name: str, candidate: Candidate) -> None:
+        """Record that ``candidate`` was used for the named role.
+
+        Sets ``last_used_at`` to the current UTC time and persists the
+        updated state to disk.  Safe to call from multiple threads
+        concurrently.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._lock:
+            if role_name not in self._usage:
+                self._usage[role_name] = {}
+            if candidate.provider_id not in self._usage[role_name]:
+                self._usage[role_name][candidate.provider_id] = {}
+            self._usage[role_name][candidate.provider_id][candidate.model] = now_iso
+            self._save()
