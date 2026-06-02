@@ -4,7 +4,7 @@ title: Fix BacklogMdTracker cost metadata write path
 status: Done
 assignee: []
 created_date: 2026-06-01 16:07
-updated_date: 2026-06-01 21:08
+updated_date: 2026-06-02 02:50
 labels:
 - bug
 dependencies: []
@@ -20,7 +20,7 @@ During the 2026-06-01 restart, TASK-388 completed but the log reported: cost_rec
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Fix implemented in commit 6c2369e. Added get_cost_metadata/set_cost_metadata protocol to both BeadsTracker and BacklogMdTracker. Updated _write_task_cost_record in orchestrator.py to use the uniform protocol instead of calling _run_bd() directly. Trackers lacking the protocol are skipped at DEBUG level. All 3833 tests pass.
+Fix implemented in commit 6c2369e. Added get_cost_metadata/set_cost_metadata protocol to both BeadsTracker and BacklogMdTracker. Updated _write_task_cost_record in orchestrator.py to use the uniform protocol instead of calling _run_bd() directly. Trackers lacking the protocol are skipped at DEBUG level. All 3833 tests pass. Duplicate investigation (2026-06-02): searched 'BacklogMdTracker', 'cost metadata', '_run_bd', 'cost_record' — no duplicates found, TASK-399 is the original issue. All 39 related tests verified passing on re-check.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
