@@ -397,6 +397,7 @@ class Orchestrator:
         self._last_candidates: list[Issue] = []
         self._orphan_reset_counts: dict[str, int] = {}
         self._yolo_limbo_ticks: dict[str, int] = {}
+        self._last_emitted_reviews_summary: dict[str, int] | None = None
         # YOLO repo-config errors: keyed by (project_id, review_id) →
         # {"msg": str, "fingerprint": str}. Surfaced in reviews_summary
         # and the /api/v1/reviews payload; cleared when the review
@@ -1329,6 +1330,10 @@ class Orchestrator:
         logger.debug(
             "Unmerged review branches: %s", sorted(self._unmerged_review_branches)
         )
+        summary = self._reviews_summary()
+        if summary != self._last_emitted_reviews_summary:
+            self._last_emitted_reviews_summary = dict(summary)
+            self._notify_state_only()
 
     async def _handle_dispatch_needed(self) -> None:
         """Fetch candidates, resolve blockers, and dispatch eligible issues."""

@@ -245,6 +245,57 @@ class TestHandleReviewCheck:
         assert orch._merged_branches == set()
         assert orch._unmerged_review_branches == set()
 
+    def test_notifies_state_only_when_reviews_summary_changes(self, tmp_path):
+        """Dashboard review badge updates as soon as review cache changes."""
+        orch = _make_orchestrator(tmp_path)
+        orch._last_emitted_reviews_summary = {
+            "total": 1,
+            "yolo_pending": 0,
+            "queued": 0,
+            "conflicts": 0,
+            "ci_failures": 0,
+            "needs_repo_config": 0,
+            "needs_attention": 0,
+        }
+        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": []})
+        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._notify_state_only = MagicMock()
+
+        asyncio.run(orch._handle_review_check())
+
+        orch._notify_state_only.assert_called_once()
+        assert orch._last_emitted_reviews_summary == {
+            "total": 0,
+            "yolo_pending": 0,
+            "queued": 0,
+            "conflicts": 0,
+            "ci_failures": 0,
+            "needs_repo_config": 0,
+            "needs_attention": 0,
+        }
+
+    def test_does_not_notify_state_only_when_reviews_summary_is_unchanged(self, tmp_path):
+        """Avoid extra websocket churn when the review badge state is stable."""
+        orch = _make_orchestrator(tmp_path)
+        unchanged = {
+            "total": 0,
+            "yolo_pending": 0,
+            "queued": 0,
+            "conflicts": 0,
+            "ci_failures": 0,
+            "needs_repo_config": 0,
+            "needs_attention": 0,
+        }
+        orch._last_emitted_reviews_summary = dict(unchanged)
+        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": []})
+        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._notify_state_only = MagicMock()
+
+        asyncio.run(orch._handle_review_check())
+
+        orch._notify_state_only.assert_not_called()
+        assert orch._last_emitted_reviews_summary == unchanged
+
 
 # ---------------------------------------------------------------------------
 # _handle_dispatch_needed
