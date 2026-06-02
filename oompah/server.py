@@ -53,7 +53,7 @@ from oompah.issue_enhancer import (
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
-from oompah.roles import RoleError, RoleStore
+from oompah.roles import Candidate, RoleError, RoleStore, VALID_STRATEGIES, DEFAULT_STRATEGY
 from oompah.statuses import (
     ARCHIVED,
     CANONICAL_STATUSES,
@@ -2715,6 +2715,40 @@ def _reload_orchestrator_config_after_profile_change() -> None:
         logger.warning("agent profile reload failed: %s", exc)
 
 
+def _resolve_candidate_status(
+    candidate,  # type: oompah.roles.Candidate
+    provider_store: ProviderStore,
+) -> tuple[str, str | None]:
+    """Compute the (status, message) tuple for a single candidate.
+
+    Used by the new multi-candidate serializer to report per-candidate
+    health in GET /api/v1/roles responses.
+
+    Status values match those of :func:`_resolve_role_status`:
+    ``"resolved"``, ``"missing_provider"``, ``"missing_model"``,
+    ``"empty_catalog"``.
+    """
+    if not getattr(candidate, "provider_id", None):
+        return ("missing_provider", "no provider_id")
+    provider = provider_store.get(candidate.provider_id)
+    if provider is None:
+        return ("missing_provider", f"provider {candidate.provider_id!r} not found")
+    catalog = list(provider.models or [])
+    is_acp_sdk_managed = getattr(provider, "mode", "api") == "acp" and not catalog
+    if is_acp_sdk_managed:
+        return ("resolved", None)
+    if not catalog:
+        return ("empty_catalog", f"provider {provider.name!r} has no models listed")
+    if not candidate.model:
+        return ("missing_model", f"no model assigned for provider {provider.name!r}")
+    if candidate.model not in catalog:
+        return (
+            "missing_model",
+            f"model {candidate.model!r} not in provider {provider.name!r}'s catalog",
+        )
+    return ("resolved", None)
+
+
 def _resolve_role_status(
     role,  # type: oompah.roles.Role | None
     provider_store: ProviderStore,
@@ -2803,12 +2837,40 @@ def _serialize_role_row(
 
     Sourced from RoleStore (epic xau7). Empty roles return a row with
     status=unassigned and no provider/model fields populated.
+
+    New fields (TASK-407.2):
+      - ``strategy``: the role's selection strategy ("priority", "round_robin").
+      - ``candidates``: ordered list of per-candidate dicts, each with
+        ``provider_id``, ``model``, ``status``, and optional
+        ``provider_name``/``provider_mode``.
+
+    Backward-compat fields (first-candidate projection):
+      - ``provider_id``, ``model``, ``provider_mode``, ``provider_name``
+        continue to mirror the first candidate so existing UI / tests
+        keep working without modification.
     """
     status, message = _resolve_role_status(role, provider_store)
     out: dict = {"role": role_name, "status": status}
     if message is not None:
         out["message"] = message
     if role is not None:
+        # New fields: strategy + per-candidate list.
+        out["strategy"] = role.strategy
+        candidates_out: list[dict] = []
+        for c in role.candidates:
+            c_status, _ = _resolve_candidate_status(c, provider_store)
+            cand_out: dict = {
+                "provider_id": c.provider_id,
+                "model": c.model,
+                "status": c_status,
+            }
+            prov = provider_store.get(c.provider_id)
+            if prov is not None:
+                cand_out["provider_name"] = prov.name
+                cand_out["provider_mode"] = prov.mode
+            candidates_out.append(cand_out)
+        out["candidates"] = candidates_out
+        # Backward-compat: mirror the first candidate at the row level.
         out["provider_id"] = role.provider_id
         out["model"] = role.model
         provider = provider_store.get(role.provider_id)
@@ -2864,7 +2926,22 @@ async def api_get_roles():
 async def api_put_roles(request: Request):
     """Atomically update the role assignments in RoleStore.
 
-    Body shape::
+    Supports two body shapes per role:
+
+    **New format** (strategy + candidates list, TASK-407.2)::
+
+        {
+          "fast": {
+            "strategy": "priority",
+            "candidates": [
+              {"provider_id": "prov-X", "model": "..."},
+              {"provider_id": "prov-Y", "model": "..."}
+            ]
+          },
+          ...
+        }
+
+    **Legacy format** (backward compat — single provider/model)::
 
         {
           "fast":     {"provider_id": "prov-X", "model": "..."},
@@ -2873,15 +2950,13 @@ async def api_put_roles(request: Request):
           "default":  {"provider_id": "prov-Z", "model": "..."}
         }
 
-    All four standard roles are required for v1 (extensible role names
-    are out of scope for the epic). Each row is validated against
-    ProviderStore: provider_id must exist, and model must be in the
-    provider's catalog (ACP-mode providers with empty catalogs accept
-    any model name).
+    Legacy rows are promoted internally to a single-candidate priority
+    role so both formats pass through the same validation + storage path.
 
-    Unlike the pre-xau7 role-matrix endpoint, profiles named after the
-    role are NOT required to exist — RoleStore is independent of
-    AgentProfileStore.
+    All four standard roles are required for v1. Each candidate is
+    validated against ProviderStore: provider_id must exist and model
+    must be in the provider's catalog (ACP-mode providers with empty
+    catalogs accept any model name).
 
     If any validation fails the entire request is rejected with 400
     and no role is touched. Mid-apply failures roll back to the
@@ -2905,12 +2980,12 @@ async def api_put_roles(request: Request):
             status_code=400,
         )
 
-    # Phase 1: shape validation. ``model`` may be empty when the
-    # provider is ACP-mode with no catalog (Claude SDK et al. — the SDK
-    # picks the model from the operator's subscription); the phase-2
-    # check below enforces that case.
+    # Phase 1: shape validation.
+    # Normalize both old (provider_id/model) and new (strategy/candidates)
+    # formats into a common dict:  role_name -> (strategy, [Candidate, ...])
     errors: list[str] = []
-    parsed: dict[str, tuple[str, str]] = {}
+    # Maps role_name -> (strategy, list-of-Candidate)
+    parsed: dict[str, tuple[str, list[Candidate]]] = {}
     for role in ROLE_MATRIX_KEYS:
         if role not in body:
             errors.append(f"missing role {role!r}")
@@ -2919,40 +2994,103 @@ async def api_put_roles(request: Request):
         if not isinstance(row, dict):
             errors.append(f"role {role!r}: row must be a JSON object")
             continue
-        pid = row.get("provider_id")
-        model = row.get("model") or ""
-        if not isinstance(pid, str) or not pid:
-            errors.append(f"role {role!r}: provider_id is required")
-            continue
-        if not isinstance(model, str):
-            errors.append(f"role {role!r}: model must be a string")
-            continue
-        parsed[role] = (pid, model)
+
+        if "candidates" in row:
+            # --- New format: strategy + candidates list ---
+            strategy = row.get("strategy") or DEFAULT_STRATEGY
+            if not isinstance(strategy, str):
+                errors.append(
+                    f"role {role!r}: strategy must be a string"
+                )
+                continue
+            if strategy not in VALID_STRATEGIES:
+                errors.append(
+                    f"role {role!r}: strategy {strategy!r} is not valid; "
+                    f"must be one of: {', '.join(sorted(VALID_STRATEGIES))}"
+                )
+                continue
+            candidates_raw = row.get("candidates")
+            if not isinstance(candidates_raw, list) or not candidates_raw:
+                errors.append(f"role {role!r}: candidates must be a non-empty list")
+                continue
+            candidates: list[Candidate] = []
+            row_ok = True
+            for idx, c in enumerate(candidates_raw):
+                if not isinstance(c, dict):
+                    errors.append(
+                        f"role {role!r}: candidate[{idx}] must be a JSON object"
+                    )
+                    row_ok = False
+                    break
+                pid = c.get("provider_id")
+                model = c.get("model") or ""
+                if not isinstance(pid, str) or not pid:
+                    errors.append(
+                        f"role {role!r}: candidate[{idx}].provider_id is required"
+                    )
+                    row_ok = False
+                    break
+                if not isinstance(model, str):
+                    errors.append(
+                        f"role {role!r}: candidate[{idx}].model must be a string"
+                    )
+                    row_ok = False
+                    break
+                candidates.append(Candidate(provider_id=pid, model=model))
+            if not row_ok:
+                continue
+            parsed[role] = (strategy, candidates)
+        else:
+            # --- Legacy format: single provider_id + model ---
+            pid = row.get("provider_id")
+            model = row.get("model") or ""
+            if not isinstance(pid, str) or not pid:
+                errors.append(f"role {role!r}: provider_id is required")
+                continue
+            if not isinstance(model, str):
+                errors.append(f"role {role!r}: model must be a string")
+                continue
+            parsed[role] = (DEFAULT_STRATEGY, [Candidate(provider_id=pid, model=model)])
+
     if errors:
         return JSONResponse(
             {"error": {"code": "validation", "message": "; ".join(errors)}},
             status_code=400,
         )
 
-    # Phase 2: cross-store validation. ACP-mode providers with an empty
-    # catalog let model stay empty (SDK-managed); everyone else requires
-    # a non-empty model that's in the provider's catalog.
-    for role, (pid, model) in parsed.items():
-        provider = _provider_store.get(pid)
-        if provider is None:
-            errors.append(f"role {role!r}: provider_id {pid!r} not found")
-            continue
-        catalog = list(provider.models or [])
-        is_acp_sdk_managed = provider.mode == "acp" and not catalog
-        if not model and not is_acp_sdk_managed:
-            errors.append(f"role {role!r}: model is required")
-            continue
-        if catalog and model and model not in catalog:
-            errors.append(
-                f"role {role!r}: model {model!r} not in provider "
-                f"{provider.name!r}'s catalog (have: "
-                f"{', '.join(catalog)})"
-            )
+    # Phase 2: cross-store validation.
+    # Delegate each candidate to RoleStore._validate() by calling
+    # set_candidates() in a dry-run fashion (we use _provider_store
+    # directly to keep the same validation logic).
+    for role, (strategy, candidates) in parsed.items():
+        seen_pairs: set[tuple[str, str]] = set()
+        for idx, cand in enumerate(candidates):
+            pair = (cand.provider_id, cand.model)
+            if pair in seen_pairs:
+                errors.append(
+                    f"role {role!r}: duplicate candidate at index {idx}"
+                )
+                break
+            seen_pairs.add(pair)
+            provider = _provider_store.get(cand.provider_id)
+            if provider is None:
+                errors.append(
+                    f"role {role!r}: provider_id {cand.provider_id!r} not found"
+                )
+                break
+            catalog = list(provider.models or [])
+            is_acp_sdk_managed = provider.mode == "acp" and not catalog
+            if not cand.model and not is_acp_sdk_managed:
+                errors.append(f"role {role!r}: model is required")
+                break
+            if catalog and cand.model and cand.model not in catalog:
+                errors.append(
+                    f"role {role!r}: model {cand.model!r} not in provider "
+                    f"{provider.name!r}'s catalog (have: "
+                    f"{', '.join(catalog)})"
+                )
+                break
+
     if errors:
         return JSONResponse(
             {"error": {"code": "validation", "message": "; ".join(errors)}},
@@ -2962,8 +3100,8 @@ async def api_put_roles(request: Request):
     # Phase 3: snapshot + apply + rollback-on-failure.
     snapshot = _role_store.snapshot()
     try:
-        for role, (pid, model) in parsed.items():
-            _role_store.set(role, pid, model)
+        for role, (strategy, candidates) in parsed.items():
+            _role_store.set_candidates(role, strategy, candidates)
     except (RoleError, Exception) as exc:  # noqa: BLE001 — any error → roll back
         try:
             _role_store.restore(snapshot)
