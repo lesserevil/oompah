@@ -54,5 +54,5 @@ Plan: pairs with the existing windowed-budget work (commit 331a895). This is a r
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implementation was completed in commit a971be9 (PR #64). Calendar-aligned budget windows with DST-safe zoneinfo, OOMPAH_BUDGET_TIMEZONE support, and cold-start snapping are all fully present. All 3825 tests pass. No duplicate.
+Feature fully implemented in commit a971be9. Calendar-aligned budget windows (top-of-hour, midnight, Sunday 00:00) using zoneinfo, OOMPAH_BUDGET_TIMEZONE env var for explicit IANA timezone, cold-start snapping to previous boundary. DST-safe via Python 3.9+ zoneinfo. 3825 tests pass. No duplicate found — this was a novel feature request.
 <!-- SECTION:FINAL_SUMMARY:END -->
