@@ -1,22 +1,24 @@
 ---
 id: TASK-407.6
 title: Apply provider availability preflight before candidate startup
-status: Backlog
+status: In Progress
 assignee: []
-created_date: 2026-06-01 21:44
+created_date: '2026-06-01 21:44'
+updated_date: '2026-06-02 17:19'
 labels:
-- feature
-- needs:backend
-- needs:test
+  - feature
+  - 'needs:backend'
+  - 'needs:test'
 dependencies:
-- TASK-407.5
+  - TASK-407.5
 modified_files:
-- oompah/orchestrator.py
-- tests/test_orchestrator_handlers.py
+  - oompah/orchestrator.py
+  - tests/test_orchestrator_handlers.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 36000
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -56,8 +58,27 @@ Required behavior:
 7. Add tests for budget-exhausted paid candidate falling back to free/subscription candidate, active cooldown fallback, missing credentials fallback, and all-candidates-unavailable failure.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+UNDERSTANDING: TASK-407.5 already merged with candidate failover loop. TASK-407.6 needs _candidate_preflight() helper checking missing credentials, rate-limit cooldown, budget exhaustion, invalid model BEFORE starting each worker. Will implement preflight function and tests covering all 6 ACs.
+
+DISCOVERY: No _candidate_preflight() function existed in orchestrator.py - TASK-407.5 implemented the candidate failover loop but without pre-start checks. The existing _is_rate_limited(), _check_budget(), is_model_explicitly_free(), is_per_token_billed() helpers in orchestrator and models provide all primitives needed. Implemented _candidate_preflight() at line 6275 checking: missing credentials (non-ACP), global rate-limit, budget exhaustion (with free/subscription bypass), invalid model. Integrated into _run_worker loop. 35 new tests written in tests/test_candidate_preflight.py.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Tests cover provider availability preflight without real network calls.
 - [ ] #2 Existing budget tests still pass.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-02 17:06
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->

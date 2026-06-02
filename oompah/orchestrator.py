@@ -6272,6 +6272,95 @@ class Orchestrator:
 
         return []
 
+    def _candidate_preflight(self, target: "DispatchTarget") -> str:
+        """Check whether a candidate can reasonably be used before starting a worker.
+
+        Returns an empty string when the candidate is usable, or a normalized
+        skip-reason string when the candidate should be skipped.  Reason
+        codes reuse the same names as :data:`oompah.provider_health.ERROR_REASONS`
+        where applicable:
+
+        * ``"missing_credentials"`` — ``provider.api_key`` is absent for a
+          non-ACP provider (those require an API key to call the endpoint).
+        * ``"rate_limited"`` — the global rate-limit cooldown is active.
+        * ``"budget_exceeded"`` — the budget window is exhausted **and** the
+          candidate is a paid (per-token) model.  ACP subscription-billed
+          providers and explicitly-free models are allowed through.
+        * ``"invalid_model"`` — ``target.model`` is set but absent from
+          ``provider.models`` (and not equal to ``provider.default_model``).
+
+        Log lines produced here must not include ``provider.api_key`` or any
+        other secret value.  Only the normalized reason and the
+        ``candidate_key`` are surfaced.
+
+        :param target: The :class:`DispatchTarget` to evaluate.
+        :returns: Empty string (usable) or a skip-reason string.
+        """
+        provider = target.provider
+        model = target.model
+        provider_mode = (getattr(provider, "mode", "api") or "api").lower()
+
+        # 1. Missing credentials — non-ACP providers require api_key to call
+        #    the OpenAI-compatible endpoint.  ACP providers are SDK-managed
+        #    and do not need an API key in the provider record.
+        if provider_mode != "acp" and not getattr(provider, "api_key", ""):
+            logger.warning(
+                "Preflight skip candidate %s (role=%s, provider=%s): missing_credentials",
+                target.candidate_key,
+                target.role_name or "legacy",
+                getattr(provider, "name", target.candidate_key),
+            )
+            return "missing_credentials"
+
+        # 2. Active global rate-limit cooldown — all providers share it for now.
+        if self._is_rate_limited():
+            logger.warning(
+                "Preflight skip candidate %s (role=%s, provider=%s): rate_limited",
+                target.candidate_key,
+                target.role_name or "legacy",
+                getattr(provider, "name", target.candidate_key),
+            )
+            return "rate_limited"
+
+        # 3. Budget exhaustion — paid candidates are blocked; free/subscription
+        #    candidates pass through so the orchestrator keeps making progress.
+        if not self._check_budget():
+            # ACP subscription-billed providers bypass the budget gate.
+            if provider_mode == "acp" and not provider.is_per_token_billed("acp"):
+                pass  # subscription ACP — allowed through
+            elif model and provider.is_model_explicitly_free(model):
+                pass  # explicitly $0 model — allowed through
+            else:
+                logger.warning(
+                    "Preflight skip candidate %s (role=%s, provider=%s, model=%s):"
+                    " budget_exceeded",
+                    target.candidate_key,
+                    target.role_name or "legacy",
+                    getattr(provider, "name", target.candidate_key),
+                    model or "(unset)",
+                )
+                return "budget_exceeded"
+
+        # 4. Invalid model — model is specified but not in the provider's catalog.
+        #    Providers with an empty models list (ACP SDK-managed) are skipped.
+        if (
+            model
+            and getattr(provider, "models", None)
+            and model not in provider.models
+            and model != getattr(provider, "default_model", None)
+        ):
+            logger.warning(
+                "Preflight skip candidate %s (role=%s, provider=%s, model=%s):"
+                " invalid_model",
+                target.candidate_key,
+                target.role_name or "legacy",
+                getattr(provider, "name", target.candidate_key),
+                model,
+            )
+            return "invalid_model"
+
+        return ""  # candidate passes all preflight checks
+
     def _describe_rate_limit_context(
         self,
         entry: "RunningEntry",
@@ -7631,9 +7720,18 @@ class Orchestrator:
             await self._run_cli_worker(issue, attempt, profile)
             return
 
-        # Try each target in dispatch order; fall back on provider startup failure.
+        # Try each target in dispatch order; fall back on preflight skip or
+        # provider startup failure.  Collect per-candidate skip/fail reasons
+        # so the final error message identifies every skipped provider.
+        skip_reasons: list[str] = []  # populated for both preflight and startup fails
         last_startup_error: ProviderStartupError | None = None
         for target in targets:
+            # --- Preflight: check availability before starting the worker ---
+            preflight_skip = self._candidate_preflight(target)
+            if preflight_skip:
+                skip_reasons.append(f"{target.candidate_key}: {preflight_skip}")
+                continue
+
             try:
                 if mode == "acp" or getattr(target.provider, "mode", "api") == "acp":
                     await self._run_acp_worker(issue, attempt, profile, target=target)
@@ -7657,6 +7755,7 @@ class Orchestrator:
                 return  # Worker completed (task-level errors handled inside the worker)
             except ProviderStartupError as e:
                 last_startup_error = e
+                skip_reasons.append(f"{target.candidate_key}: {e.reason}")
                 logger.warning(
                     "Candidate %s startup failed (reason=%s): %s — trying next candidate",
                     target.candidate_key,
@@ -7666,9 +7765,9 @@ class Orchestrator:
 
         # All candidates exhausted — no inner worker completed, so _on_worker_exit
         # was never called.  Call it here so the issue is properly unregistered.
+        reasons_str = "; ".join(skip_reasons) if skip_reasons else str(last_startup_error)
         error_msg = (
-            f"All {len(targets)} dispatch candidates failed at provider startup: "
-            f"{last_startup_error}"
+            f"All {len(targets)} dispatch candidates unavailable: {reasons_str}"
         )
         logger.error(
             "All dispatch candidates failed for issue %s: %s",
