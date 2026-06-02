@@ -3540,7 +3540,9 @@ class Orchestrator:
                 continue
             if issue.id in claimed_ids:
                 continue
-            # Orphaned — reset to open
+            # Orphaned — return to the dispatchable state implied by any
+            # recovery label. Plain work goes back to Open; CI/rebase recovery
+            # must stay P0 so existing open PRs do not block its dispatch.
             try:
                 project_id = issue.project_id
                 tracker = (
@@ -3548,14 +3550,25 @@ class Orchestrator:
                     if project_id
                     else self.tracker
                 )
-                tracker.update_issue(issue.identifier, status=OPEN)
+                labels = {str(label).lower() for label in (issue.labels or [])}
+                status = OPEN
+                updates: dict[str, str] = {}
+                if "merge-conflict" in labels:
+                    status = NEEDS_REBASE
+                    updates["priority"] = "0"
+                elif "ci-fix" in labels:
+                    status = NEEDS_CI_FIX
+                    updates["priority"] = "0"
+                tracker.update_issue(issue.identifier, status=status, **updates)
                 self.state.completed.discard(issue.id)
                 self._orphan_reset_counts[issue.id] = (
                     self._orphan_reset_counts.get(issue.id, 0) + 1
                 )
                 logger.info(
-                    "Reset orphaned In Progress issue %s to Open (no agent attached, count=%d)",
+                    "Reset orphaned In Progress issue %s to %s "
+                    "(no agent attached, count=%d)",
                     issue.identifier,
+                    status,
                     self._orphan_reset_counts[issue.id],
                 )
             except Exception as exc:

@@ -352,6 +352,38 @@ class TestResetOrphanedInProgress:
 
         mock_tracker.update_issue.assert_called_once_with("feat-1", status="Open")
 
+    def test_resets_ci_fix_orphan_to_needs_ci_fix_p0(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="In Progress", labels=["ci-fix"])
+        issue.project_id = project.id
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-1",
+            status="Needs CI Fix",
+            priority="0",
+        )
+
+    def test_resets_merge_conflict_orphan_to_needs_rebase_p0(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="In Progress", labels=["merge-conflict"])
+        issue.project_id = project.id
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-1",
+            status="Needs Rebase",
+            priority="0",
+        )
+
     def test_skips_issue_with_running_agent(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])
