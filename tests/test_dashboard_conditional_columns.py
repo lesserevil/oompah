@@ -25,7 +25,7 @@ def _column_config(script: str, key: str) -> str:
 
 
 def test_needs_ci_fix_column_is_conditional():
-    config = _column_config(_dashboard_script(), "needs_ci_fix")
+    config = _column_config(_dashboard_script(), "Needs CI Fix")
 
     assert "label: 'Needs CI Fix'" in config
     assert "status: 'Needs CI Fix'" in config
@@ -33,7 +33,7 @@ def test_needs_ci_fix_column_is_conditional():
 
 
 def test_needs_rebase_column_is_conditional():
-    config = _column_config(_dashboard_script(), "needs_rebase")
+    config = _column_config(_dashboard_script(), "Needs Rebase")
 
     assert "label: 'Needs Rebase'" in config
     assert "status: 'Needs Rebase'" in config
@@ -63,6 +63,6 @@ def test_visible_columns_hides_archived_when_inflight_only_is_on():
     assert match, "Could not find visibleColumns helper"
 
     body = match.group("body")
-    assert "c.key === 'archived'" in body
+    assert "c.key === 'Archived'" in body
     assert "isHideMergedOn()" in body
     assert "return false" in body

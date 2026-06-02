@@ -631,7 +631,7 @@ class TestApiIssuesDataShape:
             assert not missing, f"Issue {entry.get('identifier')} missing fields: {missing}"
 
     def test_api_issues_grouped_by_state(self, api_client):
-        """API response must group issues by state (open, in_progress, etc.)."""
+        """API response must group issues by canonical Backlog status."""
         issues = [
             _make_issue(id="t1", identifier="T-1", state="open"),
             _make_issue(id="t2", identifier="T-2", state="in_progress"),
@@ -643,8 +643,8 @@ class TestApiIssuesDataShape:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert "open" in data, "Response must have 'open' key"
-        assert "in_progress" in data, "Response must have 'in_progress' key"
+        assert "Open" in data, "Response must have 'Open' key"
+        assert "In Progress" in data, "Response must have 'In Progress' key"
 
     def test_api_issues_maps_backlog_statuses_to_dashboard_columns(self, api_client):
         """Backlog.md statuses must land in columns the dashboard renders."""
@@ -660,11 +660,11 @@ class TestApiIssuesDataShape:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert [e["identifier"] for e in data["backlog"]] == ["T-TODO"]
-        assert [e["identifier"] for e in data["in_progress"]] == ["T-IP"]
-        assert [e["identifier"] for e in data["done"]] == ["T-DONE"]
-        assert data["backlog"][0]["state"] == "backlog"
-        assert data["backlog"][0]["tracker_state"] == "To Do"
+        assert [e["identifier"] for e in data["Backlog"]] == ["T-TODO"]
+        assert [e["identifier"] for e in data["In Progress"]] == ["T-IP"]
+        assert [e["identifier"] for e in data["Done"]] == ["T-DONE"]
+        assert data["Backlog"][0]["state"] == "Backlog"
+        assert data["Backlog"][0]["tracker_state"] == "To Do"
 
     def test_websocket_issue_payload_maps_backlog_statuses_to_dashboard_columns(self):
         """The initial WebSocket issue payload must match the REST shape."""
@@ -675,11 +675,11 @@ class TestApiIssuesDataShape:
         ]
         data = server_module._fetch_and_serialize_issues(_make_orch_with_issues(issues))
 
-        assert [e["identifier"] for e in data["backlog"]] == ["T-TODO"]
-        assert [e["identifier"] for e in data["in_progress"]] == ["T-IP"]
-        assert [e["identifier"] for e in data["done"]] == ["T-DONE"]
-        assert data["in_progress"][0]["state"] == "in_progress"
-        assert data["in_progress"][0]["tracker_state"] == "In Progress"
+        assert [e["identifier"] for e in data["Backlog"]] == ["T-TODO"]
+        assert [e["identifier"] for e in data["In Progress"]] == ["T-IP"]
+        assert [e["identifier"] for e in data["Done"]] == ["T-DONE"]
+        assert data["In Progress"][0]["state"] == "In Progress"
+        assert data["In Progress"][0]["tracker_state"] == "In Progress"
 
     def test_api_issues_labels_is_list_not_null(self, api_client):
         """Labels field must be a list even when the issue has no labels."""
@@ -720,7 +720,7 @@ class TestApiIssuesEdgeCases:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert [e["identifier"] for e in data["archived"]] == ["T-ARCHIVED"]
+        assert [e["identifier"] for e in data["Archived"]] == ["T-ARCHIVED"]
         all_entries = [entry for col in data.values() for entry in col]
         identifiers = [e["identifier"] for e in all_entries]
         assert "T-VISIBLE" in identifiers, "Non-archived issues must be included"

@@ -97,7 +97,7 @@ def test_api_issues_includes_project_scoped_display_identifier(api_client):
         resp = api_client.get("/api/v1/issues")
 
     assert resp.status_code == 200
-    entry = resp.json()["open"][0]
+    entry = resp.json()["Open"][0]
     assert entry["identifier"] == "TASK-1234"
     assert entry["project_id"] == "proj-1"
     assert entry["project_name"] == "ProjectName"
@@ -113,7 +113,7 @@ def test_websocket_issue_payload_includes_same_display_identifier_shape():
 
     data = server_module._fetch_and_serialize_issues(orch)
 
-    entry = data["open"][0]
+    entry = data["Open"][0]
     assert entry["identifier"] == "TASK-1234"
     assert entry["project_name"] == "ProjectName"
     assert entry["display_identifier"] == "ProjectName-1234"

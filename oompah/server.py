@@ -377,8 +377,8 @@ def _state_key(state: str | None) -> str:
 
 
 def _dashboard_state(state: str | None) -> str:
-    """Map tracker-native states onto dashboard column keys."""
-    return _state_key(state)
+    """Map tracker-native states onto canonical dashboard statuses."""
+    return canonicalize_status(state)
 
 
 _DASHBOARD_STATE_KEYS = tuple(_dashboard_state(status) for status in CANONICAL_STATUSES)

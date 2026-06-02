@@ -145,8 +145,8 @@ class TestApiIssuesDraftEpicInColumns:
             resp = client.get("/api/v1/issues")
 
         data = resp.json()
-        assert "open" in data
-        identifiers = [e["identifier"] for e in data["open"]]
+        assert "Open" in data
+        identifiers = [e["identifier"] for e in data["Open"]]
         assert "EPIC-OPEN" in identifiers
 
     def test_draft_epic_in_legacy_deferred_column(self, client):
@@ -161,8 +161,8 @@ class TestApiIssuesDraftEpicInColumns:
             resp = client.get("/api/v1/issues")
 
         data = resp.json()
-        assert "backlog" in data
-        identifiers = [e["identifier"] for e in data["backlog"]]
+        assert "Backlog" in data
+        identifiers = [e["identifier"] for e in data["Backlog"]]
         assert "EPIC-DEF" in identifiers
 
     def test_draft_epic_in_in_progress_column(self, client):
@@ -177,8 +177,8 @@ class TestApiIssuesDraftEpicInColumns:
             resp = client.get("/api/v1/issues")
 
         data = resp.json()
-        assert "in_progress" in data
-        identifiers = [e["identifier"] for e in data["in_progress"]]
+        assert "In Progress" in data
+        identifiers = [e["identifier"] for e in data["In Progress"]]
         assert "EPIC-IP" in identifiers
 
     def test_draft_epic_in_legacy_closed_column(self, client):
@@ -193,8 +193,8 @@ class TestApiIssuesDraftEpicInColumns:
             resp = client.get("/api/v1/issues")
 
         data = resp.json()
-        assert "done" in data
-        identifiers = [e["identifier"] for e in data["done"]]
+        assert "Done" in data
+        identifiers = [e["identifier"] for e in data["Done"]]
         assert "EPIC-CL" in identifiers
 
     def test_draft_epic_has_issue_type_epic(self, client):
@@ -271,7 +271,7 @@ class TestApiIssuesNonDraftEpicIncluded:
             resp = client.get("/api/v1/issues")
 
         data = resp.json()
-        identifiers = [e["identifier"] for e in data.get("open", [])]
+        identifiers = [e["identifier"] for e in data.get("Open", [])]
         assert "EPIC-DRAFT" in identifiers
         assert "EPIC-NODRAFT" in identifiers
 
@@ -310,8 +310,8 @@ class TestApiIssuesNonDraftEpicIncluded:
         entry = _find_entry(resp.json(), "EPIC-PARENT")
         assert entry is not None
         assert "children_counts" in entry
-        assert entry["children_counts"]["open"] == 1
-        assert entry["children_counts"]["done"] == 1
+        assert entry["children_counts"]["Open"] == 1
+        assert entry["children_counts"]["Done"] == 1
 
 
 # ===========================================================================
@@ -794,7 +794,7 @@ class TestDraftEpicEdgeCases:
         data = resp.json()
         entry = _find_entry(data, "EPIC-ARCH")
         assert entry is not None
-        assert entry in data["archived"]
+        assert entry in data["Archived"]
 
     def test_empty_issues_returns_empty_response(self, client):
         """No issues → empty dict response."""
@@ -841,7 +841,7 @@ class TestDraftEpicEdgeCases:
         with patch.object(server_module, "_get_orchestrator", return_value=mock_orch):
             resp = client.get("/api/v1/issues")
 
-        open_col = resp.json().get("open", [])
+        open_col = resp.json().get("Open", [])
         ids = [e["identifier"] for e in open_col]
         # Priority 0 (high) should come before priority 2, then 3
         assert ids.index("EPIC-HIGH") < ids.index("TASK-MED") < ids.index("EPIC-LOW")
@@ -862,7 +862,7 @@ class TestDraftEpicEdgeCases:
         entry = _find_entry(resp.json(), "EPIC-DRAFT-PARENT")
         assert entry is not None
         assert "children_counts" in entry
-        assert entry["children_counts"]["in_progress"] == 1
+        assert entry["children_counts"]["In Progress"] == 1
 
     def test_issue_entry_has_all_required_fields(self, client):
         """Every issue entry has id, identifier, title, state, labels, issue_type, parent_id, project_id."""

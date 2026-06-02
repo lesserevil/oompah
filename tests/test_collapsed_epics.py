@@ -51,7 +51,7 @@ class TestIsEpicInactiveFunction:
         )
         assert func_match, "Could not find isEpicInactive function body"
         body = func_match.group(1)
-        assert "backlog" in body
+        assert "Backlog" in body
 
     def test_isEpicInactive_checks_open(self, script):
         """isEpicInactive must check the open count."""
@@ -62,7 +62,7 @@ class TestIsEpicInactiveFunction:
         )
         assert func_match
         body = func_match.group(1)
-        assert "open" in body
+        assert "Open" in body
 
     def test_isEpicInactive_checks_in_progress(self, script):
         """isEpicInactive must check the in_progress count."""
@@ -73,7 +73,7 @@ class TestIsEpicInactiveFunction:
         )
         assert func_match
         body = func_match.group(1)
-        assert "in_progress" in body
+        assert "In Progress" in body
 
     def test_isEpicInactive_uses_children_counts(self, script):
         """isEpicInactive must use children_counts from the epic."""
@@ -210,7 +210,7 @@ class TestServerChildrenCounts:
         assert "children_counts" in source
         # Must iterate issues to count children per state
         assert "epics" in source
-        assert "child_state" in source or "backlog" in source
+        assert "child_state" in source or "Backlog" in source
 
     def test_fetch_and_serialize_computes_epic_map(self):
         """The function must identify epics and build a counts map."""

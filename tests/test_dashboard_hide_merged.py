@@ -141,7 +141,7 @@ class TestFilterHelper:
         # As of commit 09d8b6d, isHiddenByMergedFilter delegates to
         # _isIndividuallyInFlight, which is where the closed-state check lives.
         body = _extract_function(script, "_isIndividuallyInFlight")
-        assert "'done'" in body or '"done"' in body, (
+        assert "'Done'" in body or '"Done"' in body, (
             "_isIndividuallyInFlight must check terminal Done state"
         )
 
@@ -306,25 +306,38 @@ class TestInit:
 def _column_key(status: str | None) -> str:
     key = (status or "").strip().lower().replace("-", "_").replace(" ", "_")
     if key in {"to_do", "todo", "deferred"}:
-        return "backlog"
+        return "Backlog"
     if key == "closed":
-        return "done"
+        return "Done"
     if key in {"asking_question", "needs_info", "needs_information"}:
-        return "needs_answer"
+        return "Needs Answer"
     if key == "human_only":
-        return "needs_human"
+        return "Needs Human"
     if key == "ci_fix":
-        return "needs_ci_fix"
+        return "Needs CI Fix"
     if key == "merge_conflict":
-        return "needs_rebase"
-    return key
+        return "Needs Rebase"
+    canonical = {
+        "backlog": "Backlog",
+        "open": "Open",
+        "in_progress": "In Progress",
+        "needs_answer": "Needs Answer",
+        "needs_human": "Needs Human",
+        "needs_ci_fix": "Needs CI Fix",
+        "needs_rebase": "Needs Rebase",
+        "in_review": "In Review",
+        "done": "Done",
+        "merged": "Merged",
+        "archived": "Archived",
+    }
+    return canonical.get(key, status or "")
 
 
 def _is_individually_in_flight(issue: dict) -> bool:
     state = _column_key(issue.get("state") or issue.get("tracker_state"))
-    if state in {"open", "in_progress", "needs_ci_fix", "needs_rebase", "in_review"}:
+    if state in {"Open", "In Progress", "Needs CI Fix", "Needs Rebase", "In Review"}:
         return True
-    if state in {"done", "merged"} and issue.get("has_open_review"):
+    if state in {"Done", "Merged"} and issue.get("has_open_review"):
         return True
     return False
 
@@ -400,12 +413,12 @@ def _apply_hide_merged_filter(
     for state, issues in data.items():
         state_key = _column_key(state)
         if state_key in {
-            "backlog",
-            "open",
-            "in_progress",
-            "needs_ci_fix",
-            "needs_rebase",
-            "in_review",
+            "Backlog",
+            "Open",
+            "In Progress",
+            "Needs CI Fix",
+            "Needs Rebase",
+            "In Review",
         }:
             filtered[state] = issues
             continue
@@ -424,48 +437,48 @@ class TestFilterBehavior:
 
     def test_done_without_pr_hidden_when_toggle_on(self):
         data = {
-            "done": [{"id": "a", "state": "done", "has_open_review": False}],
-            "open": [{"id": "b", "state": "open"}],
+            "Done": [{"id": "a", "state": "Done", "has_open_review": False}],
+            "Open": [{"id": "b", "state": "Open"}],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 1
-        assert out["done"] == []
-        assert [i["id"] for i in out["open"]] == ["b"]
+        assert out["Done"] == []
+        assert [i["id"] for i in out["Open"]] == ["b"]
 
     def test_done_with_open_pr_visible_when_toggle_on(self):
         """Done tasks with an open PR (queued / in CI) stay visible."""
         data = {
-            "done": [
-                {"id": "a", "state": "done", "has_open_review": True},
-                {"id": "b", "state": "done", "has_open_review": False},
+            "Done": [
+                {"id": "a", "state": "Done", "has_open_review": True},
+                {"id": "b", "state": "Done", "has_open_review": False},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 1
-        assert [i["id"] for i in out["done"]] == ["a"]
+        assert [i["id"] for i in out["Done"]] == ["a"]
 
     def test_done_visible_when_toggle_off(self):
         data = {
-            "done": [{"id": "a", "state": "done", "has_open_review": False}],
-            "open": [{"id": "b", "state": "open"}],
+            "Done": [{"id": "a", "state": "Done", "has_open_review": False}],
+            "Open": [{"id": "b", "state": "Open"}],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=False)
         assert hidden == 0
-        assert [i["id"] for i in out["done"]] == ["a"]
-        assert [i["id"] for i in out["open"]] == ["b"]
+        assert [i["id"] for i in out["Done"]] == ["a"]
+        assert [i["id"] for i in out["Open"]] == ["b"]
 
     def test_backlog_column_unaffected_by_toggle(self):
         """Backlog tasks stay visible so operators can promote them to Open."""
         data = {
-            "backlog": [
-                {"id": "d1", "state": "backlog"},
-                {"id": "d2", "state": "backlog"},
-                {"id": "d3", "state": "backlog", "labels": ["chore"]},
+            "Backlog": [
+                {"id": "d1", "state": "Backlog"},
+                {"id": "d2", "state": "Backlog"},
+                {"id": "d3", "state": "Backlog", "labels": ["chore"]},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 0
-        assert out["backlog"] == data["backlog"]
+        assert out["Backlog"] == data["Backlog"]
 
     def test_open_column_unaffected_by_toggle(self):
         """Open beads always show, even ones with no parent epic and no
@@ -473,84 +486,84 @@ class TestFilterBehavior:
         individually-in-flight rule, but we now bypass the column entirely).
         """
         data = {
-            "open": [
-                {"id": "o1", "state": "open"},
-                {"id": "o2", "state": "open"},
+            "Open": [
+                {"id": "o1", "state": "Open"},
+                {"id": "o2", "state": "Open"},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 0
-        assert out["open"] == data["open"]
+        assert out["Open"] == data["Open"]
 
     def test_in_progress_column_unaffected_by_toggle(self):
         data = {
-            "in_progress": [
-                {"id": "p1", "state": "in_progress"},
-                {"id": "p2", "state": "in_progress"},
+            "In Progress": [
+                {"id": "p1", "state": "In Progress"},
+                {"id": "p2", "state": "In Progress"},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 0
-        assert out["in_progress"] == data["in_progress"]
+        assert out["In Progress"] == data["In Progress"]
 
     def test_active_columns_pass_through_with_unrelated_backlog_tasks(self):
         """Backlog and active columns pass through; unrelated Done tasks hide."""
         data = {
-            "open": [{"id": "o1", "state": "open"}],
-            "in_progress": [{"id": "p1", "state": "in_progress"}],
-            "backlog": [
-                {"id": "d1", "state": "backlog"},
-                {"id": "d2", "state": "backlog"},
+            "Open": [{"id": "o1", "state": "Open"}],
+            "In Progress": [{"id": "p1", "state": "In Progress"}],
+            "Backlog": [
+                {"id": "d1", "state": "Backlog"},
+                {"id": "d2", "state": "Backlog"},
             ],
-            "done": [
+            "Done": [
                 # Done with PR -> visible
-                {"id": "c1", "state": "done", "has_open_review": True},
+                {"id": "c1", "state": "Done", "has_open_review": True},
                 # Done without PR and no in-flight ancestor -> hidden
-                {"id": "c2", "state": "done", "has_open_review": False},
+                {"id": "c2", "state": "Done", "has_open_review": False},
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 1
-        assert [i["id"] for i in out["open"]] == ["o1"]
-        assert [i["id"] for i in out["in_progress"]] == ["p1"]
-        assert [i["id"] for i in out["backlog"]] == ["d1", "d2"]
-        assert [i["id"] for i in out["done"]] == ["c1"]
+        assert [i["id"] for i in out["Open"]] == ["o1"]
+        assert [i["id"] for i in out["In Progress"]] == ["p1"]
+        assert [i["id"] for i in out["Backlog"]] == ["d1", "d2"]
+        assert [i["id"] for i in out["Done"]] == ["c1"]
 
     def test_hidden_count_excludes_visible_backlog_tasks(self):
         """Hidden-count label excludes Backlog tasks because they stay visible."""
         data = {
-            "backlog": [{"id": f"d{i}", "state": "backlog"} for i in range(50)],
-            "done": [
-                {"id": f"c{i}", "state": "done", "has_open_review": False}
+            "Backlog": [{"id": f"d{i}", "state": "Backlog"} for i in range(50)],
+            "Done": [
+                {"id": f"c{i}", "state": "Done", "has_open_review": False}
                 for i in range(10)
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 10
-        assert len(out["backlog"]) == 50
-        assert out["done"] == []
+        assert len(out["Backlog"]) == 50
+        assert out["Done"] == []
 
     def test_done_with_in_flight_ancestor_stays_visible(self):
         """Done children of an epic whose subtree contains active work stay visible."""
         data = {
-            "open": [{"id": "child-active", "state": "open", "parent_id": "epic-1"}],
-            "done": [
+            "Open": [{"id": "child-active", "state": "Open", "parent_id": "epic-1"}],
+            "Done": [
                 # Sibling of an active child, under the same epic — stays visible.
                 {
                     "id": "child-merged",
-                    "state": "done",
+                    "state": "Done",
                     "has_open_review": False,
                     "parent_id": "epic-1",
                 },
                 # Lone done task with no parent and no PR — hidden.
-                {"id": "lone-done", "state": "done", "has_open_review": False},
+                {"id": "lone-done", "state": "Done", "has_open_review": False},
             ],
         }
         # Have to also include the epic itself in the data so the show-set
         # walker can find it as a parent.
-        data["open"].append({"id": "epic-1", "state": "open"})
+        data["Open"].append({"id": "epic-1", "state": "Open"})
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
-        kept_ids = [i["id"] for i in out["done"]]
+        kept_ids = [i["id"] for i in out["Done"]]
         assert "child-merged" in kept_ids
         assert "lone-done" not in kept_ids
         assert hidden == 1
@@ -567,14 +580,14 @@ class TestFilterBehavior:
     def test_counter_matches_hidden_count(self):
         """294 hidden Done tasks — matches the example in the issue."""
         data = {
-            "done": [
-                {"id": str(i), "state": "done", "has_open_review": False}
+            "Done": [
+                {"id": str(i), "state": "Done", "has_open_review": False}
                 for i in range(294)
             ],
         }
         out, hidden = _apply_hide_merged_filter(data, toggle_on=True)
         assert hidden == 294
-        assert out["done"] == []
+        assert out["Done"] == []
 
 
 class TestColumnPassthroughInJS:
@@ -583,7 +596,7 @@ class TestColumnPassthroughInJS:
 
     def test_apply_filter_skips_non_closed_columns(self, script: str):
         body = _extract_function(script, "applyHideMergedFilter")
-        assert "stateKey" in body and "needs_ci_fix" in body, (
+        assert "stateKey" in body and "Needs CI Fix" in body, (
             "applyHideMergedFilter must compute a canonical state key and pass "
             "active columns through unchanged"
         )

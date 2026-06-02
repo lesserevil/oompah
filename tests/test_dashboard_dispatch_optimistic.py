@@ -4,10 +4,10 @@ When an agent dispatches, the "state" WebSocket message arrives within
 100-500ms but the "issues" push is throttled to once every 3s (see
 oompah/server.py _ISSUES_THROTTLE_MS). This created a visible mismatch
 where the chip appeared in the agent bar but the bead's card lagged in
-the "open" column for up to 3s before snapping to "in_progress".
+the "Open" column for up to 3s before snapping to "In Progress".
 
 The fix in handleStateUpdate() diffs running[] vs lastRunningAgents and
-optimistically marks newly-running issues as in_progress in the local
+optimistically marks newly-running issues as In Progress in the local
 in-memory boardData, then re-renders. The next throttled "issues" push
 clears the optimistic override once the server confirms.
 
@@ -87,10 +87,10 @@ class TestDispatchOptimisticStructure:
         assert "agent && agent.project_id" in script
 
     def test_writes_optimistic_in_progress(self, script: str):
-        """Must set optimisticUpdates[key] = {state: 'in_progress', ...}."""
-        # Look for an assignment that sets state to 'in_progress' inside the
+        """Must set optimisticUpdates[key] = {state: 'In Progress', ...}."""
+        # Look for an assignment that sets state to 'In Progress' inside the
         # state handler region. We don't constrain the exact structure but
-        # require the in_progress literal in proximity to optimisticUpdates.
+        # require the In Progress literal in proximity to optimisticUpdates.
         # Find the handleStateUpdate function body.
         match = re.search(
             r"function handleStateUpdate\([^)]*\)\s*\{(.*?)\n\}\n",
@@ -102,8 +102,8 @@ class TestDispatchOptimisticStructure:
         assert "optimisticUpdates[key]" in body, (
             "handleStateUpdate must write to optimisticUpdates on dispatch"
         )
-        assert "'in_progress'" in body or '"in_progress"' in body, (
-            "handleStateUpdate must mark dispatched issues as in_progress"
+        assert "'In Progress'" in body or '"In Progress"' in body, (
+            "handleStateUpdate must mark dispatched issues as In Progress"
         )
 
     def test_does_not_speculate_on_removed_running(self, script: str):
@@ -157,6 +157,42 @@ class TestDispatchOptimisticStructure:
         assert re.search(r"expiry:\s*Date\.now\(\)\s*\+", body), (
             "optimistic dispatch entries must include expiry: Date.now() + N"
         )
+
+    def test_column_config_uses_canonical_status_keys(self, script: str):
+        """Dashboard board keys must be the same canonical strings as statuses."""
+        match = re.search(r"const COLUMN_CONFIG = \[(.*?)\];", script, re.DOTALL)
+        assert match, "could not extract COLUMN_CONFIG"
+        config = match.group(1)
+        assert "{key: 'Open', label: 'Open', status: 'Open'" in config
+        assert "{key: 'In Progress', label: 'In Progress', status: 'In Progress'" in config
+        assert "{key: 'Backlog', label: 'Backlog', status: 'Backlog'" in config
+        assert "{key: 'open'" not in config
+        assert "{key: 'in_progress'" not in config
+        assert "{key: 'backlog'" not in config
+
+    def test_move_issue_canonicalizes_target_state(self, script: str):
+        """Local board moves must canonicalize aliases before touching boardData."""
+        match = re.search(
+            r"function moveIssueInBoard\([^)]*\)\s*\{(.*?)\n\}\n",
+            script,
+            re.DOTALL,
+        )
+        assert match, "could not extract moveIssueInBoard body"
+        body = match.group(1)
+        assert "newState = columnKeyForStatus(newState);" in body
+
+    def test_drag_drop_awaits_status_updates(self, script: str):
+        """Drag/drop saves should await PATCH results so failures refresh the board."""
+        assert re.search(
+            r"await\s+updateIssue\([^)]*\{\s*status:\s*targetState",
+            script,
+            re.DOTALL,
+        ), "status drag/drop calls must await updateIssue"
+        assert re.search(
+            r"await\s+updateIssue\([^)]*\{\s*priority:\s*newPri",
+            script,
+            re.DOTALL,
+        ), "priority drag/drop calls must await updateIssue"
 
 
 # ---------------------------------------------------------------------------
@@ -341,38 +377,47 @@ class TestDispatchDiffBehaviour:
 )
 class TestDispatchOptimisticAppliesToBoard:
     """Verify the full flow: diff -> set optimisticUpdates -> applyOptimisticOverrides
-    correctly moves the issue from open to in_progress.
+    correctly moves the issue from Open to In Progress.
 
     No double-counting (acceptance criterion): the bead must NOT appear in
-    both 'open' and 'in_progress' columns simultaneously.
+    both Open and In Progress columns simultaneously.
     """
 
     def _extract_apply_optimistic(self, script: str) -> str:
         helper = re.search(
-            r"function issueMatchesOptimisticUpdate\(.*?\n\}\n",
+            r"const COLUMN_CONFIG = \[.*?\];",
             script,
             re.DOTALL,
         )
-        assert helper, "could not extract issueMatchesOptimisticUpdate()"
-        match = re.search(
-            r"function applyOptimisticOverrides\(.*?\n\}\n",
-            script,
-            re.DOTALL,
-        )
-        assert match, "could not extract applyOptimisticOverrides()"
-        return helper.group(0) + "\n" + match.group(0)
+        assert helper, "could not extract COLUMN_CONFIG"
+        parts = [helper.group(0)]
+        for name in (
+            "statusKey",
+            "columnKeyForStatus",
+            "issueMatchesOptimisticUpdate",
+            "normalizeBoardData",
+            "applyOptimisticOverrides",
+        ):
+            match = re.search(
+                rf"function {name}\(.*?\n\}}\n",
+                script,
+                re.DOTALL,
+            )
+            assert match, f"could not extract {name}()"
+            parts.append(match.group(0))
+        return "\n".join(parts)
 
     def test_dispatch_moves_issue_from_open_to_in_progress(
         self, tmp_path, script: str
     ):
-        """After diff + optimistic update, the issue moves from open to in_progress."""
+        """After diff + optimistic update, the issue moves from Open to In Progress."""
         apply_fn = self._extract_apply_optimistic(script)
         js = _DIFF_FN_JS + apply_fn + textwrap.dedent("""
-            // Initial board has the issue in 'open'
+            // Initial board has the issue in Open
             const boardData = {
-                open: [{identifier: "oompah-1", state: "open"}],
-                in_progress: [],
-                closed: [],
+                "Open": [{identifier: "oompah-1", state: "Open"}],
+                "In Progress": [],
+                "Done": [],
             };
             const optimisticUpdates = {};
 
@@ -387,7 +432,7 @@ class TestDispatchOptimisticAppliesToBoard:
                 optimisticUpdates[key] = {
                     identifier: agent.issue_identifier,
                     project_id: agent.project_id || '',
-                    state: "in_progress",
+                    state: "In Progress",
                     priority: undefined,
                     expiry: Date.now() + 10000,
                 };
@@ -398,9 +443,9 @@ class TestDispatchOptimisticAppliesToBoard:
             const result = applyOptimisticOverrides(boardData);
 
             process.stdout.write(JSON.stringify({
-                openIds: result.open.map(i => i.identifier),
-                inProgressIds: result.in_progress.map(i => i.identifier),
-                inProgressStates: result.in_progress.map(i => i.state),
+                openIds: result["Open"].map(i => i.identifier),
+                inProgressIds: result["In Progress"].map(i => i.identifier),
+                inProgressStates: result["In Progress"].map(i => i.state),
             }));
         """)
         path = tmp_path / "apply_test.js"
@@ -412,18 +457,18 @@ class TestDispatchOptimisticAppliesToBoard:
         assert proc.returncode == 0, f"node failed: stderr={proc.stderr!r}"
         out = json.loads(proc.stdout)
 
-        # Acceptance: card moved from open -> in_progress
+        # Acceptance: card moved from Open -> In Progress
         assert "oompah-1" not in out["openIds"], (
-            "after dispatch optimistic update, issue must NOT be in open column"
+            "after dispatch optimistic update, issue must NOT be in Open column"
         )
         assert "oompah-1" in out["inProgressIds"], (
-            "after dispatch optimistic update, issue must be in in_progress column"
+            "after dispatch optimistic update, issue must be in In Progress column"
         )
         # Acceptance: no double-counting
         assert out["openIds"].count("oompah-1") == 0
         assert out["inProgressIds"].count("oompah-1") == 1
         # State field also updated
-        assert "in_progress" in out["inProgressStates"]
+        assert "In Progress" in out["inProgressStates"]
 
     def test_dispatch_moves_duplicate_task_id_only_in_matching_project(
         self, tmp_path, script: str
@@ -432,12 +477,12 @@ class TestDispatchOptimisticAppliesToBoard:
         apply_fn = self._extract_apply_optimistic(script)
         js = _DIFF_FN_JS + apply_fn + textwrap.dedent("""
             const boardData = {
-                open: [
-                    {identifier: "TASK-260", project_id: "proj-oompah", state: "open"},
-                    {identifier: "TASK-260", project_id: "proj-trickle", state: "open"},
+                "Open": [
+                    {identifier: "TASK-260", project_id: "proj-oompah", state: "Open"},
+                    {identifier: "TASK-260", project_id: "proj-trickle", state: "Open"},
                 ],
-                in_progress: [],
-                closed: [],
+                "In Progress": [],
+                "Done": [],
             };
             const optimisticUpdates = {};
 
@@ -451,7 +496,7 @@ class TestDispatchOptimisticAppliesToBoard:
                 optimisticUpdates[key] = {
                     identifier: agent.issue_identifier,
                     project_id: agent.project_id || '',
-                    state: "in_progress",
+                    state: "In Progress",
                     priority: undefined,
                     expiry: Date.now() + 10000,
                 };
@@ -459,8 +504,8 @@ class TestDispatchOptimisticAppliesToBoard:
 
             const result = applyOptimisticOverrides(boardData);
             process.stdout.write(JSON.stringify({
-                openProjects: result.open.map(i => i.project_id),
-                inProgressProjects: result.in_progress.map(i => i.project_id),
+                openProjects: result["Open"].map(i => i.project_id),
+                inProgressProjects: result["In Progress"].map(i => i.project_id),
             }));
         """)
         path = tmp_path / "duplicate_project_task_id.js"
@@ -481,20 +526,20 @@ class TestDispatchOptimisticAppliesToBoard:
         """A stale websocket issues payload must not clear the local override.
 
         This is the rubber-band regression: the stale payload says the issue is
-        still open, applyOptimisticOverrides moves it locally to in_progress,
+        still Open, applyOptimisticOverrides moves it locally to In Progress,
         and the optimistic marker must remain until a raw server payload also
-        says in_progress.
+        says In Progress.
         """
         apply_fn = self._extract_apply_optimistic(script)
         js = apply_fn + textwrap.dedent("""
             const boardData = {
-                open: [{identifier: "oompah-1", state: "open"}],
-                in_progress: [],
-                closed: [],
+                "Open": [{identifier: "oompah-1", state: "Open"}],
+                "In Progress": [],
+                "Done": [],
             };
             const optimisticUpdates = {
                 "oompah-1": {
-                    state: "in_progress",
+                    state: "In Progress",
                     priority: undefined,
                     expiry: Date.now() + 10000,
                 },
@@ -503,8 +548,8 @@ class TestDispatchOptimisticAppliesToBoard:
             const result = applyOptimisticOverrides(boardData);
 
             process.stdout.write(JSON.stringify({
-                openIds: result.open.map(i => i.identifier),
-                inProgressIds: result.in_progress.map(i => i.identifier),
+                openIds: result["Open"].map(i => i.identifier),
+                inProgressIds: result["In Progress"].map(i => i.identifier),
                 optimisticKeysCount: Object.keys(optimisticUpdates).length,
             }));
         """)
@@ -531,24 +576,24 @@ class TestDispatchOptimisticAppliesToBoard:
         js = apply_fn + textwrap.dedent("""
             const optimisticUpdates = {
                 "oompah-1": {
-                    state: "in_progress",
+                    state: "In Progress",
                     priority: undefined,
                     expiry: Date.now() + 10000,
                 },
             };
 
-            // First payload is stale: still says open.
+            // First payload is stale: still says Open.
             applyOptimisticOverrides({
-                open: [{identifier: "oompah-1", state: "open"}],
-                in_progress: [],
-                closed: [],
+                "Open": [{identifier: "oompah-1", state: "Open"}],
+                "In Progress": [],
+                "Done": [],
             });
 
-            // Later payload confirms: raw server state is now in_progress.
+            // Later payload confirms: raw server state is now In Progress.
             applyOptimisticOverrides({
-                open: [],
-                in_progress: [{identifier: "oompah-1", state: "in_progress"}],
-                closed: [],
+                "Open": [],
+                "In Progress": [{identifier: "oompah-1", state: "In Progress"}],
+                "Done": [],
             });
 
             process.stdout.write(JSON.stringify({
@@ -571,11 +616,11 @@ class TestDispatchOptimisticAppliesToBoard:
         """When an agent is removed from running[], no optimistic update fires."""
         apply_fn = self._extract_apply_optimistic(script)
         js = _DIFF_FN_JS + apply_fn + textwrap.dedent("""
-            // Issue was already in_progress; agent is now removed from running.
+            // Issue was already In Progress; agent is now removed from running.
             const boardData = {
-                open: [],
-                in_progress: [{identifier: "oompah-1", state: "in_progress"}],
-                closed: [],
+                "Open": [],
+                "In Progress": [{identifier: "oompah-1", state: "In Progress"}],
+                "Done": [],
             };
             const optimisticUpdates = {};
             const lastRunningAgents = [{issue_identifier: "oompah-1"}];
@@ -603,20 +648,20 @@ class TestDispatchOptimisticAppliesToBoard:
         assert out["optimisticKeysCount"] == 0
 
     def test_optimistic_clears_when_server_confirms(self, tmp_path, script: str):
-        """After the next 'issues' push has the issue in_progress, the optimistic
+        """After the next 'issues' push has the issue In Progress, the optimistic
         override is cleared by applyOptimisticOverrides (existing behaviour).
         """
         apply_fn = self._extract_apply_optimistic(script)
         js = _DIFF_FN_JS + apply_fn + textwrap.dedent("""
-            // Server has now caught up — fresh issues push has the issue in_progress.
+            // Server has now caught up — fresh issues push has the issue In Progress.
             const boardData = {
-                open: [],
-                in_progress: [{identifier: "oompah-1", state: "in_progress"}],
-                closed: [],
+                "Open": [],
+                "In Progress": [{identifier: "oompah-1", state: "In Progress"}],
+                "Done": [],
             };
             const optimisticUpdates = {
                 "oompah-1": {
-                    state: "in_progress",
+                    state: "In Progress",
                     priority: undefined,
                     expiry: Date.now() + 10000,
                 },

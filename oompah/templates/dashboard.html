@@ -1494,19 +1494,19 @@
 
 <script>
 const COLUMN_CONFIG = [
-  {key: 'backlog', label: 'Backlog', status: 'Backlog', base: true},
-  {key: 'open', label: 'Open', status: 'Open', base: true},
-  {key: 'in_progress', label: 'In Progress', status: 'In Progress', base: true},
-  {key: 'needs_answer', label: 'Needs Answer', status: 'Needs Answer', base: false, group: 'waiting'},
-  {key: 'needs_human', label: 'Needs Human', status: 'Needs Human', base: false, group: 'waiting'},
-  {key: 'needs_ci_fix', label: 'Needs CI Fix', status: 'Needs CI Fix', base: false},
-  {key: 'needs_rebase', label: 'Needs Rebase', status: 'Needs Rebase', base: false},
-  {key: 'in_review', label: 'In Review', status: 'In Review', base: false},
-  {key: 'decomposed', label: 'Decomposed', status: 'Decomposed', base: false, group: 'triage'},
-  {key: 'duplicate_candidate', label: 'Duplicate Candidate', status: 'Duplicate Candidate', base: false, group: 'triage'},
-  {key: 'done', label: 'Done', status: 'Done', base: true},
-  {key: 'merged', label: 'Merged', status: 'Merged', base: true},
-  {key: 'archived', label: 'Archived', status: 'Archived', base: false},
+  {key: 'Backlog', label: 'Backlog', status: 'Backlog', base: true},
+  {key: 'Open', label: 'Open', status: 'Open', base: true},
+  {key: 'In Progress', label: 'In Progress', status: 'In Progress', base: true},
+  {key: 'Needs Answer', label: 'Needs Answer', status: 'Needs Answer', base: false, group: 'waiting'},
+  {key: 'Needs Human', label: 'Needs Human', status: 'Needs Human', base: false, group: 'waiting'},
+  {key: 'Needs CI Fix', label: 'Needs CI Fix', status: 'Needs CI Fix', base: false},
+  {key: 'Needs Rebase', label: 'Needs Rebase', status: 'Needs Rebase', base: false},
+  {key: 'In Review', label: 'In Review', status: 'In Review', base: false},
+  {key: 'Decomposed', label: 'Decomposed', status: 'Decomposed', base: false, group: 'triage'},
+  {key: 'Duplicate Candidate', label: 'Duplicate Candidate', status: 'Duplicate Candidate', base: false, group: 'triage'},
+  {key: 'Done', label: 'Done', status: 'Done', base: true},
+  {key: 'Merged', label: 'Merged', status: 'Merged', base: true},
+  {key: 'Archived', label: 'Archived', status: 'Archived', base: false},
 ];
 const COLUMNS = COLUMN_CONFIG.map(c => c.key);
 const COLUMN_LABELS = Object.fromEntries(COLUMN_CONFIG.map(c => [c.key, c.label]));
@@ -1518,22 +1518,24 @@ function statusKey(status) {
 
 function columnKeyForStatus(status) {
   const key = statusKey(status);
-  if (key === 'to_do' || key === 'todo' || key === 'deferred') return 'backlog';
-  if (key === 'closed') return 'done';
-  if (key === 'asking_question' || key === 'needs_info' || key === 'needs_information') return 'needs_answer';
-  if (key === 'human_only') return 'needs_human';
-  if (key === 'ci_fix') return 'needs_ci_fix';
-  if (key === 'merge_conflict') return 'needs_rebase';
-  return key;
+  if (key === 'to_do' || key === 'todo' || key === 'deferred') return 'Backlog';
+  if (key === 'closed') return 'Done';
+  if (key === 'asking_question' || key === 'needs_info' || key === 'needs_information') return 'Needs Answer';
+  if (key === 'human_only') return 'Needs Human';
+  if (key === 'ci_fix') return 'Needs CI Fix';
+  if (key === 'merge_conflict') return 'Needs Rebase';
+  const match = COLUMN_CONFIG.find(c => statusKey(c.key) === key || statusKey(c.status) === key);
+  return match ? match.key : String(status || '').trim();
 }
 
 function statusForColumn(columnKey) {
-  return COLUMN_STATUS[columnKey] || columnKey;
+  const key = columnKeyForStatus(columnKey);
+  return COLUMN_STATUS[key] || key;
 }
 
 function visibleColumns(data) {
   return COLUMN_CONFIG.filter(c => {
-    if (c.key === 'archived' && isHideMergedOn()) return false;
+    if (c.key === 'Archived' && isHideMergedOn()) return false;
     return c.base || ((data && data[c.key]) || []).length > 0;
   }).map(c => c.key);
 }
@@ -1730,10 +1732,10 @@ function handleStateUpdate(state) {
   const running = state.running || [];
 
   // Optimistic dispatch update: when a state push contains a newly-running
-  // agent, mark the matching issue as in_progress locally and re-render the
+  // agent, mark the matching issue as In Progress locally and re-render the
   // board immediately. This compensates for the throttled "issues" push
   // (oompah/server.py _ISSUES_THROTTLE_MS=3000), which can otherwise lag the
-  // open->in_progress card movement up to 3s behind the agent-bar chip.
+  // Open -> In Progress card movement up to 3s behind the agent-bar chip.
   // We only optimistically update on dispatch (newly-added running entries);
   // we do not speculate when an entry is removed because we don't know if
   // the agent succeeded, failed, or is being retried — the next throttled
@@ -1751,12 +1753,12 @@ function handleStateUpdate(state) {
       optimisticUpdates[key] = {
         identifier: agent.issue_identifier,
         project_id: agent.project_id || '',
-        state: 'in_progress',
+        state: 'In Progress',
         priority: undefined,
         expiry: Date.now() + 10000,  // 10s window matches updateIssue()
       };
     }
-    // Re-render the board to apply the optimistic in_progress state
+    // Re-render the board to apply the optimistic In Progress state
     // immediately. applyOptimisticOverrides() (called inside renderBoard)
     // moves the issue between columns and self-clears once the server
     // confirms via the next "issues" push.
@@ -1907,7 +1909,7 @@ function updateProposedFociBadge(count) {
 // questions notification widget in the agent bar.
 function scanQuestionsFromBoard() {
   const askingIssues = allIssuesFlat.filter(
-    i => columnKeyForStatus(i.state || i.tracker_state) === 'needs_answer' ||
+    i => columnKeyForStatus(i.state || i.tracker_state) === 'Needs Answer' ||
          (i.labels || []).includes('asking_question')
   );
   const el = document.getElementById('questions-stat');
@@ -1991,7 +1993,7 @@ function _syncConsoleToProjectFilter() {
 }
 
 // --- In-flight toggle -----------------------------------------------------
-// Render-time filter that hides completed/backlog work outside in-flight trees.
+// Render-time filter that hides completed/Backlog work outside in-flight trees.
 // State is persisted in localStorage('oompah_hide_merged') as 'on'|'off'.
 // Default: ON (the historical merged set is rarely useful for routine ops).
 let _hideMergedHiddenCount = 0;
@@ -2029,14 +2031,14 @@ function toggleHideMerged() {
 function _isIndividuallyInFlight(issue) {
   if (!issue) return false;
   const state = columnKeyForStatus(issue.state || issue.tracker_state);
-  if (['open', 'in_progress', 'needs_ci_fix', 'needs_rebase', 'in_review'].includes(state)) return true;
-  if (['done', 'merged'].includes(state) && issue.has_open_review) return true;
+  if (['Open', 'In Progress', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(state)) return true;
+  if (['Done', 'Merged'].includes(state) && issue.has_open_review) return true;
   return false;
 }
 
 // Compute the set of issue ids to KEEP under the "In-flight only" filter.
 // An id is kept if either:
-//   1. It's individually in flight (open/in_progress, or closed-with-open-PR), OR
+//   1. It's individually in flight (Open/In Progress, or closed-with-open-PR), OR
 //   2. Any of its ancestors (parent epic, grandparent epic, ...) has an
 //      in-flight descendant somewhere in its subtree.
 // The second rule means: when an epic has any active work below it, show
@@ -2109,7 +2111,7 @@ function applyHideMergedFilter(data) {
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
     const stateKey = columnKeyForStatus(state);
-    if (['backlog', 'open', 'in_progress', 'needs_ci_fix', 'needs_rebase', 'in_review'].includes(stateKey)) {
+    if (['Backlog', 'Open', 'In Progress', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(stateKey)) {
       filtered[state] = issues;
       continue;
     }
@@ -2152,6 +2154,7 @@ async function fetchIssues() {
 }
 
 function moveIssueInBoard(identifier, newState, projectId) {
+  newState = columnKeyForStatus(newState);
   // Move an issue between columns in the local boardData
   if (!boardData) return;
   for (const [state, issues] of Object.entries(boardData)) {
@@ -2173,21 +2176,46 @@ async function updateIssue(identifier, fields) {
   if (outgoing.status !== undefined) {
     outgoing.status = statusForColumn(columnKeyForStatus(outgoing.status));
   }
-  // Record optimistic state to suppress rubber-banding from stale WebSocket data
   const projectId = outgoing.project_id || '';
-  optimisticUpdates[optimisticIssueKey(identifier, projectId)] = {
-    identifier: identifier,
-    project_id: projectId,
-    state: fields.status !== undefined ? columnKeyForStatus(fields.status) : undefined,
-    priority: outgoing.priority,
-    expiry: Date.now() + 10000,  // 10 second window
-  };
-  const res = await fetch(`/api/v1/issues/${identifier}`, {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(outgoing),
-  });
-  return res.ok;
+  const optimisticKey = optimisticIssueKey(identifier, projectId);
+  const hasBoardOptimistic = outgoing.status !== undefined || outgoing.priority !== undefined;
+  if (hasBoardOptimistic) {
+    // Record optimistic state to suppress rubber-banding from stale WebSocket data.
+    optimisticUpdates[optimisticKey] = {
+      identifier: identifier,
+      project_id: projectId,
+      state: outgoing.status !== undefined ? statusForColumn(outgoing.status) : undefined,
+      priority: outgoing.priority,
+      expiry: Date.now() + 10000,  // 10 second window
+    };
+  }
+  let res;
+  try {
+    res = await fetch(`/api/v1/issues/${identifier}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(outgoing),
+    });
+  } catch (err) {
+    if (hasBoardOptimistic) delete optimisticUpdates[optimisticKey];
+    document.getElementById('status-text').textContent = 'Update failed: network error';
+    const data = await fetchIssues();
+    if (data) renderBoard(data);
+    return false;
+  }
+  if (!res.ok) {
+    if (hasBoardOptimistic) delete optimisticUpdates[optimisticKey];
+    let detail = res.status;
+    try {
+      const err = await res.json();
+      detail = (err.error && err.error.message) || detail;
+    } catch (_) { /* ignore */ }
+    document.getElementById('status-text').textContent = 'Update failed: ' + detail;
+    const data = await fetchIssues();
+    if (data) renderBoard(data);
+    return false;
+  }
+  return true;
 }
 
 async function toggleEpicDraft(epicIdentifier, isDraft, projectId) {
@@ -2235,6 +2263,19 @@ function flattenIssues(data) {
   return all;
 }
 
+function normalizeBoardData(data) {
+  const normalized = {};
+  for (const [rawState, issues] of Object.entries(data || {})) {
+    const state = columnKeyForStatus(rawState);
+    if (!normalized[state]) normalized[state] = [];
+    for (const issue of issues || []) {
+      issue.state = columnKeyForStatus(issue.state || rawState);
+      normalized[state].push(issue);
+    }
+  }
+  return normalized;
+}
+
 // Is this issue a swimlane parent? (epic, or any issue with children)
 function isSwimlaneParent(issue) {
   return issue.issue_type === 'epic' || !!issue.children_counts;
@@ -2265,14 +2306,14 @@ function applyOptimisticOverrides(data) {
       const idx = issues.findIndex(i => issueMatchesOptimisticUpdate(i, upd));
       if (idx !== -1) {
         const issue = issues[idx];
-        const serverState = issue.state;
+        const serverState = columnKeyForStatus(issue.state || issue.tracker_state);
         const serverPriority = issue.priority;
         const hasStateUpdate = upd.state !== undefined;
         const hasPriorityUpdate = upd.priority !== undefined;
         const serverConfirmed =
-          (!hasStateUpdate || serverState === upd.state) &&
+          (!hasStateUpdate || serverState === columnKeyForStatus(upd.state)) &&
           (!hasPriorityUpdate || serverPriority === upd.priority);
-        const targetState = hasStateUpdate ? upd.state : issue.state;
+        const targetState = hasStateUpdate ? columnKeyForStatus(upd.state) : serverState;
         if (hasPriorityUpdate) issue.priority = upd.priority;
         if (targetState !== state) {
           issues.splice(idx, 1);
@@ -2291,6 +2332,7 @@ function applyOptimisticOverrides(data) {
 }
 
 function renderBoard(data) {
+  data = normalizeBoardData(data);
   data = applyOptimisticOverrides(data);
 
   // Bug fix: If the user is currently editing a card field, defer the
@@ -2377,11 +2419,11 @@ function isEpicInactive(epic) {
   // An epic is "inactive" (unopened) if it has no children in working or ready states.
   // Only epics with all active/potential work counts at 0 are considered inactive.
   const counts = epic.children_counts || {};
-  return (counts.backlog || 0) === 0 &&
-         (counts.open || 0) === 0 &&
-         (counts.in_progress || 0) === 0 &&
-         (counts.needs_ci_fix || 0) === 0 &&
-         (counts.needs_rebase || 0) === 0;
+  return (counts['Backlog'] || 0) === 0 &&
+         (counts['Open'] || 0) === 0 &&
+         (counts['In Progress'] || 0) === 0 &&
+         (counts['Needs CI Fix'] || 0) === 0 &&
+         (counts['Needs Rebase'] || 0) === 0;
 }
 
 function renderSwimlaneView(board, data) {
@@ -2404,7 +2446,7 @@ function renderSwimlaneView(board, data) {
     lane.className = 'swimlane' + (isCollapsed ? ' collapsed' : '');
     lane.dataset.epicId = epic.id;
 
-    const countsStr = `${counts.backlog || 0} / ${counts.open || 0} / ${counts.in_progress || 0} / ${counts.done || 0}`;
+    const countsStr = `${counts['Backlog'] || 0} / ${counts['Open'] || 0} / ${counts['In Progress'] || 0} / ${counts['Done'] || 0}`;
 
     lane.innerHTML = `
       <div class="swimlane-header" onclick="toggleSwimlane('${esc(epic.id)}')">
@@ -2581,7 +2623,7 @@ function createCard(issue) {
     : '';
 
   // Build merged badge if issue is in the Merged status
-  const mergedBadgeHtml = columnKeyForStatus(issue.state || issue.tracker_state) === 'merged'
+  const mergedBadgeHtml = columnKeyForStatus(issue.state || issue.tracker_state) === 'Merged'
     ? ' <span class="merged-badge">merged</span>'
     : '';
 
@@ -2703,7 +2745,7 @@ function setupColumnDrag(header, sourceState, epicId) {
     header.classList.remove('col-drag-over');
     if (!columnDragState) return;
 
-    const targetState = sourceState;  // this header's state
+    const targetState = columnKeyForStatus(sourceState);  // this header's state
     const src = columnDragState;
     columnDragState = null;
     if (targetState === src.sourceState) return;
@@ -2731,7 +2773,7 @@ function setupColumnDrag(header, sourceState, epicId) {
 
     // Fire API calls
     for (const issue of cardsToMove) {
-      updateIssue(issue.identifier, {status: targetState, project_id: issue.project_id || ''});
+      await updateIssue(issue.identifier, {status: targetState, project_id: issue.project_id || ''});
     }
   });
 }
@@ -2784,7 +2826,7 @@ function setupDropZone(body) {
     body.classList.remove('drag-over');
     if (!dragState) return;
 
-    const targetState = body.dataset.state;
+    const targetState = columnKeyForStatus(body.dataset.state);
     const identifier = dragState.identifier;
 
     // Find which drop indicator was active
@@ -2818,14 +2860,14 @@ function setupDropZone(body) {
       if (issue) issue.priority = newPri;
       boardData[targetState].sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
       renderBoard(boardData);
-      updateIssue(identifier, {priority: newPri, project_id: dragState.projectId});
+      await updateIssue(identifier, {priority: newPri, project_id: dragState.projectId});
       return;
     }
 
     // Different column — move between states
     moveIssueInBoard(identifier, targetState, dragState.projectId);
     renderBoard(boardData);
-    updateIssue(identifier, {status: targetState, project_id: dragState.projectId});
+    await updateIssue(identifier, {status: targetState, project_id: dragState.projectId});
   });
 }
 
