@@ -2326,6 +2326,59 @@ async def api_delete_provider(provider_id: str):
 
 
 # ----------------------------------------------------------------------
+# Provider health-check endpoint (TASK-407.3)
+#
+# POST /api/v1/providers/{provider_id}/test
+#
+# Sends a tiny prompt to the provider and returns a structured result
+# with success/failure, model used, latency, response text, and a
+# normalized error reason. Does NOT create tasks, mutate config, or
+# update role round-robin state.
+# ----------------------------------------------------------------------
+
+
+@app.post("/api/v1/providers/{provider_id}/test")
+async def api_test_provider(provider_id: str):
+    """Manually test a configured provider by sending a tiny probe prompt.
+
+    Returns 200 with a structured result body regardless of whether the
+    probe succeeded (the ``success`` field distinguishes the two cases).
+    Returns 404 only when the provider_id is not in the store at all.
+    """
+    from oompah.provider_health import run_health_check
+
+    provider = _provider_store.get(provider_id)
+    if provider is None:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": f"Provider {provider_id} not found",
+                }
+            },
+            status_code=404,
+        )
+
+    try:
+        result = await asyncio.to_thread(run_health_check, provider)
+    except Exception as exc:
+        logger.error("Provider health-check error for %s: %s", provider_id, exc)
+        return JSONResponse(
+            {
+                "provider_id": provider_id,
+                "provider_name": provider.name,
+                "model": "",
+                "success": False,
+                "latency_ms": 0.0,
+                "error_reason": "unknown_error",
+                "error_detail": str(exc)[:300],
+            }
+        )
+
+    return JSONResponse(result.to_dict())
+
+
+# ----------------------------------------------------------------------
 # Agent profiles CRUD (oompah-zlz_2-xaj + oompah-zlz_2-mif)
 #
 # Backed by AgentProfileStore at .oompah/agent_profiles.json.

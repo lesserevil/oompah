@@ -152,12 +152,12 @@ class TestGetRoleMatrix:
         # (bypass validation by writing through the store's internal
         # dict — the validate path would refuse).
         role_store = matrix_client["role_store"]
-        from oompah.roles import Role
+        from oompah.roles import Candidate, Role
         from datetime import datetime, timezone
         role_store._roles["deep"] = Role(
             name="deep",
-            provider_id="prov-vanished",
-            model="nvidia/MiniMax-M2.7",
+            strategy="priority",
+            candidates=[Candidate(provider_id="prov-vanished", model="nvidia/MiniMax-M2.7")],
             updated_at=datetime.now(timezone.utc),
         )
         client = matrix_client["client"]
@@ -170,13 +170,13 @@ class TestGetRoleMatrix:
         # Reassign "standard" to a model that's NOT in the provider's
         # catalog (bypass validation via internal dict write).
         role_store = matrix_client["role_store"]
-        from oompah.roles import Role
+        from oompah.roles import Candidate, Role
         from datetime import datetime, timezone
         existing = role_store.get("standard")
         role_store._roles["standard"] = Role(
             name="standard",
-            provider_id=existing.provider_id,
-            model="nvidia/not-real-model",
+            strategy="priority",
+            candidates=[Candidate(provider_id=existing.provider_id, model="nvidia/not-real-model")],
             updated_at=datetime.now(timezone.utc),
         )
         client = matrix_client["client"]

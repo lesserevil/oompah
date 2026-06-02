@@ -1,19 +1,30 @@
 """Role storage and management.
 
-File-backed CRUD store for role_name → (provider_id, model) mappings,
+File-backed CRUD store for role_name → (strategy, candidates) mappings,
 parallel to AgentProfileStore / ProviderStore.
 Roles are persisted to ``.oompah/roles.json``.
 
 Each role maps a human-readable name (e.g. "fast", "standard", "deep",
-"default") to a (provider_id, model) pair that tells the dispatcher
-which provider and model to use for that role.
+"default") to a strategy and an ordered list of provider/model candidates.
+The strategy governs how the dispatcher selects from the list at runtime
+(e.g. priority → try first candidate, fall back on failure; round_robin
+→ cycle across candidates).
 
-Validation rules (enforced by ``set``):
+Backward compatibility:
+  Old roles.json files that store a single ``provider_id`` / ``model``
+  at the top level of each entry are loaded automatically as one-candidate
+  "priority" roles.  The persisted schema is always the new multi-candidate
+  format.
+
+Validation rules (enforced by ``set`` / ``set_candidates``):
 
 - ``name`` must be non-empty.
-- ``provider_id`` must exist in ProviderStore.
-- ``model`` must be in provider.models (or provider must be ACP-mode
-  with empty catalog).
+- ``strategy`` must be one of ``VALID_STRATEGIES``.
+- ``candidates`` must be non-empty.
+- Each candidate's ``provider_id`` must exist in ProviderStore.
+- Each candidate's ``model`` must be in provider.models (or provider must
+  be ACP-mode with empty catalog).
+- Duplicate ``(provider_id, model)`` pairs within a role are rejected.
 
 See oompah-zlz_2-fuug for the design of this foundation.
 """
@@ -32,31 +43,116 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_ROLES_PATH = ".oompah/roles.json"
 
+#: The set of strategies a role may declare.
+VALID_STRATEGIES: frozenset[str] = frozenset({"priority", "round_robin"})
+DEFAULT_STRATEGY = "priority"
+
+
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Candidate:
+    """A single provider/model candidate for a role."""
+
+    provider_id: str
+    model: str
+
+    def to_dict(self) -> dict[str, str]:
+        """Serialize to JSON-friendly dict."""
+        return {"provider_id": self.provider_id, "model": self.model}
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Candidate":
+        """Construct from a JSON dict."""
+        return cls(
+            provider_id=str(d.get("provider_id") or ""),
+            model=str(d.get("model") or ""),
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Candidate):
+            return NotImplemented
+        return self.provider_id == other.provider_id and self.model == other.model
+
+    def __hash__(self) -> int:
+        return hash((self.provider_id, self.model))
+
 
 @dataclass
 class Role:
-    """A role mapping: name → (provider_id, model)."""
+    """A role mapping: name → strategy + candidates.
+
+    ``strategy`` controls how the dispatcher selects among ``candidates``
+    at runtime.  Allowed values: "priority", "round_robin".
+
+    ``candidates`` is an ordered list of :class:`Candidate` objects.
+
+    Backward-compat properties ``provider_id`` and ``model`` delegate to
+    the first candidate so existing callers that access these fields
+    continue to work without modification.
+    """
 
     name: str
-    provider_id: str
-    model: str
+    strategy: str
+    candidates: list[Candidate]
     updated_at: datetime
 
+    # ------------------------------------------------------------------
+    # Backward-compat properties (first-candidate projection)
+    # ------------------------------------------------------------------
+
+    @property
+    def provider_id(self) -> str:
+        """First candidate's provider_id (backward-compat convenience)."""
+        return self.candidates[0].provider_id if self.candidates else ""
+
+    @property
+    def model(self) -> str:
+        """First candidate's model (backward-compat convenience)."""
+        return self.candidates[0].model if self.candidates else ""
+
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
+
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to JSON-friendly dict."""
+        """Serialize to JSON-friendly dict (new multi-candidate schema)."""
         return {
             "name": self.name,
-            "provider_id": self.provider_id,
-            "model": self.model,
+            "strategy": self.strategy,
+            "candidates": [c.to_dict() for c in self.candidates],
             "updated_at": self.updated_at.isoformat(),
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Role:
+    def from_dict(cls, d: dict[str, Any]) -> "Role":
         """Construct a Role from its JSON dict.
 
-        Permissive about types: parses datetime from ISO string,
-        falls back to now() for missing updated_at.
+        Supports both the new multi-candidate schema::
+
+            {
+              "name": "fast",
+              "strategy": "priority",
+              "candidates": [{"provider_id": "p", "model": "m"}],
+              "updated_at": "..."
+            }
+
+        and the legacy single-candidate schema::
+
+            {
+              "name": "fast",
+              "provider_id": "p",
+              "model": "m",
+              "updated_at": "..."
+            }
+
+        Legacy entries are promoted to a one-candidate ``priority`` role.
+        Permissive about types: parses datetime from ISO string, falls
+        back to now() for missing/invalid updated_at.  Invalid strategy
+        values default to ``"priority"`` so corrupt files load cleanly.
         """
         raw_ts = d.get("updated_at")
         updated_at: datetime
@@ -71,10 +167,29 @@ class Role:
         else:
             updated_at = datetime.now(timezone.utc)
 
+        # Determine candidates: new format takes precedence.
+        if "candidates" in d and isinstance(d["candidates"], list):
+            candidates: list[Candidate] = []
+            for entry in d["candidates"]:
+                if isinstance(entry, dict):
+                    candidates.append(Candidate.from_dict(entry))
+            # Strategy from dict; default to priority if missing/invalid.
+            raw_strategy = str(d.get("strategy") or DEFAULT_STRATEGY)
+            strategy = raw_strategy if raw_strategy in VALID_STRATEGIES else DEFAULT_STRATEGY
+        elif "provider_id" in d or "model" in d:
+            # Legacy single-candidate format.
+            pid = str(d.get("provider_id") or "")
+            model = str(d.get("model") or "")
+            candidates = [Candidate(provider_id=pid, model=model)]
+            strategy = DEFAULT_STRATEGY
+        else:
+            candidates = []
+            strategy = DEFAULT_STRATEGY
+
         return cls(
-            name=str(d.get("name", "")),
-            provider_id=str(d.get("provider_id", "")),
-            model=str(d.get("model", "")),
+            name=str(d.get("name") or ""),
+            strategy=strategy,
+            candidates=candidates,
             updated_at=updated_at,
         )
 
@@ -101,6 +216,9 @@ class RoleStore:
     dashboard and used by the dispatcher). The on-disk format is a
     JSON array of role dicts produced by ``Role.to_dict()``; loading
     uses ``Role.from_dict``.
+
+    Old single-candidate files are transparently migrated on load;
+    saves always write the new multi-candidate schema.
     """
 
     def __init__(
@@ -216,7 +334,11 @@ class RoleStore:
     # ------------------------------------------------------------------
 
     def set(self, name: str, provider_id: str, model: str) -> Role:
-        """Create or update a role mapping.
+        """Create or update a role with a single candidate (priority strategy).
+
+        Convenience wrapper around :meth:`set_candidates` that accepts the
+        single provider/model pair used by existing callers (API endpoint,
+        migration helpers, tests).
 
         Validates that provider_id exists in ProviderStore and model is
         in provider.models (or provider is ACP-mode with empty catalog).
@@ -233,15 +355,43 @@ class RoleStore:
         Raises:
             RoleError: On validation failure.
         """
-        self._validate(name, provider_id, model)
+        candidate = Candidate(
+            provider_id=(provider_id or "").strip(),
+            model=(model or "").strip(),
+        )
+        return self.set_candidates(name, DEFAULT_STRATEGY, [candidate])
+
+    def set_candidates(
+        self,
+        name: str,
+        strategy: str,
+        candidates: list[Candidate],
+    ) -> Role:
+        """Create or update a role with an arbitrary candidate list.
+
+        Args:
+            name: Role name (e.g. "fast", "standard").
+            strategy: Selection strategy; must be one of
+                ``VALID_STRATEGIES`` ("priority" or "round_robin").
+            candidates: Non-empty ordered list of :class:`Candidate`
+                objects; duplicates (same provider_id+model) are
+                rejected.
+
+        Returns:
+            The created or updated Role.
+
+        Raises:
+            RoleError: On validation failure.
+        """
+        self._validate_multi(name, strategy, candidates)
         with self._lock:
             role = Role(
-                name=name,
-                provider_id=provider_id,
-                model=model,
+                name=name.strip(),
+                strategy=strategy,
+                candidates=list(candidates),
                 updated_at=datetime.now(timezone.utc),
             )
-            self._roles[name] = role
+            self._roles[role.name] = role
             self._save()
         self._fire_reload("set")
         return role
@@ -266,12 +416,18 @@ class RoleStore:
         affect the store.
         """
         with self._lock:
-            return {name: Role(
-                name=r.name,
-                provider_id=r.provider_id,
-                model=r.model,
-                updated_at=r.updated_at,
-            ) for name, r in self._roles.items()}
+            return {
+                name: Role(
+                    name=r.name,
+                    strategy=r.strategy,
+                    candidates=[
+                        Candidate(provider_id=c.provider_id, model=c.model)
+                        for c in r.candidates
+                    ],
+                    updated_at=r.updated_at,
+                )
+                for name, r in self._roles.items()
+            }
 
     def restore(self, snapshot: dict[str, Role]) -> None:
         """Restore the store to a previous snapshot.
@@ -287,8 +443,43 @@ class RoleStore:
     # Validation
     # ------------------------------------------------------------------
 
+    def _validate_multi(
+        self,
+        name: str,
+        strategy: str,
+        candidates: list[Candidate],
+    ) -> None:
+        """Validate name, strategy, and candidate list.
+
+        Raises RoleError on the first failure with a human-readable
+        message.
+        """
+        name = (name or "").strip()
+        if not name:
+            raise RoleError("name must be non-empty")
+
+        if strategy not in VALID_STRATEGIES:
+            raise RoleError(
+                f"strategy {strategy!r} is not valid; "
+                f"must be one of: {', '.join(sorted(VALID_STRATEGIES))}"
+            )
+
+        if not candidates:
+            raise RoleError("candidates must be non-empty")
+
+        seen: set[tuple[str, str]] = set()
+        for idx, candidate in enumerate(candidates):
+            key = (candidate.provider_id, candidate.model)
+            if key in seen:
+                raise RoleError(
+                    f"duplicate candidate at index {idx}: "
+                    f"provider_id={candidate.provider_id!r}, model={candidate.model!r}"
+                )
+            seen.add(key)
+            self._validate(name, candidate.provider_id, candidate.model)
+
     def _validate(self, name: str, provider_id: str, model: str) -> None:
-        """Validate role fields against ProviderStore.
+        """Validate a single provider/model pair against ProviderStore.
 
         Raises RoleError on the first failure with a human-readable
         message.

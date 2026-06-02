@@ -2,7 +2,11 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PID_FILE := .oompah.pid
 LOG_FILE := oompah.log
-PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),8080)
+# Read OOMPAH_SERVER_PORT from .env when not already in the shell environment.
+# This makes `make status` and `make graceful` work consistently with the port
+# oompah actually listens on, even when the operator hasn't exported the var.
+_ENV_PORT := $(shell grep -E '^OOMPAH_SERVER_PORT[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
+PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),$(if $(_ENV_PORT),$(_ENV_PORT),8080))
 BACKLOG_NPM_PACKAGE := https://github.com/lesserevil/backlog.md/archive/HEAD.tar.gz
 BACKLOG_CLI := $(VENV)/bin/backlog
 
@@ -50,9 +54,9 @@ start: setup
 		echo "oompah is already running (pid $$(cat $(PID_FILE)))"; \
 	else \
 		if command -v setsid >/dev/null 2>&1; then \
-			setsid $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 & \
+			setsid $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 </dev/null & \
 		else \
-			nohup $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 & \
+			nohup $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 </dev/null & \
 		fi; \
 		echo $$! > $(PID_FILE); \
 		echo "oompah started (pid $$!); HTTP port defaults to $(PORT)"; \

@@ -3,19 +3,21 @@ id: TASK-407.1
 title: Add multi-candidate role data model and migration
 status: Backlog
 assignee: []
-created_date: 2026-06-01 21:43
+created_date: '2026-06-01 21:43'
+updated_date: '2026-06-02 01:07'
 labels:
-- feature
-- needs:backend
-- needs:test
+  - feature
+  - 'needs:backend'
+  - 'needs:test'
 dependencies: []
 modified_files:
-- oompah/roles.py
-- tests/test_role_store.py
+  - oompah/roles.py
+  - tests/test_role_store.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 31000
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -57,6 +59,12 @@ Required behavior:
 6. Add validation helpers that check provider existence, model validity, empty ACP-model behavior, non-empty candidate lists, valid strategies, and duplicate candidates.
 7. Update tests/test_role_store.py for new and migrated formats.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Discovery: oompah/roles.py has Role(name, provider_id, model, updated_at) and RoleStore.set(name, provider_id, model). server.py accesses role.provider_id and role.model directly in _resolve_role_status and _serialize_role_row, so those need to remain accessible as backward-compat properties. test_providers_role_matrix.py also instantiates Role() directly (bypassing validation) for two tests - those needed updating too. Implementation: Added Candidate dataclass with provider_id+model+to_dict/from_dict. Updated Role to use strategy+candidates+updated_at with provider_id/model as compat properties returning first candidate. from_dict handles both old (provider_id/model at top level) and new (strategy+candidates) formats. set() now delegates to set_candidates(). Added set_candidates(name, strategy, candidates) for multi-candidate. Added _validate_multi() checking strategy, empty candidates, and duplicates. All 3605 tests pass.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

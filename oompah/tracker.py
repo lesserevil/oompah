@@ -29,6 +29,19 @@ from oompah.statuses import (
 )
 
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9._-]")
+_BACKLOG_CLI_OWNED_FRONTMATTER = frozenset({
+    "id",
+    "title",
+    "status",
+    "assignee",
+    "assignees",
+    "created_date",
+    "updated_date",
+    "labels",
+    "dependencies",
+    "priority",
+    "ordinal",
+})
 
 
 def _sanitize_identifier(identifier: str) -> str:
@@ -256,16 +269,17 @@ class BacklogMdTracker:
 
     def add_dependency(self, blocked_id: str, blocker_id: str) -> None:
         """Set the task dependency list to include blocker_id."""
-        issue = self.fetch_issue_detail(blocked_id)
-        existing = [b.identifier or b.id for b in (issue.blocked_by if issue else [])]
-        deps = [d for d in existing if d]
-        if blocker_id not in deps:
-            deps.append(blocker_id)
-        self._run_backlog([
-            "task", "edit", blocked_id,
-            "--depends-on", ",".join(deps),
-            "--plain",
-        ])
+        with self._task_lock(blocked_id):
+            issue = self.fetch_issue_detail(blocked_id)
+            existing = [b.identifier or b.id for b in (issue.blocked_by if issue else [])]
+            deps = [d for d in existing if d]
+            if blocker_id not in deps:
+                deps.append(blocker_id)
+            self._run_backlog_task_edit([
+                "task", "edit", blocked_id,
+                "--depends-on", ",".join(deps),
+                "--plain",
+            ], blocked_id)
 
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         """Fetch a single task with full details."""
@@ -326,7 +340,7 @@ class BacklogMdTracker:
                         "Backlog.md update_issue ignoring unsupported field %s", key,
                     )
             if handled:
-                self._run_backlog(args)
+                self._run_backlog_task_edit(args, identifier)
 
     def mark_needs_human(
         self, identifier: str, comment: str, author: str = "oompah"
@@ -340,35 +354,35 @@ class BacklogMdTracker:
         """Move a Backlog.md task to the configured terminal status."""
         with self._task_lock(identifier):
             status = self._terminal_status()
-            self._run_backlog([
+            self._run_backlog_task_edit([
                 "task", "edit", identifier,
                 "--status", status,
                 "--plain",
-            ])
+            ], identifier)
             if reason:
                 self.add_comment(identifier, reason)
 
     def reopen_issue(self, identifier: str) -> None:
         """Move a task back to the first configured active status."""
         with self._task_lock(identifier):
-            self._run_backlog([
+            self._run_backlog_task_edit([
                 "task", "edit", identifier,
                 "--status", self._active_status(),
                 "--plain",
-            ])
+            ], identifier)
 
     def add_label(self, identifier: str, label: str) -> None:
         with self._task_lock(identifier):
-            self._run_backlog([
+            self._run_backlog_task_edit([
                 "task", "edit", identifier, "--add-label", label, "--plain",
-            ])
+            ], identifier)
 
     def remove_label(self, identifier: str, label: str) -> None:
         with self._task_lock(identifier):
             try:
-                self._run_backlog([
+                self._run_backlog_task_edit([
                     "task", "edit", identifier, "--remove-label", label, "--plain",
-                ])
+                ], identifier)
             except TrackerError:
                 pass
 
@@ -758,6 +772,51 @@ class BacklogMdTracker:
                 lock = threading.RLock()
                 self._task_locks[key] = lock
             return lock
+
+    def _run_backlog_task_edit(self, args: list[str], identifier: str) -> str:
+        """Run a Backlog task edit while preserving non-CLI frontmatter."""
+        custom_meta = self._custom_frontmatter_snapshot(identifier)
+        result = self._run_backlog(args)
+        if custom_meta:
+            self._restore_missing_frontmatter(identifier, custom_meta)
+        return result
+
+    def _custom_frontmatter_snapshot(self, identifier: str) -> dict:
+        path = self._task_path_for(identifier)
+        if not path:
+            return {}
+        try:
+            meta, _body = _read_markdown_frontmatter(path)
+        except TrackerError:
+            return {}
+        return {
+            key: value
+            for key, value in meta.items()
+            if str(key) not in _BACKLOG_CLI_OWNED_FRONTMATTER
+        }
+
+    def _restore_missing_frontmatter(
+        self, identifier: str, custom_meta: dict,
+    ) -> None:
+        path = self._task_path_for(identifier)
+        if not path:
+            return
+        try:
+            meta, body = _read_markdown_frontmatter(path)
+        except TrackerError as exc:
+            logger.warning(
+                "Backlog.md: could not restore custom frontmatter for %s: %s",
+                identifier,
+                exc,
+            )
+            return
+        restored = False
+        for key, value in custom_meta.items():
+            if key not in meta:
+                meta[key] = value
+                restored = True
+        if restored:
+            _write_markdown_frontmatter(path, meta, body)
 
     def _run_backlog(
         self, args: list[str], *, timeout: float | None = None,

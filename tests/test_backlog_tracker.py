@@ -260,6 +260,60 @@ def test_update_issue_maps_legacy_statuses_to_backlog_statuses(tmp_path):
     ]
 
 
+def test_update_issue_preserves_custom_frontmatter_dropped_by_cli(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Custom metadata",
+        extra_meta={
+            "type": "bug",
+            "parent": "TASK-9",
+            "beads": {"id": "oompah-legacy"},
+            "oompah.custom": {"kept": True},
+        },
+    )
+    tracker = _tracker(tmp_path)
+
+    def fake_cli_rewrite(_args):
+        meta, body = yaml.safe_load(
+            task_path.read_text(encoding="utf-8").split("---\n", 2)[1],
+        ), task_path.read_text(encoding="utf-8").split("---\n", 2)[2]
+        rewritten = {
+            key: meta[key]
+            for key in (
+                "id",
+                "title",
+                "status",
+                "created_date",
+                "updated_date",
+                "labels",
+                "dependencies",
+                "priority",
+            )
+            if key in meta
+        }
+        rewritten["status"] = "In Progress"
+        task_path.write_text(
+            "---\n"
+            + yaml.safe_dump(rewritten, sort_keys=False)
+            + "---\n"
+            + body,
+            encoding="utf-8",
+        )
+        return ""
+
+    with patch.object(tracker, "_run_backlog", side_effect=fake_cli_rewrite):
+        tracker.update_issue("TASK-1", status="In Progress")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["status"] == "In Progress"
+    assert meta["type"] == "bug"
+    assert meta["parent"] == "TASK-9"
+    assert meta["beads"] == {"id": "oompah-legacy"}
+    assert meta["oompah.custom"] == {"kept": True}
+
+
 def test_mark_needs_human_updates_status_then_appends_comment(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "Needs human")

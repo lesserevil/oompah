@@ -8,48 +8,270 @@ import pytest
 
 from oompah.models import AgentProfile, ModelProvider
 from oompah.providers import ProviderStore
-from oompah.roles import Role, RoleError, RoleStore
+from oompah.roles import (
+    Candidate,
+    Role,
+    RoleError,
+    RoleStore,
+    VALID_STRATEGIES,
+    DEFAULT_STRATEGY,
+)
 
 
 # ---------------------------------------------------------------------------
-# Role.to_dict / from_dict round-trip
+# Candidate serialization
+# ---------------------------------------------------------------------------
+
+
+class TestCandidateSerialization:
+    def test_to_dict(self):
+        c = Candidate(provider_id="prov-1", model="gpt-4o")
+        assert c.to_dict() == {"provider_id": "prov-1", "model": "gpt-4o"}
+
+    def test_from_dict(self):
+        c = Candidate.from_dict({"provider_id": "prov-1", "model": "gpt-4o"})
+        assert c.provider_id == "prov-1"
+        assert c.model == "gpt-4o"
+
+    def test_from_dict_missing_fields(self):
+        c = Candidate.from_dict({})
+        assert c.provider_id == ""
+        assert c.model == ""
+
+    def test_equality(self):
+        c1 = Candidate(provider_id="p1", model="m1")
+        c2 = Candidate(provider_id="p1", model="m1")
+        assert c1 == c2
+
+    def test_inequality(self):
+        c1 = Candidate(provider_id="p1", model="m1")
+        c2 = Candidate(provider_id="p1", model="m2")
+        assert c1 != c2
+
+    def test_hashable(self):
+        c1 = Candidate(provider_id="p1", model="m1")
+        c2 = Candidate(provider_id="p1", model="m1")
+        assert hash(c1) == hash(c2)
+        assert len({c1, c2}) == 1
+
+
+# ---------------------------------------------------------------------------
+# Role.to_dict / from_dict round-trip (new schema)
 # ---------------------------------------------------------------------------
 
 
 class TestRoleSerialization:
-    def test_round_trip_minimal(self):
+    def test_round_trip_single_candidate(self):
         now = datetime.now(timezone.utc)
-        r = Role(name="fast", provider_id="prov-1", model="gpt-4o", updated_at=now)
+        candidates = [Candidate(provider_id="prov-1", model="gpt-4o")]
+        r = Role(name="fast", strategy="priority", candidates=candidates, updated_at=now)
         d = r.to_dict()
         assert d == {
             "name": "fast",
-            "provider_id": "prov-1",
-            "model": "gpt-4o",
+            "strategy": "priority",
+            "candidates": [{"provider_id": "prov-1", "model": "gpt-4o"}],
             "updated_at": now.isoformat(),
         }
         r2 = Role.from_dict(d)
-        assert r2 == r
+        assert r2.name == r.name
+        assert r2.strategy == r.strategy
+        assert r2.candidates == r.candidates
+        assert r2.updated_at == r.updated_at
 
-    def test_round_trip_full(self):
+    def test_round_trip_multi_candidate(self):
         now = datetime.now(timezone.utc)
-        r = Role(name="deep", provider_id="prov-abc", model="claude-3", updated_at=now)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+            Candidate(provider_id="prov-2", model="claude-3"),
+        ]
+        r = Role(name="deep", strategy="round_robin", candidates=candidates, updated_at=now)
         d = r.to_dict()
         r2 = Role.from_dict(d)
-        assert r2 == r
+        assert r2.name == "deep"
+        assert r2.strategy == "round_robin"
+        assert len(r2.candidates) == 2
+        assert r2.candidates[0] == Candidate(provider_id="prov-1", model="gpt-4o")
+        assert r2.candidates[1] == Candidate(provider_id="prov-2", model="claude-3")
+
+    def test_to_dict_does_not_include_old_provider_id_model(self):
+        """to_dict() writes new schema (strategy + candidates), not old flat fields."""
+        now = datetime.now(timezone.utc)
+        r = Role(
+            name="fast",
+            strategy="priority",
+            candidates=[Candidate(provider_id="prov-1", model="gpt-4o")],
+            updated_at=now,
+        )
+        d = r.to_dict()
+        assert "candidates" in d
+        assert "strategy" in d
+        # Old flat fields should NOT appear at the top level in saved data.
+        assert "provider_id" not in d
+        assert "model" not in d
 
     def test_from_dict_missing_updated_at(self):
-        r = Role.from_dict({"name": "x", "provider_id": "p", "model": "m"})
+        r = Role.from_dict({
+            "name": "x",
+            "strategy": "priority",
+            "candidates": [{"provider_id": "p", "model": "m"}],
+        })
         assert r.name == "x"
         assert r.updated_at is not None  # defaults to now()
 
     def test_from_dict_bad_updated_at(self):
-        r = Role.from_dict({"name": "x", "provider_id": "p", "model": "m", "updated_at": "garbage"})
+        r = Role.from_dict({
+            "name": "x",
+            "strategy": "priority",
+            "candidates": [{"provider_id": "p", "model": "m"}],
+            "updated_at": "garbage",
+        })
         assert r.updated_at is not None  # defaults to now()
 
     def test_from_dict_datetime_object(self):
         now = datetime.now(timezone.utc)
+        r = Role.from_dict({
+            "name": "x",
+            "strategy": "priority",
+            "candidates": [{"provider_id": "p", "model": "m"}],
+            "updated_at": now,
+        })
+        assert r.updated_at == now
+
+    def test_from_dict_invalid_strategy_defaults_to_priority(self):
+        """Unknown strategy in persisted data defaults to 'priority' for robustness."""
+        r = Role.from_dict({
+            "name": "x",
+            "strategy": "unknown_strategy",
+            "candidates": [{"provider_id": "p", "model": "m"}],
+        })
+        assert r.strategy == "priority"
+
+    def test_from_dict_empty_candidates_list(self):
+        """Empty candidates list in new format yields empty candidates (not an error at load)."""
+        r = Role.from_dict({
+            "name": "x",
+            "strategy": "priority",
+            "candidates": [],
+        })
+        assert r.candidates == []
+
+    def test_from_dict_skips_non_dict_candidates(self):
+        """Non-dict entries in candidates are skipped."""
+        r = Role.from_dict({
+            "name": "x",
+            "strategy": "priority",
+            "candidates": [{"provider_id": "p", "model": "m"}, "bad", 42],
+        })
+        assert len(r.candidates) == 1
+
+
+# ---------------------------------------------------------------------------
+# Backward compatibility: old single-candidate schema
+# ---------------------------------------------------------------------------
+
+
+class TestRoleBackwardCompatibility:
+    def test_from_dict_old_format_becomes_priority_role(self):
+        """Old provider_id/model at top level loads as a 1-candidate priority role."""
+        r = Role.from_dict({
+            "name": "fast",
+            "provider_id": "prov-1",
+            "model": "gpt-4o",
+            "updated_at": "2025-01-01T00:00:00+00:00",
+        })
+        assert r.name == "fast"
+        assert r.strategy == "priority"
+        assert len(r.candidates) == 1
+        assert r.candidates[0].provider_id == "prov-1"
+        assert r.candidates[0].model == "gpt-4o"
+
+    def test_from_dict_old_format_missing_updated_at(self):
+        r = Role.from_dict({"name": "x", "provider_id": "p", "model": "m"})
+        assert r.name == "x"
+        assert r.updated_at is not None
+
+    def test_from_dict_old_format_bad_updated_at(self):
+        r = Role.from_dict({"name": "x", "provider_id": "p", "model": "m", "updated_at": "garbage"})
+        assert r.updated_at is not None
+
+    def test_from_dict_old_format_datetime_object(self):
+        now = datetime.now(timezone.utc)
         r = Role.from_dict({"name": "x", "provider_id": "p", "model": "m", "updated_at": now})
         assert r.updated_at == now
+
+    def test_provider_id_property_returns_first_candidate(self):
+        """role.provider_id is a property delegating to candidates[0]."""
+        r = Role(
+            name="fast",
+            strategy="priority",
+            candidates=[
+                Candidate(provider_id="prov-1", model="gpt-4o"),
+                Candidate(provider_id="prov-2", model="claude-3"),
+            ],
+            updated_at=datetime.now(timezone.utc),
+        )
+        assert r.provider_id == "prov-1"
+
+    def test_model_property_returns_first_candidate(self):
+        """role.model is a property delegating to candidates[0]."""
+        r = Role(
+            name="fast",
+            strategy="priority",
+            candidates=[
+                Candidate(provider_id="prov-1", model="gpt-4o"),
+                Candidate(provider_id="prov-2", model="claude-3"),
+            ],
+            updated_at=datetime.now(timezone.utc),
+        )
+        assert r.model == "gpt-4o"
+
+    def test_provider_id_property_empty_candidates(self):
+        r = Role(name="x", strategy="priority", candidates=[], updated_at=datetime.now(timezone.utc))
+        assert r.provider_id == ""
+
+    def test_model_property_empty_candidates(self):
+        r = Role(name="x", strategy="priority", candidates=[], updated_at=datetime.now(timezone.utc))
+        assert r.model == ""
+
+    def test_load_old_format_from_file(self, tmp_path):
+        """Loading an old roles.json with provider_id/model at top level succeeds."""
+        path = str(tmp_path / "roles.json")
+        with open(path, "w") as f:
+            json.dump([
+                {
+                    "name": "fast",
+                    "provider_id": "prov-1",
+                    "model": "gpt-4o",
+                    "updated_at": "2025-01-01T00:00:00+00:00",
+                }
+            ], f)
+        store = RoleStore(path=path)
+        role = store.get("fast")
+        assert role is not None
+        assert role.strategy == "priority"
+        assert len(role.candidates) == 1
+        assert role.provider_id == "prov-1"  # compat property
+        assert role.model == "gpt-4o"  # compat property
+
+    def test_save_after_loading_old_format_writes_new_schema(self, tmp_path):
+        """After loading old format and saving, the file contains the new schema."""
+        path = str(tmp_path / "roles.json")
+        with open(path, "w") as f:
+            json.dump([
+                {"name": "fast", "provider_id": "prov-1", "model": "gpt-4o"},
+            ], f)
+        store = RoleStore(path=path)
+        # Trigger a save by setting any role.
+        store.set("fast", "prov-1", "gpt-4o")
+        with open(path) as f:
+            data = json.load(f)
+        assert isinstance(data, list)
+        assert data[0]["strategy"] == "priority"
+        assert "candidates" in data[0]
+        assert data[0]["candidates"][0] == {"provider_id": "prov-1", "model": "gpt-4o"}
+        # Old flat fields should NOT be in the saved file.
+        assert "provider_id" not in data[0]
+        assert "model" not in data[0]
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +285,8 @@ class TestRoleStoreCRUD:
         store = RoleStore(path=path)
         r = store.set("fast", "prov-1", "gpt-4o")
         assert r.name == "fast"
+        assert r.strategy == "priority"
+        assert len(r.candidates) == 1
         assert store.get("fast") is not None
         assert store.get("missing") is None
 
@@ -108,6 +332,124 @@ class TestRoleStoreCRUD:
 
 
 # ---------------------------------------------------------------------------
+# set_candidates — multi-candidate API
+# ---------------------------------------------------------------------------
+
+
+class TestRoleStoreSetCandidates:
+    def test_set_candidates_priority(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+            Candidate(provider_id="prov-2", model="claude-3"),
+        ]
+        role = store.set_candidates("fast", "priority", candidates)
+        assert role.name == "fast"
+        assert role.strategy == "priority"
+        assert len(role.candidates) == 2
+
+    def test_set_candidates_round_robin(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+            Candidate(provider_id="prov-2", model="claude-3"),
+        ]
+        role = store.set_candidates("fast", "round_robin", candidates)
+        assert role.strategy == "round_robin"
+
+    def test_set_candidates_persists(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+            Candidate(provider_id="prov-2", model="claude-3"),
+        ]
+        store.set_candidates("fast", "round_robin", candidates)
+        store2 = RoleStore(path=path)
+        role = store2.get("fast")
+        assert role is not None
+        assert role.strategy == "round_robin"
+        assert len(role.candidates) == 2
+
+    def test_set_candidates_fires_reload_callback(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        calls = []
+        store = RoleStore(path=path, reload_callback=lambda d, s: calls.append(s))
+        store.set_candidates("fast", "priority", [Candidate("prov-1", "gpt-4o")])
+        assert calls == ["set"]
+
+    def test_set_candidates_empty_list_rejected(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(RoleError, match="non-empty"):
+            store.set_candidates("fast", "priority", [])
+
+    def test_set_candidates_invalid_strategy_rejected(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(RoleError, match="strategy"):
+            store.set_candidates("fast", "bad_strategy", [Candidate("prov-1", "gpt-4o")])
+
+    def test_set_candidates_duplicate_rejected(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+            Candidate(provider_id="prov-1", model="gpt-4o"),  # duplicate
+        ]
+        with pytest.raises(RoleError, match="duplicate"):
+            store.set_candidates("fast", "priority", candidates)
+
+    def test_set_candidates_empty_name_rejected(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(RoleError, match="name"):
+            store.set_candidates("", "priority", [Candidate("prov-1", "gpt-4o")])
+
+    def test_set_candidates_with_provider_store_validates_each_candidate(self, tmp_path):
+        """When provider_store is set, each candidate is validated."""
+        path = str(tmp_path / "roles.json")
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="test", base_url="http://x", models=["gpt-4", "gpt-4o"])
+        store = RoleStore(path=path, provider_store=prov_store)
+        prov = prov_store.get_default()
+        candidates = [
+            Candidate(provider_id=prov.id, model="gpt-4"),
+            Candidate(provider_id=prov.id, model="gpt-4o"),
+        ]
+        role = store.set_candidates("fast", "priority", candidates)
+        assert role.name == "fast"
+
+    def test_set_candidates_with_provider_store_rejects_unknown_provider(self, tmp_path):
+        """With provider_store, unknown provider_id in any candidate is rejected."""
+        path = str(tmp_path / "roles.json")
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        store = RoleStore(path=path, provider_store=prov_store)
+        with pytest.raises(RoleError, match="does not exist"):
+            store.set_candidates(
+                "fast",
+                "priority",
+                [Candidate(provider_id="nonexistent", model="gpt-4o")],
+            )
+
+    def test_set_candidates_with_provider_store_rejects_bad_model(self, tmp_path):
+        """With provider_store, a model not in catalog is rejected."""
+        path = str(tmp_path / "roles.json")
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="test", base_url="http://x", models=["gpt-4"])
+        store = RoleStore(path=path, provider_store=prov_store)
+        prov = prov_store.get_default()
+        with pytest.raises(RoleError, match="not in provider"):
+            store.set_candidates(
+                "fast",
+                "priority",
+                [Candidate(provider_id=prov.id, model="gpt-4o-mini")],
+            )
+
+
+# ---------------------------------------------------------------------------
 # Snapshot / Restore
 # ---------------------------------------------------------------------------
 
@@ -144,6 +486,40 @@ class TestRoleStoreSnapshotRestore:
         assert snap == {}
         store.restore(snap)
         assert store.list_all() == []
+
+    def test_snapshot_preserves_strategy_and_candidates(self, tmp_path):
+        """Snapshot deep-copies strategy and candidates."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+            Candidate(provider_id="prov-2", model="claude-3"),
+        ]
+        store.set_candidates("fast", "round_robin", candidates)
+        snap = store.snapshot()
+        role = snap["fast"]
+        assert role.strategy == "round_robin"
+        assert len(role.candidates) == 2
+        # Mutate the snapshot's candidate list — store must be unaffected.
+        role.candidates.clear()
+        assert len(store.get("fast").candidates) == 2
+
+    def test_restore_preserves_multi_candidate(self, tmp_path):
+        """Restore keeps multi-candidate roles intact."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+            Candidate(provider_id="prov-2", model="claude-3"),
+        ]
+        store.set_candidates("fast", "round_robin", candidates)
+        snap = store.snapshot()
+        store.delete("fast")
+        store.restore(snap)
+        role = store.get("fast")
+        assert role is not None
+        assert role.strategy == "round_robin"
+        assert len(role.candidates) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +613,41 @@ class TestRoleStoreValidation:
         with pytest.raises(RoleError, match="model must be non-empty"):
             store.set("fast", prov.id, "")
 
+    def test_valid_strategies(self):
+        """VALID_STRATEGIES contains priority and round_robin."""
+        assert "priority" in VALID_STRATEGIES
+        assert "round_robin" in VALID_STRATEGIES
+
+    def test_set_candidates_rejects_unknown_strategy(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(RoleError, match="strategy"):
+            store.set_candidates("fast", "waterfall", [Candidate("p", "m")])
+
+    def test_set_candidates_rejects_empty_candidates(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(RoleError, match="non-empty"):
+            store.set_candidates("fast", "priority", [])
+
+    def test_set_candidates_rejects_duplicate_pair(self, tmp_path):
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        dup = Candidate(provider_id="prov-1", model="gpt-4o")
+        with pytest.raises(RoleError, match="duplicate"):
+            store.set_candidates("fast", "priority", [dup, dup])
+
+    def test_set_candidates_allows_same_provider_different_models(self, tmp_path):
+        """Same provider_id with different models is allowed."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-1", model="gpt-4"),
+            Candidate(provider_id="prov-1", model="gpt-4o"),
+        ]
+        role = store.set_candidates("fast", "priority", candidates)
+        assert len(role.candidates) == 2
+
 
 # ---------------------------------------------------------------------------
 # Reload callback
@@ -321,12 +732,35 @@ class TestRoleStoreFileFormat:
         now = datetime.now(timezone.utc)
         with open(path, "w") as f:
             json.dump([
-                {"name": "fast", "provider_id": "p1", "model": "m1", "updated_at": now.isoformat()},
-                {"name": "fast", "provider_id": "p2", "model": "m2", "updated_at": now.isoformat()},
+                {
+                    "name": "fast",
+                    "strategy": "priority",
+                    "candidates": [{"provider_id": "p1", "model": "m1"}],
+                    "updated_at": now.isoformat(),
+                },
+                {
+                    "name": "fast",
+                    "strategy": "round_robin",
+                    "candidates": [{"provider_id": "p2", "model": "m2"}],
+                    "updated_at": now.isoformat(),
+                },
             ], f)
         store = RoleStore(path=path)
         assert len(store.list_all()) == 1
-        assert store.get("fast").provider_id == "p1"  # first wins
+        assert store.get("fast").candidates[0].provider_id == "p1"  # first wins
+
+    def test_new_schema_written_on_save(self, tmp_path):
+        """Roles saved with set() use the new multi-candidate schema."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        store.set("fast", "prov-1", "gpt-4o")
+        with open(path) as f:
+            data = json.load(f)
+        entry = data[0]
+        assert "strategy" in entry
+        assert "candidates" in entry
+        assert entry["strategy"] == "priority"
+        assert entry["candidates"] == [{"provider_id": "prov-1", "model": "gpt-4o"}]
 
 
 # ---------------------------------------------------------------------------
@@ -373,6 +807,9 @@ class TestMigrationFromAgentProfileStore:
         assert role_store.get("fast").model == "gpt-4o"
         assert role_store.get("deep") is not None
         assert role_store.get("deep").model == "gpt-4"
+        # Migrated roles are single-candidate priority roles.
+        assert role_store.get("fast").strategy == "priority"
+        assert len(role_store.get("fast").candidates) == 1
         assert any("Migrated" in r.message and "2" in r.message for r in caplog.records)
 
     def test_first_write_wins_for_duplicates(self, tmp_path, caplog):
