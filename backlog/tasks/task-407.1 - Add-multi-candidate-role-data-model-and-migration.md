@@ -1,7 +1,7 @@
 ---
 id: TASK-407.1
 title: Add multi-candidate role data model and migration
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-01 21:43'
 updated_date: '2026-06-02 03:41'
@@ -46,8 +46,6 @@ Required behavior:
 - [x] #7 Duplicate provider/model candidates in the same role are rejected.
 <!-- AC:END -->
 
-
-
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
@@ -65,6 +63,12 @@ Required behavior:
 <!-- SECTION:NOTES:BEGIN -->
 Verification: All 3605 tests pass (make test). Implementation complete.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Replaced the single provider/model Role shape with a multi-candidate model. Added Candidate dataclass, updated Role to hold strategy+candidates fields with backward-compat properties (provider_id/model delegating to candidates[0]), updated from_dict to transparently migrate old JSON format (provider_id/model at top level) to one-candidate priority roles, updated to_dict to write new schema, added set_candidates() for multi-candidate writes, and full validation (empty name/strategy/candidates, unknown strategy, unknown provider, invalid model, ACP empty-catalog exemption, duplicate pairs). All 3605 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
