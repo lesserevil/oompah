@@ -1,9 +1,10 @@
 ---
 id: TASK-407.4
 title: Add role candidate selector state and ordering algorithms
-status: Backlog
+status: In Progress
 assignee: []
 created_date: 2026-06-01 21:44
+updated_date: 2026-06-02 15:12
 labels:
 - feature
 - needs:backend
@@ -18,6 +19,7 @@ parent_task_id: TASK-407
 priority: high
 ordinal: 34000
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -61,3 +63,35 @@ Required behavior:
 - [ ] #1 Selector state and ordering tests run without depending on the HTTP server.
 - [ ] #2 The selector API is small enough for the orchestrator to use without duplicating ordering logic.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-02 15:12
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-02 15:20
+
+UNDERSTANDING: Task requires adding CandidateSelector - a runtime state tracker and ordering algorithm for role candidates. The data model (Candidate, Role with multi-candidates, strategy) is already implemented in oompah/roles.py. What is missing: CandidateSelector class with ordered_candidates(role) and record_used() methods, separate role_usage.json storage, thread safety. Plan: implement CandidateSelector in oompah/roles.py and write comprehensive tests.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-02 15:25
+
+DISCOVERY: Confirmed no CandidateSelector exists in any file. The roles.py has the Role/Candidate data model and RoleStore but no runtime selection state. The implementation plan calls for .oompah/role_usage.json with nested {role_name: {provider_id: {model: last_used_at_iso}}} structure, a threading.Lock for concurrency, and two public methods: ordered_candidates(role) and record_used(role_name, candidate).
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-02 15:35
+
+IMPLEMENTATION: Added CandidateSelector class to oompah/roles.py with DEFAULT_USAGE_PATH constant. Implemented: (1) ordered_candidates(role) - returns priority order for priority strategy, LRU order for round_robin with never-used-first and configured-index tiebreaking; (2) record_used(role_name, candidate) - persists ISO timestamp to role_usage.json under lock; (3) thread-safe lock around all state mutations. Usage state uses nested dict {role: {provider_id: {model: ts}}}. Stale entries silently ignored.
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
