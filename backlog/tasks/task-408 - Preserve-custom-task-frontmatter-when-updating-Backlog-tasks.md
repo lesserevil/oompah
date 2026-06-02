@@ -4,7 +4,7 @@ title: Preserve custom task frontmatter when updating Backlog tasks
 status: Done
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-01 23:59'
+updated_date: '2026-06-02 01:24'
 labels:
   - bug
 dependencies: []
@@ -39,7 +39,7 @@ Implementation guidance:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-duplicate-of:TASK-397
+Implemented: added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 CLI mutation methods now snapshot unknown frontmatter before the Backlog CLI call and restore any dropped keys after. Closes TASK-397. 4 regression tests added; all 13 tracker tests pass. Pushed to branch TASK-408.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 <!-- COMMENT:BEGIN -->
