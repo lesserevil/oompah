@@ -17,7 +17,11 @@ from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisc
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from oompah.events import EventType
-from oompah.scm import detect_provider, extract_repo_slug, get_all_open_reviews
+from oompah.scm import (
+    ReviewRequest,
+    detect_provider,
+    extract_repo_slug,
+)
 from oompah.webhooks import (
     WebhookEvent,
     match_project_by_repo,
@@ -419,6 +423,101 @@ def _mark_tracker_needs_human(
         return
     tracker.update_issue(identifier, status=NEEDS_HUMAN)
     tracker.add_comment(identifier, comment, author=author)
+
+
+def _fetch_open_reviews_for_api(
+    projects: list[Any],
+) -> tuple[list[dict[str, Any]], dict[str, list[ReviewRequest]], set[str]]:
+    """Fetch reviews for the Reviews page and preserve typed cache data."""
+    results: list[dict[str, Any]] = []
+    reviews_by_project: dict[str, list[ReviewRequest]] = {}
+    successful_project_ids: set[str] = set()
+
+    for project in projects:
+        project_id = str(project.id)
+        provider = detect_provider(
+            project.repo_url, access_token=getattr(project, "access_token", None),
+        )
+        if not provider:
+            logger.debug("No SCM provider detected for %s", project.repo_url)
+            reviews_by_project[project_id] = []
+            successful_project_ids.add(project_id)
+            continue
+
+        slug = extract_repo_slug(project.repo_url)
+        try:
+            reviews = provider.list_open_reviews(slug)
+        except Exception as exc:
+            logger.warning("Failed to fetch reviews for %s: %s", project.name, exc)
+            continue
+
+        reviews_by_project[project_id] = reviews
+        successful_project_ids.add(project_id)
+
+        project_yolo = bool(getattr(project, "yolo", False))
+        for review in reviews:
+            results.append({
+                "project_id": project.id,
+                "project_name": project.name,
+                "project_yolo": project_yolo,
+                "provider": provider.provider_name(),
+                "review": review.to_dict(),
+            })
+
+    return results, reviews_by_project, successful_project_ids
+
+
+def _sync_orchestrator_review_cache(
+    orch: "Orchestrator",
+    reviews_by_project: dict[str, list[ReviewRequest]],
+    successful_project_ids: set[str],
+) -> None:
+    """Keep dashboard review summary aligned with /api/v1/reviews.
+
+    The dashboard badge reads ``orch._reviews_cache`` while the Reviews page
+    fetches this endpoint directly. When the endpoint has fresher forge data,
+    sync successfully fetched project entries so the badge and board agree
+    without clearing dispatch gates for projects whose fetch failed.
+    """
+    old_summary = None
+    if callable(getattr(orch, "_reviews_summary", None)):
+        try:
+            old_summary = orch._reviews_summary()
+        except Exception:
+            old_summary = None
+
+    cache: dict[str, list[ReviewRequest]] = {
+        str(project_id): list(reviews)
+        for project_id, reviews in (getattr(orch, "_reviews_cache", {}) or {}).items()
+    }
+    for project_id in successful_project_ids:
+        cache[project_id] = list(reviews_by_project.get(project_id, []))
+
+    orch._reviews_cache = cache
+    orch._unmerged_review_branches = {
+        r.source_branch
+        for reviews in cache.values()
+        for r in reviews
+        if r.source_branch
+    }
+
+    if not callable(getattr(orch, "_reviews_summary", None)):
+        return
+
+    try:
+        new_summary = orch._reviews_summary()
+    except Exception:
+        return
+    if new_summary == old_summary:
+        return
+
+    try:
+        orch._last_emitted_reviews_summary = dict(new_summary)
+    except Exception:
+        pass
+    notify = getattr(orch, "_notify_state_only", None)
+    if callable(notify):
+        notify()
 
 
 def _on_state_only_change(snapshot: dict) -> None:
@@ -4131,14 +4230,16 @@ async def api_budget():
 async def api_list_reviews():
     """List all open reviews across all projects."""
     try:
+        orch = _get_orchestrator()
+        projects = orch.project_store.list_all()
         cached = _api_cache.get("reviews:all")
         if cached is not None:
             return JSONResponse(cached)
-        orch = _get_orchestrator()
-        projects = orch.project_store.list_all()
         # Index projects by id for fast lookup in the loop below.
         _project_by_id = {p.id: p for p in projects}
-        reviews = get_all_open_reviews(projects)
+        reviews, reviews_by_project, successful_project_ids = _fetch_open_reviews_for_api(
+            projects
+        )
         # Enrich reviews with agent status
         active_branches = {
             entry.issue.identifier
@@ -4207,6 +4308,9 @@ async def api_list_reviews():
                     and r.get("needs_rebase", False)
                 ):
                     item["gate_blocked"] = True
+        _sync_orchestrator_review_cache(
+            orch, reviews_by_project, successful_project_ids
+        )
         _api_cache.set("reviews:all", reviews, ttl_ms=10000)
         return JSONResponse(reviews)
     except Exception as exc:

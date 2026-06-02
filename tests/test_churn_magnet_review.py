@@ -324,6 +324,10 @@ def _make_review_dict(
     }]
 
 
+def _make_fetch_result(reviews: list[dict]):
+    return reviews, {"proj-1": []}, {"proj-1"}
+
+
 class TestApiListReviewsChurnMagnet:
     """The /api/v1/reviews endpoint surfaces churn_magnet on PRs."""
 
@@ -334,10 +338,12 @@ class TestApiListReviewsChurnMagnet:
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
             patch.object(
-                server_module, "get_all_open_reviews",
-                return_value=_make_review_dict(
-                    "42", churn_magnet=True,
-                    churn_magnet_files=["src/main.py", "core/engine.py"],
+                server_module, "_fetch_open_reviews_for_api",
+                return_value=_make_fetch_result(
+                    _make_review_dict(
+                        "42", churn_magnet=True,
+                        churn_magnet_files=["src/main.py", "core/engine.py"],
+                    )
                 ),
             ),
             patch.object(server_module._api_cache, "get", return_value=None),
@@ -359,8 +365,10 @@ class TestApiListReviewsChurnMagnet:
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
             patch.object(
-                server_module, "get_all_open_reviews",
-                return_value=_make_review_dict("42", churn_magnet=False),
+                server_module, "_fetch_open_reviews_for_api",
+                return_value=_make_fetch_result(
+                    _make_review_dict("42", churn_magnet=False)
+                ),
             ),
             patch.object(server_module._api_cache, "get", return_value=None),
         ):
@@ -382,7 +390,10 @@ class TestApiListReviewsChurnMagnet:
         orch = _make_mock_orch()
         with (
             patch.object(server_module, "_get_orchestrator", return_value=orch),
-            patch.object(server_module, "get_all_open_reviews", return_value=reviews),
+            patch.object(
+                server_module, "_fetch_open_reviews_for_api",
+                return_value=_make_fetch_result(reviews),
+            ),
             patch.object(server_module._api_cache, "get", return_value=None),
         ):
             resp = client.get("/api/v1/reviews")
