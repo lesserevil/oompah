@@ -1,13 +1,12 @@
 ---
 id: TASK-407.8
 title: Add provider Test button to Providers page blocks
-status: Backlog
+status: In Progress
 assignee: []
 created_date: 2026-06-01 21:45
+updated_date: 2026-06-02 15:57
 labels:
 - feature
-- needs:frontend
-- needs:test
 dependencies:
 - TASK-407.3
 modified_files:
@@ -16,7 +15,24 @@ modified_files:
 parent_task_id: TASK-407
 priority: medium
 ordinal: 38000
+oompah.task_costs:
+  total_input_tokens: 49
+  total_output_tokens: 11271
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 49
+      output_tokens: 11271
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 49
+    output_tokens: 11271
+    cost_usd: 0.0
+    recorded_at: '2026-06-02T15:41:52.359445+00:00'
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -62,3 +78,75 @@ Required behavior:
 - [ ] #1 Frontend/template tests cover the Test button and result states where practical.
 - [ ] #2 Manual browser check confirms the button works against a mocked or harmless configured provider.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-02 15:30
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-02 15:30
+
+Focus: Frontend Developer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-02 15:35
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-02 15:36
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-02 15:41
+
+Agent completed successfully in 359s (11320 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-02 15:41
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 85, Tool calls: 56
+- Tokens: 49 in / 11.3K out [11.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 59s
+- Log: TASK-407.8__20260602T153601Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-02 15:57
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
+author: oompah
+created: 2026-06-02 16:00
+
+DUPLICATE INVESTIGATION: No duplicate found. TASK-407.3 adds the backend POST /api/v1/providers/{id}/test endpoint; TASK-407.8 adds the frontend Test button that calls it. These are complementary tasks, not duplicates. The previous agent run (commit 31a0f77) already implemented and committed all required changes: Test button in each provider card, inline result rendering, loading state, and 14 template smoke tests.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-02 16:00
+
+COMPLETION: Feature fully implemented. Changes in commit 31a0f77: (1) Test button added to each provider card in renderProviders() in providers.html; (2) Per-provider inline result div (hidden by default); (3) testProvider() async JS function that POSTs to /api/v1/providers/{id}/test, shows loading state, renders success (model, latency, response text) or failure (normalized reason + detail) inline; (4) CSS classes .provider-test-result/.test-result-ok/.test-result-fail; (5) 14 template smoke tests in TestProviderTestButton class.
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
