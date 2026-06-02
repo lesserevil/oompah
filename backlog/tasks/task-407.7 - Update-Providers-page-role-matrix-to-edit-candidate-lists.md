@@ -1,22 +1,22 @@
 ---
 id: TASK-407.7
 title: Update Providers page role matrix to edit candidate lists
-status: Backlog
+status: In Progress
 assignee: []
-created_date: 2026-06-01 21:44
+created_date: '2026-06-01 21:44'
+updated_date: '2026-06-02 16:21'
 labels:
-- feature
-- needs:frontend
-- needs:test
+  - feature
 dependencies:
-- TASK-407.2
+  - TASK-407.2
 modified_files:
-- oompah/templates/providers.html
-- tests/test_providers_role_matrix.py
+  - oompah/templates/providers.html
+  - tests/test_providers_role_matrix.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 37000
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -62,8 +62,39 @@ Required behavior:
 9. Update any frontend-oriented tests or HTML assertions that currently assume one provider/model select per role.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Discovery: Found key sections in providers.html. Current role matrix is a simple 6-column table. API (TASK-407.2) already returns strategy+candidates. Implementing: CSS for new layout, updated state structure, new rendering with role-header-rows and candidate-rows, helper functions, updated save format, updated tests.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Frontend tests or server template tests cover the new save/load shape.
 - [ ] #2 Manual browser check confirms no overlapping text or broken controls on desktop width.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-02 15:50
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-02 15:50
+
+Focus: Frontend Developer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-02 16:14
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
