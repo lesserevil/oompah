@@ -567,10 +567,13 @@ class TestProvidersHtmlMatrixScaffold:
         assert "method: 'PUT'" in html
 
     def test_matrix_table_columns(self, html):
-        # The matrix header cells, including the Billing column added
-        # by oompah-zlz_2-yqss.
-        for col in ("Role", "Provider", "Model", "Mode", "Billing", "Status"):
+        # The matrix header cells after TASK-407.7 multi-candidate rewrite.
+        # Role and Mode columns were removed (roles appear in role-header-rows;
+        # mode info is embedded in the Billing column). Billing and Status remain.
+        for col in ("Provider", "Model", "Billing", "Status"):
             assert f">{col}<" in html
+        # Role name still appears in role-header-row spans (class role-name).
+        assert "role-name" in html
 
 
 class TestBillingColumn:
@@ -615,8 +618,9 @@ class TestBillingColumn:
 
     def test_billing_cell_invoked_from_render(self, html):
         # renderRoleMatrix() must call computeRoleMatrixBilling so the
-        # new column is actually rendered per row.
-        assert "computeRoleMatrixBilling(row, provider)" in html
+        # new column is actually rendered per candidate row (TASK-407.7:
+        # parameter is now `cand` not `row` since candidates are iterated).
+        assert "computeRoleMatrixBilling(cand, provider)" in html
 
     def test_billing_cell_class_in_render(self, html):
         # The cell uses matrix-billing as its CSS class.
@@ -741,3 +745,209 @@ class TestProviderTestButton:
         # On success the inline result must include the short response
         # text from the provider.
         assert "response_text" in html
+
+
+class TestMultiCandidateScaffold:
+    """Static template smoke tests for the multi-candidate role matrix
+    introduced by TASK-407.7. Verifies that the new UI elements for
+    strategy selection, candidate management, and reordering are present
+    in providers.html.
+    """
+
+    @pytest.fixture
+    def html(self) -> str:
+        from pathlib import Path
+        path = Path(__file__).parent.parent / "oompah" / "templates" / "providers.html"
+        return path.read_text()
+
+    def test_strategy_control_css_present(self, html):
+        # The strategy toggle container must be styled.
+        assert ".strategy-control" in html
+
+    def test_strategy_btn_css_present(self, html):
+        # Strategy buttons and their active state must be styled.
+        assert ".strategy-btn" in html
+        assert ".strategy-btn.active" in html
+
+    def test_role_header_row_css_present(self, html):
+        # Each role gets a spanning header row.
+        assert ".role-header-row" in html
+
+    def test_candidate_num_css_present(self, html):
+        # Candidate index number column must be styled.
+        assert ".candidate-num" in html
+
+    def test_candidate_actions_css_present(self, html):
+        # Candidate action buttons (up/down/remove) container must be styled.
+        assert ".candidate-actions" in html
+
+    def test_btn_move_css_present(self, html):
+        assert ".btn-move" in html
+
+    def test_btn_remove_cand_css_present(self, html):
+        assert ".btn-remove-cand" in html
+
+    def test_btn_add_candidate_css_present(self, html):
+        assert ".btn-add-candidate" in html
+
+    def test_set_role_strategy_function_defined(self, html):
+        assert "function setRoleStrategy(" in html
+
+    def test_add_candidate_function_defined(self, html):
+        assert "function addCandidate(" in html
+
+    def test_remove_candidate_function_defined(self, html):
+        assert "function removeCandidate(" in html
+
+    def test_move_candidate_function_defined(self, html):
+        assert "function moveCandidate(" in html
+
+    def test_strategy_buttons_in_render(self, html):
+        # The render function emits Priority and Round-robin buttons.
+        assert "Priority</button>" in html
+        assert "Round-robin</button>" in html
+
+    def test_add_button_calls_add_candidate(self, html):
+        # The + Add button's onclick calls addCandidate.
+        assert "addCandidate(" in html
+
+    def test_move_up_button_calls_move_candidate(self, html):
+        # Move-up button calls moveCandidate with -1.
+        assert "moveCandidate(" in html
+        assert ", -1)" in html
+
+    def test_move_down_button_calls_move_candidate(self, html):
+        # Move-down button calls moveCandidate with 1.
+        assert ", 1)" in html
+
+    def test_remove_button_calls_remove_candidate(self, html):
+        # Remove button calls removeCandidate.
+        assert "removeCandidate(" in html
+
+    def test_set_strategy_called_from_button(self, html):
+        # The strategy button onclick calls setRoleStrategy.
+        assert "setRoleStrategy(" in html
+
+    def test_data_idx_attribute_present(self, html):
+        # Candidate selects carry data-idx so the change handler can
+        # update the right candidate.
+        assert "data-idx=" in html
+
+    def test_state_has_candidates_key(self, html):
+        # The state comment describes the new structure.
+        assert "candidates:" in html
+
+    def test_save_sends_strategy(self, html):
+        # saveRoleMatrix must include strategy in the body.
+        assert "strategy: r.strategy" in html
+
+    def test_save_sends_candidates(self, html):
+        # saveRoleMatrix must include candidates in the body.
+        assert "candidates:" in html
+        assert "r.candidates" in html
+
+    def test_load_reads_candidates_from_server(self, html):
+        # renderRoleMatrix reads r.candidates from the server response.
+        assert "r.candidates" in html
+
+    def test_load_reads_strategy_from_server(self, html):
+        # renderRoleMatrix reads r.strategy from the server response.
+        assert "r.strategy" in html
+
+    def test_backward_compat_single_candidate(self, html):
+        # When the server returns no candidates array, fallback to
+        # provider_id/model at the row level for backward compat.
+        assert "r.provider_id" in html
+
+
+class TestPutRoleMatrixNewFormat:
+    """End-to-end API tests for the new strategy + candidates body shape
+    introduced by TASK-407.7.
+
+    These tests call PUT /api/v1/roles (via the legacy alias) with the new
+    multi-candidate format and verify that the response reflects the shape
+    and that multiple candidates are stored correctly.
+    """
+
+    def test_put_with_strategy_and_multiple_candidates(self, matrix_client):
+        """PUT with strategy + candidates list round-trips correctly."""
+        client = matrix_client["client"]
+        p_api = matrix_client["p_api"]
+        p_acp = matrix_client["p_acp"]
+        body = {
+            "fast": {
+                "strategy": "priority",
+                "candidates": [
+                    {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+                    {"provider_id": p_api.id, "model": "nvidia/llama3-70b"},
+                ],
+            },
+            "standard": {
+                "strategy": "round_robin",
+                "candidates": [
+                    {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+                ],
+            },
+            "deep": {
+                "strategy": "priority",
+                "candidates": [
+                    {"provider_id": p_acp.id, "model": "nvidia/minimaxai/minimax-m2.7"},
+                ],
+            },
+            "default": {
+                "strategy": "priority",
+                "candidates": [
+                    {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+                ],
+            },
+        }
+        r = client.put("/api/v1/roles", json=body)
+        assert r.status_code == 200, r.text
+        rows = {row["role"]: row for row in r.json()["rows"]}
+        assert rows["fast"]["status"] == "resolved"
+        assert rows["fast"]["strategy"] == "priority"
+        assert len(rows["fast"]["candidates"]) == 2
+        assert rows["standard"]["strategy"] == "round_robin"
+
+    def test_put_strategy_round_robin_stored(self, matrix_client):
+        """Round-robin strategy is persisted to RoleStore."""
+        client = matrix_client["client"]
+        p_api = matrix_client["p_api"]
+        body = {
+            "fast": {
+                "strategy": "round_robin",
+                "candidates": [
+                    {"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"},
+                    {"provider_id": p_api.id, "model": "nvidia/llama3-70b"},
+                ],
+            },
+            "standard": {"strategy": "priority", "candidates": [{"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"}]},
+            "deep": {"strategy": "priority", "candidates": [{"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"}]},
+            "default": {"strategy": "priority", "candidates": [{"provider_id": p_api.id, "model": "nvidia/MiniMax-M2.7"}]},
+        }
+        r = client.put("/api/v1/roles", json=body)
+        assert r.status_code == 200, r.text
+        role_store = matrix_client["role_store"]
+        fast = role_store.get("fast")
+        assert fast.strategy == "round_robin"
+        assert len(fast.candidates) == 2
+
+    def test_get_returns_candidates_list(self, matrix_client):
+        """GET /api/v1/roles returns candidates list with provider details."""
+        client = matrix_client["client"]
+        r = client.get("/api/v1/roles")
+        assert r.status_code == 200
+        rows = {row["role"]: row for row in r.json()["rows"]}
+        # All four roles were seeded with a single candidate.
+        assert "candidates" in rows["fast"]
+        assert len(rows["fast"]["candidates"]) == 1
+        assert "provider_id" in rows["fast"]["candidates"][0]
+        assert "strategy" in rows["fast"]
+
+    def test_get_returns_strategy_field(self, matrix_client):
+        """GET /api/v1/roles returns strategy for each role."""
+        client = matrix_client["client"]
+        r = client.get("/api/v1/roles")
+        assert r.status_code == 200
+        for row in r.json()["rows"]:
+            assert "strategy" in row

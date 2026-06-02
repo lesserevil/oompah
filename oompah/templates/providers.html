@@ -370,6 +370,67 @@
     .role-matrix .status-warn { color: var(--yellow); }
     .role-matrix .status-error { color: var(--red); }
 
+    /* Multi-candidate role matrix (TASK-407.7) */
+    .role-matrix .role-header-row td {
+      background: rgba(13, 17, 23, 0.6);
+      padding: 0.45rem 0.85rem;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.6);
+    }
+    .role-matrix .strategy-control {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+      margin-left: 0.75rem;
+      vertical-align: -2px;
+    }
+    .role-matrix .strategy-btn {
+      background: none;
+      color: var(--text-muted);
+      border: none;
+      border-radius: 0;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.7rem;
+      font-weight: 500;
+      cursor: pointer;
+      line-height: 1.5;
+    }
+    .role-matrix .strategy-btn:hover { background: rgba(88, 166, 255, 0.1); color: var(--text); }
+    .role-matrix .strategy-btn.active { background: rgba(88, 166, 255, 0.18); color: var(--accent); }
+    .role-matrix .btn-add-candidate {
+      float: right;
+      font-size: 0.7rem;
+      padding: 0.1rem 0.45rem;
+      background: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .role-matrix .candidate-num {
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.7rem;
+      text-align: center;
+      width: 1.8rem;
+      padding: 0.5rem 0.3rem;
+    }
+    .role-matrix .candidate-actions {
+      white-space: nowrap;
+      text-align: right;
+      padding: 0.3rem 0.5rem;
+    }
+    .role-matrix .btn-move {
+      padding: 0.1rem 0.35rem;
+      font-size: 0.7rem;
+      min-width: 1.6rem;
+    }
+    .role-matrix .btn-remove-cand {
+      padding: 0.1rem 0.35rem;
+      font-size: 0.7rem;
+      color: var(--red);
+      border-color: rgba(248, 81, 73, 0.3);
+    }
+    .role-matrix .btn-remove-cand:hover { background: rgba(248, 81, 73, 0.1); }
+
     /* Form dialog */
     .dialog-overlay {
       display: none;
@@ -585,7 +646,7 @@ const ROLE_MATRIX_ROLES = ['fast', 'standard', 'deep', 'default'];
 // Local edit state. Mirrors the on-disk profile state until the operator
 // edits a row, at which point the dirty flag flips to enable Save.
 const roleMatrixState = {
-  // keyed by role -> { provider_id, model }
+  // keyed by role -> { strategy, candidates: [{provider_id, model}] }
   rows: {},
   dirty: false,
 };
@@ -606,107 +667,149 @@ function renderRoleMatrix() {
     roleMatrixState.rows = {};
     ROLE_MATRIX_ROLES.forEach(role => {
       const r = roleStoreRows[role];
-      roleMatrixState.rows[role] = {
-        provider_id: r ? (r.provider_id || '') : '',
-        model: r ? (r.model || '') : '',
-      };
+      if (r && r.candidates && r.candidates.length > 0) {
+        roleMatrixState.rows[role] = {
+          strategy: r.strategy || 'priority',
+          candidates: r.candidates.map(c => ({provider_id: c.provider_id || '', model: c.model || ''})),
+        };
+      } else {
+        // Backward compat: single provider_id/model at row level (pre-TASK-407.7 data).
+        roleMatrixState.rows[role] = {
+          strategy: r ? (r.strategy || 'priority') : 'priority',
+          candidates: [{
+            provider_id: r ? (r.provider_id || '') : '',
+            model: r ? (r.model || '') : '',
+          }],
+        };
+      }
     });
   }
 
-  // Render the table.
-  const rowsHtml = ROLE_MATRIX_ROLES.map(role => {
-    const row = roleMatrixState.rows[role] || {provider_id: '', model: '', profile_exists: false};
-    const provider = providers.find(p => p.id === row.provider_id);
-    const mode = provider ? (provider.mode || 'api') : '—';
-    const status = computeRoleMatrixStatus(role, row, provider);
-    const billing = computeRoleMatrixBilling(row, provider);
+  // Render the table: one role-header-row per role + one candidate-row per candidate.
+  const bodyHtml = ROLE_MATRIX_ROLES.flatMap(role => {
+    const row = roleMatrixState.rows[role] || {strategy: 'priority', candidates: [{provider_id: '', model: ''}]};
+    const strategy = row.strategy || 'priority';
+    const candidates = row.candidates && row.candidates.length > 0
+      ? row.candidates : [{provider_id: '', model: ''}];
 
-    const providerOpts = ['<option value="">— select provider —</option>']
-      .concat(providers.map(p =>
-        `<option value="${esc(p.id)}"${p.id === row.provider_id ? ' selected' : ''}>${esc(p.name)} (${esc(p.mode || 'api')})</option>`,
-      ))
-      .join('');
+    const priActive = strategy === 'priority' ? ' active' : '';
+    const rrActive = strategy === 'round_robin' ? ' active' : '';
 
-    const modelList = provider && Array.isArray(provider.models) ? provider.models : [];
-    let modelOpts;
-    if (!provider) {
-      modelOpts = '<option value="">— pick a provider first —</option>';
-    } else if (modelList.length === 0) {
-      modelOpts = (provider.mode === 'acp')
-        ? '<option value="">— SDK-managed —</option>'
-        : '<option value="">— provider has no models —</option>';
-    } else {
-      modelOpts = ['<option value="">— select model —</option>']
-        .concat(modelList.map(m =>
-          `<option value="${esc(m)}"${m === row.model ? ' selected' : ''}>${esc(m)}</option>`,
+    const headerHtml = `
+      <tr class="role-header-row">
+        <td colspan="6">
+          <span class="role-name">${esc(role)}</span>
+          <span class="strategy-control">
+            <button class="strategy-btn${priActive}" onclick="setRoleStrategy('${esc(role)}', 'priority')">Priority</button><button class="strategy-btn${rrActive}" onclick="setRoleStrategy('${esc(role)}', 'round_robin')">Round-robin</button>
+          </span>
+          <button class="btn-add-candidate" onclick="addCandidate('${esc(role)}')">+ Add</button>
+        </td>
+      </tr>`;
+
+    const candRows = candidates.map((cand, idx) => {
+      const provider = providers.find(p => p.id === cand.provider_id);
+      const status = computeRoleMatrixStatus(role, cand, provider);
+      const billing = computeRoleMatrixBilling(cand, provider);
+
+      const providerOpts = ['<option value="">— provider —</option>']
+        .concat(providers.map(p =>
+          `<option value="${esc(p.id)}"${p.id === cand.provider_id ? ' selected' : ''}>${esc(p.name)} (${esc(p.mode || 'api')})</option>`,
         ))
         .join('');
-      // If the saved model isn't in the catalog, surface it as a dimmed
-      // option so the operator can see the mismatch and pick a new one
-      // without losing the original value.
-      if (row.model && !modelList.includes(row.model)) {
-        modelOpts += `<option value="${esc(row.model)}" selected>${esc(row.model)} (not in catalog)</option>`;
+
+      const modelList = provider && Array.isArray(provider.models) ? provider.models : [];
+      let modelOpts;
+      if (!provider) {
+        modelOpts = '<option value="">— pick a provider first —</option>';
+      } else if (modelList.length === 0) {
+        modelOpts = (provider.mode === 'acp')
+          ? '<option value="">— SDK-managed —</option>'
+          : '<option value="">— provider has no models —</option>';
+      } else {
+        modelOpts = ['<option value="">— select model —</option>']
+          .concat(modelList.map(m =>
+            `<option value="${esc(m)}"${m === cand.model ? ' selected' : ''}>${esc(m)}</option>`,
+          ))
+          .join('');
+        // If the saved model isn't in the catalog, surface it as a dimmed
+        // option so the operator can see the mismatch and pick a new one
+        // without losing the original value.
+        if (cand.model && !modelList.includes(cand.model)) {
+          modelOpts += `<option value="${esc(cand.model)}" selected>${esc(cand.model)} (not in catalog)</option>`;
+        }
       }
-    }
 
-    const statusClass =
-      status.kind === 'resolved' ? 'status-resolved'
-        : status.kind === 'warn' ? 'status-warn'
-        : 'status-error';
-    const statusGlyph = status.kind === 'resolved' ? '✓' : '⚠';
+      const statusClass =
+        status.kind === 'resolved' ? 'status-resolved'
+          : status.kind === 'warn' ? 'status-warn'
+          : 'status-error';
+      const statusGlyph = status.kind === 'resolved' ? '✓' : '⚠';
+      const canUp = idx > 0;
+      const canDown = idx < candidates.length - 1;
+      const canRemove = candidates.length > 1;
 
-    return `
-      <tr>
-        <td><span class="role-name">${esc(role)}</span></td>
+      return `
+      <tr class="candidate-row">
+        <td class="candidate-num">${idx + 1}</td>
         <td>
-          <select data-role="${esc(role)}" data-field="provider_id" onchange="onRoleMatrixChange(this)">
+          <select data-role="${esc(role)}" data-field="provider_id" data-idx="${idx}" onchange="onRoleMatrixChange(this)">
             ${providerOpts}
           </select>
         </td>
         <td>
-          <select data-role="${esc(role)}" data-field="model" onchange="onRoleMatrixChange(this)">
+          <select data-role="${esc(role)}" data-field="model" data-idx="${idx}" onchange="onRoleMatrixChange(this)">
             ${modelOpts}
           </select>
         </td>
-        <td><span class="matrix-mode">${esc(mode)}</span></td>
         <td><span class="matrix-billing" title="${esc(billing.tooltip)}">${billing.html}</span></td>
         <td>
           <span class="matrix-status ${statusClass}" title="${esc(status.message)}">
             ${statusGlyph} ${esc(status.label)}
           </span>
         </td>
-      </tr>
-    `;
+        <td class="candidate-actions">
+          <button class="btn-move" ${canUp ? '' : 'disabled'} onclick="moveCandidate('${esc(role)}', ${idx}, -1)" title="Move up">↑</button>
+          <button class="btn-move" ${canDown ? '' : 'disabled'} onclick="moveCandidate('${esc(role)}', ${idx}, 1)" title="Move down">↓</button>
+          <button class="btn-remove-cand" ${canRemove ? '' : 'disabled'} onclick="removeCandidate('${esc(role)}', ${idx})" title="Remove">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return [headerHtml, candRows];
   }).join('');
 
   container.innerHTML = `
     <table class="role-matrix">
       <thead>
         <tr>
-          <th>Role</th>
+          <th>#</th>
           <th>Provider</th>
           <th>Model</th>
-          <th>Mode</th>
           <th>Billing</th>
           <th>Status</th>
+          <th></th>
         </tr>
       </thead>
-      <tbody>${rowsHtml}</tbody>
+      <tbody>${bodyHtml}</tbody>
     </table>
   `;
 
-  // Save button enabled iff the local state is dirty AND every row has
-  // a provider set and either a model OR an SDK-managed provider
-  // (ACP-mode + empty catalog, e.g. Claude SDK).
+  // Save button enabled iff the local state is dirty AND every role has
+  // at least one candidate, and every candidate has a provider set and
+  // either a model OR an SDK-managed provider (ACP-mode + empty catalog).
   const saveBtn = document.getElementById('role-matrix-save');
   if (saveBtn) {
     const allFilled = ROLE_MATRIX_ROLES.every(role => {
       const r = roleMatrixState.rows[role] || {};
-      if (!r.provider_id) return false;
-      if (r.model) return true;
-      const prov = providers.find(p => p.id === r.provider_id);
-      const catalog = prov && Array.isArray(prov.models) ? prov.models : [];
-      return !!(prov && prov.mode === 'acp' && catalog.length === 0);
+      const cands = r.candidates || [];
+      if (cands.length === 0) return false;
+      return cands.every(c => {
+        if (!c.provider_id) return false;
+        if (c.model) return true;
+        const prov = providers.find(p => p.id === c.provider_id);
+        const catalog = prov && Array.isArray(prov.models) ? prov.models : [];
+        return !!(prov && prov.mode === 'acp' && catalog.length === 0);
+      });
     });
     saveBtn.disabled = !(roleMatrixState.dirty && allFilled);
   }
@@ -888,15 +991,54 @@ function lookupModelRate(provider, model) {
 function onRoleMatrixChange(selectEl) {
   const role = selectEl.dataset.role;
   const field = selectEl.dataset.field;
-  if (!role || !field) return;
-  const row = roleMatrixState.rows[role] || {};
-  row[field] = selectEl.value;
+  const idx = parseInt(selectEl.dataset.idx, 10);
+  if (!role || !field || isNaN(idx)) return;
+  const row = roleMatrixState.rows[role];
+  if (!row) return;
+  const cand = row.candidates[idx];
+  if (!cand) return;
+  cand[field] = selectEl.value;
   // When the operator picks a different provider, clear the model so
   // they don't accidentally save a (provider, model) mismatch.
   if (field === 'provider_id') {
-    row.model = '';
+    cand.model = '';
   }
-  roleMatrixState.rows[role] = row;
+  roleMatrixState.dirty = true;
+  renderRoleMatrix();
+}
+
+function setRoleStrategy(role, strategy) {
+  const row = roleMatrixState.rows[role];
+  if (!row) return;
+  row.strategy = strategy;
+  roleMatrixState.dirty = true;
+  renderRoleMatrix();
+}
+
+function addCandidate(role) {
+  const row = roleMatrixState.rows[role];
+  if (!row) return;
+  row.candidates.push({provider_id: '', model: ''});
+  roleMatrixState.dirty = true;
+  renderRoleMatrix();
+}
+
+function removeCandidate(role, idx) {
+  const row = roleMatrixState.rows[role];
+  if (!row || row.candidates.length <= 1) return;
+  row.candidates.splice(idx, 1);
+  roleMatrixState.dirty = true;
+  renderRoleMatrix();
+}
+
+function moveCandidate(role, idx, dir) {
+  const row = roleMatrixState.rows[role];
+  if (!row) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= row.candidates.length) return;
+  const tmp = row.candidates[idx];
+  row.candidates[idx] = row.candidates[newIdx];
+  row.candidates[newIdx] = tmp;
   roleMatrixState.dirty = true;
   renderRoleMatrix();
 }
@@ -905,7 +1047,13 @@ async function saveRoleMatrix() {
   const body = {};
   for (const role of ROLE_MATRIX_ROLES) {
     const r = roleMatrixState.rows[role] || {};
-    body[role] = {provider_id: r.provider_id || '', model: r.model || ''};
+    body[role] = {
+      strategy: r.strategy || 'priority',
+      candidates: (r.candidates || []).map(c => ({
+        provider_id: c.provider_id || '',
+        model: c.model || '',
+      })),
+    };
   }
   const saveBtn = document.getElementById('role-matrix-save');
   if (saveBtn) saveBtn.disabled = true;
