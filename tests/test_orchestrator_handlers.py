@@ -2405,3 +2405,618 @@ class TestSelectDispatchableDuplicateSuppression:
 
         identifiers = [i.identifier for i in result]
         assert "merge-how" in identifiers
+
+
+# ---------------------------------------------------------------------------
+# ProviderStartupError and DispatchTarget (TASK-407.5)
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchTargetDataclass:
+    """DispatchTarget and ProviderStartupError are importable and work correctly."""
+
+    def test_dispatch_target_fields(self):
+        from oompah.orchestrator import DispatchTarget
+        from dataclasses import fields
+
+        names = {f.name for f in fields(DispatchTarget)}
+        assert "role_name" in names
+        assert "provider" in names
+        assert "model" in names
+        assert "candidate_key" in names
+        assert "source" in names
+        assert "candidate" in names
+
+    def test_provider_startup_error_attributes(self):
+        from oompah.orchestrator import ProviderStartupError
+
+        err = ProviderStartupError("p1 is down", candidate_key="p1/m1", reason="no_model")
+        assert str(err) == "p1 is down"
+        assert err.candidate_key == "p1/m1"
+        assert err.reason == "no_model"
+
+    def test_provider_startup_error_defaults(self):
+        from oompah.orchestrator import ProviderStartupError
+
+        err = ProviderStartupError("oops")
+        assert err.candidate_key == ""
+        assert err.reason == "startup_failed"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_dispatch_targets (TASK-407.5)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveDispatchTargets:
+    """_resolve_dispatch_targets produces ordered DispatchTarget lists."""
+
+    def _orch_with_providers(self, tmp_path, providers):
+        """Build an orchestrator with the given providers in provider_store."""
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        by_id = {p.id: p for p in providers}
+        orch.provider_store.get.side_effect = lambda pid: by_id.get(pid)
+        orch.provider_store.get_default.return_value = providers[0] if providers else None
+        return orch
+
+    def test_single_candidate_role_returns_one_target(self, tmp_path):
+        from oompah.roles import RoleStore
+
+        prov = _provider(pid="p1", models=["m1"])
+        orch = self._orch_with_providers(tmp_path, [prov])
+        orch.role_store = RoleStore(path=str(tmp_path / "roles.json"))
+        orch.role_store.set("fast", "p1", "m1")
+        prof = _profile(model_role="fast")
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        assert len(targets) == 1
+        assert targets[0].role_name == "fast"
+        assert targets[0].provider is prov
+        assert targets[0].model == "m1"
+        assert targets[0].candidate_key == "p1/m1"
+        assert targets[0].candidate is not None
+
+    def test_two_candidate_role_returns_two_targets(self, tmp_path):
+        from oompah.roles import RoleStore, Candidate
+
+        prov_a = _provider(pid="a", models=["m-a"])
+        prov_b = _provider(pid="b", models=["m-b"])
+        orch = self._orch_with_providers(tmp_path, [prov_a, prov_b])
+
+        rs = RoleStore(path=str(tmp_path / "roles.json"))
+        rs.set("fast", "a", "m-a")
+        from oompah.roles import Candidate
+        rs.set_candidates("fast", "priority", [
+            Candidate(provider_id="a", model="m-a"),
+            Candidate(provider_id="b", model="m-b"),
+        ])
+        orch.role_store = rs
+        prof = _profile(model_role="fast")
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        assert len(targets) == 2
+        assert targets[0].provider is prov_a
+        assert targets[0].model == "m-a"
+        assert targets[1].provider is prov_b
+        assert targets[1].model == "m-b"
+
+    def test_missing_provider_in_store_is_skipped(self, tmp_path):
+        from oompah.roles import RoleStore, Candidate
+
+        prov_b = _provider(pid="b", models=["m-b"])
+        orch = self._orch_with_providers(tmp_path, [prov_b])
+        # prov_a ("ghost") is not in provider_store
+
+        rs = RoleStore(path=str(tmp_path / "roles.json"))
+        rs.set("fast", "b", "m-b")
+        rs.set_candidates("fast", "priority", [
+            Candidate(provider_id="ghost", model="m-ghost"),  # missing
+            Candidate(provider_id="b", model="m-b"),
+        ])
+        orch.role_store = rs
+        prof = _profile(model_role="fast")
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        # ghost is skipped; only b/m-b remains
+        assert len(targets) == 1
+        assert targets[0].provider is prov_b
+
+    def test_all_candidates_missing_falls_back_to_provider_id(self, tmp_path):
+        from oompah.roles import RoleStore, Candidate
+
+        prov_a = _provider(pid="a", models=["m-a"])
+        orch = self._orch_with_providers(tmp_path, [prov_a])
+        # role_store has a candidate pointing to a non-existent provider
+        rs = RoleStore(path=str(tmp_path / "roles.json"))
+        rs.set("fast", "a", "m-a")
+        rs.set_candidates("fast", "priority", [
+            Candidate(provider_id="ghost", model="m-ghost"),
+        ])
+        orch.role_store = rs
+        prof = _profile(model_role="fast", provider_id="a")
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        # Role produces no valid targets → fall back to profile.provider_id
+        assert len(targets) == 1
+        assert targets[0].provider is prov_a
+        assert targets[0].role_name is None
+        assert targets[0].source == "profile.provider_id"
+
+    def test_no_model_role_uses_profile_provider_id(self, tmp_path):
+        prov = _provider(pid="p1")
+        orch = self._orch_with_providers(tmp_path, [prov])
+        prof = _profile(provider_id="p1", model="m-special")
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        assert len(targets) == 1
+        assert targets[0].provider is prov
+        assert targets[0].model == "m-special"
+        assert targets[0].role_name is None
+
+    def test_no_profile_provider_uses_default(self, tmp_path):
+        prov_default = _provider(pid="default-prov")
+        orch = self._orch_with_providers(tmp_path, [prov_default])
+        prof = _profile()  # no model_role, no provider_id
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        assert len(targets) == 1
+        assert targets[0].provider is prov_default
+        assert targets[0].source == "default"
+
+    def test_no_provider_at_all_returns_empty(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = None
+        orch.provider_store.get_default.return_value = None
+        prof = _profile()
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        assert targets == []
+
+    def test_unknown_role_falls_back_to_provider_id(self, tmp_path):
+        prov = _provider(pid="p1")
+        orch = self._orch_with_providers(tmp_path, [prov])
+        # role_store is empty — model_role "unknown" is not registered
+        prof = _profile(model_role="unknown", provider_id="p1")
+
+        targets = orch._resolve_dispatch_targets(prof)
+
+        assert len(targets) == 1
+        assert targets[0].provider is prov
+        assert targets[0].source == "profile.provider_id"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_focus_provider_override (TASK-407.5)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveFocusProviderOverride:
+    """_resolve_focus_provider_override checks only focus-level fields."""
+
+    def test_returns_none_when_focus_is_none(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        assert orch._resolve_focus_provider_override(None) is None
+
+    def test_returns_none_when_focus_has_no_override(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        focus = Focus(name="docs", role="r", description="d")
+        assert orch._resolve_focus_provider_override(focus) is None
+
+    def test_returns_provider_for_focus_provider_id(self, tmp_path):
+        prov = _provider(pid="p1")
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = prov
+        focus = Focus(name="docs", role="r", description="d", provider_id="p1")
+
+        result = orch._resolve_focus_provider_override(focus)
+
+        assert result is prov
+
+    def test_returns_none_for_unknown_focus_provider_id(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = None
+        focus = Focus(name="docs", role="r", description="d", provider_id="ghost")
+
+        result = orch._resolve_focus_provider_override(focus)
+
+        assert result is None
+
+    def test_returns_provider_for_focus_model_role(self, tmp_path):
+        from oompah.roles import RoleStore
+
+        prov = _provider(pid="role-prov", models=["m1"])
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.side_effect = lambda pid: prov if pid == "role-prov" else None
+        rs = RoleStore(path=str(tmp_path / "roles.json"))
+        rs.set("deep", "role-prov", "m1")
+        orch.role_store = rs
+        focus = Focus(name="docs", role="r", description="d", model_role="deep")
+
+        result = orch._resolve_focus_provider_override(focus)
+
+        assert result is prov
+
+
+# ---------------------------------------------------------------------------
+# _run_worker candidate failover (TASK-407.5)
+# ---------------------------------------------------------------------------
+
+
+class TestRunWorkerCandidateFailover:
+    """_run_worker tries the next candidate when provider startup fails."""
+
+    def _make_orch_with_running(self, tmp_path, issue):
+        """Build an orchestrator with the issue registered in state.running."""
+        from oompah.models import RunningEntry
+        import asyncio
+
+        orch = _make_orchestrator(tmp_path)
+        orch._on_worker_exit = AsyncMock()
+        orch.state.running[issue.id] = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="standard",
+            natural_profile_name="standard",
+        )
+        return orch
+
+    def test_first_candidate_success_no_failover(self, tmp_path):
+        """When the first candidate succeeds, no failover occurs."""
+        from oompah.orchestrator import ProviderStartupError, DispatchTarget
+        from oompah.roles import Candidate
+
+        issue = _make_issue("feat-1")
+        prov_a = _provider(pid="a", models=["m-a"])
+        prov_b = _provider(pid="b", models=["m-b"])
+        orch = self._make_orch_with_running(tmp_path, issue)
+
+        target_a = DispatchTarget(
+            role_name="fast", provider=prov_a, model="m-a",
+            candidate_key="a/m-a", source="role:fast[0]",
+            candidate=Candidate(provider_id="a", model="m-a"),
+        )
+        target_b = DispatchTarget(
+            role_name="fast", provider=prov_b, model="m-b",
+            candidate_key="b/m-b", source="role:fast[1]",
+            candidate=Candidate(provider_id="b", model="m-b"),
+        )
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target_a, target_b])
+
+        calls = []
+        async def mock_api_worker(issue, attempt, profile, provider, target=None):
+            calls.append(provider.id)
+        orch._run_api_worker = mock_api_worker
+
+        prof = _profile(mode="api")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        assert calls == ["a"], "Only first candidate should be called"
+        orch._on_worker_exit.assert_not_called()
+
+    def test_first_candidate_startup_fails_second_succeeds(self, tmp_path):
+        """ProviderStartupError on first candidate causes fallback to second."""
+        from oompah.orchestrator import ProviderStartupError, DispatchTarget
+        from oompah.roles import Candidate
+
+        issue = _make_issue("feat-2")
+        prov_a = _provider(pid="a", models=["m-a"])
+        prov_b = _provider(pid="b", models=["m-b"])
+        orch = self._make_orch_with_running(tmp_path, issue)
+
+        target_a = DispatchTarget(
+            role_name="fast", provider=prov_a, model="m-a",
+            candidate_key="a/m-a", source="role:fast[0]",
+            candidate=Candidate(provider_id="a", model="m-a"),
+        )
+        target_b = DispatchTarget(
+            role_name="fast", provider=prov_b, model="m-b",
+            candidate_key="b/m-b", source="role:fast[1]",
+            candidate=Candidate(provider_id="b", model="m-b"),
+        )
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target_a, target_b])
+
+        calls = []
+        async def mock_api_worker(issue, attempt, profile, provider, target=None):
+            calls.append(provider.id)
+            if provider.id == "a":
+                raise ProviderStartupError("a is unavailable", candidate_key="a/m-a")
+        orch._run_api_worker = mock_api_worker
+
+        prof = _profile(mode="api")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        assert calls == ["a", "b"], "Should try a then fall back to b"
+        orch._on_worker_exit.assert_not_called()  # b succeeded, so normal exit path
+
+    def test_all_candidates_fail_calls_on_worker_exit(self, tmp_path):
+        """When all candidates fail with ProviderStartupError, worker exits with error."""
+        from oompah.orchestrator import ProviderStartupError, DispatchTarget
+        from oompah.roles import Candidate
+
+        issue = _make_issue("feat-3")
+        prov_a = _provider(pid="a", models=["m-a"])
+        prov_b = _provider(pid="b", models=["m-b"])
+        orch = self._make_orch_with_running(tmp_path, issue)
+
+        target_a = DispatchTarget(
+            role_name="fast", provider=prov_a, model="m-a",
+            candidate_key="a/m-a", source="role:fast[0]",
+            candidate=Candidate(provider_id="a", model="m-a"),
+        )
+        target_b = DispatchTarget(
+            role_name="fast", provider=prov_b, model="m-b",
+            candidate_key="b/m-b", source="role:fast[1]",
+            candidate=Candidate(provider_id="b", model="m-b"),
+        )
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target_a, target_b])
+
+        async def mock_api_worker(issue, attempt, profile, provider, target=None):
+            raise ProviderStartupError(f"{provider.id} is down", candidate_key=target.candidate_key)
+        orch._run_api_worker = mock_api_worker
+
+        prof = _profile(mode="api")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        # _on_worker_exit must be called with "abnormal" since no candidate succeeded
+        orch._on_worker_exit.assert_called_once()
+        args = orch._on_worker_exit.call_args[0]
+        assert args[0] == issue.id
+        assert args[1] == "abnormal"
+        assert "candidates" in args[2].lower() or "startup" in args[2].lower()
+
+    def test_non_provider_failure_does_not_switch_candidate(self, tmp_path):
+        """A regular exception (task failure) propagates without trying the next candidate."""
+        from oompah.orchestrator import ProviderStartupError, DispatchTarget
+        from oompah.roles import Candidate
+
+        issue = _make_issue("feat-4")
+        prov_a = _provider(pid="a", models=["m-a"])
+        prov_b = _provider(pid="b", models=["m-b"])
+        orch = self._make_orch_with_running(tmp_path, issue)
+
+        target_a = DispatchTarget(
+            role_name="fast", provider=prov_a, model="m-a",
+            candidate_key="a/m-a", source="role:fast[0]",
+            candidate=Candidate(provider_id="a", model="m-a"),
+        )
+        target_b = DispatchTarget(
+            role_name="fast", provider=prov_b, model="m-b",
+            candidate_key="b/m-b", source="role:fast[1]",
+            candidate=Candidate(provider_id="b", model="m-b"),
+        )
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target_a, target_b])
+
+        calls = []
+
+        async def mock_api_worker(issue, attempt, profile, provider, target=None):
+            calls.append(provider.id)
+            # Simulate a task-level error (not a startup error)
+            raise RuntimeError("agent failed: test suite error")
+        orch._run_api_worker = mock_api_worker
+
+        prof = _profile(mode="api")
+        with pytest.raises(RuntimeError, match="agent failed"):
+            asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        # Only the first candidate was tried — no failover for task errors
+        assert calls == ["a"]
+
+    def test_candidate_usage_recorded_for_successful_role_candidate(self, tmp_path):
+        """After a role candidate succeeds, CandidateSelector.record_used is called."""
+        from oompah.orchestrator import ProviderStartupError, DispatchTarget
+        from oompah.roles import Candidate
+        from unittest.mock import MagicMock
+
+        issue = _make_issue("feat-5")
+        prov_a = _provider(pid="a", models=["m-a"])
+        orch = self._make_orch_with_running(tmp_path, issue)
+
+        cand_a = Candidate(provider_id="a", model="m-a")
+        target_a = DispatchTarget(
+            role_name="fast", provider=prov_a, model="m-a",
+            candidate_key="a/m-a", source="role:fast[0]",
+            candidate=cand_a,
+        )
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target_a])
+        orch._candidate_selector = MagicMock()
+
+        async def mock_api_worker(issue, attempt, profile, provider, target=None):
+            pass  # success
+        orch._run_api_worker = mock_api_worker
+
+        prof = _profile(mode="api")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        orch._candidate_selector.record_used.assert_called_once_with("fast", cand_a)
+
+    def test_usage_not_recorded_when_legacy_target_no_candidate(self, tmp_path):
+        """Usage is NOT recorded for legacy profile.provider_id targets (candidate=None)."""
+        from oompah.orchestrator import DispatchTarget
+
+        issue = _make_issue("feat-6")
+        prov = _provider(pid="p1", models=["m1"])
+        orch = self._make_orch_with_running(tmp_path, issue)
+
+        # Legacy target: no role_name, no candidate
+        target = DispatchTarget(
+            role_name=None, provider=prov, model="m1",
+            candidate_key="p1", source="profile.provider_id",
+            candidate=None,
+        )
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target])
+        orch._candidate_selector = MagicMock()
+
+        async def mock_api_worker(issue, attempt, profile, provider, target=None):
+            pass  # success
+        orch._run_api_worker = mock_api_worker
+
+        prof = _profile(mode="api")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        orch._candidate_selector.record_used.assert_not_called()
+
+    def test_no_targets_falls_through_to_cli(self, tmp_path):
+        """When no targets resolve for an api-mode profile, fall through to cli."""
+        from unittest.mock import AsyncMock
+
+        issue = _make_issue("feat-7")
+        orch = self._make_orch_with_running(tmp_path, issue)
+        orch._resolve_dispatch_targets = MagicMock(return_value=[])
+        orch._run_cli_worker = AsyncMock()
+
+        prof = _profile(mode="api")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        orch._run_cli_worker.assert_called_once()
+
+    def test_round_robin_fallback(self, tmp_path):
+        """Round-robin: first resolved candidate tried first; falls back when it fails."""
+        from oompah.orchestrator import ProviderStartupError, DispatchTarget
+        from oompah.roles import Candidate, CandidateSelector, Role
+        from datetime import datetime, timezone
+
+        issue = _make_issue("feat-rr")
+        prov_a = _provider(pid="a", models=["m-a"])
+        prov_b = _provider(pid="b", models=["m-b"])
+        orch = self._make_orch_with_running(tmp_path, issue)
+
+        # Simulate round-robin where b was used more recently → a comes first
+        cand_a = Candidate(provider_id="a", model="m-a")
+        cand_b = Candidate(provider_id="b", model="m-b")
+
+        target_a = DispatchTarget(
+            role_name="fast", provider=prov_a, model="m-a",
+            candidate_key="a/m-a", source="role:fast[0]",
+            candidate=cand_a,
+        )
+        target_b = DispatchTarget(
+            role_name="fast", provider=prov_b, model="m-b",
+            candidate_key="b/m-b", source="role:fast[1]",
+            candidate=cand_b,
+        )
+
+        # _resolve_dispatch_targets returns a sorted by round-robin order.
+        # We mock it here to test that the failover loop itself respects the order.
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target_a, target_b])
+
+        calls = []
+        async def mock_api_worker(issue, attempt, profile, provider, target=None):
+            calls.append(provider.id)
+            if provider.id == "a":
+                raise ProviderStartupError("a unavailable", candidate_key="a/m-a")
+        orch._run_api_worker = mock_api_worker
+
+        prof = _profile(mode="api")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        assert calls == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# _run_api_worker with DispatchTarget (TASK-407.5)
+# ---------------------------------------------------------------------------
+
+
+class TestRunApiWorkerWithTarget:
+    """_run_api_worker raises ProviderStartupError (not ValueError) when target provided."""
+
+    def _make_orch_no_provider(self, tmp_path):
+        """Orchestrator with MagicMock provider_store, no real providers."""
+        orch = _make_orchestrator(tmp_path)
+        orch.provider_store = MagicMock()
+        orch.provider_store.get.return_value = None
+        orch.provider_store.get_default.return_value = None
+        return orch
+
+    def test_provider_startup_error_when_model_not_in_provider_models(self, tmp_path):
+        """Model not in provider.models raises ProviderStartupError when target given."""
+        from oompah.orchestrator import ProviderStartupError, DispatchTarget
+        from oompah.roles import Candidate
+        import asyncio
+
+        prov = MagicMock()
+        prov.name = "TestProv"
+        prov.id = "p1"
+        prov.base_url = "http://x"
+        prov.api_key = "k"
+        prov.mode = "api"
+        prov.models = ["m-valid"]
+        prov.default_model = "m-valid"
+        prov.model_roles = {}
+        prov.get_model_context = MagicMock(return_value=None)
+
+        orch = _make_orchestrator(tmp_path)
+        orch._on_worker_exit = AsyncMock()
+
+        cand = Candidate(provider_id="p1", model="m-bad")
+        target = DispatchTarget(
+            role_name="fast", provider=prov, model="m-bad",
+            candidate_key="p1/m-bad", source="role:fast[0]",
+            candidate=cand,
+        )
+
+        prof = _profile(mode="api", model_role="fast")
+
+        with patch("oompah.orchestrator.select_focus_async") as mock_focus:
+            mock_focus.return_value = Focus(name="f", role="r", description="d")
+            with pytest.raises(ProviderStartupError) as exc_info:
+                asyncio.run(
+                    orch._run_api_worker(
+                        _make_issue("i1"), attempt=1, profile=prof,
+                        provider=prov, target=target,
+                    )
+                )
+
+        assert exc_info.value.candidate_key == "p1/m-bad"
+        assert "m-bad" in str(exc_info.value)
+
+    def test_raises_value_error_without_target_for_backward_compat(self, tmp_path):
+        """Without a target, the original ValueError is raised (not ProviderStartupError)."""
+        import asyncio
+
+        prov = MagicMock()
+        prov.name = "TestProv"
+        prov.id = "p1"
+        prov.base_url = "http://x"
+        prov.api_key = "k"
+        prov.mode = "api"
+        prov.models = ["m-valid"]
+        prov.default_model = "m-valid"
+        prov.model_roles = {}
+        prov.get_model_context = MagicMock(return_value=None)
+
+        orch = _make_orchestrator(tmp_path)
+        orch._on_worker_exit = AsyncMock()
+
+        prof = _profile(mode="api", model_role="fast")
+
+        with patch("oompah.orchestrator.select_focus_async") as mock_focus:
+            mock_focus.return_value = Focus(name="f", role="r", description="d")
+            # Re-patch _resolve_provider and _resolve_model to return model that
+            # isn't in provider.models
+            with patch.object(orch, "_resolve_provider", return_value=prov):
+                with patch.object(orch, "_resolve_model", return_value="m-bad"):
+                    with pytest.raises(ValueError):
+                        asyncio.run(
+                            orch._run_api_worker(
+                                _make_issue("i2"), attempt=1, profile=prof,
+                                provider=prov,
+                                # No target — legacy path
+                            )
+                        )
