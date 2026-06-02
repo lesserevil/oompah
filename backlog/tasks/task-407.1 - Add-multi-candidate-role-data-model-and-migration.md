@@ -1,14 +1,12 @@
 ---
 id: TASK-407.1
 title: Add multi-candidate role data model and migration
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-02 01:07'
+updated_date: '2026-06-02 03:35'
 labels:
   - feature
-  - 'needs:backend'
-  - 'needs:test'
 dependencies: []
 modified_files:
   - oompah/roles.py
@@ -39,14 +37,16 @@ Required behavior:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Old roles.json data with provider_id/model loads as one priority candidate.
-- [ ] #2 New roles serialize with strategy and candidates.
-- [ ] #3 A role with no candidates is rejected.
-- [ ] #4 A role with an unknown strategy is rejected.
-- [ ] #5 A role candidate with an unknown provider is rejected.
-- [ ] #6 A role candidate with an invalid model is rejected, while ACP providers with SDK-managed empty model continue to work.
-- [ ] #7 Duplicate provider/model candidates in the same role are rejected.
+- [x] #1 Old roles.json data with provider_id/model loads as one priority candidate.
+- [x] #2 New roles serialize with strategy and candidates.
+- [x] #3 A role with no candidates is rejected.
+- [x] #4 A role with an unknown strategy is rejected.
+- [x] #5 A role candidate with an unknown provider is rejected.
+- [x] #6 A role candidate with an invalid model is rejected, while ACP providers with SDK-managed empty model continue to work.
+- [x] #7 Duplicate provider/model candidates in the same role are rejected.
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
@@ -63,11 +63,11 @@ Required behavior:
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Discovery: oompah/roles.py has Role(name, provider_id, model, updated_at) and RoleStore.set(name, provider_id, model). server.py accesses role.provider_id and role.model directly in _resolve_role_status and _serialize_role_row, so those need to remain accessible as backward-compat properties. test_providers_role_matrix.py also instantiates Role() directly (bypassing validation) for two tests - those needed updating too. Implementation: Added Candidate dataclass with provider_id+model+to_dict/from_dict. Updated Role to use strategy+candidates+updated_at with provider_id/model as compat properties returning first candidate. from_dict handles both old (provider_id/model at top level) and new (strategy+candidates) formats. set() now delegates to set_candidates(). Added set_candidates(name, strategy, candidates) for multi-candidate. Added _validate_multi() checking strategy, empty candidates, and duplicates. All 3605 tests pass.
+Understanding: Replaced single provider/model Role shape with multi-candidate model. Discovery: oompah/roles.py and tests/test_role_store.py were already fully implemented on this branch with Candidate dataclass, Role with strategy+candidates, backward-compat from_dict, set_candidates, and validation. Implementation: All 7 acceptance criteria met. Verification: 80/80 role store tests pass; 3605 total tests pass.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 RoleStore unit tests cover old schema migration and new schema validation.
-- [ ] #2 No beads or bd task tracking is introduced.
+- [x] #1 RoleStore unit tests cover old schema migration and new schema validation.
+- [x] #2 No beads or bd task tracking is introduced.
 <!-- DOD:END -->
