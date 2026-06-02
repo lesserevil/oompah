@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import yaml
@@ -10,7 +11,11 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.roles import RoleStore
-from oompah.tracker import BacklogMdTracker
+from oompah.tracker import (
+    BacklogMdTracker,
+    _read_markdown_frontmatter,
+    _write_markdown_frontmatter,
+)
 
 
 def _write_config(root, *, directory="backlog"):
@@ -514,3 +519,146 @@ def test_orchestrator_constructs_backlog_tracker(tmp_path):
     )
 
     assert isinstance(orch.tracker, BacklogMdTracker)
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for TASK-397 / TASK-408: custom frontmatter preservation
+# ---------------------------------------------------------------------------
+
+
+def _cli_strips_to_known_fields(task_path: Path, new_status: str):
+    """Simulate what the Backlog CLI does: rewrite frontmatter, drop custom keys."""
+    meta, body = _read_markdown_frontmatter(task_path)
+    stripped = {
+        k: v for k, v in meta.items()
+        if k in {
+            "id", "title", "status", "assignee", "created_date",
+            "updated_date", "labels", "dependencies", "priority", "ordinal",
+        }
+    }
+    stripped["status"] = new_status
+    _write_markdown_frontmatter(task_path, stripped, body)
+
+
+def test_update_issue_preserves_custom_frontmatter(tmp_path):
+    """update_issue must not drop unknown frontmatter keys like type and beads."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Migrated task",
+        extra_meta={
+            "type": "feature",
+            "beads": {
+                "id": "oompah-zlz_2-54k",
+                "state": "open",
+                "branch_name": "oompah-zlz_2-54k",
+                "created_at": "2026-05-05T20:18:01Z",
+            },
+        },
+    )
+    tracker = _tracker(tmp_path)
+
+    def _fake_run_backlog(args):
+        _cli_strips_to_known_fields(task_path, "In Progress")
+        return ""
+
+    with patch.object(tracker, "_run_backlog", side_effect=_fake_run_backlog):
+        tracker.update_issue("TASK-1", status="in_progress")
+
+    meta, _ = _read_markdown_frontmatter(task_path)
+    assert meta["status"] == "In Progress", "status must be updated by CLI"
+    assert meta["type"] == "feature", "custom 'type' must be preserved"
+    assert isinstance(meta["beads"], dict), "nested 'beads' dict must be preserved"
+    assert meta["beads"]["id"] == "oompah-zlz_2-54k"
+
+
+def test_close_issue_preserves_custom_frontmatter(tmp_path):
+    """close_issue must preserve custom frontmatter even when the task file is moved."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-2",
+        "Closeable task",
+        extra_meta={"type": "bug", "beads": {"id": "bead-99"}},
+    )
+    tracker = _tracker(tmp_path)
+
+    def _fake_run_backlog(args):
+        # Simulate CLI moving the file to completed/ and stripping custom keys.
+        completed_path = backlog_dir / "completed" / task_path.name
+        _cli_strips_to_known_fields(task_path, "Done")
+        task_path.rename(completed_path)
+        return ""
+
+    with (
+        patch.object(tracker, "_run_backlog", side_effect=_fake_run_backlog),
+        patch.object(tracker, "add_comment"),
+    ):
+        tracker.close_issue("TASK-2", reason="Done")
+
+    completed_path = backlog_dir / "completed" / task_path.name
+    assert completed_path.exists(), "task file should be in completed/"
+    meta, _ = _read_markdown_frontmatter(completed_path)
+    assert meta["status"] == "Done"
+    assert meta["type"] == "bug", "custom 'type' must survive close_issue"
+    assert meta["beads"] == {"id": "bead-99"}, "custom 'beads' must survive close_issue"
+
+
+def test_add_label_preserves_custom_frontmatter(tmp_path):
+    """add_label must not drop unknown frontmatter keys."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-3",
+        "Labeled task",
+        extra_meta={"type": "chore", "beads": {"id": "bead-7", "seq": 3}},
+    )
+    tracker = _tracker(tmp_path)
+
+    def _fake_run_backlog(args):
+        meta, body = _read_markdown_frontmatter(task_path)
+        # CLI strips custom fields and adds the new label
+        stripped = {
+            k: v for k, v in meta.items()
+            if k in {
+                "id", "title", "status", "assignee", "created_date",
+                "updated_date", "labels", "dependencies", "priority",
+            }
+        }
+        stripped["labels"] = stripped.get("labels", []) + ["needs-review"]
+        _write_markdown_frontmatter(task_path, stripped, body)
+        return ""
+
+    with patch.object(tracker, "_run_backlog", side_effect=_fake_run_backlog):
+        tracker.add_label("TASK-3", "needs-review")
+
+    meta, _ = _read_markdown_frontmatter(task_path)
+    assert "needs-review" in meta["labels"], "label must be added"
+    assert meta["type"] == "chore", "custom 'type' must be preserved after add_label"
+    assert meta["beads"]["seq"] == 3, "nested beads fields must be preserved"
+
+
+def test_update_issue_known_fields_updated_once(tmp_path):
+    """Normal Backlog fields must be updated exactly once with no duplication."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-4",
+        "Normal task",
+        extra_meta={"type": "task"},
+    )
+    tracker = _tracker(tmp_path)
+    calls: list[list[str]] = []
+
+    def _fake_run_backlog(args):
+        calls.append(args)
+        return ""
+
+    with patch.object(tracker, "_run_backlog", side_effect=_fake_run_backlog):
+        tracker.update_issue("TASK-4", status="in_progress", priority=1)
+
+    # _run_backlog must be called exactly once (the CLI edit call)
+    assert len(calls) == 1, f"expected 1 CLI call, got {len(calls)}: {calls}"
+    assert "--status" in calls[0]
+    assert "--priority" in calls[0]

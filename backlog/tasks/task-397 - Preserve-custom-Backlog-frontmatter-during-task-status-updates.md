@@ -1,10 +1,10 @@
 ---
 id: TASK-397
 title: Preserve custom Backlog frontmatter during task status updates
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-01 23:59'
+updated_date: '2026-06-02 01:24'
 labels:
   - bug
 dependencies: []
@@ -30,3 +30,9 @@ Implementation guidance (merged from duplicate TASK-408):
 - [ ] #2 Dispatching a task to In Progress preserves migrated beads metadata in the task file.
 - [ ] #3 Tests cover status updates and at least one other mutation path that uses BacklogTracker task edits.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented in TASK-408 branch: added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py; all 7 mutation methods now preserve unknown frontmatter. 4 regression tests added.
+<!-- SECTION:FINAL_SUMMARY:END -->
