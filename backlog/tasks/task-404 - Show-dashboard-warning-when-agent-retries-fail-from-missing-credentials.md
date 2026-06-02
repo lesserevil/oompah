@@ -50,3 +50,21 @@ The retry state is visible through the API, but the main page does not show an o
 - The warning disappears when there are no current credential-related retry failures.
 - Automated tests cover the backend state/alert behavior and the dashboard rendering behavior.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 208f0cb1-ec0d-4f29-bac6-d27dd191cb13
+author: oompah
+created: 2026-06-02T01:03:15Z
+
+Understanding: This bug requires surfacing credential-related retry failures on the dashboard. When a task retries with an error like 'OpenAIError: Missing credentials', the dashboard shows nothing to the operator. Plan: (1) Backend - add _is_credential_error() helper + dynamically compute cred_error alerts from retry_attempts in get_snapshot(), so they auto-clear when retries resolve; (2) Frontend - add a prominent credential warning banner in dashboard.html that appears above the board with proper ARIA attributes, rendering alerts with source 'cred_error'; (3) Tests - backend unit tests for get_snapshot() credential error detection, and static-analysis tests for the dashboard HTML/JS.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: a52b2b9c-bb05-4ad9-9faa-83c0d7122c91
+author: oompah
+created: 2026-06-02T01:10:49Z
+
+Discovery: The orchestrator's get_snapshot() builds an alerts list from self._alerts, which the dashboard renders inline in the agent-bar. The retry_attempts dict already carries the error string per issue. The fix: (1) add _is_credential_error() module-level function with specific phrases (missing credentials, authenticationerror, invalid api key, etc.); (2) add _credential_error_alerts() method that scans retry_attempts dynamically and returns transient alert dicts with source='cred_error:<identifier>'; (3) inject these into the snapshot alerts list in get_snapshot(); (4) add a red warning banner div in dashboard.html between agent-bar and main-area, and update handleStateUpdate() to show/hide it based on cred_error: source-prefixed alerts. This ensures the alerts auto-clear when retries resolve.
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->

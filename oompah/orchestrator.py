@@ -151,6 +151,36 @@ def _configured_in_progress_state(active_states: list[str]) -> str:
     return IN_PROGRESS
 
 
+# Phrases that identify credential-related errors in agent retry error strings.
+# Kept narrow to avoid false positives on e.g. HTTP 403 permission errors or
+# filesystem "access denied" responses that are not credential failures.
+_CREDENTIAL_ERROR_PHRASES: tuple[str, ...] = (
+    "missing credentials",
+    "authenticationerror",
+    "authentication_error",
+    "invalid api key",
+    "incorrect api key",
+    "authentication failed",
+    "invalid_api_key",
+    "no api key",
+    "api key not found",
+)
+
+
+def _is_credential_error(error: str | None) -> bool:
+    """Return True when *error* describes a missing or invalid credential.
+
+    Matches common error strings from OpenAI-compatible SDKs and HTTP
+    clients without leaking any credential values.  The check is
+    case-insensitive and phrase-based so it catches variations like
+    ``OpenAIError: Missing credentials`` or ``AuthenticationError: …``.
+    """
+    if not error:
+        return False
+    lower = error.lower()
+    return any(phrase in lower for phrase in _CREDENTIAL_ERROR_PHRASES)
+
+
 class DispatchEventType(str, Enum):
     """Types of events that drive the event-driven dispatch loop.
 
@@ -9146,6 +9176,31 @@ class Orchestrator:
             return False
         return True
 
+    def _credential_error_alerts(self) -> list[dict[str, Any]]:
+        """Return transient alerts for retrying tasks whose last error was credential-related.
+
+        These alerts are computed on demand from the current retry_attempts so
+        they clear automatically when the retry succeeds or the task is no
+        longer retrying.  They are *not* stored in ``self._alerts`` — they are
+        injected into the ``get_snapshot()`` response only.
+        """
+        alerts: list[dict[str, Any]] = []
+        for retry in self.state.retry_attempts.values():
+            if not _is_credential_error(retry.error):
+                continue
+            source = f"cred_error:{retry.identifier}"
+            alerts.append(
+                {
+                    "level": "error",
+                    "source": source,
+                    "message": (
+                        f"Missing provider credentials for {retry.identifier} "
+                        f"(attempt #{retry.attempt}) — check your provider API key configuration"
+                    ),
+                }
+            )
+        return alerts
+
     # ------------------------------------------------------------------
     # Auto-decomposition
     # ------------------------------------------------------------------
@@ -9888,7 +9943,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 pid: self._count_open_reviews(pid)
                 for pid in (getattr(self, "_reviews_cache", None) or {})
             },
-            "alerts": list(self._alerts),
+            "alerts": list(self._alerts) + self._credential_error_alerts(),
             "reviews_summary": self._reviews_summary(),
             "epic_rebase_states": {
                 epic_id: {
