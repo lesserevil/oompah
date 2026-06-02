@@ -1,10 +1,10 @@
 ---
 id: TASK-407.1
 title: Add multi-candidate role data model and migration
-status: Done
+status: In Progress
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-02 03:38'
+updated_date: '2026-06-02 03:41'
 labels:
   - feature
 dependencies: []
@@ -37,14 +37,16 @@ Required behavior:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Old roles.json data with provider_id/model loads as one priority candidate.
-- [ ] #2 New roles serialize with strategy and candidates.
-- [ ] #3 A role with no candidates is rejected.
-- [ ] #4 A role with an unknown strategy is rejected.
-- [ ] #5 A role candidate with an unknown provider is rejected.
-- [ ] #6 A role candidate with an invalid model is rejected, while ACP providers with SDK-managed empty model continue to work.
-- [ ] #7 Duplicate provider/model candidates in the same role are rejected.
+- [x] #1 Old roles.json data with provider_id/model loads as one priority candidate.
+- [x] #2 New roles serialize with strategy and candidates.
+- [x] #3 A role with no candidates is rejected.
+- [x] #4 A role with an unknown strategy is rejected.
+- [x] #5 A role candidate with an unknown provider is rejected.
+- [x] #6 A role candidate with an invalid model is rejected, while ACP providers with SDK-managed empty model continue to work.
+- [x] #7 Duplicate provider/model candidates in the same role are rejected.
 <!-- AC:END -->
+
+
 
 ## Implementation Plan
 
@@ -58,14 +60,14 @@ Required behavior:
 7. Update tests/test_role_store.py for new and migrated formats.
 <!-- SECTION:PLAN:END -->
 
-## Final Summary
+## Implementation Notes
 
-<!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Multi-candidate role data model fully implemented. Role now has strategy (priority/round_robin) and ordered candidates list. Old roles.json files with provider_id/model transparently migrate to one-candidate priority roles on load. Saves always write new schema. RoleStore.set_candidates() added for multi-candidate writes. Validation rejects empty candidates, invalid strategies, unknown providers, invalid models, and duplicates. ACP providers with empty catalog accept empty/any model. 80 unit tests added in tests/test_role_store.py, all passing. Full test suite (3605 tests) passes.
-<!-- SECTION:FINAL_SUMMARY:END -->
+<!-- SECTION:NOTES:BEGIN -->
+Verification: All 3605 tests pass (make test). Implementation complete.
+<!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 RoleStore unit tests cover old schema migration and new schema validation.
-- [ ] #2 No beads or bd task tracking is introduced.
+- [x] #1 RoleStore unit tests cover old schema migration and new schema validation.
+- [x] #2 No beads or bd task tracking is introduced.
 <!-- DOD:END -->
