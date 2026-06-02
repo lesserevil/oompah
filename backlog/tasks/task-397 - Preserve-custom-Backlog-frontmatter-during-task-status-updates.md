@@ -5,7 +5,7 @@ status: Done
 assignee:
   - oompah
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-01 19:57'
+updated_date: '2026-06-02 00:51'
 labels:
   - bug
 dependencies: []
@@ -22,5 +22,5 @@ During stale-task cleanup on 2026-06-01, Backlog.md task edits reserialized task
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added _run_backlog_task_edit() wrapper in BacklogMdTracker that snapshots full YAML frontmatter before each 'backlog task edit' CLI call and restores any dropped custom fields (type, parent, beads.*) afterwards. Applied to all 7 task-edit call sites: update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency. Added 5 regression tests covering the bug and the fix.
+TASK-397 already completed by prior agent. Duplicate-investigation confirms no duplicate exists — this IS the original. Implementation: _run_backlog_task_edit() wrapper in oompah/tracker.py snapshots frontmatter before each backlog CLI call and restores dropped custom fields (type, parent, beads.*). Applied to all 7 call sites. 5 regression tests added. All 3817 tests pass.
 <!-- SECTION:FINAL_SUMMARY:END -->
