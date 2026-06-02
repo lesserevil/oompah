@@ -1,4 +1,4 @@
-"""Tests for filtering running-agent chips by the dashboard project filter."""
+"""Tests for dashboard running-agent chips and project-filter behavior."""
 
 from __future__ import annotations
 
@@ -22,18 +22,20 @@ def dashboard_script() -> str:
 
 def test_running_agent_filter_helpers_exist(dashboard_script: str):
     assert "function selectedProjectFilterValue()" in dashboard_script
-    assert "function filterRunningAgentsForCurrentProject(running)" in dashboard_script
     assert "function renderRunningAgentChips(running, paused)" in dashboard_script
 
 
-def test_running_agent_chips_use_project_filtered_entries(dashboard_script: str):
+def test_running_agent_chips_use_global_running_entries(dashboard_script: str):
     assert (
-        "const visibleRunning = filterRunningAgentsForCurrentProject(running);"
+        "const visibleRunning = running || [];"
         in dashboard_script
     )
     assert "visibleRunning.map(r =>" in dashboard_script
     assert "countEl.textContent = visibleRunning.length;" in dashboard_script
     assert "visibleRunning.length === 0" in dashboard_script
+    assert "function filterRunningAgentsForCurrentProject(running)" not in (
+        dashboard_script
+    )
 
 
 def test_project_filter_change_rerenders_running_agent_chips(dashboard_script: str):

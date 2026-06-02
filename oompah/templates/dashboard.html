@@ -1571,12 +1571,6 @@ function selectedProjectFilterValue() {
   return pid;
 }
 
-function filterRunningAgentsForCurrentProject(running) {
-  const pid = selectedProjectFilterValue();
-  if (!pid) return running || [];
-  return (running || []).filter(r => r.project_id === pid);
-}
-
 function optimisticIssueKey(identifier, projectId) {
   const id = identifier || '';
   const pid = projectId || '';
@@ -1594,7 +1588,7 @@ function issueMatchesOptimisticUpdate(issue, update) {
 }
 
 function renderRunningAgentChips(running, paused) {
-  const visibleRunning = filterRunningAgentsForCurrentProject(running);
+  const visibleRunning = running || [];
   const countEl = document.getElementById('agent-count');
   if (countEl) countEl.textContent = visibleRunning.length;
 
