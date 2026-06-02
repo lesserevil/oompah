@@ -423,6 +423,22 @@ class TestWorkspaceAllocation:
         orch.project_store.create_worktree.assert_called_once()
         orch.project_store.create_epic_worktree.assert_not_called()
 
+    def test_per_bead_worktree_syncs_task_file(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_worktree.return_value = "/wt/per-bead"
+
+        issue = _make_issue(identifier="TASK-389", project_id="proj-1")
+        wp, epic = orch._create_workspace_for_issue(issue)
+
+        assert wp == "/wt/per-bead"
+        assert epic is None
+        orch.project_store.sync_task_file_to_worktree.assert_called_once_with(
+            "proj-1",
+            "TASK-389",
+            "/wt/per-bead",
+        )
+
     def test_stacked_mode_uses_per_bead_worktree(self, tmp_path):
         proj = _make_project_record(epic_strategy="stacked")
         orch = _make_orch(tmp_path, projects=[proj])
@@ -451,6 +467,30 @@ class TestWorkspaceAllocation:
             "epic-1",
         )
         orch.project_store.create_worktree.assert_not_called()
+
+    def test_shared_epic_worktree_syncs_child_task_file(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-1"
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            issue = _make_issue(
+                identifier="TASK-389",
+                parent_id="epic-1",
+                project_id="proj-1",
+            )
+            wp, epic_ret = orch._create_workspace_for_issue(issue)
+
+        assert wp == "/wt/epic-1"
+        assert epic_ret is not None
+        orch.project_store.sync_task_file_to_worktree.assert_called_once_with(
+            "proj-1",
+            "TASK-389",
+            "/wt/epic-1",
+        )
 
     def test_shared_mode_top_level_issue_uses_per_bead(self, tmp_path):
         """Top-level issues (no parent) under shared mode get a per-bead worktree."""

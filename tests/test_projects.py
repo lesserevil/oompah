@@ -437,3 +437,63 @@ class TestCreateWorktreeAlreadyUsedFallback:
         assert hit_used["n"] == 1
         assert returned == wt_path
         assert os.path.isdir(wt_path)
+
+
+class TestSyncTaskFileToWorktree:
+    def test_copies_current_task_file_and_removes_stale_copy(self, tmp_path):
+        store, repo = _store_with_one_project(tmp_path)
+        source_dir = repo / "backlog" / "tasks"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        source = source_dir / "task-389 - current.md"
+        source.write_text(
+            "\n".join([
+                "---",
+                "id: TASK-389",
+                "status: In Progress",
+                "title: Current",
+                "---",
+                "",
+                "Current task body",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+        wt_path = tmp_path / "wt-task"
+        stale_dir = wt_path / "backlog" / "completed"
+        stale_dir.mkdir(parents=True)
+        stale = stale_dir / "task-389 - stale.md"
+        stale.write_text(
+            "\n".join([
+                "---",
+                "id: TASK-389",
+                "status: Done",
+                "title: Stale",
+                "---",
+                "",
+                "Stale task body",
+                "",
+            ]),
+            encoding="utf-8",
+        )
+
+        assert store.sync_task_file_to_worktree(
+            "proj-sync1",
+            "TASK-389",
+            str(wt_path),
+        )
+
+        copied = wt_path / "backlog" / "tasks" / source.name
+        assert copied.exists()
+        assert "status: In Progress" in copied.read_text(encoding="utf-8")
+        assert not stale.exists()
+
+    def test_returns_false_when_source_task_file_is_missing(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        wt_path = tmp_path / "wt-task"
+        wt_path.mkdir()
+
+        assert store.sync_task_file_to_worktree(
+            "proj-sync1",
+            "TASK-999",
+            str(wt_path),
+        ) is False

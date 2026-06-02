@@ -1614,6 +1614,55 @@ class Orchestrator:
                 in_progress.extend(issues)
         return in_progress
 
+    def _retryable_state_keys(self) -> set[str]:
+        """Return states that may be dispatched by a scheduled retry."""
+        keys = {_state_key(IN_PROGRESS)}
+        keys.update({_state_key(s) for s in self.config.tracker_active_states})
+        return keys
+
+    def _retry_issue_matches(self, issue: Issue, retry: RetryEntry) -> bool:
+        """Return True when ``issue`` is the task owned by ``retry``."""
+        if retry.project_id and issue.project_id and issue.project_id != retry.project_id:
+            return False
+        issue_keys = {issue.id, issue.identifier}
+        retry_keys = {retry.issue_id, retry.identifier}
+        return bool(issue_keys & retry_keys)
+
+    def _fetch_retry_issue(self, retry: RetryEntry) -> Issue | None:
+        """Fetch the issue for a scheduled retry, including In Progress tasks."""
+        for issue in self._fetch_all_candidates():
+            if self._retry_issue_matches(issue, retry):
+                return issue
+
+        if retry.project_id:
+            project_ids: list[str | None] = [retry.project_id]
+        else:
+            projects = self.project_store.list_all()
+            project_ids = [p.id for p in projects if getattr(p, "id", None)]
+            if not project_ids:
+                project_ids = [None]
+
+        for project_id in project_ids:
+            tracker = (
+                self._tracker_for_project(project_id)
+                if project_id
+                else self.tracker
+            )
+            issue: Issue | None = None
+            for fetched in tracker.fetch_issue_states_by_ids([retry.issue_id]):
+                if fetched.id == retry.issue_id or fetched.identifier == retry.identifier:
+                    issue = fetched
+                    break
+            if issue is None:
+                issue = tracker.fetch_issue_detail(retry.identifier)
+            if issue is None:
+                continue
+            if project_id and not issue.project_id:
+                issue.project_id = project_id
+            if self._retry_issue_matches(issue, retry):
+                return issue
+        return None
+
     def _available_slots(self) -> int:
         return max(self.state.max_concurrent_agents - len(self.state.running), 0)
 
@@ -1848,6 +1897,24 @@ class Orchestrator:
             parent.project_id = issue.project_id
         return parent
 
+    def _sync_issue_task_file_to_workspace(self, issue: Issue, workspace_path: str) -> None:
+        """Best-effort sync of current Backlog task metadata into a worktree."""
+        if not issue.project_id:
+            return
+        try:
+            self.project_store.sync_task_file_to_worktree(
+                issue.project_id,
+                issue.identifier,
+                workspace_path,
+            )
+        except (ProjectError, OSError) as exc:
+            logger.warning(
+                "Failed to sync task file into workspace issue_id=%s project=%s: %s",
+                issue.identifier,
+                issue.project_id,
+                exc,
+            )
+
     def _create_workspace_for_issue(
         self,
         issue: Issue,
@@ -1886,6 +1953,7 @@ class Orchestrator:
                     issue.project_id,
                     parent_epic.identifier,
                 )
+                self._sync_issue_task_file_to_workspace(issue, wp)
                 return wp, parent_epic
 
         wp = self.project_store.create_worktree(
@@ -1893,6 +1961,7 @@ class Orchestrator:
             issue.identifier,
             base_branch=issue.target_branch,
         )
+        self._sync_issue_task_file_to_workspace(issue, wp)
         return wp, None
 
     def _auto_close_completed_epics(self, candidates: list[Issue]) -> None:
@@ -8853,6 +8922,7 @@ class Orchestrator:
                                     delay_ms=delay,
                                     error="completed_without_closing",
                                     escalated_profile=escalated_name,
+                                    project_id=project_id,
                                 )
                                 logger.info(
                                     "Escalating %s from %s to %s after completing without closing (%d/%d)",
@@ -8973,6 +9043,7 @@ class Orchestrator:
                                         escalated_profile=escalated_name
                                         if escalated
                                         else None,
+                                        project_id=project_id,
                                     )
                                     logger.info(
                                         "Completion verifier rejected close for %s — "
@@ -9036,6 +9107,7 @@ class Orchestrator:
                 identifier=entry.identifier,
                 delay_ms=delay,
                 error=error,
+                project_id=project_id,
             )
             logger.warning(
                 "Rate limited by %s — pausing dispatch for %ds. issue_id=%s retrying_in_ms=%d",
@@ -9118,6 +9190,7 @@ class Orchestrator:
                     delay_ms=delay,
                     error=error or reason,
                     escalated_profile=escalated_name or None,
+                    project_id=project_id,
                 )
                 logger.info(
                     "Worker %s issue_id=%s issue_identifier=%s retrying_in_ms=%d",
@@ -9162,6 +9235,7 @@ class Orchestrator:
                 identifier=entry.identifier,
                 delay_ms=delay,
                 error=error,
+                project_id=project_id,
             )
             logger.warning(
                 "Worker failed issue_id=%s issue_identifier=%s error=%s retrying_in_ms=%d",
@@ -9399,6 +9473,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 identifier=entry.identifier,
                 delay_ms=delay,
                 error=str(exc),
+                project_id=project_id,
             )
 
     async def _execute_decomposition(
@@ -9473,6 +9548,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         delay_ms: int,
         error: str | None,
         escalated_profile: str | None = None,
+        project_id: str | None = None,
     ) -> None:
         """Schedule a retry timer for an issue."""
         # Cancel existing retry
@@ -9496,6 +9572,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             timer_handle=timer,
             error=error,
             escalated_profile=escalated_profile,
+            project_id=project_id,
         )
         # Emit retry scheduled event on EventBus
         self.event_bus.emit(
@@ -9506,6 +9583,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "attempt": attempt,
                 "delay_ms": delay_ms,
                 "error": error,
+                "project_id": project_id,
             },
         )
 
@@ -9531,7 +9609,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         )
 
         try:
-            candidates = self._fetch_all_candidates()
+            issue = self._fetch_retry_issue(retry)
         except (TrackerError, ProjectError):
             # Requeue
             self._schedule_retry(
@@ -9540,15 +9618,28 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 retry.identifier,
                 self._backoff_delay(retry.attempt + 1),
                 "retry poll failed",
+                escalated_profile=retry.escalated_profile,
+                project_id=retry.project_id,
             )
             return
 
-        issue = next((i for i in candidates if i.id == issue_id), None)
         if issue is None:
-            # Issue no longer active, release claim
+            # Issue no longer exists, release claim
             self.state.claimed.discard(issue_id)
             logger.info(
-                "Retry released claim issue_id=%s (no longer candidate)", issue_id
+                "Retry released claim issue_id=%s (issue not found)", issue_id
+            )
+            return
+
+        state_norm = _state_key(issue.state)
+        if state_norm not in self._retryable_state_keys():
+            self.state.claimed.discard(issue_id)
+            if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
+                self.state.completed.add(issue_id)
+            logger.info(
+                "Retry released claim issue_id=%s state=%s (not retryable)",
+                issue_id,
+                issue.state,
             )
             return
 
@@ -9559,6 +9650,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 issue.identifier,
                 self._backoff_delay(retry.attempt + 1),
                 "no available orchestrator slots",
+                escalated_profile=retry.escalated_profile,
+                project_id=issue.project_id or retry.project_id,
             )
             return
 
@@ -9621,6 +9714,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         entry.identifier,
                         self._backoff_delay(next_attempt),
                         "stall timeout",
+                        project_id=entry.issue.project_id if entry.issue else None,
                     )
 
         # Part B: Tracker state refresh
@@ -9696,6 +9790,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             identifier=running_entry.identifier,
                             delay_ms=delay,
                             error=f"state reverted to {state_norm}",
+                            project_id=running_entry.issue.project_id
+                            if running_entry.issue
+                            else None,
                         )
 
     _ARCHIVE_DAYS = 7

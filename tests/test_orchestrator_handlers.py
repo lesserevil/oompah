@@ -20,7 +20,7 @@ import pytest
 
 from oompah.config import ServiceConfig
 from oompah.focus import Focus
-from oompah.models import AgentProfile, Issue, ModelProvider
+from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
 
@@ -1962,6 +1962,67 @@ class TestRateLimitAlertIncludesProviderAndModel:
         comment_text = orch._post_comment.call_args.args[1]
         assert "Godspeed" in comment_text
         assert "mimo-2.5" in comment_text
+
+
+class TestRetryTimerSpecificIssueLookup:
+    """Retry timers must find already-owned issues outside the candidate set."""
+
+    def test_in_progress_retry_dispatches_instead_of_releasing_claim(self, tmp_path):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("TASK-389", state="In Progress")
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        tracker.fetch_issue_detail.return_value = None
+        orch._project_trackers["proj-1"] = tracker
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._available_slots = MagicMock(return_value=1)
+        orch._dispatch = AsyncMock()
+        orch.state.claimed.add(issue.id)
+        orch.state.retry_attempts[issue.id] = RetryEntry(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            attempt=1,
+            due_at_ms=0.0,
+            escalated_profile="standard",
+            project_id="proj-1",
+        )
+
+        asyncio.run(orch._on_retry_timer(issue.id))
+
+        orch._dispatch.assert_awaited_once()
+        dispatch_args = orch._dispatch.await_args
+        dispatched_issue = dispatch_args.args[0]
+        assert dispatched_issue.identifier == "TASK-389"
+        assert dispatched_issue.project_id == "proj-1"
+        assert dispatch_args.kwargs["attempt"] == 1
+        assert dispatch_args.kwargs["override_profile"] == "standard"
+        assert issue.id in orch.state.claimed
+
+    def test_terminal_retry_releases_claim_and_marks_completed(self, tmp_path):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("TASK-389", state="Done")
+        tracker = MagicMock()
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        tracker.fetch_issue_detail.return_value = None
+        orch._project_trackers["proj-1"] = tracker
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._dispatch = AsyncMock()
+        orch.state.claimed.add(issue.id)
+        orch.state.retry_attempts[issue.id] = RetryEntry(
+            issue_id=issue.id,
+            identifier=issue.identifier,
+            attempt=1,
+            due_at_ms=0.0,
+            project_id="proj-1",
+        )
+
+        asyncio.run(orch._on_retry_timer(issue.id))
+
+        orch._dispatch.assert_not_awaited()
+        assert issue.id not in orch.state.claimed
+        assert issue.id in orch.state.completed
 
 
 class TestSelectDispatchableDuplicateSuppression:

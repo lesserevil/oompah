@@ -6,10 +6,13 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import yaml
 
 from oompah.attachments import ATTACHMENTS_SUBDIR, LFS_PATTERNS
 from oompah.backlog_compat import (
@@ -48,6 +51,53 @@ def _sanitize_identifier(value: str) -> str:
     """Make a project or task identifier safe for local branch/path names."""
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "").strip())
     return cleaned.strip("._-") or "unnamed"
+
+
+def _task_id_key(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def _task_file_frontmatter_id(path: str) -> str | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        return None
+    if not content.startswith("---"):
+        return None
+    end = content.find("\n---", 3)
+    if end < 0:
+        return None
+    try:
+        meta = yaml.safe_load(content[3:end]) or {}
+    except yaml.YAMLError:
+        return None
+    task_id = meta.get("id") if isinstance(meta, dict) else None
+    return str(task_id).strip() if task_id else None
+
+
+def _backlog_task_files(root: str) -> list[str]:
+    files: list[str] = []
+    for rel_dir in ("backlog/tasks", "backlog/completed"):
+        task_dir = os.path.join(root, rel_dir)
+        if not os.path.isdir(task_dir):
+            continue
+        for dirpath, _dirs, filenames in os.walk(task_dir):
+            for filename in filenames:
+                if filename.endswith(".md"):
+                    files.append(os.path.join(dirpath, filename))
+    return files
+
+
+def _task_file_matches(path: str, issue_identifier: str) -> bool:
+    key = _task_id_key(issue_identifier)
+    if not key:
+        return False
+    frontmatter_id = _task_file_frontmatter_id(path)
+    if frontmatter_id and _task_id_key(frontmatter_id) == key:
+        return True
+    stem = os.path.splitext(os.path.basename(path))[0].lower()
+    return stem.startswith(key)
 
 
 def _bootstrap_lfs(repo_path: str) -> bool:
@@ -1293,6 +1343,58 @@ class ProjectStore:
 
         logger.info("Worktree created path=%s branch=%s", wt_path, branch_name)
         return wt_path
+
+    def sync_task_file_to_worktree(
+        self,
+        project_id: str,
+        issue_identifier: str,
+        wt_path: str,
+    ) -> bool:
+        """Copy the current Backlog task markdown into an agent worktree."""
+        project = self._projects.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        if not os.path.isdir(wt_path):
+            raise ProjectError(f"Worktree path does not exist: {wt_path}")
+
+        source_path = next(
+            (
+                path
+                for path in _backlog_task_files(project.repo_path)
+                if _task_file_matches(path, issue_identifier)
+            ),
+            None,
+        )
+        if not source_path:
+            logger.debug(
+                "No Backlog task file found to sync project=%s issue=%s",
+                project_id,
+                issue_identifier,
+            )
+            return False
+
+        for stale_path in _backlog_task_files(wt_path):
+            if _task_file_matches(stale_path, issue_identifier):
+                try:
+                    os.remove(stale_path)
+                except OSError as exc:
+                    raise ProjectError(f"Failed to remove stale task file: {exc}")
+
+        rel_path = os.path.relpath(source_path, project.repo_path)
+        target_path = os.path.join(wt_path, rel_path)
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        try:
+            shutil.copy2(source_path, target_path)
+        except OSError as exc:
+            raise ProjectError(f"Failed to sync task file: {exc}")
+
+        logger.info(
+            "Synced task file to worktree project=%s issue=%s path=%s",
+            project_id,
+            issue_identifier,
+            target_path,
+        )
+        return True
 
     def _prepare_existing_worktree(
         self,

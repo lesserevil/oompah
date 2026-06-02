@@ -191,6 +191,7 @@ class RetryEntry:
     timer_handle: Any = None
     error: str | None = None
     escalated_profile: str | None = None
+    project_id: str | None = None
 
 
 @dataclass
