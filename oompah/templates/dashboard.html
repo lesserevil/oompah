@@ -639,6 +639,43 @@
       align-items: center;
       gap: 0.25rem;
     }
+    /* Credential-error warning banner — shown above the board when provider
+       credentials are missing or invalid for one or more retrying tasks. */
+    .cred-error-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.6rem 1.5rem;
+      background: rgba(248, 81, 73, 0.12);
+      border-bottom: 1px solid rgba(248, 81, 73, 0.4);
+      flex-shrink: 0;
+    }
+    .cred-error-banner[hidden] { display: none; }
+    .cred-error-banner .cred-error-icon {
+      font-size: 1rem;
+      color: var(--red);
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .cred-error-banner .cred-error-body {
+      flex: 1;
+    }
+    .cred-error-banner .cred-error-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--red);
+      margin-bottom: 0.2rem;
+    }
+    .cred-error-banner .cred-error-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      font-size: 0.72rem;
+      color: var(--text);
+    }
+    .cred-error-banner .cred-error-list li {
+      padding: 0.1rem 0;
+    }
     .running-agents {
       display: flex;
       gap: 0.4rem;
@@ -1429,6 +1466,14 @@
     <span class="agent-warning" id="agent-warnings"></span>
     <div class="running-agents" id="running-agents"></div>
   </div>
+  <div class="cred-error-banner" id="cred-error-banner" hidden
+       role="alert" aria-live="polite" aria-label="Provider credential error">
+    <span class="cred-error-icon" aria-hidden="true">&#9888;</span>
+    <div class="cred-error-body">
+      <div class="cred-error-title">Provider credentials missing or invalid</div>
+      <ul class="cred-error-list" id="cred-error-list"></ul>
+    </div>
+  </div>
   <div class="main-area">
     <div class="board" id="board">
       <div id="board-spinner" style="display:flex;align-items:center;justify-content:center;width:100%;padding:3rem;color:var(--text-muted);font-size:0.9rem;gap:0.75rem;">
@@ -1632,12 +1677,32 @@ function handleStateUpdate(state) {
   // Render alerts inline in agent bar.
   const warningsEl = document.getElementById('agent-warnings');
   const alerts = state.alerts || [];
-  if (alerts.length > 0) {
-    warningsEl.innerHTML = alerts.map(function(a) {
+  // Separate credential-error alerts (shown in dedicated banner) from others.
+  const credAlerts = alerts.filter(function(a) {
+    return a.source && a.source.indexOf('cred_error:') === 0;
+  });
+  const otherAlerts = alerts.filter(function(a) {
+    return !a.source || a.source.indexOf('cred_error:') !== 0;
+  });
+  if (otherAlerts.length > 0) {
+    warningsEl.innerHTML = otherAlerts.map(function(a) {
       return '<span>&#9888; ' + esc(a.message) + '</span>';
     }).join(' &middot; ');
   } else {
     warningsEl.textContent = '';
+  }
+
+  // Render credential-error banner above the board.
+  const credBanner = document.getElementById('cred-error-banner');
+  const credList = document.getElementById('cred-error-list');
+  if (credAlerts.length > 0) {
+    credList.innerHTML = credAlerts.map(function(a) {
+      return '<li>' + esc(a.message) + '</li>';
+    }).join('');
+    credBanner.hidden = false;
+  } else {
+    credBanner.hidden = true;
+    credList.innerHTML = '';
   }
 
   // Update agent stats
