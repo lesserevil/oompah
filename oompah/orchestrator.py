@@ -3285,14 +3285,13 @@ class Orchestrator:
         running_ids = set(self.state.running.keys())
         retry_ids = set(self.state.retry_attempts.keys())
         claimed_ids = self.state.claimed
-        completed_ids = self.state.completed
 
         for issue in candidates:
             if _state_key(issue.state) != "in_progress":
                 continue
             if issue.id in running_ids or issue.id in retry_ids:
                 continue
-            if issue.id in claimed_ids or issue.id in completed_ids:
+            if issue.id in claimed_ids:
                 continue
             # Orphaned — reset to open
             try:
@@ -3303,6 +3302,7 @@ class Orchestrator:
                     else self.tracker
                 )
                 tracker.update_issue(issue.identifier, status=OPEN)
+                self.state.completed.discard(issue.id)
                 self._orphan_reset_counts[issue.id] = (
                     self._orphan_reset_counts.get(issue.id, 0) + 1
                 )

@@ -357,6 +357,21 @@ class TestResetOrphanedInProgress:
 
         mock_tracker.update_issue.assert_not_called()
 
+    def test_resets_completed_marker_orphaned_in_progress_to_open(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("feat-1", state="In Progress")
+        issue.project_id = project.id
+        orch.state.completed.add(issue.id)
+
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_called_once_with("feat-1", status="Open")
+        assert issue.id not in orch.state.completed
+
     def test_skips_open_issues(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])

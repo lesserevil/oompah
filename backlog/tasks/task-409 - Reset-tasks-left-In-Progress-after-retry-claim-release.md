@@ -1,9 +1,11 @@
 ---
 id: TASK-409
 title: Reset tasks left In Progress after retry claim release
-status: Backlog
-assignee: []
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-01 23:57'
+updated_date: '2026-06-02 02:29'
 labels:
   - bug
 dependencies: []
@@ -31,3 +33,9 @@ Implementation guidance:
 - [ ] #2 The dashboard no longer shows an In Progress task without a matching running or retrying owner after this path.
 - [ ] #3 Regression tests cover the retry-release/no-longer-candidate path.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed orphaned In Progress cleanup so stale completed markers no longer prevent resetting tasks back to Open, and the stale marker is discarded after reset. Verified with uv run pytest tests/test_orchestrator_merged.py tests/test_dashboard_conditional_columns.py -q and make test (3685 passed, 18 warnings).
+<!-- SECTION:FINAL_SUMMARY:END -->
