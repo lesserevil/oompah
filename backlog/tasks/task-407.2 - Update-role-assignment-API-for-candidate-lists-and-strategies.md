@@ -4,7 +4,7 @@ title: Update role assignment API for candidate lists and strategies
 status: Done
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-02 15:06'
+updated_date: '2026-06-02 15:10'
 labels:
   - feature
 dependencies:
@@ -58,13 +58,13 @@ Required behavior:
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Completion (Run #3 Duplicate Investigator): Confirmed this task is NOT a duplicate - it is a unique subtask in the TASK-407 epic. The implementation from Run #1 (Test Engineer) is fully complete: GET /api/v1/roles returns strategy+candidates, PUT accepts multi-candidate bodies with atomic rollback, backward compat preserved (provider_id/model mirror first candidate), 51 API tests added, 177 total tests pass.
+Completion: TASK-407.2 is NOT a duplicate. Implementation done in Run #1 (Test Engineer). All acceptance criteria met. 177 tests pass (test_roles_api, test_providers_role_matrix, test_role_store).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implemented strategy+candidates API for /api/v1/roles: GET serializes strategy and candidates with per-candidate status, PUT accepts multi-candidate bodies atomically (rollback on any error), backward compat with legacy provider_id/model format preserved. 51 new API tests in tests/test_roles_api.py, all 177 tests pass.
+Implemented strategy+candidates API for /api/v1/roles. GET now serializes strategy and candidates with per-candidate provider/model status. PUT accepts multi-candidate bodies atomically (rollback on any error), supports both legacy provider_id/model and new strategy/candidates formats. Backward compat preserved: provider_id/model mirror the first candidate. 51 new API tests in tests/test_roles_api.py, all 177 tests pass. Confirmed not a duplicate - unique subtask in TASK-407 epic.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
