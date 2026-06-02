@@ -18,6 +18,7 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
+from oompah.statuses import IN_REVIEW, OPEN
 
 
 # --------------------------------------------------------------------- helpers
@@ -515,6 +516,8 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
 
         provider = MagicMock()
         provider.create_review.return_value = MagicMock(id="42")
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
 
         issue = _make_issue(
             identifier="task-1", parent_id="epic-1", project_id="proj-1"
@@ -532,11 +535,13 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
         ):
-            orch._ensure_review_exists(entry, "proj-1")
+            result = orch._ensure_review_exists(entry, "proj-1")
         # base_branch should be project.branch (main), NOT the epic branch
         call = provider.create_review.call_args
         kwargs = call.kwargs
         assert kwargs.get("target_branch") == "main"
+        assert result is True
+        tracker.update_issue.assert_called_once_with("task-1", status=IN_REVIEW)
 
     def test_stacked_targets_epic_branch_for_child(self, tmp_path):
         proj = _make_project_record(epic_strategy="stacked")
@@ -572,6 +577,71 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         # Branch name uses the project_store helper, which mocks return
         # f"epic-{epic_id}".  Stacked mode targets the epic branch.
         assert kwargs.get("target_branch") == "epic-epic-1"
+
+    def test_reopens_when_review_creation_fails_for_unmerged_branch(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = None
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+
+        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(2, ["abc123 feature"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is False
+        tracker.update_issue.assert_called_once_with("task-1", status=OPEN)
+        orch._post_comment.assert_called_once()
+        comment = orch._post_comment.call_args.args[1]
+        assert "Review handoff failed" in comment
+        assert "Unmerged commits: 2 commits" in comment
+
+    def test_existing_review_marks_task_in_review(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        review = MagicMock()
+        review.source_branch = "task-1"
+        review.id = "99"
+        orch._reviews_cache = {"proj-1": [review]}
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        tracker.update_issue.assert_called_once_with("task-1", status=IN_REVIEW)
 
     def test_shared_skips_per_child_pr(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")

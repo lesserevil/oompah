@@ -47,6 +47,7 @@ from oompah.statuses import (
     DUPLICATE_CANDIDATE,
     DONE,
     IN_PROGRESS,
+    IN_REVIEW,
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
@@ -3650,7 +3651,7 @@ class Orchestrator:
 
     def _ensure_review_exists(
         self, entry: RunningEntry, project_id: str | None
-    ) -> None:
+    ) -> bool:
         """Create a review (PR/MR) if the agent pushed a branch but none exists.
 
         Honors the project's ``epic_strategy``:
@@ -3663,16 +3664,17 @@ class Orchestrator:
         * ``shared`` — children commit directly to the shared epic branch.
           NO per-child PR is created here (the epic→main PR is the only
           one). Top-level beads in shared mode behave like flat.
+
+        Returns ``True`` when no review is needed or a review exists/was
+        created. Returns ``False`` when the branch has unmerged commits but
+        oompah could not create the review; in that case the task is reopened
+        with a diagnostic comment so it is not stranded in a review-like state.
         """
         if not project_id:
-            return
+            return True
         project = self.project_store.get(project_id)
-        if not project or not project.repo_url:
-            return
-        provider = detect_provider(project.repo_url, access_token=project.access_token)
-        if not provider:
-            return
-        slug = extract_repo_slug(project.repo_url)
+        if not project:
+            return True
 
         strategy = self._project_epic_strategy(project_id)
         # Resolve parent epic only for issues that have one. For top-level
@@ -3690,7 +3692,7 @@ class Orchestrator:
                 entry.identifier,
                 parent_epic.identifier,
             )
-            return
+            return True
 
         branch = entry.identifier  # branch is named after the issue
         # Stacked mode: the child PR targets the epic branch instead of main.
@@ -3704,7 +3706,64 @@ class Orchestrator:
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
         for r in reviews:
             if r.source_branch == branch:
-                return  # review already exists
+                self._mark_task_in_review(entry, project_id, r)
+                return True  # review already exists
+
+        commits_ahead = 0
+        commit_lines: list[str] = []
+        commit_error = ""
+        if project.repo_path:
+            try:
+                from oompah.close_gate import _count_commits_ahead
+
+                commits_ahead, commit_lines, commit_error = _count_commits_ahead(
+                    project.repo_path,
+                    target_branch,
+                    branch,
+                )
+            except Exception as exc:
+                commit_error = str(exc)
+        if commit_error:
+            logger.warning(
+                "Review handoff commit check failed for %s branch=%s base=%s: %s",
+                entry.identifier,
+                branch,
+                target_branch,
+                commit_error,
+            )
+
+        review_required = commits_ahead > 0
+        if not review_required and not commit_error:
+            return True
+
+        if not project.repo_url:
+            if review_required:
+                self._reopen_missing_review(
+                    entry,
+                    project_id,
+                    target_branch,
+                    commits_ahead,
+                    commit_lines,
+                    "project has no repository URL configured",
+                )
+                return False
+            return True
+
+        provider = detect_provider(project.repo_url, access_token=project.access_token)
+        if not provider:
+            if review_required:
+                self._reopen_missing_review(
+                    entry,
+                    project_id,
+                    target_branch,
+                    commits_ahead,
+                    commit_lines,
+                    "no supported forge provider was detected",
+                )
+                return False
+            return True
+        slug = extract_repo_slug(project.repo_url)
+
         # Create the review
         try:
             title = (
@@ -3726,6 +3785,8 @@ class Orchestrator:
                     result.id,
                     target_branch,
                 )
+                self._mark_task_in_review(entry, project_id, result)
+                return True
             else:
                 logger.warning(
                     "Failed to create review for %s on %s (base=%s)",
@@ -3733,8 +3794,113 @@ class Orchestrator:
                     project.name,
                     target_branch,
                 )
+                if review_required:
+                    self._reopen_missing_review(
+                        entry,
+                        project_id,
+                        target_branch,
+                        commits_ahead,
+                        commit_lines,
+                        "forge provider returned no review",
+                    )
+                    return False
         except Exception as exc:
             logger.warning("Error creating review for %s: %s", entry.identifier, exc)
+            if review_required:
+                self._reopen_missing_review(
+                    entry,
+                    project_id,
+                    target_branch,
+                    commits_ahead,
+                    commit_lines,
+                    str(exc),
+                )
+                return False
+
+        return True
+
+    def _mark_task_in_review(
+        self,
+        entry: RunningEntry,
+        project_id: str | None,
+        review: ReviewRequest | Any,
+    ) -> None:
+        """Mark the task ``In Review`` once a review artifact exists."""
+        if not project_id:
+            return
+        try:
+            tracker = self._tracker_for_project(project_id)
+            tracker.update_issue(entry.identifier, status=IN_REVIEW)
+            review_id = getattr(review, "id", None)
+            if review_id:
+                logger.info(
+                    "Marked %s as In Review (review #%s)",
+                    entry.identifier,
+                    review_id,
+                )
+            else:
+                logger.info("Marked %s as In Review", entry.identifier)
+        except Exception as exc:
+            logger.warning(
+                "Failed to mark %s as In Review after review handoff: %s",
+                entry.identifier,
+                exc,
+            )
+
+    def _reopen_missing_review(
+        self,
+        entry: RunningEntry,
+        project_id: str | None,
+        target_branch: str,
+        commits_ahead: int,
+        commit_lines: list[str],
+        reason: str,
+    ) -> None:
+        """Reopen a closed task whose branch could not be handed to review."""
+        try:
+            tracker = (
+                self._tracker_for_project(project_id) if project_id else self.tracker
+            )
+            tracker.update_issue(entry.identifier, status=OPEN)
+        except Exception as exc:
+            logger.warning(
+                "Failed to reopen %s after review handoff failure: %s",
+                entry.identifier,
+                exc,
+            )
+
+        commit_noun = "commit" if commits_ahead == 1 else "commits"
+        lines = [
+            "Review handoff failed: the task branch has unmerged work but no "
+            "review artifact was created.",
+            "",
+            f"Branch: `{entry.identifier}`",
+            f"Target branch: `{target_branch}`",
+            f"Unmerged commits: {commits_ahead} {commit_noun}",
+        ]
+        for line in commit_lines[:10]:
+            lines.append(f"  {line}")
+        if reason:
+            lines.extend(["", f"Reason: {reason}"])
+        lines.extend(
+            [
+                "",
+                "Required: create or restore the PR/MR for this branch, then move "
+                "the task to In Review only after the review exists.",
+            ]
+        )
+        try:
+            self._post_comment(
+                entry.identifier,
+                "\n".join(lines),
+                project_id=project_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to post review handoff failure comment for %s: %s",
+                entry.identifier,
+                exc,
+            )
 
     def _label_merged_issues(self) -> None:
         """Label closed issues whose branch has been merged."""
@@ -9177,17 +9343,26 @@ class Orchestrator:
                                         entry.identifier,
                                         reject_count + 1,
                                     )
-                                self.state.completed.add(issue_id)
-                                self.state.reopen_counts.pop(issue_id, None)
-                                self._verifier_reject_counts.pop(issue_id, None)
-                                # Auto-create review if agent pushed a branch
-                                self._ensure_review_exists(entry, project_id)
-                                # Reactive epic auto-close: if the just-closed
-                                # bead is a child of an epic, evaluate the
-                                # parent for auto-close immediately rather
-                                # than waiting for the next full-sync tick.
-                                # See oompah-zlz_2-lvcd.
-                                self._maybe_auto_close_parent_epic(current)
+                                # Auto-create review if agent pushed a branch.
+                                # If review handoff fails for unmerged work,
+                                # the task is reopened and should not be
+                                # recorded as cleanly completed.
+                                review_ready = self._ensure_review_exists(
+                                    entry,
+                                    project_id,
+                                )
+                                if review_ready:
+                                    self.state.completed.add(issue_id)
+                                    self.state.reopen_counts.pop(issue_id, None)
+                                    self._verifier_reject_counts.pop(issue_id, None)
+                                    # Reactive epic auto-close: if the just-closed
+                                    # bead is a child of an epic, evaluate the
+                                    # parent for auto-close immediately rather
+                                    # than waiting for the next full-sync tick.
+                                    # See oompah-zlz_2-lvcd.
+                                    self._maybe_auto_close_parent_epic(current)
+                                else:
+                                    self.state.completed.discard(issue_id)
             except Exception:
                 self.state.completed.add(issue_id)
             # Analyze completed work against foci library

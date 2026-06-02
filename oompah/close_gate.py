@@ -110,31 +110,45 @@ def _count_commits_ahead(
     refusal comment (max 20). ``error`` is non-empty when the command
     failed; callers should fail-open in that case.
     """
-    try:
-        result = subprocess.run(
-            ["git", "rev-list", "--count", f"origin/{base_branch}..{branch}"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-    except (subprocess.TimeoutExpired, OSError, FileNotFoundError) as exc:
-        return 0, [], f"git rev-list --count failed: {exc}"
-    if result.returncode != 0:
-        # Branch may not exist on remote — try with local base
-        try:
-            result2 = subprocess.run(
-                ["git", "rev-list", "--count", f"{base_branch}..{branch}"],
-                cwd=repo_path,
-                capture_output=True,
-                text=True,
-                timeout=15,
+    base_refs = [f"origin/{base_branch}", base_branch]
+    branch_refs = [branch]
+    if not branch.startswith("origin/"):
+        branch_refs.append(f"origin/{branch}")
+
+    seen_ranges: set[str] = set()
+    last_error = ""
+    selected_range = ""
+    result: subprocess.CompletedProcess[str] | None = None
+    for base_ref in base_refs:
+        for branch_ref in branch_refs:
+            ref_range = f"{base_ref}..{branch_ref}"
+            if ref_range in seen_ranges:
+                continue
+            seen_ranges.add(ref_range)
+            try:
+                candidate = subprocess.run(
+                    ["git", "rev-list", "--count", ref_range],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+            except (subprocess.TimeoutExpired, OSError, FileNotFoundError) as exc:
+                last_error = f"git rev-list --count failed: {exc}"
+                continue
+            if candidate.returncode == 0:
+                result = candidate
+                selected_range = ref_range
+                break
+            last_error = (
+                f"git rev-list --count failed for {ref_range}: "
+                f"{candidate.stderr.strip()}"
             )
-        except (subprocess.TimeoutExpired, OSError, FileNotFoundError) as exc:
-            return 0, [], f"git rev-list --count (local) failed: {exc}"
-        if result2.returncode != 0:
-            return 0, [], f"git rev-list --count failed: {result.stderr.strip()}"
-        result = result2
+        if result is not None:
+            break
+
+    if result is None:
+        return 0, [], last_error or "git rev-list --count failed"
 
     try:
         count = int(result.stdout.strip())
@@ -144,13 +158,15 @@ def _count_commits_ahead(
     if count == 0:
         return 0, [], ""
 
-    # Fetch commit summaries for the refusal comment (up to 20).
+    # Fetch commit summaries for the refusal comment (up to 20), using
+    # the same range that produced the count. Agent worktrees often leave
+    # only the remote-tracking branch visible in the managed checkout.
     try:
         log_result = subprocess.run(
             [
                 "git", "log",
                 "--oneline", "-20",
-                f"origin/{base_branch}..{branch}",
+                selected_range,
             ],
             cwd=repo_path,
             capture_output=True,

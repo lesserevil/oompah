@@ -2127,6 +2127,48 @@ Test issue body.
         orch._ensure_review_exists.assert_called_once()
         orch._maybe_auto_close_parent_epic.assert_called_once()
 
+    def test_review_handoff_failure_prevents_clean_completion(self, tmp_path):
+        project = _make_project("proj-1")
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("TASK-1", state="Open", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="deep",
+            workspace_path=str(
+                self._write_workspace_backlog_task(
+                    tmp_path,
+                    identifier=issue.identifier,
+                    status="Done",
+                )
+            ),
+        )
+        orch.state.running[issue.id] = entry
+        orch.state.reopen_counts[issue.id] = 2
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._run_close_gate = MagicMock(return_value=True)
+        orch._run_unpushed_gate = MagicMock(return_value=True)
+        orch._run_completion_verifier = MagicMock(
+            return_value=MagicMock(passed=True, skipped=True, skip_reason="disabled")
+        )
+        orch._ensure_review_exists = MagicMock(return_value=False)
+        orch._maybe_auto_close_parent_epic = MagicMock()
+
+        asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        assert issue.id not in orch.state.completed
+        assert issue.id in orch.state.reopen_counts
+        orch._ensure_review_exists.assert_called_once()
+        orch._maybe_auto_close_parent_epic.assert_not_called()
+
     def test_nonterminal_worker_workspace_state_still_needs_human(self, tmp_path):
         project = _make_project("proj-1")
         orch = _make_orchestrator(tmp_path, projects=[project])
