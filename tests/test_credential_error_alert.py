@@ -280,7 +280,7 @@ class TestGetSnapshotCredentialAlerts:
     def test_alert_message_does_not_contain_raw_credentials(self, tmp_path):
         """Alert message must NOT echo back raw credential values."""
         orch = _make_orchestrator(tmp_path)
-        secret_api_key = "sk-secret-api-key-value-12345"
+        secret_api_key = "sk-secret-api-key-value-12345"  # pragma: allowlist secret
         _add_retry(
             orch,
             identifier="TASK-389",

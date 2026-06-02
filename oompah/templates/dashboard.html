@@ -3370,16 +3370,34 @@ async function openDetailPanel(identifier) {
 
 async function submitComment(identifier) {
   const input = document.getElementById('comment-input');
+  if (!input) return;
   const text = input.value.trim();
   if (!text) return;
+  let res;
+  try {
+    res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/comments`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text, author: 'user', project_id: document.getElementById('detail-panel-body').dataset.projectId}),
+    });
+  } catch (err) {
+    input.value = text;
+    alert('Comment failed: ' + (err.message || err));
+    return;
+  }
+  if (!res.ok) {
+    let message = 'Comment failed';
+    try {
+      const body = await res.json();
+      message = (body.error && body.error.message) || message;
+    } catch (_) {}
+    input.value = text;
+    alert(message);
+    return;
+  }
   input.value = '';
-  await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/comments`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({text, author: 'user', project_id: document.getElementById('detail-panel-body').dataset.projectId}),
-  });
   // Reload detail panel to show new comment
-  openDetailPanel(identifier);
+  await openDetailPanel(identifier);
 }
 
 function closeDetailPanel() {

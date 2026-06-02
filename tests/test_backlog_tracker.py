@@ -159,6 +159,56 @@ def test_fetch_issue_detail_and_comments(tmp_path):
     }]
 
 
+def test_add_comment_appends_backlog_comment_without_cli(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Comment target")
+    tracker = _tracker(tmp_path)
+
+    with patch.object(tracker, "_run_backlog", return_value="") as run_backlog:
+        result = tracker.add_comment("TASK-1", "Human answer\nwith detail", author="user")
+
+    run_backlog.assert_not_called()
+    assert result == {"author": "user", "text": "Human answer\nwith detail"}
+    comments = tracker.fetch_comments("TASK-1")
+    assert len(comments) == 1
+    assert comments[0]["id"] == "1"
+    assert comments[0]["author"] == "user"
+    assert comments[0]["created_at"]
+    assert comments[0]["text"] == "Human answer\nwith detail"
+
+
+def test_add_comment_preserves_existing_comments_and_increments_index(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Existing comments", comments=True)
+    tracker = _tracker(tmp_path)
+
+    tracker.add_comment("TASK-1", "Second note")
+
+    comments = tracker.fetch_comments("TASK-1")
+    assert comments[0] == {
+        "id": "1",
+        "author": "oompah",
+        "created_at": "2026-05-31 10:06",
+        "text": "Progress note",
+    }
+    assert comments[1]["id"] == "2"
+    assert comments[1]["author"] == "oompah"
+    assert comments[1]["created_at"]
+    assert comments[1]["text"] == "Second note"
+
+
+def test_add_comment_updates_task_updated_date(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "Updated date")
+    tracker = _tracker(tmp_path)
+
+    tracker.add_comment("TASK-1", "Update timestamp")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["updated_date"] != "2026-05-31 10:05"
+    assert meta["updated_date"] == tracker.fetch_comments("TASK-1")[0]["created_at"]
+
+
 def test_set_attachments_updates_frontmatter_and_manifest(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "Attachment task")
@@ -211,7 +261,8 @@ def test_update_issue_maps_legacy_statuses_to_backlog_statuses(tmp_path):
 
 
 def test_mark_needs_human_updates_status_then_appends_comment(tmp_path):
-    _write_config(tmp_path)
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Needs human")
     tracker = _tracker(tmp_path)
 
     with patch.object(tracker, "_run_backlog", return_value="") as run_backlog:
@@ -220,12 +271,9 @@ def test_mark_needs_human_updates_status_then_appends_comment(tmp_path):
     assert run_backlog.call_args_list[0].args[0] == [
         "task", "edit", "TASK-1", "--plain", "--status", "Needs Human",
     ]
-    assert run_backlog.call_args_list[1].args[0] == [
-        "task", "edit", "TASK-1",
-        "--comment", "Human action required",
-        "--comment-author", "oompah",
-        "--plain",
-    ]
+    assert len(run_backlog.call_args_list) == 1
+    assert tracker.fetch_comments("TASK-1")[-1]["text"] == "Human action required"
+    assert tracker.fetch_comments("TASK-1")[-1]["author"] == "oompah"
 
 
 def test_set_metadata_field_preserves_existing_comments(tmp_path):

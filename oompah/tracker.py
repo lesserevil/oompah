@@ -219,14 +219,25 @@ class BacklogMdTracker:
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         """Append a comment to a Backlog.md task."""
+        comment_text = str(text).strip()
+        if not comment_text:
+            raise TrackerError("Comment text is required")
+        comment_author = _backlog_comment_field(author, fallback="oompah")
         with self._task_lock(identifier):
-            self._run_backlog([
-                "task", "edit", identifier,
-                "--comment", text,
-                "--comment-author", author,
-                "--plain",
-            ])
-        return {"author": author, "text": text}
+            path = self._task_path_for(identifier)
+            if not path:
+                raise TrackerError(f"Backlog.md task not found: {identifier}")
+            meta, body = _read_markdown_frontmatter(path)
+            created = _format_backlog_comment_timestamp()
+            body = _append_backlog_comment(
+                body,
+                text=comment_text,
+                author=comment_author,
+                created=created,
+            )
+            meta["updated_date"] = created
+            _write_markdown_frontmatter(path, meta, body)
+        return {"author": comment_author, "text": comment_text}
 
     def fetch_memories(self) -> dict[str, str]:
         """Backlog.md has no memories equivalent."""
@@ -857,6 +868,88 @@ def _parse_backlog_comments(body: str) -> list[dict]:
             "text": text.strip(),
         })
     return comments
+
+
+def _append_backlog_comment(
+    body: str,
+    *,
+    text: str,
+    author: str,
+    created: str,
+) -> str:
+    comment = _format_backlog_comment(
+        index=_next_backlog_comment_index(body),
+        author=author,
+        created=created,
+        text=_sanitize_backlog_comment_text(text),
+    )
+    end_marker = "<!-- COMMENTS:END -->"
+    end_pos = body.find(end_marker)
+    if end_pos >= 0:
+        prefix = body[:end_pos]
+        suffix = body[end_pos:]
+        if prefix and not prefix.endswith("\n"):
+            prefix += "\n"
+        return f"{prefix}{comment}{suffix}"
+
+    comments_section = (
+        "\n\n## Comments\n"
+        "<!-- COMMENTS:BEGIN -->\n"
+        f"{comment}"
+        "<!-- COMMENTS:END -->\n"
+    )
+    if not body:
+        return comments_section.lstrip()
+    return body.rstrip("\n") + comments_section
+
+
+def _format_backlog_comment(
+    *,
+    index: int,
+    author: str,
+    created: str,
+    text: str,
+) -> str:
+    return (
+        "<!-- COMMENT:BEGIN -->\n"
+        f"index: {index}\n"
+        f"author: {author}\n"
+        f"created: {created}\n\n"
+        f"{text}\n"
+        "<!-- COMMENT:END -->\n"
+    )
+
+
+def _next_backlog_comment_index(body: str) -> int:
+    indexes = [
+        int(match.group(1))
+        for match in re.finditer(r"^index:\s*(\d+)\s*$", body, re.MULTILINE)
+    ]
+    if indexes:
+        return max(indexes) + 1
+    return len(_parse_backlog_comments(body)) + 1
+
+
+def _format_backlog_comment_timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+
+def _backlog_comment_field(value, *, fallback: str) -> str:
+    field = re.sub(r"[\r\n]+", " ", str(value or "")).strip()
+    return field or fallback
+
+
+def _sanitize_backlog_comment_text(text: str) -> str:
+    cleaned = str(text).replace("\r\n", "\n").replace("\r", "\n").strip()
+    for marker in (
+        "<!-- COMMENT:BEGIN -->",
+        "<!-- COMMENT:END -->",
+        "<!-- COMMENTS:BEGIN -->",
+        "<!-- COMMENTS:END -->",
+    ):
+        escaped_marker = marker.replace("<!--", "<!-- ").replace("-->", " -->")
+        cleaned = cleaned.replace(marker, escaped_marker)
+    return cleaned
 
 
 def _parse_backlog_plain_identifier(output: str) -> str | None:
