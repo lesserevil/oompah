@@ -4,7 +4,7 @@ title: Add role candidate selector state and ordering algorithms
 status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-02 15:24'
+updated_date: '2026-06-02 15:28'
 labels:
   - feature
 dependencies:
@@ -59,7 +59,7 @@ Required behavior:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Delivered CandidateSelector in oompah/roles.py with priority/round-robin ordering and thread-safe usage state in .oompah/role_usage.json. 56 tests in tests/test_candidate_selector.py cover all 6 acceptance criteria. No duplicate found for this task.
+CandidateSelector class added to oompah/roles.py implementing priority (configured order) and round-robin (least-recently-used first, tie-break by config order) strategies. Usage state stored in .oompah/role_usage.json, separate from roles.json. Thread-safe via in-process lock. 56 unit tests added in tests/test_candidate_selector.py covering all acceptance criteria.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
@@ -116,5 +116,38 @@ author: oompah
 created: 2026-06-02 15:21
 
 Agent dispatched (profile: deep)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-02 15:21
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
+author: oompah
+created: 2026-06-02 15:25
+
+Agent completed successfully in 206s (5132 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-02 15:25
+
+Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
+- Turns: 46, Tool calls: 30
+- Tokens: 26 in / 5.1K out [5.1K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 26s
+- Log: TASK-407.4__20260602T152147Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 10
+author: oompah
+created: 2026-06-02 15:25
+
+Agent dispatched (profile: default)
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
