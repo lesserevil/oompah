@@ -102,13 +102,15 @@ def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
     # Use a tmp-scoped RoleStore so tests aren't influenced by any
     # .oompah/roles.json that happens to be in the cwd.
     role_store = RoleStore(path=str(tmp_path / "roles.json"))
-    return Orchestrator(
+    orch = Orchestrator(
         config=_make_config(),
         workflow_path="WORKFLOW.md",
         project_store=project_store,
         role_store=role_store,
         state_path=str(tmp_path / "state.json"),
     )
+    orch._fetch_in_progress_issues = MagicMock(return_value=[])
+    return orch
 
 
 # ---------------------------------------------------------------------------
@@ -355,17 +357,20 @@ class TestHandleDispatchNeeded:
         orch._dispatch.assert_awaited_once_with(epic, attempt=None)
 
     def test_resets_orphaned_in_progress(self, tmp_path):
-        """_reset_orphaned_in_progress is called with the fetched candidates."""
+        """_reset_orphaned_in_progress is called with explicit In Progress tasks."""
         orch = _make_orchestrator(tmp_path)
-        candidates = [_make_issue("feat-1", state="in_progress")]
+        candidates = [_make_issue("feat-open", state="open")]
+        in_progress = [_make_issue("feat-1", state="in_progress")]
         orch._fetch_all_candidates = MagicMock(return_value=candidates)
+        orch._fetch_in_progress_issues = MagicMock(return_value=in_progress)
         orch._pre_resolve_blockers = MagicMock()
         orch._reset_orphaned_in_progress = MagicMock()
         orch._plan_open_epics = MagicMock(return_value=[])
 
         asyncio.run(orch._handle_dispatch_needed())
 
-        orch._reset_orphaned_in_progress.assert_called_once_with(candidates)
+        orch._fetch_in_progress_issues.assert_called_once()
+        orch._reset_orphaned_in_progress.assert_called_once_with(in_progress)
 
     def test_no_slots_also_stops_epic_dispatch(self, tmp_path):
         """Epic dispatch also stops early when no slots are available."""
@@ -451,8 +456,10 @@ class TestHandleDispatchNeeded:
         update calls and would re-block uvicorn if it ran on the event loop.
         """
         orch = _make_orchestrator(tmp_path)
-        candidates = [_make_issue("feat-1", state="in_progress")]
+        candidates = [_make_issue("feat-open", state="open")]
+        in_progress = [_make_issue("feat-1", state="in_progress")]
         orch._fetch_all_candidates = MagicMock(return_value=candidates)
+        orch._fetch_in_progress_issues = MagicMock(return_value=in_progress)
         orch._pre_resolve_blockers = MagicMock()
         orch._plan_open_epics = MagicMock(return_value=[])
         orch._auto_close_completed_epics = MagicMock()
@@ -463,6 +470,7 @@ class TestHandleDispatchNeeded:
         seen_thread_ids: list[int] = []
 
         def tracking_reset(cands):
+            assert cands == in_progress
             seen_thread_ids.append(threading.get_ident())
 
         orch._reset_orphaned_in_progress = tracking_reset

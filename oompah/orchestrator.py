@@ -1387,8 +1387,11 @@ class Orchestrator:
         # Runs in the executor because orphan detection issues bd update
         # calls — keeping it inline would re-introduce the very same
         # event-loop blocking this bead is fixing.
+        in_progress = await loop.run_in_executor(
+            self._tick_pool, self._fetch_in_progress_issues
+        )
         await loop.run_in_executor(
-            self._tick_pool, self._reset_orphaned_in_progress, candidates
+            self._tick_pool, self._reset_orphaned_in_progress, in_progress
         )
 
     async def _handle_yolo_review(self) -> tuple[float, float, float]:
@@ -1556,6 +1559,60 @@ class Orchestrator:
             for issues in pool.map(_fetch_for_project, projects):
                 all_candidates.extend(issues)
         return all_candidates
+
+    def _fetch_in_progress_issues(self) -> list[Issue]:
+        """Fetch In Progress issues for orphan reconciliation.
+
+        In Progress is not a dispatchable status in the Backlog workflow, so
+        these tasks must be fetched separately from normal dispatch candidates.
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            try:
+                return self.tracker.fetch_issues_by_states([IN_PROGRESS])
+            except TrackerNotConfiguredError:
+                return []
+            except TrackerTimeoutError as exc:
+                logger.warning("Tracker In Progress fetch timed out: %s", exc)
+                return []
+            except TrackerError as exc:
+                logger.error(
+                    "Tracker In Progress fetch failed: %s",
+                    exc,
+                    extra={"error_class": _error_class_for_tracker_exc(exc)},
+                )
+                return []
+
+        def _fetch_for_project(project) -> list[Issue]:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                issues = tracker.fetch_issues_by_states([IN_PROGRESS])
+                for issue in issues:
+                    issue.project_id = project.id
+                return issues
+            except TrackerNotConfiguredError:
+                return []
+            except TrackerTimeoutError as exc:
+                logger.warning(
+                    "In Progress fetch timed out for project %s: %s",
+                    project.name,
+                    exc,
+                )
+                return []
+            except (TrackerError, ProjectError) as exc:
+                logger.error(
+                    "In Progress fetch failed for project %s: %s",
+                    project.name,
+                    exc,
+                    extra={"error_class": _error_class_for_tracker_exc(exc)},
+                )
+                return []
+
+        in_progress: list[Issue] = []
+        with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
+            for issues in pool.map(_fetch_for_project, projects):
+                in_progress.extend(issues)
+        return in_progress
 
     def _available_slots(self) -> int:
         return max(self.state.max_concurrent_agents - len(self.state.running), 0)

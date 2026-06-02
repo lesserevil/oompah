@@ -385,6 +385,54 @@ class TestResetOrphanedInProgress:
         mock_tracker.update_issue.assert_not_called()
 
 
+class TestFetchInProgressIssues:
+    """Tests for fetching In Progress tasks independently of dispatch candidates."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        return Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_fetches_in_progress_from_project_trackers(self, tmp_path):
+        project = _make_project(project_id="proj-a")
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        issue = _make_issue("feat-1", state="In Progress")
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        result = orch._fetch_in_progress_issues()
+
+        mock_tracker.fetch_issues_by_states.assert_called_once_with(["In Progress"])
+        assert result == [issue]
+        assert result[0].project_id == project.id
+
+    def test_fetches_in_progress_even_when_active_candidates_are_open_only(self, tmp_path):
+        project = _make_project(project_id="proj-a")
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        open_issue = _make_issue("feat-open", state="Open")
+        stuck_issue = _make_issue("feat-stuck", state="In Progress")
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_candidate_issues.return_value = [open_issue]
+        mock_tracker.fetch_issues_by_states.return_value = [stuck_issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        candidates = orch._fetch_all_candidates()
+        in_progress = orch._fetch_in_progress_issues()
+
+        assert candidates == [open_issue]
+        assert in_progress == [stuck_issue]
+        mock_tracker.fetch_issues_by_states.assert_called_once_with(["In Progress"])
+
+
 class TestBacklogStatusReconciliation:
     """Tests for tracker status spelling used by Backlog.md."""
 
