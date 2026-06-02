@@ -1487,7 +1487,10 @@ function statusForColumn(columnKey) {
 }
 
 function visibleColumns(data) {
-  return COLUMN_CONFIG.filter(c => c.base || ((data && data[c.key]) || []).length > 0).map(c => c.key);
+  return COLUMN_CONFIG.filter(c => {
+    if (c.key === 'archived' && isHideMergedOn()) return false;
+    return c.base || ((data && data[c.key]) || []).length > 0;
+  }).map(c => c.key);
 }
 
 let boardData = {};

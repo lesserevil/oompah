@@ -51,3 +51,18 @@ def test_visible_columns_keeps_conditional_columns_when_populated():
 
     body = match.group("body")
     assert "c.base || ((data && data[c.key]) || []).length > 0" in body
+
+
+def test_visible_columns_hides_archived_when_inflight_only_is_on():
+    script = _dashboard_script()
+    match = re.search(
+        r"function visibleColumns\(data\)\s*\{(?P<body>.*?)\n\}",
+        script,
+        re.DOTALL,
+    )
+    assert match, "Could not find visibleColumns helper"
+
+    body = match.group("body")
+    assert "c.key === 'archived'" in body
+    assert "isHideMergedOn()" in body
+    assert "return false" in body
