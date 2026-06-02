@@ -3911,9 +3911,11 @@ class Orchestrator:
         for project in self.project_store.list_all():
             tracker = self._tracker_for_project(project.id)
             try:
-                closed_issues = tracker.fetch_issues_by_states(
-                    self.config.tracker_terminal_states
-                )
+                merge_candidate_states = list(self.config.tracker_terminal_states)
+                for state in (IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE):
+                    if state not in merge_candidate_states:
+                        merge_candidate_states.append(state)
+                closed_issues = tracker.fetch_issues_by_states(merge_candidate_states)
             except TrackerError:
                 continue
             for issue in closed_issues:

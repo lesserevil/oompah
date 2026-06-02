@@ -85,6 +85,27 @@ class TestLabelMergedIssues:
             "feat-branch", status="Merged"
         )
 
+    def test_labels_in_review_issue_with_matching_branch(self, tmp_path):
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._merged_branches = {"feat-branch"}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("feat-branch", state="In Review"),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._label_merged_issues()
+
+        queried_states = mock_tracker.fetch_issues_by_states.call_args.args[0]
+        assert "In Review" in queried_states
+        assert "Needs CI Fix" in queried_states
+        assert "Needs Rebase" in queried_states
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-branch", status="Merged"
+        )
+
     def test_skips_already_merged_label(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])

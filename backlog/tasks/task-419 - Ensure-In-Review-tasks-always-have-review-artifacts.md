@@ -5,7 +5,7 @@ status: Done
 assignee:
   - oompah
 created_date: '2026-06-02 15:54'
-updated_date: '2026-06-02 15:56'
+updated_date: '2026-06-02 15:58'
 labels:
   - bug
 dependencies: []
@@ -33,5 +33,5 @@ Implementing guard so In Review is only set after a PR/MR exists, and failed rev
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Fixed the review handoff invariant. Close-gate commit counting now recognizes remote-tracking task branches in managed checkouts. Successful review handoff marks tasks In Review only after a PR/MR exists, while failed handoff for unmerged work reopens the task and posts an actionable comment. Worker exit no longer records a clean completion when review handoff fails. Verified with focused tests and make test.
+Fixed the review handoff invariant. Close-gate commit counting now recognizes remote-tracking task branches in managed checkouts. Successful review handoff marks tasks In Review only after a PR/MR exists, failed handoff for unmerged work reopens the task with an actionable comment, worker exit no longer records a clean completion when review handoff fails, and merged-branch reconciliation now scans In Review/Needs CI Fix/Needs Rebase so landed PRs move to Merged. Verified with focused tests and make test.
 <!-- SECTION:FINAL_SUMMARY:END -->

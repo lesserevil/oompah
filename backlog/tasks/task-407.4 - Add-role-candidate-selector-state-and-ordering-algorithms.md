@@ -1,10 +1,10 @@
 ---
 id: TASK-407.4
 title: Add role candidate selector state and ordering algorithms
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-02 15:28'
+updated_date: '2026-06-02 15:58'
 labels:
   - feature
 dependencies:
@@ -56,18 +56,6 @@ Required behavior:
 7. Add unit tests for empty state, priority order, round-robin order, usage updates, ties, and removed candidates.
 <!-- SECTION:PLAN:END -->
 
-## Final Summary
-
-<!-- SECTION:FINAL_SUMMARY:BEGIN -->
-CandidateSelector class added to oompah/roles.py implementing priority (configured order) and round-robin (least-recently-used first, tie-break by config order) strategies. Usage state stored in .oompah/role_usage.json, separate from roles.json. Thread-safe via in-process lock. 56 unit tests added in tests/test_candidate_selector.py covering all acceptance criteria.
-<!-- SECTION:FINAL_SUMMARY:END -->
-
-## Definition of Done
-<!-- DOD:BEGIN -->
-- [ ] #1 Selector state and ordering tests run without depending on the HTTP server.
-- [ ] #2 The selector API is small enough for the orchestrator to use without duplicating ordering logic.
-<!-- DOD:END -->
-
 ## Comments
 <!-- COMMENTS:BEGIN -->
 <!-- COMMENT:BEGIN -->
@@ -77,6 +65,7 @@ created: 2026-06-02 15:12
 
 Agent dispatched (profile: standard)
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 2
 author: oompah
@@ -84,6 +73,7 @@ created: 2026-06-02 15:12
 
 Focus: Test Engineer
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 3
 author: oompah
@@ -96,6 +86,7 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Exit: normal, Duration: 9m 26s
 - Log: TASK-407.4__20260602T151208Z.jsonl
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 4
 author: oompah
@@ -103,6 +94,7 @@ created: 2026-06-02 15:21
 
 Agent completed successfully in 566s (26071 tokens)
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 5
 author: oompah
@@ -110,6 +102,7 @@ created: 2026-06-02 15:21
 
 Agent completed without closing this issue (566s (26071 tokens)). Escalating from 'standard' to 'deep'. Retrying in 10s (1/3).
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 6
 author: oompah
@@ -117,6 +110,7 @@ created: 2026-06-02 15:21
 
 Agent dispatched (profile: deep)
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 7
 author: oompah
@@ -124,6 +118,7 @@ created: 2026-06-02 15:21
 
 Focus: Duplicate Investigator
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 8
 author: oompah
@@ -131,6 +126,7 @@ created: 2026-06-02 15:25
 
 Agent completed successfully in 206s (5132 tokens)
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 9
 author: oompah
@@ -143,6 +139,7 @@ Run #2 [attempt=2, profile=deep, role=deep -> Claude/default]
 - Exit: normal, Duration: 3m 26s
 - Log: TASK-407.4__20260602T152147Z.jsonl
 <!-- COMMENT:END -->
+
 <!-- COMMENT:BEGIN -->
 index: 10
 author: oompah
@@ -150,4 +147,24 @@ created: 2026-06-02 15:25
 
 Agent dispatched (profile: default)
 <!-- COMMENT:END -->
+
+<!-- COMMENT:BEGIN -->
+index: 11
+author: oompah
+created: 2026-06-02 15:58
+
+PR #199 merged successfully on 2026-06-02 at 15:48 UTC. Moving task from Done to Merged so the task lifecycle reflects the landed review.
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+CandidateSelector class added to oompah/roles.py implementing priority (configured order) and round-robin (least-recently-used first, tie-break by config order) strategies. Usage state stored in .oompah/role_usage.json, separate from roles.json. Thread-safe via in-process lock. 56 unit tests added in tests/test_candidate_selector.py covering all acceptance criteria.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
+## Definition of Done
+<!-- DOD:BEGIN -->
+- [ ] #1 Selector state and ordering tests run without depending on the HTTP server.
+- [ ] #2 The selector API is small enough for the orchestrator to use without duplicating ordering logic.
+<!-- DOD:END -->
