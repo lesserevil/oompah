@@ -662,3 +662,86 @@ def test_update_issue_known_fields_updated_once(tmp_path):
     assert len(calls) == 1, f"expected 1 CLI call, got {len(calls)}: {calls}"
     assert "--status" in calls[0]
     assert "--priority" in calls[0]
+
+
+# ---------------------------------------------------------------------------
+# Integration test: _write_task_cost_record with real BacklogMdTracker
+# (TASK-399: cost metadata uses get_metadata / set_metadata_field protocol)
+# ---------------------------------------------------------------------------
+
+def test_write_task_cost_record_works_with_backlog_tracker(tmp_path):
+    """_write_task_cost_record persists cost data via BacklogMdTracker."""
+    from oompah.models import AgentProfile, ModelProvider, RunningEntry
+    from oompah.orchestrator import Orchestrator
+    from oompah.config import ServiceConfig
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-5", "Agent work item")
+
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    config = ServiceConfig(
+        tracker_kind="backlog_md",
+        tracker_active_states=["To Do", "In Progress"],
+        tracker_terminal_states=["Done"],
+        workspace_root=str(tmp_path / "workspaces"),
+    )
+    orch = Orchestrator(
+        config=config,
+        workflow_path="WORKFLOW.md",
+        project_store=project_store,
+        state_path=str(tmp_path / "state.json"),
+    )
+    # Wire up a real BacklogMdTracker pointed at tmp_path
+    tracker = BacklogMdTracker(
+        active_states=["To Do", "In Progress"],
+        terminal_states=["Done"],
+        cwd=str(tmp_path),
+    )
+    orch.tracker = tracker
+
+    provider = ModelProvider(
+        id="prov-test",
+        name="openai",
+        base_url="https://api.openai.com/v1",
+        api_key="sk-test",
+        models=["gpt-4o"],
+        default_model="gpt-4o",
+        model_costs={"gpt-4o": {"cost_per_1k_input": 0.005, "cost_per_1k_output": 0.015}},
+    )
+    orch.provider_store._providers["prov-test"] = provider
+    profile = AgentProfile(
+        name="standard", command="agent", provider_id="prov-test", model="gpt-4o",
+    )
+    orch.config.agent_profiles = [profile]
+
+    from oompah.models import LiveSession, Issue
+    session = LiveSession(session_id="s1", thread_id="t1", turn_id="0", agent_pid=None)
+    session.input_tokens = 1000
+    session.output_tokens = 500
+    session.total_tokens = 1500
+
+    issue = Issue(id="TASK-5", identifier="TASK-5", title="Agent work item",
+                  description="", state="In Progress")
+    entry = RunningEntry(
+        worker_task=MagicMock(),
+        identifier="TASK-5",
+        issue=issue,
+        session=session,
+        retry_attempt=0,
+        started_at=datetime.now(timezone.utc),
+        agent_profile_name="standard",
+    )
+
+    # Should not raise — uses BacklogMdTracker's get_metadata/set_metadata_field API
+    orch._write_task_cost_record(entry)
+
+    # Verify the cost was stored in the frontmatter via get_metadata
+    meta = tracker.get_metadata("TASK-5")
+    assert "oompah.task_costs" in meta, "Cost metadata should have been written to frontmatter"
+    costs = meta["oompah.task_costs"]
+    assert costs["total_input_tokens"] == 1000
+    assert costs["total_output_tokens"] == 500
+    assert "gpt-4o" in costs["by_model"]
