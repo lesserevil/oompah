@@ -770,6 +770,7 @@ class ProjectStore:
             "test_command_full",
             "test_skip_paths",
             "epic_strategy",
+            "provider_whitelist",
         }
     )
 
@@ -853,6 +854,27 @@ class ProjectStore:
                         "'epic_strategy' must be one of: flat, stacked, shared"
                     )
                 fields["epic_strategy"] = norm
+
+        # Normalize provider_whitelist: must be a list of non-empty strings.
+        if "provider_whitelist" in fields:
+            val = fields["provider_whitelist"]
+            if val is None:
+                fields["provider_whitelist"] = []
+            elif isinstance(val, list):
+                cleaned = []
+                for item in val:
+                    if not isinstance(item, str):
+                        raise ProjectError(
+                            "'provider_whitelist' entries must be strings"
+                        )
+                    s = item.strip()
+                    if s:
+                        cleaned.append(s)
+                fields["provider_whitelist"] = cleaned
+            else:
+                raise ProjectError(
+                    "'provider_whitelist' must be a list of strings or null"
+                )
 
         # Validate max_in_flight_prs is a positive integer (floats are rejected)
         if "max_in_flight_prs" in fields:

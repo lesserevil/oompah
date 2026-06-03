@@ -3828,6 +3828,22 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
+        if "provider_whitelist" in body:
+            val = body["provider_whitelist"]
+            if val is None:
+                fields["provider_whitelist"] = []
+            elif isinstance(val, list) and all(isinstance(x, str) for x in val):
+                fields["provider_whitelist"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "provider_whitelist must be a list of strings or null",
+                        }
+                    },
+                    status_code=400,
+                )
         project = orch.project_store.update(project_id, **fields)
         if not project:
             return JSONResponse(

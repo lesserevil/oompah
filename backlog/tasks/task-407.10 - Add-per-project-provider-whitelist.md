@@ -1,17 +1,18 @@
 ---
 id: TASK-407.10
 title: Add per-project provider whitelist
-status: Backlog
+status: In Progress
 assignee: []
-created_date: '2026-06-03 00:15'
+created_date: 2026-06-03 00:15
+updated_date: 2026-06-03 04:06
 labels:
-  - feature
-  - provider
+- feature
+- provider
 dependencies:
-  - TASK-407.1
-  - TASK-407.2
-  - TASK-407.4
-  - TASK-407.5
+- TASK-407.1
+- TASK-407.2
+- TASK-407.4
+- TASK-407.5
 parent_task_id: TASK-407
 priority: medium
 ordinal: 60000
@@ -40,3 +41,49 @@ Add a project-level provider whitelist so operators can restrict which providers
 - [ ] #2 Existing projects without a whitelist continue to behave as before after restart and config reload.
 - [ ] #3 Run make test before closing the task.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-03 04:06
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-03 04:07
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-03 04:08
+
+UNDERSTANDING: Confirmed NOT a duplicate. Searched for 'provider whitelist', 'project provider', 'provider filter', 'restrict provider project', and 'whitelist' — no other task covers per-project provider whitelisting. TASK-407.10 is a unique subtask of the TASK-407 multi-provider epic. Implementation plan: (1) Add provider_whitelist field to Project model with to_dict/from_dict support, (2) Add to UPDATABLE_FIELDS in ProjectStore and validate in update(), (3) Filter _resolve_dispatch_targets results by whitelist in _run_worker before the candidate loop, (4) Surface clear warning when all targets filtered, (5) Expose field in PATCH /api/v1/projects/{id} API, (6) Tests covering all AC.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 04:15
+
+DISCOVERY: Key code locations confirmed. (1) Project model in oompah/models.py. (2) ProjectStore.UPDATABLE_FIELDS in oompah/projects.py. (3) Orchestrator._run_worker in oompah/orchestrator.py — dispatch targets flow through _resolve_dispatch_targets then new _apply_project_provider_whitelist. (4) Server API PATCH /api/v1/projects/{id} in oompah/server.py. All dependency tasks (407.1/2/4/5) provide DispatchTarget, CandidateSelector, and failover loop that this feature integrates with cleanly.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 04:20
+
+IMPLEMENTATION: Changes made: (1) oompah/models.py — provider_whitelist: list[str] field on Project, in to_dict() and from_dict() with strip/blank-entry handling. (2) oompah/projects.py — 'provider_whitelist' added to UPDATABLE_FIELDS; validation in update(). (3) oompah/orchestrator.py — new _apply_project_provider_whitelist() returns (filtered_targets, was_applied); called in _run_worker after _resolve_dispatch_targets; all-filtered case calls _on_worker_exit with clear error, does NOT fall through to CLI. (4) oompah/server.py — provider_whitelist handled in PATCH /api/v1/projects/{id}. (5) tests/test_project_provider_whitelist.py — 44 new tests covering all ACs. (6) tests/test_projects_crud.py — updated UPDATABLE_FIELDS assertion.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 04:25
+
+VERIFICATION: All 44 new tests pass. Broader test suite (738 tests) passes. No regressions in test_candidate_preflight, test_multi_provider_e2e, test_projects_crud, test_orchestrator_handlers, test_project_pause, or any other related tests.
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
