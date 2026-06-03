@@ -5194,11 +5194,16 @@ def _sync_project_after_webhook(
     try:
         status = orch.project_store.sync_project_sources(project_id)
         logger.info(
-            "Webhook sync %s: git=%s backlog=%s",
+            "Webhook sync %s: git=%s backlog=%s conflicts=%s",
             project_name,
             status.get("git", "?"),
             status.get("backlog", "?"),
+            status.get("conflicts", "?"),
         )
+        # Refresh conflict alerts after each project sync so the dashboard
+        # immediately reflects resolved or new conflicts.
+        if hasattr(orch, "_refresh_backlog_conflict_alerts"):
+            orch._refresh_backlog_conflict_alerts()
     except Exception as exc:
         logger.warning("Webhook sync failed for %s: %s", project_name, exc)
 

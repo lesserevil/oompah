@@ -301,6 +301,12 @@ class Project:
     # model-level role rules and provider health/failover still apply
     # after the whitelist filter. See TASK-407.10.
     provider_whitelist: list[str] = field(default_factory=list)
+    # Set when oompah detects unresolvable git conflict markers in backlog
+    # task files during startup sync. The project is quarantined (paused)
+    # until the conflicts are resolved, and these paths are surfaced in the
+    # dashboard as an alert so the operator knows which files need attention.
+    # Cleared when the project is successfully synced without conflicts.
+    backlog_conflict_paths: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
@@ -373,6 +379,10 @@ class Project:
         # Always emit provider_whitelist (even when empty) so the API
         # response consistently includes the field for dashboard rendering.
         d["provider_whitelist"] = list(self.provider_whitelist)
+        # Only emit backlog_conflict_paths when set to avoid cluttering
+        # normal project records with an empty list.
+        if self.backlog_conflict_paths:
+            d["backlog_conflict_paths"] = list(self.backlog_conflict_paths)
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -473,6 +483,10 @@ class Project:
             churn_magnet_gate_enabled=bool(d.get("churn_magnet_gate_enabled", False)),
             churn_magnet_top_n=max(1, int(d.get("churn_magnet_top_n", 10))),
             provider_whitelist=provider_whitelist,
+            backlog_conflict_paths=[
+                str(p) for p in (d.get("backlog_conflict_paths") or [])
+                if str(p).strip()
+            ],
         )
 
 

@@ -771,6 +771,7 @@ class ProjectStore:
             "test_skip_paths",
             "epic_strategy",
             "provider_whitelist",
+            "backlog_conflict_paths",
         }
     )
 
@@ -916,14 +917,26 @@ class ProjectStore:
         even if a project's network is flaky — it just operates on
         whatever local state exists.
 
+        After a successful git pull, inspects backlog task files for
+        git conflict markers.  For conflicts limited to backlog task files,
+        a deterministic structured repair is attempted (see
+        :mod:`oompah.backlog_conflict`).  If repair is not safe, the
+        project is quarantined (``paused=True``) and the conflicted file
+        paths are stored on the project so the dashboard can surface an
+        alert.
+
         Returns ``{"git": "ok"|"failed: <reason>"|"skipped: <reason>",
-                  "backlog": "ok"|"migrated"|"failed: <reason>"}``.
+                  "backlog": "ok"|"migrated"|"failed: <reason>",
+                  "conflicts": "none"|"repaired:<n>"|"quarantined:<paths>"}``.
         """
+        from oompah.backlog_conflict import repair_repo_backlog_conflicts
+
         project = self._projects.get(project_id)
         if not project:
             return {
                 "git": "skipped: unknown project",
                 "backlog": "skipped: unknown project",
+                "conflicts": "skipped: unknown project",
             }
         status: dict[str, str] = {}
 
@@ -979,6 +992,87 @@ class ProjectStore:
         except BacklogCompatibilityError as exc:
             status["backlog"] = f"failed: {exc}"
             logger.warning("Backlog compatibility check failed for %s: %s", project.name, exc)
+
+        # Inspect and repair Backlog task file conflicts.
+        # This runs unconditionally (not gated on git success) because
+        # conflicts may already exist from a previous run's stash collision.
+        if project.repo_path and os.path.isdir(project.repo_path):
+            try:
+                repair_result = repair_repo_backlog_conflicts(project.repo_path)
+                repaired = repair_result.get("repaired", [])
+                failed = repair_result.get("failed", [])
+                if repaired or failed:
+                    # Log repair summary
+                    if repaired:
+                        logger.info(
+                            "Auto-repaired %d backlog conflict(s) in %s: %s",
+                            len(repaired),
+                            project.name,
+                            ", ".join(os.path.basename(p) for p in repaired[:5]),
+                        )
+                    if failed:
+                        logger.warning(
+                            "Could not repair %d backlog conflict(s) in %s: %s",
+                            len(failed),
+                            project.name,
+                            ", ".join(os.path.basename(p) for p in failed[:5]),
+                        )
+                    # Quarantine project if any conflicts remain unrepairable
+                    if failed:
+                        # Pause the project so no tasks are dispatched until
+                        # the operator resolves the remaining conflicts.
+                        failed_basenames = [os.path.basename(p) for p in failed]
+                        status["conflicts"] = (
+                            f"quarantined:{','.join(failed_basenames)}"
+                        )
+                        self.update(
+                            project_id,
+                            paused=True,
+                            backlog_conflict_paths=list(failed),
+                        )
+                        logger.warning(
+                            "Project %s quarantined due to unresolvable backlog "
+                            "conflicts. Repair or remove: %s",
+                            project.name,
+                            ", ".join(failed),
+                        )
+                    else:
+                        # All conflicts repaired — clear any previous quarantine
+                        status["conflicts"] = f"repaired:{len(repaired)}"
+                        if project.backlog_conflict_paths:
+                            self.update(
+                                project_id,
+                                paused=False,
+                                backlog_conflict_paths=[],
+                            )
+                            logger.info(
+                                "Project %s conflict quarantine cleared after "
+                                "successful repair.",
+                                project.name,
+                            )
+                else:
+                    # No conflicts — clear any stale quarantine from a previous run
+                    if project.backlog_conflict_paths:
+                        self.update(
+                            project_id,
+                            paused=False,
+                            backlog_conflict_paths=[],
+                        )
+                        logger.info(
+                            "Project %s stale conflict quarantine cleared "
+                            "(no conflicts detected).",
+                            project.name,
+                        )
+                    status["conflicts"] = "none"
+            except Exception as exc:
+                logger.warning(
+                    "Backlog conflict inspection failed for %s: %s",
+                    project.name,
+                    exc,
+                )
+                status["conflicts"] = f"failed: {exc}"
+        else:
+            status["conflicts"] = "skipped: no repo"
 
         return status
 
