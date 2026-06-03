@@ -4,7 +4,7 @@ title: Refactor orchestrator dispatch to try role candidates with failover
 status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-03 03:10'
+updated_date: '2026-06-03 03:26'
 labels:
   - feature
 dependencies:
@@ -69,7 +69,7 @@ DISCOVERY [oompah 2026-06-02]: Key findings from codebase exploration: (1) Candi
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implementation already merged to main as PR #202 (commit 83c3579). DispatchTarget dataclass, ProviderStartupError, _resolve_dispatch_targets(), _resolve_focus_provider_override(), and candidate failover loop in _run_worker are all present in main. PR #214 merged the backlog task closure. Task re-dispatched due to orchestrator resetting status; closing as Done after confirming implementation is complete and correct.
+Merge conflict resolved (attempt #3): rebased TASK-407.5 onto origin/main. Commits 8c17e28, 921ff00, 796c93e were already upstream (dropped automatically). Commit 973cfb0 applied cleanly as a1e1fc5. Implementation was merged to main as PR #214. All 186 relevant tests pass. Force-pushed cleanly.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
