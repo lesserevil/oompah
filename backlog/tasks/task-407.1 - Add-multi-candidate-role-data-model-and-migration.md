@@ -1,20 +1,18 @@
 ---
 id: TASK-407.1
 title: Add multi-candidate role data model and migration
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-02 01:07'
+updated_date: '2026-06-03 01:48'
 labels:
   - feature
-  - 'needs:backend'
-  - 'needs:test'
+  - merge-conflict
 dependencies: []
 modified_files:
   - oompah/roles.py
   - tests/test_role_store.py
 parent_task_id: TASK-407
-priority: high
 ordinal: 31000
 ---
 
@@ -64,6 +62,8 @@ Required behavior:
 
 <!-- SECTION:NOTES:BEGIN -->
 Discovery: oompah/roles.py has Role(name, provider_id, model, updated_at) and RoleStore.set(name, provider_id, model). server.py accesses role.provider_id and role.model directly in _resolve_role_status and _serialize_role_row, so those need to remain accessible as backward-compat properties. test_providers_role_matrix.py also instantiates Role() directly (bypassing validation) for two tests - those needed updating too. Implementation: Added Candidate dataclass with provider_id+model+to_dict/from_dict. Updated Role to use strategy+candidates+updated_at with provider_id/model as compat properties returning first candidate. from_dict handles both old (provider_id/model at top level) and new (strategy+candidates) formats. set() now delegates to set_candidates(). Added set_candidates(name, strategy, candidates) for multi-candidate. Added _validate_multi() checking strategy, empty candidates, and duplicates. All 3605 tests pass.
+
+Merge Conflict Resolver started. Branch has TASK-407.1 original work. Main has diverged with TASK-407.2 through 407.9 commits. Starting rebase onto origin/main.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
@@ -71,3 +71,54 @@ Discovery: oompah/roles.py has Role(name, provider_id, model, updated_at) and Ro
 - [ ] #1 RoleStore unit tests cover old schema migration and new schema validation.
 - [ ] #2 No beads or bd task tracking is introduced.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-03 01:36
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-03 01:36
+
+Focus: Test Engineer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-03 01:43
+
+Agent completed successfully in 407s (16363 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 01:43
+
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 45, Tool calls: 29
+- Tokens: 26 in / 16.3K out [16.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 47s
+- Log: TASK-407.1__20260603T013644Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 01:44
+
+YOLO: Merge conflict detected on MR #209. Rebase onto main and resolve conflicts.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 01:47
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->

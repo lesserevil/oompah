@@ -981,3 +981,439 @@ class TestMigrationFromAgentProfileStore:
         migrated = migrate_agent_profiles_to_roles(role_store, [])
         assert migrated == 0
         assert role_store.is_empty
+
+
+# ---------------------------------------------------------------------------
+# Module constants
+# ---------------------------------------------------------------------------
+
+
+class TestModuleConstants:
+    def test_default_strategy_is_priority(self):
+        """DEFAULT_STRATEGY must be 'priority'."""
+        assert DEFAULT_STRATEGY == "priority"
+
+    def test_valid_strategies_contains_exactly_priority_and_round_robin(self):
+        """VALID_STRATEGIES is exactly {priority, round_robin}."""
+        assert VALID_STRATEGIES == frozenset({"priority", "round_robin"})
+
+
+# ---------------------------------------------------------------------------
+# RoleError contract
+# ---------------------------------------------------------------------------
+
+
+class TestRoleErrorContract:
+    def test_role_error_is_a_value_error(self):
+        """RoleError must be a subclass of ValueError for backward-compat."""
+        err = RoleError("test message")
+        assert isinstance(err, ValueError)
+
+    def test_role_error_can_be_caught_as_value_error(self, tmp_path):
+        """Code that catches ValueError will also catch RoleError."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(ValueError):
+            store.set("", "prov-1", "gpt-4o")
+
+    def test_role_error_message_preserved(self):
+        """RoleError message is accessible via str()."""
+        err = RoleError("role 'x' is bad")
+        assert "role 'x' is bad" in str(err)
+
+
+# ---------------------------------------------------------------------------
+# Candidate ordering
+# ---------------------------------------------------------------------------
+
+
+class TestCandidateOrdering:
+    def test_candidate_order_preserved_through_role_to_dict_from_dict(self):
+        """Candidate ordering in a Role round-trips through to_dict/from_dict."""
+        candidates = [
+            Candidate(provider_id="prov-c", model="model-c"),
+            Candidate(provider_id="prov-a", model="model-a"),
+            Candidate(provider_id="prov-b", model="model-b"),
+        ]
+        now = datetime.now(timezone.utc)
+        r = Role(name="test", strategy="round_robin", candidates=candidates, updated_at=now)
+        r2 = Role.from_dict(r.to_dict())
+        assert r2.candidates[0] == Candidate("prov-c", "model-c")
+        assert r2.candidates[1] == Candidate("prov-a", "model-a")
+        assert r2.candidates[2] == Candidate("prov-b", "model-b")
+
+    def test_candidate_order_preserved_through_store_persist_reload(self, tmp_path):
+        """Candidate ordering survives a store save + reload cycle."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        candidates = [
+            Candidate(provider_id="prov-z", model="model-z"),
+            Candidate(provider_id="prov-a", model="model-a"),
+            Candidate(provider_id="prov-m", model="model-m"),
+        ]
+        store.set_candidates("test", "round_robin", candidates)
+
+        store2 = RoleStore(path=path)
+        role = store2.get("test")
+        assert role.candidates[0] == Candidate("prov-z", "model-z")
+        assert role.candidates[1] == Candidate("prov-a", "model-a")
+        assert role.candidates[2] == Candidate("prov-m", "model-m")
+
+
+# ---------------------------------------------------------------------------
+# Additional file-format edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestRoleStoreFileFormatEdgeCases:
+    def test_mixed_old_and_new_format_in_same_file(self, tmp_path):
+        """File containing both old-format and new-format entries loads both."""
+        path = str(tmp_path / "roles.json")
+        now = datetime.now(timezone.utc).isoformat()
+        with open(path, "w") as f:
+            json.dump([
+                # Old single-candidate format.
+                {"name": "fast", "provider_id": "p1", "model": "m1", "updated_at": now},
+                # New multi-candidate format.
+                {
+                    "name": "deep",
+                    "strategy": "round_robin",
+                    "candidates": [{"provider_id": "p2", "model": "m2"}],
+                    "updated_at": now,
+                },
+            ], f)
+        store = RoleStore(path=path)
+        assert len(store.list_all()) == 2
+
+        fast = store.get("fast")
+        assert fast is not None
+        assert fast.strategy == "priority"
+        assert len(fast.candidates) == 1
+        assert fast.candidates[0].provider_id == "p1"
+
+        deep = store.get("deep")
+        assert deep is not None
+        assert deep.strategy == "round_robin"
+        assert len(deep.candidates) == 1
+
+    def test_entry_with_empty_name_is_skipped(self, tmp_path):
+        """Entries whose name resolves to '' are skipped on load."""
+        path = str(tmp_path / "roles.json")
+        with open(path, "w") as f:
+            json.dump([
+                # Entry with no name key → name="" → skipped.
+                {
+                    "strategy": "priority",
+                    "candidates": [{"provider_id": "p", "model": "m"}],
+                },
+                # Valid entry.
+                {"name": "fast", "provider_id": "p", "model": "m"},
+            ], f)
+        store = RoleStore(path=path)
+        assert len(store.list_all()) == 1
+        assert store.get("fast") is not None
+
+    def test_from_dict_with_non_list_candidates_falls_back_to_old_format(self):
+        """If 'candidates' key exists but is not a list, fall back to legacy handling."""
+        # 'candidates' is None → not isinstance(..., list) → try legacy path.
+        r = Role.from_dict({
+            "name": "x",
+            "candidates": None,
+            "provider_id": "p1",
+            "model": "m1",
+        })
+        assert r.strategy == "priority"
+        assert len(r.candidates) == 1
+        assert r.candidates[0].provider_id == "p1"
+
+    def test_save_creates_nested_parent_directories(self, tmp_path):
+        """_save() creates any missing parent directories."""
+        path = str(tmp_path / "nested" / "subdir" / "roles.json")
+        store = RoleStore(path=path)
+        store.set("fast", "prov-1", "gpt-4o")
+        import os
+        assert os.path.exists(path)
+
+    def test_nonexistent_file_opens_empty_store(self, tmp_path):
+        """Opening a path that does not exist yet yields an empty store."""
+        path = str(tmp_path / "nonexistent.json")
+        store = RoleStore(path=path)
+        assert store.is_empty
+
+
+# ---------------------------------------------------------------------------
+# set / set_candidates name-trimming behaviour
+# ---------------------------------------------------------------------------
+
+
+class TestRoleStoreNameTrimming:
+    def test_set_whitespace_only_name_rejected(self, tmp_path):
+        """A name consisting only of whitespace is rejected after trimming."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(RoleError, match="non-empty"):
+            store.set("   ", "prov-1", "gpt-4o")
+
+    def test_set_candidates_whitespace_only_name_rejected(self, tmp_path):
+        """set_candidates also rejects whitespace-only names."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        with pytest.raises(RoleError, match="name"):
+            store.set_candidates("  \t\n", "priority", [Candidate("p", "m")])
+
+    def test_set_leading_trailing_whitespace_trimmed(self, tmp_path):
+        """Leading/trailing whitespace in name is stripped before storing."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        store.set("  fast  ", "prov-1", "gpt-4o")
+        assert store.get("fast") is not None
+        assert store.get("  fast  ") is None  # untrimmed key does not exist
+
+
+# ---------------------------------------------------------------------------
+# set_candidates update semantics
+# ---------------------------------------------------------------------------
+
+
+class TestRoleStoreSetCandidatesUpdate:
+    def test_update_replaces_candidates(self, tmp_path):
+        """Calling set_candidates on an existing role replaces the candidate list."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        store.set_candidates("fast", "priority", [Candidate("prov-1", "model-a")])
+
+        store.set_candidates("fast", "round_robin", [
+            Candidate("prov-2", "model-b"),
+            Candidate("prov-3", "model-c"),
+        ])
+        role = store.get("fast")
+        assert role.strategy == "round_robin"
+        assert len(role.candidates) == 2
+        assert role.candidates[0] == Candidate("prov-2", "model-b")
+        assert role.candidates[1] == Candidate("prov-3", "model-c")
+
+    def test_update_does_not_grow_store(self, tmp_path):
+        """Updating an existing role does not add a second entry."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        store.set_candidates("fast", "priority", [Candidate("prov-1", "model-a")])
+        store.set_candidates("fast", "round_robin", [Candidate("prov-2", "model-b")])
+        assert len(store.list_all()) == 1
+
+    def test_set_convenience_uses_priority_strategy(self, tmp_path):
+        """set() always creates a role with the priority strategy."""
+        path = str(tmp_path / "roles.json")
+        store = RoleStore(path=path)
+        role = store.set("fast", "prov-1", "gpt-4o")
+        assert role.strategy == DEFAULT_STRATEGY
+        assert role.strategy == "priority"
+
+
+# ---------------------------------------------------------------------------
+# Migration: model resolution fallbacks
+# ---------------------------------------------------------------------------
+
+
+class TestMigrationModelResolution:
+    def test_model_resolved_from_provider_model_roles(self, tmp_path):
+        """Migration uses provider.model_roles[role] when profile.model is absent."""
+        from oompah.roles import migrate_agent_profiles_to_roles
+
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="test", base_url="http://x", models=["gpt-4", "gpt-4o"])
+        prov = prov_store.get_default()
+        # Inject the model_roles mapping directly onto the provider object.
+        prov.model_roles["fast"] = "gpt-4o"
+
+        # role_store has no provider_store so any model is accepted.
+        role_store = RoleStore(path=str(tmp_path / "roles.json"))
+
+        profiles = [
+            AgentProfile(
+                name="fast",
+                command="claude",
+                provider_id=prov.id,
+                model=None,  # no explicit model on profile
+                model_role="fast",
+                mode="api",
+            ),
+        ]
+
+        migrated = migrate_agent_profiles_to_roles(
+            role_store, profiles, provider_store=prov_store
+        )
+        assert migrated == 1
+        assert role_store.get("fast") is not None
+        assert role_store.get("fast").model == "gpt-4o"
+
+    def test_model_resolved_from_provider_default_model(self, tmp_path):
+        """Migration falls back to provider.default_model when model_roles has no entry."""
+        from oompah.roles import migrate_agent_profiles_to_roles
+
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(
+            name="test",
+            base_url="http://x",
+            models=["gpt-4"],
+            default_model="gpt-4",
+        )
+        prov = prov_store.get_default()
+        # No model_roles for "fast" role — only default_model is available.
+        assert "fast" not in (prov.model_roles or {})
+
+        role_store = RoleStore(path=str(tmp_path / "roles.json"))
+
+        profiles = [
+            AgentProfile(
+                name="fast",
+                command="claude",
+                provider_id=prov.id,
+                model=None,
+                model_role="fast",
+                mode="api",
+            ),
+        ]
+
+        migrated = migrate_agent_profiles_to_roles(
+            role_store, profiles, provider_store=prov_store
+        )
+        assert migrated == 1
+        assert role_store.get("fast").model == "gpt-4"
+
+    def test_profile_model_overrides_provider_model_roles(self, tmp_path):
+        """profile.model takes precedence over provider.model_roles."""
+        from oompah.roles import migrate_agent_profiles_to_roles
+
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="test", base_url="http://x", models=["gpt-4", "gpt-4o"])
+        prov = prov_store.get_default()
+        prov.model_roles["fast"] = "gpt-4"  # model_roles suggests gpt-4
+
+        role_store = RoleStore(path=str(tmp_path / "roles.json"))
+
+        profiles = [
+            AgentProfile(
+                name="fast",
+                command="claude",
+                provider_id=prov.id,
+                model="gpt-4o",  # explicit model on profile
+                model_role="fast",
+                mode="api",
+            ),
+        ]
+
+        migrated = migrate_agent_profiles_to_roles(
+            role_store, profiles, provider_store=prov_store
+        )
+        assert migrated == 1
+        assert role_store.get("fast").model == "gpt-4o"  # profile.model wins
+
+    def test_no_model_resolvable_skipped_with_debug_log(self, tmp_path, caplog):
+        """When no model is resolvable the profile is skipped with a debug log."""
+        from oompah.roles import migrate_agent_profiles_to_roles
+
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="test", base_url="http://x", models=["gpt-4"])
+        prov = prov_store.get_default()
+        # Ensure no model_roles and no default_model are set.
+        prov.model_roles.clear()
+        prov.default_model = None
+
+        role_store = RoleStore(path=str(tmp_path / "roles.json"))
+
+        profiles = [
+            AgentProfile(
+                name="fast",
+                command="claude",
+                provider_id=prov.id,
+                model=None,
+                model_role="fast",
+                mode="api",
+            ),
+        ]
+
+        with caplog.at_level(logging.DEBUG):
+            migrated = migrate_agent_profiles_to_roles(
+                role_store, profiles, provider_store=prov_store
+            )
+
+        assert migrated == 0
+        assert role_store.is_empty
+        debug_msgs = [r.message for r in caplog.records if r.levelno == logging.DEBUG]
+        assert any("skip" in m.lower() or "no model" in m.lower() for m in debug_msgs)
+
+    def test_migration_without_provider_store_uses_profile_model_only(self, tmp_path):
+        """When provider_store param is omitted, only profile.model is used."""
+        from oompah.roles import migrate_agent_profiles_to_roles
+
+        # No provider_store on role_store → no validation.
+        role_store = RoleStore(path=str(tmp_path / "roles.json"))
+
+        profiles = [
+            AgentProfile(
+                name="fast",
+                command="claude",
+                provider_id="any-provider",
+                model="gpt-4",
+                model_role="fast",
+                mode="api",
+            ),
+        ]
+
+        # provider_store arg omitted.
+        migrated = migrate_agent_profiles_to_roles(role_store, profiles)
+        assert migrated == 1
+        assert role_store.get("fast").model == "gpt-4"
+
+    def test_migration_without_provider_store_and_no_model_skipped(self, tmp_path):
+        """When provider_store param is omitted and profile has no model, skip."""
+        from oompah.roles import migrate_agent_profiles_to_roles
+
+        role_store = RoleStore(path=str(tmp_path / "roles.json"))
+
+        profiles = [
+            AgentProfile(
+                name="fast",
+                command="claude",
+                provider_id="any-provider",
+                model=None,  # no model
+                model_role="fast",
+                mode="api",
+            ),
+        ]
+
+        migrated = migrate_agent_profiles_to_roles(role_store, profiles)
+        assert migrated == 0
+        assert role_store.is_empty
+
+    def test_migration_validation_error_skipped_with_warning(self, tmp_path, caplog):
+        """A profile whose resolved model fails RoleStore validation is skipped."""
+        from oompah.roles import migrate_agent_profiles_to_roles
+
+        prov_store = ProviderStore(path=str(tmp_path / "providers.json"))
+        prov_store.create(name="test", base_url="http://x", models=["gpt-4"])
+        prov = prov_store.get_default()
+
+        # role_store validates models against prov_store.
+        role_store = RoleStore(
+            path=str(tmp_path / "roles.json"), provider_store=prov_store
+        )
+
+        profiles = [
+            AgentProfile(
+                name="fast",
+                command="claude",
+                provider_id=prov.id,
+                model="gpt-4o-mini",  # not in catalog → validation error
+                model_role="fast",
+                mode="api",
+            ),
+        ]
+
+        with caplog.at_level(logging.WARNING):
+            migrated = migrate_agent_profiles_to_roles(role_store, profiles)
+
+        assert migrated == 0
+        assert role_store.is_empty
+        warning_msgs = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("skip" in m.lower() for m in warning_msgs)
