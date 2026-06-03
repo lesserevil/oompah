@@ -4,7 +4,7 @@ title: Fix BacklogMdTracker cost metadata write path
 status: Done
 assignee: []
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-03 02:04'
+updated_date: '2026-06-03 02:13'
 labels:
   - bug
 dependencies: []
@@ -27,5 +27,5 @@ Fix implemented in commit 6c2369e. Added get_cost_metadata/set_cost_metadata pro
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Merge conflict resolved and PR merged. Rebased TASK-399 branch onto origin/main and resolved 5 conflicted files. Key resolution: main had already fixed the bug with BacklogMdTracker.get_metadata()/set_metadata_field() protocol; TASK-399 used get_cost_metadata()/set_cost_metadata(). Resolved by adopting main's API (BeadsTracker was deleted in main). Also preserved TASK-397/TASK-408 frontmatter preservation tests from main while adapting the integration test to use the new API. The fix was force-pushed and merged as PR #208.
+Merge conflict resolved: Rebased TASK-399 branch onto origin/main. Conflicts in the backlog task file were resolved by keeping the HEAD (main) version which had the complete implementation notes. Intermediate commits already upstream were dropped automatically. Force-pushed branch. Original fix was already merged as PR #208.
 <!-- SECTION:FINAL_SUMMARY:END -->
