@@ -4,7 +4,7 @@ title: Add provider health check service and manual test endpoint
 status: Done
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-03 02:07'
+updated_date: '2026-06-03 02:17'
 labels:
   - feature
 dependencies: []
@@ -68,7 +68,7 @@ Discovery [oompah]: Key finding: _http_post() in api_agent.py already had RateLi
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added provider health check endpoint POST /api/v1/providers/{provider_id}/test. New oompah/provider_health.py module provides run_health_check() with normalized error reasons (missing_credentials, auth_failed, rate_limited, budget_blocked, timeout, overloaded, invalid_model, provider_unavailable, unknown_error), model selection (default_model->first model->empty for ACP), and 10s timeout. Server endpoint wraps helper in asyncio.to_thread. 46 tests covering all 6 acceptance criteria pass.
+Merge conflict resolved. Feature code was already in main; rebased 3 backlog-status commits onto origin/main, resolved conflict by dropping duplicate patch. Force-pushed cleanly. All 46 provider health tests pass.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
