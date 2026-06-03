@@ -9796,9 +9796,11 @@ class Orchestrator:
                         else:
                             # Landing gate: check if the agent completed without landing
                             # before spending tokens on a profile escalation.
+                            landing_gate_blocked = False
+                            landing_gate_branch = ""
                             project = self.project_store.get(project_id)
                             if project:
-                                branch_name = (
+                                landing_gate_branch = (
                                     entry.issue.branch_name
                                     or entry.issue.identifier
                                 )
@@ -9813,24 +9815,11 @@ class Orchestrator:
                                     base_branch=project.default_branch,
                                 )
                                 if not lg_result.allowed:
-                                    self._mark_needs_human(
-                                        tracker,
-                                        entry.identifier,
-                                        (
-                                            f"Agent completed without landing — "
-                                            f"no commits found on origin for branch "
-                                            f"`{branch_name}`. "
-                                            f"Skipping escalation to conserve tokens. "
-                                            f"Human action required: check the worktree for "
-                                            f"uncommitted work, then commit, push, "
-                                            f"and close manually, or add guidance and "
-                                            f"move the task back to Open."
-                                        ),
-                                    )
+                                    landing_gate_blocked = True
                                     telemetry = build_telemetry_event(
                                         lg_result,
                                         entry.issue,
-                                        branch_name,
+                                        landing_gate_branch,
                                         entry.agent_profile_name,
                                         getattr(entry, "focus", None),
                                         entry.retry_attempt or 0,
@@ -9839,20 +9828,38 @@ class Orchestrator:
                                     logger.info(
                                         json.dumps(telemetry),
                                     )
-                                    self.state.completed.add(issue_id)
-                                    return
 
                             # Try to escalate to a stronger profile before retrying
                             escalated, escalated_name = self._next_profile_for_retry(
                                 entry
                             )
+                            retry_error = (
+                                "completed_without_landing"
+                                if landing_gate_blocked
+                                else "completed_without_closing"
+                            )
                             if escalated:
                                 delay = self._backoff_delay(reopen_count)
+                                if landing_gate_blocked:
+                                    msg = (
+                                        f"Agent completed without landing — no commits "
+                                        f"found on origin for branch "
+                                        f"`{landing_gate_branch or entry.identifier}`. "
+                                        f"Escalating from '{entry.agent_profile_name}' "
+                                        f"to '{escalated.name}'. Retrying in "
+                                        f"{delay // 1000}s ({reopen_count}/{max_reopens})."
+                                    )
+                                else:
+                                    msg = (
+                                        f"Agent completed without closing this issue "
+                                        f"({elapsed:.0f}s{tokens_str}). Escalating "
+                                        f"from '{entry.agent_profile_name}' to "
+                                        f"'{escalated.name}'. Retrying in "
+                                        f"{delay // 1000}s ({reopen_count}/{max_reopens})."
+                                    )
                                 self._post_comment(
                                     entry.identifier,
-                                    f"Agent completed without closing this issue ({elapsed:.0f}s{tokens_str}). "
-                                    f"Escalating from '{entry.agent_profile_name}' to '{escalated.name}'. "
-                                    f"Retrying in {delay // 1000}s ({reopen_count}/{max_reopens}).",
+                                    msg,
                                     project_id=project_id,
                                 )
                                 self._schedule_retry(
@@ -9860,7 +9867,7 @@ class Orchestrator:
                                     attempt=reopen_count,
                                     identifier=entry.identifier,
                                     delay_ms=delay,
-                                    error="completed_without_closing",
+                                    error=retry_error,
                                     escalated_profile=escalated_name,
                                     project_id=project_id,
                                     context_entry=entry,
@@ -9870,6 +9877,35 @@ class Orchestrator:
                                     entry.identifier,
                                     entry.agent_profile_name,
                                     escalated.name,
+                                    reopen_count,
+                                    max_reopens,
+                                )
+                            elif landing_gate_blocked:
+                                delay = self._backoff_delay(reopen_count)
+                                self._post_comment(
+                                    entry.identifier,
+                                    f"Agent completed without landing — no commits "
+                                    f"found on origin for branch "
+                                    f"`{landing_gate_branch or entry.identifier}`. "
+                                    f"No stronger profile is configured; retrying "
+                                    f"with '{entry.agent_profile_name}' in "
+                                    f"{delay // 1000}s ({reopen_count}/{max_reopens}).",
+                                    project_id=project_id,
+                                )
+                                self._schedule_retry(
+                                    issue_id,
+                                    attempt=reopen_count,
+                                    identifier=entry.identifier,
+                                    delay_ms=delay,
+                                    error=retry_error,
+                                    escalated_profile=None,
+                                    project_id=project_id,
+                                    context_entry=entry,
+                                )
+                                logger.info(
+                                    "Retrying %s with same profile %s after landing gate blocked escalation (%d/%d)",
+                                    entry.identifier,
+                                    entry.agent_profile_name,
                                     reopen_count,
                                     max_reopens,
                                 )

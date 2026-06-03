@@ -2154,6 +2154,60 @@ Test issue body.
         assert "move it back to Open" in args[1]
         assert issue.id in orch.state.completed
 
+    def test_completed_without_landing_schedules_escalated_retry(self, tmp_path):
+        project = _make_project("proj-1")
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.config.agent_profiles = [
+            AgentProfile(name="default", command="agent"),
+            AgentProfile(name="standard", command="agent"),
+        ]
+        issue = _make_issue("TASK-1", state="In Progress", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=None,
+            identifier=issue.identifier,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="default",
+        )
+        orch.state.running[issue.id] = entry
+        orch._fire_task_cost_record = MagicMock()
+        orch._fire_telemetry_comment = MagicMock()
+        orch._post_comment = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = issue
+        tracker.mark_needs_human = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        landing_result = MagicMock()
+        landing_result.allowed = False
+        landing_result.branch_on_origin = False
+        landing_result.commits_on_origin = 0
+        landing_result.local_only_commits = 0
+        landing_result.skip_reason = ""
+
+        with patch(
+            "oompah.landing_gate.check_landing_gate",
+            return_value=landing_result,
+        ):
+            asyncio.run(orch._on_worker_exit(issue.id, "normal", None))
+
+        tracker.mark_needs_human.assert_not_called()
+        assert issue.id not in orch.state.completed
+        retry = orch.state.retry_attempts[issue.id]
+        assert retry.attempt == 1
+        assert retry.error == "completed_without_landing"
+        assert retry.escalated_profile == "standard"
+        comments = [call.args[1] for call in orch._post_comment.call_args_list]
+        assert any(
+            "Agent completed without landing" in comment
+            and "Escalating from 'default' to 'standard'" in comment
+            for comment in comments
+        )
+
     def test_worker_workspace_done_status_honored_before_needs_human(self, tmp_path):
         project = _make_project("proj-1")
         orch = _make_orchestrator(tmp_path, projects=[project])

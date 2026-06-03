@@ -454,7 +454,7 @@ class TestPreflightLogSafety:
 
     def test_missing_credentials_log_no_api_key(self, tmp_path, caplog):
         """missing_credentials log line must NOT contain the api_key value."""
-        secret_key = "sk-super-secret-key-12345"
+        secret_key = "sk-super-secret-key-12345"  # pragma: allowlist secret
         prov = _api_provider(api_key=secret_key, billing_model="per_token")
         prov.api_key = ""  # clear it to trigger missing_credentials
         self._run_preflight_and_collect_logs(tmp_path, prov, caplog=caplog)
@@ -465,7 +465,7 @@ class TestPreflightLogSafety:
 
     def test_budget_exceeded_log_no_api_key(self, tmp_path, caplog):
         """budget_exceeded log line must NOT contain the api_key value."""
-        secret_key = "sk-budget-test-key-99999"
+        secret_key = "sk-budget-test-key-99999"  # pragma: allowlist secret
         prov = _api_provider(api_key=secret_key)
         self._run_preflight_and_collect_logs(
             tmp_path, prov, caplog=caplog, exceed_budget=True
@@ -477,7 +477,7 @@ class TestPreflightLogSafety:
 
     def test_rate_limited_log_no_api_key(self, tmp_path, caplog):
         """rate_limited log line must NOT contain the api_key value."""
-        secret_key = "sk-rate-limit-key-77777"
+        secret_key = "sk-rate-limit-key-77777"  # pragma: allowlist secret
         prov = _api_provider(api_key=secret_key)
         target = _make_target(provider=prov, model="m1")
         orch = _make_orchestrator(tmp_path)
@@ -492,7 +492,7 @@ class TestPreflightLogSafety:
 
     def test_invalid_model_log_no_api_key(self, tmp_path, caplog):
         """invalid_model log line must NOT contain the api_key value."""
-        secret_key = "sk-model-test-key-55555"
+        secret_key = "sk-model-test-key-55555"  # pragma: allowlist secret
         prov = _api_provider(
             api_key=secret_key,
             models=["m-only-valid"],

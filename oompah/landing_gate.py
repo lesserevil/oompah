@@ -1,4 +1,4 @@
-"""Landing gate: refuse escalation when agent completed without landing.
+"""Landing gate: detect agent runs that completed without landing.
 
 Motivating evidence (issue oompah-zlz_2-kc2k.1):
 
@@ -9,9 +9,9 @@ Motivating evidence (issue oompah-zlz_2-kc2k.1):
   worktree.
 * oompah-zlz_2-kc2k: prior attempts showed the same pattern.
 
-Pattern: task has acceptance-criteria information → agent produces
-valid diff → agent calls ``exit(0)`` instead of committing and closing
-→ oompah escalates the profile and retries → wrong model wastes tokens.
+Pattern: task has acceptance-criteria information → agent runs
+normally but never commits, pushes, or closes → oompah must retry with
+the normal profile escalation path before asking a human for help.
 
 Design
 ------
@@ -19,7 +19,7 @@ Design
 The gate runs alongside the completion verifier in
 ``Orchestrator._on_worker_exit`` (reason == "normal", issue not closed).
 It runs after the completion verifier so stage-2 acceptance checks are
-already resolved — we only gate escalation here, not correctness.
+already resolved — we only annotate the retry reason here, not correctness.
 
 Gate logic:
 
@@ -36,13 +36,12 @@ Gate logic:
 5. If branch does not exist on origin AND commits exist locally but not
    pushed → same as above; gate triggers.
 
-On trigger: do NOT escalate. Instead:
+On trigger:
 
-* Post a diagnostic comment on the bead.
+* Post a diagnostic comment on the task.
 * Log a telemetry event.
-* Mark the bead deferred so a human can intervene or the next dispatch
-  (under a different mechanism) picks it up.
-* Return "stashed" so the orchestrator skips the retry escalation.
+* Keep the task in the retry/escalation pipeline until the configured
+  retry ceiling is reached.
 
 Skip rules (fail-open):
 
@@ -214,7 +213,7 @@ def build_telemetry_event(
 ) -> dict[str, Any]:
     """Build the structured telemetry event for logging."""
     return {
-        "event": "landing_gate_stashed",
+        "event": "landing_gate_retry_scheduled",
         "issue_id": issue.id,
         "issue_identifier": issue.identifier,
         "branch": branch,

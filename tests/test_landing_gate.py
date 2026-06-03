@@ -189,7 +189,7 @@ class TestBuildTelemetryEvent:
         event = build_telemetry_event(
             result, issue, "feat-x", "standard", "deep", 2, 1,
         )
-        assert event["event"] == "landing_gate_stashed"
+        assert event["event"] == "landing_gate_retry_scheduled"
         assert event["issue_id"] == "id-x"
         assert event["issue_identifier"] == "bead-1"
         assert event["branch"] == "feat-x"
