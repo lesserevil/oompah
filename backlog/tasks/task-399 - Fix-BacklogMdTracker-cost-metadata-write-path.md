@@ -3,14 +3,15 @@ id: TASK-399
 title: Fix BacklogMdTracker cost metadata write path
 status: Done
 assignee: []
-created_date: 2026-06-01 16:07
-updated_date: 2026-06-02 02:50
+created_date: '2026-06-01 16:07'
+updated_date: '2026-06-03 02:13'
 labels:
-- bug
+  - bug
 dependencies: []
 priority: high
 ordinal: 9000
 ---
+
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
@@ -26,5 +27,5 @@ Fix implemented in commit 6c2369e. Added get_cost_metadata/set_cost_metadata pro
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Duplicate investigation: no duplicates found. Original fix (commit 6c2369e) added get_cost_metadata/set_cost_metadata protocol to BeadsTracker and BacklogMdTracker; updated _write_task_cost_record to use this uniform interface instead of calling _run_bd() directly. Trackers without the protocol are skipped cleanly at DEBUG level. All 39 related tests pass.
+Merge conflict resolved: Rebased TASK-399 branch onto origin/main. Conflicts in the backlog task file were resolved by keeping the HEAD (main) version which had the complete implementation notes. Intermediate commits already upstream were dropped automatically. Force-pushed branch. Original fix was already merged as PR #208.
 <!-- SECTION:FINAL_SUMMARY:END -->
