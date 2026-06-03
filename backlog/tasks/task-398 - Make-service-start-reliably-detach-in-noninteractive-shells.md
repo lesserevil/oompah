@@ -4,7 +4,7 @@ title: Make service start reliably detach in noninteractive shells
 status: Done
 assignee: []
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-03 02:26'
+updated_date: '2026-06-03 02:37'
 labels:
   - bug
 dependencies: []
@@ -53,5 +53,5 @@ Discovery: Root cause confirmed in Makefile. (1) start target: bare '&' backgrou
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-No duplicate found. Implementation was already complete from prior agent pass (commit f7ef5bb): Makefile start target uses setsid+/dev/null stdin for reliable detach in noninteractive shells; PORT variable reads OOMPAH_SERVER_PORT from .env as fallback so make status reports the correct port. Tests: test_make_start_uses_setsid_with_devnull_stdin and test_port_reads_from_dotenv_file_as_fallback pass. Task was re-dispatched by orchestrator despite being done; closing permanently.
+Rebase completed: branch TASK-398 rebased onto origin/main. The core fix commit was auto-dropped as identical contents were already in upstream (commit 338a738). No conflicts remain. All 6 makefile setup tests pass. Branch force-pushed.
 <!-- SECTION:FINAL_SUMMARY:END -->
