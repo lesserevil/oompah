@@ -1,10 +1,10 @@
 ---
 id: TASK-407.5
 title: Refactor orchestrator dispatch to try role candidates with failover
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-02 16:47'
+updated_date: '2026-06-03 02:49'
 labels:
   - feature
 dependencies:
@@ -67,6 +67,12 @@ UNDERSTANDING [oompah 2026-06-02]: Investigating duplicates. Confirmed NOT a dup
 DISCOVERY [oompah 2026-06-02]: Key findings from codebase exploration: (1) CandidateSelector already implemented in oompah/roles.py (TASK-407.4, Merged). (2) orchestrator.py has _resolve_role/_resolve_provider/_resolve_model that need updating. (3) _run_api_worker raises ValueError before its try: block for startup validation — these need to become ProviderStartupError to propagate correctly to the failover loop. (4) _run_worker needs to resolve ordered DispatchTargets and loop with failover. (5) When target is explicit, focus overrides must use _resolve_focus_provider_override() to avoid re-resolving profile.model_role (which would always return first candidate). (6) All-candidates-fail case must explicitly call _on_worker_exit since inner workers won't have done so.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented orchestrator dispatch candidate failover: added ProviderStartupError, DispatchTarget dataclass, _resolve_dispatch_targets(), _resolve_focus_provider_override(), and candidate failover loop in _run_worker. API/ACP workers receive resolved provider/model explicitly. 26 new tests cover all acceptance criteria. 317 total related tests pass. Confirmed not a duplicate of any existing task.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Orchestrator tests cover priority fallback, round-robin fallback, explicit override precedence, and non-provider failure behavior.
@@ -95,5 +101,33 @@ author: oompah
 created: 2026-06-02 16:34
 
 Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 02:44
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 03:00
+
+DISCOVERY: Confirmed NOT a duplicate. Searched for similar tasks across the TASK-407 epic and codebase. This is a unique implementation task: TASK-407.4 (Merged) provides CandidateSelector; TASK-407.5 adds DispatchTarget, _resolve_dispatch_targets(), and the failover loop in _run_worker. No other task covers the same ground.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 03:01
+
+VERIFICATION: All 317 tests pass (pytest tests/test_orchestrator_handlers.py, test_candidate_selector.py, test_role_store.py, test_roles_api.py). Implementation in commit 46bf2ab covers: ProviderStartupError, DispatchTarget dataclass, _resolve_dispatch_targets(), _resolve_focus_provider_override(), and candidate failover loop in _run_worker with 26 targeted tests covering priority fallback, round-robin fallback, override precedence, and non-provider failure behavior.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-03 03:02
+
+COMPLETION: Implementation was already committed by a prior agent session. Duplicate investigation confirmed this is not a duplicate. All acceptance criteria are met: (1) priority/round-robin failover works, (2) provider resolved once and passed explicitly to workers, (3) non-provider failures don't trigger candidate switch, (4) running status reflects actual provider/model selected, (5) focus/profile overrides preserved. Tests pass. Closing task.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
