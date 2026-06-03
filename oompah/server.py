@@ -95,6 +95,24 @@ def _load_template(name: str) -> str:
     return content
 
 
+_NO_CACHE_HEADERS: dict[str, str] = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
+def _html_response(name: str) -> HTMLResponse:
+    """Return an HTMLResponse for *name* with cache-busting headers.
+
+    HTML pages are never cached by the browser so that after a server
+    auto-update + restart users immediately receive the latest template
+    rather than a browser-cached stale copy that may be missing recently
+    added JavaScript functions (e.g. toggleHideMerged).
+    """
+    return HTMLResponse(content=_load_template(name), headers=_NO_CACHE_HEADERS)
+
+
 app = FastAPI(title="oompah", version="0.1.0")
 
 # Serve static assets (favicon, etc.) from oompah/static/
@@ -5490,19 +5508,19 @@ async def api_webhook_backlog(request: Request):
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
     """Serve the kanban dashboard."""
-    return _load_template("dashboard.html")
+    return _html_response("dashboard.html")
 
 
 @app.get("/providers", response_class=HTMLResponse)
 async def providers_page():
     """Serve the providers management page."""
-    return _load_template("providers.html")
+    return _html_response("providers.html")
 
 
 @app.get("/projects-manage", response_class=HTMLResponse)
 async def projects_page():
     """Serve the projects management page."""
-    return _load_template("projects.html")
+    return _html_response("projects.html")
 
 
 # Keep the old dashboard content endpoint for backward compat
@@ -5633,13 +5651,13 @@ async def dashboard_content():
 @app.get("/foci", response_class=HTMLResponse)
 async def foci_page():
     """Serve the foci management page."""
-    return _load_template("foci.html")
+    return _html_response("foci.html")
 
 
 @app.get("/reviews", response_class=HTMLResponse)
 async def reviews_page():
     """Serve the reviews (review) listing page."""
-    return _load_template("reviews.html")
+    return _html_response("reviews.html")
 
 
 def _esc(s: str) -> str:
