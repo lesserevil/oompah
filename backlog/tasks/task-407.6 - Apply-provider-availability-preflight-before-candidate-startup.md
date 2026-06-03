@@ -1,36 +1,19 @@
 ---
 id: TASK-407.6
 title: Apply provider availability preflight before candidate startup
-status: In Progress
+status: Done
 assignee: []
-created_date: 2026-06-01 21:44
-updated_date: 2026-06-03 03:43
+created_date: '2026-06-01 21:44'
+updated_date: '2026-06-03 03:47'
 labels:
-- feature
-- merge-conflict
+  - feature
 dependencies:
-- TASK-407.5
+  - TASK-407.5
 modified_files:
-- oompah/orchestrator.py
-- tests/test_orchestrator_handlers.py
+  - oompah/orchestrator.py
+  - tests/test_orchestrator_handlers.py
 parent_task_id: TASK-407
 ordinal: 36000
-oompah.task_costs:
-  total_input_tokens: 28
-  total_output_tokens: 4303
-  total_cost_usd: 0.0
-  by_model:
-    unknown:
-      input_tokens: 28
-      output_tokens: 4303
-      cost_usd: 0.0
-  runs:
-  - profile: standard
-    model: unknown
-    input_tokens: 28
-    output_tokens: 4303
-    cost_usd: 0.0
-    recorded_at: '2026-06-03T03:38:00.850542+00:00'
 ---
 
 ## Description
@@ -79,6 +62,12 @@ UNDERSTANDING: TASK-407.5 already merged with candidate failover loop. TASK-407.
 
 DISCOVERY: No _candidate_preflight() function existed in orchestrator.py - TASK-407.5 implemented the candidate failover loop but without pre-start checks. The existing _is_rate_limited(), _check_budget(), is_model_explicitly_free(), is_per_token_billed() helpers in orchestrator and models provide all primitives needed. Implemented _candidate_preflight() at line 6275 checking: missing credentials (non-ACP), global rate-limit, budget exhaustion (with free/subscription bypass), invalid model. Integrated into _run_worker loop. 35 new tests written in tests/test_candidate_preflight.py.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merge conflict resolved: Rebased branch onto origin/main. Implementation (provider availability preflight for candidate dispatch) was already merged to main as PR #203. Rebase succeeded cleanly with no conflicts (implementation commit was skipped as already-applied). 35/35 preflight tests pass. Branch force-pushed.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
