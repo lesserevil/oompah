@@ -391,9 +391,81 @@ class BacklogMdTracker:
                         "Backlog.md update_issue ignoring unsupported field %s", key,
                     )
             if handled:
-                self._run_backlog_task_edit(args, identifier)
+                try:
+                    self._run_backlog_task_edit(args, identifier)
+                except TrackerError as exc:
+                    # The Backlog CLI cannot edit tasks in the completed/ directory.
+                    # Fall back to direct file editing when the task exists on disk
+                    # (e.g. in completed/) but the CLI reports it as not found.
+                    if _is_task_not_found_error(exc) and self._task_path_for(identifier):
+                        logger.debug(
+                            "Backlog CLI could not find %s; falling back to direct edit",
+                            identifier,
+                        )
+                        self._update_issue_fields_direct(identifier, fields)
+                    else:
+                        raise
             if direct_priority is not None:
                 self._set_frontmatter_field(identifier, "priority", direct_priority)
+
+    def _update_issue_fields_direct(self, identifier: str, fields: dict) -> None:
+        """Write task fields directly to the markdown file.
+
+        Used as a fallback when the backlog CLI cannot find the task (e.g.
+        because it lives in ``completed/`` rather than ``tasks/``).  Mirrors
+        the same field mapping used by ``update_issue`` for the CLI path.
+        """
+        path = self._task_path_for(identifier)
+        if not path:
+            raise TrackerError(f"Backlog.md task not found: {identifier}")
+        meta, body = _read_markdown_frontmatter(path)
+        body_changed = False
+        for key, value in fields.items():
+            key_norm = key.replace("_", "-")
+            if key_norm == "status":
+                meta["status"] = self._status_with_config_case(str(value))
+            elif key_norm == "title":
+                meta["title"] = str(value)
+            elif key_norm in ("description", "desc"):
+                begin_marker = "<!-- SECTION:DESCRIPTION:BEGIN -->"
+                end_marker = "<!-- SECTION:DESCRIPTION:END -->"
+                start = body.find(begin_marker)
+                if start != -1:
+                    stop = body.find(end_marker, start + len(begin_marker))
+                    if stop != -1:
+                        body = (
+                            body[: start + len(begin_marker)]
+                            + f"\n{value}\n"
+                            + body[stop:]
+                        )
+                        body_changed = True
+                if not body_changed:
+                    body = body.rstrip("\n") + (
+                        f"\n\n## Description\n\n"
+                        f"{begin_marker}\n{value}\n{end_marker}\n"
+                    )
+                    body_changed = True
+            elif key_norm == "priority":
+                pri = _backlog_cli_priority_name(value)
+                if pri:
+                    meta["priority"] = pri
+            elif key_norm == "assignee":
+                meta["assignee"] = str(value)
+            elif key_norm in ("label", "labels"):
+                meta["labels"] = [str(value)]
+            elif key_norm == "add-label":
+                existing = meta.get("labels") or []
+                if not isinstance(existing, list):
+                    existing = [str(existing)] if existing else []
+                if str(value) not in existing:
+                    existing = list(existing) + [str(value)]
+                meta["labels"] = existing
+            elif key_norm == "remove-label":
+                existing = meta.get("labels") or []
+                if isinstance(existing, list):
+                    meta["labels"] = [lb for lb in existing if lb != str(value)]
+        meta["updated_date"] = _format_backlog_comment_timestamp()
+        _write_markdown_frontmatter(path, meta, body)
 
     def mark_needs_human(
         self, identifier: str, comment: str, author: str = "oompah"
@@ -1068,6 +1140,17 @@ def _sanitize_backlog_comment_text(text: str) -> str:
         escaped_marker = marker.replace("<!--", "<!-- ").replace("-->", " -->")
         cleaned = cleaned.replace(marker, escaped_marker)
     return cleaned
+
+
+def _is_task_not_found_error(exc: TrackerError) -> bool:
+    """Return True when the error signals that the backlog CLI could not find the task.
+
+    The Backlog CLI exits with code 1 and prints "Task <ID> not found." to
+    stdout when the requested task does not exist in its search path (e.g. the
+    task was already moved to ``completed/``).  We detect this pattern so that
+    callers can fall back to direct file editing.
+    """
+    return "not found" in str(exc).lower()
 
 
 def _parse_backlog_plain_identifier(output: str) -> str | None:
