@@ -13,6 +13,7 @@ from oompah.orchestrator import Orchestrator
 from oompah.roles import RoleStore
 from oompah.tracker import (
     BacklogMdTracker,
+    TrackerError,
     _read_markdown_frontmatter,
     _write_markdown_frontmatter,
 )
@@ -745,3 +746,171 @@ def test_write_task_cost_record_works_with_backlog_tracker(tmp_path):
     assert costs["total_input_tokens"] == 1000
     assert costs["total_output_tokens"] == 500
     assert "gpt-4o" in costs["by_model"]
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for TASK-427: update_issue falls back to direct editing
+# when the Backlog CLI reports "task not found" (e.g. task is in completed/).
+# ---------------------------------------------------------------------------
+
+
+def test_update_issue_falls_back_to_direct_edit_when_cli_says_not_found(tmp_path):
+    """update_issue must silently fall back to direct file editing when the
+    Backlog CLI returns a 'not found' error but the task exists on disk."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-10",
+        "Completed task",
+        status="Done",
+        folder="completed",
+    )
+    tracker = _tracker(tmp_path)
+
+    def _cli_not_found(args):
+        raise TrackerError("backlog command failed (exit 1): Task TASK-10 not found.")
+
+    with patch.object(tracker, "_run_backlog", side_effect=_cli_not_found):
+        # Should not raise — falls back to direct edit
+        tracker.update_issue("TASK-10", status="In Progress")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["status"] == "In Progress", "status must be written directly to frontmatter"
+
+
+def test_update_issue_direct_fallback_updates_title(tmp_path):
+    """Direct fallback must handle title updates for completed tasks."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-11",
+        "Old title",
+        status="Done",
+        folder="completed",
+    )
+    tracker = _tracker(tmp_path)
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        side_effect=TrackerError("backlog command failed (exit 1): Task TASK-11 not found."),
+    ):
+        tracker.update_issue("TASK-11", title="New title")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["title"] == "New title"
+
+
+def test_update_issue_direct_fallback_updates_description(tmp_path):
+    """Direct fallback must update the description section in the body."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-12",
+        "Desc task",
+        status="Done",
+        folder="completed",
+        description="Old description",
+    )
+    tracker = _tracker(tmp_path)
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        side_effect=TrackerError("backlog command failed (exit 1): Task TASK-12 not found."),
+    ):
+        tracker.update_issue("TASK-12", description="New description")
+
+    content = task_path.read_text(encoding="utf-8")
+    assert "New description" in content
+    assert "Old description" not in content
+
+
+def test_update_issue_direct_fallback_add_remove_label(tmp_path):
+    """Direct fallback must handle add-label and remove-label."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-13",
+        "Label task",
+        status="Done",
+        folder="completed",
+        labels=["existing"],
+    )
+    tracker = _tracker(tmp_path)
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        side_effect=TrackerError("backlog command failed (exit 1): Task TASK-13 not found."),
+    ):
+        tracker.update_issue("TASK-13", **{"add-label": "new-label"})
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert "new-label" in meta["labels"]
+    assert "existing" in meta["labels"]
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        side_effect=TrackerError("backlog command failed (exit 1): Task TASK-13 not found."),
+    ):
+        tracker.update_issue("TASK-13", **{"remove-label": "existing"})
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert "existing" not in meta["labels"]
+    assert "new-label" in meta["labels"]
+
+
+def test_update_issue_direct_fallback_updates_updated_date(tmp_path):
+    """Direct fallback must update updated_date in the frontmatter."""
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-14",
+        "Date task",
+        status="Done",
+        folder="completed",
+    )
+    tracker = _tracker(tmp_path)
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        side_effect=TrackerError("backlog command failed (exit 1): Task TASK-14 not found."),
+    ):
+        tracker.update_issue("TASK-14", status="In Progress")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["updated_date"] != "2026-05-31 10:05", "updated_date must be refreshed"
+
+
+def test_update_issue_reraises_other_cli_errors(tmp_path):
+    """update_issue must not suppress CLI errors unrelated to 'not found'."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-15", "Active task")
+    tracker = _tracker(tmp_path)
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        side_effect=TrackerError("backlog command failed (exit 1): Invalid status: Foo"),
+    ):
+        import pytest
+        with pytest.raises(TrackerError, match="Invalid status"):
+            tracker.update_issue("TASK-15", status="Foo")
+
+
+def test_update_issue_reraises_not_found_when_task_absent_from_disk(tmp_path):
+    """update_issue must re-raise when the CLI fails AND the task is not on disk."""
+    _write_config(tmp_path)
+    tracker = _tracker(tmp_path)
+
+    with patch.object(
+        tracker,
+        "_run_backlog",
+        side_effect=TrackerError("backlog command failed (exit 1): Task TASK-99 not found."),
+    ):
+        import pytest
+        with pytest.raises(TrackerError, match="not found"):
+            tracker.update_issue("TASK-99", status="In Progress")
