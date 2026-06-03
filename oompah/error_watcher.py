@@ -18,14 +18,15 @@ import hashlib
 import logging
 import os
 import re
+import subprocess
+import threading
 import time
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from pathlib import Path
 
 from watchfiles import awatch
 
-if TYPE_CHECKING:
-    from oompah.tracker import BacklogMdTracker
+from oompah.tracker import BacklogMdTracker
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,157 @@ _DEDUP_WINDOW_SECONDS = 3600  # 1 hour
 
 # Max number of fingerprints to keep in memory (LRU-ish eviction).
 _MAX_FINGERPRINTS = 500
+_GIT_PUBLISH_TIMEOUT_SECONDS = 30
+_GIT_AUTHOR_NAME = "oompah"
+_GIT_AUTHOR_EMAIL = "lesserevil@users.noreply.github.com"
+_COMMIT_TRAILER = (
+    "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
+    "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
+)
+_GIT_PUBLISH_LOCKS: dict[Path, threading.Lock] = {}
+_GIT_PUBLISH_LOCKS_GUARD = threading.Lock()
+
+
+def _git_publish_lock(repo_root: Path) -> threading.Lock:
+    with _GIT_PUBLISH_LOCKS_GUARD:
+        lock = _GIT_PUBLISH_LOCKS.get(repo_root)
+        if lock is None:
+            lock = threading.Lock()
+            _GIT_PUBLISH_LOCKS[repo_root] = lock
+        return lock
+
+
+def _run_git(
+    repo_root: Path,
+    args: list[str],
+    *,
+    timeout: float = _GIT_PUBLISH_TIMEOUT_SECONDS,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+def _redact_git_output(value: str | None) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    text = re.sub(r"https://([^/\s:@]+):([^@\s]+)@", r"https://\1:<redacted>@", text)
+    text = re.sub(r"gh[pousr]_[A-Za-z0-9_]+", "<redacted-token>", text)
+    text = re.sub(r"github_pat_[A-Za-z0-9_]+", "<redacted-token>", text)
+    return text[:500]
+
+
+def _git_toplevel(path: Path) -> Path | None:
+    result = _run_git(path, ["rev-parse", "--show-toplevel"], timeout=5)
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    if not value:
+        return None
+    return Path(value).resolve()
+
+
+def _persist_error_task_to_git(
+    tracker: BacklogMdTracker,
+    identifier: str,
+) -> bool:
+    """Commit and push the Backlog.md file for an ErrorWatcher-created task.
+
+    Returns True only when a commit was created and pushed. All failures are
+    best-effort and reported to the logger by the caller.
+    """
+    if not isinstance(tracker, BacklogMdTracker):
+        return False
+
+    task_path = tracker.task_file_path(identifier)
+    if not task_path:
+        logger.debug("ErrorWatcher task %s has no Backlog.md file to commit", identifier)
+        return False
+
+    repo_root = _git_toplevel(tracker.root_path)
+    if not repo_root:
+        logger.debug(
+            "ErrorWatcher task %s not committed: %s is not a git repository",
+            identifier,
+            tracker.root_path,
+        )
+        return False
+
+    task_path = task_path.resolve()
+    try:
+        rel_path = task_path.relative_to(repo_root)
+    except ValueError:
+        logger.debug(
+            "ErrorWatcher task %s not committed: task path %s is outside git repo %s",
+            identifier,
+            task_path,
+            repo_root,
+        )
+        return False
+
+    with _git_publish_lock(repo_root):
+        add = _run_git(repo_root, ["add", "--", str(rel_path)])
+        if add.returncode != 0:
+            logger.warning(
+                "ErrorWatcher task %s git add failed: %s",
+                identifier,
+                _redact_git_output(add.stderr or add.stdout),
+            )
+            return False
+
+        diff = _run_git(repo_root, ["diff", "--cached", "--quiet", "--", str(rel_path)])
+        if diff.returncode == 0:
+            logger.debug("ErrorWatcher task %s had no staged git changes", identifier)
+            return False
+        if diff.returncode != 1:
+            logger.warning(
+                "ErrorWatcher task %s staged diff check failed: %s",
+                identifier,
+                _redact_git_output(diff.stderr or diff.stdout),
+            )
+            return False
+
+        commit = _run_git(
+            repo_root,
+            [
+                "-c",
+                f"user.name={_GIT_AUTHOR_NAME}",
+                "-c",
+                f"user.email={_GIT_AUTHOR_EMAIL}",
+                "commit",
+                "--only",
+                "-m",
+                f"Record ErrorWatcher task {identifier}",
+                "-m",
+                _COMMIT_TRAILER,
+                "--",
+                str(rel_path),
+            ],
+        )
+        if commit.returncode != 0:
+            logger.warning(
+                "ErrorWatcher task %s git commit failed: %s",
+                identifier,
+                _redact_git_output(commit.stderr or commit.stdout),
+            )
+            return False
+
+        push = _run_git(repo_root, ["push"])
+        if push.returncode != 0:
+            logger.warning(
+                "ErrorWatcher task %s git push failed after local commit: %s",
+                identifier,
+                _redact_git_output(push.stderr or push.stdout),
+            )
+            return False
+
+    logger.info("Committed and pushed ErrorWatcher task %s", identifier)
+    return True
 
 
 @dataclass
@@ -163,22 +315,31 @@ class ErrorWatcher:
                 priority=priority,
                 initial_status="deferred",
             )
-            self._seen[fp] = _ErrorRecord(
-                fingerprint=fp,
-                last_created=now,
-                bead_id=issue.identifier,
-                issue_id=issue_id,
-            )
-            logger.info(
-                "Created error bead %s for [%s] %s%s",
-                issue.identifier, source, message[:80],
-                f" (issue={issue_id})" if issue_id else "",
-            )
-            return issue.identifier
         except Exception as exc:
             # Don't let error tracking errors cascade
             logger.debug("Failed to create error bead: %s", exc)
             return None
+
+        self._seen[fp] = _ErrorRecord(
+            fingerprint=fp,
+            last_created=now,
+            bead_id=issue.identifier,
+            issue_id=issue_id,
+        )
+        logger.info(
+            "Created error bead %s for [%s] %s%s",
+            issue.identifier, source, message[:80],
+            f" (issue={issue_id})" if issue_id else "",
+        )
+        try:
+            _persist_error_task_to_git(self._tracker, issue.identifier)
+        except Exception as exc:  # noqa: BLE001 - persistence must not cascade
+            logger.warning(
+                "ErrorWatcher task %s git persistence failed: %s",
+                issue.identifier,
+                exc,
+            )
+        return issue.identifier
 
     def auto_close_for_issue(
         self,

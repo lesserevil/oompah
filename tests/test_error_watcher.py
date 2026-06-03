@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import subprocess
 import tempfile
 import time
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,6 +22,7 @@ from oompah.error_watcher import (
     _extract_message,
     _priority_for_level,
 )
+from oompah.tracker import BacklogMdTracker
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +160,141 @@ class TestErrorWatcher:
         call_kwargs = tracker.create_issue.call_args
         title = call_kwargs.kwargs.get("title", "")
         assert len(title) <= 200
+
+
+def _git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def _init_git_backlog_repo(
+    tmp_path: Path,
+    *,
+    with_remote: bool,
+) -> tuple[Path, Path | None]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    origin = tmp_path / "origin.git" if with_remote else None
+    if origin is not None:
+        _git(["init", "--bare", str(origin)])
+    _git(["init", "-b", "main"], cwd=repo)
+    _git(["config", "user.name", "Tester"], cwd=repo)
+    _git(["config", "user.email", "tester@example.com"], cwd=repo)
+
+    backlog_dir = repo / "backlog"
+    (backlog_dir / "tasks").mkdir(parents=True)
+    (backlog_dir / "config.yml").write_text(
+        "project_name: test\n"
+        "statuses: [Backlog, Open, In Progress, Done]\n"
+        "labels: []\n"
+        "task_prefix: task\n"
+        "default_status: Backlog\n",
+        encoding="utf-8",
+    )
+    _git(["add", "backlog/config.yml"], cwd=repo)
+    _git(["commit", "-m", "Initial backlog config"], cwd=repo)
+    if origin is not None:
+        _git(["remote", "add", "origin", str(origin)], cwd=repo)
+        _git(["push", "-u", "origin", "main"], cwd=repo)
+    return repo, origin
+
+
+def _write_error_task(repo: Path, identifier: str, title: str) -> Path:
+    task_number = identifier.split("-", 1)[-1].lower()
+    path = repo / "backlog" / "tasks" / f"task-{task_number} - ErrorWatcher-test.md"
+    path.write_text(
+        f"""---
+id: {identifier}
+title: {title}
+status: Backlog
+assignee: []
+created_date: '2026-06-03 04:35'
+labels:
+  - bug
+dependencies: []
+priority: medium
+ordinal: 1
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+{title}
+<!-- SECTION:DESCRIPTION:END -->
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+class TestErrorWatcherGitPersistence:
+    def test_report_error_commits_and_pushes_only_created_task(self, tmp_path):
+        repo, origin = _init_git_backlog_repo(tmp_path, with_remote=True)
+        assert origin is not None
+        tracker = BacklogMdTracker(
+            active_states=["Open"],
+            terminal_states=["Done"],
+            cwd=str(repo),
+        )
+        task_path: Path | None = None
+
+        def create_issue(**_kwargs):
+            nonlocal task_path
+            task_path = _write_error_task(repo, "TASK-900", "ErrorWatcher test")
+            return SimpleNamespace(identifier="TASK-900")
+
+        tracker.create_issue = create_issue
+        (repo / "notes.txt").write_text("unrelated local work\n", encoding="utf-8")
+        (repo / "staged.txt").write_text("pre-staged user work\n", encoding="utf-8")
+        _git(["add", "staged.txt"], cwd=repo)
+
+        result = ErrorWatcher(tracker).report_error("frontend", "boom")
+
+        assert result == "TASK-900"
+        assert task_path is not None
+        rel_path = task_path.relative_to(repo).as_posix()
+        remote_show = subprocess.run(
+            ["git", "--git-dir", str(origin), "show", f"main:{rel_path}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "TASK-900" in remote_show.stdout
+
+        status_lines = _git(["status", "--short"], cwd=repo).stdout.splitlines()
+        assert "?? notes.txt" in status_lines
+        assert "A  staged.txt" in status_lines
+        assert not any("TASK-900" in line or "task-900" in line for line in status_lines)
+
+        message = _git(["log", "-1", "--pretty=%B"], cwd=repo).stdout
+        assert "Record ErrorWatcher task TASK-900" in message
+        assert "Generated with https://github.com/lesserevil/oompah" in message
+        assert "Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in message
+
+    def test_report_error_returns_identifier_when_push_fails(self, tmp_path, caplog):
+        repo, _origin = _init_git_backlog_repo(tmp_path, with_remote=False)
+        tracker = BacklogMdTracker(
+            active_states=["Open"],
+            terminal_states=["Done"],
+            cwd=str(repo),
+        )
+
+        def create_issue(**_kwargs):
+            _write_error_task(repo, "TASK-901", "Push failure still returns")
+            return SimpleNamespace(identifier="TASK-901")
+
+        tracker.create_issue = create_issue
+        caplog.set_level(logging.WARNING)
+
+        result = ErrorWatcher(tracker).report_error("frontend", "push failed")
+
+        assert result == "TASK-901"
+        assert "git push failed after local commit" in caplog.text
 
 
 # ---------------------------------------------------------------------------

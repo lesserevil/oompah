@@ -308,6 +308,10 @@ class BacklogMdTracker:
             return []
         return _parse_backlog_comments(rec["body"])
 
+    def task_file_path(self, identifier: str) -> Path | None:
+        """Return the Backlog.md file path for a task identifier, if present."""
+        return self._task_path_for(identifier)
+
     def add_parent_child(self, child_id: str, parent_id: str) -> None:
         """Fallback for callers that could not set the Backlog.md parent at creation."""
         self.update_issue(child_id, parent=parent_id)
@@ -587,6 +591,11 @@ class BacklogMdTracker:
     @property
     def last_fingerprint(self) -> str | None:
         return self._last_fingerprint
+
+    @property
+    def root_path(self) -> Path:
+        """Repository root used for Backlog.md commands and file reads."""
+        return self._root
 
     def _read_all_tasks(self, *, include_completed: bool) -> list[Issue]:
         return [
