@@ -1,39 +1,17 @@
 ---
 id: TASK-431
 title: Auto-repair or quarantine managed checkout Backlog conflicts
-status: In Progress
+status: Done
 assignee: []
-created_date: 2026-06-03 06:16
-updated_date: 2026-06-03 07:15
+created_date: '2026-06-03 06:16'
+updated_date: '2026-06-03 07:32'
 labels:
-- bug
-- backlog
-- orchestrator
+  - bug
+  - backlog
+  - orchestrator
 dependencies: []
 priority: high
 ordinal: 67000
-oompah.task_costs:
-  total_input_tokens: 902528
-  total_output_tokens: 2185
-  total_cost_usd: 0.0
-  by_model:
-    unknown:
-      input_tokens: 902528
-      output_tokens: 2185
-      cost_usd: 0.0
-  runs:
-  - profile: default
-    model: unknown
-    input_tokens: 784668
-    output_tokens: 1391
-    cost_usd: 0.0
-    recorded_at: '2026-06-03T06:56:09.759640+00:00'
-  - profile: deep
-    model: unknown
-    input_tokens: 117860
-    output_tokens: 794
-    cost_usd: 0.0
-    recorded_at: '2026-06-03T07:14:01.620368+00:00'
 ---
 
 ## Description
@@ -54,6 +32,12 @@ If repair cannot be proven safe, quarantine or pause that project, surface a das
 - [ ] #4 Unrepairable conflicts pause or quarantine only the affected project and show a dashboard alert naming the project and conflicted files.
 - [ ] #5 Regression tests cover auto-repair, unrepairable quarantine/alert behavior, and prevention of task scheduling from an invalid managed checkout.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented auto-repair and quarantine for managed checkout Backlog conflicts. New oompah/backlog_conflict.py handles structured merge (status, labels, deps, costs, comments), sync_project_sources() quarantines unrepairable projects, orchestrator _refresh_backlog_conflict_alerts() surfaces dashboard alerts. 60 new tests, 450 total pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
@@ -189,5 +173,12 @@ author: oompah
 created: 2026-06-03 07:45
 
 IMPLEMENTATION: Created oompah/backlog_conflict.py with has_conflict_markers(), repair_backlog_task_file(), inspect_repo_backlog_conflicts(), and repair_repo_backlog_conflicts(). The structured merge preserves: most-advanced lifecycle status, union of labels/dependencies, newest updated_date, non-empty final_summary/parent, merged oompah.task_costs. Updated Project model with backlog_conflict_paths field. Updated sync_project_sources() to detect conflicts, attempt repair, quarantine (pause=True + store paths) if unrepairable. Added _refresh_backlog_conflict_alerts() to orchestrator that surfaces error-level dashboard alerts with project name and conflicted file paths. Called from startup_cleanup() and after each webhook sync. 60 new tests, updated 4 existing tests.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 17
+author: oompah
+created: 2026-06-03 07:55
+
+VERIFICATION: All 450 tests pass (60 new + 4 updated for the new 'conflicts' status key). Branch pushed to origin/TASK-431. Covered: conflict detection, structured repair, quarantine/clear, dashboard alerts, dispatch blocking. All acceptance criteria met.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
