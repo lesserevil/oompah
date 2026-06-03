@@ -137,6 +137,30 @@ def test_fetch_candidate_issues_parses_and_filters(tmp_path):
     assert issue.blocked_by[0].identifier == "TASK-9"
 
 
+def test_fetch_candidate_issues_falls_back_for_malformed_frontmatter_id(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(
+        backlog_dir,
+        "TASK-705",
+        "Fix e2e Windows CMake dependency",
+    )
+    meta, body = _read_markdown_frontmatter(task_path)
+    meta["id"] = "TASK-TASK-"
+    meta["title"] = ""
+    _write_markdown_frontmatter(task_path, meta, body)
+
+    tracker = _tracker(tmp_path)
+    issues = tracker.fetch_candidate_issues()
+    issue = tracker.fetch_issue_detail("TASK-705")
+
+    assert [candidate.identifier for candidate in issues] == ["TASK-705"]
+    assert issue is not None
+    assert issue.identifier == "TASK-705"
+    assert issue.title == "Fix e2e Windows CMake dependency"
+    assert issue.branch_name == "TASK-705"
+    assert tracker.fetch_issue_detail("TASK-TASK-") is None
+
+
 def test_fetch_candidate_issues_parses_numeric_p0_priority(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "P0 task", priority="0")

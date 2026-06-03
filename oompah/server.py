@@ -176,7 +176,7 @@ _ws_clients: set[WebSocket] = set()
 # then accessed by the WS handler and the GET /api/v1/console endpoints.
 _console_manager: Any = None
 
-_BACKLOG_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(.+)$", re.IGNORECASE)
+_BACKLOG_TASK_IDENTIFIER_RE = re.compile(r"^TASK-(\d+(?:\.\d+)*)$", re.IGNORECASE)
 
 
 def _project_names_by_id(orch) -> dict[str, str]:

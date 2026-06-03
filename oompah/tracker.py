@@ -712,8 +712,9 @@ class BacklogMdTracker:
         meta = rec["meta"]
         body = rec["body"]
         path = rec["path"]
-        identifier = str(meta.get("id") or _id_from_task_path(path, self._task_prefix()))
-        title = str(meta.get("title") or identifier)
+        task_prefix = self._task_prefix()
+        identifier = _identifier_from_task_record(meta, path, task_prefix)
+        title = _title_from_task_record(meta, path, task_prefix) or identifier
         state = canonicalize_status(str(meta.get("status") or self._default_status()))
         labels = _string_list(meta.get("labels"))
         priority = _backlog_priority_int(meta.get("priority"))
@@ -765,7 +766,8 @@ class BacklogMdTracker:
                 meta, _body = _read_markdown_frontmatter(path)
             except TrackerError:
                 continue
-            task_id = str(meta.get("id") or _id_from_task_path(path, self._task_prefix()))
+            task_prefix = self._task_prefix()
+            task_id = _identifier_from_task_record(meta, path, task_prefix)
             if self._normalize_lookup_id(task_id) == needle:
                 return path
         return None
@@ -1163,11 +1165,55 @@ def _parse_backlog_plain_identifier(output: str) -> str | None:
     return None
 
 
+def _identifier_from_task_record(meta: dict, path: Path, prefix: str) -> str:
+    raw_id = str(meta.get("id") or "").strip()
+    if _is_valid_task_identifier(raw_id, prefix):
+        return _canonical_task_identifier(raw_id, prefix)
+    return _id_from_task_path(path, prefix)
+
+
+def _title_from_task_record(meta: dict, path: Path, prefix: str) -> str:
+    raw_title = str(meta.get("title") or "").strip()
+    if raw_title:
+        return raw_title
+    return _title_from_task_path(path, prefix)
+
+
+def _is_valid_task_identifier(identifier: str, prefix: str) -> bool:
+    return re.match(
+        rf"^{re.escape(prefix)}-\d+(?:\.\d+)*$",
+        str(identifier).strip(),
+        re.I,
+    ) is not None
+
+
+def _canonical_task_identifier(identifier: str, prefix: str) -> str:
+    match = re.match(
+        rf"^{re.escape(prefix)}-(\d+(?:\.\d+)*)$",
+        str(identifier).strip(),
+        re.I,
+    )
+    if match:
+        return f"{prefix.upper()}-{match.group(1)}"
+    return str(identifier).strip()
+
+
 def _id_from_task_path(path: Path, prefix: str) -> str:
     match = re.match(rf"{re.escape(prefix)}-(\d+(?:\.\d+)*)\b", path.stem, re.I)
     if match:
         return f"{prefix.upper()}-{match.group(1)}"
     return path.stem
+
+
+def _title_from_task_path(path: Path, prefix: str) -> str:
+    match = re.match(
+        rf"{re.escape(prefix)}-\d+(?:\.\d+)*\s+-\s+(.+)$",
+        path.stem,
+        re.I,
+    )
+    if not match:
+        return ""
+    return match.group(1).replace("-", " ").strip()
 
 
 def _string_list(value) -> list[str]:

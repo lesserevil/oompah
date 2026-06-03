@@ -2585,7 +2585,7 @@ function displayIdentifierFor(identifier, projectId, projectName, displayIdentif
   if (displayIdentifier) return displayIdentifier;
   const raw = identifier || '';
   const name = projectName || projectNameForId(projectId);
-  const match = raw.match(/^TASK-(.+)$/i);
+  const match = raw.match(/^TASK-(\d+(?:\.\d+)*)$/i);
   return name && match ? `${name}-${match[1]}` : raw;
 }
 

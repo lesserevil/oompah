@@ -83,6 +83,10 @@ def test_display_identifier_formats_backlog_task_ids_with_project_name():
         "ProjectName-1234"
     )
     assert server_module._display_identifier("bug-1234", "ProjectName") == "bug-1234"
+    assert (
+        server_module._display_identifier("TASK-TASK-", "ProjectName")
+        == "TASK-TASK-"
+    )
     assert server_module._display_identifier("TASK-1234", None) == "TASK-1234"
 
 
@@ -146,6 +150,7 @@ def test_detail_endpoint_includes_display_identifier_for_parent_and_children(api
 
 def test_dashboard_uses_display_identifier_for_visible_task_labels(dashboard_script):
     assert "function issueDisplayIdentifier(issue)" in dashboard_script
+    assert r"raw.match(/^TASK-(\d+(?:\.\d+)*)$/i)" in dashboard_script
     assert '<span class="card-identifier">${esc(displayIdentifier)}</span>' in (
         dashboard_script
     )
