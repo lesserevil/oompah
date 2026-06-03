@@ -4,7 +4,7 @@ title: Preserve custom task frontmatter when updating Backlog tasks
 status: Done
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-02 03:31'
+updated_date: '2026-06-03 01:09'
 labels:
   - bug
 dependencies: []
@@ -39,5 +39,16 @@ Implementation guidance:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implementation already complete on this branch (from previous agent run). Added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py that snapshots unknown frontmatter before any backlog CLI mutation and reapplies it after. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) use the wrapper. 4 regression tests pass: test_update_issue_preserves_custom_frontmatter, test_close_issue_preserves_custom_frontmatter, test_add_label_preserves_custom_frontmatter, test_update_issue_known_fields_updated_once. This issue is related to (and was originally a duplicate of) TASK-397.
+Confirmed not a new duplicate — this IS the implementation task. Implementation was completed on this branch in a prior agent run: added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) now snapshot and reapply unknown frontmatter around each backlog CLI call. 4 regression tests added; 13/13 tests pass. Related to TASK-397 (same root bug, TASK-397 was closed as reference; implementation happened here).
 <!-- SECTION:FINAL_SUMMARY:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-03 01:05
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
