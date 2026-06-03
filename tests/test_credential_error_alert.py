@@ -12,18 +12,21 @@ Acceptance criteria verified here:
 - No retrying tasks → no cred_error alert
 - Alert message identifies the affected task identifier
 - Alert message does NOT contain API keys, tokens, or raw provider config
+- Alert includes safe project/profile/role/provider/model context when known
+- Alert can derive likely role candidates when exact provider/model is unknown
 - _is_credential_error covers common credential-error patterns
 """
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 from oompah.config import ServiceConfig
 from oompah.models import AgentProfile, ModelProvider, RetryEntry
-from oompah.orchestrator import Orchestrator, _is_credential_error
+from oompah.orchestrator import DispatchTarget, Orchestrator, _is_credential_error
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +41,9 @@ class TestIsCredentialError:
         assert _is_credential_error(
             "OpenAIError: Missing credentials. Please pass an `api_key`"
         )
+
+    def test_missing_credentials_machine_reason(self):
+        assert _is_credential_error("openai/gpt-4o: missing_credentials")
 
     def test_authentication_error_phrase(self):
         assert _is_credential_error("AuthenticationError: invalid API key")
@@ -138,6 +144,13 @@ def _add_retry(
     identifier: str = "TASK-389",
     attempt: int = 1,
     error: str | None = None,
+    project_id: str | None = None,
+    agent_profile_name: str | None = None,
+    model_role: str | None = None,
+    provider_id: str | None = None,
+    provider_name: str | None = None,
+    model_name: str | None = None,
+    candidate_key: str | None = None,
 ) -> None:
     """Insert a RetryEntry directly into the orchestrator state (no timer needed)."""
     import time
@@ -149,6 +162,30 @@ def _add_retry(
         due_at_ms=time.monotonic() * 1000 + 60_000,
         timer_handle=None,
         error=error,
+        project_id=project_id,
+        agent_profile_name=agent_profile_name,
+        model_role=model_role,
+        provider_id=provider_id,
+        provider_name=provider_name,
+        model_name=model_name,
+        candidate_key=candidate_key,
+    )
+
+
+def _cred_alerts(snapshot: dict) -> list[dict]:
+    return [
+        a for a in snapshot["alerts"]
+        if a.get("source", "").startswith("cred_error:")
+    ]
+
+
+def _provider(provider_id: str, name: str, model: str) -> ModelProvider:
+    return ModelProvider(
+        id=provider_id,
+        name=name,
+        base_url="https://example.invalid/v1",
+        models=[model],
+        default_model=model,
     )
 
 
@@ -296,6 +333,9 @@ class TestGetSnapshotCredentialAlerts:
             assert secret_api_key not in alert["message"], (
                 "alert message must not contain the raw API key value"
             )
+            assert secret_api_key not in str(alert.get("context", {})), (
+                "alert context must not contain the raw API key value"
+            )
 
     def test_existing_alerts_preserved_alongside_cred_alerts(self, tmp_path):
         """Credential alerts are additive — they must not replace existing alerts."""
@@ -326,3 +366,135 @@ class TestGetSnapshotCredentialAlerts:
         snapshot = orch.get_snapshot()
         assert snapshot["counts"]["retrying"] == 1
         assert snapshot["retrying"][0]["issue_identifier"] == "TASK-389"
+
+    def test_alert_message_includes_exact_provider_context(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.project_store.get.return_value = SimpleNamespace(
+            id="trickle",
+            name="Trickle",
+        )
+        _add_retry(
+            orch,
+            issue_id="issue-706-2",
+            identifier="TASK-706.2",
+            attempt=2,
+            error="OpenAIError: Missing credentials",
+            project_id="trickle",
+            agent_profile_name="standard",
+            model_role="deep",
+            provider_id="openai",
+            provider_name="OpenAI",
+            model_name="gpt-4o",
+            candidate_key="openai/gpt-4o",
+        )
+
+        alert = _cred_alerts(orch.get_snapshot())[0]
+
+        assert "TASK-706.2" in alert["message"]
+        assert "attempt #2" in alert["message"]
+        assert "project=Trickle (trickle)" in alert["message"]
+        assert "profile=standard" in alert["message"]
+        assert "role=deep" in alert["message"]
+        assert "provider=OpenAI (openai)" in alert["message"]
+        assert "model=gpt-4o" in alert["message"]
+        assert alert["context"] == {
+            "task": "TASK-706.2",
+            "attempt": 2,
+            "project_id": "trickle",
+            "project_name": "Trickle",
+            "agent_profile": "standard",
+            "model_role": "deep",
+            "provider_id": "openai",
+            "provider_name": "OpenAI",
+            "model": "gpt-4o",
+            "candidate_key": "openai/gpt-4o",
+        }
+
+    def test_alert_derives_role_candidates_when_exact_provider_unknown(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch.config.agent_profiles = [
+            AgentProfile(name="standard", command="cli", model_role="deep")
+        ]
+        openai = _provider("openai", "OpenAI", "gpt-4o")
+        claude = _provider("claude", "Claude", "claude-sonnet-4")
+        orch._resolve_dispatch_targets = MagicMock(
+            return_value=[
+                DispatchTarget(
+                    role_name="deep",
+                    provider=openai,
+                    model="gpt-4o",
+                    candidate_key="openai/gpt-4o",
+                    source="role:deep[0]",
+                ),
+                DispatchTarget(
+                    role_name="deep",
+                    provider=claude,
+                    model="claude-sonnet-4",
+                    candidate_key="claude/claude-sonnet-4",
+                    source="role:deep[1]",
+                ),
+            ]
+        )
+        _add_retry(
+            orch,
+            identifier="TASK-706.2",
+            attempt=2,
+            error=(
+                "All 2 dispatch candidates unavailable: "
+                "openai/gpt-4o: missing_credentials; "
+                "claude/claude-sonnet-4: missing_credentials"
+            ),
+            agent_profile_name="standard",
+        )
+
+        alert = _cred_alerts(orch.get_snapshot())[0]
+
+        assert "profile=standard" in alert["message"]
+        assert "role=deep" in alert["message"]
+        assert "candidates=OpenAI (openai)/gpt-4o" in alert["message"]
+        assert "Claude (claude)/claude-sonnet-4" in alert["message"]
+        assert alert["context"]["candidate_providers"] == [
+            {
+                "role": "deep",
+                "provider_id": "openai",
+                "provider_name": "OpenAI",
+                "model": "gpt-4o",
+                "candidate_key": "openai/gpt-4o",
+                "source": "role:deep[0]",
+            },
+            {
+                "role": "deep",
+                "provider_id": "claude",
+                "provider_name": "Claude",
+                "model": "claude-sonnet-4",
+                "candidate_key": "claude/claude-sonnet-4",
+                "source": "role:deep[1]",
+            },
+        ]
+
+    def test_snapshot_retrying_array_includes_safe_provider_context(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        _add_retry(
+            orch,
+            issue_id="issue-1",
+            identifier="TASK-389",
+            attempt=3,
+            error="Missing credentials",
+            project_id="oompah",
+            agent_profile_name="standard",
+            model_role="fast",
+            provider_id="openai",
+            provider_name="OpenAI",
+            model_name="gpt-4o-mini",
+            candidate_key="openai/gpt-4o-mini",
+        )
+
+        row = orch.get_snapshot()["retrying"][0]
+
+        assert row["project_id"] == "oompah"
+        assert row["agent_profile"] == "standard"
+        assert row["model_role"] == "fast"
+        assert row["provider_id"] == "openai"
+        assert row["provider"] == "OpenAI"
+        assert row["model"] == "gpt-4o-mini"
+        assert row["candidate_key"] == "openai/gpt-4o-mini"

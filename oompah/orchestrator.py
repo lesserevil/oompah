@@ -157,6 +157,7 @@ def _configured_in_progress_state(active_states: list[str]) -> str:
 # filesystem "access denied" responses that are not credential failures.
 _CREDENTIAL_ERROR_PHRASES: tuple[str, ...] = (
     "missing credentials",
+    "missing_credentials",
     "authenticationerror",
     "authentication_error",
     "invalid api key",
@@ -8119,8 +8120,12 @@ class Orchestrator:
                 running_entry = self.state.running[issue.id]
                 running_entry.workspace_path = workspace_path
                 running_entry.agent_log_path = agent_log_path
+                running_entry.provider_id = getattr(provider, "id", None)
                 running_entry.provider_name = provider.name
                 running_entry.model_name = model
+                running_entry.candidate_key = (
+                    target.candidate_key if target is not None else provider.id
+                )
                 # Role: focus override wins over profile role; falls back
                 # to None when nothing role-driven was used.
                 running_entry.model_role = (
@@ -8413,10 +8418,18 @@ class Orchestrator:
                 running_entry_acp = self.state.running[issue.id]
                 running_entry_acp.workspace_path = workspace_path
                 running_entry_acp.agent_log_path = agent_log_path
+                running_entry_acp.provider_id = (
+                    provider.id if provider is not None else "acp"
+                )
                 running_entry_acp.provider_name = (
                     provider.name if provider is not None else "acp"
                 )
                 running_entry_acp.model_name = model
+                running_entry_acp.candidate_key = (
+                    target.candidate_key
+                    if target is not None
+                    else (provider.id if provider is not None else "acp")
+                )
                 running_entry_acp.model_role = (
                     getattr(focus, "model_role", None) or profile.model_role
                 )
@@ -8818,10 +8831,12 @@ class Orchestrator:
                 if cli_running:
                     cli_running.focus_name = cli_focus.name
                     cli_running.focus_role = cli_focus.role
+                    cli_running.provider_id = "cli"
                     cli_running.provider_name = "cli"
                     cli_running.model_name = (
                         profile.model if profile and profile.model else None
                     ) or "cli-managed"
+                    cli_running.candidate_key = "cli"
                     cli_running.model_role = getattr(cli_focus, "model_role", None) or (
                         profile.model_role if profile else None
                     )
@@ -9630,6 +9645,7 @@ class Orchestrator:
                                     error="completed_without_closing",
                                     escalated_profile=escalated_name,
                                     project_id=project_id,
+                                    context_entry=entry,
                                 )
                                 logger.info(
                                     "Escalating %s from %s to %s after completing without closing (%d/%d)",
@@ -9751,6 +9767,7 @@ class Orchestrator:
                                         if escalated
                                         else None,
                                         project_id=project_id,
+                                        context_entry=entry,
                                     )
                                     logger.info(
                                         "Completion verifier rejected close for %s — "
@@ -9824,6 +9841,7 @@ class Orchestrator:
                 delay_ms=delay,
                 error=error,
                 project_id=project_id,
+                context_entry=entry,
             )
             logger.warning(
                 "Rate limited by %s — pausing dispatch for %ds. issue_id=%s retrying_in_ms=%d",
@@ -9907,6 +9925,7 @@ class Orchestrator:
                     error=error or reason,
                     escalated_profile=escalated_name or None,
                     project_id=project_id,
+                    context_entry=entry,
                 )
                 logger.info(
                     "Worker %s issue_id=%s issue_identifier=%s retrying_in_ms=%d",
@@ -9952,6 +9971,7 @@ class Orchestrator:
                 delay_ms=delay,
                 error=error,
                 project_id=project_id,
+                context_entry=entry,
             )
             logger.warning(
                 "Worker failed issue_id=%s issue_identifier=%s error=%s retrying_in_ms=%d",
@@ -9993,6 +10013,175 @@ class Orchestrator:
             return False
         return True
 
+    @staticmethod
+    def _safe_context_value(value: Any) -> str | None:
+        """Return a display-safe string for alert context values."""
+        if value is None or not isinstance(value, str):
+            return None
+        value = value.strip()
+        return value or None
+
+    @staticmethod
+    def _display_provider(
+        provider_name: str | None,
+        provider_id: str | None,
+    ) -> str | None:
+        """Format a provider name/id pair without exposing provider secrets."""
+        provider_name = Orchestrator._safe_context_value(provider_name)
+        provider_id = Orchestrator._safe_context_value(provider_id)
+        if provider_name and provider_id and provider_name != provider_id:
+            return f"{provider_name} ({provider_id})"
+        return provider_name or provider_id
+
+    @classmethod
+    def _display_candidate(cls, candidate: dict[str, Any]) -> str:
+        """Format one provider/model candidate for operator-facing alerts."""
+        provider = cls._display_provider(
+            candidate.get("provider_name"),
+            candidate.get("provider_id"),
+        )
+        model = cls._safe_context_value(candidate.get("model"))
+        if provider and model:
+            return f"{provider}/{model}"
+        if provider:
+            return provider
+        return cls._safe_context_value(candidate.get("candidate_key")) or "unknown"
+
+    def _credential_alert_context(self, retry: RetryEntry) -> dict[str, Any]:
+        """Build safe provider-selection context for a credential retry alert."""
+        context: dict[str, Any] = {
+            "task": retry.identifier,
+            "attempt": retry.attempt,
+        }
+
+        project_id = self._safe_context_value(retry.project_id)
+        if project_id:
+            context["project_id"] = project_id
+            try:
+                project = self.project_store.get(project_id)
+            except Exception:
+                project = None
+            project_name = self._safe_context_value(getattr(project, "name", None))
+            if project_name:
+                context["project_name"] = project_name
+
+        agent_profile = self._safe_context_value(retry.agent_profile_name)
+        if agent_profile:
+            context["agent_profile"] = agent_profile
+        next_profile = self._safe_context_value(retry.escalated_profile)
+        if next_profile and next_profile != agent_profile:
+            context["next_profile"] = next_profile
+
+        profile = None
+        for profile_name in (agent_profile, next_profile):
+            if not profile_name:
+                continue
+            profile = self._get_profile_by_name(profile_name)
+            if profile is not None:
+                break
+
+        model_role = self._safe_context_value(retry.model_role)
+        if not model_role and profile is not None:
+            model_role = self._safe_context_value(profile.model_role)
+        if model_role:
+            context["model_role"] = model_role
+
+        provider_id = self._safe_context_value(retry.provider_id)
+        provider_name = self._safe_context_value(retry.provider_name)
+        model_name = self._safe_context_value(retry.model_name)
+        candidate_key = self._safe_context_value(retry.candidate_key)
+        if provider_id:
+            context["provider_id"] = provider_id
+        if provider_name:
+            context["provider_name"] = provider_name
+        if model_name:
+            context["model"] = model_name
+        if candidate_key:
+            context["candidate_key"] = candidate_key
+
+        candidates: list[dict[str, Any]] = []
+        if profile is not None:
+            try:
+                targets = self._resolve_dispatch_targets(profile)
+            except Exception:
+                targets = []
+            for target in targets:
+                provider = getattr(target, "provider", None)
+                candidates.append(
+                    {
+                        "role": self._safe_context_value(target.role_name),
+                        "provider_id": self._safe_context_value(
+                            getattr(provider, "id", None)
+                        ),
+                        "provider_name": self._safe_context_value(
+                            getattr(provider, "name", None)
+                        ),
+                        "model": self._safe_context_value(target.model),
+                        "candidate_key": self._safe_context_value(target.candidate_key),
+                        "source": self._safe_context_value(target.source),
+                    }
+                )
+        if candidates:
+            context["candidate_providers"] = candidates
+            if "model_role" not in context:
+                role = self._safe_context_value(candidates[0].get("role"))
+                if role:
+                    context["model_role"] = role
+
+        return context
+
+    def _format_credential_alert_message(
+        self,
+        retry: RetryEntry,
+        context: dict[str, Any],
+    ) -> str:
+        """Render a credential retry alert with actionable non-secret context."""
+        details: list[str] = []
+        project_name = self._safe_context_value(context.get("project_name"))
+        project_id = self._safe_context_value(context.get("project_id"))
+        if project_name and project_id and project_name != project_id:
+            details.append(f"project={project_name} ({project_id})")
+        elif project_name or project_id:
+            details.append(f"project={project_name or project_id}")
+
+        agent_profile = self._safe_context_value(context.get("agent_profile"))
+        if agent_profile:
+            details.append(f"profile={agent_profile}")
+        model_role = self._safe_context_value(context.get("model_role"))
+        if model_role:
+            details.append(f"role={model_role}")
+
+        provider = self._display_provider(
+            context.get("provider_name"),
+            context.get("provider_id"),
+        )
+        model = self._safe_context_value(context.get("model"))
+        candidate_key = self._safe_context_value(context.get("candidate_key"))
+        if provider:
+            details.append(f"provider={provider}")
+        if model:
+            details.append(f"model={model}")
+        if not provider and candidate_key:
+            details.append(f"candidate={candidate_key}")
+
+        candidates = context.get("candidate_providers") or []
+        if not provider and candidates:
+            rendered = [self._display_candidate(c) for c in candidates[:5]]
+            if len(candidates) > 5:
+                rendered.append(f"+{len(candidates) - 5} more")
+            details.append(f"candidates={', '.join(rendered)}")
+
+        message = (
+            f"Missing provider credentials for {retry.identifier} "
+            f"(attempt #{retry.attempt})"
+        )
+        if details:
+            message += f" [{'; '.join(details)}]"
+        return (
+            message
+            + " — configure the named provider API key/token in the Providers page"
+        )
+
     def _credential_error_alerts(self) -> list[dict[str, Any]]:
         """Return transient alerts for retrying tasks whose last error was credential-related.
 
@@ -10006,14 +10195,13 @@ class Orchestrator:
             if not _is_credential_error(retry.error):
                 continue
             source = f"cred_error:{retry.identifier}"
+            context = self._credential_alert_context(retry)
             alerts.append(
                 {
                     "level": "error",
                     "source": source,
-                    "message": (
-                        f"Missing provider credentials for {retry.identifier} "
-                        f"(attempt #{retry.attempt}) — check your provider API key configuration"
-                    ),
+                    "message": self._format_credential_alert_message(retry, context),
+                    "context": context,
                 }
             )
         return alerts
@@ -10215,6 +10403,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 delay_ms=delay,
                 error=str(exc),
                 project_id=project_id,
+                context_entry=entry,
             )
 
     async def _execute_decomposition(
@@ -10290,12 +10479,45 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         error: str | None,
         escalated_profile: str | None = None,
         project_id: str | None = None,
+        context_entry: RunningEntry | None = None,
+        context_retry: RetryEntry | None = None,
     ) -> None:
         """Schedule a retry timer for an issue."""
         # Cancel existing retry
         existing = self.state.retry_attempts.pop(issue_id, None)
         if existing and existing.timer_handle and not existing.timer_handle.cancelled():
             existing.timer_handle.cancel()
+        context_retry = context_retry or existing
+
+        agent_profile_name = (
+            getattr(context_entry, "agent_profile_name", None)
+            or getattr(context_retry, "agent_profile_name", None)
+            or escalated_profile
+        )
+        model_role = (
+            getattr(context_entry, "model_role", None)
+            or getattr(context_retry, "model_role", None)
+        )
+        if not model_role and agent_profile_name:
+            profile = self._get_profile_by_name(agent_profile_name)
+            if profile is not None:
+                model_role = profile.model_role
+        provider_id = (
+            getattr(context_entry, "provider_id", None)
+            or getattr(context_retry, "provider_id", None)
+        )
+        provider_name = (
+            getattr(context_entry, "provider_name", None)
+            or getattr(context_retry, "provider_name", None)
+        )
+        model_name = (
+            getattr(context_entry, "model_name", None)
+            or getattr(context_retry, "model_name", None)
+        )
+        candidate_key = (
+            getattr(context_entry, "candidate_key", None)
+            or getattr(context_retry, "candidate_key", None)
+        )
 
         due_at_ms = time.monotonic() * 1000 + delay_ms
 
@@ -10314,6 +10536,12 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             error=error,
             escalated_profile=escalated_profile,
             project_id=project_id,
+            agent_profile_name=agent_profile_name,
+            model_role=model_role,
+            provider_id=provider_id,
+            provider_name=provider_name,
+            model_name=model_name,
+            candidate_key=candidate_key,
         )
         # Emit retry scheduled event on EventBus
         self.event_bus.emit(
@@ -10361,6 +10589,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "retry poll failed",
                 escalated_profile=retry.escalated_profile,
                 project_id=retry.project_id,
+                context_retry=retry,
             )
             return
 
@@ -10393,6 +10622,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "no available orchestrator slots",
                 escalated_profile=retry.escalated_profile,
                 project_id=issue.project_id or retry.project_id,
+                context_retry=retry,
             )
             return
 
@@ -10456,6 +10686,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         self._backoff_delay(next_attempt),
                         "stall timeout",
                         project_id=entry.issue.project_id if entry.issue else None,
+                        context_entry=entry,
                     )
 
         # Part B: Tracker state refresh
@@ -10534,6 +10765,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             project_id=running_entry.issue.project_id
                             if running_entry.issue
                             else None,
+                            context_entry=running_entry,
                         )
 
     _ARCHIVE_DAYS = 7
@@ -10707,6 +10939,13 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     "attempt": retry.attempt,
                     "due_at": due_dt.isoformat(),
                     "error": retry.error,
+                    "project_id": retry.project_id,
+                    "agent_profile": retry.agent_profile_name,
+                    "model_role": retry.model_role,
+                    "provider_id": retry.provider_id,
+                    "provider": retry.provider_name,
+                    "model": retry.model_name,
+                    "candidate_key": retry.candidate_key,
                 }
             )
 

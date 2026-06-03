@@ -192,6 +192,12 @@ class RetryEntry:
     error: str | None = None
     escalated_profile: str | None = None
     project_id: str | None = None
+    agent_profile_name: str | None = None
+    model_role: str | None = None
+    provider_id: str | None = None
+    provider_name: str | None = None
+    model_name: str | None = None
+    candidate_key: str | None = None
 
 
 @dataclass
@@ -943,6 +949,11 @@ class RunningEntry:
     # the telemetry comment). May be "unknown" for ACP runs using
     # the subscription default.
     model_name: str | None = None
+    # Provider id / candidate key selected for this dispatch. These
+    # are safe, non-secret identifiers used in telemetry and dashboard
+    # warnings when provider startup fails.
+    provider_id: str | None = None
+    candidate_key: str | None = None
     # Absolute path to the workspace/worktree used for this dispatch.
     # Backlog.md task edits made by agents live here until the branch is
     # merged, so worker-exit closure checks must be able to read it.
