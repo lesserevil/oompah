@@ -1,10 +1,10 @@
 ---
 id: TASK-428
 title: '[frontend] Uncaught ReferenceError: toggleHideMerged is not defined'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-03 04:23'
-updated_date: '2026-06-03 05:44'
+updated_date: '2026-06-03 05:50'
 labels:
   - bug
 dependencies: []
@@ -49,6 +49,13 @@ created: 2026-06-03 05:55
 
 Implementation: Added _html_response(name) helper in server.py that wraps _load_template() with Cache-Control: no-cache, no-store, must-revalidate + Pragma: no-cache + Expires: 0 headers. Updated all 5 HTML page routes (/, /providers, /projects-manage, /foci, /reviews) to use this helper. Added tests/test_dashboard_no_cache.py with 17 tests covering: helper unit tests, per-route cache header assertions for all HTML pages, and regression tests that toggleHideMerged is defined in the served HTML. All 57 related tests pass.
 <!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 06:00
+
+Verification: All 17 new tests pass. All 168 server tests pass. All 39 hide_merged tests pass. Committed c583cbf and pushed to TASK-428 branch. Completion: Not a duplicate. Fixed missing Cache-Control headers on HTML page routes so browsers never cache stale dashboard HTML. The toggleHideMerged ReferenceError cannot recur from browser-cached stale pages.
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Implementation Notes
@@ -56,3 +63,9 @@ Implementation: Added _html_response(name) helper in server.py that wraps _load_
 <!-- SECTION:NOTES:BEGIN -->
 No duplicate found. Root cause: HTML page routes returned no Cache-Control headers, allowing browsers to serve stale cached copies that predated the toggleHideMerged function (added May 7). Fixed by adding Cache-Control: no-cache, no-store, must-revalidate + Pragma: no-cache + Expires: 0 headers to all HTML page routes via a new _html_response() helper in server.py. Added 17 regression tests in tests/test_dashboard_no_cache.py.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Not a duplicate. Root cause: HTML page routes (/, /providers, /projects-manage, /foci, /reviews) had no Cache-Control headers, so browsers could serve stale cached copies of dashboard.html from before toggleHideMerged was added (May 7). Fixed by adding Cache-Control: no-cache, no-store, must-revalidate headers via a new _html_response() helper in server.py. Added 17 regression tests in tests/test_dashboard_no_cache.py verifying cache headers on all HTML routes and that toggleHideMerged is present in the served dashboard. All 168 server tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
