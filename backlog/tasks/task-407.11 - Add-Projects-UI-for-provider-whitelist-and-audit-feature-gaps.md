@@ -1,16 +1,16 @@
 ---
 id: TASK-407.11
 title: Add Projects UI for provider whitelist and audit feature gaps
-status: In Progress
+status: Done
 assignee: []
-created_date: 2026-06-03 04:53
-updated_date: 2026-06-03 04:54
+created_date: '2026-06-03 04:53'
+updated_date: '2026-06-03 05:04'
 labels:
-- bug
-- frontend
-- provider
+  - bug
+  - frontend
+  - provider
 dependencies:
-- TASK-407.10
+  - TASK-407.10
 parent_task_id: TASK-407
 priority: high
 ordinal: 65000
@@ -49,6 +49,12 @@ Implementation guidance for a junior developer:
 - [ ] #5 The implementation audits the rest of the feature and either fixes or files follow-up tasks for any remaining provider-whitelist misses.
 - [ ] #6 Tests cover display, edit controls, save payload, empty whitelist clearing, and unknown-name preservation.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added provider whitelist UI to the Projects page in oompah/templates/projects.html. Added loadProviders() with graceful error handling, renderProviderWhitelistCheckboxes() preserving unknown stored names, a Whitelist field-row on each project card (showing All providers when empty), a checkbox multi-select group in the edit form, and provider_whitelist in the saveProject() PATCH body (empty selection sends []). Page-load sequence updated to loadProviders().then(() => loadProjects()). Added HTML comment documenting edit-after-create rationale for Add Project form. Added 32 UI/JS tests in tests/test_projects_whitelist_ui.py covering all acceptance criteria. All tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
