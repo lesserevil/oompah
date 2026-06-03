@@ -130,4 +130,11 @@ created: 2026-06-03 03:02
 
 COMPLETION: Implementation was already committed by a prior agent session. Duplicate investigation confirmed this is not a duplicate. All acceptance criteria are met: (1) priority/round-robin failover works, (2) provider resolved once and passed explicitly to workers, (3) non-provider failures don't trigger candidate switch, (4) running status reflects actual provider/model selected, (5) focus/profile overrides preserved. Tests pass. Closing task.
 <!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
+author: oompah
+created: 2026-06-03 03:10
+
+MERGE CONFLICT RESOLVED: Rebased TASK-407.5 onto origin/main. The implementation commit (46bf2ab) was already present in main as PR #202 — git cherry-pick detection skipped it cleanly. Only the Close task commit (backlog file update) remained. No code conflicts existed. Ran tests (130 orchestrator tests + 212 role/selector tests = 342 total pass). Force-pushed rebased branch. Task status confirmed Done.
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
