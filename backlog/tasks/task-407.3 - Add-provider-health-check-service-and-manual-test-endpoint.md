@@ -1,10 +1,10 @@
 ---
 id: TASK-407.3
 title: Add provider health check service and manual test endpoint
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-02 03:17'
+updated_date: '2026-06-03 02:17'
 labels:
   - feature
 dependencies: []
@@ -65,8 +65,91 @@ Understanding [oompah]: Adding POST /api/v1/providers/{provider_id}/test endpoin
 Discovery [oompah]: Key finding: _http_post() in api_agent.py already had RateLimitError/TransientServerError but was too coupled to full agent sessions to reuse directly. Created standalone provider_health.py using urllib.request directly (same as api_agent.py uses) with a 10s timeout. The function test_provider() was renamed run_health_check() to avoid pytest collection collision (pytest collects functions starting with test_). Implementation: oompah/provider_health.py (new) - ProviderTestResult dataclass, ERROR_REASONS constant, _normalize_http_error/_normalize_url_error helpers, _pick_model, run_health_check(). oompah/server.py - added POST /api/v1/providers/{provider_id}/test endpoint. tests/test_provider_health.py (new) - 46 tests covering AC1-AC6.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merge conflict resolved. Feature code was already in main; rebased 3 backlog-status commits onto origin/main, resolved conflict by dropping duplicate patch. Force-pushed cleanly. All 46 provider health tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Backend tests cover successful and failed provider tests without making real network calls.
 - [ ] #2 The provider test helper can be reused by role failover work.
 <!-- DOD:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-03 02:04
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-03 02:04
+
+Focus: Feature Developer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-03 02:04
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 10s (attempt #1)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 02:04
+
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 9s
+- Log: TASK-407.3__20260603T020419Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 02:04
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 02:04
+
+Focus: Feature Developer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-03 02:04
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 20s (attempt #2)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
+author: oompah
+created: 2026-06-03 02:04
+
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 7s
+- Log: TASK-407.3__20260603T020449Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-03 02:05
+
+Retrying (attempt #2, agent: standard)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
