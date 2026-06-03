@@ -4,7 +4,7 @@ title: Preserve custom task frontmatter when updating Backlog tasks
 status: Done
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-03 01:30'
+updated_date: '2026-06-03 01:29'
 labels:
   - bug
 dependencies: []
@@ -39,9 +39,7 @@ Implementation guidance:
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Resolved merge conflict by rebasing TASK-408 branch onto main. The branch's e2286a6 commit (_run_backlog_for_task approach) conflicted with main's equivalent implementation (_run_backlog_task_edit + task locks). Resolution: kept main's more complete implementation (thread-safe task locks, direct markdown comment writing, more field handling in update_issue, mark_needs_human method). All 25 test_backlog_tracker tests pass after rebase. Force-pushed TASK-408 branch with clean history.
-
-Core implementation: _BACKLOG_CLI_OWNED_FRONTMATTER constant + _run_backlog_task_edit() wrapper in oompah/tracker.py. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) snapshot and reapply unknown frontmatter around each backlog CLI call. 4 regression tests added; 25/25 tests pass.
+Resolved merge conflict by rebasing TASK-408 onto main. Conflict was between branch's _run_backlog_for_task() and main's equivalent _run_backlog_task_edit() with task locks. Kept main's more complete implementation (thread-safe task locks, direct markdown comment writing, more field handling). 25/25 tests pass. Force-pushed and re-pushed with clean history.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Comments
