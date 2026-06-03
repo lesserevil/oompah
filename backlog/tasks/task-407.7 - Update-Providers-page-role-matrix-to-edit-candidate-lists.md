@@ -1,10 +1,10 @@
 ---
 id: TASK-407.7
 title: Update Providers page role matrix to edit candidate lists
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-02 16:21'
+updated_date: '2026-06-03 02:33'
 labels:
   - feature
 dependencies:
@@ -68,6 +68,12 @@ Required behavior:
 Discovery: Found key sections in providers.html. Current role matrix is a simple 6-column table. API (TASK-407.2) already returns strategy+candidates. Implementing: CSS for new layout, updated state structure, new rendering with role-header-rows and candidate-rows, helper functions, updated save format, updated tests.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Rebase complete. The feature commit (providers.html role matrix with multi-candidate support) was already cherry-picked into main via PR #201. Git auto-detected this during rebase and skipped the duplicate commit. The only branch-specific commit remaining is the backlog status update. Force-pushed after clean rebase. All 89 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Frontend tests or server template tests cover the new save/load shape.
@@ -96,5 +102,78 @@ author: oompah
 created: 2026-06-02 16:14
 
 Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 02:22
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 02:22
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 02:22
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 10s (attempt #1)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-03 02:22
+
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 9s
+- Log: TASK-407.7__20260603T022219Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
+author: oompah
+created: 2026-06-03 02:22
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-03 02:22
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 10
+author: oompah
+created: 2026-06-03 02:22
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 20s (attempt #2)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 11
+author: oompah
+created: 2026-06-03 02:23
+
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 9s
+- Log: TASK-407.7__20260603T022257Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 12
+author: oompah
+created: 2026-06-03 02:23
+
+Retrying (attempt #2, agent: standard)
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
