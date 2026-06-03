@@ -1,13 +1,14 @@
 ---
 id: TASK-427
-title: '[backend:server] Update issue API error: backlog command failed (exit 1):
-  Task TASK-167 not found.'
-status: In Progress
+title: >-
+  [backend:server] Update issue API error: backlog command failed (exit 1): Task
+  TASK-167 not found.
+status: Done
 assignee: []
-created_date: 2026-06-03 00:33
-updated_date: 2026-06-03 05:27
+created_date: '2026-06-03 00:33'
+updated_date: '2026-06-03 05:27'
 labels:
-- bug
+  - bug
 dependencies: []
 priority: medium
 ordinal: 61000
@@ -49,4 +50,17 @@ created: 2026-06-03 05:27
 
 Verification: All 33 tests in tests/test_backlog_tracker.py pass, including 7 new regression tests. Also verified with 175 passing tests across test_backlog_tracker, test_backlog_compat, test_error_watcher, test_backlog_webhooks, and test_dispatch_close_race. Fix confirmed: update_issue now silently falls back to direct file editing when Backlog CLI cannot find a task in completed/.
 <!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 05:27
+
+Completion: Not a duplicate. Fixed update_issue() to handle tasks in completed/: when Backlog CLI returns "not found" (exit 1), we now check if the task file exists on disk and fall back to direct frontmatter/body editing via new _update_issue_fields_direct() method. This prevents the "Update issue API error: backlog command failed (exit 1): Task TASK-167 not found." error from propagating. 7 regression tests added. 175 tests pass.
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed: update_issue() now falls back to direct frontmatter editing when Backlog CLI cannot find a task (e.g. task is in completed/). Added _update_issue_fields_direct() and _is_task_not_found_error() to tracker.py. 7 regression tests added. Not a duplicate of TASK-405 or TASK-417.
+<!-- SECTION:FINAL_SUMMARY:END -->
