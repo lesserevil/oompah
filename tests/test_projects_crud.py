@@ -447,6 +447,7 @@ class TestProjectStoreUpdatableFields:
             "test_skip_paths",
             "epic_strategy",
             "provider_whitelist",
+            "backlog_conflict_paths",
         }
         assert ProjectStore.UPDATABLE_FIELDS == expected
 

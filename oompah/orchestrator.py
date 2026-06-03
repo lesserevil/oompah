@@ -1063,6 +1063,10 @@ class Orchestrator:
         """Remove workspaces/worktrees for issues in terminal states."""
         projects = self.project_store.list_all()
         if projects:
+            # Surface dashboard alerts for any projects quarantined due to
+            # unresolvable Backlog.md conflict markers.
+            self._refresh_backlog_conflict_alerts()
+
             for project in projects:
                 try:
                     tracker = self._tracker_for_project(project.id)
@@ -2387,6 +2391,78 @@ class Orchestrator:
                 "Cleared stuck_epic alert for %s",
                 epic_identifier,
             )
+
+    # ------------------------------------------------------------------
+    # Backlog conflict quarantine alerts (TASK-431)
+    # ------------------------------------------------------------------
+
+    def _refresh_backlog_conflict_alerts(self) -> None:
+        """Arm or clear dashboard alerts for projects quarantined due to
+        unresolved Backlog.md git conflict markers.
+
+        Called from :meth:`startup_cleanup` so the dashboard shows a
+        warning whenever oompah boots with a quarantined project.  Also
+        called from :meth:`sync_project_sources` after each project sync
+        so the alert clears when the operator resolves the conflicts.
+        """
+        projects = self.project_store.list_all()
+        # Build the set of source keys for currently-quarantined projects
+        active_sources: set[str] = set()
+        for project in projects:
+            source = f"backlog_conflict:{project.id}"
+            paths = getattr(project, "backlog_conflict_paths", None) or []
+            if paths:
+                active_sources.add(source)
+                # Drop any existing alert for this project before re-arming
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != source
+                ]
+                basenames = [
+                    p.split("/")[-1] for p in paths
+                ]
+                files_hint = ", ".join(basenames[:5])
+                if len(basenames) > 5:
+                    files_hint += f" (+{len(basenames) - 5} more)"
+                self._alerts.append(
+                    {
+                        "source": source,
+                        "level": "error",
+                        "title": (
+                            f"Project {project.name!r} is quarantined: "
+                            f"unresolved Backlog.md conflicts"
+                        ),
+                        "detail": (
+                            f"oompah detected unresolvable git conflict markers "
+                            f"in {len(paths)} Backlog task file(s) for project "
+                            f"{project.name!r}. Dispatch is suspended for this "
+                            f"project until the conflicts are resolved.\n\n"
+                            f"Conflicted files: {files_hint}\n\n"
+                            f"To resolve: manually edit each file, remove the "
+                            f"conflict markers, then trigger a project sync or "
+                            f"restart oompah."
+                        ),
+                        "project_id": project.id,
+                        "project_name": project.name,
+                        "conflict_paths": list(paths),
+                    }
+                )
+                logger.warning(
+                    "Dashboard alert armed: project %r quarantined for "
+                    "Backlog conflict in: %s",
+                    project.name,
+                    files_hint,
+                )
+            else:
+                # Project has no conflicts — clear any stale alert
+                before = len(self._alerts)
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != source
+                ]
+                if len(self._alerts) != before:
+                    logger.info(
+                        "Cleared backlog_conflict alert for project %r",
+                        project.name,
+                    )
 
     # ------------------------------------------------------------------
     # Epic branch staleness detection (oompah-zlz_2-82dr.1)

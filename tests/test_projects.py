@@ -183,7 +183,9 @@ class TestSyncProjectSources:
         with patch("oompah.projects.subprocess.run", side_effect=fake_run):
             status = store.sync_project_sources("proj-sync1")
 
-        assert status == {"git": "ok", "backlog": "ok"}
+        assert status["git"] == "ok"
+        assert status["backlog"] == "ok"
+        assert status["conflicts"] == "none"
         assert ["git", "fetch", "origin"] in calls
         assert any(args[:2] == ["git", "pull"] for args in calls)
         assert all(args[0] != "bd" for args in calls)
@@ -213,7 +215,9 @@ class TestSyncProjectSources:
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             status = store.sync_project_sources("proj-sync1")
 
-        assert status == {"git": "ok", "backlog": "migrated"}
+        assert status["git"] == "ok"
+        assert status["backlog"] == "migrated"
+        assert status["conflicts"] == "none"
         config = (repo / "backlog" / "config.yml").read_text(encoding="utf-8")
         assert "default_status: Backlog" in config
         assert "Open" in config
@@ -276,7 +280,10 @@ class TestSyncAllSources:
             results = store.sync_all_sources()
 
         assert set(results) == {"p-0", "p-1", "p-2"}
-        assert all(st == {"git": "ok", "backlog": "ok"} for st in results.values())
+        assert all(
+            st.get("git") == "ok" and st.get("backlog") == "ok" and st.get("conflicts") == "none"
+            for st in results.values()
+        )
 
 
 _LOCK_STDERR = (
