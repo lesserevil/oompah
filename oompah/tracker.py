@@ -43,6 +43,42 @@ _BACKLOG_CLI_OWNED_FRONTMATTER = frozenset({
     "ordinal",
 })
 
+# Front-matter fields that the Backlog CLI owns and rewrites on every edit.
+# Any key NOT in this set is considered custom/user-defined and must be
+# preserved across CLI mutations (TASK-397 / TASK-408).
+_KNOWN_BACKLOG_FIELDS: frozenset[str] = frozenset({
+    "id",
+    "title",
+    "status",
+    "assignee",
+    "assignees",
+    "created_date",
+    "updated_date",
+    "labels",
+    "dependencies",
+    "priority",
+    "ordinal",
+    "parent",
+    "parent_task_id",
+    "milestone",
+    "plan",
+    "notes",
+    "final_summary",
+    "finalSummary",
+    "acceptance_criteria",
+    "acceptanceCriteria",
+    "definition_of_done",
+    "definitionOfDone",
+    "refs",
+    "references",
+    "modified_files",
+    "modifiedFiles",
+    "doc",
+    # oompah-owned fields written via _write_markdown_frontmatter (not CLI)
+    "oompah.attachments",
+    "oompah_attachments",
+})
+
 
 def _sanitize_identifier(identifier: str) -> str:
     """Replace any character not in [A-Za-z0-9._-] with underscore.
@@ -830,6 +866,7 @@ class BacklogMdTracker:
                 restored = True
         if restored:
             _write_markdown_frontmatter(path, meta, body)
+
 
     def _run_backlog(
         self, args: list[str], *, timeout: float | None = None,
