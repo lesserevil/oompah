@@ -77,6 +77,10 @@
     .btn-pause:hover { background: rgba(210, 153, 34, 0.1); }
     .btn-resume { color: var(--green); border-color: rgba(63, 185, 80, 0.4); }
     .btn-resume:hover { background: rgba(63, 185, 80, 0.1); }
+    /* Override the full-width input rule above for checkboxes; they must be auto-sized. */
+    .form-group input[type="checkbox"] { width: auto; padding: 0; border: none; background: transparent; }
+    .provider-whitelist-options { margin-top: 0.25rem; }
+    .provider-whitelist-options label { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.2rem; font-size: 0.8rem; color: var(--text); cursor: pointer; margin-bottom: 0; }
   </style>
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -122,6 +126,13 @@
     <h2>Projects <button class="btn-primary" onclick="toggleAddForm()">+ Add Project</button></h2>
 
     <div class="form-card" id="add-form">
+      <!-- Note: provider_whitelist is intentionally omitted from the Add Project
+           form. New projects dispatch to all providers by default (empty whitelist).
+           Operators can restrict providers immediately after creation via the Edit
+           form on the project card. The API correctly defaults provider_whitelist to
+           [] on POST so edit-after-create is semantically safe with no interim
+           window where an unwanted provider could be used (the project has no tasks
+           yet at creation time). -->
       <div class="form-group">
         <label>Git Repository URL</label>
         <input type="text" id="add-repo" placeholder="https://github.com/org/repo.git or https://gitlab.com/group/project.git">
@@ -166,6 +177,58 @@
   </div>
 
 <script>
+// Module-level provider cache populated by loadProviders().
+// loadProjects() reads this when rendering edit-form checkbox options.
+let _providers = [];
+
+// Load all configured providers from the API and cache them.
+// Failures are logged and silently swallowed — the projects page
+// still works, but the whitelist edit form will only show unknown
+// entries (already-stored names) rather than the full provider list.
+async function loadProviders() {
+  try {
+    const res = await fetch('/api/v1/providers');
+    if (res.ok) {
+      _providers = await res.json();
+    } else {
+      console.error('loadProviders: HTTP ' + res.status + ' ' + res.statusText);
+      _providers = [];
+    }
+  } catch (err) {
+    console.error('loadProviders failed:', err);
+    _providers = [];
+  }
+}
+
+// Build the checkbox list for the provider_whitelist edit control.
+// Merges the live provider list with any names already stored on the
+// project that are NOT currently in the provider store — those unknown
+// entries are shown checked so they are not silently discarded.
+function renderProviderWhitelistCheckboxes(projectId, whitelist) {
+  const wl = whitelist || [];
+  const knownNames = new Set(_providers.map(function(p) { return p.name; }));
+  // Unknown whitelist entries: stored on the project but not in provider store.
+  const unknownInWhitelist = wl.filter(function(name) { return !knownNames.has(name); });
+  const allOptions = _providers.map(function(p) { return { name: p.name, unknown: false }; })
+    .concat(unknownInWhitelist.map(function(name) { return { name: name, unknown: true }; }));
+
+  if (allOptions.length === 0) {
+    return '<em style="color:var(--text-muted);font-size:0.75rem;">No providers configured — add providers first, then set the whitelist.</em>';
+  }
+
+  const cbName = 'edit-provider-whitelist-cb-' + esc(projectId);
+  return allOptions.map(function(opt) {
+    const checked = wl.includes(opt.name) ? 'checked' : '';
+    const unknownNote = opt.unknown
+      ? ' <em style="color:var(--text-muted);font-size:0.7rem;">(stored, not currently configured)</em>'
+      : '';
+    return '<label>'
+      + '<input type="checkbox" name="' + esc(cbName) + '" value="' + esc(opt.name) + '" ' + checked + ' aria-label="Allow provider ' + esc(opt.name) + '">'
+      + ' ' + esc(opt.name) + unknownNote
+      + '</label>';
+  }).join('\n');
+}
+
 async function loadProjects() {
   const container = document.getElementById('project-list');
   let projects;
@@ -260,6 +323,10 @@ async function loadProjects() {
         <span class="field-label">Dispatch:</span>
         <span class="field-value" style="color:${p.paused ? '#d29922' : 'var(--green)'}">${p.paused ? 'Paused — orchestrator will not dispatch new agents to this project' : 'Active'}</span>
       </div>
+      <div class="field-row" data-field="provider-whitelist">
+        <span class="field-label">Whitelist:</span>
+        <span class="field-value">${(p.provider_whitelist && p.provider_whitelist.length > 0) ? esc(p.provider_whitelist.join(', ')) : '<em style="color:var(--text-muted);font-style:italic;">All providers</em>'}</span>
+      </div>
       <div class="field-row">
         <span class="field-label">Test Command:</span>
         <span class="field-value">${p.test_command ? '<code>' + esc(p.test_command) + '</code>' : '<em style="color:var(--text-muted);font-style:italic;">not set — agent infers</em>'}</span>
@@ -333,6 +400,13 @@ async function loadProjects() {
         <div class="form-group">
           <label>Test Skip Paths (optional, comma-separated globs to exclude flaky/hardware/network tests)</label>
           <input type="text" id="edit-test-skip-paths-${esc(p.id)}" value="${esc((p.test_skip_paths || []).join(', '))}" placeholder="e.g. tests/integration/*, tests/hw/*">
+        </div>
+        <div class="form-group" data-field="provider-whitelist-edit">
+          <label id="edit-provider-whitelist-label-${esc(p.id)}">Provider Whitelist <span style="font-weight:400;color:var(--text-muted);">(leave all unchecked to allow all providers)</span></label>
+          <div class="provider-whitelist-options" id="edit-provider-whitelist-${esc(p.id)}" role="group" aria-labelledby="edit-provider-whitelist-label-${esc(p.id)}">
+            ${renderProviderWhitelistCheckboxes(p.id, p.provider_whitelist)}
+          </div>
+          <span style="font-size:0.7rem;color:var(--text-muted);">Only agents using whitelisted providers will be dispatched to this project. Check none to allow all.</span>
         </div>
         <div class="form-group">
           <label>Epic Strategy (controls how children of an epic relate to branches and CI)</label>
@@ -529,7 +603,12 @@ async function saveProject(id) {
   // radio is always pre-checked).
   const epicStrategyEl = document.querySelector('input[name="edit-epic-strategy-' + id + '"]:checked');
   const epicStrategy = epicStrategyEl ? epicStrategyEl.value : 'flat';
-  const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy};
+  // Collect the provider whitelist from the checkbox group.
+  // Empty selection sends [] so the whitelist is cleared and all providers
+  // are allowed. This is intentional and distinct from "not sent" (undefined).
+  const providerWhitelistCbs = document.querySelectorAll('input[name="edit-provider-whitelist-cb-' + id + '"]:checked');
+  const providerWhitelist = Array.from(providerWhitelistCbs).map(function(cb) { return cb.value; });
+  const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy, provider_whitelist: providerWhitelist};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;
   if (gitUserEmail) body.git_user_email = gitUserEmail;
@@ -622,7 +701,10 @@ function escP(s) {
   return d.innerHTML;
 }
 
-loadProjects();
+// Load providers first so renderProviderWhitelistCheckboxes() has the
+// full provider list available when loadProjects() renders edit forms.
+// initProjectSelector() is independent and can run in parallel.
+loadProviders().then(function() { loadProjects(); });
 initProjectSelector();
 </script>
 </body>
