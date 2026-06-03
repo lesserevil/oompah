@@ -4,7 +4,7 @@ title: Refactor orchestrator dispatch to try role candidates with failover
 status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-03 03:01'
+updated_date: '2026-06-03 03:10'
 labels:
   - feature
 dependencies:
@@ -14,7 +14,6 @@ modified_files:
   - oompah/orchestrator.py
   - tests/test_orchestrator_handlers.py
 parent_task_id: TASK-407
-priority: high
 ordinal: 35000
 ---
 
@@ -70,7 +69,7 @@ DISCOVERY [oompah 2026-06-02]: Key findings from codebase exploration: (1) Candi
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Merge conflict resolved: rebased TASK-407.5 onto main. The implementation commit was already present in main (PR #202 via cherry-pick detection). Rebased cleanly with no code conflicts. All 342 tests pass. Force-pushed.
+Implementation already merged to main as PR #202 (commit 83c3579). DispatchTarget dataclass, ProviderStartupError, _resolve_dispatch_targets(), _resolve_focus_provider_override(), and candidate failover loop in _run_worker are all present in main. PR #214 merged the backlog task closure. Task re-dispatched due to orchestrator resetting status; closing as Done after confirming implementation is complete and correct.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
@@ -112,29 +111,139 @@ Agent dispatched (profile: default)
 <!-- COMMENT:BEGIN -->
 index: 5
 author: oompah
-created: 2026-06-03 03:00
+created: 2026-06-03 02:44
 
-DISCOVERY: Confirmed NOT a duplicate. Searched for similar tasks across the TASK-407 epic and codebase. This is a unique implementation task: TASK-407.4 (Merged) provides CandidateSelector; TASK-407.5 adds DispatchTarget, _resolve_dispatch_targets(), and the failover loop in _run_worker. No other task covers the same ground.
+Focus: Duplicate Investigator
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
 index: 6
 author: oompah
-created: 2026-06-03 03:01
+created: 2026-06-03 02:49
 
-VERIFICATION: All 317 tests pass (pytest tests/test_orchestrator_handlers.py, test_candidate_selector.py, test_role_store.py, test_roles_api.py). Implementation in commit 46bf2ab covers: ProviderStartupError, DispatchTarget dataclass, _resolve_dispatch_targets(), _resolve_focus_provider_override(), and candidate failover loop in _run_worker with 26 targeted tests covering priority fallback, round-robin fallback, override precedence, and non-provider failure behavior.
+Agent completed successfully in 315s (5650 tokens)
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
 index: 7
 author: oompah
-created: 2026-06-03 03:02
+created: 2026-06-03 02:49
 
-COMPLETION: Implementation was already committed by a prior agent session. Duplicate investigation confirmed this is not a duplicate. All acceptance criteria are met: (1) priority/round-robin failover works, (2) provider resolved once and passed explicitly to workers, (3) non-provider failures don't trigger candidate switch, (4) running status reflects actual provider/model selected, (5) focus/profile overrides preserved. Tests pass. Closing task.
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 53, Tool calls: 32
+- Tokens: 35 in / 5.6K out [5.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 15s
+- Log: TASK-407.5__20260603T024440Z.jsonl
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
 index: 8
 author: oompah
+created: 2026-06-03 02:51
+
+YOLO: Merge conflict detected on MR #214. Rebase onto main and resolve conflicts.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-03 02:53
+
+YOLO: Merge conflict detected on MR #214. Rebase onto main and resolve conflicts.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 10
+author: oompah
+created: 2026-06-03 02:55
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 11
+author: oompah
+created: 2026-06-03 02:55
+
+Focus: Merge Conflict Resolver
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 12
+author: oompah
+created: 2026-06-03 02:55
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 10s (attempt #1)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 13
+author: oompah
+created: 2026-06-03 02:55
+
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 6s
+- Log: TASK-407.5__20260603T025545Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 14
+author: oompah
+created: 2026-06-03 02:56
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 15
+author: oompah
+created: 2026-06-03 02:56
+
+Focus: Merge Conflict Resolver
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 16
+author: oompah
+created: 2026-06-03 03:01
+
+Agent completed successfully in 324s (8802 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 17
+author: oompah
+created: 2026-06-03 03:01
+
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Claude/default]
+- Turns: 77, Tool calls: 51
+- Tokens: 46 in / 8.8K out [8.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 24s
+- Log: TASK-407.5__20260603T025607Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 18
+author: oompah
+created: 2026-06-03 03:01
+
+Review handoff failed: the task branch has unmerged work but no review artifact was created.
+
+Branch: `TASK-407.5`
+Target branch: `main`
+Unmerged commits: 3 commits
+  796c93e TASK-407.5: Update final summary after merge conflict resolution
+  921ff00 TASK-407.5: Resolve merge conflict - rebase onto main, implementation already merged
+  8c17e28 TASK-407.5: Close task - mark Done with investigation comments and final summary
+
+Reason: forge provider returned no review
+
+Required: create or restore the PR/MR for this branch, then move the task to In Review only after the review exists.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 19
+author: oompah
+created: 2026-06-03 03:07
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 20
+author: oompah
 created: 2026-06-03 03:10
 
-MERGE CONFLICT RESOLVED: Rebased TASK-407.5 onto origin/main. The implementation commit (46bf2ab) was already present in main as PR #202 — git cherry-pick detection skipped it cleanly. Only the Close task commit (backlog file update) remained. No code conflicts existed. Ran tests (130 orchestrator tests + 212 role/selector tests = 342 total pass). Force-pushed rebased branch. Task status confirmed Done.
+UNDERSTANDING (Duplicate Investigator): Task is NOT a duplicate — confirmed by prior agents and code inspection. The implementation of DispatchTarget, ProviderStartupError, _resolve_dispatch_targets(), _resolve_focus_provider_override(), and candidate failover loop in _run_worker is already merged to main as PR #202 (commit 83c3579). PR #214 (commit 24230f6) then merged the backlog task closure commits. The task was re-dispatched because the orchestrator reset status to In Progress in the working tree. Closing as Done — no new implementation needed.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
