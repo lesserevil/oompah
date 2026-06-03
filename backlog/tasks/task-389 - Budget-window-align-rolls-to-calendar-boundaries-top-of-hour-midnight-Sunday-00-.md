@@ -2,10 +2,10 @@
 id: TASK-389
 title: 'Budget window: align rolls to calendar boundaries (top of hour, midnight,
   Sunday 00:00)'
-status: Open
+status: Done
 assignee: []
 created_date: 2026-05-05 20:18
-updated_date: 2026-06-01 23:52
+updated_date: '2026-06-03 01:20'
 labels:
 - feature
 - beads-migrated
@@ -49,4 +49,89 @@ Plan: pairs with the existing windowed-budget work (commit 331a895). This is a r
 
 ## Comments
 <!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-03 01:05
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-03 01:05
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-03 01:05
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 10s (attempt #1)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 01:05
+
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 7s
+- Log: TASK-389__20260603T010551Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 01:06
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 01:06
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-03 01:06
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 20s (attempt #2)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
+author: oompah
+created: 2026-06-03 01:06
+
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 10s
+- Log: TASK-389__20260603T010629Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-03 01:07
+
+Retrying (attempt #2, agent: standard)
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Attempt #7: Implementation verified complete. 3825 tests pass. No duplicate. Calendar-aligned budget windows fully implemented. Closing as Done.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Feature fully implemented in commit a971be9. Calendar-aligned budget windows (top-of-hour, midnight, Sunday 00:00) using zoneinfo, OOMPAH_BUDGET_TIMEZONE env var for explicit IANA timezone, cold-start snapping to previous boundary. DST-safe via Python 3.9+ zoneinfo. 3825 tests pass. No duplicate found.
+<!-- SECTION:FINAL_SUMMARY:END -->
