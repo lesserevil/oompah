@@ -2895,13 +2895,12 @@ function esc(s) {
 }
 
 async function refreshBoard() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    // Ask server to push fresh data via WebSocket
-    ws.send(JSON.stringify({action: 'refresh'}));
-    return;
-  }
-  // Fallback to REST
   document.getElementById('status-text').textContent = 'Refreshing...';
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Also ask the server to push fresh data to other connected tabs, but
+    // fetch directly below so this tab is not dependent on a WS round trip.
+    ws.send(JSON.stringify({action: 'refresh'}));
+  }
   const data = await fetchIssues();
   if (data) renderBoard(data);
   fetchOrchestratorState();
