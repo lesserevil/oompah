@@ -1,10 +1,10 @@
 ---
 id: TASK-407.6
 title: Apply provider availability preflight before candidate startup
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-03 03:47'
+updated_date: '2026-06-03 04:48'
 labels:
   - feature
 dependencies:

@@ -1,10 +1,10 @@
 ---
 id: TASK-407.10
 title: Add per-project provider whitelist
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-03 00:15'
-updated_date: '2026-06-03 04:26'
+updated_date: '2026-06-03 04:47'
 labels:
   - feature
   - provider

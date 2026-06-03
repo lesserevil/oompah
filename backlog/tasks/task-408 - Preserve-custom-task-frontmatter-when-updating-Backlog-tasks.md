@@ -1,10 +1,10 @@
 ---
 id: TASK-408
 title: Preserve custom task frontmatter when updating Backlog tasks
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-03 01:29'
+updated_date: '2026-06-03 04:48'
 labels:
   - bug
 dependencies: []

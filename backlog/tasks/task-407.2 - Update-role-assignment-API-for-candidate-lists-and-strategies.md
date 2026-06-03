@@ -1,10 +1,10 @@
 ---
 id: TASK-407.2
 title: Update role assignment API for candidate lists and strategies
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-02 15:22'
+updated_date: '2026-06-03 04:47'
 labels:
   - feature
   - 'needs:backend'

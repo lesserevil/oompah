@@ -1,10 +1,10 @@
 ---
 id: TASK-399
 title: Fix BacklogMdTracker cost metadata write path
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-03 02:13'
+updated_date: '2026-06-03 04:47'
 labels:
   - bug
 dependencies: []

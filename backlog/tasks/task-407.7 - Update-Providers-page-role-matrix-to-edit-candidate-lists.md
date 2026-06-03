@@ -1,10 +1,10 @@
 ---
 id: TASK-407.7
 title: Update Providers page role matrix to edit candidate lists
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-03 02:33'
+updated_date: '2026-06-03 04:48'
 labels:
   - feature
 dependencies:

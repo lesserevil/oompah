@@ -1,10 +1,10 @@
 ---
 id: TASK-407.5
 title: Refactor orchestrator dispatch to try role candidates with failover
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-03 03:26'
+updated_date: '2026-06-03 04:47'
 labels:
   - feature
 dependencies:

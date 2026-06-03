@@ -1,10 +1,10 @@
 ---
 id: TASK-407.9
 title: Document and verify multi-provider role fallback end to end
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:45'
-updated_date: '2026-06-03 03:59'
+updated_date: '2026-06-03 04:48'
 labels:
   - feature
 dependencies:

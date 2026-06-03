@@ -1,10 +1,10 @@
 ---
 id: TASK-407.8
 title: Add provider Test button to Providers page blocks
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:45'
-updated_date: '2026-06-02 16:00'
+updated_date: '2026-06-03 04:48'
 labels:
   - feature
 dependencies:

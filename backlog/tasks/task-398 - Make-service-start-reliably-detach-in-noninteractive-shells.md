@@ -1,10 +1,10 @@
 ---
 id: TASK-398
 title: Make service start reliably detach in noninteractive shells
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 16:07'
-updated_date: '2026-06-03 02:37'
+updated_date: '2026-06-03 04:47'
 labels:
   - bug
 dependencies: []

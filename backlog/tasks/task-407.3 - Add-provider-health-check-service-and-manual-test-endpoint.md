@@ -1,10 +1,10 @@
 ---
 id: TASK-407.3
 title: Add provider health check service and manual test endpoint
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-03 02:17'
+updated_date: '2026-06-03 04:47'
 labels:
   - feature
 dependencies: []

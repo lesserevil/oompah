@@ -1,11 +1,11 @@
 ---
 id: TASK-423
 title: Install Backlog task-change webhooks for managed projects
-status: Done
+status: Merged
 assignee:
   - oompah
 created_date: '2026-06-02 21:07'
-updated_date: '2026-06-03 01:28'
+updated_date: '2026-06-03 04:48'
 labels: []
 dependencies: []
 priority: high

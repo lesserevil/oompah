@@ -1,19 +1,35 @@
 ---
 id: TASK-407.11
 title: Add Projects UI for provider whitelist and audit feature gaps
-status: Done
+status: Merged
 assignee: []
 created_date: '2026-06-03 04:53'
-updated_date: '2026-06-03 05:04'
+updated_date: '2026-06-03 05:12'
 labels:
-  - bug
-  - frontend
-  - provider
+- bug
+- frontend
+- provider
 dependencies:
-  - TASK-407.10
+- TASK-407.10
 parent_task_id: TASK-407
 priority: high
 ordinal: 65000
+oompah.task_costs:
+  total_input_tokens: 57
+  total_output_tokens: 21783
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 57
+      output_tokens: 21783
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 57
+    output_tokens: 21783
+    cost_usd: 0.0
+    recorded_at: '2026-06-03T05:05:20.666823+00:00'
 ---
 
 ## Description
@@ -74,26 +90,52 @@ Agent dispatched (profile: default)
 <!-- COMMENT:BEGIN -->
 index: 2
 author: oompah
+created: 2026-06-03 04:54
+
+Focus: Frontend Developer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
 created: 2026-06-03 05:00
 
 Understanding: TASK-407.10 added provider_whitelist to model/store/orchestrator/API but left no UI. Planned: (1) load /api/v1/providers before rendering project cards, (2) show Whitelist row in cards (All providers when empty), (3) checkbox group in edit form preserving unknown entries, (4) saveProject() sends provider_whitelist in PATCH body, (5) document why Add Project form omits whitelist. Add 32 template/JS tests in test_projects_whitelist_ui.py.
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
-index: 3
+index: 4
 author: oompah
 created: 2026-06-03 05:05
 
 Discovery: Key files confirmed — projects.html JS renders cards via template literals in loadProjects(); saveProject() builds a PATCH body. _providers module-level cache is the right approach for provider data since renderProviderWhitelistCheckboxes() is called synchronously during card rendering. Page-load sequence changed to loadProviders().then(() => loadProjects()) to guarantee providers are available.
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
-index: 4
+index: 5
+author: oompah
+created: 2026-06-03 05:05
+
+Agent completed successfully in 634s (21840 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 05:05
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 94, Tool calls: 61
+- Tokens: 57 in / 21.8K out [21.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 34s
+- Log: TASK-407.11__20260603T045504Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
 author: oompah
 created: 2026-06-03 05:10
 
 Implementation: Modified oompah/templates/projects.html — added _providers cache variable, loadProviders() with graceful error handling, renderProviderWhitelistCheckboxes() that merges live providers with unknown stored names, Provider Whitelist display row in project cards, checkbox multi-select group in edit form with aria attributes, provider_whitelist in saveProject() PATCH body (empty selection sends []). Added HTML comment in Add Project form documenting edit-after-create rationale. Added tests/test_projects_whitelist_ui.py with 32 tests covering all acceptance criteria.
 <!-- COMMENT:END -->
 <!-- COMMENT:BEGIN -->
-index: 5
+index: 8
 author: oompah
 created: 2026-06-03 05:12
 

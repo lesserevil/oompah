@@ -1,10 +1,10 @@
 ---
 id: TASK-407.1
 title: Add multi-candidate role data model and migration
-status: In Progress
+status: Merged
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-03 01:48'
+updated_date: '2026-06-03 04:47'
 labels:
   - feature
   - merge-conflict
