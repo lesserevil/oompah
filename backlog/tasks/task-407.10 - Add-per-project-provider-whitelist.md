@@ -1,18 +1,18 @@
 ---
 id: TASK-407.10
 title: Add per-project provider whitelist
-status: In Progress
+status: Done
 assignee: []
-created_date: 2026-06-03 00:15
-updated_date: 2026-06-03 04:06
+created_date: '2026-06-03 00:15'
+updated_date: '2026-06-03 04:26'
 labels:
-- feature
-- provider
+  - feature
+  - provider
 dependencies:
-- TASK-407.1
-- TASK-407.2
-- TASK-407.4
-- TASK-407.5
+  - TASK-407.1
+  - TASK-407.2
+  - TASK-407.4
+  - TASK-407.5
 parent_task_id: TASK-407
 priority: medium
 ordinal: 60000
@@ -34,6 +34,12 @@ Add a project-level provider whitelist so operators can restrict which providers
 - [ ] #6 The Projects UI/API allow viewing and editing the whitelist as a list of provider names; more than one provider can be selected.
 - [ ] #7 Tests cover default-unset behavior, single-provider whitelist behavior, multi-provider whitelist behavior, all-candidates-filtered behavior, and persistence/API/UI behavior.
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented per-project provider whitelist. Added provider_whitelist field to Project model (oompah/models.py) with to_dict/from_dict/round-trip support. Added UPDATABLE_FIELDS entry and validation in ProjectStore (oompah/projects.py). Added _apply_project_provider_whitelist() method to Orchestrator that filters dispatch targets by project whitelist before the preflight loop; all-filtered case surfaces clear error message, does not fall through to CLI. Server PATCH /api/v1/projects/{id} accepts/validates/returns provider_whitelist. 44 new tests in tests/test_project_provider_whitelist.py covering all AC (default-unset, single-provider, multi-provider, all-filtered, persistence, API). Updated UPDATABLE_FIELDS test in test_projects_crud.py. All 738 existing tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
