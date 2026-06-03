@@ -1,21 +1,18 @@
 ---
 id: TASK-407.6
 title: Apply provider availability preflight before candidate startup
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-02 17:19'
+updated_date: '2026-06-03 03:47'
 labels:
   - feature
-  - 'needs:backend'
-  - 'needs:test'
 dependencies:
   - TASK-407.5
 modified_files:
   - oompah/orchestrator.py
   - tests/test_orchestrator_handlers.py
 parent_task_id: TASK-407
-priority: high
 ordinal: 36000
 ---
 
@@ -66,6 +63,12 @@ UNDERSTANDING: TASK-407.5 already merged with candidate failover loop. TASK-407.
 DISCOVERY: No _candidate_preflight() function existed in orchestrator.py - TASK-407.5 implemented the candidate failover loop but without pre-start checks. The existing _is_rate_limited(), _check_budget(), is_model_explicitly_free(), is_per_token_billed() helpers in orchestrator and models provide all primitives needed. Implemented _candidate_preflight() at line 6275 checking: missing credentials (non-ACP), global rate-limit, budget exhaustion (with free/subscription bypass), invalid model. Integrated into _run_worker loop. 35 new tests written in tests/test_candidate_preflight.py.
 <!-- SECTION:NOTES:END -->
 
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Merge conflict resolved: Rebased branch onto origin/main. Implementation (provider availability preflight for candidate dispatch) was already merged to main as PR #203. Rebase succeeded cleanly with no conflicts (implementation commit was skipped as already-applied). 35/35 preflight tests pass. Branch force-pushed.
+<!-- SECTION:FINAL_SUMMARY:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
 - [ ] #1 Tests cover provider availability preflight without real network calls.
@@ -78,6 +81,119 @@ DISCOVERY: No _candidate_preflight() function existed in orchestrator.py - TASK-
 index: 1
 author: oompah
 created: 2026-06-02 17:06
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-03 03:33
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-03 03:33
+
+Focus: Test Engineer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 03:34
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 10s (attempt #1)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 03:34
+
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 25s
+- Log: TASK-407.6__20260603T033402Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 03:34
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-03 03:34
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
+author: oompah
+created: 2026-06-03 03:38
+
+Agent completed successfully in 222s (4331 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-03 03:38
+
+Run #2 [attempt=2, profile=standard, role=standard -> Claude/default]
+- Turns: 51, Tool calls: 35
+- Tokens: 28 in / 4.3K out [4.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 3m 42s
+- Log: TASK-407.6__20260603T033427Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 10
+author: oompah
+created: 2026-06-03 03:40
+
+YOLO: Merge conflict detected on MR #217. Rebase onto main and resolve conflicts.
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 11
+author: oompah
+created: 2026-06-03 03:43
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 12
+author: oompah
+created: 2026-06-03 03:43
+
+Focus: Merge Conflict Resolver
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 13
+author: oompah
+created: 2026-06-03 03:43
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 10s (attempt #1)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 14
+author: oompah
+created: 2026-06-03 03:43
+
+Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 9s
+- Log: TASK-407.6__20260603T034309Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 15
+author: oompah
+created: 2026-06-03 03:43
 
 Agent dispatched (profile: standard)
 <!-- COMMENT:END -->
