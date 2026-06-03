@@ -210,6 +210,24 @@ async def _run(
                 name, st.get("git", "?"), st.get("backlog", "?"),
             )
 
+    # Ensure every managed project has a Backlog task-change webhook hook
+    # installed so oompah is notified promptly when task files change.
+    # Best-effort: failures are logged but never block boot.
+    if projects:
+        from oompah.backlog_webhooks import ensure_backlog_webhooks
+
+        server_base_url = (
+            os.environ.get("OOMPAH_SERVER_URL")
+            or f"http://localhost:{port}"
+        )
+        webhook_results = ensure_backlog_webhooks(project_store, server_base_url)
+        for pid, status in webhook_results.items():
+            name = next((p.name for p in projects if p.id == pid), pid)
+            if status.startswith("ok") or status.startswith("skipped"):
+                logger.info("Backlog webhook hook %s: %s", name, status)
+            else:
+                logger.warning("Backlog webhook hook %s: %s", name, status)
+
     orchestrator = Orchestrator(config, workflow_path,
                                 provider_store=provider_store,
                                 project_store=project_store,

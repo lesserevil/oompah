@@ -30,6 +30,7 @@ from oompah.webhooks import (
     validate_github_signature,
     validate_gitlab_token,
 )
+from oompah.backlog_webhooks import validate_backlog_webhook_signature
 from oompah.focus import (
     BUILTIN_FOCI,
     DEFAULT_FOCUS,
@@ -3668,6 +3669,8 @@ async def api_create_project(request: Request):
         # Sync log watchers in case the new project has a log_path
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
+        # Install Backlog webhook hook for the new project (best-effort).
+        _install_backlog_hook_for_project(project)
         return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
         return JSONResponse(
@@ -3839,6 +3842,8 @@ async def api_update_project(project_id: str, request: Request):
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
+        # Re-install Backlog webhook hook in case webhook_secret or URL changed.
+        _install_backlog_hook_for_project(project)
         return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
         return JSONResponse(
@@ -5164,6 +5169,39 @@ def _sync_project_after_webhook(
         logger.warning("Webhook sync failed for %s: %s", project_name, exc)
 
 
+def _install_backlog_hook_for_project(project) -> None:
+    """Install or update the Backlog webhook hook for one project.
+
+    Best-effort: any failure is logged at DEBUG level so project
+    create/update operations are never blocked by hook installation
+    errors.
+    """
+    try:
+        from oompah.backlog_webhooks import install_backlog_webhook_hook
+
+        port = int(os.environ.get("OOMPAH_SERVER_PORT", "8080"))
+        server_base_url = (
+            os.environ.get("OOMPAH_SERVER_URL")
+            or f"http://localhost:{port}"
+        )
+        webhook_url = server_base_url.rstrip("/") + "/api/v1/webhooks/backlog"
+        secret = getattr(project, "webhook_secret", None) or ""
+        repo_path = getattr(project, "repo_path", None) or ""
+
+        install_backlog_webhook_hook(
+            repo_path=repo_path,
+            webhook_url=webhook_url,
+            project_id=project.id,
+            secret=secret,
+        )
+    except Exception as exc:
+        logger.debug(
+            "_install_backlog_hook_for_project: failed for %s: %s",
+            getattr(project, "id", "?"),
+            exc,
+        )
+
+
 @app.post("/api/v1/webhooks/github")
 async def api_webhook_github(request: Request):
     """Receive GitHub webhook events (push, pull_request, etc.).
@@ -5307,6 +5345,123 @@ async def api_webhook_gitlab(request: Request):
 
     except Exception as exc:
         logger.error("GitLab webhook error: %s", exc, exc_info=True)
+        return JSONResponse(
+            {"error": {"code": "webhook_error", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.post("/api/v1/webhooks/backlog")
+async def api_webhook_backlog(request: Request):
+    """Receive Backlog.md task-change webhook notifications.
+
+    This endpoint is called by the ``post-commit`` git hook installed
+    in each managed project repo whenever a commit touches backlog task
+    files.  The hook signs the payload with HMAC-SHA256 and sends the
+    signature in ``X-Oompah-Signature: sha256=<hex>``.
+
+    Validation:
+    - If the project has a ``webhook_secret`` configured and the request
+      carries a signature header, the signature is validated.
+    - If the project has no secret (or the request carries no signature),
+      the webhook is accepted without authentication (to support initial
+      setup and repos with no secret).
+
+    On receipt:
+    - Invalidates the issue list cache for the project.
+    - Triggers a ``git pull`` / Backlog sync in a background thread.
+    - Calls ``orchestrator.request_refresh()`` so the dashboard updates.
+
+    Returns:
+        200 OK on success, 400 on bad JSON / missing fields,
+        401 on signature mismatch.
+    """
+    try:
+        body_bytes = await request.body()
+
+        # Require a non-empty body.
+        if not body_bytes:
+            return JSONResponse(
+                {"error": "Empty request body"},
+                status_code=400,
+            )
+
+        try:
+            payload = json.loads(body_bytes)
+        except (json.JSONDecodeError, ValueError):
+            return JSONResponse(
+                {"error": "Invalid JSON payload"},
+                status_code=400,
+            )
+
+        if not isinstance(payload, dict):
+            return JSONResponse(
+                {"error": "Payload must be a JSON object"},
+                status_code=400,
+            )
+
+        project_id = payload.get("project_id", "")
+        event = payload.get("event", "")
+        files_changed = payload.get("files", [])
+
+        # Look up the project.
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id) if project_id else None
+
+        # Validate HMAC signature if the project has a secret configured.
+        signature = request.headers.get("X-Oompah-Signature", "")
+        if project and project.webhook_secret:
+            if signature:
+                if not validate_backlog_webhook_signature(
+                    body_bytes, signature, project.webhook_secret
+                ):
+                    logger.warning(
+                        "Backlog webhook signature validation failed for project %s",
+                        project_id,
+                    )
+                    return JSONResponse(
+                        {"error": "Invalid signature"},
+                        status_code=401,
+                    )
+            # If the project has a secret but no signature was sent, accept
+            # the request anyway (hook may not have a secret configured yet).
+
+        logger.info(
+            "Backlog webhook: project=%s event=%s files=%s",
+            project_id or "(unmatched)",
+            event,
+            len(files_changed) if isinstance(files_changed, list) else "?",
+        )
+
+        # Invalidate caches so the next dashboard fetch is fresh.
+        _api_cache.invalidate("issues:all")
+        if project_id:
+            _api_cache.invalidate_prefix(f"detail:{project_id}:")
+
+        # Request an orchestrator refresh so the dashboard updates promptly.
+        orch.request_refresh()
+
+        # Trigger a git pull + Backlog config sync in a background thread.
+        if project:
+            threading.Thread(
+                target=_sync_project_after_webhook,
+                args=(orch, project.id, project.name),
+                name=f"backlog-webhook-sync-{project.name}",
+                daemon=True,
+            ).start()
+
+        return JSONResponse(
+            {
+                "ok": True,
+                "action": "processed",
+                "project_id": project_id,
+                "event": event,
+                "files_changed": len(files_changed) if isinstance(files_changed, list) else 0,
+            }
+        )
+
+    except Exception as exc:
+        logger.error("Backlog webhook error: %s", exc, exc_info=True)
         return JSONResponse(
             {"error": {"code": "webhook_error", "message": str(exc)}},
             status_code=500,
