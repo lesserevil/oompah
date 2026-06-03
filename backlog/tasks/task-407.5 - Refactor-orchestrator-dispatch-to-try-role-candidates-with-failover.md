@@ -4,7 +4,7 @@ title: Refactor orchestrator dispatch to try role candidates with failover
 status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-03 02:49'
+updated_date: '2026-06-03 03:01'
 labels:
   - feature
 dependencies:
@@ -70,7 +70,7 @@ DISCOVERY [oompah 2026-06-02]: Key findings from codebase exploration: (1) Candi
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implemented orchestrator dispatch candidate failover: added ProviderStartupError, DispatchTarget dataclass, _resolve_dispatch_targets(), _resolve_focus_provider_override(), and candidate failover loop in _run_worker. API/ACP workers receive resolved provider/model explicitly. 26 new tests cover all acceptance criteria. 317 total related tests pass. Confirmed not a duplicate of any existing task.
+Merge conflict resolved: rebased TASK-407.5 onto main. The implementation commit was already present in main (PR #202 via cherry-pick detection). Rebased cleanly with no code conflicts. All 342 tests pass. Force-pushed.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
