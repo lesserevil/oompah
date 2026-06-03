@@ -3,17 +3,15 @@ id: TASK-407.6
 title: Apply provider availability preflight before candidate startup
 status: In Progress
 assignee: []
-created_date: '2026-06-01 21:44'
-updated_date: '2026-06-02 17:19'
+created_date: 2026-06-01 21:44
+updated_date: 2026-06-03 03:34
 labels:
-  - feature
-  - 'needs:backend'
-  - 'needs:test'
+- feature
 dependencies:
-  - TASK-407.5
+- TASK-407.5
 modified_files:
-  - oompah/orchestrator.py
-  - tests/test_orchestrator_handlers.py
+- oompah/orchestrator.py
+- tests/test_orchestrator_handlers.py
 parent_task_id: TASK-407
 priority: high
 ordinal: 36000
@@ -78,6 +76,46 @@ DISCOVERY: No _candidate_preflight() function existed in orchestrator.py - TASK-
 index: 1
 author: oompah
 created: 2026-06-02 17:06
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-03 03:33
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-03 03:33
+
+Focus: Test Engineer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-03 03:34
+
+Agent failed: OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.. Retrying in 10s (attempt #1)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-03 03:34
+
+Run #1 [attempt=1, profile=standard, role=standard -> Codex/default]
+- Turns: 0, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 25s
+- Log: TASK-407.6__20260603T033402Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-03 03:34
 
 Agent dispatched (profile: standard)
 <!-- COMMENT:END -->
