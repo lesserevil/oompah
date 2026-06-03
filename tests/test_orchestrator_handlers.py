@@ -719,6 +719,79 @@ class TestHandleAutoUpdate:
 
         orch._check_auto_update.assert_not_called()
 
+    def test_check_auto_update_fast_forwards_when_only_behind(self, tmp_path):
+        """Behind-only main uses ff-only autostash pull."""
+        orch = _make_orchestrator(tmp_path)
+        calls: list[list[str]] = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "rev-list", "HEAD..origin/main"]:
+                return MagicMock(returncode=0, stdout="2\n", stderr="")
+            if args[:3] == ["git", "rev-list", "origin/main..HEAD"]:
+                return MagicMock(returncode=0, stdout="0\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
+            orch._check_auto_update()
+
+        assert ["git", "pull", "--ff-only", "--autostash", "origin", "main"] in calls
+        assert ["git", "pull", "--rebase", "--autostash", "origin", "main"] not in calls
+        assert orch._restart_requested is True
+        assert orch._stopping is True
+
+    def test_check_auto_update_rebases_when_local_branch_has_commits(self, tmp_path):
+        """Diverged main rebases local commits instead of surfacing ff-only failure."""
+        orch = _make_orchestrator(tmp_path)
+        calls: list[list[str]] = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "rev-list", "HEAD..origin/main"]:
+                return MagicMock(returncode=0, stdout="2\n", stderr="")
+            if args[:3] == ["git", "rev-list", "origin/main..HEAD"]:
+                return MagicMock(returncode=0, stdout="1\n", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
+            orch._check_auto_update()
+
+        assert ["git", "pull", "--rebase", "--autostash", "origin", "main"] in calls
+        assert ["git", "pull", "--ff-only", "--autostash", "origin", "main"] not in calls
+        assert all(a.get("source") != "auto_update" for a in orch._alerts)
+        assert orch._restart_requested is True
+        assert orch._stopping is True
+
+    def test_check_auto_update_aborts_failed_rebase_and_alerts(self, tmp_path):
+        """Failed automatic rebase is aborted before the UI alert is recorded."""
+        orch = _make_orchestrator(tmp_path)
+        calls: list[list[str]] = []
+
+        def fake_run(args, **kwargs):
+            calls.append(list(args))
+            if args[:3] == ["git", "rev-list", "HEAD..origin/main"]:
+                return MagicMock(returncode=0, stdout="2\n", stderr="")
+            if args[:3] == ["git", "rev-list", "origin/main..HEAD"]:
+                return MagicMock(returncode=0, stdout="1\n", stderr="")
+            if args[:3] == ["git", "pull", "--rebase"]:
+                return MagicMock(
+                    returncode=1,
+                    stdout="",
+                    stderr="CONFLICT (content): Merge conflict in oompah/orchestrator.py",
+                )
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
+            orch._check_auto_update()
+
+        assert ["git", "rebase", "--abort"] in calls
+        assert orch._restart_requested is False
+        assert orch._stopping is False
+        alerts = [a for a in orch._alerts if a.get("source") == "auto_update"]
+        assert len(alerts) == 1
+        assert "git pull --rebase returned error" in alerts[0]["message"]
+        assert "CONFLICT" in alerts[0]["message"]
+
 
 # ---------------------------------------------------------------------------
 # _tick() integration: correct delegation order

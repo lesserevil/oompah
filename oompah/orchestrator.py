@@ -1565,6 +1565,16 @@ class Orchestrator:
                 timeout=10,
             )
             count = int(result.stdout.strip()) if result.returncode == 0 else 0
+            ahead_result = subprocess.run(
+                ["git", "rev-list", "origin/main..HEAD", "--count"],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            ahead_count = (
+                int(ahead_result.stdout.strip()) if ahead_result.returncode == 0 else 0
+            )
             if count == 0:
                 # Clear any previous auto-update alert
                 self._alerts = [
@@ -1576,22 +1586,50 @@ class Orchestrator:
                 "Auto-update: %d new commit(s) on origin/main, pulling and restarting",
                 count,
             )
-            # --autostash handles routine local config/task changes.
-            # Without it, ``--ff-only`` refuses with "Your local changes
-            # would be overwritten by merge" and surfaces a UI alert
-            # every poll. --ff-only still refuses if origin has actually
-            # diverged (i.e. real merge required).
-            pull = subprocess.run(
-                ["git", "pull", "--ff-only", "--autostash", "origin", "main"],
-                cwd=repo_dir,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+            if ahead_count > 0:
+                logger.info(
+                    "Auto-update: local main is %d commit(s) ahead; rebasing onto origin/main",
+                    ahead_count,
+                )
+                # Local agent/operator commits plus new origin/main commits make
+                # --ff-only fail with "can't be fast-forwarded". Rebase keeps
+                # the local commits and --autostash preserves routine dirty
+                # tracked files while avoiding a merge commit on main.
+                pull = subprocess.run(
+                    ["git", "pull", "--rebase", "--autostash", "origin", "main"],
+                    cwd=repo_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                failure_operation = "git pull --rebase"
+            else:
+                # --autostash handles routine local config/task changes.
+                # Without it, ``--ff-only`` refuses with "Your local changes
+                # would be overwritten by merge" and surfaces a UI alert
+                # every poll.
+                pull = subprocess.run(
+                    ["git", "pull", "--ff-only", "--autostash", "origin", "main"],
+                    cwd=repo_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                failure_operation = "git pull"
             if pull.returncode != 0:
-                msg = f"Auto-update failed: git pull returned error — {pull.stderr.strip()[:200]}"
+                if failure_operation == "git pull --rebase":
+                    subprocess.run(
+                        ["git", "rebase", "--abort"],
+                        cwd=repo_dir,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                msg = f"Auto-update failed: {failure_operation} returned error — {pull.stderr.strip()[:200]}"
                 logger.warning(
-                    "Auto-update: git pull failed: %s", pull.stderr.strip()[:200]
+                    "Auto-update: %s failed: %s",
+                    failure_operation,
+                    pull.stderr.strip()[:200],
                 )
                 # Replace any existing auto-update alert
                 self._alerts = [
