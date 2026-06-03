@@ -346,6 +346,50 @@ class TestAgentLogging:
         contents = log_path.read_text()
         assert sentinel_key not in contents, "api_key leaked to agent log"
 
+    def test_empty_api_key_omits_authorization_header(self, tmp_path, monkeypatch):
+        """No-auth OpenAI-compatible gateways should not receive Bearer ''."""
+        captured = {}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            captured["headers"] = headers
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        from oompah.api_agent import ApiAgentSession
+
+        s = ApiAgentSession(
+            base_url="http://x",
+            api_key="",
+            model="m",
+            workspace_path=str(tmp_path),
+        )
+        asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
+
+        assert "Authorization" not in captured["headers"]
+
+    def test_nonempty_api_key_sends_authorization_header(self, tmp_path, monkeypatch):
+        """Configured API keys are still sent to providers that require auth."""
+        captured = {}
+
+        def fake_post(url, headers, body, ssl_ctx):
+            captured["headers"] = headers
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        from oompah.api_agent import ApiAgentSession
+
+        s = ApiAgentSession(
+            base_url="http://x",
+            api_key="sk-present",
+            model="m",
+            workspace_path=str(tmp_path),
+        )
+        asyncio.run(s._call_api([_msg("system"), _msg("user", "hi")]))
+
+        assert captured["headers"]["Authorization"] == "Bearer sk-present"
+
     def test_logging_failure_does_not_break_call(self, tmp_path, monkeypatch):
         """If the log file can't be written, the agent must still proceed."""
 

@@ -1553,9 +1553,10 @@ class ApiAgentSession:
         body = json.dumps(payload).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._api_key}",
             "User-Agent": "oompah/0.1",
         }
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
 
         max_retries = 5
         for attempt in range(max_retries):

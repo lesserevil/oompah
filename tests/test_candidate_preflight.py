@@ -199,9 +199,19 @@ class TestCandidatePreflight:
     # AC: missing credentials
     # ------------------------------------------------------------------
 
+    def test_subscription_api_provider_without_api_key_is_usable(self, tmp_path):
+        """Subscription/no-auth API providers may be usable without api_key."""
+        prov = _api_provider(api_key="", billing_model="subscription")
+        target = _make_target(provider=prov, model="m1")
+        orch = _make_orchestrator(tmp_path)
+
+        result = orch._candidate_preflight(target)
+
+        assert result == ""
+
     def test_missing_api_key_returns_missing_credentials(self, tmp_path):
-        """Non-ACP provider with empty api_key returns 'missing_credentials'."""
-        prov = _api_provider(api_key="")  # no key
+        """Per-token API provider with empty api_key returns 'missing_credentials'."""
+        prov = _api_provider(api_key="", billing_model="per_token")  # no key
         target = _make_target(provider=prov, model="m1")
         orch = _make_orchestrator(tmp_path)
 
@@ -210,8 +220,8 @@ class TestCandidatePreflight:
         assert result == "missing_credentials"
 
     def test_none_api_key_returns_missing_credentials(self, tmp_path):
-        """Non-ACP provider with api_key=None returns 'missing_credentials'."""
-        prov = _api_provider(api_key="")
+        """Per-token API provider with api_key=None returns 'missing_credentials'."""
+        prov = _api_provider(api_key="", billing_model="per_token")
         prov.api_key = None  # type: ignore[assignment]
         target = _make_target(provider=prov, model="m1")
         orch = _make_orchestrator(tmp_path)
@@ -404,7 +414,7 @@ class TestCandidatePreflight:
 
     def test_missing_credentials_skipped_before_budget_check(self, tmp_path):
         """Missing credentials is returned even when budget is also exceeded."""
-        prov = _api_provider(api_key="")  # no key
+        prov = _api_provider(api_key="", billing_model="per_token")  # no key
         orch = _make_orchestrator(tmp_path)
         orch.config.budget_limit = 10.0
         _exceed_budget(orch)
@@ -445,7 +455,7 @@ class TestPreflightLogSafety:
     def test_missing_credentials_log_no_api_key(self, tmp_path, caplog):
         """missing_credentials log line must NOT contain the api_key value."""
         secret_key = "sk-super-secret-key-12345"
-        prov = _api_provider(api_key=secret_key)
+        prov = _api_provider(api_key=secret_key, billing_model="per_token")
         prov.api_key = ""  # clear it to trigger missing_credentials
         self._run_preflight_and_collect_logs(tmp_path, prov, caplog=caplog)
         for record in caplog.records:
@@ -500,7 +510,7 @@ class TestPreflightLogSafety:
 
     def test_preflight_skip_log_contains_candidate_key(self, tmp_path, caplog):
         """Preflight log must include the candidate_key for traceability."""
-        prov = _api_provider(api_key="")
+        prov = _api_provider(api_key="", billing_model="per_token")
         target = _make_target(provider=prov, model="m1")
         orch = _make_orchestrator(tmp_path)
         import logging as _logging
@@ -656,7 +666,11 @@ class TestRunWorkerPreflightIntegration:
         issue = _make_issue("feat-cred-1")
         orch = _make_orch_with_running(tmp_path, issue)
 
-        prov_bad = _api_provider(pid="bad-cred", api_key="")  # no key
+        prov_bad = _api_provider(
+            pid="bad-cred",
+            api_key="",
+            billing_model="per_token",
+        )  # no key
         prov_ok = _api_provider(pid="ok-cred", api_key="sk-ok")
 
         target_bad = _make_target(provider=prov_bad, model="m1", index=0)
@@ -740,7 +754,11 @@ class TestRunWorkerPreflightIntegration:
         issue = _make_issue("feat-mixed-fail")
         orch = _make_orch_with_running(tmp_path, issue)
 
-        prov_a = _api_provider(pid="p-a", api_key="")   # preflight: missing_credentials
+        prov_a = _api_provider(
+            pid="p-a",
+            api_key="",
+            billing_model="per_token",
+        )  # preflight: missing_credentials
         prov_b = _api_provider(pid="p-b", api_key="sk-b")  # startup: ProviderStartupError
 
         target_a = _make_target(provider=prov_a, model="m1", index=0)
@@ -766,7 +784,11 @@ class TestRunWorkerPreflightIntegration:
         issue = _make_issue("feat-exit-abnormal")
         orch = _make_orch_with_running(tmp_path, issue)
 
-        prov = _api_provider(pid="p-only", api_key="")  # will be preflight-skipped
+        prov = _api_provider(
+            pid="p-only",
+            api_key="",
+            billing_model="per_token",
+        )  # will be preflight-skipped
         target = _make_target(provider=prov, model="m1")
         orch._resolve_dispatch_targets = MagicMock(return_value=[target])
         orch._run_api_worker = AsyncMock()

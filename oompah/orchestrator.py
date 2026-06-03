@@ -6376,7 +6376,9 @@ class Orchestrator:
         where applicable:
 
         * ``"missing_credentials"`` — ``provider.api_key`` is absent for a
-          non-ACP provider (those require an API key to call the endpoint).
+          per-token API provider. Subscription/no-auth API gateways may be
+          usable without an Authorization header, matching the provider health
+          check behavior.
         * ``"rate_limited"`` — the global rate-limit cooldown is active.
         * ``"budget_exceeded"`` — the budget window is exhausted **and** the
           candidate is a paid (per-token) model.  ACP subscription-billed
@@ -6395,10 +6397,16 @@ class Orchestrator:
         model = target.model
         provider_mode = (getattr(provider, "mode", "api") or "api").lower()
 
-        # 1. Missing credentials — non-ACP providers require api_key to call
-        #    the OpenAI-compatible endpoint.  ACP providers are SDK-managed
-        #    and do not need an API key in the provider record.
-        if provider_mode != "acp" and not getattr(provider, "api_key", ""):
+        # 1. Missing credentials. ACP providers are SDK-managed and do not need
+        #    an API key in the provider record. API providers may point at
+        #    local/internal OpenAI-compatible gateways that accept unauthenticated
+        #    requests, so only per-token API providers require an explicit key.
+        requires_api_key = (
+            provider_mode != "acp"
+            and (getattr(provider, "billing_model", "per_token") or "per_token")
+            == "per_token"
+        )
+        if requires_api_key and not getattr(provider, "api_key", ""):
             logger.warning(
                 "Preflight skip candidate %s (role=%s, provider=%s): missing_credentials",
                 target.candidate_key,
