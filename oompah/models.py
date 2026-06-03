@@ -293,6 +293,14 @@ class Project:
 
     churn_magnet_gate_enabled: bool = False
     churn_magnet_top_n: int = 10
+    # Per-project provider whitelist. When empty (the default), all providers
+    # allowed by role assignment settings are eligible for this project.
+    # When set to one or more provider *names*, dispatch filters role
+    # candidates to only those providers before applying priority or
+    # round-robin selection. This is provider-level filtering only;
+    # model-level role rules and provider health/failover still apply
+    # after the whitelist filter. See TASK-407.10.
+    provider_whitelist: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
@@ -362,6 +370,9 @@ class Project:
         # the settings and the orchestrator persists them across restarts.
         d["churn_magnet_gate_enabled"] = self.churn_magnet_gate_enabled
         d["churn_magnet_top_n"] = self.churn_magnet_top_n
+        # Always emit provider_whitelist (even when empty) so the API
+        # response consistently includes the field for dashboard rendering.
+        d["provider_whitelist"] = list(self.provider_whitelist)
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -427,6 +438,15 @@ class Project:
             default_branch = str(raw_default_branch).strip()
         else:
             default_branch = branches[0] if branches else "main"
+        raw_whitelist = d.get("provider_whitelist") or []
+        if isinstance(raw_whitelist, list):
+            provider_whitelist = [
+                str(name).strip()
+                for name in raw_whitelist
+                if str(name).strip()
+            ]
+        else:
+            provider_whitelist = []
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -452,6 +472,7 @@ class Project:
             epic_strategy=epic_strategy,
             churn_magnet_gate_enabled=bool(d.get("churn_magnet_gate_enabled", False)),
             churn_magnet_top_n=max(1, int(d.get("churn_magnet_top_n", 10))),
+            provider_whitelist=provider_whitelist,
         )
 
 

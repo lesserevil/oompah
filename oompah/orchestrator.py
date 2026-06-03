@@ -1878,6 +1878,71 @@ class Orchestrator:
             return False
         return bool(getattr(project, "paused", False))
 
+    def _apply_project_provider_whitelist(
+        self,
+        targets: "list[DispatchTarget]",
+        issue: Issue,
+    ) -> "tuple[list[DispatchTarget], bool]":
+        """Filter *targets* by the project-level provider whitelist.
+
+        When the project associated with *issue* has a non-empty
+        ``provider_whitelist``, only :class:`DispatchTarget` entries whose
+        ``provider.name`` appears in that whitelist are retained.
+
+        An empty whitelist (the default) leaves *targets* unchanged so
+        existing projects are unaffected.  Unknown project ids or missing
+        ``provider_whitelist`` attributes are treated as "no whitelist".
+
+        Returns:
+            A tuple ``(filtered_targets, whitelist_was_applied)`` where
+            ``whitelist_was_applied`` is ``True`` only when a non-empty
+            whitelist existed and reduced the target list (even to zero).
+            The caller uses this flag to distinguish "whitelist blocked all
+            candidates" from "no providers configured at all" so it can
+            surface an appropriate error message.
+        """
+        if not issue.project_id:
+            return targets, False
+        project = self.project_store.get(issue.project_id)
+        if project is None:
+            return targets, False
+        whitelist: list[str] = getattr(project, "provider_whitelist", []) or []
+        if not whitelist:
+            return targets, False
+
+        whitelist_set = set(whitelist)
+        filtered = [t for t in targets if t.provider.name in whitelist_set]
+
+        if not filtered and targets:
+            rejected = [t.provider.name for t in targets]
+            logger.warning(
+                "Project %r provider whitelist %s excludes all %d dispatch "
+                "candidates for issue %s (rejected providers: %s). "
+                "No agent will be started.",
+                project.name,
+                whitelist,
+                len(targets),
+                issue.identifier,
+                rejected,
+            )
+        elif len(filtered) < len(targets):
+            skipped = [
+                t.provider.name
+                for t in targets
+                if t.provider.name not in whitelist_set
+            ]
+            logger.debug(
+                "Project %r provider whitelist filtered %d/%d candidates for issue %s "
+                "(skipped providers not in whitelist: %s)",
+                project.name,
+                len(targets) - len(filtered),
+                len(targets),
+                issue.identifier,
+                skipped,
+            )
+
+        return filtered, True
+
     def _project_has_open_review(self, project_id: str | None) -> bool:
         """Return True if the project is at or above its in-flight PR cap.
 
@@ -7734,8 +7799,39 @@ class Orchestrator:
         # acp / api / auto: resolve ordered dispatch targets for candidate failover.
         targets = self._resolve_dispatch_targets(profile) if profile else []
 
+        # Apply project-level provider whitelist filter (TASK-407.10).
+        # When the project has a non-empty provider_whitelist, only targets
+        # whose provider.name is in that whitelist are eligible.  An empty
+        # whitelist (the default) leaves targets unchanged.
+        targets, whitelist_filtered = self._apply_project_provider_whitelist(
+            targets, issue
+        )
+
+        if not targets and whitelist_filtered:
+            # All candidates were removed by the project provider whitelist.
+            # Do NOT fall through to ACP-no-target or CLI — that would bypass
+            # the operator's explicit restriction.  Surface a clear error.
+            project = (
+                self.project_store.get(issue.project_id) if issue.project_id else None
+            )
+            whitelist = list(getattr(project, "provider_whitelist", []) or [])
+            error_msg = (
+                f"Project provider whitelist {whitelist!r} excludes all available "
+                f"role candidates for issue {issue.identifier}. "
+                "No agent started. Add a whitelisted provider to the role assignment "
+                "or expand the project provider whitelist."
+            )
+            logger.error(
+                "Dispatch blocked by project provider whitelist for issue %s: "
+                "whitelist=%s filtered all candidates",
+                issue.identifier,
+                whitelist,
+            )
+            await self._on_worker_exit(issue.id, "abnormal", error_msg)
+            return
+
         if not targets:
-            # No resolvable provider targets.
+            # No resolvable provider targets (no whitelist involved).
             if mode == "acp":
                 # ACP can run without a specific provider — the SDK manages it.
                 await self._run_acp_worker(issue, attempt, profile, target=None)
