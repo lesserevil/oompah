@@ -4,7 +4,7 @@ title: Preserve custom task frontmatter when updating Backlog tasks
 status: Done
 assignee: []
 created_date: '2026-06-01 23:55'
-updated_date: '2026-06-03 01:09'
+updated_date: '2026-06-03 01:30'
 labels:
   - bug
 dependencies: []
@@ -31,15 +31,17 @@ Implementation guidance:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Updating a task status through oompah preserves unknown top-level frontmatter fields and nested custom objects such as beads.
-- [ ] #2 Dispatching a task to In Progress preserves migrated beads metadata in the task file.
-- [ ] #3 Tests cover status updates and at least one other mutation path that uses BacklogTracker task edits.
+- [x] #1 Updating a task status through oompah preserves unknown top-level frontmatter fields and nested custom objects such as beads.
+- [x] #2 Dispatching a task to In Progress preserves migrated beads metadata in the task file.
+- [x] #3 Tests cover status updates and at least one other mutation path that uses BacklogTracker task edits.
 <!-- AC:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Confirmed not a new duplicate — this IS the implementation task. Implementation was completed on this branch in a prior agent run: added _KNOWN_BACKLOG_FIELDS constant and _run_backlog_for_task() wrapper in oompah/tracker.py. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) now snapshot and reapply unknown frontmatter around each backlog CLI call. 4 regression tests added; 13/13 tests pass. Related to TASK-397 (same root bug, TASK-397 was closed as reference; implementation happened here).
+Resolved merge conflict by rebasing TASK-408 branch onto main. The branch's e2286a6 commit (_run_backlog_for_task approach) conflicted with main's equivalent implementation (_run_backlog_task_edit + task locks). Resolution: kept main's more complete implementation (thread-safe task locks, direct markdown comment writing, more field handling in update_issue, mark_needs_human method). All 25 test_backlog_tracker tests pass after rebase. Force-pushed TASK-408 branch with clean history.
+
+Core implementation: _BACKLOG_CLI_OWNED_FRONTMATTER constant + _run_backlog_task_edit() wrapper in oompah/tracker.py. All 7 mutation methods (update_issue, close_issue, reopen_issue, add_comment, add_label, remove_label, add_dependency) snapshot and reapply unknown frontmatter around each backlog CLI call. 4 regression tests added; 25/25 tests pass.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Comments
@@ -50,5 +52,12 @@ author: oompah
 created: 2026-06-03 01:05
 
 Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-03 01:30
+
+Merge conflict resolved: rebased TASK-408 onto main. Conflict was between branch's _run_backlog_for_task() and main's equivalent _run_backlog_task_edit() with task locks. Kept main's more complete implementation. 25/25 tests pass. Force-pushed successfully.
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
