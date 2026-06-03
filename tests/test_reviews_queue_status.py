@@ -68,6 +68,7 @@ class TestQueueStatusCSS:
         "queue-draft",
         "queue-ci-pending",
         "queue-ci-failed",
+        "queue-runner-unavailable",
         "queue-unknown",
     ])
     def test_css_class_present(self, html: str, css_class: str):
@@ -99,6 +100,7 @@ class TestDeriveQueueStatusJS:
         "draft",
         "ci pending",
         "ci failed",
+        "runner unavailable",
     ])
     def test_label_present_in_function(self, html: str, label: str):
         # Match by quoted string literal so we don't false-positive on, e.g.,
@@ -118,7 +120,7 @@ class TestDeriveQueueStatusJS:
         assert match, "could not extract deriveQueueStatus() body"
         body = match.group(1)
         for field in ("auto_merge_enabled", "mergeable_state",
-                       "ci_status", "has_conflicts", "draft"):
+                       "ci_status", "ci_warnings", "has_conflicts", "draft"):
             assert field in body, f"deriveQueueStatus() never reads {field}"
 
     def test_returns_sort_rank(self, html: str):
@@ -264,6 +266,11 @@ class TestQueueChipRender:
             "tooltip must show auto_merge_enabled for diagnostics"
         )
 
+    def test_unavailable_runner_warning_rendered(self, html: str):
+        assert "ci-warning-list" in html
+        assert "unavailable_runner" in html
+        assert "Queued CI is waiting for unavailable runner hardware." in html
+
 
 # ---------------------------------------------------------------------------
 # (5) Behavioural test — execute deriveQueueStatus via node, when available
@@ -285,6 +292,9 @@ _CASES = [
     ({"has_conflicts": True, "auto_merge_enabled": True,
       "mergeable_state": "clean"}, "conflict"),
     ({"mergeable_state": "dirty"}, "conflict"),
+    ({"auto_merge_enabled": True, "ci_status": "pending",
+      "mergeable_state": "blocked",
+      "ci_warnings": [{"type": "unavailable_runner"}]}, "runner unavailable"),
     ({"draft": True, "mergeable_state": "clean"}, "draft"),
     ({"mergeable_state": "draft"}, "draft"),
     ({"auto_merge_enabled": True, "mergeable_state": "clean"}, "in queue"),

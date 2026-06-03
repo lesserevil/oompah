@@ -104,6 +104,7 @@ class _ReviewCacheOrch:
             "conflicts": conflicts,
             "ci_failures": ci_failures,
             "needs_repo_config": 0,
+            "unavailable_runners": 0,
             "needs_attention": conflicts + ci_failures,
         }
 

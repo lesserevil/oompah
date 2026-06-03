@@ -1845,6 +1845,7 @@ function updateReviewsBadge(summary) {
   if (!summary) { el.style.display = 'none'; return; }
   const needsAttention = summary.needs_attention || 0;
   const needsRepoConfig = summary.needs_repo_config || 0;
+  const unavailableRunners = summary.unavailable_runners || 0;
   const total = summary.total || 0;
   const yoloPending = summary.yolo_pending || 0;
   const queued = summary.queued || 0;
@@ -1859,6 +1860,16 @@ function updateReviewsBadge(summary) {
     const label = el.querySelector('.reviews-label');
     label.textContent = (needsRepoConfig === 1) ? 'needs repo config' : 'need repo config';
     el.title = 'GitHub repo settings need adjustment — auto-merge or branch protection. Click to view per-PR details.';
+    el.style.display = '';
+  } else if (unavailableRunners > 0) {
+    // Red: CI is queued for self-hosted runner labels that currently have
+    // no online matching repository runner. This is infrastructure work,
+    // not an agent-fixable code failure.
+    countEl.textContent = unavailableRunners;
+    countEl.style.color = 'var(--red, #f85149)';
+    const label = el.querySelector('.reviews-label');
+    label.textContent = (unavailableRunners === 1) ? 'runner unavailable' : 'runners unavailable';
+    el.title = 'Queued CI is waiting for unavailable self-hosted runner hardware. Click to view per-PR details.';
     el.style.display = '';
   } else if (needsAttention > 0) {
     // Red: conflicts or failed CI need human action.

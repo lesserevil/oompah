@@ -91,7 +91,10 @@
     .queue-status.queue-draft { background: rgba(125, 133, 144, 0.2); color: var(--text-muted); }
     .queue-status.queue-ci-pending { background: rgba(226, 179, 64, 0.15); color: var(--yellow); }
     .queue-status.queue-ci-failed { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+    .queue-status.queue-runner-unavailable { background: rgba(248, 81, 73, 0.15); color: var(--red); }
     .queue-status.queue-unknown { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
+    .ci-warning-list { margin-top: 0.45rem; display: grid; gap: 0.25rem; }
+    .ci-warning { font-size: 0.75rem; color: var(--red); background: rgba(248, 81, 73, 0.08); border: 1px solid rgba(248, 81, 73, 0.25); border-radius: 6px; padding: 0.35rem 0.5rem; line-height: 1.35; }
     /* Sort selector */
     .sort-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.85rem;
       font-size: 0.75rem; color: var(--text-muted); }
@@ -220,9 +223,14 @@ function renderReviews(data) {
   const drafts = data.filter(d => d.review.draft).length;
   const conflicts = data.filter(d => d.review.has_conflicts).length;
   const queued = data.filter(d => d.review.auto_merge_enabled).length;
+  const runnerWarnings = data.reduce((n, d) => {
+    const warnings = (d.review && Array.isArray(d.review.ci_warnings)) ? d.review.ci_warnings : [];
+    return n + warnings.filter(w => w && w.type === 'unavailable_runner').length;
+  }, 0);
   let summaryHtml = '<span>Open: <strong>' + totalReviews + '</strong></span>';
   if (queued > 0) summaryHtml += '<span style="color:var(--green);">In queue: <strong>' + queued + '</strong></span>';
   if (conflicts > 0) summaryHtml += '<span style="color:var(--red);">Conflicts: <strong>' + conflicts + '</strong></span>';
+  if (runnerWarnings > 0) summaryHtml += '<span style="color:var(--red);">Runner unavailable: <strong>' + runnerWarnings + '</strong></span>';
   if (drafts > 0) summaryHtml += '<span>Drafts: <strong>' + drafts + '</strong></span>';
 
   let html = '';
@@ -335,52 +343,59 @@ function deriveQueueStatus(r) {
   const ame = !!(r && r.auto_merge_enabled);
   const draft = !!(r && r.draft);
   const conflicts = !!(r && r.has_conflicts);
+  const warnings = (r && Array.isArray(r.ci_warnings)) ? r.ci_warnings : [];
+  const runnerWarning = warnings.some(w => w && w.type === 'unavailable_runner');
 
   // 1. Conflicts always win — operator must rebase/resolve.
   if (conflicts || ms === 'dirty') {
     return {label: 'conflict', cls: 'queue-conflict', emoji: '⚠', sortRank: 0};
   }
-  // 2. Draft PRs are intentional, but not eligible for queue.
-  if (draft || ms === 'draft') {
-    return {label: 'draft', cls: 'queue-draft', emoji: '📝', sortRank: 7};
+  // 2. Queued self-hosted jobs with no online matching runner are
+  //    infrastructure-blocked, not merely pending CI.
+  if (runnerWarning) {
+    return {label: 'runner unavailable', cls: 'queue-runner-unavailable', emoji: '⚠', sortRank: 1};
   }
-  // 3. Already accepted into the GitHub merge queue.
+  // 3. Draft PRs are intentional, but not eligible for queue.
+  if (draft || ms === 'draft') {
+    return {label: 'draft', cls: 'queue-draft', emoji: '📝', sortRank: 8};
+  }
+  // 4. Already accepted into the GitHub merge queue.
   //    'unknown' = GitHub still computing mergeable; for queued PRs treat
   //    same as '' since the queue is already handling it.
   //    'blocked' = GitHub's "you can't directly merge — the queue is
   //    handling it"; default state of a queued PR until the queue's
   //    synthetic merge_group commit passes CI (oompah-zlz_2-j5f).
   if (ame && (ms === 'clean' || ms === 'unstable' || ms === 'behind' || ms === '' || ms === 'unknown' || ms === 'blocked')) {
-    return {label: 'in queue', cls: 'queue-in-queue', emoji: '⏳', sortRank: 5};
+    return {label: 'in queue', cls: 'queue-in-queue', emoji: '⏳', sortRank: 6};
   }
-  // 4. Behind base (rebase needed) — visible regardless of auto-merge.
+  // 5. Behind base (rebase needed) — visible regardless of auto-merge.
   if (ms === 'behind') {
-    return {label: 'behind base', cls: 'queue-behind', emoji: '↻', sortRank: 3};
+    return {label: 'behind base', cls: 'queue-behind', emoji: '↻', sortRank: 4};
   }
-  // 5. CI signal beats raw mergeable_state for the remaining cases.
+  // 6. CI signal beats raw mergeable_state for the remaining cases.
   if (ci === 'failed') {
-    return {label: 'ci failed', cls: 'queue-ci-failed', emoji: '✗', sortRank: 1};
+    return {label: 'ci failed', cls: 'queue-ci-failed', emoji: '✗', sortRank: 2};
   }
   if (ci === 'pending') {
-    return {label: 'ci pending', cls: 'queue-ci-pending', emoji: '◐', sortRank: 4};
+    return {label: 'ci pending', cls: 'queue-ci-pending', emoji: '◐', sortRank: 5};
   }
-  // 6. mergeable_state=blocked + no auto_merge means GitHub is rejecting
+  // 7. mergeable_state=blocked + no auto_merge means GitHub is rejecting
   //    enqueue — usually allow_auto_merge is off or a required check is
   //    missing. Surface as actionable.
   if (!ame && ms === 'blocked') {
-    return {label: 'blocked: needs config', cls: 'queue-blocked-config', emoji: '⚠', sortRank: 2};
+    return {label: 'blocked: needs config', cls: 'queue-blocked-config', emoji: '⚠', sortRank: 3};
   }
-  // 7. CI passed, no auto_merge yet — yolo will enqueue next tick.
+  // 8. CI passed, no auto_merge yet — yolo will enqueue next tick.
   if (!ame && (ms === 'clean' || ms === 'unstable') && ci === 'passed') {
-    return {label: 'ready', cls: 'queue-ready', emoji: '✓', sortRank: 6};
+    return {label: 'ready', cls: 'queue-ready', emoji: '✓', sortRank: 7};
   }
-  // 8. Anything else (has_hooks, missing fields) — show raw or n/a.
+  // 9. Anything else (has_hooks, missing fields) — show raw or n/a.
   //    'unknown' = GitHub still computing; render as '—' rather than the
   //    confusing literal "unknown" (oompah-zlz_2-aza follow-up).
   if (ms === 'unknown') {
-    return {label: '—', cls: 'queue-unknown', emoji: '', sortRank: 8};
+    return {label: '—', cls: 'queue-unknown', emoji: '', sortRank: 9};
   }
-  return {label: ms || '—', cls: 'queue-unknown', emoji: '', sortRank: 8};
+  return {label: ms || '—', cls: 'queue-unknown', emoji: '', sortRank: 9};
 }
 
 function renderReviewCard(r, provider, projectId, projectYolo) {
@@ -441,6 +456,15 @@ function renderReviewCard(r, provider, projectId, projectYolo) {
     descHtml = '<div class="review-desc">' + esc(r.description) + '</div>';
   }
 
+  let warningHtml = '';
+  const ciWarnings = Array.isArray(r.ci_warnings) ? r.ci_warnings : [];
+  const runnerWarnings = ciWarnings.filter(w => w && w.type === 'unavailable_runner');
+  if (runnerWarnings.length > 0) {
+    warningHtml = '<div class="ci-warning-list">' +
+      runnerWarnings.map(w => '<div class="ci-warning">' + esc(w.message || 'Queued CI is waiting for unavailable runner hardware.') + '</div>').join('') +
+      '</div>';
+  }
+
   let reviewersHtml = '';
   if (r.reviewers && r.reviewers.length > 0) {
     reviewersHtml = '<span>Reviewers: ' + r.reviewers.map(v => esc(v)).join(', ') + '</span>';
@@ -477,6 +501,7 @@ function renderReviewCard(r, provider, projectId, projectYolo) {
         ${reviewersHtml}
       </div>
       ${descHtml}
+      ${warningHtml}
     </div>
   `;
 }

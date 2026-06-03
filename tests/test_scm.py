@@ -300,6 +300,172 @@ class TestFetchCiStatus:
         assert provider._fetch_ci_status("o/r", "deadbeef") == ""
 
 
+class TestGitHubCiRunnerWarnings:
+    """Queued self-hosted Actions jobs should surface unavailable hardware."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    def _provider(
+        self,
+        *,
+        check_runs,
+        jobs=None,
+        runners=None,
+        pull_payload=None,
+    ):
+        provider = GitHubProvider(access_token="t")
+        jobs = jobs or {}
+        runners = runners or []
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/status"):
+                return self._FakeResponse({"state": "pending", "total_count": 0})
+            if path.endswith("/check-runs"):
+                return self._FakeResponse({"check_runs": check_runs})
+            if "/actions/jobs/" in path:
+                job_id = path.rsplit("/", 1)[-1]
+                payload = jobs.get(job_id)
+                if payload is None:
+                    return self._FakeResponse({}, status_code=404)
+                return self._FakeResponse(payload)
+            if path.endswith("/actions/runners"):
+                return self._FakeResponse({"runners": runners})
+            if path.endswith("/pulls") and pull_payload is not None:
+                return self._FakeResponse(pull_payload)
+            if "/pulls/" in path:
+                return self._FakeResponse({"mergeable": True, "mergeable_state": "blocked"})
+            raise AssertionError(f"unexpected call: {path}")
+
+        provider._api = fake_api
+        provider._graphql = lambda query, variables=None: self._FakeResponse({
+            "data": {"repository": {"mergeQueue": None}}
+        })
+        return provider
+
+    def _queued_check_run(self, job_id="101"):
+        return {
+            "id": int(job_id),
+            "name": "tier-b-windows",
+            "status": "queued",
+            "conclusion": None,
+            "html_url": f"https://github.com/o/r/actions/runs/1/job/{job_id}",
+        }
+
+    def _job(self, job_id="101", labels=None):
+        return {
+            "id": int(job_id),
+            "name": "tier-b-windows",
+            "status": "queued",
+            "labels": labels or ["self-hosted", "windows-nvidia"],
+            "html_url": f"https://github.com/o/r/actions/runs/1/job/{job_id}",
+        }
+
+    def _runner(self, *, name="trickle-windows-runner", status="offline",
+                busy=False, labels=None):
+        return {
+            "name": name,
+            "status": status,
+            "busy": busy,
+            "labels": [
+                {"name": label}
+                for label in (labels or ["self-hosted", "X64", "Windows", "windows-nvidia"])
+            ],
+        }
+
+    def test_offline_matching_runner_emits_warning(self):
+        provider = self._provider(
+            check_runs=[self._queued_check_run()],
+            jobs={"101": self._job()},
+            runners=[self._runner(status="offline", busy=False)],
+        )
+
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "sha")
+
+        assert status == "pending"
+        assert len(warnings) == 1
+        warning = warnings[0]
+        assert warning["type"] == "unavailable_runner"
+        assert warning["reason"] == "offline"
+        assert warning["job_name"] == "tier-b-windows"
+        assert warning["labels"] == ["self-hosted", "windows-nvidia"]
+        assert warning["matching_runners"] == ["trickle-windows-runner"]
+        assert "offline" in warning["message"]
+
+    def test_online_busy_matching_runner_is_not_unavailable(self):
+        provider = self._provider(
+            check_runs=[self._queued_check_run()],
+            jobs={"101": self._job()},
+            runners=[self._runner(status="online", busy=True)],
+        )
+
+        status, warnings = provider._fetch_ci_status_and_warnings("o/r", "sha")
+
+        assert status == "pending"
+        assert warnings == []
+
+    def test_missing_matching_runner_emits_warning(self):
+        provider = self._provider(
+            check_runs=[self._queued_check_run()],
+            jobs={"101": self._job()},
+            runners=[self._runner(labels=["self-hosted", "linux-nvidia"])],
+        )
+
+        _status, warnings = provider._fetch_ci_status_and_warnings("o/r", "sha")
+
+        assert len(warnings) == 1
+        assert warnings[0]["reason"] == "missing"
+        assert "no repository runner" in warnings[0]["message"]
+
+    def test_hosted_runner_job_does_not_warn(self):
+        provider = self._provider(
+            check_runs=[self._queued_check_run()],
+            jobs={"101": self._job(labels=["ubuntu-latest"])},
+            runners=[],
+        )
+
+        _status, warnings = provider._fetch_ci_status_and_warnings("o/r", "sha")
+
+        assert warnings == []
+
+    def test_list_open_reviews_attaches_runner_warnings(self):
+        pr = {
+            "number": 11,
+            "title": "Test PR",
+            "html_url": "https://github.com/o/r/pull/11",
+            "user": {"login": "alice"},
+            "head": {"ref": "TASK-11", "sha": "sha"},
+            "base": {"ref": "main"},
+            "created_at": "2026-05-01T00:00:00Z",
+            "updated_at": "2026-05-01T00:00:00Z",
+            "body": "",
+            "labels": [],
+            "draft": False,
+            "additions": 1,
+            "deletions": 0,
+            "mergeable": True,
+            "mergeable_state": "blocked",
+            "auto_merge": {"enabled_by": {"login": "alice"}},
+        }
+        provider = self._provider(
+            check_runs=[self._queued_check_run()],
+            jobs={"101": self._job()},
+            runners=[self._runner(status="offline")],
+            pull_payload=[pr],
+        )
+
+        reviews = provider.list_open_reviews("o/r")
+
+        assert len(reviews) == 1
+        assert reviews[0].ci_status == "pending"
+        assert reviews[0].ci_warnings[0]["type"] == "unavailable_runner"
+
+
 class TestReviewRequest:
     def test_to_dict(self):
         rr = ReviewRequest(
@@ -308,6 +474,10 @@ class TestReviewRequest:
             target_branch="main", created_at="2025-01-01", updated_at="2025-01-02",
             needs_rebase=True, has_conflicts=True, draft=True,
             auto_merge_enabled=True, mergeable_state="blocked",
+            ci_warnings=[{
+                "type": "unavailable_runner",
+                "message": "tier-b-windows is queued for offline hardware.",
+            }],
         )
         d = rr.to_dict()
         assert d["id"] == "42"
@@ -317,6 +487,7 @@ class TestReviewRequest:
         assert d["source_branch"] == "fix-typo"
         assert d["auto_merge_enabled"] is True
         assert d["mergeable_state"] == "blocked"
+        assert d["ci_warnings"][0]["type"] == "unavailable_runner"
 
     def test_defaults(self):
         rr = ReviewRequest(

@@ -52,6 +52,7 @@ class ReviewRequest:
     draft: bool = False
     reviewers: list[str] = field(default_factory=list)
     ci_status: str = ""  # passed, failed, pending, ""
+    ci_warnings: list[dict[str, Any]] = field(default_factory=list)
     additions: int = 0
     deletions: int = 0
     needs_rebase: bool = False
@@ -85,6 +86,7 @@ class ReviewRequest:
             "draft": self.draft,
             "reviewers": self.reviewers,
             "ci_status": self.ci_status,
+            "ci_warnings": self.ci_warnings,
             "additions": self.additions,
             "deletions": self.deletions,
             "needs_rebase": self.needs_rebase,
@@ -519,8 +521,193 @@ class GitHubProvider(SCMProvider):
             return None
         return payload.get("mergeable"), payload.get("mergeable_state") or ""
 
-    def _fetch_ci_status(self, repo: str, sha: str) -> str:
-        """Fetch combined CI status for a commit SHA.
+    def _fetch_actions_job(self, repo: str, job_id: str) -> dict[str, Any] | None:
+        """Fetch a GitHub Actions job payload by job/check-run id."""
+        if not job_id:
+            return None
+        try:
+            r = self._api("GET", f"/repos/{repo}/actions/jobs/{job_id}")
+            if r.status_code != 200:
+                return None
+            payload = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def _fetch_self_hosted_runners(self, repo: str) -> list[dict[str, Any]] | None:
+        """Return repository self-hosted runners visible to this token."""
+        runners: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            try:
+                r = self._api(
+                    "GET",
+                    f"/repos/{repo}/actions/runners",
+                    params={"per_page": 100, "page": page},
+                )
+                if r.status_code != 200:
+                    return None
+                payload = r.json()
+            except (httpx.HTTPError, json.JSONDecodeError):
+                return None
+            page_runners = payload.get("runners") or []
+            if not isinstance(page_runners, list):
+                return runners
+            runners.extend(
+                runner for runner in page_runners if isinstance(runner, dict)
+            )
+            if len(page_runners) < 100:
+                return runners
+            page += 1
+
+    @staticmethod
+    def _label_names(raw_labels: Any) -> set[str]:
+        """Normalize GitHub runner/job labels into a lower-case set."""
+        labels: set[str] = set()
+        if not isinstance(raw_labels, list):
+            return labels
+        for raw in raw_labels:
+            if isinstance(raw, dict):
+                name = raw.get("name")
+            else:
+                name = raw
+            if name is None:
+                continue
+            normalized = str(name).strip().lower()
+            if normalized:
+                labels.add(normalized)
+        return labels
+
+    @staticmethod
+    def _display_label_names(raw_labels: Any) -> list[str]:
+        labels: list[str] = []
+        if not isinstance(raw_labels, list):
+            return labels
+        for raw in raw_labels:
+            if isinstance(raw, dict):
+                name = raw.get("name")
+            else:
+                name = raw
+            if name is None:
+                continue
+            text = str(name).strip()
+            if text:
+                labels.append(text)
+        return labels
+
+    def _queued_self_hosted_runner_warning(
+        self,
+        repo: str,
+        check_run: dict[str, Any],
+        runners: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any] | None:
+        """Warn when a queued self-hosted job has no online matching runner."""
+        if str(check_run.get("status") or "").lower() != "queued":
+            return None
+        job = check_run
+        label_names = self._label_names(job.get("labels"))
+        if not label_names:
+            job_id = str(job.get("id") or "")
+            job_payload = self._fetch_actions_job(repo, job_id)
+            if not job_payload:
+                return None
+            job = job_payload
+            label_names = self._label_names(job.get("labels"))
+        if "self-hosted" not in label_names:
+            return None
+
+        if runners is None:
+            runners = self._fetch_self_hosted_runners(repo)
+        if runners is None:
+            return None
+        matching: list[dict[str, Any]] = []
+        online_matching: list[dict[str, Any]] = []
+        for runner in runners:
+            runner_labels = self._label_names(runner.get("labels"))
+            if label_names.issubset(runner_labels):
+                matching.append(runner)
+                if str(runner.get("status") or "").lower() == "online":
+                    online_matching.append(runner)
+        if online_matching:
+            return None
+
+        labels_display = self._display_label_names(job.get("labels"))
+        job_name = str(job.get("name") or check_run.get("name") or "queued job")
+        job_url = str(
+            job.get("html_url")
+            or check_run.get("html_url")
+            or check_run.get("details_url")
+            or ""
+        )
+        if matching:
+            reason = "offline"
+            runner_names = [
+                str(r.get("name") or "")
+                for r in matching
+                if str(r.get("name") or "")
+            ]
+            names = ", ".join(runner_names) or "matching runners"
+            message = (
+                f"{job_name} is queued for self-hosted runner labels "
+                f"{', '.join(labels_display)}, but all matching runners "
+                f"are offline: {names}."
+            )
+        else:
+            reason = "missing"
+            runner_names = []
+            message = (
+                f"{job_name} is queued for self-hosted runner labels "
+                f"{', '.join(labels_display)}, but no repository runner "
+                "has all required labels."
+            )
+        return {
+            "type": "unavailable_runner",
+            "severity": "warning",
+            "reason": reason,
+            "job_name": job_name,
+            "job_url": job_url,
+            "labels": labels_display,
+            "matching_runners": runner_names,
+            "message": message,
+        }
+
+    def _ci_warnings_for_check_runs(
+        self, repo: str, runs: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        queued = [
+            run for run in runs
+            if isinstance(run, dict)
+            and str(run.get("status") or "").lower() == "queued"
+        ]
+        if not queued:
+            return []
+        runners: list[dict[str, Any]] | None = None
+        runners_loaded = False
+        warnings: list[dict[str, Any]] = []
+        for run in queued:
+            labels = self._label_names(run.get("labels"))
+            if not labels:
+                job = self._fetch_actions_job(repo, str(run.get("id") or ""))
+                if not job:
+                    continue
+                run = {**run, **job}
+                labels = self._label_names(run.get("labels"))
+            if "self-hosted" not in labels:
+                continue
+            if not runners_loaded:
+                runners = self._fetch_self_hosted_runners(repo)
+                runners_loaded = True
+            if runners is None:
+                continue
+            warning = self._queued_self_hosted_runner_warning(repo, run, runners)
+            if warning:
+                warnings.append(warning)
+        return warnings
+
+    def _fetch_ci_status_and_warnings(
+        self, repo: str, sha: str
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Fetch combined CI status and operator-facing CI warnings.
 
         Reconciles two GitHub endpoints:
 
@@ -545,11 +732,15 @@ class GitHubProvider(SCMProvider):
         If check-runs cannot be inspected (HTTP error, empty payload,
         non-200), we fall back to the legacy verdict so we still flag
         actually-failing PRs. (oompah-zlz_2-c91)
+        Also inspects queued GitHub Actions jobs for self-hosted runner
+        labels. If GitHub is waiting for labels that have no online
+        matching repository runner, the returned warning lets the UI
+        say "offline/missing runner" instead of only "pending CI".
         """
         try:
             r = self._api("GET", f"/repos/{repo}/commits/{sha}/status")
             if r.status_code != 200:
-                return ""
+                return "", []
             payload = r.json()
             state = payload.get("state", "")
             total = payload.get("total_count", 0)
@@ -558,9 +749,10 @@ class GitHubProvider(SCMProvider):
             # return state="pending" with total_count=0, which would otherwise
             # mask all-green check-runs.
             legacy_failure = False
+            legacy_pending = False
             if total > 0:
                 if state == "success":
-                    return "passed"
+                    return "passed", []
                 if state == "failure" or state == "error":
                     # Don't short-circuit. The legacy entry may be stale
                     # while modern check-runs are all green. Fall through
@@ -568,30 +760,38 @@ class GitHubProvider(SCMProvider):
                     # if it has a clean verdict.
                     legacy_failure = True
                 elif state == "pending":
-                    return "pending"
+                    legacy_pending = True
             # Also check check-runs (GitHub Actions use this instead of status)
             cr = self._api("GET", f"/repos/{repo}/commits/{sha}/check-runs",
                            params={"per_page": 100})
             if cr.status_code == 200:
                 runs = cr.json().get("check_runs", [])
+                warnings = self._ci_warnings_for_check_runs(repo, runs)
+                if legacy_pending:
+                    return "pending", warnings
                 if runs:
                     conclusions = {r.get("conclusion") or r.get("status", "") for r in runs}
                     if "failure" in conclusions or "timed_out" in conclusions:
-                        return "failed"
+                        return "failed", warnings
                     if all(c in ("success", "neutral", "skipped") for c in conclusions if c):
                         # All modern check-runs are clean. If we got
                         # here from a legacy "failure" verdict, the
                         # legacy commit-status entry is stale; trust
                         # the modern check-runs instead.
-                        return "passed"
-                    return "pending"
+                        return "passed", warnings
+                    return "pending", warnings
             # No usable check-runs response. If legacy reported failure,
             # honor it — there's no modern signal to override it.
             if legacy_failure:
-                return "failed"
+                return "failed", []
         except (httpx.HTTPError, json.JSONDecodeError):
             pass
-        return ""
+        return "", []
+
+    def _fetch_ci_status(self, repo: str, sha: str) -> str:
+        """Fetch combined CI status for a commit SHA."""
+        status, _warnings = self._fetch_ci_status_and_warnings(repo, sha)
+        return status
 
     def list_open_reviews(self, repo: str) -> list[ReviewRequest]:
         try:
@@ -614,8 +814,11 @@ class GitHubProvider(SCMProvider):
             if sha:
                 sha_map[str(pr.get("number", ""))] = sha
         ci_statuses: dict[str, str] = {}
+        ci_warnings: dict[str, list[dict[str, Any]]] = {}
         for pr_num, sha in sha_map.items():
-            ci_statuses[pr_num] = self._fetch_ci_status(repo, sha)
+            status, warnings = self._fetch_ci_status_and_warnings(repo, sha)
+            ci_statuses[pr_num] = status
+            ci_warnings[pr_num] = warnings
 
         # Single GraphQL call to learn which PRs are currently in the
         # merge queue. Once a PR enters the queue, GitHub clears its
@@ -789,6 +992,7 @@ class GitHubProvider(SCMProvider):
                 draft=pr.get("draft", False),
                 reviewers=reviewers,
                 ci_status=ci_statuses.get(pr_num, ""),
+                ci_warnings=ci_warnings.get(pr_num, []),
                 additions=pr.get("additions", 0),
                 deletions=pr.get("deletions", 0),
                 needs_rebase=rebase_needed,

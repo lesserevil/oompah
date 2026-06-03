@@ -256,6 +256,7 @@ class TestHandleReviewCheck:
             "conflicts": 0,
             "ci_failures": 0,
             "needs_repo_config": 0,
+            "unavailable_runners": 0,
             "needs_attention": 0,
         }
         orch._fetch_all_reviews = MagicMock(return_value={"proj-1": []})
@@ -272,6 +273,7 @@ class TestHandleReviewCheck:
             "conflicts": 0,
             "ci_failures": 0,
             "needs_repo_config": 0,
+            "unavailable_runners": 0,
             "needs_attention": 0,
         }
 
@@ -285,6 +287,7 @@ class TestHandleReviewCheck:
             "conflicts": 0,
             "ci_failures": 0,
             "needs_repo_config": 0,
+            "unavailable_runners": 0,
             "needs_attention": 0,
         }
         orch._last_emitted_reviews_summary = dict(unchanged)

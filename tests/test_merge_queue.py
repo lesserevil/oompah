@@ -71,6 +71,7 @@ def _make_review(
     draft: bool = False,
     auto_merge_enabled: bool = False,
     mergeable_state: str = "",
+    ci_warnings: list[dict] | None = None,
 ):
     from oompah.scm import ReviewRequest
 
@@ -90,6 +91,7 @@ def _make_review(
         draft=draft,
         auto_merge_enabled=auto_merge_enabled,
         mergeable_state=mergeable_state,
+        ci_warnings=ci_warnings or [],
     )
 
 
@@ -1389,6 +1391,45 @@ class TestReviewsSummaryQueued:
         assert summary["total"] == 1
         assert summary["yolo_pending"] == 0
         assert summary["queued"] == 0
+
+
+class TestReviewsSummaryUnavailableRunners:
+    """The dashboard badge must count reviews blocked on unavailable runners."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_unavailable_runner_warnings_are_counted(self, tmp_path):
+        project = _make_project(merge_queue_enabled=True)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "1",
+                    ci_status="pending",
+                    ci_warnings=[{
+                        "type": "unavailable_runner",
+                        "message": "tier-b-windows is queued for offline hardware.",
+                    }],
+                ),
+                _make_review("2", ci_status="pending", ci_warnings=[]),
+            ]
+        }
+
+        summary = orch._reviews_summary()
+
+        assert summary["total"] == 2
+        assert summary["unavailable_runners"] == 1
 
 
 # ---------------------------------------------------------------------------

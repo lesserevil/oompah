@@ -10820,12 +10820,19 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         queued = 0
         conflicts = 0
         ci_failures = 0
+        unavailable_runners = 0
         for project_id, reviews in reviews_cache.items():
             for r in reviews or []:
                 # Skip reviews where an agent is currently working — handled elsewhere.
                 if getattr(r, "agent_active", False):
                     continue
                 total += 1
+                unavailable_runners += sum(
+                    1
+                    for warning in (getattr(r, "ci_warnings", []) or [])
+                    if isinstance(warning, dict)
+                    and warning.get("type") == "unavailable_runner"
+                )
                 if project_id in yolo_ids:
                     yolo_pending += 1
                     # Of those, count how many GitHub has already accepted into
@@ -10856,6 +10863,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             "conflicts": conflicts,
             "ci_failures": ci_failures,
             "needs_repo_config": needs_repo_config,
+            "unavailable_runners": unavailable_runners,
             "needs_attention": conflicts + ci_failures,
         }
 
