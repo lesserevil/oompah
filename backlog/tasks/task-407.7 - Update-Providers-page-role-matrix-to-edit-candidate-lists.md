@@ -4,7 +4,7 @@ title: Update Providers page role matrix to edit candidate lists
 status: Done
 assignee: []
 created_date: '2026-06-01 21:44'
-updated_date: '2026-06-03 02:26'
+updated_date: '2026-06-03 02:33'
 labels:
   - feature
 dependencies:
@@ -71,7 +71,7 @@ Discovery: Found key sections in providers.html. Current role matrix is a simple
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Implementation complete and merged via PR #201. Updated providers.html role matrix UI to support: strategy control (Priority/Round-robin) per role, ordered candidate rows with provider/model selects, billing/status details per candidate, up/down/remove/add controls. All 89 tests pass. Not a duplicate - unique frontend feature task.
+Rebase complete. The feature commit (providers.html role matrix with multi-candidate support) was already cherry-picked into main via PR #201. Git auto-detected this during rebase and skipped the duplicate commit. The only branch-specific commit remaining is the backlog status update. Force-pushed after clean rebase. All 89 tests pass.
 <!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Definition of Done
