@@ -26,12 +26,14 @@ class FakeIssue:
         issue_type: str = "task",
         branch_name: str = "test-branch",
         labels: list[str] | None = None,
+        parent_id: str | None = None,
     ):
         self.id = id
         self.identifier = identifier
         self.issue_type = issue_type
         self.branch_name = branch_name
         self.labels = labels or []
+        self.parent_id = parent_id
 
 
 class FakeSubprocess:
@@ -177,6 +179,127 @@ class TestCheckLandingGateBlocked:
         assert "agent landed normally" in result.skip_reason
 
 
+class TestSharedEpicLandingGate:
+    """Shared-epic children land on the parent epic branch — gate must check there."""
+
+    def _make_fake_run(self, subprocess_results):
+        """Return a fake subprocess.run that replays subprocess_results in order."""
+
+        @dataclass
+        class RunResult:
+            returncode: int
+            stdout: str
+            stderr: str
+
+        def fake_run(cmd: list[str], **kwargs: Any):
+            idx = len(fake_run.calls)
+            fake_run.calls.append(cmd)
+            if idx < len(subprocess_results):
+                code, stdout, stderr = subprocess_results[idx]
+                return RunResult(code, stdout, stderr)
+            return RunResult(1, "", "")
+
+        fake_run.calls = []
+        return fake_run
+
+    def test_shared_epic_child_with_commits_on_epic_branch_allowed(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ):
+        """TASK-706.1-style: own branch absent, epic branch has commits → allowed."""
+        # effective_branch='epic-TASK-706' is passed by the orchestrator
+        # because the project uses epic_strategy=shared and the child's
+        # work is committed there.
+        subprocess_results = [
+            # git ls-remote --heads origin epic-TASK-706 → branch exists
+            (0, "abc123 refs/heads/epic-TASK-706\n", ""),
+            # git rev-list --count origin/main..origin/epic-TASK-706 → 3 commits
+            (0, "3\n", ""),
+        ]
+        fake_run = self._make_fake_run(subprocess_results)
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        issue = FakeIssue(
+            identifier="TASK-706.1",
+            branch_name="TASK-706.1",
+            parent_id="TASK-706",
+        )
+        result = check_landing_gate(
+            issue,
+            workspace_path="/fake",
+            base_branch="main",
+            effective_branch="epic-TASK-706",
+        )
+
+        assert result.allowed is True
+        assert result.branch_on_origin is True
+        assert result.commits_on_origin == 3
+        assert result.effective_branch == "epic-TASK-706"
+        assert "agent landed normally" in result.skip_reason
+        # Confirm the gate checked the epic branch, not the child's own branch
+        assert any("epic-TASK-706" in " ".join(call) for call in fake_run.calls)
+
+    def test_shared_epic_child_no_commits_anywhere_blocked(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ):
+        """shared epic branch absent + no local commits → gate blocks (allowed=False)."""
+        subprocess_results = [
+            # git ls-remote --heads origin epic-TASK-706 → branch not present
+            (0, "", ""),
+            # git rev-list count (0 local commits on epic branch)
+            (0, "0\n", ""),
+        ]
+        fake_run = self._make_fake_run(subprocess_results)
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        issue = FakeIssue(
+            identifier="TASK-706.2",
+            branch_name="TASK-706.2",
+            parent_id="TASK-706",
+        )
+        result = check_landing_gate(
+            issue,
+            workspace_path="/fake",
+            base_branch="main",
+            effective_branch="epic-TASK-706",
+        )
+
+        assert result.allowed is False
+        assert result.branch_on_origin is False
+        assert result.commits_on_origin == 0
+        assert result.effective_branch == "epic-TASK-706"
+
+    def test_flat_strategy_child_still_checks_own_branch(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Without effective_branch override, gate checks issue's own branch."""
+        subprocess_results = [
+            # git ls-remote --heads origin TASK-707.1 → exists
+            (0, "def456 refs/heads/TASK-707.1\n", ""),
+            # git rev-list --count origin/main..origin/TASK-707.1 → 2 commits
+            (0, "2\n", ""),
+        ]
+        fake_run = self._make_fake_run(subprocess_results)
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        issue = FakeIssue(
+            identifier="TASK-707.1",
+            branch_name="TASK-707.1",
+        )
+        # No effective_branch — flat strategy, caller does not pass one
+        result = check_landing_gate(
+            issue,
+            workspace_path="/fake",
+            base_branch="main",
+        )
+
+        assert result.allowed is True
+        assert result.effective_branch == "TASK-707.1"
+        assert result.commits_on_origin == 2
+        # The checked branch must be TASK-707.1, not an epic branch
+        ls_remote_call = fake_run.calls[0]
+        assert "TASK-707.1" in ls_remote_call
+
+
 class TestBuildTelemetryEvent:
     def test_basic_event(self):
         issue = FakeIssue(id="id-x", identifier="bead-1", branch_name="feat-x")
@@ -194,3 +317,33 @@ class TestBuildTelemetryEvent:
         assert event["issue_identifier"] == "bead-1"
         assert event["branch"] == "feat-x"
         assert event["branch_on_origin"] is False
+
+    def test_effective_branch_included_when_different(self):
+        """effective_branch appears in telemetry when it differs from branch."""
+        issue = FakeIssue(id="id-y", identifier="TASK-706.1", branch_name="TASK-706.1")
+        result = LandingGateResult(
+            allowed=False,
+            branch_on_origin=False,
+            commits_on_origin=0,
+            local_only_commits=0,
+            effective_branch="epic-TASK-706",
+        )
+        event = build_telemetry_event(
+            result, issue, "TASK-706.1", "standard", None, 1, 0,
+        )
+        assert event["effective_branch"] == "epic-TASK-706"
+
+    def test_effective_branch_omitted_when_same(self):
+        """No effective_branch key when it matches the nominal branch."""
+        issue = FakeIssue(id="id-z", identifier="TASK-707", branch_name="TASK-707")
+        result = LandingGateResult(
+            allowed=False,
+            branch_on_origin=False,
+            commits_on_origin=0,
+            local_only_commits=0,
+            effective_branch="TASK-707",
+        )
+        event = build_telemetry_event(
+            result, issue, "TASK-707", "standard", None, 1, 0,
+        )
+        assert "effective_branch" not in event
