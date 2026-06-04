@@ -1190,13 +1190,29 @@
     .activity-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      padding: 1rem 1.25rem;
+      align-items: flex-start;
+      padding: 1rem 1.25rem 0.75rem;
       border-bottom: 1px solid var(--border);
+    }
+    .activity-header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      min-width: 0;
+      flex: 1;
     }
     .activity-header h3 {
       font-size: 0.9rem;
       color: var(--accent);
+      margin: 0;
+    }
+    .activity-provider-model {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
     .activity-body {
       flex: 1;
@@ -2974,6 +2990,15 @@ async function openActivityPanel(identifier) {
   const titleEl = document.getElementById('activity-title');
   titleEl.textContent = title;
   titleEl.dataset.identifier = identifier;
+
+  // Populate provider/model metadata line from the running agent snapshot.
+  const pmEl = document.getElementById('activity-provider-model');
+  if (pmEl) {
+    const providerName = agent && agent.provider_name ? agent.provider_name : null;
+    const modelName = agent && agent.model_name ? agent.model_name : null;
+    setActivityProviderModel(pmEl, providerName, modelName);
+  }
+
   document.getElementById('activity-overlay').classList.add('open');
   initAgentLogVerboseToggle();
   await refreshActivity(identifier);
@@ -2983,11 +3008,32 @@ async function openActivityPanel(identifier) {
   }
 }
 
+// Update the provider/model metadata line in the activity panel header.
+// Shows "<provider> · <model>" when both are available, or either alone.
+// Hides the element when no metadata is available.
+function setActivityProviderModel(el, providerName, modelName) {
+  const parts = [];
+  if (providerName) parts.push(providerName);
+  if (modelName) parts.push(modelName);
+  if (parts.length > 0) {
+    const text = parts.join(' · ');
+    el.textContent = text;
+    el.title = text;  // tooltip for truncated long values
+    el.hidden = false;
+  } else {
+    el.textContent = '';
+    el.title = '';
+    el.hidden = true;
+  }
+}
+
 function closeActivityPanel() {
   const el = document.getElementById('activity-overlay');
   if (el) el.classList.remove('open');
   if (activityPollTimer) { clearInterval(activityPollTimer); activityPollTimer = null; }
   _activityEntries = [];
+  const pmEl = document.getElementById('activity-provider-model');
+  if (pmEl) { pmEl.textContent = ''; pmEl.title = ''; pmEl.hidden = true; }
 }
 
 // --- Activity summary header (live counters) ---
@@ -3218,6 +3264,14 @@ async function refreshActivity(identifier) {
     // agent's entries under the new agent's title.
     const titleEl = document.getElementById('activity-title');
     if (!titleEl || titleEl.dataset.identifier !== identifier) return;
+
+    // Update provider/model metadata if the API returned it and the
+    // element is not yet populated (e.g. agent wasn't in lastRunningAgents).
+    const pmEl = document.getElementById('activity-provider-model');
+    if (pmEl && pmEl.hidden && (data.provider_name || data.model_name)) {
+      setActivityProviderModel(pmEl, data.provider_name || null, data.model_name || null);
+    }
+
     const entries = data.activity || [];
     _activityEntries = entries;
     renderActivityList(entries);
@@ -4752,7 +4806,10 @@ connectWebSocket();
 <div class="activity-overlay" id="activity-overlay" onclick="if(event.target===this)closeActivityPanel()">
   <div class="activity-panel">
     <div class="activity-header">
-      <h3 id="activity-title">Agent Activity</h3>
+      <div class="activity-header-left">
+        <h3 id="activity-title">Agent Activity</h3>
+        <div class="activity-provider-model" id="activity-provider-model" hidden></div>
+      </div>
       <button onclick="closeActivityPanel()">&times;</button>
     </div>
     <div class="activity-toolbar" title="Verbose ON shows every entry (tool calls, permissions, etc) with click-to-expand. Verbose OFF shows only the agent's own messages, full text inline.">

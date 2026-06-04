@@ -11181,6 +11181,8 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "agent_profile": entry.agent_profile_name,
                 "focus_name": entry.focus_name,
                 "focus_role": entry.focus_role,
+                "provider_name": entry.provider_name,
+                "model_name": entry.model_name,
                 "turn_count": 0,
                 "session_id": None,
                 "last_event": None,
