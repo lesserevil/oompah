@@ -8,7 +8,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-06-03 18:48'
-updated_date: '2026-06-04 16:52'
+updated_date: '2026-06-04 17:00'
 labels:
   - bug
 dependencies: []
@@ -25,5 +25,5 @@ ApiAgentSession.run_task failed: HTTP 400 from https://inference-api.nvidia.com/
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-duplicate-of:TASK-432
+duplicate-of:TASK-432 - This is the same context-window-exceeded error on nvidia/nemotron-3-super-v3. TASK-432 already fixed it by expanding _is_context_window_error to detect the litellm.BadRequestError variant.
 <!-- SECTION:FINAL_SUMMARY:END -->
