@@ -2188,6 +2188,7 @@ Test issue body.
         landing_result.commits_on_origin = 0
         landing_result.local_only_commits = 0
         landing_result.skip_reason = ""
+        landing_result.effective_branch = ""
 
         with patch(
             "oompah.landing_gate.check_landing_gate",
