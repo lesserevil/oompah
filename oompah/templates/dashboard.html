@@ -2175,7 +2175,12 @@ function filterByProject(data) {
 async function fetchIssues() {
   const pid = selectedProjectFilterValue();
   const url = pid ? '/api/v1/issues?project_id=' + encodeURIComponent(pid) : '/api/v1/issues';
-  const res = await fetch(url);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    return null;
+  }
   if (!res.ok) return null;
   return await res.json();
 }
