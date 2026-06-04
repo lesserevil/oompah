@@ -85,12 +85,18 @@ class LandingGateResult:
     local_only_commits: int = 0
     # Internal error (gate failed open)
     error: str = ""
+    # The effective branch that was actually checked (may differ from the
+    # issue's own branch when epic_strategy=shared maps the child to its
+    # parent's epic branch).
+    effective_branch: str = ""
 
 
 def check_landing_gate(
     issue: Issue,
     workspace_path: str,
     base_branch: str,
+    *,
+    effective_branch: str | None = None,
 ) -> LandingGateResult:
     """Check whether the agent completed without landing.
 
@@ -99,6 +105,13 @@ def check_landing_gate(
     Returns ``LandingGateResult(allowed=False)`` when the agent completed
     without landing, so we should post a diagnostic and defer rather
     than waste tokens on a profile escalation.
+
+    Args:
+        effective_branch: When provided, use this branch name for landing
+            detection instead of deriving it from the issue. Used when
+            ``epic_strategy='shared'`` maps a child issue's work onto its
+            parent's epic branch (e.g. ``epic-TASK-706`` for child
+            ``TASK-706.1``).
     """
     result = LandingGateResult(allowed=True)
 
@@ -115,7 +128,15 @@ def check_landing_gate(
         result.skip_reason = "issue is decomposed"
         return result
 
-    branch = (issue.branch_name or "").strip() or issue.identifier
+    # Resolve the effective landing branch. For shared-epic children the
+    # caller passes the shared epic branch name; for all other cases we
+    # fall back to the issue's own branch or identifier.
+    if effective_branch:
+        branch = effective_branch.strip()
+    else:
+        branch = (issue.branch_name or "").strip() or issue.identifier
+    result.effective_branch = branch
+
     if not branch:
         result.skip_reason = "no branch name and no identifier"
         return result
@@ -212,7 +233,7 @@ def build_telemetry_event(
     reopen_count: int,
 ) -> dict[str, Any]:
     """Build the structured telemetry event for logging."""
-    return {
+    event: dict[str, Any] = {
         "event": "landing_gate_retry_scheduled",
         "issue_id": issue.id,
         "issue_identifier": issue.identifier,
@@ -226,3 +247,8 @@ def build_telemetry_event(
         "attempt": attempt,
         "reopen_count": reopen_count,
     }
+    # Include effective_branch when it differs from the nominal branch so
+    # operators can see that a shared-epic branch was checked instead.
+    if result.effective_branch and result.effective_branch != branch:
+        event["effective_branch"] = result.effective_branch
+    return event

@@ -9809,10 +9809,32 @@ class Orchestrator:
                                     check_landing_gate,
                                 )
 
+                                # For shared-epic children, work lands on the
+                                # parent epic's branch (e.g. epic-TASK-706) not
+                                # on the child's own branch (e.g. TASK-706.1).
+                                # Resolve and pass the effective landing branch
+                                # so the gate checks the right ref.
+                                lg_effective_branch: str | None = None
+                                if (
+                                    self._project_epic_strategy(project_id) == "shared"
+                                    and (entry.issue.parent_id or "").strip()
+                                ):
+                                    _parent_epic = self._resolve_parent_epic(
+                                        entry.issue
+                                    )
+                                    if _parent_epic is not None:
+                                        lg_effective_branch = (
+                                            self.project_store.epic_branch_name(
+                                                _parent_epic.identifier
+                                            )
+                                        )
+                                        landing_gate_branch = lg_effective_branch
+
                                 lg_result = check_landing_gate(
                                     entry.issue,
                                     workspace_path=project.repo_path,
                                     base_branch=project.default_branch,
+                                    effective_branch=lg_effective_branch,
                                 )
                                 if not lg_result.allowed:
                                     landing_gate_blocked = True
