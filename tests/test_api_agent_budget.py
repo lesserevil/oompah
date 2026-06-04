@@ -1637,6 +1637,24 @@ class TestExtractContextWindowLimit:
             "maximum context length is 4096 tokens."
         ) == 4096
 
+    def test_extracts_from_nvidia_bad_request_error(self):
+        # TASK-432: NVIDIA returns litellm.BadRequestError (not ContextWindowExceededError)
+        # when input_tokens + max_tokens > context_window.
+        # The raw RuntimeError string includes the "HTTP 400 from ..." prefix.
+        error_str = (
+            "HTTP 400 from https://inference-api.nvidia.com/v1/chat/completions: "
+            '{"error":{"message":"litellm.BadRequestError: OpenAIException - '
+            '{\\"error\\":{\\"message\\":\\"You passed 98305 input tokens and requested '
+            "32768 output tokens. However, the model's context length is only "
+            '131072 tokens, resulting in a maximum input length of 98304 tokens. '
+            "Please reduce the length of the input prompt. "
+            '(parameter=input_tokens, value=98305)\\",\\"type\\":\\"BadRequestError\\",'
+            '\\"param\\":\\"input_tokens\\",\\"code\\":400}}. '
+            "Received Model Group=nvidia/nvidia/nemotron-3-super-v3\\n"
+            'Available Model Group Fallbacks=None","type":null,"param":null,"code":"400"}}'
+        )
+        assert _extract_context_window_limit(error_str) == 131072
+
 
 class TestIsContextWindowError:
     def test_detects_litellm_nvidia_pattern(self):
@@ -1650,6 +1668,24 @@ class TestIsContextWindowError:
             }
         })
         assert _is_context_window_error(body) is True
+
+    def test_detects_nvidia_bad_request_error_variant(self):
+        # TASK-432: NVIDIA returns a BadRequestError (not ContextWindowExceededError)
+        # when input_tokens + max_tokens > context_window. The error body
+        # contains "context length is only N tokens" instead of "ContextWindowExceededError".
+        error_str = (
+            "HTTP 400 from https://inference-api.nvidia.com/v1/chat/completions: "
+            '{"error":{"message":"litellm.BadRequestError: OpenAIException - '
+            '{\\"error\\":{\\"message\\":\\"You passed 98305 input tokens and requested '
+            "32768 output tokens. However, the model's context length is only "
+            '131072 tokens, resulting in a maximum input length of 98304 tokens. '
+            "Please reduce the length of the input prompt. "
+            '(parameter=input_tokens, value=98305)\\",\\"type\\":\\"BadRequestError\\",'
+            '\\"param\\":\\"input_tokens\\",\\"code\\":400}}. '
+            "Received Model Group=nvidia/nvidia/nemotron-3-super-v3\\n"
+            'Available Model Group Fallbacks=None","type":null,"param":null,"code":"400"}}'
+        )
+        assert _is_context_window_error(error_str) is True
 
     def test_false_for_ordinary_400(self):
         assert _is_context_window_error('{"error":"bad request"}') is False
@@ -1860,3 +1896,74 @@ class TestCallApiContextWindowRecovery:
         )
         assert "pruned" in retry_event
         assert "max_tokens" in retry_event
+
+    def test_nvidia_bad_request_error_triggers_recovery(self, tmp_path, monkeypatch):
+        """TASK-432: NVIDIA returns a ``litellm.BadRequestError`` (not
+        ``ContextWindowExceededError``) when input_tokens + max_tokens exceeds
+        the model's context window.  The error body contains the phrase
+        "context length is only N tokens" instead of "ContextWindowExceededError".
+        The recovery path must detect this variant and retry with pruning."""
+        from oompah.api_agent import ApiAgentSession
+
+        call_count = {"n": 0}
+        captured = {}
+
+        # Simulate the exact error body returned by NVIDIA inference API
+        # via litellm for the nemotron-3-super-v3 model.
+        nvidia_bad_request_error = (
+            "HTTP 400 from https://inference-api.nvidia.com/v1/chat/completions: "
+            '{"error":{"message":"litellm.BadRequestError: OpenAIException - '
+            '{\\"error\\":{\\"message\\":\\"You passed 98305 input tokens and requested '
+            "32768 output tokens. However, the model's context length is only "
+            '8192 tokens, resulting in a maximum input length of 4096 tokens. '
+            "Please reduce the length of the input prompt. "
+            '(parameter=input_tokens, value=98305)\\",\\"type\\":\\"BadRequestError\\",'
+            '\\"param\\":\\"input_tokens\\",\\"code\\":400}}. '
+            "Received Model Group=nvidia/nvidia/nemotron-3-super-v3\\n"
+            'Available Model Group Fallbacks=None","type":null,"param":null,"code":"400"}}'
+        )
+
+        def fake_post(url, headers, body, ssl_ctx):
+            call_count["n"] += 1
+            captured["payload"] = json.loads(body)
+            if call_count["n"] == 1:
+                raise RuntimeError(nvidia_bad_request_error)
+            return {"choices": [{"message": {"content": "done"}}]}
+
+        monkeypatch.setattr("oompah.api_agent._http_post", fake_post)
+
+        s = ApiAgentSession(
+            base_url="http://x", api_key="", model="nvidia/nemotron-3-super-v3",
+            workspace_path=str(tmp_path),
+            # model_max_context is None — the production scenario when the limit
+            # is first hit without prior knowledge of the context window.
+        )
+        # Build a long conversation history.
+        msgs = [_msg("system", "agent"), _msg("user", "task")]
+        for i in range(20):
+            msgs.append(_msg(
+                "assistant", "thinking",
+                tool_calls=[{
+                    "id": f"c{i}",
+                    "function": {"name": "bash", "arguments": "{}"},
+                }],
+            ))
+            msgs.append({
+                "role": "tool",
+                "tool_call_id": f"c{i}",
+                "content": "output " * 200,
+            })
+        original_len = len(msgs)
+
+        result = asyncio.run(s._call_api(msgs))
+
+        # Succeeded on the second attempt after pruning.
+        assert result["choices"][0]["message"]["content"] == "done"
+        assert call_count["n"] == 2
+        # Conversation was pruned.
+        assert len(msgs) < original_len
+        # Context limit was learned from the BadRequestError body.
+        assert s.model_max_context == 8192
+        # max_tokens was clamped to fit within the discovered context window.
+        mt = captured["payload"]["max_tokens"]
+        assert _MIN_MAX_OUTPUT_TOKENS <= mt <= _DEFAULT_MAX_OUTPUT_TOKENS
