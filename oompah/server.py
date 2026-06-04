@@ -2084,6 +2084,8 @@ async def api_agent_activity(identifier: str):
                     {
                         "identifier": identifier,
                         "profile": entry.agent_profile_name,
+                        "provider_name": entry.provider_name,
+                        "model_name": entry.model_name,
                         "started_at": entry.started_at.isoformat(),
                         "activity": [a.to_dict() for a in entry.activity_log],
                     }
