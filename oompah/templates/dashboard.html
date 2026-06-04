@@ -3316,7 +3316,13 @@ async function openDetailPanel(identifier) {
 
   const issue = allIssuesFlat.find(i => i.identifier === identifier);
   const pidParam = issue && issue.project_id ? `?project_id=${encodeURIComponent(issue.project_id)}` : '';
-  const res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail${pidParam}`);
+  let res;
+  try {
+    res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail${pidParam}`);
+  } catch (err) {
+    body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load: network error</div>';
+    return;
+  }
   if (!res.ok) {
     body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load</div>';
     return;
