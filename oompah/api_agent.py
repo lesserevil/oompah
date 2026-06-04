@@ -849,19 +849,38 @@ def _estimate_tokens(payload: object) -> int:
 
 
 _CONTEXT_WINDOW_RE = re.compile(
-    r"maximum context length is (\d+) tokens",
+    r"(?:maximum context length is|context length is only) (\d+) tokens",
+)
+
+# Phrases that unambiguously indicate a context-window-exceeded error.
+# The second entry covers the ``litellm.BadRequestError`` variant emitted
+# by the NVIDIA inference API when input + output tokens exceed the model's
+# context window (as opposed to the ``ContextWindowExceededError`` variant
+# that litellm raises via its own fallback path).
+_CONTEXT_WINDOW_INDICATORS: tuple[str, ...] = (
+    "ContextWindowExceededError",
+    "context length is only",  # NVIDIA BadRequestError: "the model's context length is only N tokens"
 )
 
 
 def _extract_context_window_limit(error_body: str) -> int | None:
-    """Extract the context-window limit (tokens) from a
-    ``ContextWindowExceededError`` error body.
+    """Extract the context-window limit (tokens) from a context-window error body.
 
-    Handles the litellm-wrapped nested-JSON format seen at
-    ``https://inference-api.nvidia.com/v1/chat/completions``::
+    Handles two litellm-wrapped formats seen at
+    ``https://inference-api.nvidia.com/v1/chat/completions``:
+
+    1. ``ContextWindowExceededError`` variant::
 
         {"error":{"message":"... ContextWindowExceededError: ...
             \"maximum context length is 131072 tokens.\"..."}}
+
+    2. ``BadRequestError`` variant (NVIDIA, token-count mismatch)::
+
+        {"error":{"message":"litellm.BadRequestError: OpenAIException -
+            {\"error\":{\"message\":\"You passed 98305 input tokens and requested
+            32768 output tokens. However, the model's context length is only
+            131072 tokens, resulting in a maximum input length of 98304 tokens.
+            ...\"}}..."}}
 
     Returns the integer limit, or ``None`` if the pattern cannot be matched.
     """
@@ -877,8 +896,13 @@ def _extract_context_window_limit(error_body: str) -> int | None:
 
 
 def _is_context_window_error(error_body: str) -> bool:
-    """Return True when *error_body* describes a ``ContextWindowExceededError``."""
-    return "ContextWindowExceededError" in error_body
+    """Return True when *error_body* describes a context-window-exceeded error.
+
+    Detects both the ``ContextWindowExceededError`` variant and the
+    ``litellm.BadRequestError`` variant (NVIDIA) where the model rejects
+    the request because ``input_tokens + max_tokens > context_window``.
+    """
+    return any(phrase in error_body for phrase in _CONTEXT_WINDOW_INDICATORS)
 
 
 def _prune_messages_to_fit(
