@@ -951,7 +951,7 @@ class ProjectStore:
                   "conflicts": "none"|"repaired:<n>"|"quarantined:<paths>"}``.
         """
         from oompah.backlog_conflict import (
-            recover_repo_unmerged_backlog,
+            ensure_repo_sound,
             repair_repo_backlog_conflicts,
         )
 
@@ -963,66 +963,41 @@ class ProjectStore:
                 "conflicts": "skipped: unknown project",
             }
         status: dict[str, str] = {}
-        # Backlog files left as unmerged-index entries (markerless) by a prior
-        # failed autostash pop — recovered pre-pull so the pull isn't blocked.
+        # Paths ensure_repo_sound() could not heal — fed into the quarantine
+        # decision below so an un-healable checkout is loud, never silent.
         unmerged_failed: list[str] = []
 
-        # git fetch + ff-only pull on the project's tracked branch.
+        # Aggressively drive the checkout back to a sound state: abort stranded
+        # merges/rebases, clear colliding untracked files, recover unmerged
+        # entries, repair conflict markers, return to the default branch, and
+        # fast-forward to origin — hard-resetting to origin as a last resort
+        # when no unpushed code work would be lost. This runs every sync (not
+        # just at boot) so a checkout can't silently drift/wedge between
+        # restarts.
         if not project.repo_path or not os.path.isdir(
             os.path.join(project.repo_path, ".git")
         ):
             status["git"] = "skipped: no .git"
         else:
             try:
-                subprocess.run(
-                    ["git", "fetch", "origin"],
-                    cwd=project.repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout_s,
-                )
-                # Clear any stranded unmerged-index backlog entries BEFORE the
-                # pull — a single one makes ``git pull`` fail with "you have
-                # unmerged files", which would otherwise silently leave the
-                # checkout behind origin forever (no markers => the post-pull
-                # marker repair never sees it).
-                try:
-                    rec = recover_repo_unmerged_backlog(project.repo_path)
-                    unmerged_failed = list(rec.get("failed", []))
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "Unmerged-backlog recovery failed for %s: %s",
-                        project.name,
-                        exc,
-                    )
-                pull = subprocess.run(
-                    [
-                        "git",
-                        "pull",
-                        "--ff-only",
-                        "--autostash",
-                        "origin",
-                        project.default_branch,
-                    ],
-                    cwd=project.repo_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout_s,
-                )
-                if pull.returncode == 0:
-                    status["git"] = "ok"
+                heal = ensure_repo_sound(project.repo_path, project.default_branch)
+                if heal.get("sound"):
+                    status["git"] = "reset:ok" if heal.get("reset") else "ok"
                 else:
-                    stderr = (pull.stderr or "").strip()[:200]
-                    status["git"] = f"failed: {stderr}"
-                    logger.warning(
-                        "Startup git pull failed for %s: %s",
+                    status["git"] = "failed: not sound after heal"
+                    unmerged_failed = list(heal.get("unrecoverable", []))
+                if heal.get("actions"):
+                    status["heal"] = ",".join(heal["actions"])
+                    logger.info(
+                        "Self-heal on %s: %s (sound=%s)",
                         project.name,
-                        stderr,
+                        ",".join(heal["actions"]),
+                        heal.get("sound"),
                     )
             except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
                 status["git"] = f"failed: {exc}"
                 logger.warning(
-                    "Startup git fetch/pull failed for %s: %s",
+                    "Self-heal git ops failed for %s: %s",
                     project.name,
                     exc,
                 )

@@ -172,47 +172,39 @@ class TestCreateProjectBacklogRequirement:
 
 
 class TestSyncProjectSources:
+    # The git-health portion of sync_project_sources is now delegated to
+    # backlog_conflict.ensure_repo_sound(); these tests patch that seam.
+    _SOUND = {"sound": True, "actions": ["ff-pull"], "unrecoverable": [], "reset": False}
+
     def test_runs_git_and_backlog_compatibility_when_present(self, tmp_path):
-        store, _repo = _store_with_one_project(tmp_path)
-        calls = []
-
-        def fake_run(args, **kwargs):
-            calls.append(args)
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+        store, repo = _store_with_one_project(tmp_path)
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ) as heal:
             status = store.sync_project_sources("proj-sync1")
 
         assert status["git"] == "ok"
         assert status["backlog"] == "ok"
         assert status["conflicts"] == "none"
-        assert ["git", "fetch", "origin"] in calls
-        assert any(args[:2] == ["git", "pull"] for args in calls)
-        assert all(args[0] != "bd" for args in calls)
+        heal.assert_called_once()
+        # called with (repo_path, default_branch)
+        assert heal.call_args.args[0] == str(repo)
+        assert heal.call_args.args[1] == "main"
 
-    def test_default_timeout_is_forwarded_to_git_pull(self, tmp_path):
+    def test_reset_recovery_is_reported_in_git_status(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)
-        calls = []
-
-        def fake_run(args, **kwargs):
-            calls.append((args, kwargs))
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
-            store.sync_project_sources("proj-sync1")
-
-        pull_calls = [
-            kwargs for args, kwargs in calls
-            if args[:2] == ["git", "pull"]
-        ]
-        assert pull_calls
-        assert pull_calls[0]["timeout"] == DEFAULT_SOURCE_SYNC_TIMEOUT_S
+        healed = {"sound": True, "actions": ["hard-reset"], "unrecoverable": [], "reset": True}
+        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=healed):
+            status = store.sync_project_sources("proj-sync1")
+        assert status["git"] == "reset:ok"
+        assert status.get("heal") == "hard-reset"
 
     def test_legacy_backlog_config_is_migrated(self, tmp_path):
         store, repo = _store_with_one_project(tmp_path, legacy=True)
 
-        with patch("oompah.projects.subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ):
             status = store.sync_project_sources("proj-sync1")
 
         assert status["git"] == "ok"
@@ -222,25 +214,21 @@ class TestSyncProjectSources:
         assert "default_status: Backlog" in config
         assert "Open" in config
 
-    def test_git_pull_failure_does_not_block_backlog_check(self, tmp_path):
+    def test_unhealable_checkout_does_not_block_backlog_check(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path)
-
-        def fake_run(args, **kwargs):
-            if args[:2] == ["git", "pull"]:
-                return MagicMock(returncode=1, stdout="", stderr="non-fast-forward")
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+        unsound = {"sound": False, "actions": [], "unrecoverable": [], "reset": False}
+        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=unsound):
             status = store.sync_project_sources("proj-sync1")
 
-        assert status["git"].startswith("failed: non-fast-forward")
+        assert status["git"].startswith("failed")
         assert status["backlog"] == "ok"
 
     def test_missing_backlog_config_is_reported(self, tmp_path):
         store, _repo = _store_with_one_project(tmp_path, backlog=False)
 
-        with patch("oompah.projects.subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ):
             status = store.sync_project_sources("proj-sync1")
 
         assert status["git"] == "ok"
@@ -275,8 +263,10 @@ class TestSyncAllSources:
                 default_branch="main",
             )
 
-        with patch("oompah.projects.subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound",
+            return_value={"sound": True, "actions": [], "unrecoverable": [], "reset": False},
+        ):
             results = store.sync_all_sources()
 
         assert set(results) == {"p-0", "p-1", "p-2"}

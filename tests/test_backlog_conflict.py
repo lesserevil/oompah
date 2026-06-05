@@ -507,10 +507,12 @@ class TestSyncProjectSourcesConflicts:
         store._projects["proj-1"].paused = True
         store._projects["proj-1"].backlog_conflict_paths = [str(task)]
 
-        def fake_run(args, **kwargs):
-            return MagicMock(returncode=0, stdout="", stderr="")
-
-        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+        # No-op the git self-heal so the conflicted file survives to the
+        # marker-repair + quarantine-clear path under test.
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound",
+            return_value={"sound": True, "actions": [], "unrecoverable": [], "reset": False},
+        ):
             status = store.sync_project_sources("proj-1")
 
         assert status["conflicts"].startswith("repaired:")
@@ -952,3 +954,94 @@ class TestUnmergedBacklogRecovery:
         result = recover_repo_unmerged_backlog(str(repo))
         assert result == {"recovered": [], "failed": []}
         assert inspect_repo_unmerged_backlog(str(repo)) == []
+
+
+# ---------------------------------------------------------------------------
+# ensure_repo_sound — aggressive whole-checkout self-heal
+# ---------------------------------------------------------------------------
+
+from oompah.backlog_conflict import ensure_repo_sound, list_unmerged_paths
+
+
+def _mk_remote_clone(tmp_path: Path) -> tuple[Path, Path]:
+    remote = tmp_path / "remote.git"
+    _git(tmp_path, "init", "--bare", "-b", "main", str(remote))
+    work = tmp_path / "work"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    _git(work, "config", "user.email", "t@t.test")
+    _git(work, "config", "user.name", "t")
+    (work / "backlog" / "tasks").mkdir(parents=True)
+    (work / "backlog" / "tasks" / "task-1 - a.md").write_text(
+        "---\nid: TASK-1\nstatus: Backlog\n---\nbody\n", encoding="utf-8"
+    )
+    (work / "README.md").write_text("hello\n", encoding="utf-8")
+    _git(work, "add", "-A")
+    _git(work, "commit", "-qm", "base")
+    _git(work, "remote", "add", "origin", str(remote))
+    _git(work, "push", "-q", "origin", "main")
+    return remote, work
+
+
+def _advance_origin(tmp_path: Path, remote: Path, relpath: str, content: str) -> None:
+    c2 = tmp_path / "c2"
+    if not c2.exists():
+        _git(tmp_path, "clone", "-q", str(remote), str(c2))
+        _git(c2, "config", "user.email", "t@t.test")
+        _git(c2, "config", "user.name", "t")
+    p = c2 / relpath
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+    _git(c2, "add", "-A")
+    _git(c2, "commit", "-qm", "origin-change")
+    _git(c2, "push", "-q", "origin", "main")
+
+
+class TestEnsureRepoSound:
+    def test_fast_forwards_when_behind(self, tmp_path):
+        remote, work = _mk_remote_clone(tmp_path)
+        _advance_origin(tmp_path, remote, "backlog/tasks/task-2 - b.md",
+                        "---\nid: TASK-2\nstatus: Backlog\n---\nb\n")
+        res = ensure_repo_sound(str(work), "main")
+        assert res["sound"] is True
+        assert res["reset"] is False
+        assert "ff-pull" in res["actions"]
+        assert (work / "backlog" / "tasks" / "task-2 - b.md").exists()
+
+    def test_hard_resets_on_backlog_only_divergence(self, tmp_path):
+        remote, work = _mk_remote_clone(tmp_path)
+        # origin changes task-1; local makes a DIFFERENT committed change to it
+        _advance_origin(tmp_path, remote, "backlog/tasks/task-1 - a.md",
+                        "---\nid: TASK-1\nstatus: Done\n---\norigin\n")
+        (work / "backlog" / "tasks" / "task-1 - a.md").write_text(
+            "---\nid: TASK-1\nstatus: In Progress\n---\nlocal\n", encoding="utf-8"
+        )
+        _git(work, "commit", "-qam", "local backlog change")
+        res = ensure_repo_sound(str(work), "main")
+        # Non-ff divergence on a backlog-only commit -> safe hard-reset.
+        assert res["sound"] is True
+        assert res["reset"] is True
+        assert "hard-reset" in res["actions"]
+        assert list_unmerged_paths(str(work)) == []
+        assert _git(work, "rev-list", "--count", "HEAD..origin/main").stdout.strip() == "0"
+
+    def test_quarantines_unpushed_code_commit(self, tmp_path):
+        remote, work = _mk_remote_clone(tmp_path)
+        # origin advances; local has an unpushed commit touching CODE (README).
+        _advance_origin(tmp_path, remote, "backlog/tasks/task-3 - c.md",
+                        "---\nid: TASK-3\nstatus: Backlog\n---\nc\n")
+        (work / "README.md").write_text("local code change\n", encoding="utf-8")
+        _git(work, "commit", "-qam", "local code change")
+        res = ensure_repo_sound(str(work), "main")
+        # Can't safely hard-reset (would drop unpushed code) -> not sound, flagged.
+        assert res["sound"] is False
+        assert res["reset"] is False
+        assert res["unrecoverable"]
+        # local code commit preserved
+        assert "local code change" in (work / "README.md").read_text(encoding="utf-8")
+
+    def test_clean_current_repo_is_sound_noop(self, tmp_path):
+        remote, work = _mk_remote_clone(tmp_path)
+        res = ensure_repo_sound(str(work), "main")
+        assert res["sound"] is True
+        assert res["reset"] is False

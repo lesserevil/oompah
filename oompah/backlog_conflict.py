@@ -639,6 +639,51 @@ def _run_git(args: list[str], repo_path: str) -> tuple[int, str, str]:
         return 1, "", str(exc)
 
 
+def clear_colliding_untracked_backlog(
+    repo_path: str, remote_ref: str
+) -> list[str]:
+    """Remove untracked backlog task files that collide with a tracked file on
+    ``remote_ref``, so ``git pull`` isn't aborted by "untracked working tree
+    files would be overwritten by merge".
+
+    oompah routinely creates task files locally before they're committed; if
+    the same path later arrives from origin as a tracked file, the FF merge
+    aborts and the checkout silently stalls behind origin. Origin is
+    authoritative for tracked files, so the local untracked copy is a
+    redundant pre-creation — dropping it lets the canonical version land.
+    Scoped to backlog ``*.md`` so code / build artifacts are never touched.
+
+    Returns the list of removed absolute paths.
+    """
+    rc, out, _ = _run_git(
+        ["ls-files", "--others", "--exclude-standard", "-z", "--", "backlog", ".backlog"],
+        repo_path,
+    )
+    if rc != 0 or not out:
+        return []
+    removed: list[str] = []
+    for rel in out.split("\0"):
+        if not rel or not rel.endswith(".md"):
+            continue
+        # Does a tracked file at this path exist on the incoming ref?
+        rc2, _, _ = _run_git(["cat-file", "-e", f"{remote_ref}:{rel}"], repo_path)
+        if rc2 != 0:
+            continue
+        try:
+            os.remove(os.path.join(repo_path, rel))
+            removed.append(os.path.join(repo_path, rel))
+        except OSError as exc:
+            logger.warning("Cannot remove colliding untracked %s: %s", rel, exc)
+    if removed:
+        logger.info(
+            "Cleared %d colliding untracked backlog file(s) in %s before pull: %s",
+            len(removed),
+            repo_path,
+            ", ".join(os.path.basename(p) for p in removed[:5]),
+        )
+    return removed
+
+
 def _git_show_stage(repo_path: str, stage: int, relpath: str) -> str | None:
     """Return the content of ``relpath`` at merge ``stage`` (1=base, 2=ours,
     3=theirs), or None if that stage does not exist."""
@@ -784,3 +829,160 @@ def recover_repo_unmerged_backlog(repo_path: str) -> dict[str, list[str]]:
             ", ".join(os.path.basename(p) for p in failed[:5]),
         )
     return {"recovered": recovered, "failed": failed}
+
+
+# ---------------------------------------------------------------------------
+# Aggressive whole-checkout self-heal
+# ---------------------------------------------------------------------------
+#
+# The individual recovery helpers above each address one failure mode.
+# ``ensure_repo_sound`` chains them into a single, aggressive, AUTOMATIC pass
+# that drives a managed checkout back to a sound state every time it runs —
+# because oompah's users can't see (let alone fix) a wedged checkout. "Sound"
+# means: on the default branch, no in-progress merge/rebase, no unmerged-index
+# entries, no conflict markers, and fast-forwarded to the remote default
+# branch. As a last resort it hard-resets to the authoritative remote ref —
+# but only when doing so cannot lose unpushed NON-backlog (i.e. code) commits;
+# otherwise it reports the checkout unrecoverable so the caller quarantines.
+
+
+def _current_branch(repo_path: str) -> str:
+    rc, out, _ = _run_git(["symbolic-ref", "--short", "HEAD"], repo_path)
+    return out.strip() if rc == 0 else ""
+
+
+def _rev_count(repo_path: str, rangespec: str) -> int:
+    rc, out, _ = _run_git(["rev-list", "--count", rangespec], repo_path)
+    try:
+        return int(out.strip()) if rc == 0 else 0
+    except ValueError:
+        return 0
+
+
+def list_unmerged_paths(repo_path: str) -> list[str]:
+    """All unmerged-index paths (any kind), not just backlog."""
+    rc, out, _ = _run_git(["ls-files", "-u", "-z"], repo_path)
+    if rc != 0 or not out:
+        return []
+    paths: set[str] = set()
+    for entry in out.split("\0"):
+        if not entry:
+            continue
+        tab = entry.find("\t")
+        if tab != -1:
+            paths.add(entry[tab + 1 :])
+    return sorted(paths)
+
+
+def _is_backlog_path(rel: str) -> bool:
+    norm = f"/{rel.replace(chr(92), '/')}"
+    return "/backlog/" in norm or "/.backlog/" in norm
+
+
+def ensure_repo_sound(
+    repo_path: str, default_branch: str, remote: str = "origin"
+) -> dict[str, Any]:
+    """Aggressively heal a managed checkout to a sound state. Idempotent.
+
+    Returns ``{"sound": bool, "actions": [str], "unrecoverable": [str],
+    "reset": bool}``. Best-effort: never raises on git errors.
+    """
+    actions: list[str] = []
+    git_dir = os.path.join(repo_path, ".git")
+    if not os.path.isdir(git_dir):
+        return {"sound": False, "actions": [], "unrecoverable": [], "reset": False}
+
+    remote_ref = f"{remote}/{default_branch}"
+
+    # 1. Abort any stranded in-progress merge/rebase (leftover from a crash or
+    #    a failed autostash pop) — these block everything downstream.
+    if os.path.exists(os.path.join(git_dir, "MERGE_HEAD")):
+        _run_git(["merge", "--abort"], repo_path)
+        actions.append("merge-abort")
+    if os.path.isdir(os.path.join(git_dir, "rebase-merge")) or os.path.isdir(
+        os.path.join(git_dir, "rebase-apply")
+    ):
+        _run_git(["rebase", "--abort"], repo_path)
+        actions.append("rebase-abort")
+
+    # 2. Fetch the latest remote state.
+    _run_git(["fetch", remote], repo_path)
+
+    # 3. Clear untracked backlog files that would block the pull.
+    if clear_colliding_untracked_backlog(repo_path, remote_ref):
+        actions.append("clear-untracked")
+
+    # 4. Recover markerless unmerged-index backlog entries.
+    if recover_repo_unmerged_backlog(repo_path).get("recovered"):
+        actions.append("recover-unmerged")
+
+    # 5. Repair textual conflict markers in backlog files.
+    if repair_repo_backlog_conflicts(repo_path).get("repaired"):
+        actions.append("repair-markers")
+
+    # 6. Make sure we're on the default branch.
+    if _current_branch(repo_path) != default_branch:
+        if _run_git(["checkout", default_branch], repo_path)[0] == 0:
+            actions.append("checkout-default")
+
+    # 7. Fast-forward to the remote default branch (autostash tracked edits).
+    rc, _, _ = _run_git(
+        ["pull", "--ff-only", "--autostash", remote, default_branch], repo_path
+    )
+    if rc == 0:
+        actions.append("ff-pull")
+    else:
+        # A conflicted autostash pop may have produced fresh unmerged entries.
+        if recover_repo_unmerged_backlog(repo_path).get("recovered"):
+            actions.append("recover-postpull")
+
+    def _sound() -> bool:
+        return (
+            not list_unmerged_paths(repo_path)
+            and _rev_count(repo_path, f"HEAD..{remote_ref}") == 0
+            and not inspect_repo_backlog_conflicts(repo_path)
+            and _current_branch(repo_path) == default_branch
+        )
+
+    if _sound():
+        return {"sound": True, "actions": actions, "unrecoverable": [], "reset": False}
+
+    # 8. Last resort: hard-reset to the authoritative remote ref. Only safe if
+    #    no unpushed commit touches a NON-backlog (code) file — backlog state is
+    #    regenerated by oompah, but code work must never be silently discarded.
+    unpushed = _rev_count(repo_path, f"{remote_ref}..HEAD")
+    safe_to_reset = True
+    if unpushed:
+        rc, out, _ = _run_git(
+            ["diff", "--name-only", f"{remote_ref}...HEAD"], repo_path
+        )
+        changed = [f for f in out.splitlines() if f.strip()]
+        safe_to_reset = all(_is_backlog_path(f) for f in changed) if changed else True
+
+    if safe_to_reset:
+        _run_git(["reset", "--hard", remote_ref], repo_path)
+        actions.append("hard-reset")
+        sound = _sound()
+        return {
+            "sound": sound,
+            "actions": actions,
+            "unrecoverable": [] if sound else list_unmerged_paths(repo_path),
+            "reset": True,
+        }
+
+    # 9. Cannot heal without discarding unpushed code work — quarantine.
+    unrec = list_unmerged_paths(repo_path) or [
+        f"{remote_ref}..HEAD ({unpushed} unpushed commit(s) with code changes)"
+    ]
+    logger.warning(
+        "Checkout %s not sound and not safely resettable (unpushed code work); "
+        "quarantining. actions=%s",
+        repo_path,
+        ",".join(actions) or "none",
+    )
+    return {
+        "sound": False,
+        "actions": actions,
+        "unrecoverable": unrec,
+        "reset": False,
+    }

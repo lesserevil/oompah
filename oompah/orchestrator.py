@@ -491,6 +491,10 @@ class Orchestrator:
         # when the next safety-net full sync should fire and to support
         # logging the safety-net message when the interval elapses.
         self._last_full_sync: float = 0.0
+        # Timestamp (monotonic) of the last managed-checkout self-heal pass.
+        # Drives the periodic ensure_repo_sound() sweep so checkouts can't
+        # silently drift/wedge between restarts. 0.0 => never run yet.
+        self._last_repo_heal: float = 0.0
         # Dedicated thread pool for tick operations so they don't compete
         # with agent tool-execution threads on the default pool.
         self._tick_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="tick")
@@ -1206,6 +1210,38 @@ class Orchestrator:
         elapsed_ms = (time.monotonic() - self._last_full_sync) * 1000
         return elapsed_ms >= self.config.full_sync_interval_ms
 
+    def _maybe_heal_repos(self) -> None:
+        """Periodically drive every managed checkout back to a sound state.
+
+        Gated to the full-sync cadence so the git fetch/pull/heal runs at most
+        once per ``full_sync_interval_ms`` regardless of tick frequency. Each
+        project goes through ``ensure_repo_sound`` (via ``sync_all_sources``),
+        which aborts stranded merges, clears colliding untracked files,
+        recovers unmerged-index entries, repairs conflict markers, returns to
+        the default branch, fast-forwards to origin, and hard-resets to origin
+        as a safe last resort — quarantining (with a dashboard alert) only a
+        checkout it cannot heal without losing unpushed code work.
+
+        Runs in the tick thread pool (blocking git I/O). Best-effort.
+        """
+        interval_ms = self.config.full_sync_interval_ms
+        if self._last_repo_heal != 0.0:
+            elapsed_ms = (time.monotonic() - self._last_repo_heal) * 1000
+            if elapsed_ms < interval_ms:
+                return
+        self._last_repo_heal = time.monotonic()
+        try:
+            self.project_store.sync_all_sources()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Periodic repo self-heal failed: %s", exc)
+            return
+        # Surface/clear dashboard alerts for any checkout that ended up
+        # quarantined (or got healed) this pass.
+        try:
+            self._refresh_backlog_conflict_alerts()
+        except Exception:  # noqa: BLE001
+            pass
+
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking).
 
@@ -1393,6 +1429,14 @@ class Orchestrator:
         # _last_candidates) is not being concurrently written.
         await asyncio.get_event_loop().run_in_executor(
             self._tick_pool, self._maybe_run_watchdog
+        )
+
+        # 5b. Periodic managed-checkout self-heal. Runs on the full-sync
+        # cadence (not every event) so checkouts are driven back to a sound
+        # state continuously — users can't see a wedged checkout, so oompah
+        # must detect and fix it automatically.
+        await asyncio.get_event_loop().run_in_executor(
+            self._tick_pool, self._maybe_heal_repos
         )
 
         t4b = time.monotonic()
