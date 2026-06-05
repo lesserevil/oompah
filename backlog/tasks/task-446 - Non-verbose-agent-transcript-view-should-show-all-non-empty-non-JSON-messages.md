@@ -1,9 +1,10 @@
 ---
 id: TASK-446
 title: 'Non-verbose agent transcript view should show all non-empty, non-JSON messages'
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-06-04 14:30'
+updated_date: '2026-06-05 15:56'
 labels: []
 dependencies: []
 ordinal: 82000
@@ -26,3 +27,11 @@ Likely touch points: the transcript rendering / verbose toggle in the agent acti
 - [ ] #3 In verbose=off, empty/whitespace-only messages and JSON-only payload events remain hidden
 - [ ] #4 In verbose=on, the view behavior is unchanged (shows everything it does today)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Understanding: The non-verbose agent transcript view uses an allowlist/filter that hides agent_thinking events and possibly other plain-text events. The fix is to change the filter predicate from an allowlist of kinds to a content-based check: show any event whose visible payload is non-empty AND not a raw JSON blob. Will explore oompah/console_format.py and any frontend/JS transcript rendering code to find the predicate.
+
+Discovery: The verbose filter is in oompah/templates/dashboard.html, renderActivityEntry() (line ~3213). Non-verbose mode checks _AGENT_LOG_MESSAGE_KINDS = ['message'], filtering out 'thinking', 'tool_call', etc. The fix is: remove the kind allowlist, add _isPureJson() helper, and hide only empty/whitespace OR pure-JSON content. The acp_thinking events map to kind='thinking' in activity log with plain-text summary/detail - these need to pass through the new filter.
+<!-- SECTION:NOTES:END -->
