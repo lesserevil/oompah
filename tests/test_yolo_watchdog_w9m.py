@@ -124,7 +124,7 @@ class TestTrickleIq1TwoTickRefile:
     Verifies:
       Tick 1: D3 detects the incoherence, resets the cache, files a
               P0 watchdog bead.
-      Tick 2: _file_orphan_recovery_bead is reached (cache empty), and
+      Tick 2: _file_orphan_recovery_task is reached (cache empty), and
               a fresh merge-conflict orphan-recovery bead is filed.
     """
 
@@ -186,7 +186,7 @@ class TestTrickleIq1TwoTickRefile:
         orch._project_trackers[project.id] = mock_tracker
         # Pre-seed the orphan-recovery cache exactly as it was on
         # 2026-05-08 — pinned at trickle-iq1.
-        orch._yolo_orphan_recovery_beads[
+        orch._yolo_orphan_recovery_tasks[
             (project.id, "56", "merge-conflict")
         ] = "trickle-iq1"
         orch._reviews_cache = {
@@ -197,7 +197,7 @@ class TestTrickleIq1TwoTickRefile:
 
         # ---- Tick 1: D3 detects, resets cache, files watchdog bead.
         orch._yolo_review_actions_sync()
-        assert (project.id, "56", "merge-conflict") not in orch._yolo_orphan_recovery_beads, (
+        assert (project.id, "56", "merge-conflict") not in orch._yolo_orphan_recovery_tasks, (
             "Tick 1 must reset the orphan-recovery cache entry"
         )
         d3_calls_t1 = [
@@ -218,7 +218,7 @@ class TestTrickleIq1TwoTickRefile:
         # merge-conflict orphan-recovery bead.
         orch._yolo_review_actions_sync()
         # The fresh recovery bead has priority=0 but is filed via
-        # _file_orphan_recovery_bead, NOT the watchdog. It should NOT
+        # _file_orphan_recovery_task, NOT the watchdog. It should NOT
         # carry the yolo-watchdog label and the title should match the
         # 975 path's template.
         recovery_calls = [
@@ -233,7 +233,7 @@ class TestTrickleIq1TwoTickRefile:
         )
         # And the cache should now point at the new orphan-recovery
         # bead (so a third tick wouldn't double-file).
-        new_cache_entry = orch._yolo_orphan_recovery_beads.get(
+        new_cache_entry = orch._yolo_orphan_recovery_tasks.get(
             (project.id, "56", "merge-conflict")
         )
         assert new_cache_entry is not None, (
@@ -279,7 +279,7 @@ class TestOrchestratorD3NegativeCases:
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker
-        orch._yolo_orphan_recovery_beads[
+        orch._yolo_orphan_recovery_tasks[
             (project.id, "7", "merge-conflict")
         ] = "rec-001"
         orch._reviews_cache = {
@@ -291,7 +291,7 @@ class TestOrchestratorD3NegativeCases:
         orch._yolo_review_actions_sync()
 
         # Cache should remain pinned at rec-001 — no incoherence.
-        assert orch._yolo_orphan_recovery_beads.get(
+        assert orch._yolo_orphan_recovery_tasks.get(
             (project.id, "7", "merge-conflict")
         ) == "rec-001"
         # No D3 watchdog bead.
@@ -415,7 +415,7 @@ class TestOrchestratorD3NegativeCases:
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker
-        orch._yolo_orphan_recovery_beads[
+        orch._yolo_orphan_recovery_tasks[
             (project.id, "7", "merge-conflict")
         ] = "rec-deleted-001"
         orch._reviews_cache = {
@@ -485,7 +485,7 @@ class TestOrchestratorD3NegativeCases:
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker
-        orch._yolo_orphan_recovery_beads[
+        orch._yolo_orphan_recovery_tasks[
             (project.id, "8", "ci-fix")
         ] = "rec-ci-001"
         orch._reviews_cache = {
@@ -512,7 +512,7 @@ class TestOrchestratorD3NegativeCases:
         body = d3_calls[0][1]["description"]
         assert "ci-fix" in body
         # And the cache must NOT still point at the closed rec-ci-001.
-        current = orch._yolo_orphan_recovery_beads.get(
+        current = orch._yolo_orphan_recovery_tasks.get(
             (project.id, "8", "ci-fix")
         )
         assert current != "rec-ci-001", (

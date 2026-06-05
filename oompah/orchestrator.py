@@ -169,6 +169,12 @@ _ACP_LAUNCH_FAILURE_PHRASES: tuple[str, ...] = (
     "failed to start",
 )
 
+# After filing a conflict-driven rebase task for an epic, suppress re-filing for
+# this long so a completed rebase's force-push has time to settle and the forge
+# can recompute the PR's mergeability (otherwise duplicates pile up each tick).
+# Short enough to retry if the rebase genuinely didn't resolve the conflict.
+_EPIC_REBASE_REFILE_COOLDOWN_S: float = 600.0
+
 
 def _is_acp_launch_failure(error_msg: str | None) -> bool:
     """True when an ACP session's error string looks like a launch/startup
@@ -514,15 +520,15 @@ class Orchestrator:
         # so identical errors don't spam the log every tick. Keyed on the
         # fingerprint string. (oompah-zlz_2-btf.2)
         self._logged_repo_config_fingerprints: set[str] = set()
-        # YOLO orphan-branch recovery beads: keyed by
+        # YOLO orphan-branch recovery tasks: keyed by
         # (project_id, review_id_str, kind) where kind in
-        # {"merge-conflict", "ci-fix"} → bead identifier created as the
+        # {"merge-conflict", "ci-fix"} → task identifier created as the
         # manual-recovery hook for a PR whose source branch doesn't
-        # match any existing bead. Used for idempotency so the YOLO
-        # loop doesn't file a fresh duplicate bead every tick for the
+        # match any existing task. Used for idempotency so the YOLO
+        # loop doesn't file a fresh duplicate task every tick for the
         # same orphan PR. Cleared when the review leaves the cache.
         # (oompah-zlz_2-975)
-        self._yolo_orphan_recovery_beads: dict[tuple[str, str, str], str] = {}
+        self._yolo_orphan_recovery_tasks: dict[tuple[str, str, str], str] = {}
         # YOLO watchdog state (oompah-zlz_2-jg4) — see oompah/yolo_watchdog.py.
         # _yolo_action_history: bounded deque of YoloActionRecord — every
         # YOLO action attempt (success or failure) is appended here so
@@ -534,7 +540,7 @@ class Orchestrator:
         # detector.
         self._yolo_coverage_history = make_coverage_history()
         # _yolo_watchdog_filed: idempotency map. Keyed on
-        # WatchdogPattern.pattern_key → identifier of the filed bead.
+        # WatchdogPattern.pattern_key → identifier of the filed task.
         # Cleared per (project, review) when the PR's situation
         # resolves (action succeeds or PR closes).
         self._yolo_watchdog_filed: dict[str, str] = {}
@@ -580,7 +586,7 @@ class Orchestrator:
         # The orchestrator calls
         # ``ErrorWatcher.auto_close_for_issue(...)`` on the matching
         # watcher when a worker run finishes successfully via the retry
-        # path so that previously filed transient-error beads can close
+        # path so that previously filed transient-error tasks can close
         # themselves automatically.
         self._error_watchers: dict[str | None, ErrorWatcher] = {}
 
@@ -590,6 +596,10 @@ class Orchestrator:
         # doesn't lose "rebase already in progress" on restart.
         self._epic_rebase_states: dict[str, EpicRebaseStateEntry] = {}
         self._restore_epic_rebase_states()
+        # Per-epic cooldown (monotonic ts of last conflict-driven rebase task
+        # filed) so YOLO doesn't re-file duplicates while a force-pushed rebase
+        # is still settling and the forge hasn't recomputed PR mergeability.
+        self._epic_rebase_filed_at: dict[str, float] = {}
 
         # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
         # the dashboard shows a banner whenever WORKFLOW.md still has a
@@ -1035,7 +1045,7 @@ class Orchestrator:
         self, watcher: ErrorWatcher, project_id: str | None = None
     ) -> None:
         """Register an :class:`ErrorWatcher` so the orchestrator can
-        ask it to auto-close transient error beads.
+        ask it to auto-close transient error tasks.
 
         ``project_id=None`` registers the global / unscoped watcher (the
         one that handles ``logger.error`` records emitted from the
@@ -1063,7 +1073,7 @@ class Orchestrator:
         return watchers
 
     def _auto_close_transient_errors_for_entry(self, entry: RunningEntry) -> None:
-        """Best-effort auto-close of error beads tied to ``entry.issue``.
+        """Best-effort auto-close of error tasks tied to ``entry.issue``.
 
         Called from ``_on_worker_exit`` when ``reason == "normal"`` and
         the run was retry-driven (``retry_attempt > 0``).  Errors
@@ -1081,7 +1091,7 @@ class Orchestrator:
                 )
                 if closed:
                     logger.info(
-                        "Auto-closed %d transient error bead(s) for %s: %s",
+                        "Auto-closed %d transient error task(s) for %s: %s",
                         len(closed),
                         entry.identifier,
                         ", ".join(closed),
@@ -1536,7 +1546,7 @@ class Orchestrator:
         # ~150ms each) don't block uvicorn's event loop. Returns the
         # final ordered list of issues that passed _should_dispatch; the
         # async loop below only yields once per actual dispatch — no sync
-        # work between yields. See bead oompah-zlz_2-nvr.
+        # work between yields. See task oompah-zlz_2-nvr.
         ready = await loop.run_in_executor(
             self._tick_pool, self._select_dispatchable, candidates
         )
@@ -1582,7 +1592,7 @@ class Orchestrator:
             )
 
         # Dispatch proactive rebase agents for stale epics (oompah-zlz_2-82dr.2).
-        # Filed as merge-conflict sibling beads under the epic so the
+        # Filed as merge-conflict sibling tasks under the epic so the
         # normal dispatch loop picks them up.
         if self.config.epic_staleness_threshold_commits > 0:
             await loop.run_in_executor(
@@ -1598,7 +1608,7 @@ class Orchestrator:
         # Reset orphaned in_progress issues (no agent, no retry).
         # Runs in the executor because orphan detection issues bd update
         # calls — keeping it inline would re-introduce the very same
-        # event-loop blocking this bead is fixing.
+        # event-loop blocking this task is fixing.
         in_progress = await loop.run_in_executor(
             self._tick_pool, self._fetch_in_progress_issues
         )
@@ -2400,16 +2410,16 @@ class Orchestrator:
         element is non-None only when the project's epic_strategy is
         'shared' AND the issue is a child of an epic — in which case
         callers know to commit/push on the shared epic branch instead
-        of the per-bead branch.
+        of the per-task branch.
 
         Fall-through behavior:
-        - epic_strategy='flat': always per-bead worktree (today's
+        - epic_strategy='flat': always per-task worktree (today's
           behavior).
-        - epic_strategy='stacked': per-bead worktree (children PR
+        - epic_strategy='stacked': per-task worktree (children PR
           against the epic branch, but each agent still gets its own
           working copy).
         - epic_strategy='shared': children of an epic share the epic's
-          worktree; non-children fall back to per-bead.
+          worktree; non-children fall back to per-task.
 
         The shared-mode epic worktree is created via
         ``project_store.create_epic_worktree``, which is idempotent
@@ -2579,7 +2589,7 @@ class Orchestrator:
         # For stacked/shared mode epics, an additional gate: the
         # epic's OWN branch (``epic-<id>``) must be merged to
         # ``project.default_branch`` before we auto-close. Otherwise we'd
-        # close the bead while its merge-train work is still pending.
+        # close the task while its merge-train work is still pending.
         # No "stuck_epic" alert is raised here — the epic→main PR is
         # owned by ``_open_epic_main_prs`` and merging is the
         # operator's responsibility.
@@ -3246,7 +3256,7 @@ class Orchestrator:
 
         Idempotent: calling twice with the same state is a no-op
         (except for the timestamp update).  Removes any other
-        ``epic:*`` labels from the bead before adding the new one.
+        ``epic:*`` labels from the task before adding the new one.
         """
         old_entry = self._epic_rebase_states.get(epic_identifier)
         if old_entry is not None and old_entry.state == state.value:
@@ -3268,7 +3278,7 @@ class Orchestrator:
             retry_count=retry_count,
         )
 
-        # Sync labels on the bead.
+        # Sync labels on the task.
         try:
             tracker = (
                 self._tracker_for_project(project_id)
@@ -3445,7 +3455,7 @@ class Orchestrator:
         proactive rebase currently in flight.
 
         Used by YOLO to suppress redundant conflict-agent dispatch
-        when the orchestrator has already filed a rebase bead for
+        when the orchestrator has already filed a rebase task for
         the epic (oompah-zlz_2-82dr.2).
         """
         if not source_branch or not source_branch.startswith("epic-"):
@@ -3461,19 +3471,19 @@ class Orchestrator:
         return False
 
     def _dispatch_proactive_rebase_agents(self, candidates: list[Issue]) -> int:
-        """File rebase beads for stale epics that need a rebase agent.
+        """File rebase tasks for stale epics that need a rebase agent.
 
         Iterates over ``candidates`` looking for epics in ``STALE`` or
         ``FAILED`` state (or ``REBASING`` when the in-flight timeout has
         elapsed).  For each such epic that passes
         :meth:`_should_dispatch_rebase_agent`, files a sibling task
-        bead under the epic with the ``merge-conflict`` label so the
+        task under the epic with the ``merge-conflict`` label so the
         normal dispatch loop routes it to the merge-conflict focus.
 
         Idempotent: checks for an existing open ``merge-conflict``
         sibling before creating a new one.
 
-        Returns the number of rebase beads filed.
+        Returns the number of rebase tasks filed.
         """
         from oompah.models import EpicRebaseState
 
@@ -3528,7 +3538,7 @@ class Orchestrator:
                     )
                     continue
 
-                self._file_rebase_bead(
+                self._file_rebase_task(
                     tracker, issue, epic_branch, target_branch
                 )
                 self._set_epic_rebase_state(
@@ -3539,23 +3549,23 @@ class Orchestrator:
                 filed += 1
             except Exception as exc:
                 logger.warning(
-                    "Failed to file rebase bead for %s: %s",
+                    "Failed to file rebase task for %s: %s",
                     issue.identifier,
                     exc,
                 )
 
         return filed
 
-    def _file_rebase_bead(
+    def _file_rebase_task(
         self,
         tracker,
         epic: Issue,
         epic_branch: str,
         target_branch: str,
     ) -> None:
-        """Create a sibling task bead under ``epic`` to rebase the epic branch.
+        """Create a sibling task task under ``epic`` to rebase the epic branch.
 
-        The bead is labelled ``merge-conflict`` so the dispatcher routes
+        The task is labelled ``merge-conflict`` so the dispatcher routes
         it to the merge-conflict focus, which already knows how to
         ``git rebase origin/<target>`` and force-push.
         """
@@ -3565,7 +3575,7 @@ class Orchestrator:
             f"behind `{target_branch}`. Rebase the branch onto "
             f"`origin/{target_branch}`, resolve any conflicts, and "
             f"force-push with `git push --force-with-lease`.\n\n"
-            f"This bead was auto-filed because epic {epic.identifier} "
+            f"This task was auto-filed because epic {epic.identifier} "
             f"was detected as stale. Do NOT create a new branch or PR — "
             f"work directly on `{epic_branch}`."
         )
@@ -3573,17 +3583,17 @@ class Orchestrator:
             title=title,
             issue_type="task",
             description=description,
-            # P0: a rebase bead resolves a merge conflict on the epic branch and
+            # P0: a rebase task resolves a merge conflict on the epic branch and
             # opens NO new PR, so it must bypass the in-flight-PR cap and the
             # shared-epic serialization gate — otherwise, when the conflicting
             # epic→main PR itself fills the single in-flight slot, the rebase
-            # bead can never dispatch and the conflict can never clear (deadlock).
+            # task can never dispatch and the conflict can never clear (deadlock).
             priority=0,
             parent=epic.identifier,
             initial_status=NEEDS_REBASE,
         )
         logger.info(
-            "Filed rebase bead for %s (branch=%s, target=%s)",
+            "Filed rebase task for %s (branch=%s, target=%s)",
             epic.identifier,
             epic_branch,
             target_branch,
@@ -3617,16 +3627,16 @@ class Orchestrator:
         # quiet one repo (CI flaking, PR backlog review, forge outage)
         # without halting the others. Same reject idiom as the global
         # pause; surfaced via the `paused` flag on each project in the
-        # state snapshot. See bead oompah-zlz_2-u7c.
+        # state snapshot. See task oompah-zlz_2-u7c.
         if self._is_project_paused(issue.project_id):
             return _reject("project_paused")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
-        # Refuse to dispatch beads with no body. A title alone is not enough
+        # Refuse to dispatch tasks with no body. A title alone is not enough
         # context for an agent to do anything sensible — and we've watched
-        # agents burn dozens of turns spinning on placeholder beads created
+        # agents burn dozens of turns spinning on placeholder tasks created
         # for ad-hoc CLI testing. Operator either fills in the description,
-        # closes the bead, or defers it. Epics get a pass because they are
+        # closes the task, or defers it. Epics get a pass because they are
         # planned separately and may legitimately start as title-only.
         if issue.issue_type != "epic" and not (issue.description or "").strip():
             return _reject("empty_description")
@@ -3705,7 +3715,7 @@ class Orchestrator:
                 return _reject(f"open_reviews_at_cap={n_open}/{limit}")
         # epic_strategy=='shared' serializes child dispatch within an epic.
         # Multiple children share one worktree+branch and we don't have an
-        # in-worktree coordination protocol yet (out of scope per the bead),
+        # in-worktree coordination protocol yet (out of scope per the task),
         # so only one child of a given epic can be in flight at a time.
         # Multiple epics still dispatch in parallel up to max_in_flight_prs.
         # P0 children bypass this check.
@@ -3733,14 +3743,14 @@ class Orchestrator:
         # subscription, not the per-token API meter the budget tracks.
         # Done BEFORE the cost-aware free-tier check so we don't pay
         # the model-resolution cost when the answer is "subscription".
-        # See plans/acp-agent.md and bead oompah-zlz_2-bcl.
+        # See plans/acp-agent.md and task oompah-zlz_2-bcl.
         if self._would_dispatch_via_acp(issue):
             return True
         # Budget circuit breaker — model-aware. When the window's spend has
         # exceeded the cap we still allow dispatch on models the provider
         # has explicitly priced at $0 (e.g. an internal-tier MiniMax). That
         # way an over-budget orchestrator continues chewing through cheap
-        # work while paid escalations queue for the next window. See bead
+        # work while paid escalations queue for the next window. See task
         # oompah-zlz_2-fvt for the full rationale.
         if not self._check_budget():
             if not self.state.budget_exceeded:
@@ -3775,11 +3785,11 @@ class Orchestrator:
         Per-token-billed ACP providers (``billing_model == "per_token"``,
         e.g. some Codex tiers or third-party agents) DO consume the
         budget — they fall through to the normal _check_budget gate.
-        See bead oompah-zlz_2-ag7h.
+        See task oompah-zlz_2-ag7h.
 
         Mirrors the safety-critical ACP-routing carve-out in
         ``_dispatch`` (oompah-zlz_2-lfy): when a merge-conflict /
-        ci-fix bead would otherwise resolve to a non-ACP profile but
+        ci-fix task would otherwise resolve to a non-ACP profile but
         an ACP profile is configured, the dispatcher swaps to ACP —
         so the budget gate must agree (subject to the same
         subscription-only constraint), otherwise an over-budget
@@ -3825,7 +3835,7 @@ class Orchestrator:
         Conservative default: any failure to resolve the provider, or a
         provider with no explicit billing_model, falls through to True
         (subscription) — that's the legacy behaviour predating this
-        bead (oompah-zlz_2-ag7h) and matches the back-compat default
+        task (oompah-zlz_2-ag7h) and matches the back-compat default
         applied by ``ModelProvider.from_dict`` for records that lack
         the field.
 
@@ -4261,14 +4271,14 @@ class Orchestrator:
 
         Honors the project's ``epic_strategy``:
 
-        * ``flat`` (default) — branch is the bead identifier; PR targets main.
+        * ``flat`` (default) — branch is the task identifier; PR targets main.
         * ``stacked`` — for a child of an epic, the PR's *base* is the
           epic's branch (``epic-<epic_identifier>``) instead of main, so
           all children stack on the epic and the operator gets one
           combined epic→main PR at the end.
         * ``shared`` — children commit directly to the shared epic branch.
           NO per-child PR is created here (the epic→main PR is the only
-          one). Top-level beads in shared mode behave like flat.
+          one). Top-level tasks in shared mode behave like flat.
 
         Returns ``True`` when no review is needed or a review exists/was
         created. Returns ``False`` when the branch has unmerged commits but
@@ -4283,7 +4293,7 @@ class Orchestrator:
 
         strategy = self._project_epic_strategy(project_id)
         # Resolve parent epic only for issues that have one. For top-level
-        # beads (no parent_id), strategy/parent treatment doesn't matter.
+        # tasks (no parent_id), strategy/parent treatment doesn't matter.
         parent_epic: Issue | None = None
         if entry.issue and entry.issue.parent_id and strategy in ("stacked", "shared"):
             parent_epic = self._resolve_parent_epic(entry.issue)
@@ -4657,7 +4667,7 @@ class Orchestrator:
         **Watchdog (oompah-zlz_2-jg4)**: every action attempt (success
         or failure) is recorded in ``self._yolo_action_history`` so the
         watchdog detectors can identify recurring no-progress patterns
-        and file P0 escalation beads. Per-project loop-coverage stats
+        and file P0 escalation tasks. Per-project loop-coverage stats
         are recorded in ``self._yolo_coverage_history`` for D2.
         """
         reviews_cache = getattr(self, "_reviews_cache", {})
@@ -5082,7 +5092,7 @@ class Orchestrator:
                 # carried merge-conflict from a prior tick but the branch was
                 # rebased externally (e.g. operator or CI script). GitHub now
                 # reports has_conflicts=False and the label is stale. Clear it
-                # here so the bead doesn't stay blocked by a wrong label while
+                # here so the task doesn't stay blocked by a wrong label while
                 # CI runs its pipeline.
                 elif review.source_branch and not review.has_conflicts:
                     self._clear_merge_conflict_label_for_branch(
@@ -5130,9 +5140,9 @@ class Orchestrator:
         # PR that has disappeared from the per-tick reviews cache (PR
         # was merged, closed, or otherwise resolved).
         self._prune_stale_repo_config_errors(reviews_cache)
-        # Watchdog: clear cached watchdog-bead refs for PRs that are no
+        # Watchdog: clear cached watchdog-task refs for PRs that are no
         # longer in the cache (PR closed/merged) so future recurrences
-        # can re-file. Then run all detectors and file beads / log
+        # can re-file. Then run all detectors and file tasks / log
         # warnings as appropriate.
         self._prune_stale_watchdog_state(reviews_cache)
         self._run_yolo_watchdog(reviews_cache)
@@ -5205,7 +5215,7 @@ class Orchestrator:
             # for this PR (oompah-zlz_2-rxwe.1).  Fetch the review to get
             # the branch pair; record_conflicts_for_project handles the
             # merge-tree invocation.  Best-effort: a failure here never
-            # blocks the bead-notify path.
+            # blocks the task-notify path.
             _pid = project.id
             _rid = review_id_str
             _repo = project.repo_path
@@ -5291,14 +5301,14 @@ class Orchestrator:
         stale = [k for k in self._yolo_repo_config_errors if k not in live_keys]
         for k in stale:
             self._yolo_repo_config_errors.pop(k, None)
-        # Also prune orphan-recovery bead bookkeeping (oompah-zlz_2-975).
+        # Also prune orphan-recovery task bookkeeping (oompah-zlz_2-975).
         # Key shape is (project_id, review_id, kind); strip the kind to
         # check liveness against (project_id, review_id) pairs.
         stale_orphan = [
-            k for k in self._yolo_orphan_recovery_beads if (k[0], k[1]) not in live_keys
+            k for k in self._yolo_orphan_recovery_tasks if (k[0], k[1]) not in live_keys
         ]
         for k in stale_orphan:
-            self._yolo_orphan_recovery_beads.pop(k, None)
+            self._yolo_orphan_recovery_tasks.pop(k, None)
 
     # ------------------------------------------------------------------
     # YOLO watchdog (oompah-zlz_2-jg4)
@@ -5320,7 +5330,7 @@ class Orchestrator:
         Successful attempts implicitly clear D1's consecutive-failure
         run for that (project, review, action) tuple.
 
-        Also clears any cached watchdog-bead reference for this
+        Also clears any cached watchdog-task reference for this
         (project, review) on success: when a PR's situation resolves,
         future recurrences should be able to re-file.
         """
@@ -5338,10 +5348,10 @@ class Orchestrator:
             self._clear_watchdog_filed_for_review(project_id, review_id)
 
     def _clear_watchdog_filed_for_review(self, project_id: str, review_id: str) -> None:
-        """Drop watchdog-bead cache entries for one (project, review).
+        """Drop watchdog-task cache entries for one (project, review).
 
         Called when an action on the PR succeeds — the PR has made
-        progress, so any prior watchdog beads were resolved (or will
+        progress, so any prior watchdog tasks were resolved (or will
         be) and a future recurrence should re-file freshly.
         """
         keys_to_drop = [
@@ -5390,7 +5400,7 @@ class Orchestrator:
 
         When a PR closes/merges and disappears from the cache:
         * Drop strategy-switch flags so future recurrences re-evaluate.
-        * Drop filed-watchdog-bead refs so future recurrences re-file.
+        * Drop filed-watchdog-task refs so future recurrences re-file.
         * Drop the PR's action history entries so detectors don't keep
           re-firing on a closed PR's stale failure run.
         * Drop d2-warned project keys when a project no longer has
@@ -5407,7 +5417,7 @@ class Orchestrator:
         for k in stale_switches:
             self._yolo_already_mergeable_switched.discard(k)
 
-        # Drop D1/D4 watchdog-bead refs for PRs no longer in cache.
+        # Drop D1/D4 watchdog-task refs for PRs no longer in cache.
         # D2 keys are project-scoped and stay until the warning clears
         # naturally on a coverage tick.
         stale_filed: list[str] = []
@@ -5443,9 +5453,9 @@ class Orchestrator:
 
         For each PR in the cache:
         * If has_conflicts=True or ci_status=='failed', verify a matching
-          recovery bead exists. If we previously filed an orphan-
-          recovery bead AND that bead is now closed AND the PR still
-          shows the failing condition, the bead-PR pair is incoherent.
+          recovery task exists. If we previously filed an orphan-
+          recovery task AND that task is now closed AND the PR still
+          shows the failing condition, the task-PR pair is incoherent.
           Reset the orphan-recovery cache entry (so the next tick
           re-files) and record an entry for the watchdog to escalate.
         """
@@ -5468,21 +5478,21 @@ class Orchestrator:
                 else:
                     continue
                 key = (project.id, review_id, kind)
-                bead_id = self._yolo_orphan_recovery_beads.get(key)
+                bead_id = self._yolo_orphan_recovery_tasks.get(key)
                 if not bead_id:
-                    # We haven't filed an orphan-recovery bead — the
+                    # We haven't filed an orphan-recovery task — the
                     # standard YOLO path is responsible for handling
-                    # this PR. D3 only fires when a recovery bead WAS
+                    # this PR. D3 only fires when a recovery task WAS
                     # filed but is now closed without resolving.
                     continue
-                # Check: is the orphan-recovery bead still open?
+                # Check: is the orphan-recovery task still open?
                 try:
                     issue = tracker.fetch_issue_detail(bead_id)
                 except Exception:  # noqa: BLE001
                     continue
                 if not issue:
-                    # Bead disappeared entirely — reset the cache.
-                    self._yolo_orphan_recovery_beads.pop(key, None)
+                    # Task disappeared entirely — reset the cache.
+                    self._yolo_orphan_recovery_tasks.pop(key, None)
                     incoherent.append(
                         {
                             "project_id": project.id,
@@ -5490,16 +5500,16 @@ class Orchestrator:
                             "kind": kind,
                             "source_branch": source_branch,
                             "reason": (
-                                f"recovery bead {bead_id} no longer exists; "
+                                f"recovery task {bead_id} no longer exists; "
                                 "PR still in failing state"
                             ),
                         }
                     )
                     continue
                 if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
-                    # Bead closed but PR still failing — reset cache so
-                    # the next tick refiles a fresh recovery bead.
-                    self._yolo_orphan_recovery_beads.pop(key, None)
+                    # Task closed but PR still failing — reset cache so
+                    # the next tick refiles a fresh recovery task.
+                    self._yolo_orphan_recovery_tasks.pop(key, None)
                     incoherent.append(
                         {
                             "project_id": project.id,
@@ -5507,7 +5517,7 @@ class Orchestrator:
                             "kind": kind,
                             "source_branch": source_branch,
                             "reason": (
-                                f"recovery bead {bead_id} is closed (state={issue.state}) "
+                                f"recovery task {bead_id} is closed (state={issue.state}) "
                                 f"but PR still has {kind} condition"
                             ),
                         }
@@ -5515,7 +5525,7 @@ class Orchestrator:
         return incoherent
 
     def _run_yolo_watchdog(self, reviews_cache: dict) -> None:
-        """Run all detectors and file beads / log warnings."""
+        """Run all detectors and file tasks / log warnings."""
         # Build helper lookup of project_id → name for nicer titles.
         project_lookup = {}
         try:
@@ -5550,15 +5560,15 @@ class Orchestrator:
                         )
                 continue
 
-            # P0 bead-filing patterns (D1, D3, D4).
+            # P0 task-filing patterns (D1, D3, D4).
             if pattern.pattern_key in self._yolo_watchdog_filed:
                 # Already filed for this pattern. Idempotent skip.
                 continue
             try:
-                self._file_watchdog_bead(pattern)
+                self._file_watchdog_task(pattern)
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
-                    "YOLO watchdog: failed to file bead for %s: %s",
+                    "YOLO watchdog: failed to file task for %s: %s",
                     pattern.pattern_key,
                     exc,
                 )
@@ -5573,8 +5583,8 @@ class Orchestrator:
         for k in d2_keys_to_drop:
             self._yolo_watchdog_d2_warned.discard(k)
 
-    def _file_watchdog_bead(self, pattern: WatchdogPattern) -> None:
-        """File a P0 bead for a watchdog pattern and stamp the idempotency cache."""
+    def _file_watchdog_task(self, pattern: WatchdogPattern) -> None:
+        """File a P0 task for a watchdog pattern and stamp the idempotency cache."""
         try:
             tracker = self._tracker_for_project(pattern.project_id)
         except ProjectError as exc:
@@ -5594,15 +5604,15 @@ class Orchestrator:
             initial_status=OPEN,
         )
         self._yolo_watchdog_filed[pattern.pattern_key] = new_issue.identifier
-        # Log at WARNING (not ERROR): filing a P0 escalation bead is the
+        # Log at WARNING (not ERROR): filing a P0 escalation task is the
         # watchdog's *expected* notification path for stuck PRs — it's
         # not an oompah-internal failure. Logging at ERROR would cause
         # error_watcher's _BeadLoggingHandler to auto-file a duplicate
-        # meta-bead in the oompah project, dirtying the queue with
-        # notifications that already have their own bead in the target
+        # meta-task in the oompah project, dirtying the queue with
+        # notifications that already have their own task in the target
         # project (oompah-zlz_2-8vc).
         logger.warning(
-            "YOLO watchdog: filed P0 bead %s for pattern %s "
+            "YOLO watchdog: filed P0 task %s for pattern %s "
             "(project=%s review=%s detector=%s)",
             new_issue.identifier,
             pattern.pattern_key,
@@ -5611,7 +5621,7 @@ class Orchestrator:
             pattern.detector,
         )
 
-    def _file_orphan_recovery_bead(
+    def _file_orphan_recovery_task(
         self,
         project,
         tracker,
@@ -5619,42 +5629,42 @@ class Orchestrator:
         source_branch: str,
         kind: str,
     ) -> None:
-        """File a recovery bead for a PR whose branch matches no bead.
+        """File a recovery task for a PR whose branch matches no task.
 
         Used by ``_yolo_notify_conflict`` and ``_yolo_retry_ci`` when
         ``fetch_issue_detail(source_branch)`` returns ``None``. Without
-        this, an orphan PR (branch with no attaching bead) would sit
+        this, an orphan PR (branch with no attaching task) would sit
         DIRTY/FAILED forever because the YOLO escalation has nothing to
-        relabel/reopen. The bead's identifier won't match the branch —
+        relabel/reopen. The task's identifier won't match the branch —
         that's fine: it's the work item, not the branch source. The
         focus matcher routes via the label.
 
         ``kind`` is one of ``"merge-conflict"`` or ``"ci-fix"`` and
         controls the title/description/label. Idempotent: the
         ``(project_id, review_id, kind)`` tuple is tracked in
-        ``self._yolo_orphan_recovery_beads`` so a second YOLO fire on
+        ``self._yolo_orphan_recovery_tasks`` so a second YOLO fire on
         the same orphan PR will not file a duplicate.
         (oompah-zlz_2-975)
         """
         if kind not in ("merge-conflict", "ci-fix"):
-            logger.error("Unknown orphan recovery bead kind: %s", kind)
+            logger.error("Unknown orphan recovery task kind: %s", kind)
             return
         key = (project.id, str(review_id), kind)
-        if key in self._yolo_orphan_recovery_beads:
+        if key in self._yolo_orphan_recovery_tasks:
             logger.debug(
-                "YOLO: orphan recovery bead already filed for %s MR #%s (%s): %s",
+                "YOLO: orphan recovery task already filed for %s MR #%s (%s): %s",
                 project.name,
                 review_id,
                 kind,
-                self._yolo_orphan_recovery_beads[key],
+                self._yolo_orphan_recovery_tasks[key],
             )
             return
         status = NEEDS_REBASE if kind == "merge-conflict" else NEEDS_CI_FIX
         label = "merge-conflict" if kind == "merge-conflict" else "ci-fix"
         # Cross-restart safety net: query the tracker for existing open
-        # beads with the matching label. The in-memory dict above is the
+        # tasks with the matching label. The in-memory dict above is the
         # fast path, but it's wiped on every restart. Without this check,
-        # a process restart creates a fresh bead even though an open
+        # a process restart creates a fresh task even though an open
         # duplicate already exists in the tracker.
         try:
             active_states = list(self.config.tracker_active_states) + [status]
@@ -5667,14 +5677,14 @@ class Orchestrator:
                 # conflict on PR #2" duplicates seen after restarts.
                 oldest = min(existing, key=lambda i: i.created_at or "")
                 logger.info(
-                    "YOLO: reusing existing open recovery bead %s for %s MR #%s (%s) "
+                    "YOLO: reusing existing open recovery task %s for %s MR #%s (%s) "
                     "instead of filing a duplicate",
                     oldest.identifier,
                     project.name,
                     review_id,
                     kind,
                 )
-                self._yolo_orphan_recovery_beads[key] = oldest.identifier
+                self._yolo_orphan_recovery_tasks[key] = oldest.identifier
                 return
         except Exception as exc:
             logger.debug(
@@ -5687,8 +5697,8 @@ class Orchestrator:
             title = f"merge conflict on PR #{review_id} ({source_branch})"
             description = (
                 f"YOLO: conflict detected on MR #{review_id} "
-                f"(branch {source_branch}) but no bead matches the "
-                f"branch name. This bead is the manual recovery — "
+                f"(branch {source_branch}) but no task matches the "
+                f"branch name. This task is the manual recovery — "
                 f"work directly on the branch. Rebase the branch onto "
                 f"the target and resolve conflicts."
             )
@@ -5697,8 +5707,8 @@ class Orchestrator:
             title = f"fix CI on PR #{review_id} ({source_branch})"
             description = (
                 f"YOLO: CI failure detected on MR #{review_id} "
-                f"(branch {source_branch}) but no bead matches the "
-                f"branch name. This bead is the manual recovery — "
+                f"(branch {source_branch}) but no task matches the "
+                f"branch name. This task is the manual recovery — "
                 f"work directly on the branch. Fix the failing tests "
                 f"so this MR can merge. Do NOT rewrite the feature — "
                 f"only fix test failures. IMPORTANT: Paths in CI logs "
@@ -5716,7 +5726,7 @@ class Orchestrator:
             )
         except Exception as exc:
             logger.warning(
-                "YOLO: failed to file orphan recovery bead for %s MR #%s (%s): %s",
+                "YOLO: failed to file orphan recovery task for %s MR #%s (%s): %s",
                 project.name,
                 review_id,
                 kind,
@@ -5727,14 +5737,14 @@ class Orchestrator:
             tracker.add_label(new_issue.identifier, label)
         except Exception as exc:
             logger.warning(
-                "YOLO: filed orphan recovery bead %s but failed to add %s label: %s",
+                "YOLO: filed orphan recovery task %s but failed to add %s label: %s",
                 new_issue.identifier,
                 label,
                 exc,
             )
-        self._yolo_orphan_recovery_beads[key] = new_issue.identifier
+        self._yolo_orphan_recovery_tasks[key] = new_issue.identifier
         logger.info(
-            "YOLO: filed orphan recovery bead %s for %s MR #%s (%s, branch %s)",
+            "YOLO: filed orphan recovery task %s for %s MR #%s (%s, branch %s)",
             new_issue.identifier,
             project.name,
             review_id,
@@ -5742,14 +5752,14 @@ class Orchestrator:
             source_branch,
         )
 
-    def _resolve_bead_for_branch(self, tracker, source_branch: str):
-        """Resolve a PR's source branch back to its tracker bead.
+    def _resolve_task_for_branch(self, tracker, source_branch: str):
+        """Resolve a PR's source branch back to its tracker task.
 
-        Per-bead branches are named after the task identifier, so a direct
+        Per-task branches are named after the task identifier, so a direct
         ``fetch_issue_detail`` resolves them. Epic→main PRs use an
         ``epic-<identifier>`` branch (see ``ProjectStore.epic_branch_name``);
         strip that prefix so an epic PR's CI failure / merge conflict
-        reopens the EPIC bead (relabel Needs CI Fix / Needs Rebase) instead
+        reopens the EPIC task (relabel Needs CI Fix / Needs Rebase) instead
         of being misread as an orphan PR — which would file a redundant
         "fix CI on PR #N" task rather than reusing the original epic.
         """
@@ -5761,20 +5771,20 @@ class Orchestrator:
     def _yolo_notify_conflict(
         self, project, provider, slug: str, review_id: str
     ) -> None:
-        """Notify the bead about a merge conflict (YOLO mode).
+        """Notify the task about a merge conflict (YOLO mode).
 
-        Before falling through to the bead-notification path, attempt a
+        Before falling through to the task-notification path, attempt a
         provider-level rebase. GitHub frequently marks a PR ``mergeable=CONFLICTING``
         when the branch is merely out-of-date — the underlying patches don't
         actually overlap. In that case ``provider.rebase_review`` succeeds and
         clears ``has_conflicts`` on the next review fetch, so no agent work is
         needed. Only when the rebase truly fails with conflict markers (or for
         unrelated transport/auth reasons) do we fall through to today's
-        notify-bead behavior. See oompah-zlz_2-s56w.
+        notify-task behavior. See oompah-zlz_2-s56w.
         """
         # Normalise once — used in both churn-recording and the info block.
         review_id_str = str(review_id)
-        # Step 1: try a provider-level rebase before disturbing the bead.
+        # Step 1: try a provider-level rebase before disturbing the task.
         try:
             success, message = provider.rebase_review(slug, review_id)
             if success:
@@ -5787,7 +5797,7 @@ class Orchestrator:
             msg_lower = (message or "").lower()
             if "conflict" not in msg_lower:
                 # Network/auth/etc — preserve today's safety net by
-                # falling through to notify the bead, but log so an
+                # falling through to notify the task, but log so an
                 # operator can see why YOLO didn't get the cheap path.
                 logger.warning(
                     "YOLO: provider rebase failed for %s MR #%s (non-conflict): %s",
@@ -5795,7 +5805,7 @@ class Orchestrator:
                     review_id,
                     message,
                 )
-            # else: real merge conflict — fall through to bead-notify below.
+            # else: real merge conflict — fall through to task-notify below.
         except Exception as exc:
             logger.warning(
                 "YOLO: provider rebase raised for %s MR #%s: %s",
@@ -5803,7 +5813,7 @@ class Orchestrator:
                 review_id,
                 exc,
             )
-            # Fall through to bead-notify (safety net).
+            # Fall through to task-notify (safety net).
 
         try:
             review = provider.get_review(slug, review_id)
@@ -5854,12 +5864,12 @@ class Orchestrator:
                 )
 
             tracker = self._tracker_for_project(project.id)
-            issue = self._resolve_bead_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(tracker, source_branch)
             if not issue:
-                # Orphan branch: no bead matches (not even the epic the
-                # branch belongs to). File a recovery bead so the YOLO
+                # Orphan branch: no task matches (not even the epic the
+                # branch belongs to). File a recovery task so the YOLO
                 # escalation chain isn't a silent dead-end. (oompah-zlz_2-975)
-                self._file_orphan_recovery_bead(
+                self._file_orphan_recovery_task(
                     project,
                     tracker,
                     str(review_id),
@@ -5871,13 +5881,19 @@ class Orchestrator:
             # Shared/stacked EPIC branches: the epic itself is never run by the
             # normal dispatch loop (issue_type == 'epic' is rejected), so marking
             # the epic "Needs Rebase" loops forever and never resolves the
-            # conflict. File a dispatchable P0 rebase sibling directly (it works
+            # conflict. File a dispatchable P0 rebase task directly (it works
             # on the epic branch and opens no new PR). We do NOT route through the
             # epic STALE rebase-state: that state is owned by the commit-distance
             # staleness checker (_check_epic_staleness), which clears it every
             # tick because a *content* conflict isn't "N commits behind" — a race
-            # that would prevent the bead from ever being filed. Idempotent on an
-            # existing open rebase sibling.
+            # that would prevent the task from ever being filed.
+            #
+            # Idempotency has two layers: (1) an existing actionable rebase
+            # sibling means one is in flight; (2) a per-epic cooldown stops
+            # re-filing during the window AFTER a rebase task completes but
+            # BEFORE the forge recomputes the PR's mergeability — otherwise the
+            # sibling goes terminal, the check sees "nothing active", and a
+            # duplicate is filed every tick until the conflict clears.
             if issue.issue_type == "epic":
                 # Force a fresh read so the idempotency check below sees a
                 # rebase sibling we filed on a previous tick (the per-tick read
@@ -5908,15 +5924,21 @@ class Orchestrator:
                     # Rebase agent already queued/in flight — let it finish.
                     self.state.completed.discard(existing.id)
                     return
-                self._file_rebase_bead(
+                last_filed = self._epic_rebase_filed_at.get(issue.identifier, 0.0)
+                if time.monotonic() - last_filed < _EPIC_REBASE_REFILE_COOLDOWN_S:
+                    # Recently filed a rebase task; the PR conflict is likely
+                    # still settling after the rebase force-push. Don't pile on.
+                    return
+                self._file_rebase_task(
                     tracker,
                     issue,
                     source_branch,
                     target_branch or project.default_branch,
                 )
+                self._epic_rebase_filed_at[issue.identifier] = time.monotonic()
                 self.state.completed.discard(issue.id)
                 logger.info(
-                    "YOLO: filed P0 rebase bead for epic %s (MR #%s branch "
+                    "YOLO: filed P0 rebase task for epic %s (MR #%s branch "
                     "conflict) — epics aren't dispatched directly",
                     issue.identifier,
                     review_id,
@@ -5975,7 +5997,7 @@ class Orchestrator:
         tracker,
         source_branch: str,
     ) -> None:
-        """Remove the merge-conflict label from a bead if it is stale.
+        """Remove the merge-conflict label from a task if it is stale.
 
         Called from two contexts (oompah-zlz_2-683l):
 
@@ -6028,12 +6050,12 @@ class Orchestrator:
             if not source_branch:
                 return
             tracker = self._tracker_for_project(project.id)
-            issue = self._resolve_bead_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(tracker, source_branch)
             if not issue:
-                # Orphan branch: no bead matches (not even the epic the
-                # branch belongs to). File a recovery bead so the YOLO
+                # Orphan branch: no task matches (not even the epic the
+                # branch belongs to). File a recovery task so the YOLO
                 # escalation chain isn't a silent dead-end. (oompah-zlz_2-975)
-                self._file_orphan_recovery_bead(
+                self._file_orphan_recovery_task(
                     project,
                     tracker,
                     str(review.id),
@@ -6041,17 +6063,17 @@ class Orchestrator:
                     kind="ci-fix",
                 )
                 return
-            # If the matched bead has children, the dispatcher will never
-            # dispatch the bead itself — children-with-unmerged-reviews
+            # If the matched task has children, the dispatcher will never
+            # dispatch the task itself — children-with-unmerged-reviews
             # block the parent via the standard blocker chain, and
-            # epic-planner won't re-plan an already-planned bead. This
-            # is independent of issue_type: a type=feature bead with
-            # children behaves identically to a type=epic bead from the
-            # dispatcher's perspective. Relabeling such a bead ci-fix
+            # epic-planner won't re-plan an already-planned task. This
+            # is independent of issue_type: a type=feature task with
+            # children behaves identically to a type=epic task from the
+            # dispatcher's perspective. Relabeling such a task ci-fix
             # would silently strand the work forever — that's the live
             # bug behind oompah-zlz_2-gf9 (trickle-rl5 is type=feature
             # with 7 children, created via epic_planner but stamped as
-            # feature). File a sibling task bead under the parent
+            # feature). File a sibling task task under the parent
             # instead so an agent actually gets dispatched against the
             # CI failure. See oompah-zlz_2-p4y, oompah-zlz_2-cd5
             # (idempotency-via-sibling-presence), and oompah-zlz_2-gf9
@@ -6062,7 +6084,7 @@ class Orchestrator:
             # ordering, a parent-with-children that was relabeled ci-fix
             # in a previous YOLO cycle (legacy state, or operator
             # action) would short-circuit forever and never produce a
-            # sibling bead — which is exactly the bug
+            # sibling task — which is exactly the bug
             # oompah-zlz_2-cd5 fixes.
             children = self._fetch_epic_children(issue)
             if children:
@@ -6104,9 +6126,9 @@ class Orchestrator:
                 sibling_description = (
                     f"YOLO: CI tests failed on MR #{review.id} "
                     f"(branch {source_branch}). The branch's primary "
-                    f"bead {issue.identifier} (type={issue.issue_type}) "
+                    f"task {issue.identifier} (type={issue.issue_type}) "
                     f"has {len(children)} children and won't be "
-                    f"dispatched. This sibling bead carries the actual "
+                    f"dispatched. This sibling task carries the actual "
                     f"fix work.\n\n"
                     "Fix the failing tests so this MR can merge. "
                     "Do NOT rewrite the feature — only fix test failures. "
@@ -6122,7 +6144,7 @@ class Orchestrator:
                     initial_status=NEEDS_CI_FIX,
                 )
                 logger.info(
-                    "YOLO: filed sibling ci-fix bead %s under %s "
+                    "YOLO: filed sibling ci-fix task %s under %s "
                     "(type=%s, %d children) for MR #%s",
                     sibling.identifier,
                     issue.identifier,
@@ -6131,21 +6153,21 @@ class Orchestrator:
                     review.id,
                 )
                 return
-            # Childless bead path (any issue_type): keep the existing
+            # Childless task path (any issue_type): keep the existing
             # relabel-or-skip behavior. The early-exit below is the
-            # original idempotency guard — for beads with no children,
+            # original idempotency guard — for tasks with no children,
             # a ci-fix label genuinely means "a fix is already in
-            # flight" because the bead itself can be dispatched.
+            # flight" because the task itself can be dispatched.
             state_lower = _state_key(issue.state)
             if state_lower in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_CI_FIX)} and (
                 "ci-fix" in issue.labels or canonicalize_status(issue.state) == NEEDS_CI_FIX
             ):
                 return
-            # If the matched bead is an epic with children, the dispatcher will
+            # If the matched task is an epic with children, the dispatcher will
             # never dispatch it (epics-with-children are gated out of both
             # regular dispatch and epic-planner dispatch). Relabeling such an
             # epic as ci-fix would silently strand the work forever. File a
-            # sibling task bead under the epic instead so an agent actually
+            # sibling task task under the epic instead so an agent actually
             # gets dispatched against the CI failure. See oompah-zlz_2-p4y.
             if issue.issue_type == "epic":
                 children = self._fetch_epic_children(issue)
@@ -6154,9 +6176,9 @@ class Orchestrator:
                     sibling_description = (
                         f"YOLO: CI tests failed on MR #{review.id} "
                         f"(branch {source_branch}). The branch's primary "
-                        f"bead {issue.identifier} is an epic with "
+                        f"task {issue.identifier} is an epic with "
                         f"{len(children)} children and won't be dispatched. "
-                        "This sibling bead carries the actual fix work.\n\n"
+                        "This sibling task carries the actual fix work.\n\n"
                         "Fix the failing tests so this MR can merge. "
                         "Do NOT rewrite the feature — only fix test failures. "
                         "IMPORTANT: Paths in CI logs are not trustworthy. "
@@ -6171,7 +6193,7 @@ class Orchestrator:
                         initial_status=NEEDS_CI_FIX,
                     )
                     logger.info(
-                        "YOLO: filed sibling ci-fix bead %s under epic %s for MR #%s",
+                        "YOLO: filed sibling ci-fix task %s under epic %s for MR #%s",
                         sibling.identifier,
                         issue.identifier,
                         review.id,
@@ -6363,7 +6385,7 @@ class Orchestrator:
         Designed to be called via run_in_executor from _handle_dispatch_needed
         so the bd CLI calls inside _should_dispatch (label/blocker resolution
         at ~150ms each) run off the asyncio event loop, keeping uvicorn
-        responsive during heavy ticks. See bead oompah-zlz_2-nvr.
+        responsive during heavy ticks. See task oompah-zlz_2-nvr.
 
         Returns the issues that pass _should_dispatch in priority/age order.
         The async caller is still responsible for re-checking _available_slots
@@ -6573,7 +6595,7 @@ class Orchestrator:
             logger.warning("tracker lookup failed for %s: %s", issue.identifier, exc)
             return
 
-        # Read existing rich records from beads, then merge.
+        # Read existing rich records from tasks, then merge.
         try:
             existing = tracker.fetch_attachments(issue.identifier)
         except Exception:
@@ -7135,7 +7157,7 @@ class Orchestrator:
         Returns 0.0 for ACP sessions whose provider is subscription-billed
         (``billing_model == "subscription"``) — those flat-rate sessions
         should not contribute to the rolling-window spend tracker even
-        when ``model_costs`` is populated. See bead oompah-zlz_2-ag7h.
+        when ``model_costs`` is populated. See task oompah-zlz_2-ag7h.
 
         For per-token ACP sessions, callers may pass ``sdk_cost_usd``
         with a non-None value to prefer the SDK's tier-aware total over
@@ -7511,7 +7533,7 @@ class Orchestrator:
                 # Subscription-billed ACP providers do not contribute
                 # cost to the per-issue task_costs metadata — calls
                 # bill against the operator's flat-rate subscription.
-                # See bead oompah-zlz_2-ag7h edge case
+                # See task oompah-zlz_2-ag7h edge case
                 # "model_costs set on a subscription-billed provider".
                 if mode == "acp" and not provider.is_per_token_billed("acp"):
                     pc_in, pc_out = 0.0, 0.0
@@ -7717,7 +7739,7 @@ class Orchestrator:
             )
 
     # ------------------------------------------------------------------
-    # Per-agent telemetry comment (bead oompah-zlz_2-y3fy)
+    # Per-agent telemetry comment (task oompah-zlz_2-y3fy)
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -7755,10 +7777,10 @@ class Orchestrator:
         """Return the dispatch_attempt label for the telemetry comment.
 
         Plain integers ("1", "2", ...) for the natural retry counter,
-        or "YOLO-reopen" when the bead carries a YOLO reopen label
+        or "YOLO-reopen" when the task carries a YOLO reopen label
         (ci-fix / merge-conflict) — those dispatches are not driven by
         the orchestrator's retry queue, they're orchestrated by YOLO
-        relabeling the bead.
+        relabeling the task.
         """
         labels = {str(l).lower() for l in (entry.issue.labels or [])}
         if "ci-fix" in labels or "merge-conflict" in labels:
@@ -7830,7 +7852,7 @@ class Orchestrator:
     ) -> str:
         """Build the per-agent telemetry comment text for ``entry``.
 
-        Format (one block per worker run, see bead oompah-zlz_2-y3fy):
+        Format (one block per worker run, see task oompah-zlz_2-y3fy):
 
             Run #2 [attempt=2, profile=deep -> InferenceAPI/claude-sonnet-4-6]
             - Turns: 27, Tool calls: 18
@@ -7954,7 +7976,7 @@ class Orchestrator:
 
         Mirrors :meth:`_fire_task_cost_record` — exceptions are logged
         but never propagate so the worker exit path stays unblocked.
-        See bead oompah-zlz_2-y3fy.
+        See task oompah-zlz_2-y3fy.
         """
         try:
             self._tick_pool.submit(
@@ -8012,13 +8034,13 @@ class Orchestrator:
           * ci_fix — CI-fix work must push to the existing PR's branch, NOT
             cut a new branch and open a new PR. The ci_fix Focus's must_not_do
             rails ('Create a new branch...', 'Open a new pull request') are
-            precisely what stops the failure mode in oompah-zlz_2-0pr (bead
+            precisely what stops the failure mode in oompah-zlz_2-0pr (task
             trickle-icl → PR #32 against main instead of pushing to
             trickle-rl5).
 
         Running such issues on the catch-all "default" profile first means
         the safety rails come too late: if the cheap-profile dispatch
-        produces a bad-but-CI-passing change, the bead closes without the
+        produces a bad-but-CI-passing change, the task closes without the
         specialist ever running. See oompah-zlz_2-2sd and oompah-zlz_2-0pr.
 
         Detection mirrors each Focus's labels and keywords. We check
@@ -8030,7 +8052,7 @@ class Orchestrator:
         if "merge-conflict" in labels or "ci-fix" in labels:
             return True
         # Also match each Focus's keywords (whole-word, case-insensitive)
-        # so beads that describe the work but lack the label still get the carve-out.
+        # so tasks that describe the work but lack the label still get the carve-out.
         text = f"{issue.title or ''} {issue.description or ''}".lower()
         for kw in (
             # merge_conflict keywords
@@ -8088,7 +8110,7 @@ class Orchestrator:
         """Return the first configured profile whose ``mode`` is ``acp``.
 
         Used by the safety-critical carve-out (oompah-zlz_2-lfy): when a
-        merge-conflict / ci-fix bead is dispatched outside the
+        merge-conflict / ci-fix task is dispatched outside the
         default_first_dispatch path AND the natural-resolved profile
         does NOT have mode=acp, we'd rather route the dispatch through
         an ACP profile (typically ``default``) so per-token billing
@@ -8178,7 +8200,7 @@ class Orchestrator:
             profile = self._match_agent_profile(issue)
             # Safety-critical ACP preservation (oompah-zlz_2-lfy):
             # The default_first_dispatch carve-out for merge-conflict /
-            # ci-fix beads is intentional (we want the specialist focus's
+            # ci-fix tasks is intentional (we want the specialist focus's
             # safety rails on the FIRST dispatch). Side effect: in
             # setups where only the ``default`` profile has mode=acp,
             # carving out also strands the dispatch on the per-token
@@ -8186,13 +8208,13 @@ class Orchestrator:
             # 2026-05-07 (HTTP 429 token-rate-limit cascade).
             #
             # Fix: when the carve-out fires (i.e. a safety-critical
-            # bead routed via natural matching) AND the natural-matched
+            # task routed via natural matching) AND the natural-matched
             # profile is NOT ACP, swap to the first ACP profile we can
             # find. Focus selection is independent of profile (label-
             # /keyword-driven), so the merge_conflict / ci_fix Focus's
             # must_not_do rails still apply unchanged.
             #
-            # Only fires for first dispatch on a safety-critical bead
+            # Only fires for first dispatch on a safety-critical task
             # without an explicit needs:* handoff label or override.
             # Retries / escalations keep their existing routing — we
             # don't want to second-guess the escalation hierarchy.
@@ -8232,7 +8254,7 @@ class Orchestrator:
         self.state.claimed.add(issue.id)
 
         # Race protection: the candidate fetch that produced ``issue`` may
-        # have predated a state change (e.g. user closing the bead via the
+        # have predated a state change (e.g. user closing the task via the
         # UI between fetch and dispatch). If we blindly write
         # status=in_progress here, we'd silently re-open a closed issue.
         # Re-read current state and abort if it's terminal.
@@ -8683,7 +8705,7 @@ class Orchestrator:
             def _setup_worker():
                 # Resolve workspace via the epic_strategy-aware helper:
                 # under epic_strategy='shared' a child of an epic uses
-                # the shared epic worktree; otherwise per-bead path.
+                # the shared epic worktree; otherwise per-task path.
                 wp, _epic = self._create_workspace_for_issue(issue)
 
                 self._post_comment(
@@ -8807,7 +8829,7 @@ class Orchestrator:
             # Update running entry with minimal session info, log path,
             # and resolved provider/model snapshot so _on_worker_exit's
             # telemetry comment can name them without re-resolving (the
-            # focus / role may have changed mid-run). See bead
+            # focus / role may have changed mid-run). See task
             # oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
                 running_entry = self.state.running[issue.id]
@@ -8912,7 +8934,7 @@ class Orchestrator:
                 logger.info("API agent stalled on %s: %s", issue.identifier, error_msg)
 
             # Enforce per-issue attachment cap on agent-generated outputs,
-            # then record what was produced in beads metadata so the
+            # then record what was produced in tasks metadata so the
             # dashboard can render it. Only on successful runs.
             if result.status == "succeeded":
                 try:
@@ -9110,7 +9132,7 @@ class Orchestrator:
             # provider/model fields are diagnostic for ACP runs (the
             # SDK picks the actual model from the subscription) but
             # they're still what the operator sees in task comments.
-            # See bead oompah-zlz_2-y3fy.
+            # See task oompah-zlz_2-y3fy.
             if issue.id in self.state.running:
                 running_entry_acp = self.state.running[issue.id]
                 running_entry_acp.workspace_path = workspace_path
@@ -9359,7 +9381,7 @@ class Orchestrator:
             #   doesn't, see ``sdk_cost_usd`` stashed below); when
             #   absent, fall back to the local ``model_costs`` lookup.
             #   Missing both → cost defaults to 0 with a WARNING (don't
-            #   crash dispatch over missing config). See bead
+            #   crash dispatch over missing config). See task
             #   oompah-zlz_2-ag7h.
             self.state.agent_totals.input_tokens += session.input_tokens
             self.state.agent_totals.output_tokens += session.output_tokens
@@ -9378,7 +9400,7 @@ class Orchestrator:
                 # ACP runs. None means "fall back to model_costs";
                 # subscription ACP runs are short-circuited to $0 in
                 # the cost helpers regardless of the SDK number.
-                # See bead oompah-zlz_2-ag7h.
+                # See task oompah-zlz_2-ag7h.
                 s.sdk_cost_usd = (
                     session.total_cost_usd
                     if (provider is not None and provider.is_per_token_billed("acp"))
@@ -9496,7 +9518,7 @@ class Orchestrator:
         try:
             # Resolve workspace via the epic_strategy-aware helper:
             # under epic_strategy='shared' a child of an epic uses
-            # the shared epic worktree; otherwise per-bead path.
+            # the shared epic worktree; otherwise per-task path.
             workspace_path, _epic = self._create_workspace_for_issue(issue)
             if issue.id in self.state.running:
                 self.state.running[issue.id].workspace_path = workspace_path
@@ -9555,7 +9577,7 @@ class Orchestrator:
                 # claude subprocess picks its own model from auth), but
                 # we still record the model role and a placeholder
                 # provider/model so the telemetry comment has SOMETHING
-                # to render. See bead oompah-zlz_2-y3fy.
+                # to render. See task oompah-zlz_2-y3fy.
                 cli_running = self.state.running.get(issue.id)
                 if cli_running:
                     cli_running.focus_name = cli_focus.name
@@ -9752,11 +9774,11 @@ class Orchestrator:
         Returns True when the close is ALLOWED, False when REFUSED.
 
         When refused:
-        * Posts a diagnostic comment on the bead (author=oompah).
-        * Reopens the bead so it re-enters the dispatch cycle.
+        * Posts a diagnostic comment on the task (author=oompah).
+        * Reopens the task so it re-enters the dispatch cycle.
 
         Fail-open on any internal error so a gate bug can never pin a
-        bead in-progress forever.
+        task in-progress forever.
         """
         from oompah.close_gate import (
             CloseGateResult,
@@ -9833,7 +9855,7 @@ class Orchestrator:
                 exc,
             )
 
-        # Reopen the bead
+        # Reopen the task
         try:
             tracker = (
                 self._tracker_for_project(project_id) if project_id else self.tracker
@@ -9841,7 +9863,7 @@ class Orchestrator:
             tracker.update_issue(entry.identifier, status=OPEN)
             logger.warning(
                 "close_gate: REFUSED close for %s — %d commit(s) ahead of %s, "
-                "open_prs=%d merged_prs=%d — bead reopened",
+                "open_prs=%d merged_prs=%d — task reopened",
                 entry.identifier,
                 result.commits_ahead,
                 base_branch,
@@ -9868,11 +9890,11 @@ class Orchestrator:
         Returns True when the completion is ALLOWED, False when REFUSED.
 
         When refused:
-        * Posts a diagnostic comment on the bead (author=oompah).
-        * Reopens the bead so it re-enters the dispatch cycle.
+        * Posts a diagnostic comment on the task (author=oompah).
+        * Reopens the task so it re-enters the dispatch cycle.
 
         Fail-open on any internal error so a gate bug can never pin a
-        bead in-progress forever.
+        task in-progress forever.
         """
         from oompah.unpushed_gate import (
             UnpushedGateResult,
@@ -9948,7 +9970,7 @@ class Orchestrator:
             tracker.update_issue(entry.identifier, status=IN_PROGRESS)
             logger.warning(
                 "unpushed_gate: REFUSED completion for %s — "
-                "unpushed work detected (ahead=%d uncommitted=%s) — bead re-opened",
+                "unpushed work detected (ahead=%d uncommitted=%s) — task re-opened",
                 entry.identifier,
                 result.commits_ahead,
                 result.has_uncommitted,
@@ -9971,7 +9993,7 @@ class Orchestrator:
         """Run the post-close verification pass (oompah-zlz_2-y0ns).
 
         Called from ``_on_worker_exit`` when the worker exited
-        ``normal`` AND the bead has moved to a terminal state — i.e.
+        ``normal`` AND the task has moved to a terminal state — i.e.
         the agent successfully moved the task to a terminal state.
 
         Returns a ``VerifierResult``. Callers inspect ``passed`` to
@@ -10165,9 +10187,9 @@ class Orchestrator:
 
         # Write per-agent telemetry comment for this run (fire-and-forget,
         # never blocks exit). One comment per worker run, regardless of
-        # exit reason — multiple runs on the same bead each leave a
-        # separate comment so the bead history shows all attempts
-        # side-by-side. See bead oompah-zlz_2-y3fy.
+        # exit reason — multiple runs on the same task each leave a
+        # separate comment so the task history shows all attempts
+        # side-by-side. See task oompah-zlz_2-y3fy.
         self._fire_telemetry_comment(entry, reason, elapsed)
 
         tokens_str = ""
@@ -10235,7 +10257,7 @@ class Orchestrator:
                 entry.identifier,
             )
             # If this success came from a retry (attempt > 0) the
-            # earlier failure(s) likely filed transient bug beads via
+            # earlier failure(s) likely filed transient bug tasks via
             # the error watcher.  Auto-close them now.  attempt == 0
             # was the first dispatch — nothing was retried, so don't
             # auto-close anything.
@@ -10452,12 +10474,12 @@ class Orchestrator:
                                     max_reopens,
                                 )
                 else:
-                    # Agent successfully closed the bead.
+                    # Agent successfully closed the task.
                     #
                     # Step 1: Close gate (oompah-zlz_2-gz8w).
                     # Refuse the close when the branch has unmerged
                     # commits AND no open/merged PR exists. When
-                    # refused, the gate reopens the bead and posts a
+                    # refused, the gate reopens the task and posts a
                     # diagnostic comment — we don't proceed to the
                     # verifier or mark completed.
                     gate_passed = self._run_close_gate(
@@ -10466,16 +10488,16 @@ class Orchestrator:
                         project_id,
                     )
                     if not gate_passed:
-                        # Gate refused. The bead was reopened by the
+                        # Gate refused. The task was reopened by the
                         # gate; the next dispatch cycle will pick it up.
                         # Skip verifier and completed tracking.
                         pass
                     else:
                         # ------------------------------------------------------------
                         # Step 1b: Unpushed gate (oompah-zlz_2-kc2k.1).
-                        # Detect the pattern where the bead is in a terminal state
+                        # Detect the pattern where the task is in a terminal state
                         # but commits are still local/uncommitted — the agent closed
-                        # the bead without ever landing.  Refuse and re-dispatch so
+                        # the task without ever landing.  Refuse and re-dispatch so
                         # the next agent can push + close properly.
                         gate_passed = self._run_unpushed_gate(
                             entry,
@@ -10483,12 +10505,12 @@ class Orchestrator:
                             project_id,
                         )
                         if not gate_passed:
-                            # Gate refused; bead re-opened, skip verifier.
+                            # Gate refused; task re-opened, skip verifier.
                             pass
                         else:
                             # Step 2: Completion verifier (oompah-zlz_2-y0ns).
                             # Run the two-stage check (regex + LLM) against the
-                            # bead's "# Acceptance criteria" section to catch
+                            # task's "# Acceptance criteria" section to catch
                             # false-success closures where the agent's diff
                             # doesn't actually satisfy the AC.
                             verifier_result = self._run_completion_verifier(
@@ -10589,7 +10611,7 @@ class Orchestrator:
                                     self.state.reopen_counts.pop(issue_id, None)
                                     self._verifier_reject_counts.pop(issue_id, None)
                                     # Reactive epic auto-close: if the just-closed
-                                    # bead is a child of an epic, evaluate the
+                                    # task is a child of an epic, evaluate the
                                     # parent for auto-close immediately rather
                                     # than waiting for the next full-sync tick.
                                     # See oompah-zlz_2-lvcd.
@@ -11674,7 +11696,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         # Write per-agent telemetry comment for this terminated run too
         # so the operator sees every attempt — including manual kills —
         # in task comments. Exit reason is "terminated" to
-        # distinguish from natural exits. See bead oompah-zlz_2-y3fy.
+        # distinguish from natural exits. See task oompah-zlz_2-y3fy.
         self._fire_telemetry_comment(entry, "terminated", elapsed)
 
         self.state.claimed.discard(issue_id)

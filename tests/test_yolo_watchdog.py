@@ -668,7 +668,7 @@ class TestOrchestratorD3Watchdog:
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._project_trackers[project.id] = mock_tracker
         # Pre-seed orphan-recovery cache as if we'd filed it before.
-        orch._yolo_orphan_recovery_beads[(project.id, "7", "merge-conflict")] = "rec-001"
+        orch._yolo_orphan_recovery_tasks[(project.id, "7", "merge-conflict")] = "rec-001"
         orch._reviews_cache = {
             project.id: [_make_review("7", source_branch="feat-7", has_conflicts=True)],
         }
@@ -676,7 +676,7 @@ class TestOrchestratorD3Watchdog:
         orch._yolo_review_actions_sync()
 
         # Cache should have been reset for the (project, 7, merge-conflict) key.
-        assert (project.id, "7", "merge-conflict") not in orch._yolo_orphan_recovery_beads
+        assert (project.id, "7", "merge-conflict") not in orch._yolo_orphan_recovery_tasks
         # And a watchdog bead should have been filed.
         watchdog_calls = [
             c for c in mock_tracker.create_issue.call_args_list
@@ -874,7 +874,7 @@ class TestWatchdogFilingLogLevel:
     or else error_watcher's _BeadLoggingHandler will auto-file a duplicate
     meta-bead in the oompah project every time the watchdog escalates a
     legitimate stuck PR. The notification belongs in the target project's
-    bead (already filed by _file_watchdog_bead); the oompah orchestrator
+    bead (already filed by _file_watchdog_task); the oompah orchestrator
     log line should stay at WARNING.
     """
 
@@ -919,7 +919,7 @@ class TestWatchdogFilingLogLevel:
         # The "filed P0 bead" log line must be at WARNING, NOT ERROR.
         filing_records = [
             r for r in caplog.records
-            if "YOLO watchdog: filed P0 bead" in r.message
+            if "YOLO watchdog: filed P0 task" in r.message
         ]
         assert len(filing_records) == 1, (
             f"Expected 1 filing log line, got {len(filing_records)}: "
@@ -927,7 +927,7 @@ class TestWatchdogFilingLogLevel:
         )
         rec = filing_records[0]
         assert rec.levelno == logging.WARNING, (
-            f"Expected 'YOLO watchdog: filed P0 bead' to be logged at "
+            f"Expected 'YOLO watchdog: filed P0 task' to be logged at "
             f"WARNING (not ERROR — error_watcher would auto-file a "
             f"duplicate meta-bead in oompah), got level={rec.levelname}"
         )
@@ -935,7 +935,7 @@ class TestWatchdogFilingLogLevel:
         error_records = [
             r for r in caplog.records
             if r.levelno >= logging.ERROR
-            and "YOLO watchdog: filed P0 bead" in r.message
+            and "YOLO watchdog: filed P0 task" in r.message
         ]
         assert error_records == [], (
             f"Watchdog filing log must not be ERROR+: {[r.message for r in error_records]}"

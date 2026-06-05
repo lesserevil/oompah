@@ -252,16 +252,16 @@ def set_orchestrator(orch: Orchestrator) -> None:
             )
 
     _agent_profile_store.set_reload_callback(_on_profiles_changed)
-    # Error watcher: creates beads for backend/frontend errors
+    # Error watcher: creates tasks for backend/frontend errors
     _error_watcher = ErrorWatcher(orch.tracker)
     _error_watcher.install_log_handler("oompah")
     # Register so the orchestrator can ask it to auto-close transient
-    # error beads when an issue's retry path succeeds (oompah-zlz_2-0nc).
+    # error tasks when an issue's retry path succeeds (oompah-zlz_2-0nc).
     orch.register_error_watcher(_error_watcher, project_id=None)
 
     # Project log watcher manager: watches log files for projects that set log_path.
     # Each project gets its own ErrorWatcher backed by the project's tracker so
-    # error beads are created in the correct project.
+    # error tasks are created in the correct project.
     def _make_error_watcher(project_id: str) -> ErrorWatcher:
         tracker = orch._tracker_for_project(project_id)
         watcher = ErrorWatcher(tracker, project_id=project_id)
@@ -679,7 +679,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
                 parents[issue.parent_id][child_state] += 1
 
     # Snapshot of source-branches with currently-open (unmerged) PRs so
-    # we can flag in-flight beads. Mirrors api_issues; both paths read
+    # we can flag in-flight tasks. Mirrors api_issues; both paths read
     # from the orchestrator's _unmerged_review_branches cache populated
     # in _handle_review_check.
     unmerged_branches: set[str] = set(
@@ -1271,9 +1271,9 @@ async def api_issues(request: Request):
             # has_open_review: True when this issue's branch is among the
             # source branches of currently-open (unmerged) PRs across the
             # project's tracked forge reviews. The dashboard's "show
-            # in-flight only" filter uses this to hide closed beads whose
+            # in-flight only" filter uses this to hide closed tasks whose
             # work has fully landed (no PR open) while keeping closed
-            # beads whose PR is still in queue/CI.
+            # tasks whose PR is still in queue/CI.
             branch = issue.branch_name or issue.identifier
             has_open_review = branch in unmerged_branches if branch else False
             tracker_state = issue.state
@@ -1829,7 +1829,7 @@ async def api_update_issue(identifier: str, request: Request):
                         break
 
                 # Also cancel any *pending retry* for this identifier so a
-                # scheduled timer doesn't re-dispatch a closed bead later.
+                # scheduled timer doesn't re-dispatch a closed task later.
                 # Without this, a worker that failed pre-close leaves a
                 # retry timer behind that fires after the close and
                 # silently re-opens the issue (oompah-zlz_2-4jq case).
@@ -2607,7 +2607,7 @@ def _validate_profile_payload_acp_aware(
     Layered ON TOP of AgentProfileStore's own per-record validation
     (which only enforces invariants visible to the store: name, mode
     enum, provider_id presence for api/auto). This adds the checks
-    that need ProviderStore / ACP-mode awareness — see bead
+    that need ProviderStore / ACP-mode awareness — see task
     oompah-zlz_2-rls:
 
     * mode=api: provider_id must EXIST in ProviderStore (not just be
@@ -2699,7 +2699,7 @@ async def api_create_agent_profile(request: Request):
     name, command (defaults if absent), mode. provider_id required when
     mode in {auto, api}.
 
-    Validation layers (see bead oompah-zlz_2-rls):
+    Validation layers (see task oompah-zlz_2-rls):
 
     * Cross-store: mode=api requires an EXISTING provider_id;
       mode=acp warns if provider_id is set; model_role must exist
@@ -4478,7 +4478,7 @@ async def api_rebase_review(project_id: str, review_id: str):
         notified_issue = None
         if not success and "conflict" in message.lower():
             # Try to find and notify the original task
-            notified_issue = _notify_conflict_on_bead(
+            notified_issue = _notify_conflict_on_task(
                 orch,
                 project_id,
                 provider,
@@ -4595,7 +4595,7 @@ async def api_retry_review(project_id: str, review_id: str):
         )
 
 
-def _notify_conflict_on_bead(
+def _notify_conflict_on_task(
     orch,
     project_id: str,
     provider,
@@ -4806,7 +4806,7 @@ def _resolve_attachment_path(orch, rel: str) -> tuple[str | None, str | None]:
 
 @app.get("/api/v1/issues/{identifier}/attachments")
 async def api_list_attachments(identifier: str):
-    """List the attachments recorded on an issue (rich records from beads
+    """List the attachments recorded on an issue (rich records from tasks
     metadata; the on-disk sidecar is not consulted here)."""
     try:
         orch = _get_orchestrator()
@@ -4922,7 +4922,7 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
                 status_code=415,
             )
 
-        # Update beads metadata: append the new record to the existing list.
+        # Update tasks metadata: append the new record to the existing list.
         existing = []
         try:
             existing = list(tracker.fetch_attachments(identifier) or [])
@@ -5046,7 +5046,7 @@ async def api_delete_attachment(path: str, request: Request):
 
 @app.post("/api/v1/errors")
 async def api_report_error(request: Request):
-    """Accept error reports from the frontend and create beads."""
+    """Accept error reports from the frontend and create tasks."""
     if not _error_watcher:
         return JSONResponse(
             {
@@ -5151,7 +5151,7 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
 
     # If the webhook signals that the project's tracked branch advanced
     # (push to that branch, or PR merged into it), pull the latest source
-    # and beads state. Without this, new commits — including beads
+    # and tasks state. Without this, new commits — including tasks
     # un-defers and direct chore pushes — only land on the local clone at
     # the next service restart. Sync runs in a background thread so the
     # webhook response stays fast.
@@ -5164,12 +5164,12 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         ).start()
 
     # When GitHub's merge queue successfully dequeues a PR (merge_group
-    # destroyed + merged=True), label the corresponding bead as merged and
+    # destroyed + merged=True), label the corresponding task as merged and
     # trigger a source sync.  This is the queue-mode equivalent of the
     # direct-merge path that fires on PR closed+merged webhooks.
     if event.event_type == "merge_group" and event.merged and project:
         threading.Thread(
-            target=_label_bead_merged_from_merge_group,
+            target=_label_task_merged_from_merge_group,
             args=(orch, event, project),
             name=f"merge-group-label-{project.name}",
             daemon=True,
@@ -5195,12 +5195,12 @@ def _webhook_advanced_tracked_branch(event, project) -> bool:
     return False
 
 
-def _label_bead_merged_from_merge_group(orch, event, project) -> None:
-    """Label the bead as merged when a merge_group destroyed event signals success.
+def _label_task_merged_from_merge_group(orch, event, project) -> None:
+    """Label the task as merged when a merge_group destroyed event signals success.
 
     The merge_group ``head_ref`` is ``gh-readonly-queue/<base>/<pr-identifier>``
     where ``<pr-identifier>`` encodes the source branch name.  We parse out
-    the branch name and match it to a closed bead so it gets the ``merged``
+    the branch name and match it to a closed task so it gets the ``merged``
     label — the same outcome as today's direct-merge path.
 
     This runs in a background thread (called from _handle_webhook_event).
@@ -5214,7 +5214,7 @@ def _label_bead_merged_from_merge_group(orch, event, project) -> None:
     # The head_ref looks like:
     #   gh-readonly-queue/main/pr-123-<branch-name>
     # We extract everything after the third "/" segment as the branch name
-    # prefix used to identify the bead.
+    # prefix used to identify the task.
     parts = head_ref.split("/", 3)
     if len(parts) < 4:
         # Fallback: use the whole head_ref, which likely won't match but
@@ -5227,7 +5227,7 @@ def _label_bead_merged_from_merge_group(orch, event, project) -> None:
         )
     else:
         # parts[3] is something like "pr-42-oompah-zlz_2-xyz"
-        # The bead identifier follows "pr-<N>-" prefix.
+        # The task identifier follows "pr-<N>-" prefix.
         tail = parts[3]
         dash_parts = tail.split("-", 2)
         if len(dash_parts) >= 3:
@@ -5240,7 +5240,7 @@ def _label_bead_merged_from_merge_group(orch, event, project) -> None:
         issue = tracker.fetch_issue_detail(branch_name)
         if issue is None:
             logger.debug(
-                "merge_group: no bead found for branch %r (head_ref=%r)",
+                "merge_group: no task found for branch %r (head_ref=%r)",
                 branch_name,
                 head_ref,
             )
@@ -5254,7 +5254,7 @@ def _label_bead_merged_from_merge_group(orch, event, project) -> None:
             )
     except Exception as exc:
         logger.warning(
-            "merge_group: failed to label bead for head_ref %r: %s",
+            "merge_group: failed to label task for head_ref %r: %s",
             head_ref,
             exc,
         )

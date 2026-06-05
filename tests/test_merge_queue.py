@@ -13,7 +13,7 @@ Covers:
 - parse_github_webhook: checks_requested action
 - _webhook_advanced_tracked_branch: merge_group merged event triggers sync
 - _webhook_advanced_tracked_branch: merge_group non-merged event does NOT trigger sync
-- _label_bead_merged_from_merge_group: labels bead merged on success
+- _label_task_merged_from_merge_group: labels bead merged on success
 - Project CRUD: merge_queue_enabled accepted via UPDATABLE_FIELDS
 """
 
@@ -1623,12 +1623,12 @@ class TestWebhookAdvancedTrackedBranchMergeGroup:
 
 
 # ---------------------------------------------------------------------------
-# Server: _label_bead_merged_from_merge_group
+# Server: _label_task_merged_from_merge_group
 # ---------------------------------------------------------------------------
 
 
 class TestLabelBeadMergedFromMergeGroup:
-    """_label_bead_merged_from_merge_group parses head_ref and labels the bead."""
+    """_label_task_merged_from_merge_group parses head_ref and labels the bead."""
 
     def _make_orch_with_tracker(self, issue_id: str, issue_labels: list[str]):
         """Build a minimal mock orchestrator with one issue in the tracker."""
@@ -1649,7 +1649,7 @@ class TestLabelBeadMergedFromMergeGroup:
         return p
 
     def test_labels_bead_merged_on_success(self):
-        from oompah.server import _label_bead_merged_from_merge_group
+        from oompah.server import _label_task_merged_from_merge_group
 
         # head_ref: gh-readonly-queue/main/pr-42-oompah-zlz_2-xyz
         orch, tracker, issue = self._make_orch_with_tracker("oompah-zlz_2-xyz", [])
@@ -1662,14 +1662,14 @@ class TestLabelBeadMergedFromMergeGroup:
             merged=True,
         )
 
-        _label_bead_merged_from_merge_group(orch, event, project)
+        _label_task_merged_from_merge_group(orch, event, project)
 
         tracker.update_issue.assert_called_once_with(
             "oompah-zlz_2-xyz", status="Merged"
         )
 
     def test_skips_already_merged_bead(self):
-        from oompah.server import _label_bead_merged_from_merge_group
+        from oompah.server import _label_task_merged_from_merge_group
 
         orch, tracker, issue = self._make_orch_with_tracker(
             "oompah-zlz_2-xyz", ["merged"]
@@ -1683,12 +1683,12 @@ class TestLabelBeadMergedFromMergeGroup:
             merged=True,
         )
 
-        _label_bead_merged_from_merge_group(orch, event, project)
+        _label_task_merged_from_merge_group(orch, event, project)
 
         tracker.add_label.assert_not_called()
 
     def test_no_project_is_noop(self):
-        from oompah.server import _label_bead_merged_from_merge_group
+        from oompah.server import _label_task_merged_from_merge_group
 
         orch = MagicMock()
         event = WebhookEvent(
@@ -1700,11 +1700,11 @@ class TestLabelBeadMergedFromMergeGroup:
         )
 
         # Should not raise
-        _label_bead_merged_from_merge_group(orch, event, None)
+        _label_task_merged_from_merge_group(orch, event, None)
         orch._tracker_for_project.assert_not_called()
 
     def test_empty_source_branch_is_noop(self):
-        from oompah.server import _label_bead_merged_from_merge_group
+        from oompah.server import _label_task_merged_from_merge_group
 
         orch = MagicMock()
         project = self._make_project()
@@ -1716,11 +1716,11 @@ class TestLabelBeadMergedFromMergeGroup:
             merged=True,
         )
 
-        _label_bead_merged_from_merge_group(orch, event, project)
+        _label_task_merged_from_merge_group(orch, event, project)
         orch._tracker_for_project.assert_not_called()
 
     def test_tracker_error_does_not_raise(self):
-        from oompah.server import _label_bead_merged_from_merge_group
+        from oompah.server import _label_task_merged_from_merge_group
 
         orch = MagicMock()
         orch._tracker_for_project.side_effect = Exception("db offline")
@@ -1734,10 +1734,10 @@ class TestLabelBeadMergedFromMergeGroup:
         )
 
         # Should not raise
-        _label_bead_merged_from_merge_group(orch, event, project)
+        _label_task_merged_from_merge_group(orch, event, project)
 
     def test_bead_not_found_is_noop(self):
-        from oompah.server import _label_bead_merged_from_merge_group
+        from oompah.server import _label_task_merged_from_merge_group
 
         mock_tracker = MagicMock()
         mock_tracker.fetch_issue_detail.return_value = None
@@ -1752,7 +1752,7 @@ class TestLabelBeadMergedFromMergeGroup:
             merged=True,
         )
 
-        _label_bead_merged_from_merge_group(orch, event, project)
+        _label_task_merged_from_merge_group(orch, event, project)
         mock_tracker.add_label.assert_not_called()
 
 

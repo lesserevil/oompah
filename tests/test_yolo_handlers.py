@@ -278,7 +278,7 @@ class TestYoloNotifyConflictRebaseFirst:
 
     def test_orphan_recovery_cross_restart_dedup_skips_filing(self, tmp_path):
         """When an open issue with the matching label already exists in the
-        tracker, _file_orphan_recovery_bead should reuse it rather than
+        tracker, _file_orphan_recovery_task should reuse it rather than
         filing a duplicate (cross-restart safety net)."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
@@ -305,9 +305,9 @@ class TestYoloNotifyConflictRebaseFirst:
         tracker.create_issue.assert_not_called()
         tracker.add_label.assert_not_called()
         # But should record the reused bead in bookkeeping
-        assert (project.id, "40", "merge-conflict") in orch._yolo_orphan_recovery_beads
+        assert (project.id, "40", "merge-conflict") in orch._yolo_orphan_recovery_tasks
         assert (
-            orch._yolo_orphan_recovery_beads[(project.id, "40", "merge-conflict")]
+            orch._yolo_orphan_recovery_tasks[(project.id, "40", "merge-conflict")]
             == "rogers-existing"
         )
 
@@ -325,7 +325,7 @@ class TestResolveBeadForBranch:
         tracker = MagicMock()
         bead = MagicMock(identifier="TASK-8.2")
         tracker.fetch_issue_detail.return_value = bead
-        assert orch._resolve_bead_for_branch(tracker, "TASK-8.2") is bead
+        assert orch._resolve_task_for_branch(tracker, "TASK-8.2") is bead
         tracker.fetch_issue_detail.assert_called_once_with("TASK-8.2")
 
     def test_epic_branch_strips_prefix(self, tmp_path):
@@ -333,7 +333,7 @@ class TestResolveBeadForBranch:
         tracker = MagicMock()
         epic = MagicMock(identifier="TASK-706")
         tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
-        got = orch._resolve_bead_for_branch(tracker, "epic-TASK-706")
+        got = orch._resolve_task_for_branch(tracker, "epic-TASK-706")
         assert got is epic
         assert tracker.fetch_issue_detail.call_args_list == [
             call("epic-TASK-706"), call("TASK-706")
@@ -343,7 +343,7 @@ class TestResolveBeadForBranch:
         orch = _make_orchestrator(tmp_path)
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = None
-        assert orch._resolve_bead_for_branch(tracker, "epic-TASK-999") is None
+        assert orch._resolve_task_for_branch(tracker, "epic-TASK-999") is None
 
 
 class TestEpicBranchCiFailUsesEpicNotOrphan:
@@ -357,14 +357,14 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
         epic = MagicMock(identifier="TASK-706", labels=[], state="Backlog")
         tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
         orch._project_trackers[project.id] = tracker
-        orch._file_orphan_recovery_bead = MagicMock()  # must NOT be used now
+        orch._file_orphan_recovery_task = MagicMock()  # must NOT be used now
         # Epic has a child → retry_ci routes to the sibling/parent path.
         orch._fetch_epic_children = MagicMock(
             return_value=[MagicMock(identifier="TASK-706.1", state="Done", labels=[])]
         )
         review = MagicMock(source_branch="epic-TASK-706", id="171", ci_status="failed")
         orch._yolo_retry_ci(project, review)
-        orch._file_orphan_recovery_bead.assert_not_called()
+        orch._file_orphan_recovery_task.assert_not_called()
 
     def test_true_orphan_still_files_recovery_bead(self, tmp_path):
         project = _make_project()
@@ -372,10 +372,10 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = None  # nothing resolves
         orch._project_trackers[project.id] = tracker
-        orch._file_orphan_recovery_bead = MagicMock()
+        orch._file_orphan_recovery_task = MagicMock()
         review = MagicMock(source_branch="some-random-branch", id="42", ci_status="failed")
         orch._yolo_retry_ci(project, review)
-        orch._file_orphan_recovery_bead.assert_called_once()
+        orch._file_orphan_recovery_task.assert_called_once()
 
 
 class TestYoloNotifyConflictEpicBranch:
@@ -446,7 +446,7 @@ class TestFileRebaseBeadPriority:
         epic = MagicMock()
         epic.identifier = "TASK-18"
         tracker = MagicMock()
-        orch._file_rebase_bead(tracker, epic, "epic-TASK-18", "dev")
+        orch._file_rebase_task(tracker, epic, "epic-TASK-18", "dev")
         tracker.create_issue.assert_called_once()
         # P0 so it bypasses the open-PR cap + shared-epic serialization;
         # otherwise the conflicting epic PR (which holds the in-flight slot)

@@ -1627,7 +1627,7 @@ class TestYoloOrphanBranchRecovery:
         tracker.add_label.assert_called_once_with("trickle-rec1", "merge-conflict")
 
         # Bookkeeping records the bead so a second call doesn't re-file
-        assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_beads
+        assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_tasks
 
     def test_notify_conflict_idempotent_for_same_orphan_pr(self, tmp_path):
         """Second YOLO fire on the same orphan PR must NOT file a duplicate."""
@@ -1713,7 +1713,7 @@ class TestYoloOrphanBranchRecovery:
         tracker.add_label.assert_called_once_with("trickle-rec2", "ci-fix")
 
         # Bookkeeping: keyed under (project_id, review_id, "ci-fix")
-        assert (project.id, "42", "ci-fix") in orch._yolo_orphan_recovery_beads
+        assert (project.id, "42", "ci-fix") in orch._yolo_orphan_recovery_tasks
 
     def test_retry_ci_idempotent_for_same_orphan_pr(self, tmp_path):
         project = _make_project(yolo=True)
@@ -1772,15 +1772,15 @@ class TestYoloOrphanBranchRecovery:
         orch = _make_orchestrator(tmp_path, projects=[project])
 
         # Seed bookkeeping for two PRs
-        orch._yolo_orphan_recovery_beads[(project.id, "30", "merge-conflict")] = "rec-1"
-        orch._yolo_orphan_recovery_beads[(project.id, "42", "ci-fix")] = "rec-2"
+        orch._yolo_orphan_recovery_tasks[(project.id, "30", "merge-conflict")] = "rec-1"
+        orch._yolo_orphan_recovery_tasks[(project.id, "42", "ci-fix")] = "rec-2"
 
         # Cache only contains PR #30 — #42 has been merged/closed
         live_review = self._make_review_request(review_id="30")
         orch._prune_stale_repo_config_errors({project.id: [live_review]})
 
-        assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_beads
-        assert (project.id, "42", "ci-fix") not in orch._yolo_orphan_recovery_beads
+        assert (project.id, "30", "merge-conflict") in orch._yolo_orphan_recovery_tasks
+        assert (project.id, "42", "ci-fix") not in orch._yolo_orphan_recovery_tasks
 
 
 # ---------------------------------------------------------------------------

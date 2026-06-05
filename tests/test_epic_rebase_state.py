@@ -9,7 +9,7 @@ Covers:
 - _restore_epic_rebase_states / _persist_epic_rebase_states persistence
 - Snapshot inclusion
 - _dispatch_proactive_rebase_agents (oompah-zlz_2-82dr.2)
-- _file_rebase_bead
+- _file_rebase_task
 - _check_epic_staleness
 - _is_epic_branch_being_rebased (YOLO suppression)
 """
