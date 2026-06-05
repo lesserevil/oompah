@@ -1008,9 +1008,27 @@ class TestEnsureRepoSound:
         assert "ff-pull" in res["actions"]
         assert (work / "backlog" / "tasks" / "task-2 - b.md").exists()
 
-    def test_hard_resets_on_backlog_only_divergence(self, tmp_path):
+    def test_does_not_reset_away_uncommitted_status_edits(self, tmp_path):
+        # The critical regression: an operator (or oompah) edits a task status
+        # in the working tree (uncommitted). ensure_repo_sound must NEVER
+        # hard-reset that away — even when origin has moved.
         remote, work = _mk_remote_clone(tmp_path)
-        # origin changes task-1; local makes a DIFFERENT committed change to it
+        _advance_origin(tmp_path, remote, "backlog/tasks/task-2 - b.md",
+                        "---\nid: TASK-2\nstatus: Backlog\n---\nb\n")
+        # operator drags task-1 to "Open" (uncommitted)
+        (work / "backlog" / "tasks" / "task-1 - a.md").write_text(
+            "---\nid: TASK-1\nstatus: Open\n---\nbody\n", encoding="utf-8"
+        )
+        res = ensure_repo_sound(str(work), "main")
+        # ff-pulled the new origin commit (autostash preserved the edit), and
+        # crucially did NOT reset.
+        assert res["reset"] is False
+        body = (work / "backlog" / "tasks" / "task-1 - a.md").read_text(encoding="utf-8")
+        assert "status: Open" in body  # operator's edit survived
+
+    def test_does_not_reset_divergent_local_commit(self, tmp_path):
+        remote, work = _mk_remote_clone(tmp_path)
+        # origin and local make conflicting committed changes to the same task
         _advance_origin(tmp_path, remote, "backlog/tasks/task-1 - a.md",
                         "---\nid: TASK-1\nstatus: Done\n---\norigin\n")
         (work / "backlog" / "tasks" / "task-1 - a.md").write_text(
@@ -1018,30 +1036,26 @@ class TestEnsureRepoSound:
         )
         _git(work, "commit", "-qam", "local backlog change")
         res = ensure_repo_sound(str(work), "main")
-        # Non-ff divergence on a backlog-only commit -> safe hard-reset.
-        assert res["sound"] is True
-        assert res["reset"] is True
-        assert "hard-reset" in res["actions"]
-        assert list_unmerged_paths(str(work)) == []
-        assert _git(work, "rev-list", "--count", "HEAD..origin/main").stdout.strip() == "0"
-
-    def test_quarantines_unpushed_code_commit(self, tmp_path):
-        remote, work = _mk_remote_clone(tmp_path)
-        # origin advances; local has an unpushed commit touching CODE (README).
-        _advance_origin(tmp_path, remote, "backlog/tasks/task-3 - c.md",
-                        "---\nid: TASK-3\nstatus: Backlog\n---\nc\n")
-        (work / "README.md").write_text("local code change\n", encoding="utf-8")
-        _git(work, "commit", "-qam", "local code change")
-        res = ensure_repo_sound(str(work), "main")
-        # Can't safely hard-reset (would drop unpushed code) -> not sound, flagged.
-        assert res["sound"] is False
+        # Unpushed commit present -> NOT safe to reset -> quarantine, preserve.
         assert res["reset"] is False
+        assert res["sound"] is False
         assert res["unrecoverable"]
-        # local code commit preserved
-        assert "local code change" in (work / "README.md").read_text(encoding="utf-8")
+        assert "In Progress" in (work / "backlog" / "tasks" / "task-1 - a.md").read_text(encoding="utf-8")
 
     def test_clean_current_repo_is_sound_noop(self, tmp_path):
         remote, work = _mk_remote_clone(tmp_path)
         res = ensure_repo_sound(str(work), "main")
         assert res["sound"] is True
         assert res["reset"] is False
+
+    def test_resets_only_when_clean_and_nothing_to_lose(self, tmp_path):
+        # A CLEAN checkout that's somehow stuck (detached) is safely reset —
+        # nothing to lose.
+        remote, work = _mk_remote_clone(tmp_path)
+        _advance_origin(tmp_path, remote, "backlog/tasks/task-9 - z.md",
+                        "---\nid: TASK-9\nstatus: Backlog\n---\nz\n")
+        # detach HEAD on the old commit; working tree clean
+        _git(work, "checkout", "-q", "--detach", "HEAD")
+        res = ensure_repo_sound(str(work), "main")
+        assert res["sound"] is True
+        assert _git(work, "symbolic-ref", "--short", "HEAD").stdout.strip() == "main"
