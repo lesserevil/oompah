@@ -3217,19 +3217,19 @@ function _isMetadataMessage(a) {
   return _AGENT_LOG_METADATA_SUMMARY_PATTERNS.some(re => re.test(s));
 }
 
+const _AGENT_LOG_COMPACT_KINDS = new Set(['message', 'thinking']);
+
 function renderActivityEntry(a) {
   const summary = a.summary || '';
   const verbose = isAgentLogVerbose();
 
   if (!verbose) {
-    // Compact mode: all non-empty, non-JSON entries are visible —
-    // plain-text agent speech AND thinking narration alike. The only
-    // entries hidden are: (1) empty/whitespace-only messages,
-    // (2) events whose visible payload is a raw JSON blob (e.g.
-    // tool-call argument dumps, structured session payloads), and
-    // (3) back-compat metadata entries recorded before the kind_map
-    // split (detected by _isMetadataMessage pattern matching).
+    // Compact mode: show only model speech and thinking narration.
+    // Within those two kinds, hide empty/whitespace-only payloads and
+    // raw JSON blobs so tool/session payloads do not leak into the
+    // non-verbose transcript.
     if (_isMetadataMessage(a)) return null;
+    if (!_AGENT_LOG_COMPACT_KINDS.has(a.kind || '')) return null;
     // Trim leading/trailing whitespace so display is clean, and skip
     // entries that are empty or whitespace-only.
     const _trim = s => (s || '').trim();

@@ -1,37 +1,42 @@
 ---
 id: TASK-446
-title: 'Non-verbose agent transcript view should show all non-empty, non-JSON messages'
-status: In Progress
-assignee: []
+title: Non-verbose agent transcript should show only message and thinking text
+status: Done
+assignee:
+  - oompah
 created_date: '2026-06-04 14:30'
-updated_date: '2026-06-05 15:56'
+updated_date: '2026-06-05 16:56'
 labels: []
 dependencies: []
+modified_files:
+  - oompah/templates/dashboard.html
+  - tests/test_activity_panel_verbose_toggle.py
 ordinal: 82000
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-In the agent transcript/console view, the non-verbose ('verbose off') mode currently hides plain-text 'thinking' messages (agent_thinking) and other non-empty text, so operators watching a live agent (e.g. TASK-706.1) can't see the agent's reasoning narration without flipping verbose on.
-
-Change the non-verbose filter so it shows ALL non-empty, non-JSON messages. The only things hidden in non-verbose mode should be: (1) empty/whitespace-only messages, and (2) events whose visible payload is just a raw JSON blob (e.g. tool-call argument dumps, structured event payloads). Plain-text content -- assistant text AND thinking narration -- must be visible in non-verbose mode. Verbose mode behavior is unchanged (still shows everything).
-
-Likely touch points: the transcript rendering / verbose toggle in the agent activity view (frontend filter that decides which ConsoleEvent kinds render), and oompah/console_format.py event kinds (agent_thinking carries plain 'text'). Find the predicate that gates messages on the verbose flag and broaden the non-verbose path to 'non-empty AND not pure-JSON' rather than an allowlist of kinds.
+In the agent log popup, the non-verbose ('verbose off') mode should show only operator-readable model output entries: log kind 'message' and log kind 'thinking'. It must not show other plain-text log kinds such as tool/session/system payloads just because they contain non-empty non-JSON text. Within the allowed 'message' and 'thinking' kinds, empty/whitespace-only entries and raw JSON-only payloads should remain hidden. Verbose mode behavior is unchanged.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 In verbose=off, agent_thinking (plain-text) messages are visible
-- [ ] #2 In verbose=off, all non-empty, non-JSON text messages are visible (not just an allowlisted subset of kinds)
-- [ ] #3 In verbose=off, empty/whitespace-only messages and JSON-only payload events remain hidden
-- [ ] #4 In verbose=on, the view behavior is unchanged (shows everything it does today)
+- [x] #1 In verbose=off, non-empty plain-text 'message' entries are visible.
+- [x] #2 In verbose=off, non-empty plain-text 'thinking' entries are visible.
+- [x] #3 In verbose=off, entries whose kind is not 'message' or 'thinking' are hidden even when their payload is non-empty plain text.
+- [x] #4 In verbose=off, empty/whitespace-only entries and JSON-only payloads remain hidden.
+- [x] #5 In verbose=on, existing full activity behavior is unchanged.
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Understanding: The non-verbose agent transcript view uses an allowlist/filter that hides agent_thinking events and possibly other plain-text events. The fix is to change the filter predicate from an allowlist of kinds to a content-based check: show any event whose visible payload is non-empty AND not a raw JSON blob. Will explore oompah/console_format.py and any frontend/JS transcript rendering code to find the predicate.
-
-Discovery: The verbose filter is in oompah/templates/dashboard.html, renderActivityEntry() (line ~3213). Non-verbose mode checks _AGENT_LOG_MESSAGE_KINDS = ['message'], filtering out 'thinking', 'tool_call', etc. The fix is: remove the kind allowlist, add _isPureJson() helper, and hide only empty/whitespace OR pure-JSON content. The acp_thinking events map to kind='thinking' in activity log with plain-text summary/detail - these need to pass through the new filter.
+Corrected scope: compact/non-verbose mode should use an explicit allowlist of activity kinds ('message' and 'thinking'), then apply the existing content checks to hide empty/whitespace-only content and raw JSON blobs. Other activity kinds remain visible only in verbose mode.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Restricted non-verbose agent log popup entries to kind 'message' and 'thinking' only, while preserving existing empty/whitespace and JSON-only filtering and leaving verbose mode unchanged. Updated activity panel tests and verified with focused pytest plus full make test (4544 passed).
+<!-- SECTION:FINAL_SUMMARY:END -->

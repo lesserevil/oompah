@@ -2,16 +2,16 @@
 
 The Verbose toggle (oompah-zlz_2-a7b) adds a checkbox at the top of the
 activity panel that controls whether every activity entry is rendered
-(Verbose ON, default — current behavior) or only entries with non-empty,
-non-JSON plain-text content are shown with their full text inline and no
-expand/collapse interaction (Verbose OFF — transcript view).
+(Verbose ON, default — current behavior) or only message/thinking entries
+with non-empty, non-JSON plain-text content are shown with their full text
+inline and no expand/collapse interaction (Verbose OFF — transcript view).
 
-Non-verbose mode shows ALL non-empty, non-JSON messages — including agent
-thinking narration (kind='thinking' / 'agent_thinking') — not just an
-allowlisted subset of kinds.  The only things hidden are:
-  (1) empty/whitespace-only entries,
-  (2) entries whose visible payload is a raw JSON blob, and
-  (3) back-compat metadata entries matched by _isMetadataMessage().
+Non-verbose mode shows only the operator-readable log types: model speech
+(kind='message') and thinking narration (kind='thinking').  It still hides:
+  (1) all other kinds, including tool/session payloads,
+  (2) empty/whitespace-only message/thinking entries,
+  (3) message/thinking entries whose visible payload is a raw JSON blob, and
+  (4) back-compat metadata entries matched by _isMetadataMessage().
 
 Persistence: localStorage key 'oompah_agent_log_verbose' ('on' | 'off').
 """
@@ -264,15 +264,8 @@ class TestCompactModeWhitespaceHandling:
             "renderActivityEntry compact mode must compare trimmed detail and summary lengths"
 
 
-class TestNonVerboseContentBasedFilter:
-    """Compact (Verbose=OFF) mode must use a content-based filter, not a kind allowlist.
-
-    The old behaviour gated on ``_AGENT_LOG_MESSAGE_KINDS = ['message']`` — any
-    entry whose kind wasn't in that list was silently dropped.  The new behaviour
-    shows ALL entries with non-empty, non-JSON visible content, so that agent
-    thinking narration (kind='thinking') is visible alongside model speech
-    (kind='message').
-    """
+class TestNonVerboseKindFilter:
+    """Compact mode only shows readable message/thinking entries."""
 
     def test_is_pure_json_function_defined(self, script):
         """_isPureJson() helper function must be defined in the script."""
@@ -292,16 +285,13 @@ class TestNonVerboseContentBasedFilter:
                '"[' in body or "'[" in body, \
             "_isPureJson must check for leading '[' (JSON array)"
 
-    def test_kind_allowlist_not_used_in_compact_mode(self, script):
-        """The old kind-allowlist (_AGENT_LOG_MESSAGE_KINDS) must not gate compact mode.
-
-        Removing the allowlist is what allows 'thinking'-kind entries to pass
-        through in non-verbose mode.
-        """
-        body = _get_func_body(script, "renderActivityEntry")
-        assert "_AGENT_LOG_MESSAGE_KINDS" not in body, \
-            ("Kind allowlist _AGENT_LOG_MESSAGE_KINDS must not appear in "
-             "renderActivityEntry — compact mode uses content-based filtering")
+    def test_compact_kind_allowlist_declared(self, script):
+        assert "_AGENT_LOG_COMPACT_KINDS" in script, \
+            "Compact mode must declare an explicit message/thinking kind allowlist"
+        assert "'message'" in script or '"message"' in script, \
+            "Compact mode allowlist must include message entries"
+        assert "'thinking'" in script or '"thinking"' in script, \
+            "Compact mode allowlist must include thinking entries"
 
     def test_compact_calls_is_pure_json(self, script):
         """renderActivityEntry compact branch must call _isPureJson to hide JSON blobs."""
@@ -309,22 +299,12 @@ class TestNonVerboseContentBasedFilter:
         assert "_isPureJson" in body, \
             "renderActivityEntry must call _isPureJson to hide raw JSON payload events"
 
-    def test_thinking_kind_not_blocked_by_kind_check(self, script):
-        """There must be no inline kind check that would filter out 'thinking' entries.
-
-        The old code had ``if (!_AGENT_LOG_MESSAGE_KINDS.includes(a.kind)) return null``
-        which excluded 'thinking'.  The new code must NOT have any such per-kind
-        guard on the compact path.
-        """
+    def test_compact_filters_by_message_and_thinking_kinds(self, script):
         body = _get_func_body(script, "renderActivityEntry")
-        # Must not reference 'thinking' as a kind to block.
-        assert "thinking" not in body or "_isPureJson" in body, \
-            ("If 'thinking' appears in renderActivityEntry body it must only be "
-             "for the _isPureJson content check, not a kind-allowlist guard")
-        # Must not use .includes() on a kind allowlist.
-        # This catches the old pattern: _AGENT_LOG_MESSAGE_KINDS.includes(a.kind)
-        assert "MESSAGE_KINDS" not in body, \
-            "No MESSAGE_KINDS allowlist may be used in the compact mode filter"
+        assert "_AGENT_LOG_COMPACT_KINDS.has" in body, \
+            "Compact mode must filter entries through the message/thinking allowlist"
+        assert "return null" in body, \
+            "Entries outside the compact allowlist must be skipped"
 
     def test_is_pure_json_not_defined_as_constant(self, script):
         """_isPureJson must be a function, not a simple string constant."""
