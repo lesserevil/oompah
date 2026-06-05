@@ -5924,7 +5924,7 @@ class Orchestrator:
                     # Rebase agent already queued/in flight — let it finish.
                     self.state.completed.discard(existing.id)
                     return
-                last_filed = self._epic_rebase_filed_at.get(issue.identifier, 0.0)
+                last_filed = self._epic_rebase_filed_at.get(issue.identifier, float("-inf"))
                 if time.monotonic() - last_filed < _EPIC_REBASE_REFILE_COOLDOWN_S:
                     # Recently filed a rebase task; the PR conflict is likely
                     # still settling after the rebase force-push. Don't pile on.
