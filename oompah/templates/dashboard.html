@@ -2985,12 +2985,19 @@ let activityPollTimer = null;
 // Verbose toggle to re-render without a network round-trip and by
 // handleActivityPush to keep the cache in sync with what the server pushes.
 let _activityEntries = [];
-// Allowlist of activity kinds that count as "human-readable speech" in
-// Verbose=OFF mode. Audited from oompah/orchestrator.py kind_map and
-// oompah/api_agent.py _emit calls — `message` covers acp_text (model
-// speech), acp_session_start, acp_result, and api_agent's own message
-// emits ("Agent finished", "Task cancelled", etc.).
-const _AGENT_LOG_MESSAGE_KINDS = ['message'];
+// Returns true when a string's trimmed form is a complete, self-contained
+// JSON object or array — used to hide raw JSON blobs in compact
+// (Verbose=OFF) mode while letting plain-text content through.
+// Called by renderActivityEntry for the non-verbose path.
+function _isPureJson(s) {
+  if (!s) return false;
+  const t = s.trim();
+  if ((t.startsWith('{') && t.endsWith('}')) ||
+      (t.startsWith('[') && t.endsWith(']'))) {
+    try { JSON.parse(t); return true; } catch(e) { return false; }
+  }
+  return false;
+}
 
 function isAgentLogVerbose() {
   const v = localStorage.getItem('oompah_agent_log_verbose');
@@ -3215,11 +3222,13 @@ function renderActivityEntry(a) {
   const verbose = isAgentLogVerbose();
 
   if (!verbose) {
-    // Compact mode: only message-kind entries appear, full text inline,
-    // no header pills, no expand/collapse. Also reject 'message' entries
-    // whose summary matches metadata patterns (back-compat for entries
-    // recorded before the kind_map split).
-    if (!_AGENT_LOG_MESSAGE_KINDS.includes(a.kind)) return null;
+    // Compact mode: all non-empty, non-JSON entries are visible —
+    // plain-text agent speech AND thinking narration alike. The only
+    // entries hidden are: (1) empty/whitespace-only messages,
+    // (2) events whose visible payload is a raw JSON blob (e.g.
+    // tool-call argument dumps, structured session payloads), and
+    // (3) back-compat metadata entries recorded before the kind_map
+    // split (detected by _isMetadataMessage pattern matching).
     if (_isMetadataMessage(a)) return null;
     // Trim leading/trailing whitespace so display is clean, and skip
     // entries that are empty or whitespace-only.
@@ -3230,6 +3239,8 @@ function renderActivityEntry(a) {
     // Prefer the longer of (detail, summary) so the operator sees the
     // full message — summary is truncated to 200 chars in oompah/api_agent.py.
     const text = (detail.length > summary.length ? detail : summary) || '(empty message)';
+    // Hide entries whose visible payload is a raw JSON blob.
+    if (_isPureJson(text)) return null;
     const div = document.createElement('div');
     div.className = 'activity-entry-compact';
     div.textContent = text;
