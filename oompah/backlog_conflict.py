@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -608,3 +609,178 @@ def repair_repo_backlog_conflicts(
             failed.append(fpath)
 
     return {"repaired": repaired, "failed": failed}
+
+
+# ---------------------------------------------------------------------------
+# Unmerged-index recovery (markerless conflicts)
+# ---------------------------------------------------------------------------
+#
+# A failed ``git pull --autostash`` (the routine sync path) can leave a backlog
+# task file as an UNMERGED INDEX ENTRY with NO textual conflict markers in the
+# working tree (e.g. an add/add or content-identical stage collision). Such an
+# entry is invisible to the marker-based scanners above, yet it makes EVERY
+# subsequent ``git pull`` fail with "you have unmerged files" — so the managed
+# checkout silently falls behind origin with no quarantine/alert. These helpers
+# detect and recover that state by reconstructing the conflict from git's index
+# stages and structured-merging them, then marking the path resolved.
+
+
+def _run_git(args: list[str], repo_path: str) -> tuple[int, str, str]:
+    try:
+        p = subprocess.run(
+            ["git", *args],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return p.returncode, p.stdout, p.stderr
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return 1, "", str(exc)
+
+
+def _git_show_stage(repo_path: str, stage: int, relpath: str) -> str | None:
+    """Return the content of ``relpath`` at merge ``stage`` (1=base, 2=ours,
+    3=theirs), or None if that stage does not exist."""
+    rc, out, _ = _run_git(["show", f":{stage}:{relpath}"], repo_path)
+    return out if rc == 0 else None
+
+
+def inspect_repo_unmerged_backlog(repo_path: str) -> list[str]:
+    """Return absolute paths of UNMERGED backlog task files (``git ls-files -u``).
+
+    Unlike :func:`inspect_repo_backlog_conflicts`, this catches markerless
+    unmerged-index entries that block ``git pull``.
+    """
+    rc, out, _ = _run_git(["ls-files", "-u", "-z"], repo_path)
+    if rc != 0 or not out:
+        return []
+    rels: set[str] = set()
+    for entry in out.split("\0"):
+        if not entry:
+            continue
+        # format: "<mode> <sha> <stage>\t<path>"
+        tab = entry.find("\t")
+        if tab == -1:
+            continue
+        rel = entry[tab + 1 :]
+        rels.add(rel)
+    out_paths: list[str] = []
+    for rel in sorted(rels):
+        if not rel.endswith(".md"):
+            continue
+        norm = rel.replace("\\", "/")
+        if "/backlog/tasks/" in f"/{norm}" or "/backlog/completed/" in f"/{norm}" \
+           or "/.backlog/tasks/" in f"/{norm}" or "/.backlog/completed/" in f"/{norm}":
+            out_paths.append(os.path.join(repo_path, rel))
+    return out_paths
+
+
+def _merge_task_versions(ours: str, theirs: str) -> str | None:
+    """Structured-merge two complete task-file versions (no markers needed).
+
+    Reuses the same frontmatter + comment merge rules as the marker-based
+    repair. Returns the merged file content, or None if either side is
+    unparseable / the result is invalid.
+    """
+    def split(content: str) -> tuple[str, str] | None:
+        if not content.startswith("---\n"):
+            return None
+        end = content.find("\n---", 4)
+        if end == -1:
+            return None
+        return content[4:end], content[end + 4 :]  # (frontmatter, body-after-fence)
+
+    so = split(ours)
+    st = split(theirs)
+    if so is None or st is None:
+        return None
+    fm_o, body_o = so
+    fm_t, body_t = st
+    try:
+        meta_o = yaml.safe_load(fm_o) or {}
+        meta_t = yaml.safe_load(fm_t) or {}
+    except yaml.YAMLError:
+        return None
+    if not isinstance(meta_o, dict) or not isinstance(meta_t, dict):
+        return None
+    merged_meta = _merge_frontmatter(meta_o, meta_t)
+    merged_body = _merge_body_comments(body_o, body_t)
+    try:
+        fm_text = yaml.safe_dump(merged_meta, sort_keys=False, allow_unicode=False)
+    except yaml.YAMLError:
+        return None
+    result = "---\n" + fm_text + "---" + merged_body
+    return result if _validate_task_content(result) else None
+
+
+def recover_repo_unmerged_backlog(repo_path: str) -> dict[str, list[str]]:
+    """Recover markerless unmerged-index backlog files so ``git pull`` works.
+
+    For each unmerged backlog file, reconstruct the two sides from the index
+    stages and structured-merge them (preferring a both-sides merge; falling
+    back to whichever stage exists, or a clean working-tree copy). On success
+    the file is rewritten and ``git add``-ed to clear the unmerged state.
+
+    Returns ``{"recovered": [...], "failed": [...]}`` (absolute paths).
+    """
+    recovered: list[str] = []
+    failed: list[str] = []
+    unmerged = inspect_repo_unmerged_backlog(repo_path)
+    if not unmerged:
+        return {"recovered": recovered, "failed": failed}
+
+    for abspath in unmerged:
+        rel = os.path.relpath(abspath, repo_path)
+        ours = _git_show_stage(repo_path, 2, rel)
+        theirs = _git_show_stage(repo_path, 3, rel)
+
+        merged: str | None = None
+        if ours is not None and theirs is not None:
+            merged = _merge_task_versions(ours, theirs)
+        elif ours is not None and _validate_task_content(ours):
+            merged = ours
+        elif theirs is not None and _validate_task_content(theirs):
+            merged = theirs
+
+        if merged is None:
+            # Last resort: a clean, valid working-tree copy (no markers).
+            try:
+                wt = Path(abspath).read_text(encoding="utf-8")
+            except OSError:
+                wt = ""
+            if wt and not has_conflict_markers(wt) and _validate_task_content(wt):
+                merged = wt
+
+        if merged is None:
+            failed.append(abspath)
+            continue
+
+        try:
+            Path(abspath).write_text(merged, encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Cannot write recovered task file %s: %s", abspath, exc)
+            failed.append(abspath)
+            continue
+        rc, _, err = _run_git(["add", "--", rel], repo_path)
+        if rc != 0:
+            logger.warning("git add failed for recovered %s: %s", abspath, err[:200])
+            failed.append(abspath)
+            continue
+        recovered.append(abspath)
+
+    if recovered:
+        logger.info(
+            "Recovered %d unmerged backlog file(s) in %s: %s",
+            len(recovered),
+            repo_path,
+            ", ".join(os.path.basename(p) for p in recovered[:5]),
+        )
+    if failed:
+        logger.warning(
+            "Could not recover %d unmerged backlog file(s) in %s: %s",
+            len(failed),
+            repo_path,
+            ", ".join(os.path.basename(p) for p in failed[:5]),
+        )
+    return {"recovered": recovered, "failed": failed}

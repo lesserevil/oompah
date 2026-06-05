@@ -950,7 +950,10 @@ class ProjectStore:
                   "backlog": "ok"|"migrated"|"failed: <reason>",
                   "conflicts": "none"|"repaired:<n>"|"quarantined:<paths>"}``.
         """
-        from oompah.backlog_conflict import repair_repo_backlog_conflicts
+        from oompah.backlog_conflict import (
+            recover_repo_unmerged_backlog,
+            repair_repo_backlog_conflicts,
+        )
 
         project = self._projects.get(project_id)
         if not project:
@@ -960,6 +963,9 @@ class ProjectStore:
                 "conflicts": "skipped: unknown project",
             }
         status: dict[str, str] = {}
+        # Backlog files left as unmerged-index entries (markerless) by a prior
+        # failed autostash pop — recovered pre-pull so the pull isn't blocked.
+        unmerged_failed: list[str] = []
 
         # git fetch + ff-only pull on the project's tracked branch.
         if not project.repo_path or not os.path.isdir(
@@ -975,6 +981,20 @@ class ProjectStore:
                     text=True,
                     timeout=timeout_s,
                 )
+                # Clear any stranded unmerged-index backlog entries BEFORE the
+                # pull — a single one makes ``git pull`` fail with "you have
+                # unmerged files", which would otherwise silently leave the
+                # checkout behind origin forever (no markers => the post-pull
+                # marker repair never sees it).
+                try:
+                    rec = recover_repo_unmerged_backlog(project.repo_path)
+                    unmerged_failed = list(rec.get("failed", []))
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "Unmerged-backlog recovery failed for %s: %s",
+                        project.name,
+                        exc,
+                    )
                 pull = subprocess.run(
                     [
                         "git",
@@ -1021,7 +1041,13 @@ class ProjectStore:
             try:
                 repair_result = repair_repo_backlog_conflicts(project.repo_path)
                 repaired = repair_result.get("repaired", [])
-                failed = repair_result.get("failed", [])
+                failed = list(repair_result.get("failed", []))
+                # Unmerged-index entries that recovery could NOT resolve are
+                # also unrepairable conflicts — quarantine on them too so the
+                # checkout never silently stalls behind origin.
+                for p in unmerged_failed:
+                    if p not in failed:
+                        failed.append(p)
                 if repaired or failed:
                     # Log repair summary
                     if repaired:

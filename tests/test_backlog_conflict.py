@@ -34,6 +34,8 @@ from oompah.backlog_conflict import (
     _status_priority,
     has_conflict_markers,
     inspect_repo_backlog_conflicts,
+    inspect_repo_unmerged_backlog,
+    recover_repo_unmerged_backlog,
     repair_backlog_task_file,
     repair_repo_backlog_conflicts,
 )
@@ -849,3 +851,104 @@ class TestBacklogParseFailureDetection:
         )
         result = inspect_repo_backlog_conflicts(str(repo))
         assert str(bad) in result
+
+
+# ---------------------------------------------------------------------------
+# Unmerged-index recovery (markerless conflicts) — the aethel failure mode
+# ---------------------------------------------------------------------------
+
+import subprocess
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args], cwd=str(repo), capture_output=True, text=True
+    )
+
+
+def _init_repo_with_unmerged_task(tmp_path: Path) -> tuple[Path, Path]:
+    """Build a real git repo where a backlog task file is an UNMERGED INDEX
+    entry with NO conflict markers in the working tree (the state that wedged
+    aethel). Returns (repo, task_file)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "t@t.test")
+    _git(repo, "config", "user.name", "t")
+    _git(repo, "checkout", "-q", "-b", "main")
+    tasks = repo / "backlog" / "tasks"
+    tasks.mkdir(parents=True)
+    tf = tasks / "task-9 - Some-task.md"
+    tf.write_text(
+        "---\nid: TASK-9\ntitle: Some task\nstatus: Backlog\n"
+        "updated_date: '2026-06-01 10:00'\n---\nBody\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    # divergent branch: theirs sets status In Progress + a newer date
+    _git(repo, "checkout", "-q", "-b", "other")
+    tf.write_text(
+        "---\nid: TASK-9\ntitle: Some task\nstatus: In Progress\n"
+        "updated_date: '2026-06-03 10:00'\n---\nBody\n",
+        encoding="utf-8",
+    )
+    _git(repo, "commit", "-qam", "theirs")
+    # ours: status Done + a comment
+    _git(repo, "checkout", "-q", "main")
+    tf.write_text(
+        "---\nid: TASK-9\ntitle: Some task\nstatus: Done\n"
+        "updated_date: '2026-06-02 10:00'\n---\nBody\n\n"
+        "<!-- COMMENT:BEGIN -->\nindex: 1\nnote: hi\n<!-- COMMENT:END -->\n",
+        encoding="utf-8",
+    )
+    _git(repo, "commit", "-qam", "ours")
+    # merge -> conflict (markers, UU), then clear markers in working tree
+    # WITHOUT marking resolved -> markerless unmerged index entry.
+    _git(repo, "merge", "other")  # expected to conflict
+    _git(repo, "checkout", "--theirs", "--", str(tf.relative_to(repo)))
+    return repo, tf
+
+
+class TestUnmergedBacklogRecovery:
+    def test_inspect_detects_markerless_unmerged_entry(self, tmp_path):
+        repo, tf = _init_repo_with_unmerged_task(tmp_path)
+        # Precondition: index is unmerged but the file has NO markers.
+        assert _git(repo, "ls-files", "-u").stdout.strip() != ""
+        assert not has_conflict_markers(tf.read_text(encoding="utf-8"))
+        # The marker-based scanner is blind to it; the index scanner sees it.
+        assert inspect_repo_backlog_conflicts(str(repo)) == []
+        found = inspect_repo_unmerged_backlog(str(repo))
+        assert len(found) == 1
+        assert found[0].endswith("task-9 - Some-task.md")
+
+    def test_recover_resolves_and_clears_unmerged_state(self, tmp_path):
+        repo, tf = _init_repo_with_unmerged_task(tmp_path)
+        result = recover_repo_unmerged_backlog(str(repo))
+        assert len(result["recovered"]) == 1
+        assert result["failed"] == []
+        # Unmerged index entry is gone -> a pull would no longer be blocked.
+        assert _git(repo, "ls-files", "-u").stdout.strip() == ""
+        # Structured merge preserved data from BOTH sides: most-advanced status
+        # (Done from ours) and the comment, with a valid parse.
+        merged = tf.read_text(encoding="utf-8")
+        assert not has_conflict_markers(merged)
+        meta = yaml.safe_load(merged.split("---", 2)[1])
+        assert meta["status"] == "Done"  # more-advanced lifecycle wins
+        assert "COMMENT:BEGIN" in merged
+
+    def test_recover_noop_on_clean_repo(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q")
+        _git(repo, "config", "user.email", "t@t.test")
+        _git(repo, "config", "user.name", "t")
+        (repo / "backlog" / "tasks").mkdir(parents=True)
+        (repo / "backlog" / "tasks" / "task-1 - x.md").write_text(
+            "---\nid: TASK-1\nstatus: Backlog\n---\nb\n", encoding="utf-8"
+        )
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", "c")
+        result = recover_repo_unmerged_backlog(str(repo))
+        assert result == {"recovered": [], "failed": []}
+        assert inspect_repo_unmerged_backlog(str(repo)) == []
