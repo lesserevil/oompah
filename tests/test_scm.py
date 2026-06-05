@@ -6,6 +6,7 @@ from unittest import mock
 
 from oompah.scm import (
     ReviewRequest,
+    _is_protected_branch,
     _read_pr_detail_cache_ttl,
     _truncate,
     detect_provider,
@@ -13,6 +14,115 @@ from oompah.scm import (
     GitHubProvider,
     GitLabProvider,
 )
+
+
+class TestIsProtectedBranch:
+    """``_is_protected_branch`` guards post-merge auto-cleanup so long-lived
+    branches (release/*, main, ...) are never deleted, even as a PR head."""
+
+    def test_release_and_hotfix_prefixes_protected(self):
+        assert _is_protected_branch("release/v0.9")
+        assert _is_protected_branch("release/0.10")
+        assert _is_protected_branch("hotfix/urgent")
+
+    def test_permanent_branches_protected(self):
+        for b in ("main", "master", "develop", "dev", "trunk"):
+            assert _is_protected_branch(b)
+
+    def test_merge_queue_and_dolt_refs_protected(self):
+        assert _is_protected_branch("gh-readonly-queue/main/pr-109-abc")
+        assert _is_protected_branch("__dolt_remote_info__")
+
+    def test_empty_is_protected(self):
+        # Defensive: never delete on a missing/blank ref.
+        assert _is_protected_branch("")
+
+    def test_default_branch_protected(self):
+        assert _is_protected_branch("production", default_branch="production")
+
+    def test_feature_branches_not_protected(self):
+        # Regular work branches ARE eligible for auto-cleanup — including a
+        # feature branch that merely has "release" in its name.
+        assert not _is_protected_branch("trickle-release-features")
+        assert not _is_protected_branch("epic-TASK-270")
+        assert not _is_protected_branch("trickle-abc1")
+        assert not _is_protected_branch("TASK-704")
+
+
+class TestMergeReviewBranchCleanupProtection:
+    """merge_review() must not auto-delete a protected source/head branch."""
+
+    def _github(self):
+        provider = GitHubProvider(access_token="t")
+        calls = []
+
+        class _Resp:
+            def __init__(self, code, payload=None):
+                self.status_code = code
+                self._payload = payload or {}
+                self.text = ""
+
+            def json(self):
+                return self._payload
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path))
+            if path.endswith("/merge"):
+                return _Resp(200)
+            if "/pulls/" in path:  # GET PR detail
+                return _Resp(200, {"head": {"ref": fake_api.head_ref}})
+            return _Resp(200)
+
+        provider._api = fake_api
+        return provider, fake_api, calls
+
+    def test_github_deletes_normal_head(self):
+        provider, fake_api, calls = self._github()
+        fake_api.head_ref = "trickle-abc1"
+        ok, _ = provider.merge_review("o/r", "5")
+        assert ok
+        assert any(m == "DELETE" and "refs/heads/trickle-abc1" in p for m, p in calls)
+
+    def test_github_skips_protected_head(self):
+        provider, fake_api, calls = self._github()
+        fake_api.head_ref = "release/0.10"
+        ok, _ = provider.merge_review("o/r", "5")
+        assert ok
+        assert not any(m == "DELETE" for m, _ in calls)
+
+    def _gitlab(self, source_branch):
+        provider = GitLabProvider(access_token="t")
+        merge_kwargs = {}
+
+        class _Resp:
+            def __init__(self, code, payload=None):
+                self.status_code = code
+                self._payload = payload or {}
+                self.text = ""
+
+            def json(self):
+                return self._payload
+
+        def fake_api(method, path, **kwargs):
+            if path.endswith("/merge"):
+                merge_kwargs.update(kwargs.get("json", {}))
+                return _Resp(200)
+            return _Resp(200, {"source_branch": source_branch})
+
+        provider._api = fake_api
+        return provider, merge_kwargs
+
+    def test_gitlab_removes_normal_source(self):
+        provider, merge_kwargs = self._gitlab("trickle-abc1")
+        ok, _ = provider.merge_review("g/p", "5")
+        assert ok
+        assert merge_kwargs.get("should_remove_source_branch") is True
+
+    def test_gitlab_keeps_protected_source(self):
+        provider, merge_kwargs = self._gitlab("release/v0.9")
+        ok, _ = provider.merge_review("g/p", "5")
+        assert ok
+        assert merge_kwargs.get("should_remove_source_branch") is False
 
 
 class TestReadPrDetailCacheTtl:

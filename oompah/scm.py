@@ -22,6 +22,35 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Branches that must never be auto-deleted as part of post-merge cleanup.
+# Even if such a branch is a PR/MR *head* (e.g. a release->main back-merge),
+# deleting it would destroy a long-lived integration branch. Long-lived
+# prefixes plus the obvious permanent branches.
+_PROTECTED_BRANCH_PREFIXES = (
+    "release/",
+    "hotfix/",
+    "gh-readonly-queue/",
+    "__",
+)
+_PROTECTED_BRANCH_NAMES = {"main", "master", "develop", "dev", "trunk"}
+
+
+def _is_protected_branch(branch: str, default_branch: str = "") -> bool:
+    """Return True if ``branch`` must never be auto-deleted by merge cleanup.
+
+    Covers permanent branches (main/master/develop/dev/trunk and the repo's
+    default branch) and long-lived prefixes (release/, hotfix/, GitHub's merge
+    queue refs, and dolt's ``__`` internal refs).
+    """
+    if not branch:
+        return True
+    if branch in _PROTECTED_BRANCH_NAMES:
+        return True
+    if default_branch and branch == default_branch:
+        return True
+    return branch.startswith(_PROTECTED_BRANCH_PREFIXES)
+
+
 # Shared HTTP client — reuses connections across calls (connection pooling).
 # Created lazily to avoid import-time side effects.
 _http_client: httpx.Client | None = None
@@ -1197,12 +1226,19 @@ class GitHubProvider(SCMProvider):
             r = self._api("PUT", f"/repos/{repo}/pulls/{review_id}/merge",
                           json={"merge_method": "squash"})
             if r.status_code == 200:
-                # Delete source branch
+                # Delete source branch (post-merge cleanup) — but never a
+                # protected/long-lived branch (release/*, main, ...), even if
+                # it was this PR's head.
                 pr = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
                 if pr.status_code == 200:
                     branch = pr.json().get("head", {}).get("ref", "")
-                    if branch:
+                    if branch and not _is_protected_branch(branch):
                         self._api("DELETE", f"/repos/{repo}/git/refs/heads/{branch}")
+                    elif branch:
+                        logger.info(
+                            "Skipping post-merge deletion of protected branch "
+                            "%s in %s", branch, repo,
+                        )
                 return True, "PR merged successfully"
             return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"
         except httpx.HTTPError as exc:
@@ -1614,10 +1650,22 @@ class GitLabProvider(SCMProvider):
     def merge_review(self, repo: str, review_id: str) -> tuple[bool, str]:
         encoded = self._project_path(repo)
         try:
+            # Never auto-remove a protected/long-lived source branch
+            # (release/*, main, ...) — check before requesting removal.
+            remove_source = True
+            mr = self._api("GET", f"/projects/{encoded}/merge_requests/{review_id}")
+            if mr.status_code == 200:
+                source_branch = mr.json().get("source_branch", "")
+                if _is_protected_branch(source_branch):
+                    remove_source = False
+                    logger.info(
+                        "Skipping post-merge deletion of protected branch "
+                        "%s in %s", source_branch, repo,
+                    )
             r = self._api("PUT", f"/projects/{encoded}/merge_requests/{review_id}/merge",
                           json={
                               "squash": True,
-                              "should_remove_source_branch": True,
+                              "should_remove_source_branch": remove_source,
                           })
             if r.status_code == 200:
                 return True, "MR merged successfully"
