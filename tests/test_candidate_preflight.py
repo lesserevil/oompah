@@ -29,7 +29,12 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.focus import Focus
 from oompah.models import AgentProfile, Issue, ModelProvider, RunningEntry
-from oompah.orchestrator import DispatchTarget, Orchestrator, ProviderStartupError
+from oompah.orchestrator import (
+    DispatchTarget,
+    Orchestrator,
+    ProviderStartupError,
+    _is_acp_launch_failure,
+)
 from oompah.roles import Candidate, RoleStore
 
 
@@ -853,6 +858,66 @@ class TestRunWorkerPreflightIntegration:
 
         assert calls == ["p-happy"]
         orch._on_worker_exit.assert_not_called()
+
+    def test_acp_launch_failure_fails_over_to_next_candidate(self, tmp_path):
+        """An ACP launch failure (ProviderStartupError) on the first
+        candidate must fail over to the next model in the priority list,
+        not book a terminal exit."""
+        issue = _make_issue("feat-acp-launch")
+        orch = _make_orch_with_running(tmp_path, issue)
+
+        prov_a = _api_provider(pid="a", api_key="sk-a")
+        prov_a.mode = "acp"
+        prov_b = _api_provider(pid="b", api_key="sk-b")
+        prov_b.mode = "acp"
+        target_a = _make_target(provider=prov_a, model="m1", index=0)
+        target_b = _make_target(provider=prov_b, model="m1", index=1)
+        orch._resolve_dispatch_targets = MagicMock(return_value=[target_a, target_b])
+
+        calls = []
+        async def mock_acp_worker(issue, attempt, profile, target=None):
+            calls.append(target.provider.id)
+            if target.provider.id == "a":
+                raise ProviderStartupError(
+                    "Failed to start Claude Code: Argument list too long",
+                    candidate_key="a/m1",
+                    reason="launch_failed",
+                )
+        orch._run_acp_worker = mock_acp_worker
+
+        prof = _profile(mode="acp")
+        asyncio.run(orch._run_worker(issue, attempt=1, profile=prof))
+
+        assert calls == ["a", "b"], "ACP launch failure must fail over to next candidate"
+        orch._on_worker_exit.assert_not_called()
+
+
+class TestIsAcpLaunchFailure:
+    """Classifier deciding whether an ACP error is a launch/startup failure
+    (→ fail over to next candidate) vs a task-level error (→ normal exit)."""
+
+    @pytest.mark.parametrize("msg", [
+        "CLIConnectionError: Failed to start Claude Code: [Errno 7] Argument list too long",
+        "Failed to start Claude Code: boom",
+        "CLINotFoundError: CLI path not resolved",
+        "claude_agent_sdk not installed: ...",
+        "openai-agents Codex CLI extension not available",
+        "Codex CLI failed to start a session",
+        "ARGUMENT LIST TOO LONG",  # case-insensitive
+    ])
+    def test_launch_failures_detected(self, msg):
+        assert _is_acp_launch_failure(msg) is True
+
+    @pytest.mark.parametrize("msg", [
+        None,
+        "",
+        "turn timeout exceeded",
+        "tool returned an error",
+        "stream ended without ResultMessage",
+        "the agent decided not to make changes",
+    ])
+    def test_non_launch_errors_ignored(self, msg):
+        assert _is_acp_launch_failure(msg) is False
 
 
 # ---------------------------------------------------------------------------

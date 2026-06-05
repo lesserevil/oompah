@@ -2072,49 +2072,54 @@ function _isIndividuallyInFlight(issue) {
 // the epic AND every descendant in its subtree, including children whose
 // own work is already merged. This preserves the "epic group" view.
 function _computeInFlightShowSet(allIssues) {
-  const byId = {};
-  const childrenById = {};
+  // Keyed by (project_id, id) composite — bare Backlog ids collide across
+  // projects (see issueKey). Returns a Set of composite keys.
+  const byKey = {};
+  const childrenByKey = {};
   for (const i of allIssues) {
-    byId[i.id] = i;
-    if (i.parent_id) {
-      (childrenById[i.parent_id] = childrenById[i.parent_id] || []).push(i.id);
+    byKey[issueKey(i)] = i;
+    const pk = parentKeyOf(i);
+    if (pk) {
+      (childrenByKey[pk] = childrenByKey[pk] || []).push(issueKey(i));
     }
   }
-  // Memoized "does this id's subtree (including itself) contain any
+  // Memoized "does this key's subtree (including itself) contain any
   // individually-in-flight bead?"
   const subtreeInFlight = Object.create(null);
-  function hasInFlightSubtree(id, stack) {
-    if (id in subtreeInFlight) return subtreeInFlight[id];
-    if (stack.has(id)) return false; // cycle guard
-    stack.add(id);
-    const issue = byId[id];
-    if (!issue) { subtreeInFlight[id] = false; stack.delete(id); return false; }
+  function hasInFlightSubtree(key, stack) {
+    if (key in subtreeInFlight) return subtreeInFlight[key];
+    if (stack.has(key)) return false; // cycle guard
+    stack.add(key);
+    const issue = byKey[key];
+    if (!issue) { subtreeInFlight[key] = false; stack.delete(key); return false; }
     if (_isIndividuallyInFlight(issue)) {
-      subtreeInFlight[id] = true; stack.delete(id); return true;
+      subtreeInFlight[key] = true; stack.delete(key); return true;
     }
-    for (const cid of (childrenById[id] || [])) {
-      if (hasInFlightSubtree(cid, stack)) {
-        subtreeInFlight[id] = true; stack.delete(id); return true;
+    for (const ck of (childrenByKey[key] || [])) {
+      if (hasInFlightSubtree(ck, stack)) {
+        subtreeInFlight[key] = true; stack.delete(key); return true;
       }
     }
-    subtreeInFlight[id] = false; stack.delete(id);
+    subtreeInFlight[key] = false; stack.delete(key);
     return false;
   }
-  for (const id of Object.keys(byId)) hasInFlightSubtree(id, new Set());
+  for (const key of Object.keys(byKey)) hasInFlightSubtree(key, new Set());
 
   const show = new Set();
   for (const issue of allIssues) {
     if (_isIndividuallyInFlight(issue)) {
-      show.add(issue.id);
+      show.add(issueKey(issue));
       continue;
     }
     // Walk up the parent chain; show if any ancestor has in-flight subtree
     let cur = issue;
     const seen = new Set();
-    while (cur && cur.parent_id && !seen.has(cur.parent_id)) {
-      seen.add(cur.parent_id);
-      if (subtreeInFlight[cur.parent_id]) { show.add(issue.id); break; }
-      cur = byId[cur.parent_id];
+    let pk = parentKeyOf(cur);
+    while (cur && pk && !seen.has(pk)) {
+      seen.add(pk);
+      if (subtreeInFlight[pk]) { show.add(issueKey(issue)); break; }
+      cur = byKey[pk];
+      pk = cur ? parentKeyOf(cur) : null;
     }
   }
   return show;
@@ -2144,7 +2149,7 @@ function applyHideMergedFilter(data) {
     }
     const kept = [];
     for (const issue of issues) {
-      if (showSet.has(issue.id)) kept.push(issue);
+      if (showSet.has(issueKey(issue))) kept.push(issue);
       else hidden += 1;
     }
     filtered[state] = kept;
@@ -2313,9 +2318,20 @@ function isSwimlaneParent(issue) {
   return issue.issue_type === 'epic' || !!issue.children_counts;
 }
 
-// Get epic/parent info by ID from flat list
-function getEpicById(epicId) {
-  return allIssuesFlat.find(i => i.id === epicId && isSwimlaneParent(i));
+// Get epic/parent info by ID from flat list.
+//
+// Backlog task ids (e.g. "task-270") are only unique WITHIN a project,
+// not across the multi-project dashboard. Resolving by id alone makes a
+// trickle child's parent ("task-270") match whichever project's
+// "task-270" appears first in the flat list — surfacing e.g. the wrong
+// "oompah-270" epic badge. Always scope by the child's project_id when
+// it's known; fall back to id-only for legacy callers.
+function getEpicById(epicId, projectId) {
+  return allIssuesFlat.find(i =>
+    i.id === epicId
+    && (projectId == null || i.project_id === projectId)
+    && isSwimlaneParent(i)
+  );
 }
 
 function applyOptimisticOverrides(data) {
@@ -2458,30 +2474,54 @@ function isEpicInactive(epic) {
          (counts['Needs Rebase'] || 0) === 0;
 }
 
+// Whether an epic has any work to show in the "by epic" view. The swimlane
+// header shows "Backlog / Open / In Progress / Done"; an epic whose four
+// displayed counts are all zero ("0 / 0 / 0 / 0") has nothing active to
+// show — it's fully merged/archived or has no children — and is hidden
+// from the by-epic view entirely.
+function epicHasVisibleCounts(epic) {
+  const c = epic.children_counts || {};
+  return ((c['Backlog'] || 0)
+        + (c['Open'] || 0)
+        + (c['In Progress'] || 0)
+        + (c['Done'] || 0)) > 0;
+}
+
 function renderSwimlaneView(board, data) {
   // Collect non-draft epics as swimlane headers; draft epics appear as cards in the orphan swimlane
-  const epics = allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft'));
-  const epicIds = new Set(epics.map(e => e.id));
+  const allEpics = allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft'));
+  // Key epics by (project_id, id): bare ids collide across projects. Keep
+  // ALL epics here (incl. hidden ones) so a hidden epic's children aren't
+  // mis-classified as orphans and leaked into the orphan lane.
+  const epicKeys = new Set(allEpics.map(issueKey));
   // Orphans: non-parent issues with no parent, PLUS draft parents (shown as cards)
-  const orphans = allIssuesFlat.filter(i => (!isSwimlaneParent(i) || (i.labels || []).includes('draft')) && (!i.parent_id || !epicIds.has(i.parent_id)));
+  const orphans = allIssuesFlat.filter(i => (!isSwimlaneParent(i) || (i.labels || []).includes('draft')) && (!i.parent_id || !epicKeys.has(parentKeyOf(i))));
+
+  // Only render lanes for epics with visible work — hide "0 / 0 / 0 / 0"
+  // epics (fully merged/archived or empty); their terminal children drop
+  // out with them.
+  const epics = allEpics.filter(epicHasVisibleCounts);
 
   // Render each epic as a swimlane
   for (const epic of epics) {
-    const children = allIssuesFlat.filter(i => i.parent_id === epic.id && !isSwimlaneParent(i));
+    const ek = issueKey(epic);
+    // Scope children to the SAME project as the epic — a same-numbered
+    // task in another project must not appear under this lane.
+    const children = allIssuesFlat.filter(i => parentKeyOf(i) === ek && !isSwimlaneParent(i));
     const counts = epic.children_counts || {};
     // Auto-collapse inactive epics unless the user has explicitly toggled this swimlane
     const autoCollapse = isEpicInactive(epic);
-    const isCollapsed = userToggledSwimlanes[epic.id] ? collapsedSwimlanes[epic.id] : autoCollapse;
-    collapsedSwimlanes[epic.id] = isCollapsed;
+    const isCollapsed = userToggledSwimlanes[ek] ? collapsedSwimlanes[ek] : autoCollapse;
+    collapsedSwimlanes[ek] = isCollapsed;
 
     const lane = document.createElement('div');
     lane.className = 'swimlane' + (isCollapsed ? ' collapsed' : '');
-    lane.dataset.epicId = epic.id;
+    lane.dataset.epicId = ek;
 
     const countsStr = `${counts['Backlog'] || 0} / ${counts['Open'] || 0} / ${counts['In Progress'] || 0} / ${counts['Done'] || 0}`;
 
     lane.innerHTML = `
-      <div class="swimlane-header" onclick="toggleSwimlane('${esc(epic.id)}')">
+      <div class="swimlane-header" onclick="toggleSwimlane('${esc(ek)}')">
         <span class="swimlane-toggle">&#9660;</span>
         <span class="swimlane-title">${esc(epic.title)}</span>
         ${(epic.labels || []).includes('draft') ? '<span class="swimlane-draft-badge" aria-label="Draft epic">Draft</span>' : ''}
@@ -2508,7 +2548,7 @@ function renderSwimlaneView(board, data) {
         <div class="column-body" data-state="${col}"></div>
       `;
       const scHeader = sc.querySelector('.column-header');
-      setupColumnDrag(scHeader, col, epic.id);
+      setupColumnDrag(scHeader, col, ek);
       const scBody = sc.querySelector('.column-body');
       setupDropZone(scBody);
       for (let i = 0; i < colIssues.length; i++) {
@@ -2610,6 +2650,16 @@ function displayIdentifierFor(identifier, projectId, projectName, displayIdentif
   return name && match ? `${name}-${match[1]}` : raw;
 }
 
+// Backlog task ids (e.g. "task-270") are unique only WITHIN a project,
+// not across the multi-project board. Any cross-project identity, parent,
+// or epic resolution must key on (project_id, id) — never the bare id —
+// or a trickle child can match an oompah epic of the same number. Used by
+// getEpicById, the swimlane grouping, and the in-flight filter.
+function issueKey(i) { return (i.project_id || '') + ' ' + i.id; }
+function parentKeyOf(i) {
+  return i.parent_id ? (i.project_id || '') + ' ' + i.parent_id : null;
+}
+
 function issueDisplayIdentifier(issue) {
   if (!issue) return '';
   return displayIdentifierFor(
@@ -2633,7 +2683,7 @@ function createCard(issue) {
   // Build epic badge HTML if this issue has a parent
   let epicBadgeHtml = '';
   if (issue.parent_id) {
-    const epic = getEpicById(issue.parent_id);
+    const epic = getEpicById(issue.parent_id, issue.project_id);
     if (epic) {
       const epicDisplayIdentifier = issueDisplayIdentifier(epic);
       epicBadgeHtml = `
@@ -2818,12 +2868,14 @@ function getCardsInColumn(state, epicId) {
     // Flat view — all visible (already filtered by project)
     return issues;
   } else if (epicId === '_orphans') {
-    // Orphan swimlane — items with no parent or parent not a non-draft swimlane parent
-    const epicIds = new Set(allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft')).map(e => e.id));
-    return issues.filter(i => !i.parent_id || !epicIds.has(i.parent_id));
+    // Orphan swimlane — items with no parent or parent not a non-draft
+    // swimlane parent. Keyed by (project_id, id) to avoid cross-project
+    // id collisions.
+    const epicKeys = new Set(allIssuesFlat.filter(i => isSwimlaneParent(i) && !(i.labels || []).includes('draft')).map(issueKey));
+    return issues.filter(i => !i.parent_id || !epicKeys.has(parentKeyOf(i)));
   } else {
-    // Specific epic swimlane
-    return issues.filter(i => i.parent_id === epicId);
+    // Specific epic swimlane — epicId is a composite (project_id, id) key.
+    return issues.filter(i => parentKeyOf(i) === epicId);
   }
 }
 
@@ -3375,7 +3427,7 @@ async function openDetailPanel(identifier) {
   setTimeout(() => loadIssueAttachments(detail.identifier), 0);
 
   if (detail.parent_id) {
-    const epic = getEpicById(detail.parent_id);
+    const epic = getEpicById(detail.parent_id, detail.project_id);
     if (epic) {
       const epicDisplayIdentifier = issueDisplayIdentifier(epic);
       html += `

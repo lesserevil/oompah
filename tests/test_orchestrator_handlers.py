@@ -558,6 +558,42 @@ class TestHandleDispatchNeeded:
 # ---------------------------------------------------------------------------
 
 
+class TestAutoArchiveThrottle:
+    """_auto_archive is throttled (it does a full-corpus read per project)
+    and must not re-scan already-archived issues."""
+
+    def _orch_with_spy_tracker(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)  # no projects → uses self.tracker
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues_by_states.return_value = []
+        return orch
+
+    def test_runs_first_time_then_throttled(self, tmp_path):
+        orch = self._orch_with_spy_tracker(tmp_path)
+        orch._auto_archive()
+        orch._auto_archive()  # within the interval → no-op
+        assert orch.tracker.fetch_issues_by_states.call_count == 1
+
+    def test_runs_again_after_interval_elapses(self, tmp_path):
+        orch = self._orch_with_spy_tracker(tmp_path)
+        orch._auto_archive()
+        # Backdate the last-run marker past the throttle window.
+        orch._last_auto_archive_monotonic -= orch._AUTO_ARCHIVE_INTERVAL_S + 1
+        orch._auto_archive()
+        assert orch.tracker.fetch_issues_by_states.call_count == 2
+
+    def test_scan_excludes_archived_state(self, tmp_path):
+        from oompah.statuses import ARCHIVED, DONE, canonicalize_status
+
+        orch = self._orch_with_spy_tracker(tmp_path)
+        orch._auto_archive()
+        states = orch.tracker.fetch_issues_by_states.call_args[0][0]
+        canon = {canonicalize_status(s) for s in states}
+        assert canonicalize_status(ARCHIVED) not in canon
+        # Done/Merged are still scanned (they can still become archived).
+        assert canonicalize_status(DONE) in canon
+
+
 class TestHandleYoloReview:
     """_handle_yolo_review() runs YOLO actions, auto-archive, and merged-labeling."""
 

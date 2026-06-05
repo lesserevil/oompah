@@ -67,7 +67,7 @@ class TestRenderSwimlaneViewEpicFilter:
         body = self._get_render_body(script)
         # Find the line that builds the epics array
         epics_line_match = re.search(
-            r"(?:const|let|var)\s+epics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
             body,
             re.DOTALL,
         )
@@ -81,7 +81,7 @@ class TestRenderSwimlaneViewEpicFilter:
         """The epics array filter must use isSwimlaneParent to identify parent issues."""
         body = self._get_render_body(script)
         epics_line_match = re.search(
-            r"(?:const|let|var)\s+epics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
             body,
             re.DOTALL,
         )
@@ -94,7 +94,7 @@ class TestRenderSwimlaneViewEpicFilter:
         """The epics filter must negate the draft condition (exclude items WITH draft label)."""
         body = self._get_render_body(script)
         epics_line_match = re.search(
-            r"(?:const|let|var)\s+epics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
             body,
             re.DOTALL,
         )
@@ -108,7 +108,7 @@ class TestRenderSwimlaneViewEpicFilter:
         """The epics filter must safely handle issues with no labels array."""
         body = self._get_render_body(script)
         epics_line_match = re.search(
-            r"(?:const|let|var)\s+epics\s*=\s*allIssuesFlat\.filter\(.*?\);",
+            r"(?:const|let|var)\s+allEpics\s*=\s*allIssuesFlat\.filter\(.*?\);",
             body,
             re.DOTALL,
         )
@@ -199,11 +199,13 @@ class TestRenderSwimlaneViewOrphansFilter:
         )
         assert orphans_line_match
         orphans_line = orphans_line_match.group(0)
-        # Must still check epicIds to filter out children of known epics
-        assert "epicIds" in orphans_line, \
-            "orphans filter must use epicIds to exclude children of non-draft epics"
-        assert "parent_id" in orphans_line, \
-            "orphans filter must check parent_id"
+        # Must still check the known-epic set to filter out children of
+        # known epics. Keyed by the composite (project_id, id) key
+        # `epicKeys` / `parentKeyOf` — bare ids collide across projects.
+        assert "epicKeys" in orphans_line, \
+            "orphans filter must use epicKeys to exclude children of non-draft epics"
+        assert "parent_id" in orphans_line or "parentKeyOf" in orphans_line, \
+            "orphans filter must check the issue's parent"
 
 
 # ---------------------------------------------------------------------------
@@ -362,3 +364,39 @@ class TestDraftEpicFilterConsistency:
             "renderSwimlaneView must render an 'Unassigned' swimlane for orphans/draft epics"
         assert "orphans" in body, \
             "renderSwimlaneView must use the orphans array for the Unassigned swimlane"
+
+
+# ---------------------------------------------------------------------------
+# renderSwimlaneView — hide "0 / 0 / 0 / 0" epics
+# ---------------------------------------------------------------------------
+
+class TestRenderSwimlaneViewHidesEmptyEpics:
+    """Epics whose header counts are 0/0/0/0 (no Backlog/Open/In Progress/
+    Done children) must not render in the by-epic view."""
+
+    def _render_body(self, script: str) -> str:
+        match = re.search(r"function renderSwimlaneView\(.*?\)\s*\{(.*)", script, re.DOTALL)
+        assert match
+        return match.group(1)
+
+    def test_helper_sums_displayed_counts(self, script: str):
+        assert "function epicHasVisibleCounts" in script
+        m = re.search(r"function epicHasVisibleCounts\(.*?\)\s*\{(.*?)\n\}", script, re.DOTALL)
+        assert m, "epicHasVisibleCounts body not found"
+        body = m.group(1)
+        for key in ("Backlog", "Open", "In Progress", "Done"):
+            assert f"'{key}'" in body, f"epicHasVisibleCounts must consider {key}"
+        assert "> 0" in body, "must keep epics with a positive count sum"
+
+    def test_rendered_epics_filtered_by_visible_counts(self, script: str):
+        body = self._render_body(script)
+        m = re.search(r"(?:const|let|var)\s+epics\s*=\s*allEpics\.filter\(([^)]*)\)", body)
+        assert m, "rendered epics must be allEpics.filter(epicHasVisibleCounts)"
+        assert "epicHasVisibleCounts" in m.group(1)
+
+    def test_epickeys_built_from_all_epics(self, script: str):
+        # epicKeys must include ALL epics (not the visible-filtered list) so a
+        # hidden epic's children aren't mis-classified as orphans.
+        body = self._render_body(script)
+        m = re.search(r"(?:const|let|var)\s+epicKeys\s*=\s*new Set\(allEpics\.map", body)
+        assert m, "epicKeys must be built from allEpics (all epics), not the filtered list"

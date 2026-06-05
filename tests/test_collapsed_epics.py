@@ -157,14 +157,13 @@ class TestAutoCollapseInRenderSwimlane:
         body = render_match.group(1)
         assert "userToggledSwimlanes" in body
         # The logic should be: if user toggled, use their preference;
-        # otherwise use auto-collapse
+        # otherwise use auto-collapse. Swimlane identity is keyed by the
+        # composite (project_id, id) key `ek` — bare epic.id collides
+        # across projects.
         assert re.search(
-            r"userToggledSwimlanes\[epic\.id\].*collapsedSwimlanes\[epic\.id\].*autoCollapse",
+            r"userToggledSwimlanes\[ek\].*\?.*collapsedSwimlanes\[ek\].*:.*autoCollapse",
             body,
             re.DOTALL,
-        ) or re.search(
-            r"userToggledSwimlanes\[epic\.id\].*\?.*collapsedSwimlanes\[epic\.id\].*:.*autoCollapse",
-            body,
         )
 
     def test_autoCollapse_variable_computed_from_isEpicInactive(self, script):
@@ -183,7 +182,8 @@ class TestCollapsedSwimlanesSyncedBack:
     """Verify that collapsedSwimlanes is synced with computed isCollapsed."""
 
     def test_collapsedSwimlanes_updated_with_computed_value(self, script):
-        """collapsedSwimlanes[epic.id] should be set to the computed isCollapsed value.
+        """collapsedSwimlanes[ek] should be set to the computed isCollapsed
+        value (keyed by the composite (project_id, id) swimlane key).
 
         This ensures that when the user later toggles, the starting state is correct.
         """
@@ -194,7 +194,7 @@ class TestCollapsedSwimlanesSyncedBack:
         )
         assert render_match
         body = render_match.group(1)
-        assert "collapsedSwimlanes[epic.id] = isCollapsed" in body
+        assert "collapsedSwimlanes[ek] = isCollapsed" in body
 
 
 class TestServerChildrenCounts:

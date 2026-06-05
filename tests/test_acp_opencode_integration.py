@@ -500,73 +500,98 @@ class TestCodexIntegrationTokenCounters:
 # ----------------------------------------------------------------------
 
 
+def _install_fake_codex_cli(monkeypatch, *, events):
+    """Patch CodexAcpBackendSession._import_codex_cli with a fake
+    (Codex, ThreadOptions, TurnOptions) triple that streams *events* —
+    so the subscription/OAuth path runs without spawning the real codex
+    binary."""
+    async def _gen(items):
+        for it in items:
+            yield it
+
+    class _Streamed:
+        def __init__(self, evs):
+            self.events = evs
+
+    class _Thread:
+        async def run_streamed(self, prompt, turn_options=None):
+            return _Streamed(_gen(list(events)))
+
+    class _Codex:
+        def __init__(self, *a, **k):
+            pass
+
+        def start_thread(self, options=None):
+            return _Thread()
+
+    class _Opts:
+        def __init__(self, **k):
+            self.__dict__.update(k)
+
+    monkeypatch.setattr(
+        CodexAcpBackendSession,
+        "_import_codex_cli",
+        staticmethod(lambda: (_Codex, _Opts, _Opts)),
+    )
+
+
 class TestCodexIntegrationBillingSubscription:
-    """Acceptance criterion: billing_model='subscription' forces
-    total_cost_usd=None even when the SDK reports a dollar amount."""
+    """Acceptance criterion: billing_model='subscription' routes to the
+    Codex CLI (OAuth) path and reports total_cost_usd=None (no per-token
+    bill in subscription tier)."""
 
     @pytest.mark.asyncio
-    async def test_subscription_total_cost_usd_is_none(
-        self, install_mock_sdk, null_tool_catalog
-    ):
+    async def test_subscription_total_cost_usd_is_none(self, monkeypatch):
         """Subscription mode: no per-token bill, cost must be None."""
-        stream_items = [
-            _FakeStreamEvent(
-                "run_item_stream_event",
-                item=_FakeItem("message_output_item", text="result"),
-            ),
-        ]
-
-        sdk = _make_mock_sdk_module(
-            stream_events_factory=lambda: _async_iter(stream_items),
-            usage={"input_tokens": 5, "output_tokens": 5},
-            response_id="sub-test",
+        _install_fake_codex_cli(
+            monkeypatch,
+            events=[
+                types.SimpleNamespace(type="turn.started"),
+                types.SimpleNamespace(
+                    type="item.completed",
+                    item=types.SimpleNamespace(type="agent_message", text="result"),
+                ),
+                types.SimpleNamespace(
+                    type="turn.completed",
+                    usage=types.SimpleNamespace(input_tokens=5, output_tokens=5),
+                ),
+            ],
         )
-
-        # Stamp a synthetic cost — the subscription code path must
-        # override it to None regardless.
-        orig_run = sdk.Runner.run_streamed
-
-        def _stamp_cost(agent, input=None):
-            r = orig_run(agent, input=input)
-            r.total_cost_usd = 99.99  # would surface for per-token
-            return r
-
-        sdk.Runner.run_streamed = staticmethod(_stamp_cost)
-        install_mock_sdk(sdk)
 
         opt = AcpBackendOptions(
             workspace_path="/tmp/ws",
             prompt="x",
-            env={"OOMPAH_CODEX_BILLING": "subscription"},
+            billing_model="subscription",
         )
         session = CodexAcpBackendSession(opt)
         async for _ in session.run_turn():
             pass
 
+        assert session.status == "succeeded"
         assert session.total_cost_usd is None
 
     @pytest.mark.asyncio
-    async def test_subscription_result_payload_has_none_cost(
-        self, install_mock_sdk, null_tool_catalog
-    ):
+    async def test_subscription_result_payload_has_none_cost(self, monkeypatch):
         """Terminal acp_result payload includes total_cost_usd=None."""
-        stream_items = [
-            _FakeStreamEvent(
-                "run_item_stream_event",
-                item=_FakeItem("message_output_item", text="hi"),
-            ),
-        ]
-        sdk = _make_mock_sdk_module(
-            stream_events_factory=lambda: _async_iter(stream_items),
-            usage={"input_tokens": 2, "output_tokens": 1},
-            response_id="sub-pay",
+        _install_fake_codex_cli(
+            monkeypatch,
+            events=[
+                types.SimpleNamespace(type="turn.started"),
+                types.SimpleNamespace(
+                    type="item.completed",
+                    item=types.SimpleNamespace(type="agent_message", text="hi"),
+                ),
+                types.SimpleNamespace(
+                    type="turn.completed",
+                    usage=types.SimpleNamespace(input_tokens=2, output_tokens=1),
+                ),
+            ],
         )
-        install_mock_sdk(sdk)
 
         opt = AcpBackendOptions(
             workspace_path="/tmp/ws",
             prompt="x",
-            env={"OOMPAH_CODEX_BILLING": "subscription"},
+            billing_model="subscription",
         )
         session = CodexAcpBackendSession(opt)
         collected = []

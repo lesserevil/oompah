@@ -129,3 +129,64 @@ def is_working_status(status: str | None) -> bool:
 
 def is_terminal_status(status: str | None) -> bool:
     return canonicalize_status(status) in TERMINAL_STATUSES
+
+
+# Workflow rank for "which status is further along" comparisons.
+_STATUS_RANK = {s: i for i, s in enumerate(CANONICAL_STATUSES)}
+
+
+def status_rank(status: str | None) -> int:
+    """Position of *status* in the canonical workflow order, or -1 if unknown."""
+    return _STATUS_RANK.get(canonicalize_status(status), -1)
+
+
+def more_advanced_status(a: str | None, b: str | None) -> str:
+    """Return whichever of *a*/*b* is further along the workflow (ties → a)."""
+    return a if status_rank(a) >= status_rank(b) else b  # type: ignore[return-value]
+
+
+# Child statuses that mean "work is actively underway" for epic rollup.
+_ROLLUP_ACTIVE = frozenset(
+    {
+        IN_PROGRESS,
+        NEEDS_ANSWER,
+        NEEDS_HUMAN,
+        NEEDS_CI_FIX,
+        NEEDS_REBASE,
+        IN_REVIEW,
+        DECOMPOSED,
+        DUPLICATE_CANDIDATE,
+    }
+)
+
+
+def epic_rollup_state(child_states: Iterable[str | None]) -> str | None:
+    """Derive an epic's state from its children's statuses.
+
+    Precedence (per the agreed model):
+
+    * no children                       → None (caller keeps the epic's own state)
+    * all children Merged/Archived      → ``Merged`` (whole epic has landed)
+    * all children terminal (Done/...)  → ``Done``   (complete → ready to merge)
+    * any child actively working        → ``In Progress`` (beats Open: a mix of
+      Open + In Progress rolls up to In Progress)
+    * any child Open                    → ``Open``
+    * all children Backlog              → ``Backlog``
+    * otherwise (e.g. some Done + some Backlog, none open/active) → ``In Progress``
+      (the epic has started but isn't complete)
+    """
+    canon = [canonicalize_status(s) for s in child_states if s is not None]
+    if not canon:
+        return None
+    cset = set(canon)
+    if cset <= {MERGED, ARCHIVED}:
+        return MERGED
+    if cset <= TERMINAL_STATUSES:
+        return DONE
+    if cset & _ROLLUP_ACTIVE:
+        return IN_PROGRESS
+    if OPEN in cset:
+        return OPEN
+    if cset == {BACKLOG}:
+        return BACKLOG
+    return IN_PROGRESS

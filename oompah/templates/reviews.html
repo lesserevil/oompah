@@ -410,7 +410,16 @@ function renderReviewCard(r, provider, projectId, projectYolo) {
   if (r.ci_status) {
     ciHtml = '<span><span class="ci-dot ci-' + r.ci_status + '"></span>' + r.ci_status + '</span>';
     if (r.ci_status === 'failed' && !r.agent_active) {
-      ciHtml += ' <button class="btn-retry" onclick="retryReview(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Retry</button>';
+      // On YOLO-enabled projects the orchestrator's _yolo_review_actions_sync
+      // already re-files a CI-fix task for a failed PR on the next full-sync
+      // tick — the manual "Retry" button is redundant friction (mirrors the
+      // Resolve Conflicts handling, oompah-zlz_2-zvf2). Show a passive
+      // indicator instead. Non-YOLO projects keep the manual button.
+      if (projectYolo) {
+        ciHtml += ' <span class="conflict-badge auto-resolving" title="YOLO will re-file a CI-fix task on the next full-sync tick">Auto-retrying…</span>';
+      } else {
+        ciHtml += ' <button class="btn-retry" onclick="retryReview(\'' + esc(projectId) + '\', \'' + esc(r.id) + '\', this)">Retry</button>';
+      }
     }
   }
 

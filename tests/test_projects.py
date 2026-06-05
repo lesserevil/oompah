@@ -504,3 +504,91 @@ class TestSyncTaskFileToWorktree:
             "TASK-999",
             str(wt_path),
         ) is False
+
+    def _setup_status_divergence(self, tmp_path, *, src_status, wt_status):
+        """Source (main) has src_status; worktree copy has wt_status."""
+        store, repo = _store_with_one_project(tmp_path)
+        sdir = repo / "backlog" / "tasks"
+        sdir.mkdir(parents=True, exist_ok=True)
+        (sdir / "task-389 - t.md").write_text(
+            f"---\nid: TASK-389\nstatus: {src_status}\ntitle: T\n---\n\nbody\n",
+            encoding="utf-8",
+        )
+        wt_path = tmp_path / "wt-task"
+        wdir = wt_path / "backlog" / "tasks"
+        wdir.mkdir(parents=True)
+        (wdir / "task-389 - t.md").write_text(
+            f"---\nid: TASK-389\nstatus: {wt_status}\ntitle: T\n---\n\nbody\n",
+            encoding="utf-8",
+        )
+        return store, wt_path
+
+    def test_preserves_terminal_worktree_status_over_stale_source(self, tmp_path):
+        """When the worktree records a terminal status (Done) and the
+        source is behind (Open), the sync must NOT regress it."""
+        store, wt_path = self._setup_status_divergence(
+            tmp_path, src_status="Open", wt_status="Done"
+        )
+        assert store.sync_task_file_to_worktree(
+            "proj-sync1", "TASK-389", str(wt_path),
+            preserve_statuses=frozenset({"Done", "Merged", "Archived"}),
+        )
+        copied = (wt_path / "backlog" / "tasks" / "task-389 - t.md").read_text()
+        assert "status: Done" in copied
+        # The non-status content still came from source.
+        assert "body" in copied
+
+    def test_no_preservation_without_preserve_statuses(self, tmp_path):
+        """Default behavior is unchanged: without preserve_statuses the
+        source status overwrites the worktree copy."""
+        store, wt_path = self._setup_status_divergence(
+            tmp_path, src_status="Open", wt_status="Done"
+        )
+        assert store.sync_task_file_to_worktree(
+            "proj-sync1", "TASK-389", str(wt_path),
+        )
+        copied = (wt_path / "backlog" / "tasks" / "task-389 - t.md").read_text()
+        assert "status: Open" in copied
+
+    def test_non_terminal_worktree_status_not_preserved(self, tmp_path):
+        """A worktree status that isn't in the preserve set (e.g. In
+        Progress) is overwritten by the source as usual."""
+        store, wt_path = self._setup_status_divergence(
+            tmp_path, src_status="Open", wt_status="In Progress"
+        )
+        assert store.sync_task_file_to_worktree(
+            "proj-sync1", "TASK-389", str(wt_path),
+            preserve_statuses=frozenset({"Done", "Merged", "Archived"}),
+        )
+        copied = (wt_path / "backlog" / "tasks" / "task-389 - t.md").read_text()
+        assert "status: Open" in copied
+
+
+class TestReadTaskStatusInEpicWorktree:
+    def _make_epic_worktree(self, store, tmp_path, *, status):
+        wt = store.epic_worktree_path_for("proj-sync1", "TASK-706")
+        tdir = os.path.join(wt, "backlog", "tasks")
+        os.makedirs(tdir, exist_ok=True)
+        with open(os.path.join(tdir, "task-706.4 - x.md"), "w", encoding="utf-8") as f:
+            f.write(f"---\nid: TASK-706.4\nstatus: {status}\ntitle: X\n---\n\nbody\n")
+        return wt
+
+    def test_reads_status_from_epic_worktree(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        self._make_epic_worktree(store, tmp_path, status="Done")
+        assert store.read_task_status_in_epic_worktree(
+            "proj-sync1", "TASK-706", "TASK-706.4"
+        ) == "Done"
+
+    def test_none_when_worktree_absent(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        assert store.read_task_status_in_epic_worktree(
+            "proj-sync1", "TASK-706", "TASK-706.4"
+        ) is None
+
+    def test_none_when_task_file_absent(self, tmp_path):
+        store, _repo = _store_with_one_project(tmp_path)
+        self._make_epic_worktree(store, tmp_path, status="Done")
+        assert store.read_task_status_in_epic_worktree(
+            "proj-sync1", "TASK-706", "TASK-999"
+        ) is None

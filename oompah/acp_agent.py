@@ -102,6 +102,7 @@ class AcpAgentSession:
         turn_timeout_s: float = _DEFAULT_TURN_TIMEOUT_S,
         permission_mode: str = "default",
         backend_name: str = "claude",
+        billing_model: str = "per_token",
     ):
         self.workspace_path = workspace_path
         self.prompt = prompt
@@ -114,6 +115,7 @@ class AcpAgentSession:
         self.turn_timeout_s = turn_timeout_s
         self.permission_mode = permission_mode
         self.backend_name = backend_name
+        self.billing_model = billing_model
 
         # Resolve the backend class at construction time so an
         # unregistered name fails fast rather than at dispatch time.
@@ -221,6 +223,7 @@ class AcpAgentSession:
             permission_mode=self.permission_mode,
             turn_timeout_s=self.turn_timeout_s,
             on_event=self.on_event,
+            billing_model=self.billing_model,
         )
 
         try:

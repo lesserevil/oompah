@@ -76,6 +76,27 @@ def _task_file_frontmatter_id(path: str) -> str | None:
     return str(task_id).strip() if task_id else None
 
 
+def _task_file_status(path: str) -> str | None:
+    """Read the ``status:`` field from a Backlog task file's frontmatter,
+    or None when absent/unparseable."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        return None
+    if not content.startswith("---"):
+        return None
+    end = content.find("\n---", 3)
+    if end < 0:
+        return None
+    try:
+        meta = yaml.safe_load(content[3:end]) or {}
+    except yaml.YAMLError:
+        return None
+    status = meta.get("status") if isinstance(meta, dict) else None
+    return str(status).strip() if status else None
+
+
 def _backlog_task_files(root: str) -> list[str]:
     files: list[str] = []
     for rel_dir in ("backlog/tasks", "backlog/completed"):
@@ -1465,8 +1486,23 @@ class ProjectStore:
         project_id: str,
         issue_identifier: str,
         wt_path: str,
+        preserve_statuses: "frozenset[str] | set[str] | None" = None,
     ) -> bool:
-        """Copy the current Backlog task markdown into an agent worktree."""
+        """Copy the current Backlog task markdown into an agent worktree.
+
+        ``preserve_statuses`` guards against regressing agent-owned
+        progress: when the worktree's existing task file already records
+        a status in this set (e.g. terminal states like ``Done`` /
+        ``Merged``), that status is preserved in the synced file rather
+        than being overwritten by the (possibly stale) source copy.
+
+        This matters for ``epic_strategy='shared'`` children: they live
+        on a persistent epic branch and write ``status: Done`` there, but
+        the source-of-truth main checkout still shows ``Open`` until the
+        epic→main PR lands. Without this guard, every re-dispatch copied
+        the stale ``Open`` over the agent's ``Done``, causing an infinite
+        re-dispatch loop (the child never appeared complete).
+        """
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
@@ -1489,8 +1525,26 @@ class ProjectStore:
             )
             return False
 
+        # Capture the worktree copy's status BEFORE deleting it, so we can
+        # avoid regressing an agent-owned advanced status (e.g. Done).
+        preserved_status: str | None = None
+        norm_preserve = (
+            {s.strip().lower() for s in preserve_statuses}
+            if preserve_statuses
+            else set()
+        )
         for stale_path in _backlog_task_files(wt_path):
             if _task_file_matches(stale_path, issue_identifier):
+                if norm_preserve and preserved_status is None:
+                    wt_status = _task_file_status(stale_path)
+                    src_status = _task_file_status(source_path)
+                    if (
+                        wt_status
+                        and wt_status.strip().lower() in norm_preserve
+                        and (src_status or "").strip().lower()
+                        != wt_status.strip().lower()
+                    ):
+                        preserved_status = wt_status
                 try:
                     os.remove(stale_path)
                 except OSError as exc:
@@ -1504,12 +1558,97 @@ class ProjectStore:
         except OSError as exc:
             raise ProjectError(f"Failed to sync task file: {exc}")
 
+        if preserved_status is not None:
+            if not self._rewrite_task_status(target_path, preserved_status):
+                logger.warning(
+                    "Could not preserve worktree status %r for %s; "
+                    "synced file may regress progress",
+                    preserved_status,
+                    issue_identifier,
+                )
+            else:
+                logger.info(
+                    "Preserved worktree status %r over stale source for "
+                    "project=%s issue=%s",
+                    preserved_status,
+                    project_id,
+                    issue_identifier,
+                )
+
         logger.info(
             "Synced task file to worktree project=%s issue=%s path=%s",
             project_id,
             issue_identifier,
             target_path,
         )
+        return True
+
+    def read_task_status_in_epic_worktree(
+        self,
+        project_id: str,
+        epic_identifier: str,
+        issue_identifier: str,
+    ) -> str | None:
+        """Return a child task's ``status:`` as recorded in the shared
+        epic worktree's Backlog copy, or None if the worktree or task
+        file doesn't exist.
+
+        Shared-epic children write their status to the persistent epic
+        branch, not the main checkout. The dispatch loop reads status
+        from main (which lags until the epic lands), so it needs this to
+        tell whether a child is already complete on the epic branch.
+        """
+        if not self._projects.get(project_id):
+            return None
+        wt_path = self.epic_worktree_path_for(project_id, epic_identifier)
+        if not os.path.isdir(wt_path):
+            return None
+        path = next(
+            (
+                p
+                for p in _backlog_task_files(wt_path)
+                if _task_file_matches(p, issue_identifier)
+            ),
+            None,
+        )
+        if not path:
+            return None
+        return _task_file_status(path)
+
+    @staticmethod
+    def _rewrite_task_status(path: str, status: str) -> bool:
+        """Rewrite the ``status:`` frontmatter line of *path* to *status*.
+
+        Returns True on success. Best-effort: only touches the first
+        ``status:`` line inside the leading ``---`` frontmatter block.
+        """
+        try:
+            with open(path, encoding="utf-8") as f:
+                content = f.read()
+        except OSError:
+            return False
+        if not content.startswith("---"):
+            return False
+        end = content.find("\n---", 3)
+        if end < 0:
+            return False
+        head = content[: end]
+        tail = content[end:]
+        new_head, n = re.subn(
+            r"(?m)^(status:).*$",
+            lambda m: f"{m.group(1)} {status}",
+            head,
+            count=1,
+        )
+        if n == 0:
+            # No status line in frontmatter — insert one just after the
+            # opening fence.
+            new_head = head.replace("---", f"---\nstatus: {status}", 1)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(new_head + tail)
+        except OSError:
+            return False
         return True
 
     def _prepare_existing_worktree(

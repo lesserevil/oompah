@@ -94,6 +94,15 @@ class AcpBackendOptions:
     # callback in addition to yielding BackendEvents from run_turn().
     # Callers can pass ``None`` to suppress direct emission.
     on_event: Callable[[Any], None] | None = None
+    # Billing tier of the originating provider, flowed first-class so a
+    # backend can pick its execution path without sniffing env vars.
+    # ``"per_token"`` (the default) means API-key billing; backends like
+    # Codex route this to the in-process OpenAI-Agents SDK path.
+    # ``"subscription"`` means the operator's OAuth/subscription login
+    # (e.g. ``~/.codex/auth.json``); Codex routes it to the CLI
+    # subprocess path that honors that login. The Claude backend ignores
+    # this field (its SDK is always subscription-billed).
+    billing_model: str = "per_token"
 
 
 @runtime_checkable

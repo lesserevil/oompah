@@ -20,10 +20,14 @@ calls out: ``missing_credentials``, ``auth_failed``, ``rate_limited``,
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import re
+import shutil
 import ssl
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -38,6 +42,11 @@ logger = logging.getLogger(__name__)
 # Hard timeout for the health-check HTTP request (seconds).  Short so the
 # operator's UI test does not hang.
 HEALTH_CHECK_TIMEOUT = 10
+
+# Hard timeout for the ACP live probe (seconds).  Larger than the HTTP
+# timeout because an ACP probe spins up a real backend session (SDK or
+# CLI subprocess), which is heavier than a single HTTP round-trip.
+ACP_HEALTH_CHECK_TIMEOUT = 60.0
 
 # Maximum number of response characters to include in the result.
 MAX_RESPONSE_LENGTH = 200
@@ -187,15 +196,18 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
     * claims backlog work
     * mutates the provider config
 
-    ACP providers (``mode == "acp"``) are not supported via the
-    OpenAI-compatible path; they return an immediate ``provider_unavailable``
-    result so the caller can surface a helpful message.
+    ACP providers (``mode == "acp"``) are session-based (Claude Agent SDK,
+    OpenAI Agents SDK, or the ``opencode`` CLI subprocess depending on the
+    backend) and cannot be probed over this synchronous OpenAI-compatible
+    HTTP path. The endpoint routes them to :func:`run_acp_health_check`
+    instead; this guard exists only for direct callers.
     """
     pid = provider.id
     pname = provider.name
 
-    # ACP providers use the Claude Agent SDK — we don't have a simple
-    # synchronous HTTP path to test them the same way.
+    # ACP providers are driven by a backend session, not an HTTP request.
+    # The async live probe (run_acp_health_check) is the supported path —
+    # this sync function cannot drive an async session.
     if provider.mode == "acp":
         return ProviderTestResult(
             provider_id=pid,
@@ -205,9 +217,8 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             latency_ms=0.0,
             error_reason="provider_unavailable",
             error_detail=(
-                "ACP providers are managed by the Claude Agent SDK and cannot "
-                "be tested via the health-check endpoint. Verify the provider "
-                "configuration using the ACP agent directly."
+                "ACP providers must be tested via the live backend probe; "
+                "the synchronous health-check path does not support ACP."
             ),
         )
 
@@ -370,3 +381,236 @@ def run_health_check(provider: "ModelProvider") -> ProviderTestResult:
             error_reason="unknown_error",
             error_detail=str(exc)[:300],
         )
+
+
+# ---------------------------------------------------------------------------
+# ACP live probe
+# ---------------------------------------------------------------------------
+
+
+def _normalize_acp_error(status: str, last_error: str | None) -> tuple[str, str]:
+    """Map a terminal ACP session status + last_error to (reason, detail).
+
+    ACP backends don't expose HTTP status codes, so we sniff the error
+    text for the well-known failure shapes (SDK/CLI not installed, auth
+    not set up, rate limits) and otherwise fall back to a status-derived
+    reason. Returns a (error_reason, error_detail) pair where
+    error_reason is one of :data:`ERROR_REASONS`.
+    """
+    detail = (last_error or "").strip()
+    low = detail.lower()
+
+    # Backend not installed / not launchable.
+    if (
+        "modulenotfound" in low
+        or "no module named" in low
+        or "not installed" in low
+        or ("command not found" in low)
+        or ("executable" in low and "not found" in low)
+    ):
+        return "provider_unavailable", detail
+    # Auth / subscription not configured.
+    if any(
+        k in low
+        for k in (
+            "unauthorized",
+            "not logged in",
+            "log in",
+            "login",
+            "authenticate",
+            "auth failed",
+            "subscription",
+            "credential",
+            "api key",
+            "api_key",
+            "401",
+            "403",
+        )
+    ):
+        return "auth_failed", detail
+    if "rate" in low and "limit" in low:
+        return "rate_limited", detail
+    if "overloaded" in low or "529" in low:
+        return "overloaded", detail
+
+    # No usable hint in the error text — derive from the terminal status.
+    if status == "stalled":
+        return "timeout", detail or "ACP session stalled (turn timeout exceeded)."
+    if status == "interrupted":
+        return "unknown_error", detail or "ACP session was interrupted."
+    if status == "errored":
+        return "provider_unavailable", detail or "ACP backend session crashed."
+    # "failed" or any unexpected status.
+    return "unknown_error", detail or f"ACP session ended with status {status!r}."
+
+
+async def run_acp_health_check(provider: "ModelProvider") -> ProviderTestResult:
+    """Live-probe an ACP provider by running one tiny turn through its backend.
+
+    Resolves ``provider.backend`` (defaulting to ``"claude"``) against the
+    ACP backend registry, runs the backend's cheap ``validate_provider``
+    check, then spins up a real session in a throwaway workspace and sends
+    the same :data:`_TEST_PROMPT` the HTTP path uses. The session is driven
+    to completion (bounded by :data:`ACP_HEALTH_CHECK_TIMEOUT`) and the
+    terminal ``status`` is mapped to a :class:`ProviderTestResult`.
+
+    Like :func:`run_health_check`, this never creates oompah tasks, updates
+    role usage, claims backlog work, or mutates provider config. It does
+    spawn a real backend session (billing against the operator's
+    subscription) and is therefore async + heavier than the HTTP probe.
+
+    Imports of the ACP backend package are deferred to call time so that
+    importing :mod:`oompah.provider_health` stays cheap and free of the
+    orchestrator/tracker import graph.
+    """
+    from oompah.acp_backends import BACKENDS, get_backend
+    from oompah.acp_backends.base import AcpBackendOptions
+
+    pid = provider.id
+    pname = provider.name
+    backend_name = getattr(provider, "backend", None) or "claude"
+
+    backend_cls = get_backend(backend_name)
+    if backend_cls is None:
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model="",
+            success=False,
+            latency_ms=0.0,
+            error_reason="provider_unavailable",
+            error_detail=(
+                f"Unknown ACP backend {backend_name!r}. "
+                f"Registered backends: {sorted(BACKENDS)}"
+            ),
+        )
+
+    backend = backend_cls()
+
+    # Cheap, backend-specific config validation before spinning anything up.
+    try:
+        config_errors = backend.validate_provider(provider)
+    except Exception as exc:  # noqa: BLE001 — surface validator bugs as a failure
+        config_errors = [f"validate_provider raised: {exc}"]
+    if config_errors:
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model="",
+            success=False,
+            latency_ms=0.0,
+            error_reason="missing_credentials",
+            error_detail="; ".join(config_errors)[:500],
+        )
+
+    model = _pick_model(provider)  # "" lets the backend/SDK choose
+    permission_mode = getattr(provider, "acp_permission_mode", None) or "default"
+    # Flow the billing tier so the probe exercises the SAME execution
+    # path real dispatch would (e.g. codex: subscription -> CLI/OAuth,
+    # per_token -> in-process SDK).
+    billing_model = (getattr(provider, "billing_model", None) or "per_token")
+    workspace = tempfile.mkdtemp(prefix="oompah-acp-health-")
+
+    options = AcpBackendOptions(
+        workspace_path=workspace,
+        prompt=_TEST_PROMPT,
+        model=model or None,
+        max_turns=1,
+        tool_catalog=[],  # the 2+2 probe needs no tools
+        permission_mode=permission_mode,
+        turn_timeout_s=ACP_HEALTH_CHECK_TIMEOUT,
+        on_event=None,
+        billing_model=billing_model,
+    )
+
+    response_parts: list[str] = []
+    t0 = time.monotonic()
+
+    try:
+        session = backend.start_session(options)
+    except Exception as exc:  # noqa: BLE001
+        shutil.rmtree(workspace, ignore_errors=True)
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model=model,
+            success=False,
+            latency_ms=(time.monotonic() - t0) * 1000.0,
+            error_reason="provider_unavailable",
+            error_detail=(
+                f"ACP backend {backend_name!r} failed to start a session: {exc}"
+            )[:500],
+        )
+
+    async def _drive() -> None:
+        async for ev in session.run_turn():
+            if ev.kind == "text":
+                txt = (ev.payload or {}).get("text") or ""
+                if txt:
+                    response_parts.append(txt)
+
+    try:
+        await asyncio.wait_for(_drive(), timeout=ACP_HEALTH_CHECK_TIMEOUT)
+    except (asyncio.TimeoutError, TimeoutError):
+        with contextlib.suppress(Exception):
+            await session.close()
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model=model,
+            success=False,
+            latency_ms=(time.monotonic() - t0) * 1000.0,
+            error_reason="timeout",
+            error_detail=(
+                f"ACP session did not complete within "
+                f"{int(ACP_HEALTH_CHECK_TIMEOUT)}s."
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001
+        with contextlib.suppress(Exception):
+            await session.close()
+        logger.warning(
+            "ACP health-check unexpected error for %s (%s): %s",
+            pname,
+            backend_name,
+            exc,
+        )
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model=model,
+            success=False,
+            latency_ms=(time.monotonic() - t0) * 1000.0,
+            error_reason="provider_unavailable",
+            error_detail=(
+                f"ACP backend {backend_name!r} session crashed: {exc}"
+            )[:500],
+        )
+    finally:
+        shutil.rmtree(workspace, ignore_errors=True)
+
+    latency_ms = (time.monotonic() - t0) * 1000.0
+    status = session.status
+    response_text = "".join(response_parts).strip()
+
+    if status == "succeeded":
+        return ProviderTestResult(
+            provider_id=pid,
+            provider_name=pname,
+            model=model,
+            success=True,
+            latency_ms=latency_ms,
+            response_text=response_text[:MAX_RESPONSE_LENGTH],
+        )
+
+    reason, detail = _normalize_acp_error(status, session.last_error)
+    return ProviderTestResult(
+        provider_id=pid,
+        provider_name=pname,
+        model=model,
+        success=False,
+        latency_ms=latency_ms,
+        response_text=response_text[:MAX_RESPONSE_LENGTH],
+        error_reason=reason,
+        error_detail=detail[:500],
+    )

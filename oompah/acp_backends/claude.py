@@ -18,6 +18,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import tempfile
 import time
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, TYPE_CHECKING
@@ -138,6 +139,10 @@ class ClaudeAcpBackendSession(AcpBackendSession):
         self._options = options
         self._counters = _SessionCounters()
         self._client: Any = None  # claude_agent_sdk.ClaudeSDKClient
+        # Temp file holding the (potentially large) system prompt, passed
+        # to the CLI as --system-prompt-file to avoid the OS arg limit.
+        # Removed in run_turn's finally.
+        self._sysprompt_file: str | None = None
         self._stop_requested = False
         self._session_id: str | None = None
         self._final_cost_usd: float | None = None
@@ -397,6 +402,32 @@ class ClaudeAcpBackendSession(AcpBackendSession):
             )
             options_kwargs["mcp_servers"] = {"oompah": server}
 
+        # Transport the (often large) rendered prompt to the CLI via a
+        # file rather than a --system-prompt argument. A big string there
+        # makes the SDK exec the bundled `claude` binary with an argv that
+        # exceeds the OS limit (E2BIG: "[Errno 7] Argument list too long"),
+        # which crashed every dispatch for large-context tasks. The same
+        # prompt is also delivered as the user query() below, so this is
+        # purely a transport fix. Falls back to the inline string if the
+        # temp file can't be written.
+        try:
+            fd, self._sysprompt_file = tempfile.mkstemp(
+                prefix="oompah-sysprompt-", suffix=".md"
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as pf:
+                pf.write(self._options.prompt or "")
+            options_kwargs["system_prompt"] = {
+                "type": "file",
+                "path": self._sysprompt_file,
+            }
+        except OSError as exc:
+            logger.warning(
+                "Could not write system-prompt temp file (%s); falling back "
+                "to inline --system-prompt (may hit arg-size limits)",
+                exc,
+            )
+            self._sysprompt_file = None
+
         options = ClaudeAgentOptions(**options_kwargs)
 
         # Emit the session-start event before we open the client. Gives
@@ -553,6 +584,10 @@ class ClaudeAcpBackendSession(AcpBackendSession):
             self._status = "errored"
         finally:
             self._client = None
+            if self._sysprompt_file:
+                with contextlib.suppress(OSError):
+                    os.remove(self._sysprompt_file)
+                self._sysprompt_file = None
 
 
 class ClaudeAcpBackend(AcpBackend):

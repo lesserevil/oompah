@@ -310,3 +310,69 @@ class TestYoloNotifyConflictRebaseFirst:
             orch._yolo_orphan_recovery_beads[(project.id, "40", "merge-conflict")]
             == "rogers-existing"
         )
+
+
+# ---------------------------------------------------------------------------
+# Branch -> bead resolution (epic-<id> branches map back to the epic)
+# ---------------------------------------------------------------------------
+
+from unittest.mock import call  # noqa: E402
+
+
+class TestResolveBeadForBranch:
+    def test_normal_branch_resolves_directly(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        bead = MagicMock(identifier="TASK-8.2")
+        tracker.fetch_issue_detail.return_value = bead
+        assert orch._resolve_bead_for_branch(tracker, "TASK-8.2") is bead
+        tracker.fetch_issue_detail.assert_called_once_with("TASK-8.2")
+
+    def test_epic_branch_strips_prefix(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        epic = MagicMock(identifier="TASK-706")
+        tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
+        got = orch._resolve_bead_for_branch(tracker, "epic-TASK-706")
+        assert got is epic
+        assert tracker.fetch_issue_detail.call_args_list == [
+            call("epic-TASK-706"), call("TASK-706")
+        ]
+
+    def test_true_orphan_returns_none(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        assert orch._resolve_bead_for_branch(tracker, "epic-TASK-999") is None
+
+
+class TestEpicBranchCiFailUsesEpicNotOrphan:
+    """An epic->main PR's CI failure must resolve to the epic (and route
+    through the parent/sibling path), not be treated as an orphan PR."""
+
+    def test_epic_branch_does_not_file_orphan_bead(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        epic = MagicMock(identifier="TASK-706", labels=[], state="Backlog")
+        tracker.fetch_issue_detail.side_effect = lambda i: epic if i == "TASK-706" else None
+        orch._project_trackers[project.id] = tracker
+        orch._file_orphan_recovery_bead = MagicMock()  # must NOT be used now
+        # Epic has a child → retry_ci routes to the sibling/parent path.
+        orch._fetch_epic_children = MagicMock(
+            return_value=[MagicMock(identifier="TASK-706.1", state="Done", labels=[])]
+        )
+        review = MagicMock(source_branch="epic-TASK-706", id="171", ci_status="failed")
+        orch._yolo_retry_ci(project, review)
+        orch._file_orphan_recovery_bead.assert_not_called()
+
+    def test_true_orphan_still_files_recovery_bead(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None  # nothing resolves
+        orch._project_trackers[project.id] = tracker
+        orch._file_orphan_recovery_bead = MagicMock()
+        review = MagicMock(source_branch="some-random-branch", id="42", ci_status="failed")
+        orch._yolo_retry_ci(project, review)
+        orch._file_orphan_recovery_bead.assert_called_once()

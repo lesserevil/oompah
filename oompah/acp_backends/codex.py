@@ -78,6 +78,7 @@ audit but doesn't change SDK behavior based on it.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import os
@@ -208,24 +209,27 @@ class CodexAcpBackendSession(AcpBackendSession):
         # constructor errors don't poison the registry.
         self._agent: Any = None
         self._streamed_result: Any = None
-        # Carry the billing tier forward so the terminal event can
-        # surface ``cost_usd=None`` for subscription tier. Read at
-        # validate time via the provider, but the orchestrator passes
-        # options.env so we accept it via env passthrough too — see
-        # :meth:`_billing_model_from_env`.
-        self._billing_model: str = self._billing_model_from_env()
+        # CLI-path (subscription/OAuth) abort handle. The experimental
+        # Codex extension cancels a turn via an ``asyncio.Event`` signal
+        # passed in TurnOptions; close() sets it.
+        self._cli_abort: Any = None
+        # Billing tier drives the execution path AND cost reporting:
+        #   * "per_token"    -> in-process OpenAI-Agents SDK (API key)
+        #   * "subscription" -> Codex CLI subprocess (OAuth via auth.json)
+        # surfacing ``cost_usd=None`` for subscription tier.
+        self._billing_model: str = self._resolve_billing_model()
 
-    def _billing_model_from_env(self) -> str:
-        """Resolve the billing model for cost reporting.
+    def _resolve_billing_model(self) -> str:
+        """Resolve the billing model that selects the execution path.
 
-        Today this is best-effort: we look for ``OOMPAH_CODEX_BILLING``
-        in :attr:`AcpBackendOptions.env` (set by the orchestrator from
-        the provider record). Child C will replace this with a
-        proper :attr:`ModelProvider.billing_model` field flowed
-        through :class:`AcpBackendOptions`.
+        Reads the first-class :attr:`AcpBackendOptions.billing_model`
+        field (flowed from ``ModelProvider.billing_model`` by the
+        orchestrator / health probe). Defaults to ``"per_token"`` — the
+        strict, API-key tier — when unset.
         """
-        env = self._options.env or {}
-        return (env.get("OOMPAH_CODEX_BILLING") or "per_token").strip() or "per_token"
+        return (
+            getattr(self._options, "billing_model", None) or "per_token"
+        ).strip().lower() or "per_token"
 
     # ---- AcpBackendSession protocol property accessors ----
 
@@ -278,6 +282,10 @@ class CodexAcpBackendSession(AcpBackendSession):
         run_turn() short-circuit.
         """
         self._stop_requested = True
+        # CLI path: signal the Codex subprocess to abort.
+        if self._cli_abort is not None:
+            with contextlib.suppress(Exception):
+                self._cli_abort.set()
         streamed = self._streamed_result
         if streamed is not None:
             cancel = getattr(streamed, "cancel", None)
@@ -366,13 +374,20 @@ class CodexAcpBackendSession(AcpBackendSession):
     # ---- run_turn: drive the openai-agents Runner ----
 
     async def run_turn(self) -> AsyncIterator[BackendEvent]:
-        """Open a session, run the agent, stream events, yield
+        """Open a session, run the turn, stream events, yield
         :class:`BackendEvent` until completion.
+
+        Dispatches on billing tier:
+
+        * ``"subscription"`` -> :meth:`_run_turn_via_cli` (Codex CLI
+          subprocess, OAuth via ``~/.codex/auth.json``).
+        * anything else -> :meth:`_run_turn_via_api` (in-process
+          OpenAI-Agents SDK, API-key billing).
 
         After run_turn returns, ``self.status`` is one of:
 
-        * ``"succeeded"`` — final RunResult with no error
-        * ``"failed"`` — final RunResult flagged is_error
+        * ``"succeeded"`` — terminal event with no error
+        * ``"failed"`` — terminal event flagged is_error
         * ``"stalled"`` — turn_timeout_s exceeded; cancelled
         * ``"interrupted"`` — caller invoked ``close()``
         * ``"errored"`` — SDK / subprocess crashed unexpectedly
@@ -381,6 +396,16 @@ class CodexAcpBackendSession(AcpBackendSession):
             self._status = "interrupted"
             return
 
+        if self._billing_model == "subscription":
+            async for be in self._run_turn_via_cli():
+                yield be
+            return
+
+        async for be in self._run_turn_via_api():
+            yield be
+
+    async def _run_turn_via_api(self) -> AsyncIterator[BackendEvent]:
+        """In-process OpenAI-Agents SDK path (per-token / API-key tier)."""
         try:
             sdk = _import_sdk()
         except ImportError as exc:
@@ -548,6 +573,311 @@ class CodexAcpBackendSession(AcpBackendSession):
         finally:
             self._streamed_result = None
             self._agent = None
+
+    # ---- run_turn: drive the Codex CLI (subscription / OAuth tier) ----
+
+    @staticmethod
+    def _import_codex_cli():
+        """Lazy import of the experimental Codex CLI extension.
+
+        Raises :class:`ImportError` if the installed openai-agents SDK
+        predates the experimental Codex extension.
+        """
+        from agents.extensions.experimental.codex import Codex
+        from agents.extensions.experimental.codex.thread_options import (
+            ThreadOptions,
+        )
+        from agents.extensions.experimental.codex.turn_options import TurnOptions
+
+        return Codex, ThreadOptions, TurnOptions
+
+    async def _run_turn_via_cli(self) -> AsyncIterator[BackendEvent]:
+        """Codex CLI subprocess path (subscription / OAuth tier).
+
+        Drives the bundled ``codex`` binary through the OpenAI-Agents
+        SDK's experimental Codex extension. The CLI authenticates from
+        ``~/.codex/auth.json`` (the operator's ChatGPT OAuth login),
+        refreshes tokens, and routes to the ChatGPT backend — none of
+        which the in-process API path can do. We pass NO api_key so the
+        CLI uses its own login rather than an ``OPENAI_API_KEY``.
+
+        Safety: unlike the API path (which bridges oompah's cd-guarded
+        MCP catalog), the CLI ships its own tools. We confine them via
+        the native sandbox (``workspace-write``) and disable approval
+        prompts (``never``) since oompah runs autonomously.
+        """
+        try:
+            Codex, ThreadOptions, TurnOptions = self._import_codex_cli()
+        except ImportError as exc:
+            self._last_error = (
+                "openai-agents Codex CLI extension not available: "
+                f"{exc}. Requires a recent openai-agents SDK plus the "
+                "codex CLI on PATH."
+            )
+            logger.error("Codex CLI backend: %s", self._last_error)
+            self._status = "errored"
+            return
+
+        # Compose the subprocess env: inherit the process env plus any
+        # options.env overrides, but strip CODEX_API_KEY so the CLI's
+        # OAuth login is used rather than a key.
+        cli_env = dict(os.environ)
+        if self._options.env:
+            cli_env.update(self._options.env)
+        cli_env.pop("CODEX_API_KEY", None)
+
+        try:
+            codex = Codex(env=cli_env)
+            thread = codex.start_thread(
+                ThreadOptions(
+                    model=self._options.model or None,
+                    working_directory=self._options.workspace_path,
+                    skip_git_repo_check=True,
+                    sandbox_mode="workspace-write",
+                    approval_policy="never",
+                    network_access_enabled=True,
+                )
+            )
+        except Exception as exc:
+            self._last_error = f"Codex CLI init failed: {exc!r}"
+            logger.warning(self._last_error)
+            self._status = "errored"
+            return
+
+        yield self._emit(
+            "acp_session_start",
+            payload={
+                "model": self._options.model,
+                "max_turns": self._options.max_turns,
+                "permission_mode": self._options.permission_mode,
+                "tool_policy": "codex_cli:native_sandbox",
+                "sandbox_mode": "workspace-write",
+                "approval_policy": "never",
+                "billing_model": self._billing_model,
+                "cwd": self._options.workspace_path,
+            },
+        )
+
+        self._cli_abort = asyncio.Event()
+        try:
+            streamed = await thread.run_streamed(
+                self._options.prompt,
+                TurnOptions(signal=self._cli_abort),
+            )
+        except Exception as exc:
+            self._last_error = f"Codex CLI run_streamed failed: {exc!r}"
+            logger.warning(self._last_error)
+            yield self._emit(
+                "acp_session_error", payload={"error": self._last_error}
+            )
+            self._status = "errored"
+            return
+
+        deadline = time.monotonic() + self._options.turn_timeout_s
+        try:
+            async for event in streamed.events:
+                if self._stop_requested:
+                    self._status = "interrupted"
+                    return
+                if time.monotonic() > deadline:
+                    self._cli_abort.set()
+                    yield self._emit(
+                        "acp_turn_timeout",
+                        payload={"timeout_s": self._options.turn_timeout_s},
+                    )
+                    self._status = "stalled"
+                    return
+                async for be in self._translate_cli_event(event):
+                    yield be
+
+            # Stream drained without an explicit terminal event — treat
+            # as success (defensive; turn.completed normally sets this).
+            if self._status == "pending":
+                yield self._emit(
+                    "acp_result",
+                    payload={
+                        "subtype": "success",
+                        "is_error": False,
+                        "stop_reason": "end_turn",
+                        "num_turns": self._counters.turn_count,
+                        "total_cost_usd": self._final_cost_usd,
+                        "usage": self._cost_payload(),
+                        "errors": None,
+                    },
+                )
+                self._status = "succeeded"
+        except Exception as exc:
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Codex CLI session failed: %s", self._last_error)
+            yield self._emit(
+                "acp_session_error", payload={"error": self._last_error}
+            )
+            self._status = "errored"
+        finally:
+            self._cli_abort = None
+
+    def _absorb_cli_usage(self, usage: Any) -> None:
+        """Roll a Codex CLI ``Usage`` object into our counters.
+
+        Subscription tier has no per-token bill, so ``_final_cost_usd``
+        stays None — matching the API path's subscription behavior.
+        """
+        try:
+            self._counters.input_tokens = int(
+                getattr(usage, "input_tokens", self._counters.input_tokens) or 0
+            )
+            self._counters.output_tokens = int(
+                getattr(usage, "output_tokens", self._counters.output_tokens) or 0
+            )
+        except (TypeError, ValueError):
+            pass
+        self._final_cost_usd = None
+
+    async def _translate_cli_event(
+        self, event: Any
+    ) -> AsyncIterator[BackendEvent]:
+        """Map one experimental-Codex ``ThreadEvent`` to BackendEvent(s).
+
+        Pattern-matches on the event's ``type`` string (``thread.started``,
+        ``turn.started``, ``turn.completed``, ``turn.failed``, ``error``,
+        ``item.{started,updated,completed}``) rather than isinstance, for
+        the same version-robustness reason as the API path.
+        """
+        ev_type = getattr(event, "type", None)
+
+        if ev_type == "thread.started":
+            tid = getattr(event, "thread_id", None)
+            if isinstance(tid, str):
+                self._session_id = tid
+            return
+
+        if ev_type == "turn.started":
+            self._counters.turn_count += 1
+            return
+
+        if ev_type == "turn.completed":
+            usage = getattr(event, "usage", None)
+            if usage is not None:
+                self._absorb_cli_usage(usage)
+            yield self._emit(
+                "acp_result",
+                payload={
+                    "subtype": "success",
+                    "is_error": False,
+                    "stop_reason": "end_turn",
+                    "num_turns": self._counters.turn_count,
+                    "total_cost_usd": self._final_cost_usd,
+                    "usage": self._cost_payload(),
+                    "errors": None,
+                },
+            )
+            self._status = "succeeded"
+            return
+
+        if ev_type == "turn.failed":
+            err = getattr(event, "error", None)
+            msg = getattr(err, "message", None) or "Codex turn failed"
+            self._last_error = msg
+            yield self._emit("acp_assistant_error", payload={"error": msg})
+            self._status = "failed"
+            return
+
+        if ev_type == "error":
+            msg = getattr(event, "message", None) or "Codex thread error"
+            self._last_error = msg
+            yield self._emit("acp_session_error", payload={"error": msg})
+            self._status = "errored"
+            return
+
+        if ev_type in ("item.started", "item.updated", "item.completed"):
+            item = getattr(event, "item", None)
+            async for be in self._translate_cli_item(ev_type, item):
+                yield be
+            return
+        # Unknown / not-of-interest event kinds are ignored.
+
+    async def _translate_cli_item(
+        self, ev_type: str, item: Any
+    ) -> AsyncIterator[BackendEvent]:
+        """Map a Codex CLI ``ThreadItem`` to BackendEvent(s).
+
+        Text/reasoning are emitted only on ``item.completed`` (the final
+        form) to avoid duplicate deltas from started/updated. Command
+        execution emits tool_use on start and tool_result on completion.
+        """
+        item_type = getattr(item, "type", None) if item is not None else None
+
+        if item_type == "agent_message":
+            if ev_type == "item.completed":
+                text = getattr(item, "text", "") or ""
+                if text:
+                    self._counters.last_event = "text"
+                    yield self._emit("acp_text", payload={"text": text[:2000]})
+        elif item_type == "reasoning":
+            if ev_type == "item.completed":
+                text = getattr(item, "text", "") or ""
+                if text:
+                    self._counters.last_event = "thinking"
+                    yield self._emit(
+                        "acp_thinking", payload={"text": text[:2000]}
+                    )
+        elif item_type == "command_execution":
+            if ev_type == "item.started":
+                self._counters.last_event = "tool_use"
+                yield self._emit(
+                    "acp_tool_use",
+                    payload={
+                        "tool": "command_execution",
+                        "input": _truncate(getattr(item, "command", "")),
+                        "id": getattr(item, "id", None),
+                    },
+                )
+            elif ev_type == "item.completed":
+                self._counters.last_event = "tool_result"
+                yield self._emit(
+                    "acp_tool_result",
+                    payload={
+                        "tool_use_id": getattr(item, "id", None),
+                        "is_error": bool(getattr(item, "exit_code", 0) or 0),
+                        "content": _truncate(
+                            getattr(item, "aggregated_output", "")
+                        ),
+                    },
+                )
+        elif item_type == "file_change":
+            if ev_type == "item.completed":
+                self._counters.last_event = "tool_use"
+                changes = getattr(item, "changes", None) or []
+                yield self._emit(
+                    "acp_tool_use",
+                    payload={
+                        "tool": "file_change",
+                        "input": _truncate(
+                            [getattr(c, "path", "?") for c in changes]
+                        ),
+                        "id": getattr(item, "id", None),
+                    },
+                )
+        elif item_type == "mcp_tool_call":
+            if ev_type == "item.completed":
+                self._counters.last_event = "tool_use"
+                yield self._emit(
+                    "acp_tool_use",
+                    payload={
+                        "tool": (
+                            f"{getattr(item, 'server', '?')}::"
+                            f"{getattr(item, 'tool', '?')}"
+                        ),
+                        "input": _truncate(getattr(item, "arguments", None)),
+                        "id": getattr(item, "id", None),
+                    },
+                )
+        elif item_type == "error":
+            if ev_type == "item.completed":
+                msg = getattr(item, "message", "") or ""
+                self._last_error = msg or self._last_error
+                yield self._emit("acp_assistant_error", payload={"error": msg})
+        # Other item kinds (web_search, todo_list, unknown) are ignored.
 
     # ---- Internal: per-event translation ----
 
@@ -773,6 +1103,31 @@ class CodexAcpBackend(AcpBackend):
                     "key). Set billing_model='subscription' on the provider "
                     "if running Codex CLI with OAuth."
                 )
+        else:
+            # Subscription tier drives the codex CLI subprocess, which
+            # authenticates from ~/.codex/auth.json. Fail fast if the
+            # binary can't be located. find_codex_path() returns falsy
+            # OR raises when the binary is missing — treat both as a
+            # missing CLI. If the SDK extension itself is unavailable we
+            # stay silent and let the session path surface the error.
+            try:
+                from agents.extensions.experimental.codex.exec import (
+                    find_codex_path,
+                )
+            except Exception:
+                find_codex_path = None  # type: ignore[assignment]
+
+            if find_codex_path is not None:
+                missing = False
+                try:
+                    missing = not find_codex_path()
+                except Exception:
+                    missing = True
+                if missing:
+                    errors.append(
+                        "subscription tier requires the 'codex' CLI on PATH "
+                        "(authenticated via 'codex login' -> ~/.codex/auth.json)."
+                    )
 
         base_url = (provider.base_url or "").strip()
         if base_url:

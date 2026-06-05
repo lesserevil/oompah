@@ -305,6 +305,64 @@ class _FakeItem:
             setattr(self, k, v)
 
 
+# ---------------------------------------------------------------------------
+# Fake experimental-Codex CLI extension (for the subscription/OAuth path)
+# ---------------------------------------------------------------------------
+
+
+def _cli_ev(type, **attrs):
+    """A fake ThreadEvent (namespace with a ``type`` + attrs)."""
+    return types.SimpleNamespace(type=type, **attrs)
+
+
+def _cli_item(type, **attrs):
+    """A fake ThreadItem wrapped in an item.* event helper input."""
+    return types.SimpleNamespace(type=type, **attrs)
+
+
+def _install_fake_cli(monkeypatch, *, events, capture=None):
+    """Patch ``_import_codex_cli`` to return a fake (Codex, ThreadOptions,
+    TurnOptions) triple whose thread streams *events*.
+
+    ``capture`` (a dict) records the kwargs the fake Codex/ThreadOptions
+    were built with, so tests can assert e.g. that no api_key was passed.
+    """
+    cap = capture if capture is not None else {}
+
+    class _FakeStreamed:
+        def __init__(self, evs):
+            self.events = evs
+
+    class _FakeThread:
+        async def run_streamed(self, prompt, turn_options=None):
+            cap["prompt"] = prompt
+            cap["turn_options"] = turn_options
+            return _FakeStreamed(_async_iter(list(events)))
+
+    class _FakeCodex:
+        def __init__(self, *args, **kwargs):
+            cap["codex_kwargs"] = kwargs
+
+        def start_thread(self, options=None):
+            cap["thread_options"] = options
+            return _FakeThread()
+
+    class _FakeThreadOptions:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class _FakeTurnOptions:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    monkeypatch.setattr(
+        CodexAcpBackendSession,
+        "_import_codex_cli",
+        staticmethod(lambda: (_FakeCodex, _FakeThreadOptions, _FakeTurnOptions)),
+    )
+    return cap
+
+
 @pytest.fixture
 def install_mock_sdk(monkeypatch):
     """Install a mock ``agents`` module on ``sys.modules`` for the
@@ -450,45 +508,68 @@ class TestCodexSessionLifecycle:
         assert "cost_usd" in usage
         assert usage["cost_usd"] is None
 
-    def test_subscription_billing_cost_is_none(self, install_mock_sdk, monkeypatch):
-        """When billing_model='subscription' (signaled via env),
-        total_cost_usd is forced to None even if the SDK reports a
-        dollar amount — there is no per-token bill in subscription
-        tier."""
+    def test_subscription_billing_routes_to_cli_not_api(self, install_mock_sdk, monkeypatch):
+        """billing_model='subscription' must route to the Codex CLI path
+        (OAuth), NOT the in-process API path — even with a working API
+        SDK mock installed, the Runner must never be invoked."""
         sdk = _make_mock_sdk_module(
             stream_events_factory=lambda: _async_iter([]),
             usage={"input_tokens": 5, "output_tokens": 5},
         )
-        # Inject a synthetic cost on the result handle to verify
-        # the subscription path explicitly overrides it to None.
-        original_run = sdk.Runner.run_streamed
+        api_called = {"v": False}
 
-        def _stamp_cost(agent, input=None):
-            r = original_run(agent, input=input)
-            r.total_cost_usd = 1.23  # would otherwise be surfaced
-            return r
+        def _flag(agent, input=None):
+            api_called["v"] = True
+            raise AssertionError("API path must not run for subscription tier")
 
-        sdk.Runner.run_streamed = staticmethod(_stamp_cost)
+        sdk.Runner.run_streamed = staticmethod(_flag)
         install_mock_sdk(sdk)
-        monkeypatch.setattr(
-            CodexAcpBackendSession, "_build_tool_catalog",
-            lambda self: [],
+
+        cap = _install_fake_cli(
+            monkeypatch,
+            events=[
+                _cli_ev("thread.started", thread_id="th-1"),
+                _cli_ev("turn.started"),
+                _cli_ev(
+                    "item.completed",
+                    item=_cli_item("agent_message", text="4"),
+                ),
+                _cli_ev(
+                    "turn.completed",
+                    usage=types.SimpleNamespace(input_tokens=5, output_tokens=5),
+                ),
+            ],
         )
 
         async def run():
             opt = AcpBackendOptions(
                 workspace_path="/tmp/ws",
                 prompt="x",
-                env={"OOMPAH_CODEX_BILLING": "subscription"},
+                billing_model="subscription",
             )
             sess = CodexAcpBackendSession(opt)
-            async for _ in sess.run_turn():
-                pass
-            return sess
+            collected = []
+            async for ev in sess.run_turn():
+                collected.append(ev)
+            return sess, collected
 
-        sess = asyncio.run(run())
+        sess, stream = asyncio.run(run())
+        assert api_called["v"] is False
         assert sess.status == "succeeded"
+        # Subscription tier: no per-token bill.
         assert sess.total_cost_usd is None
+        # session_id captured from thread.started; usage rolled up.
+        assert sess.session_id == "th-1"
+        assert sess.input_tokens == 5 and sess.output_tokens == 5
+        kinds = [ev.kind for ev in stream]
+        assert kinds[0] == "session_start"
+        assert "text" in kinds
+        assert kinds[-1] == "result"
+        # No api_key passed to the CLI — it uses its own OAuth login.
+        assert cap["codex_kwargs"].get("api_key") in (None, "")
+        # session_start advertises the CLI's native-sandbox policy.
+        assert stream[0].payload["tool_policy"] == "codex_cli:native_sandbox"
+        assert stream[0].payload["billing_model"] == "subscription"
 
     def test_close_before_run_returns_interrupted(self, install_mock_sdk, monkeypatch):
         """A close() before run_turn marks status=interrupted and the
@@ -598,6 +679,155 @@ try:
     import claude_agent_sdk
 except ImportError:
     pytest.skip("claude_agent_sdk not installed; install with uv pip install 'oompah[claude]'", allow_module_level=True)
+
+
+class TestCodexCliPath:
+    """The subscription/OAuth path drives the experimental Codex CLI
+    extension. We mock the extension entirely so the real codex binary
+    is never spawned."""
+
+    def _drive(self, monkeypatch, events, *, billing_model="subscription",
+               prompt="x", capture=None):
+        cap = _install_fake_cli(monkeypatch, events=events, capture=capture)
+
+        async def run():
+            opt = AcpBackendOptions(
+                workspace_path="/tmp/ws",
+                prompt=prompt,
+                billing_model=billing_model,
+            )
+            sess = CodexAcpBackendSession(opt)
+            collected = []
+            async for ev in sess.run_turn():
+                collected.append(ev)
+            return sess, collected
+
+        sess, stream = asyncio.run(run())
+        return sess, stream, cap
+
+    def test_turn_failed_sets_failed_status(self, monkeypatch):
+        sess, stream, _ = self._drive(
+            monkeypatch,
+            [
+                _cli_ev("turn.started"),
+                _cli_ev(
+                    "turn.failed",
+                    error=types.SimpleNamespace(message="not logged in"),
+                ),
+            ],
+        )
+        assert sess.status == "failed"
+        assert sess.last_error == "not logged in"
+        assert "assistant_error" in [ev.kind for ev in stream]
+
+    def test_thread_error_sets_errored(self, monkeypatch):
+        sess, stream, _ = self._drive(
+            monkeypatch,
+            [_cli_ev("error", message="codex crashed")],
+        )
+        assert sess.status == "errored"
+        assert sess.last_error == "codex crashed"
+
+    def test_command_execution_maps_to_tool_events(self, monkeypatch):
+        sess, stream, _ = self._drive(
+            monkeypatch,
+            [
+                _cli_ev(
+                    "item.started",
+                    item=_cli_item("command_execution", id="c1", command="ls"),
+                ),
+                _cli_ev(
+                    "item.completed",
+                    item=_cli_item(
+                        "command_execution",
+                        id="c1",
+                        command="ls",
+                        aggregated_output="file.txt",
+                        exit_code=0,
+                    ),
+                ),
+                _cli_ev("turn.completed", usage=None),
+            ],
+        )
+        kinds = [ev.kind for ev in stream]
+        assert "tool_use" in kinds
+        assert "tool_result" in kinds
+        assert sess.status == "succeeded"
+
+    def test_missing_extension_returns_errored(self, monkeypatch):
+        def _boom():
+            raise ImportError("no experimental codex extension")
+
+        monkeypatch.setattr(
+            CodexAcpBackendSession, "_import_codex_cli", staticmethod(_boom)
+        )
+
+        async def run():
+            opt = AcpBackendOptions(
+                workspace_path="/tmp/ws", prompt="x", billing_model="subscription"
+            )
+            sess = CodexAcpBackendSession(opt)
+            async for _ in sess.run_turn():
+                pass
+            return sess
+
+        sess = asyncio.run(run())
+        assert sess.status == "errored"
+        assert "extension not available" in (sess.last_error or "")
+
+    def test_per_token_does_not_use_cli(self, install_mock_sdk, monkeypatch):
+        """The default per_token tier must NOT touch the CLI extension."""
+        cli_called = {"v": False}
+
+        def _boom():
+            cli_called["v"] = True
+            raise AssertionError("CLI must not be imported for per_token")
+
+        monkeypatch.setattr(
+            CodexAcpBackendSession, "_import_codex_cli", staticmethod(_boom)
+        )
+        sdk = _make_mock_sdk_module(
+            stream_events_factory=lambda: _async_iter([]),
+            usage={"input_tokens": 1, "output_tokens": 1},
+        )
+        install_mock_sdk(sdk)
+        monkeypatch.setattr(
+            CodexAcpBackendSession, "_build_tool_catalog", lambda self: []
+        )
+
+        async def run():
+            opt = AcpBackendOptions(
+                workspace_path="/tmp/ws", prompt="x", billing_model="per_token"
+            )
+            sess = CodexAcpBackendSession(opt)
+            async for _ in sess.run_turn():
+                pass
+            return sess
+
+        sess = asyncio.run(run())
+        assert cli_called["v"] is False
+        assert sess.status == "succeeded"
+
+    def test_billing_model_resolved_from_options_field(self, monkeypatch):
+        """The execution path is selected from the first-class
+        options.billing_model field (the legacy OOMPAH_CODEX_BILLING env
+        var is no longer consulted)."""
+        sub = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path="/tmp/ws", prompt="x", billing_model="SubScription"
+            )
+        )
+        assert sub._billing_model == "subscription"
+
+        # An env var alone no longer flips the tier — field defaults win.
+        legacy = CodexAcpBackendSession(
+            AcpBackendOptions(
+                workspace_path="/tmp/ws",
+                prompt="x",
+                env={"OOMPAH_CODEX_BILLING": "subscription"},
+            )
+        )
+        assert legacy._billing_model == "per_token"
 
 
 class TestCodexToolBridging:

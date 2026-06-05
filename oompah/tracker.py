@@ -210,6 +210,14 @@ class BacklogMdTracker:
         self._last_fingerprint: str | None = None
         self._task_locks: dict[str, threading.RLock] = {}
         self._task_locks_guard = threading.Lock()
+        # Per-(include_completed) cache of parsed task records. Reading and
+        # YAML-parsing the whole task corpus is the dominant tick cost, and
+        # several tick phases each call it; caching collapses those to one
+        # parse. Invalidated at tick start (by the orchestrator) and on any
+        # write, so a read never returns a snapshot older than the last
+        # mutation. Guarded for the orchestrator's concurrent tick phases.
+        self._read_cache: dict[bool, list[dict]] = {}
+        self._read_cache_guard = threading.Lock()
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Fetch tasks in active states, sorted for dispatch."""
@@ -675,7 +683,20 @@ class BacklogMdTracker:
             for rec in self._read_task_records(include_completed=include_completed)
         ]
 
+    def invalidate_read_cache(self) -> None:
+        """Drop the cached task-record snapshots.
+
+        Called at tick start (by the orchestrator) and after any write, so
+        cached reads never outlive a mutation.
+        """
+        with self._read_cache_guard:
+            self._read_cache.clear()
+
     def _read_task_records(self, *, include_completed: bool) -> list[dict]:
+        with self._read_cache_guard:
+            cached = self._read_cache.get(include_completed)
+        if cached is not None:
+            return cached
         records = []
         for path in self._task_files(include_completed=include_completed):
             try:
@@ -684,6 +705,8 @@ class BacklogMdTracker:
                 logger.warning("Skipping invalid Backlog.md task %s: %s", path, exc)
                 continue
             records.append({"path": path, "meta": meta, "body": body})
+        with self._read_cache_guard:
+            self._read_cache[include_completed] = records
         return records
 
     def _read_task_record(self, identifier: str) -> dict | None:
@@ -707,6 +730,8 @@ class BacklogMdTracker:
             meta, body = _read_markdown_frontmatter(path)
             meta[key] = value
             _write_markdown_frontmatter(path, meta, body)
+        # Direct frontmatter write bypasses _run_backlog — drop the cache.
+        self.invalidate_read_cache()
 
     def _normalize_task(self, rec: dict) -> Issue:
         meta = rec["meta"]
@@ -982,6 +1007,10 @@ class BacklogMdTracker:
             raise TrackerError(
                 f"backlog command failed (exit {result.returncode}): {stderr}"
             )
+        # CLI invocations are mutations (create/edit/archive); reads go
+        # through direct file I/O. Drop the cached snapshot so the next
+        # read reflects this write.
+        self.invalidate_read_cache()
         return result.stdout
 
 

@@ -13,6 +13,7 @@ Acceptance criteria (TASK-407.3):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import urllib.error
 from io import BytesIO
@@ -25,9 +26,11 @@ from oompah.models import ModelProvider
 from oompah.provider_health import (
     ERROR_REASONS,
     ProviderTestResult,
+    _normalize_acp_error,
     _normalize_http_error,
     _normalize_url_error,
     _pick_model,
+    run_acp_health_check,
     run_health_check,
 )
 
@@ -93,6 +96,129 @@ def _http_error(code: int, body: str = "") -> urllib.error.HTTPError:
 
 def _url_error(msg: str = "timed out") -> urllib.error.URLError:
     return urllib.error.URLError(reason=msg)
+
+
+# ---------------------------------------------------------------------------
+# Fake ACP backend (for run_acp_health_check tests)
+#
+# The registry docstring explicitly supports inserting/removing test
+# backends, so we register a fake under a unique name per fixture and
+# clean it up afterward. The fake session implements only the slice of
+# the AcpBackendSession protocol the live probe actually reads:
+# run_turn(), status, last_error, close().
+# ---------------------------------------------------------------------------
+
+
+def _build_fake_session_cls():
+    from oompah.acp_backends.base import BackendEvent
+
+    class _FakeSession:
+        def __init__(self, *, events, status, last_error=None):
+            self._events = events
+            self._status = status
+            self._last_error = last_error
+            self.closed = False
+
+        async def run_turn(self):
+            for ev in self._events:
+                yield ev
+
+        async def close(self):
+            self.closed = True
+
+        @property
+        def status(self):
+            return self._status
+
+        @property
+        def last_error(self):
+            return self._last_error
+
+    return _FakeSession, BackendEvent
+
+
+def _register_fake_backend(name, *, start_session=None, validate=None):
+    """Register a fake AcpBackend under *name*; return the name.
+
+    Caller is responsible for unregistering (the fixtures below do).
+    """
+    from oompah.acp_backends.base import AcpBackend
+    from oompah.acp_backends.registry import register_backend
+
+    class _FakeBackend(AcpBackend):
+        @classmethod
+        def name(cls):
+            return name
+
+        def start_session(self, options):
+            if start_session is None:
+                raise AssertionError("start_session not configured")
+            return start_session(options)
+
+        def validate_provider(self, provider):
+            return validate(provider) if validate else []
+
+    register_backend(name, _FakeBackend)
+    return name
+
+
+@pytest.fixture
+def fake_acp_backend():
+    """A backend that succeeds and emits a single text event '4'."""
+    SessionCls, BackendEvent = _build_fake_session_cls()
+
+    def _start(options):
+        return SessionCls(
+            events=[BackendEvent(kind="text", payload={"text": "4"})],
+            status="succeeded",
+        )
+
+    name = _register_fake_backend("fake-health-ok", start_session=_start)
+    yield name
+    from oompah.acp_backends.registry import BACKENDS
+    BACKENDS.pop(name, None)
+
+
+@pytest.fixture
+def fake_acp_backend_failing():
+    """A backend whose session ends 'failed' with an auth-shaped error."""
+    SessionCls, _BackendEvent = _build_fake_session_cls()
+
+    def _start(options):
+        return SessionCls(
+            events=[],
+            status="failed",
+            last_error="Error: not logged in. Run `claude login` to authenticate.",
+        )
+
+    name = _register_fake_backend("fake-health-fail", start_session=_start)
+    yield name
+    from oompah.acp_backends.registry import BACKENDS
+    BACKENDS.pop(name, None)
+
+
+@pytest.fixture
+def fake_acp_backend_invalid():
+    """A backend whose validate_provider rejects the provider config."""
+    name = _register_fake_backend(
+        "fake-health-invalid",
+        validate=lambda provider: ["fake backend needs an api key"],
+    )
+    yield name
+    from oompah.acp_backends.registry import BACKENDS
+    BACKENDS.pop(name, None)
+
+
+@pytest.fixture
+def fake_acp_backend_crashing():
+    """A backend whose start_session raises (e.g. SDK import failure)."""
+    def _start(options):
+        raise RuntimeError("No module named 'some_sdk'")
+
+    name = _register_fake_backend("fake-health-crash", start_session=_start)
+    yield name
+    from oompah.acp_backends.registry import BACKENDS
+    BACKENDS.pop(name, None)
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +455,9 @@ class TestTestProviderUnit:
         assert result.success is False
         assert result.error_reason == "provider_unavailable"
 
-    def test_acp_provider_returns_provider_unavailable(self):
+    def test_acp_provider_sync_guard_returns_provider_unavailable(self):
+        """The synchronous path can't drive a session — it returns a guard
+        result pointing callers at the async live probe."""
         p = _make_provider(mode="acp")
         result = run_health_check(p)
         assert result.success is False
@@ -589,19 +717,120 @@ class TestProviderTestEndpoint:
         mock_role_store.update.assert_not_called()
 
     # ------------------------------------------------------------------
-    # ACP provider returns friendly message
+    # ACP provider routes through the live backend probe
     # ------------------------------------------------------------------
 
-    def test_acp_provider_returns_provider_unavailable(self, health_client):
+    def test_acp_provider_endpoint_runs_live_probe(self, health_client, fake_acp_backend):
+        """An ACP provider is dispatched to run_acp_health_check, which drives
+        a real backend session — here the registered fake backend."""
         client, store = health_client
         p = store.create(
-            name="ClaudeACP",
+            name="FakeACP",
             base_url="",
             mode="acp",
+            backend=fake_acp_backend,
+            acp_permission_mode="default",
+        )
+        r = client.post(f"/api/v1/providers/{p.id}/test")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is True
+        assert body["response_text"] == "4"
+
+    def test_acp_provider_endpoint_surfaces_failure(self, health_client, fake_acp_backend_failing):
+        client, store = health_client
+        p = store.create(
+            name="FakeACPFail",
+            base_url="",
+            mode="acp",
+            backend=fake_acp_backend_failing,
             acp_permission_mode="default",
         )
         r = client.post(f"/api/v1/providers/{p.id}/test")
         assert r.status_code == 200
         body = r.json()
         assert body["success"] is False
-        assert body["error_reason"] == "provider_unavailable"
+        assert body["error_reason"] == "auth_failed"
+
+
+# ---------------------------------------------------------------------------
+# ACP live probe (run_acp_health_check)
+# ---------------------------------------------------------------------------
+
+
+def _make_acp_provider(*, backend: str, provider_id: str = "prov-acp01",
+                       name: str = "AcpProvider") -> ModelProvider:
+    return ModelProvider(
+        id=provider_id,
+        name=name,
+        base_url="",
+        api_key="",
+        models=[],
+        default_model=None,
+        mode="acp",
+        backend=backend,
+        acp_permission_mode="default",
+    )
+
+
+class TestAcpLiveProbe:
+    def test_success_echoes_response_text(self, fake_acp_backend):
+        p = _make_acp_provider(backend=fake_acp_backend)
+        result = asyncio.run(run_acp_health_check(p))
+        assert result.success is True
+        assert result.error_reason == ""
+        assert result.response_text == "4"
+        assert result.latency_ms >= 0.0
+
+    def test_failed_status_maps_to_reason(self, fake_acp_backend_failing):
+        p = _make_acp_provider(backend=fake_acp_backend_failing)
+        result = asyncio.run(run_acp_health_check(p))
+        assert result.success is False
+        # last_error mentions "not logged in" → auth_failed
+        assert result.error_reason == "auth_failed"
+
+    def test_validate_provider_error_short_circuits(self, fake_acp_backend_invalid):
+        """A backend whose validate_provider returns errors fails fast with
+        missing_credentials and never starts a session."""
+        p = _make_acp_provider(backend=fake_acp_backend_invalid)
+        result = asyncio.run(run_acp_health_check(p))
+        assert result.success is False
+        assert result.error_reason == "missing_credentials"
+        assert "needs an api key" in result.error_detail.lower()
+
+    def test_start_session_crash_is_provider_unavailable(self, fake_acp_backend_crashing):
+        p = _make_acp_provider(backend=fake_acp_backend_crashing)
+        result = asyncio.run(run_acp_health_check(p))
+        assert result.success is False
+        assert result.error_reason == "provider_unavailable"
+
+    def test_unknown_backend_is_provider_unavailable(self):
+        p = _make_acp_provider(backend="definitely-not-registered")
+        result = asyncio.run(run_acp_health_check(p))
+        assert result.success is False
+        assert result.error_reason == "provider_unavailable"
+        assert "Unknown ACP backend" in result.error_detail
+
+    def test_result_reason_is_a_known_reason(self, fake_acp_backend_failing):
+        p = _make_acp_provider(backend=fake_acp_backend_failing)
+        result = asyncio.run(run_acp_health_check(p))
+        assert result.error_reason in ERROR_REASONS
+
+
+class TestNormalizeAcpError:
+    def test_module_not_found_is_provider_unavailable(self):
+        reason, _ = _normalize_acp_error("errored", "No module named 'claude_agent_sdk'")
+        assert reason == "provider_unavailable"
+
+    def test_not_logged_in_is_auth_failed(self):
+        reason, _ = _normalize_acp_error("failed", "Error: not logged in. Run `claude login`.")
+        assert reason == "auth_failed"
+
+    def test_stalled_is_timeout(self):
+        reason, _ = _normalize_acp_error("stalled", None)
+        assert reason == "timeout"
+
+    def test_bare_failed_is_unknown(self):
+        reason, detail = _normalize_acp_error("failed", None)
+        assert reason == "unknown_error"
+        assert "failed" in detail

@@ -16,6 +16,7 @@ where the binary is installed.
 
 from __future__ import annotations
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import asyncio
@@ -598,6 +599,77 @@ try:
     import claude_agent_sdk
 except ImportError:
     pytest.skip("claude_agent_sdk not installed; install with uv pip install 'oompah[claude]'", allow_module_level=True)
+
+
+class TestSystemPromptFileTransport:
+    """The (possibly large) rendered prompt must reach the CLI via a
+    --system-prompt-file (file dict), not an inline --system-prompt
+    string, so the SDK doesn't exec the bundled binary with an oversized
+    argv ("Argument list too long")."""
+
+    def _run_and_capture(self, prompt):
+        from claude_agent_sdk import ClaudeAgentOptions as _Real
+
+        captured: dict = {}
+
+        def _spy(*args, **kwargs):
+            captured["kwargs"] = kwargs
+            # Snapshot the system_prompt file contents while the temp file
+            # still exists (run_task removes it in its finally).
+            sp = kwargs.get("system_prompt")
+            if isinstance(sp, dict) and sp.get("type") == "file":
+                try:
+                    with open(sp["path"], encoding="utf-8") as f:
+                        captured["file_contents"] = f.read()
+                except OSError:
+                    captured["file_contents"] = None
+            return _Real(*args, **kwargs)
+
+        async def _stream():
+            from claude_agent_sdk import ResultMessage
+            yield ResultMessage(
+                subtype="success", duration_ms=1, duration_api_ms=1,
+                is_error=False, num_turns=0, session_id="s",
+                stop_reason=None, total_cost_usd=None, usage=None,
+                result=None, structured_output=None, model_usage=None,
+                permission_denials=None, errors=None, uuid="u",
+            )
+
+        client_mock = AsyncMock()
+        client_mock.query = AsyncMock()
+        client_mock.receive_response = MagicMock(return_value=_stream())
+        client_mock.interrupt = AsyncMock()
+        cm = AsyncMock()
+        cm.__aenter__ = AsyncMock(return_value=client_mock)
+        cm.__aexit__ = AsyncMock(return_value=None)
+
+        async def runner():
+            with patch("claude_agent_sdk.ClaudeAgentOptions", _spy), \
+                 patch("claude_agent_sdk.ClaudeSDKClient", return_value=cm):
+                session = AcpAgentSession(
+                    workspace_path="/tmp/ws", prompt=prompt,
+                    model="claude-opus-4-7",
+                )
+                await session.run_task()
+                return session
+
+        session = asyncio.run(runner())
+        return captured, session
+
+    def test_system_prompt_passed_as_file(self):
+        big = "X" * 500_000  # would blow the OS arg limit if passed inline
+        captured, _session = self._run_and_capture(big)
+        sp = captured["kwargs"]["system_prompt"]
+        assert isinstance(sp, dict) and sp.get("type") == "file"
+        assert sp.get("path")
+        # The file carried the full prompt verbatim.
+        assert captured.get("file_contents") == big
+
+    def test_temp_prompt_file_cleaned_up(self):
+        captured, _session = self._run_and_capture("hello")
+        path = captured["kwargs"]["system_prompt"]["path"]
+        # run_turn's finally removed the temp file.
+        assert not os.path.exists(path)
 
 
 class TestToolCatalogBridging:

@@ -55,7 +55,9 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
     canonicalize_status,
+    epic_rollup_state,
     is_terminal_status,
+    more_advanced_status,
 )
 from oompah.focus import (
     _MIN_SCORE_TO_FLAG,
@@ -150,6 +152,32 @@ def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str
 def _configured_in_progress_state(active_states: list[str]) -> str:
     """Return the tracker-native status oompah treats as in-progress."""
     return IN_PROGRESS
+
+
+# Signatures of ACP-backend *launch* failures: the agent process never began
+# task turns (vs. failing mid-task). These are provider-level and warrant
+# failing over to the next dispatch candidate rather than a terminal exit.
+_ACP_LAUNCH_FAILURE_PHRASES: tuple[str, ...] = (
+    "argument list too long",          # E2BIG execing the CLI (oversized argv)
+    "failed to start claude",          # SDK CLIConnectionError on connect
+    "cliconnectionerror",
+    "clinotfounderror",
+    "cli path not resolved",
+    "not installed",                   # SDK/backend dependency missing
+    "extension not available",         # codex CLI extension missing
+    "failed to start a session",
+    "failed to start",
+)
+
+
+def _is_acp_launch_failure(error_msg: str | None) -> bool:
+    """True when an ACP session's error string looks like a launch/startup
+    failure (process never began task turns), as opposed to a task-level
+    error. Used to decide whether to fail over to the next candidate."""
+    if not error_msg:
+        return False
+    low = error_msg.lower()
+    return any(phrase in low for phrase in _ACP_LAUNCH_FAILURE_PHRASES)
 
 
 # Phrases that identify credential-related errors in agent retry error strings.
@@ -441,6 +469,10 @@ class Orchestrator:
             dict[str, str]
         ] = []  # {"level": "warning", "message": "..."}
         self._rate_limit_until: float = 0.0  # epoch time until which dispatch is paused
+        # Throttle for _auto_archive: it does a full-corpus read per project
+        # but only ever acts on issues closed >= _ARCHIVE_DAYS ago, so it
+        # needn't run every tick. monotonic() of the last run; None = never.
+        self._last_auto_archive_monotonic: float | None = None
         # EventBus: typed pub/sub for internal event-driven communication.
         # The legacy _observers/_state_only_observers/_activity_observers lists
         # are kept for backward compatibility with server.py, but internally
@@ -976,6 +1008,22 @@ class Orchestrator:
             return self._tracker_for_project(issue.project_id)
         return self.tracker
 
+    def _invalidate_tracker_read_caches(self) -> None:
+        """Clear the per-tick task-record cache on every tracker.
+
+        Called at tick start so each tick reads fresh state, then reuses
+        that parse across its phases. Best-effort: a tracker without the
+        method (e.g. a test double) is skipped.
+        """
+        trackers = [self.tracker, *self._project_trackers.values()]
+        for tracker in trackers:
+            inval = getattr(tracker, "invalidate_read_cache", None)
+            if callable(inval):
+                try:
+                    inval()
+                except Exception:  # noqa: BLE001 — never let cache reset break a tick
+                    pass
+
     # ------------------------------------------------------------------
     # Error watcher integration (oompah-zlz_2-0nc)
     # ------------------------------------------------------------------
@@ -1306,6 +1354,12 @@ class Orchestrator:
         # consistent profile list — mirrors the file-watcher reload semantics.
         self._apply_pending_agent_profiles()
 
+        # 0a. Drop each tracker's cached task snapshot so this tick reads
+        # fresh state once, then shares that parse across its phases (the
+        # full-corpus read+parse is the dominant tick cost). Writes during
+        # the tick re-invalidate, so reads never go stale.
+        self._invalidate_tracker_read_caches()
+
         # 1. Reconcile running agents against tracker
         await self._handle_reconcile()
         t1 = time.monotonic()
@@ -1461,13 +1515,17 @@ class Orchestrator:
             self._tick_pool, self._auto_close_completed_epics, candidates
         )
 
-        # Open the epic→main PR for stacked/shared epics whose children
-        # are all closed. Cheap — only walks ``candidates`` plus a fetch
-        # of children per active epic. Only acts on epics where the
-        # project's epic_strategy is 'stacked' or 'shared'; flat is a
-        # no-op (today's behavior).
+        # Open the epic→main PR for stacked/shared epics whose children are
+        # all done. Pass ALL non-terminal epics (not just dispatch
+        # candidates): epics usually sit in Backlog, which is not a dispatch-
+        # active state, so they'd otherwise never reach this gate and their
+        # completed work would never land. Only acts on stacked/shared
+        # strategies; flat is a no-op.
+        epic_pool = await loop.run_in_executor(
+            self._tick_pool, self._all_non_terminal_epics
+        )
         await loop.run_in_executor(
-            self._tick_pool, self._open_epic_main_prs, candidates
+            self._tick_pool, self._open_epic_main_prs, epic_pool
         )
 
         # Check staleness of epic branches — whether they've fallen
@@ -1527,6 +1585,7 @@ class Orchestrator:
         def _timed_merged_labels():
             t = time.monotonic()
             self._label_merged_issues()
+            self._label_merged_epics()
             return (time.monotonic() - t) * 1000
 
         yolo_ms, archive_ms, merged_ms = await asyncio.gather(
@@ -1888,6 +1947,161 @@ class Orchestrator:
                 n += 1
         return n
 
+    def _shared_epic_child_done(self, issue: Issue) -> bool:
+        """True when a shared-epic child already records a terminal status
+        on its epic branch worktree.
+
+        The dispatch loop reads status from the main checkout, which only
+        reflects a shared-epic child's completion once the epic→main PR
+        lands. Until then an already-finished child still looks active in
+        main and would be re-dispatched indefinitely. We consult the epic
+        worktree (the child's real working branch) to break that loop.
+
+        Uses ``issue.parent_id`` directly as the epic identifier — it maps
+        to the same ``epic-<identifier>`` worktree the dispatcher creates
+        (verified: parent_id == the epic's identifier for Backlog). Reads
+        a local file only (no git/CLI), and fails open (returns False) if
+        the worktree or task file is absent, so a missing worktree just
+        falls through to normal dispatch rather than wrongly skipping.
+        """
+        if not issue.project_id or not issue.parent_id:
+            return False
+        try:
+            status = self.project_store.read_task_status_in_epic_worktree(
+                issue.project_id,
+                issue.parent_id,
+                issue.identifier,
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort gate
+            logger.debug(
+                "epic-branch status read failed for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return False
+        if not status:
+            return False
+        return _is_terminal_state(status, self.config.tracker_terminal_states)
+
+    def _blocker_satisfied(self, issue: Issue, blocker, blocker_state: str) -> bool:
+        """Whether a dependency/blocker counts as resolved for dispatch.
+
+        Terminal on the default branch always satisfies. Additionally, for
+        a shared-epic child, a blocker that is a SIBLING in the same epic
+        records its terminal status on the epic branch (not the default
+        branch the tracker reads) — so treat it satisfied if it's terminal
+        there too. Without this, a child that depends on a sibling which is
+        Done-on-branch-but-Open-on-main is blocked forever: the epic can't
+        land until this child runs, but this child won't run until the epic
+        lands. (Same stale-default-branch read as the dispatch/landing gates.)
+        """
+        if _is_terminal_state(blocker_state, self.config.tracker_terminal_states):
+            return True
+        if not issue.project_id or not issue.parent_id:
+            return False
+        if self._project_epic_strategy(issue.project_id) != "shared":
+            return False
+        blocker_ident = (
+            getattr(blocker, "identifier", None) or getattr(blocker, "id", None)
+        )
+        if not blocker_ident:
+            return False
+        # read_task_status_in_epic_worktree returns None when the blocker
+        # isn't a child of this epic (not in the epic worktree), so a
+        # cross-epic / standalone blocker correctly falls through to False.
+        try:
+            status = self.project_store.read_task_status_in_epic_worktree(
+                issue.project_id, issue.parent_id, blocker_ident
+            )
+        except Exception:  # noqa: BLE001 — best-effort; default-branch check stands
+            status = None
+        return bool(status) and _is_terminal_state(
+            status, self.config.tracker_terminal_states
+        )
+
+    def _shared_epic_child_terminal(self, epic: Issue, child: Issue) -> bool:
+        """Whether a shared-epic child counts as complete for the landing gate.
+
+        A child is terminal if it's terminal on EITHER branch:
+
+        * the default branch (``child.state``) — e.g. a child that merged
+          via its own PR, so it's Done/Merged on main but may be stale on
+          the epic branch; OR
+        * the epic branch — where a shared child records its status; the
+          default branch only catches up once THIS epic's PR lands, so
+          reading only the default branch would deadlock the gate.
+
+        "Terminal on either" is safe: both sources mean the child's work
+        is genuinely finished. Reading only one would either deadlock
+        (default-only, the bug we're fixing) or wrongly block on a stale
+        epic-branch copy of an already-merged child.
+        """
+        if _is_terminal_state(child.state, self.config.tracker_terminal_states):
+            return True
+        if not epic.project_id or not child.identifier:
+            return False
+        try:
+            status = self.project_store.read_task_status_in_epic_worktree(
+                epic.project_id, epic.identifier, child.identifier
+            )
+        except Exception:  # noqa: BLE001 — best-effort; default-branch check stands
+            status = None
+        return bool(status) and _is_terminal_state(
+            status, self.config.tracker_terminal_states
+        )
+
+    def _epic_child_effective_state(self, epic: Issue, child: Issue) -> str:
+        """The further-along of a shared-epic child's default-branch and
+        epic-branch statuses — the child's true progress regardless of which
+        branch carries it. Used to roll an epic up to a state."""
+        eff = child.state
+        if epic.project_id and child.identifier:
+            try:
+                branch_status = self.project_store.read_task_status_in_epic_worktree(
+                    epic.project_id, epic.identifier, child.identifier
+                )
+            except Exception:  # noqa: BLE001 — best-effort; default branch stands
+                branch_status = None
+            if branch_status:
+                eff = more_advanced_status(child.state, branch_status)
+        return eff
+
+    def _all_non_terminal_epics(self) -> list[Issue]:
+        """Every epic in a non-terminal state across all projects, regardless
+        of the dispatch active-state filter.
+
+        Epics sit in non-dispatch states (commonly ``Backlog``) and so never
+        appear in ``fetch_candidate_issues``. The epic→main landing gate must
+        still see them — their children may all be done. Reuses the per-tick
+        read cache (``fetch_all_issues`` is already warmed by other phases),
+        so this adds no extra corpus parse within a tick.
+        """
+        out: list[Issue] = []
+        projects = self.project_store.list_all()
+        trackers: list[tuple[str | None, BacklogMdTracker]] = []
+        if projects:
+            for p in projects:
+                try:
+                    trackers.append((p.id, self._tracker_for_project(p.id)))
+                except (ProjectError, TrackerError):
+                    pass
+        else:
+            trackers.append((None, self.tracker))
+        for pid, tracker in trackers:
+            try:
+                for issue in tracker.fetch_all_issues():
+                    if pid:
+                        issue.project_id = pid
+                    if (issue.issue_type or "").strip().lower() == "epic" and (
+                        not _is_terminal_state(
+                            issue.state, self.config.tracker_terminal_states
+                        )
+                    ):
+                        out.append(issue)
+            except (TrackerError, ProjectError) as exc:
+                logger.debug("non-terminal epic fetch failed for %s: %s", pid, exc)
+        return out
+
     def _project_max_in_flight(self, project_id: str | None) -> int:
         """Return the configured in-flight PR limit for a project.
 
@@ -2119,6 +2333,10 @@ class Orchestrator:
                 issue.project_id,
                 issue.identifier,
                 workspace_path,
+                # Don't let a stale main-checkout copy regress a status the
+                # agent already advanced on a persistent (shared-epic)
+                # branch — see the infinite re-dispatch loop this caused.
+                preserve_statuses=frozenset(self.config.tracker_terminal_states),
             )
         except (ProjectError, OSError) as exc:
             logger.warning(
@@ -2782,11 +3000,24 @@ class Orchestrator:
             # deferred / blocked all DELAY the push (per the acceptance
             # criteria). This intentionally treats deferred or blocked as
             # incomplete — operator action required to advance them.
-            all_terminal = all(
-                _is_terminal_state(c.state, self.config.tracker_terminal_states)
-                for c in children
-            )
-            if not all_terminal:
+            #
+            # For shared epics, judge each child from the EPIC BRANCH (where
+            # shared children record their status), not the default branch
+            # the tracker reads — the latter only catches up once this very
+            # PR lands, so reading it would deadlock the gate. See
+            # _epic_child_effective_state.
+            if strategy == "shared":
+                child_states = [
+                    self._epic_child_effective_state(issue, c) for c in children
+                ]
+            else:
+                child_states = [c.state for c in children]
+            # Roll the children up to an epic state. Only a fully-complete
+            # epic (rollup == Done) is ready to merge → open the epic→main
+            # PR. An all-merged epic rolls up to Merged (already landed) and
+            # an incomplete one to Open/In Progress/Backlog — none of which
+            # should open a PR.
+            if epic_rollup_state(child_states) != DONE:
                 continue
 
             project = self.project_store.get(project_id)
@@ -2801,8 +3032,46 @@ class Orchestrator:
             slug = extract_repo_slug(project.repo_url)
             epic_branch = self.project_store.epic_branch_name(issue.identifier)
 
-            # Idempotency: if a review already exists with this source
-            # branch, do nothing.
+            # Authoritative already-landed check — MUST come before the
+            # open-PR idempotency check below. A shared epic lands exactly
+            # once; if any epic→main PR from this branch has ALREADY merged,
+            # the epic is done. Re-opening/re-merging it is the squash-merge
+            # loop: a squash merge never makes the branch an ancestor of main,
+            # so the branch perpetually looks "ahead" and the rollup stays
+            # == Done. The async _merged_branches set (which drives
+            # _label_merged_epics) is skipped for webhook-healthy projects and
+            # can lag, leaving the epic non-terminal forever — so ask the forge
+            # directly. ``list_merged_branches`` (recent merged head refs) is
+            # used in preference to ``find_pr_for_branch`` because the latter
+            # only returns the single most-recent PR, which a newer redundant
+            # still-open PR (the loop's own artifact) would mask.
+            try:
+                merged_refs = provider.list_merged_branches(slug)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "list_merged_branches failed for %s (%s): %s",
+                    issue.identifier,
+                    slug,
+                    exc,
+                )
+                merged_refs = set()
+            if not isinstance(merged_refs, (set, frozenset, list, tuple)):
+                merged_refs = set()
+            already_landed = epic_branch in merged_refs or epic_branch in getattr(
+                self, "_merged_branches", set()
+            )
+            if already_landed:
+                logger.info(
+                    "Epic %s already landed (PR from %s merged); marking "
+                    "Merged instead of re-opening",
+                    issue.identifier,
+                    epic_branch,
+                )
+                self._mark_epic_merged(issue, epic_branch=epic_branch)
+                continue
+
+            # Idempotency: if a (first-landing) review already exists with this
+            # source branch, do nothing — let it run through CI/merge.
             reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
             already_open = any(
                 r.source_branch == epic_branch and not r.draft for r in reviews
@@ -3366,9 +3635,7 @@ class Orchestrator:
                 if not blocker_state and blocker.id:
                     resolved = self._resolve_blocker_state(blocker, issue)
                     blocker_state = resolved
-                if not _is_terminal_state(
-                    blocker_state, self.config.tracker_terminal_states
-                ):
+                if not self._blocker_satisfied(issue, blocker, blocker_state):
                     # Blocker not yet closed — still blocked
                     return _reject(f"blocker={blocker.id} state={blocker_state}")
                 if self._blocker_has_unmerged_pr(blocker):
@@ -3393,14 +3660,25 @@ class Orchestrator:
         # so only one child of a given epic can be in flight at a time.
         # Multiple epics still dispatch in parallel up to max_in_flight_prs.
         # P0 children bypass this check.
-        if not is_p0 and issue.parent_id:
+        if issue.parent_id:
             strategy = self._project_epic_strategy(issue.project_id)
             if strategy == "shared":
-                in_flight = self._epic_in_flight_count(issue.parent_id)
-                if in_flight >= 1:
-                    return _reject(
-                        f"shared_epic_busy={issue.parent_id} count={in_flight}"
-                    )
+                # A shared-epic child writes its terminal status to the
+                # persistent epic branch, but the main checkout the tracker
+                # reads only catches up when the epic→main PR lands. Without
+                # this, an already-Done child looks Open in main and gets
+                # re-dispatched forever. Applies even to P0.
+                if self._shared_epic_child_done(issue):
+                    return _reject(f"epic_branch_done={issue.parent_id}")
+                # Serialize child dispatch within an epic — children share
+                # one worktree/branch and we have no in-worktree
+                # coordination protocol. P0 children bypass this.
+                if not is_p0:
+                    in_flight = self._epic_in_flight_count(issue.parent_id)
+                    if in_flight >= 1:
+                        return _reject(
+                            f"shared_epic_busy={issue.parent_id} count={in_flight}"
+                        )
         # ACP-mode profiles bypass the budget gate entirely — their
         # per-token cost is billed against the operator's claude
         # subscription, not the per-token API meter the budget tracks.
@@ -4219,6 +4497,82 @@ class Orchestrator:
                         logger.debug(
                             "Failed to label %s as merged: %s", issue.identifier, exc
                         )
+
+    def _label_merged_epics(self) -> None:
+        """When an epic→main PR has merged, mark the epic AND all its
+        children ``Merged``.
+
+        In stacked/shared mode an epic lands as a single ``epic-<id>`` →
+        main PR; the children have no individual merged branch, and the
+        epic itself sits in a non-dispatch state — so neither is caught by
+        :meth:`_label_merged_issues`. We detect the merged epic branch
+        directly and roll ``Merged`` down to every child (the agreed rule:
+        when the epic merges, the epic and the tasks its branch contained
+        all become Merged). Idempotent: already-terminal epics drop out of
+        :meth:`_all_non_terminal_epics` and already-merged children are
+        skipped.
+        """
+        merged = getattr(self, "_merged_branches", set())
+        if not merged:
+            return
+        for epic in self._all_non_terminal_epics():
+            project_id = epic.project_id
+            if not project_id:
+                continue
+            if self._project_epic_strategy(project_id) not in ("stacked", "shared"):
+                continue
+            try:
+                epic_branch = self.project_store.epic_branch_name(epic.identifier)
+            except Exception:  # noqa: BLE001
+                continue
+            if epic_branch not in merged:
+                continue
+            self._mark_epic_merged(epic, epic_branch=epic_branch)
+
+    def _mark_epic_merged(self, epic: Issue, *, epic_branch: str | None = None) -> None:
+        """Mark ``epic`` and all its non-terminal children ``Merged``.
+
+        Shared by :meth:`_label_merged_epics` (driven by the async
+        ``_merged_branches`` set) and :meth:`_open_epic_main_prs` (driven by
+        an authoritative per-epic ``find_pr_for_branch`` lookup). Idempotent:
+        already-``Merged``/``Archived`` children are skipped, and a re-marked
+        epic simply re-asserts ``Merged``.
+        """
+        if epic_branch is None:
+            try:
+                epic_branch = self.project_store.epic_branch_name(epic.identifier)
+            except Exception:  # noqa: BLE001
+                epic_branch = epic.identifier
+
+        tracker = self._tracker_for_issue(epic)
+        try:
+            tracker.update_issue(epic.identifier, status=MERGED)
+            logger.info(
+                "Marked epic %s Merged (branch %s merged to main)",
+                epic.identifier,
+                epic_branch,
+            )
+        except TrackerError as exc:
+            logger.debug("Failed to mark epic %s merged: %s", epic.identifier, exc)
+
+        try:
+            children = self._fetch_epic_children(epic)
+        except Exception:  # noqa: BLE001
+            children = []
+        for child in children:
+            if canonicalize_status(child.state) in (MERGED, ARCHIVED):
+                continue
+            try:
+                tracker.update_issue(child.identifier, status=MERGED)
+                logger.info(
+                    "Marked epic child %s Merged (epic %s landed)",
+                    child.identifier,
+                    epic.identifier,
+                )
+            except TrackerError as exc:
+                logger.debug(
+                    "Failed to mark child %s merged: %s", child.identifier, exc
+                )
 
     def _yolo_review_actions_sync(self) -> None:
         """Auto-manage reviews for projects with YOLO enabled.
@@ -5339,6 +5693,22 @@ class Orchestrator:
             source_branch,
         )
 
+    def _resolve_bead_for_branch(self, tracker, source_branch: str):
+        """Resolve a PR's source branch back to its tracker bead.
+
+        Per-bead branches are named after the task identifier, so a direct
+        ``fetch_issue_detail`` resolves them. Epic→main PRs use an
+        ``epic-<identifier>`` branch (see ``ProjectStore.epic_branch_name``);
+        strip that prefix so an epic PR's CI failure / merge conflict
+        reopens the EPIC bead (relabel Needs CI Fix / Needs Rebase) instead
+        of being misread as an orphan PR — which would file a redundant
+        "fix CI on PR #N" task rather than reusing the original epic.
+        """
+        issue = tracker.fetch_issue_detail(source_branch)
+        if issue is None and source_branch.startswith("epic-"):
+            issue = tracker.fetch_issue_detail(source_branch[len("epic-"):])
+        return issue
+
     def _yolo_notify_conflict(
         self, project, provider, slug: str, review_id: str
     ) -> None:
@@ -5435,11 +5805,11 @@ class Orchestrator:
                 )
 
             tracker = self._tracker_for_project(project.id)
-            issue = tracker.fetch_issue_detail(source_branch)
+            issue = self._resolve_bead_for_branch(tracker, source_branch)
             if not issue:
-                # Orphan branch: no bead matches. File a recovery bead so
-                # the YOLO escalation chain isn't a silent dead-end.
-                # (oompah-zlz_2-975)
+                # Orphan branch: no bead matches (not even the epic the
+                # branch belongs to). File a recovery bead so the YOLO
+                # escalation chain isn't a silent dead-end. (oompah-zlz_2-975)
                 self._file_orphan_recovery_bead(
                     project,
                     tracker,
@@ -5553,11 +5923,11 @@ class Orchestrator:
             if not source_branch:
                 return
             tracker = self._tracker_for_project(project.id)
-            issue = tracker.fetch_issue_detail(source_branch)
+            issue = self._resolve_bead_for_branch(tracker, source_branch)
             if not issue:
-                # Orphan branch: no bead matches. File a recovery bead so
-                # the YOLO escalation chain isn't a silent dead-end.
-                # (oompah-zlz_2-975)
+                # Orphan branch: no bead matches (not even the epic the
+                # branch belongs to). File a recovery bead so the YOLO
+                # escalation chain isn't a silent dead-end. (oompah-zlz_2-975)
                 self._file_orphan_recovery_bead(
                     project,
                     tracker,
@@ -8513,6 +8883,10 @@ class Orchestrator:
 
         exit_reason = "normal"
         error_msg = None
+        # Set when a provider-level launch failure should fail over to the
+        # next dispatch candidate (next model in the role's priority list)
+        # instead of being booked as a terminal worker exit.
+        startup_failover = False
         max_turns = profile.max_turns if profile.max_turns else self.config.max_turns
 
         focus = await select_focus_async(issue, provider=None)
@@ -8812,22 +9186,6 @@ class Orchestrator:
             # `text`. parts being None is the common case.
             prompt_text = getattr(prompt, "text", None) or str(prompt)
 
-            # ACP-mode model selection: the per-issue model resolved
-            # against InferenceAPI (e.g. claude-sonnet-4-6, MiniMax)
-            # is not what claude CLI dispatches against — claude uses
-            # whichever model the operator's subscription / auth chose.
-            # Passing a non-claude model name (the MiniMax name slipped
-            # in via the default profile's model_role: fast) is a no-op
-            # at best, an error at worst. Only forward model names that
-            # look like Claude models; otherwise let the SDK pick the
-            # subscription default.
-            acp_model: str | None = None
-            if model and any(
-                marker in model.lower()
-                for marker in ("claude", "haiku", "sonnet", "opus")
-            ):
-                acp_model = model
-
             # ACP backend selection (oompah-zlz_2-0hzh): provider may
             # nominate a non-default backend via ModelProvider.backend.
             # Falls back to "claude" when unset, preserving back-compat
@@ -8838,6 +9196,31 @@ class Orchestrator:
                 else "claude"
             )
 
+            acp_model: str | None = None
+            if acp_backend_name == "claude":
+                # The Claude SDK picks the subscription default and only
+                # understands Claude model names; forwarding a non-Claude
+                # name (e.g. a default profile's "fast" role) is a no-op
+                # at best, an error at worst.
+                if model and any(
+                    marker in model.lower()
+                    for marker in ("claude", "haiku", "sonnet", "opus")
+                ):
+                    acp_model = model
+            else:
+                # Other backends (codex, opencode) take their own model
+                # names — forward whatever the provider resolved.
+                acp_model = model
+
+            # Billing tier flows first-class so backends can pick their
+            # execution path (e.g. codex: per_token -> in-process SDK,
+            # subscription -> codex CLI w/ OAuth). Defaults to per_token.
+            acp_billing_model = (
+                getattr(provider, "billing_model", None) or "per_token"
+                if provider is not None
+                else "per_token"
+            )
+
             session = AcpAgentSession(
                 workspace_path=workspace_path,
                 prompt=prompt_text,
@@ -8846,6 +9229,7 @@ class Orchestrator:
                 tool_catalog=tool_catalog,
                 on_event=_on_event,
                 backend_name=acp_backend_name,
+                billing_model=acp_billing_model,
             )
 
             try:
@@ -8933,6 +9317,18 @@ class Orchestrator:
             else:  # "errored"
                 exit_reason = "abnormal"
                 error_msg = session.last_error or "ACP session errored"
+                # A launch/startup failure (the agent process never began
+                # task turns — e.g. CLIConnectionError, "Argument list too
+                # long", missing CLI) is provider-level: fail over to the
+                # next candidate (next model in the role's priority list)
+                # rather than booking a terminal exit on this one.
+                if target is not None and _is_acp_launch_failure(error_msg):
+                    startup_failover = True
+                    raise ProviderStartupError(
+                        error_msg,
+                        candidate_key=target.candidate_key,
+                        reason="launch_failed",
+                    )
 
             if status == "succeeded":
                 try:
@@ -8952,6 +9348,12 @@ class Orchestrator:
                         exc,
                     )
 
+        except ProviderStartupError:
+            # Propagate to the candidate-failover loop in _run_worker so it
+            # can try the next model in the role's priority list. Do NOT
+            # book a worker exit here — the issue stays registered across
+            # candidate attempts, mirroring the API worker's behavior.
+            raise
         except Exception as exc:
             exit_reason = "abnormal"
             error_msg = str(exc)
@@ -8967,7 +9369,11 @@ class Orchestrator:
                     self.workspace_mgr.run_after_run(wp)
                 except Exception:
                     pass
-            await self._on_worker_exit(issue.id, exit_reason, error_msg)
+            # On startup failover the candidate loop will retry (or finally
+            # call _on_worker_exit once all candidates are exhausted), so
+            # skip the terminal exit here.
+            if not startup_failover:
+                await self._on_worker_exit(issue.id, exit_reason, error_msg)
 
     async def _run_cli_worker(
         self, issue: Issue, attempt: int | None, profile: AgentProfile | None = None
@@ -11045,6 +11451,10 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                         )
 
     _ARCHIVE_DAYS = 7
+    # _auto_archive only acts on issues closed >= _ARCHIVE_DAYS ago — a set
+    # that changes at most once a day — yet each run does a full-corpus task
+    # read per project. Run it at most this often instead of every tick.
+    _AUTO_ARCHIVE_INTERVAL_S = 3600.0  # 1 hour
 
     def _analyze_focus_fit(self, issue: Issue, project_id: str | None) -> None:
         """Analyze a completed issue's work against existing foci.
@@ -11068,9 +11478,33 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             )
 
     def _auto_archive(self) -> None:
-        """Archive closed issues older than _ARCHIVE_DAYS days."""
+        """Archive closed issues older than _ARCHIVE_DAYS days.
+
+        Throttled to at most once per :data:`_AUTO_ARCHIVE_INTERVAL_S`: the
+        scan does a full-corpus task read per project, but the set of
+        issues eligible to archive (closed >= _ARCHIVE_DAYS ago) changes at
+        most daily, so running it every tick was pure overhead (it was the
+        dominant cost of the ~150s slow tick).
+        """
+        nowm = time.monotonic()
+        if (
+            self._last_auto_archive_monotonic is not None
+            and (nowm - self._last_auto_archive_monotonic)
+            < self._AUTO_ARCHIVE_INTERVAL_S
+        ):
+            return
+        self._last_auto_archive_monotonic = nowm
+
         now = datetime.now(timezone.utc)
         projects = self.project_store.list_all()
+        # Only scan states that can still transition to archived. Including
+        # ARCHIVED would re-read every already-archived issue each run just
+        # to skip it via is_archived().
+        archive_scan_states = [
+            s
+            for s in self.config.tracker_terminal_states
+            if canonicalize_status(s) != ARCHIVED
+        ]
 
         trackers: list[tuple[str | None, BacklogMdTracker]] = []
         if projects:
@@ -11084,9 +11518,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         for pid, tracker in trackers:
             try:
-                closed = tracker.fetch_issues_by_states(
-                    self.config.tracker_terminal_states
-                )
+                closed = tracker.fetch_issues_by_states(archive_scan_states)
                 for issue in closed:
                     if tracker.is_archived(issue):
                         continue

@@ -348,6 +348,94 @@ class TestSharedModeDispatchGating:
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
 
+    def test_rejects_when_child_done_on_epic_branch(self, tmp_path):
+        """A shared-epic child already terminal on its epic branch must not
+        be re-dispatched, even though main still shows it active. This is
+        the fix for the infinite re-dispatch loop."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        child = _make_issue(identifier="task-only", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+        with patch.object(
+            orch.project_store,
+            "read_task_status_in_epic_worktree",
+            return_value="Done",
+        ):
+            assert orch._should_dispatch(child) is False
+        reason, _count = orch.state.reject_streak[child.id]
+        assert "epic_branch_done" in reason
+
+    def test_allows_when_child_not_done_on_epic_branch(self, tmp_path):
+        """A non-terminal (or absent) epic-branch status falls through to
+        normal dispatch."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        child = _make_issue(identifier="task-only", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+        with patch.object(
+            orch.project_store,
+            "read_task_status_in_epic_worktree",
+            return_value=None,
+        ):
+            assert orch._should_dispatch(child) is True
+
+    def test_shared_child_dispatches_when_blocker_done_on_epic_branch(self, tmp_path):
+        """A shared-epic child whose sibling blocker is Done on the EPIC
+        BRANCH (but still Open on the default branch) must dispatch — the
+        dependency is satisfied. This breaks the 706.7-style deadlock."""
+        from oompah.models import BlockerRef
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {}
+        child = _make_issue(identifier="c2", parent_id="epic-1", state="open")
+        child.blocked_by = [BlockerRef(id="c1", identifier="c1")]
+        # Epic branch: blocker c1 Done; the child c2 itself not yet done.
+        def _epic_status(project_id, epic_id, child_id):
+            return "Done" if child_id == "c1" else None
+        orch.project_store.read_task_status_in_epic_worktree.side_effect = _epic_status
+        with (
+            patch.object(orch, "_resolve_blocker_state", return_value="open"),
+            patch.object(orch, "_blocker_has_unmerged_pr", return_value=False),
+        ):
+            assert orch._should_dispatch(child) is True
+
+    def test_shared_child_blocked_when_blocker_not_done_on_either_branch(self, tmp_path):
+        """If the sibling blocker is non-terminal on BOTH branches, the
+        child stays blocked."""
+        from oompah.models import BlockerRef
+
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {}
+        child = _make_issue(identifier="c2", parent_id="epic-1", state="open")
+        child.blocked_by = [BlockerRef(id="c1", identifier="c1")]
+        def _epic_status(project_id, epic_id, child_id):
+            return "In Progress" if child_id == "c1" else None
+        orch.project_store.read_task_status_in_epic_worktree.side_effect = _epic_status
+        with patch.object(orch, "_resolve_blocker_state", return_value="open"):
+            assert orch._should_dispatch(child) is False
+        reason, _count = orch.state.reject_streak[child.id]
+        assert "blocker" in reason
+
+    def test_p0_child_done_on_epic_branch_still_rejected(self, tmp_path):
+        """The epic-branch-done gate applies even to P0 — a completed
+        child must never be re-dispatched regardless of priority."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        child = _make_issue(
+            identifier="task-p0", parent_id="epic-1", state="open", priority=0
+        )
+        orch._reviews_cache = {}
+        with patch.object(
+            orch.project_store,
+            "read_task_status_in_epic_worktree",
+            return_value="Merged",
+        ):
+            assert orch._should_dispatch(child) is False
+        reason, _count = orch.state.reject_streak[child.id]
+        assert "epic_branch_done" in reason
+
     def test_flat_mode_allows_multiple_children_of_same_epic(self, tmp_path):
         """Flat mode → no per-epic serial cap, only the global PR cap applies."""
         proj = _make_project_record(epic_strategy="flat")
@@ -438,6 +526,7 @@ class TestWorkspaceAllocation:
             "proj-1",
             "TASK-389",
             "/wt/per-bead",
+            preserve_statuses=frozenset(orch.config.tracker_terminal_states),
         )
 
     def test_stacked_mode_uses_per_bead_worktree(self, tmp_path):
@@ -491,6 +580,7 @@ class TestWorkspaceAllocation:
             "proj-1",
             "TASK-389",
             "/wt/epic-1",
+            preserve_statuses=frozenset(orch.config.tracker_terminal_states),
         )
 
     def test_shared_mode_top_level_issue_uses_per_bead(self, tmp_path):
@@ -810,6 +900,9 @@ class TestOpenEpicMainPrs:
     def test_creates_pr_for_shared_when_all_children_closed(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        # No epic-branch override → fall back to the child's default-branch
+        # state (which is terminal here).
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
         epic = _make_issue(
             identifier="epic-1",
             issue_type="epic",
@@ -829,6 +922,128 @@ class TestOpenEpicMainPrs:
         ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 1
+
+    def test_shared_lands_when_children_done_on_epic_branch_only(self, tmp_path):
+        """The fix: shared-epic children that are Done on the EPIC BRANCH
+        but still Open on the default branch must satisfy the landing gate
+        (otherwise the epic→main PR never opens — the deadlock)."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        # Epic branch says Done for every child...
+        orch.project_store.read_task_status_in_epic_worktree.return_value = "Done"
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1",
+            state="open", title="Shared work", description="Doc body",
+        )
+        # ...even though the default-branch copies still look Open.
+        c1 = _make_issue(identifier="c1", state="open")
+        c2 = _make_issue(identifier="c2", state="open")
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="101")
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 1
+        push.assert_called_once_with(proj, "epic-1")
+        provider.create_review.assert_called_once()
+
+    def test_shared_waits_when_a_child_not_done_on_either_branch(self, tmp_path):
+        """The gate waits when a child is non-terminal on BOTH the default
+        branch and the epic branch (genuinely unfinished)."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        # c1 done on the epic branch, c2 still in progress there.
+        def _epic_status(project_id, epic_id, child_id):
+            return "Done" if child_id == "c1" else "In Progress"
+        orch.project_store.read_task_status_in_epic_worktree.side_effect = _epic_status
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open",
+        )
+        # Both still Open on the default branch; c2 also non-terminal on epic.
+        c1 = _make_issue(identifier="c1", state="open")
+        c2 = _make_issue(identifier="c2", state="open")
+        provider = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 0
+        provider.create_review.assert_not_called()
+        push.assert_not_called()
+
+    def test_shared_merged_child_does_not_block_landing(self, tmp_path):
+        """A child merged via its own path (Merged on default branch, stale
+        on the epic branch) counts as complete and must NOT block an
+        otherwise-done epic — mirrors epic-706 (706.6 Merged, rest Done)."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        # c1: Done on the epic branch (Open on default); c2: Merged on the
+        # default branch but stale Backlog on the epic branch.
+        def _epic_status(project_id, epic_id, child_id):
+            return "Done" if child_id == "c1" else "Backlog"
+        orch.project_store.read_task_status_in_epic_worktree.side_effect = _epic_status
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1",
+            state="open", title="E", description="D",
+        )
+        c1 = _make_issue(identifier="c1", state="open")
+        c2 = _make_issue(identifier="c2", state="merged")
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="102")
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 1
+
+    def test_all_non_terminal_epics_includes_backlog_epics(self, tmp_path):
+        """The landing-gate pool must include epics in non-dispatch states
+        like Backlog (otherwise their completed work never lands)."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        backlog_epic = _make_issue(identifier="e1", issue_type="epic", state="Backlog")
+        open_epic = _make_issue(identifier="e2", issue_type="epic", state="Open")
+        done_epic = _make_issue(identifier="e3", issue_type="epic", state="Done")
+        task = _make_issue(identifier="t1", issue_type="task", state="Backlog")
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [backlog_epic, open_epic, done_epic, task]
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            epics = orch._all_non_terminal_epics()
+        idents = {e.identifier for e in epics}
+        # Backlog + Open epics included; terminal (Done) epic and non-epic excluded.
+        assert idents == {"e1", "e2"}
+
+    def test_shared_all_children_already_merged_opens_no_pr(self, tmp_path):
+        """If every child is already Merged (whole epic landed), the rollup is
+        Merged, not Done — no epic→main PR should be opened."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open",
+        )
+        c1 = _make_issue(identifier="c1", state="merged")
+        c2 = _make_issue(identifier="c2", state="merged")
+        provider = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 0
+        push.assert_not_called()
 
     def test_idempotent_when_pr_already_exists(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
@@ -865,6 +1080,75 @@ class TestOpenEpicMainPrs:
         ):
             opened = orch._open_epic_main_prs([epic])
         assert opened == 0
+
+    def test_marks_merged_instead_of_reopening_when_epic_already_landed(
+        self, tmp_path
+    ):
+        """Loop fix: a squash-merged epic branch is never an ancestor of main,
+        so it always looks "ahead" and the async _merged_branches set is
+        skipped for webhook-healthy projects. Without the authoritative
+        find_pr_for_branch check the gate re-opens/re-merges the same epic PR
+        every tick. When the forge reports the epic PR already merged, mark the
+        epic Merged and open NOTHING."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state="open",
+            title="Already landed",
+        )
+        child = _make_issue(identifier="c1", state="closed")
+        provider = MagicMock()
+        # Forge reports the epic branch among recently-merged head refs even
+        # though a newer redundant PR may still be open (the loop artifact).
+        provider.list_merged_branches.return_value = {"epic-epic-1"}
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        # No new PR opened, branch not even pushed.
+        assert opened == 0
+        provider.create_review.assert_not_called()
+        push.assert_not_called()
+        provider.list_merged_branches.assert_called_once_with("org/repo")
+        # Epic (and its child) marked Merged instead.
+        marked = {
+            call.args[0]: call.kwargs.get("status")
+            for call in tracker.update_issue.call_args_list
+        }
+        assert marked.get("epic-1") == "Merged"
+        assert marked.get("c1") == "Merged"
+
+    def test_still_opens_when_no_prior_merged_pr(self, tmp_path):
+        """Guard: an unmerged (open/None) find_pr_for_branch result must NOT
+        suppress the normal first-time epic PR."""
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open"
+        )
+        child = _make_issue(identifier="c1", state="closed")
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        provider.create_review.return_value = MagicMock(id="201")
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 1
+        provider.create_review.assert_called_once()
 
 
 # --------------------------------- resolve_epic_target_branch (nested epics)
@@ -970,6 +1254,55 @@ class TestResolveEpicTargetBranch:
 # ------------------------------- nested epic PR target in _open_epic_main_prs
 
 
+class TestLabelMergedEpics:
+    """When an epic→main PR merges, the epic and all its children become
+    Merged."""
+
+    def test_marks_epic_and_children_merged(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state="Backlog")
+        c1 = _make_issue(identifier="c1", state="Done")
+        c2 = _make_issue(identifier="c2", state="Merged")  # already merged → skip
+        # epic_branch_name(epic-1) == "epic-epic-1" per the _make_orch stub.
+        orch._merged_branches = {"epic-epic-1"}
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
+            patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+        ):
+            orch._label_merged_epics()
+        marked = [call.args[0] for call in tracker.update_issue.call_args_list]
+        assert "epic-1" in marked          # the epic itself
+        assert "c1" in marked              # not-yet-merged child
+        assert "c2" not in marked          # already Merged → skipped
+        for call in tracker.update_issue.call_args_list:
+            assert call.kwargs.get("status") == "Merged"
+
+    def test_noop_when_epic_branch_not_merged(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state="Backlog")
+        orch._merged_branches = {"some-other-branch"}
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
+            patch.object(orch, "_fetch_epic_children", return_value=[]),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+        ):
+            orch._label_merged_epics()
+        tracker.update_issue.assert_not_called()
+
+    def test_noop_when_no_merged_branches(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._merged_branches = set()
+        with patch.object(orch, "_all_non_terminal_epics") as fetch:
+            orch._label_merged_epics()
+        fetch.assert_not_called()  # early-out before any work
+
+
 class TestNestedEpicMergeChain:
     """Multi-level epic merge chain: B→A's branch, A→main in shared mode."""
 
@@ -979,6 +1312,9 @@ class TestNestedEpicMergeChain:
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {}
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        # No epic-branch status override → the shared landing gate falls
+        # back to each child's default-branch state (what these tests set).
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
         return orch, proj
 
     def test_child_epic_pr_targets_parent_epic_branch_not_main(self, tmp_path):

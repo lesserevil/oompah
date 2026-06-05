@@ -175,3 +175,43 @@ class TestProjectYoloThreadedThroughRender:
             "default render path must pass group.project_yolo to "
             "renderReviewCard"
         )
+
+
+class TestRetryButtonYoloGating:
+    """The CI-failed 'Retry' button must be YOLO-gated like Resolve
+    Conflicts: on YOLO projects the orchestrator auto-re-files a CI-fix
+    task, so the manual button is redundant friction — replaced with a
+    passive 'Auto-retrying…' indicator. Non-YOLO keeps the button.
+    """
+
+    def test_retry_branch_switches_on_project_yolo(self, html: str):
+        # The ci_status === 'failed' block must branch on projectYolo.
+        match = re.search(
+            r"r\.ci_status === 'failed' && !r\.agent_active\)\s*\{(.*?)\n\s*\}\n\s*\}",
+            html, re.DOTALL,
+        )
+        assert match, "ci_status failed block not found"
+        body = match.group(1)
+        assert "projectYolo" in body, (
+            "the CI-failed block must inspect projectYolo to choose between "
+            "the manual Retry button and the passive Auto-retrying indicator"
+        )
+        assert "btn-retry" in body, "non-YOLO Retry button must remain reachable"
+        assert "auto-retrying" in body.lower() or "Auto-retrying" in body, (
+            "YOLO path must show a passive Auto-retrying indicator"
+        )
+
+    def test_auto_retrying_indicator_is_passive(self, html: str):
+        match = re.search(
+            r'<span\s+class="conflict-badge auto-resolving"[^>]*>Auto-retrying',
+            html,
+        )
+        assert match, "Auto-retrying passive indicator span is missing"
+        assert "onclick" not in match.group(0).lower(), (
+            "Auto-retrying indicator must be passive (no onclick)"
+        )
+
+    def test_retry_button_still_present_for_non_yolo(self, html: str):
+        assert "btn-retry" in html and "retryReview(" in html, (
+            "manual Retry button/handler must remain for non-YOLO projects"
+        )

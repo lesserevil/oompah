@@ -70,6 +70,7 @@ from oompah.statuses import (
     NEEDS_REBASE,
     OPEN,
     canonicalize_status,
+    epic_rollup_state,
 )
 from oompah.agent_profile_store import (
     AgentProfileStore,
@@ -411,6 +412,54 @@ def _issue_dashboard_state(issue) -> str:
     if "archive:yes" in (issue.labels or []):
         return _dashboard_state(ARCHIVED)
     return _dashboard_state(issue.state)
+
+
+# Workflow rank for each canonical status (Backlog < Open < In Progress <
+# ... < Done < Merged < Archived). Used to pick the "more advanced" status.
+_STATUS_RANK = {s: i for i, s in enumerate(CANONICAL_STATUSES)}
+
+
+def _status_rank(status: str) -> int:
+    """Position of *status* in the canonical workflow order, or -1 if unknown."""
+    return _STATUS_RANK.get(canonicalize_status(status), -1)
+
+
+def _effective_display_status(orch, issue) -> str:
+    """Status to display for *issue*, reconciling the default branch with the
+    epic branch for shared-epic children.
+
+    A shared-epic child records agent progress on the epic branch, while the
+    operator's manual moves land on the default branch; neither is strictly
+    authoritative until the epic merges. We show whichever is **further along
+    the workflow**:
+
+    * epic branch ahead (e.g. agent marked it Done/Merged) → show that, so the
+      board doesn't keep a finished child in Open/In-Progress; and
+    * default branch ahead (e.g. operator moved Backlog→Open before the epic
+      branch caught up) → show that, so manual moves aren't reverted.
+
+    Ties keep the default-branch value. Returns ``issue.state`` unchanged for
+    non-shared / non-child issues, or on any lookup failure (display must
+    never break the board).
+    """
+    parent_id = getattr(issue, "parent_id", None)
+    project_id = getattr(issue, "project_id", None)
+    identifier = getattr(issue, "identifier", None)
+    if not (parent_id and project_id and identifier):
+        return issue.state
+    try:
+        if orch._project_epic_strategy(project_id) != "shared":
+            return issue.state
+        epic_status = orch.project_store.read_task_status_in_epic_worktree(
+            project_id, parent_id, identifier
+        )
+    except Exception:  # noqa: BLE001 — display path; fall back to default branch
+        return issue.state
+    if not epic_status:
+        return issue.state
+    if _status_rank(epic_status) > _status_rank(issue.state):
+        return epic_status
+    return issue.state
 
 
 def _manual_needs_human_comment(
@@ -1334,6 +1383,26 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
             issues = tracker.fetch_all_issues()
             for issue in issues:
                 issue.project_id = project.id
+                # Display-only: reflect the epic-branch status for shared-
+                # epic children (their default-branch copy lags until the
+                # epic lands), so the board shows Done/Merged in the right
+                # column instead of a stale Open/In-Progress. See
+                # _effective_display_status.
+                issue.state = _effective_display_status(orch, issue)
+            # Roll each epic up to a state derived from its children's
+            # (now-enriched) states, so the board shows the epic in the
+            # column that matches its children — Done (ready to merge) when
+            # all children are done, In Progress while any are active, etc.
+            # See epic_rollup_state. Same-project list, so ids are unique.
+            child_states: dict[str, list[str]] = {}
+            for issue in issues:
+                if issue.parent_id:
+                    child_states.setdefault(issue.parent_id, []).append(issue.state)
+            for issue in issues:
+                if (issue.issue_type or "").strip().lower() == "epic":
+                    rolled = epic_rollup_state(child_states.get(issue.id, []))
+                    if rolled:
+                        issue.state = rolled
             return issues
         except (TrackerError, ProjectError) as exc:
             logger.error("Fetch issues failed for project %s: %s", project.name, exc)
@@ -2465,7 +2534,7 @@ async def api_test_provider(provider_id: str):
     probe succeeded (the ``success`` field distinguishes the two cases).
     Returns 404 only when the provider_id is not in the store at all.
     """
-    from oompah.provider_health import run_health_check
+    from oompah.provider_health import run_acp_health_check, run_health_check
 
     provider = _provider_store.get(provider_id)
     if provider is None:
@@ -2480,7 +2549,15 @@ async def api_test_provider(provider_id: str):
         )
 
     try:
-        result = await asyncio.to_thread(run_health_check, provider)
+        if provider.mode == "acp":
+            # ACP providers are session-based (Claude Agent SDK / OpenAI
+            # Agents SDK / opencode CLI, per provider.backend) and must be
+            # probed by running a live turn — there is no synchronous HTTP
+            # path. run_acp_health_check is async, so await it directly
+            # rather than offloading to a thread.
+            result = await run_acp_health_check(provider)
+        else:
+            result = await asyncio.to_thread(run_health_check, provider)
     except Exception as exc:
         logger.error("Provider health-check error for %s: %s", provider_id, exc)
         return JSONResponse(

@@ -938,3 +938,56 @@ def test_update_issue_reraises_not_found_when_task_absent_from_disk(tmp_path):
         import pytest
         with pytest.raises(TrackerError, match="not found"):
             tracker.update_issue("TASK-99", status="In Progress")
+
+
+# ---------------------------------------------------------------------------
+# Per-tick read cache (perf: collapse repeated full-corpus parses)
+# ---------------------------------------------------------------------------
+
+
+def test_read_cache_collapses_repeated_reads(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "A")
+    tracker = _tracker(tmp_path)
+    with patch.object(tracker, "_task_files", wraps=tracker._task_files) as spy:
+        tracker.fetch_all_issues()
+        tracker.fetch_all_issues()
+    # Second read served from cache → the corpus is globbed/parsed only once.
+    assert spy.call_count == 1
+
+
+def test_invalidate_read_cache_forces_reread(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "A")
+    tracker = _tracker(tmp_path)
+    with patch.object(tracker, "_task_files", wraps=tracker._task_files) as spy:
+        tracker.fetch_all_issues()
+        tracker.invalidate_read_cache()
+        tracker.fetch_all_issues()
+    assert spy.call_count == 2
+
+
+def test_write_invalidates_read_cache(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "A", status="Open")
+    tracker = _tracker(tmp_path)
+    # Prime the cache.
+    assert any(i.identifier == "TASK-1" for i in tracker.fetch_all_issues())
+    # A direct frontmatter write must bust the cache so the next read is fresh.
+    tracker._set_frontmatter_field("TASK-1", "status", "Done")
+    t1 = next(i for i in tracker.fetch_all_issues() if i.identifier == "TASK-1")
+    assert t1.state.lower() == "done"
+
+
+def test_completed_and_active_reads_cached_independently(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "A", status="Open")
+    _write_task(backlog_dir, "TASK-2", "B", status="Done", folder="completed")
+    tracker = _tracker(tmp_path)
+    with patch.object(tracker, "_task_files", wraps=tracker._task_files) as spy:
+        tracker.fetch_candidate_issues()          # include_completed=False
+        tracker.fetch_all_issues()                # include_completed=True
+        tracker.fetch_candidate_issues()          # cached
+        tracker.fetch_all_issues()                # cached
+    # One miss per include_completed variant, then all cached.
+    assert spy.call_count == 2
