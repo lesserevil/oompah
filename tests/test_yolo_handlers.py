@@ -13,7 +13,7 @@ Covers the rebase-before-notify behavior in
 from __future__ import annotations
 
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -376,3 +376,79 @@ class TestEpicBranchCiFailUsesEpicNotOrphan:
         review = MagicMock(source_branch="some-random-branch", id="42", ci_status="failed")
         orch._yolo_retry_ci(project, review)
         orch._file_orphan_recovery_bead.assert_called_once()
+
+
+class TestYoloNotifyConflictEpicBranch:
+    """A conflict on a shared/stacked EPIC branch must route into the
+    epic-rebase machinery (mark STALE → dispatchable P0 rebase sibling),
+    NOT mark the non-dispatchable epic 'Needs Rebase' (which loops forever)."""
+
+    def _epic(self):
+        epic = MagicMock()
+        epic.issue_type = "epic"
+        epic.identifier = "TASK-18"
+        epic.id = "TASK-18"
+        epic.state = "Backlog"
+        epic.labels = []
+        return epic
+
+    def test_epic_branch_conflict_files_p0_rebase_bead_not_needs_rebase(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        provider = MagicMock()
+        provider.rebase_review.return_value = (
+            False, "Rebase failed: merge conflicts require manual resolution",
+        )
+        provider.get_review.return_value = _make_review_request(
+            review_id="42", source_branch="epic-TASK-18", target_branch="dev",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = self._epic()
+        # No existing rebase sibling.
+        with patch.object(orch, "_fetch_epic_children", return_value=[]):
+            orch._project_trackers[project.id] = tracker
+            orch._yolo_notify_conflict(project, provider, "org/repo", "42")
+
+        # Filed a dispatchable P0 rebase sibling under the epic...
+        tracker.create_issue.assert_called_once()
+        kw = tracker.create_issue.call_args.kwargs
+        assert kw.get("priority") == 0
+        assert kw.get("parent") == "TASK-18"
+        # ...and did NOT mark the (non-dispatchable) epic Needs Rebase.
+        from oompah.statuses import NEEDS_REBASE
+        for c in tracker.update_issue.call_args_list:
+            assert c.kwargs.get("status") != NEEDS_REBASE
+
+    def test_epic_branch_conflict_idempotent_when_rebase_sibling_open(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        provider = MagicMock()
+        provider.rebase_review.return_value = (False, "merge conflicts")
+        provider.get_review.return_value = _make_review_request(
+            review_id="42", source_branch="epic-TASK-18", target_branch="dev",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = self._epic()
+        existing = MagicMock(id="TASK-18.r", state="In Progress",
+                             title="Rebase epic-TASK-18 onto dev")
+        with patch.object(orch, "_fetch_epic_children", return_value=[existing]):
+            orch._project_trackers[project.id] = tracker
+            orch._yolo_notify_conflict(project, provider, "org/repo", "42")
+
+        # No duplicate rebase bead while one is already open.
+        tracker.create_issue.assert_not_called()
+
+
+class TestFileRebaseBeadPriority:
+    def test_rebase_bead_is_p0_to_bypass_in_flight_cap(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        epic = MagicMock()
+        epic.identifier = "TASK-18"
+        tracker = MagicMock()
+        orch._file_rebase_bead(tracker, epic, "epic-TASK-18", "dev")
+        tracker.create_issue.assert_called_once()
+        # P0 so it bypasses the open-PR cap + shared-epic serialization;
+        # otherwise the conflicting epic PR (which holds the in-flight slot)
+        # would block the very agent that must resolve it.
+        assert tracker.create_issue.call_args.kwargs.get("priority") == 0

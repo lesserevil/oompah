@@ -3573,7 +3573,12 @@ class Orchestrator:
             title=title,
             issue_type="task",
             description=description,
-            priority=1,
+            # P0: a rebase bead resolves a merge conflict on the epic branch and
+            # opens NO new PR, so it must bypass the in-flight-PR cap and the
+            # shared-epic serialization gate — otherwise, when the conflicting
+            # epic→main PR itself fills the single in-flight slot, the rebase
+            # bead can never dispatch and the conflict can never clear (deadlock).
+            priority=0,
             parent=epic.identifier,
             initial_status=NEEDS_REBASE,
         )
@@ -5862,6 +5867,62 @@ class Orchestrator:
                     kind="merge-conflict",
                 )
                 return
+
+            # Shared/stacked EPIC branches: the epic itself is never run by the
+            # normal dispatch loop (issue_type == 'epic' is rejected), so marking
+            # the epic "Needs Rebase" loops forever and never resolves the
+            # conflict. File a dispatchable P0 rebase sibling directly (it works
+            # on the epic branch and opens no new PR). We do NOT route through the
+            # epic STALE rebase-state: that state is owned by the commit-distance
+            # staleness checker (_check_epic_staleness), which clears it every
+            # tick because a *content* conflict isn't "N commits behind" — a race
+            # that would prevent the bead from ever being filed. Idempotent on an
+            # existing open rebase sibling.
+            if issue.issue_type == "epic":
+                # Force a fresh read so the idempotency check below sees a
+                # rebase sibling we filed on a previous tick (the per-tick read
+                # cache would otherwise miss it and we'd re-file every tick).
+                try:
+                    tracker.invalidate_read_cache()
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    children = self._fetch_epic_children(issue)
+                except Exception:  # noqa: BLE001
+                    children = []
+                actionable = {
+                    _state_key(OPEN),
+                    _state_key(IN_PROGRESS),
+                    _state_key(NEEDS_REBASE),
+                }
+                existing = next(
+                    (
+                        c
+                        for c in children
+                        if _state_key(c.state) in actionable
+                        and "rebase" in (c.title or "").lower()
+                    ),
+                    None,
+                )
+                if existing is not None:
+                    # Rebase agent already queued/in flight — let it finish.
+                    self.state.completed.discard(existing.id)
+                    return
+                self._file_rebase_bead(
+                    tracker,
+                    issue,
+                    source_branch,
+                    target_branch or project.default_branch,
+                )
+                self.state.completed.discard(issue.id)
+                logger.info(
+                    "YOLO: filed P0 rebase bead for epic %s (MR #%s branch "
+                    "conflict) — epics aren't dispatched directly",
+                    issue.identifier,
+                    review_id,
+                )
+                return
+
             # Don't re-notify if already open/in_progress with merge-conflict label,
             # but ensure we clear the completed set so it can be re-dispatched.
             state_lower = _state_key(issue.state)
