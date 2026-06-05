@@ -52,6 +52,7 @@ def _write_backlog_config(repo: Path) -> None:
     backlog_dir = repo / "backlog"
     (backlog_dir / "tasks").mkdir(parents=True, exist_ok=True)
     (backlog_dir / "completed").mkdir(parents=True, exist_ok=True)
+    (backlog_dir / "archive" / "tasks").mkdir(parents=True, exist_ok=True)
     (backlog_dir / "config.yml").write_text(
         "project_name: Test\n"
         "default_status: Backlog\n"
@@ -418,6 +419,14 @@ class TestInspectRepoBacklogConflicts:
         repo = tmp_path / "repo"
         _write_backlog_config(repo)
         task = repo / "backlog" / "completed" / "task-1.md"
+        task.write_text(_conflicted_task(), encoding="utf-8")
+        result = inspect_repo_backlog_conflicts(str(repo))
+        assert str(task) in result
+
+    def test_checks_archive_tasks_folder(self, tmp_path):
+        repo = tmp_path / "repo"
+        _write_backlog_config(repo)
+        task = repo / "backlog" / "archive" / "tasks" / "task-1.md"
         task.write_text(_conflicted_task(), encoding="utf-8")
         result = inspect_repo_backlog_conflicts(str(repo))
         assert str(task) in result
@@ -868,7 +877,9 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     )
 
 
-def _init_repo_with_unmerged_task(tmp_path: Path) -> tuple[Path, Path]:
+def _init_repo_with_unmerged_task(
+    tmp_path: Path, *, task_subdir: str = "tasks"
+) -> tuple[Path, Path]:
     """Build a real git repo where a backlog task file is an UNMERGED INDEX
     entry with NO conflict markers in the working tree (the state that wedged
     aethel). Returns (repo, task_file)."""
@@ -878,7 +889,7 @@ def _init_repo_with_unmerged_task(tmp_path: Path) -> tuple[Path, Path]:
     _git(repo, "config", "user.email", "t@t.test")
     _git(repo, "config", "user.name", "t")
     _git(repo, "checkout", "-q", "-b", "main")
-    tasks = repo / "backlog" / "tasks"
+    tasks = repo / "backlog" / task_subdir
     tasks.mkdir(parents=True)
     tf = tasks / "task-9 - Some-task.md"
     tf.write_text(
@@ -924,6 +935,19 @@ class TestUnmergedBacklogRecovery:
         assert len(found) == 1
         assert found[0].endswith("task-9 - Some-task.md")
 
+    def test_inspect_detects_archived_markerless_unmerged_entry(self, tmp_path):
+        repo, tf = _init_repo_with_unmerged_task(
+            tmp_path, task_subdir="archive/tasks"
+        )
+        assert _git(repo, "ls-files", "-u").stdout.strip() != ""
+        assert not has_conflict_markers(tf.read_text(encoding="utf-8"))
+
+        found = inspect_repo_unmerged_backlog(str(repo))
+
+        assert len(found) == 1
+        assert found[0].endswith("task-9 - Some-task.md")
+        assert "/backlog/archive/tasks/" in found[0]
+
     def test_recover_resolves_and_clears_unmerged_state(self, tmp_path):
         repo, tf = _init_repo_with_unmerged_task(tmp_path)
         result = recover_repo_unmerged_backlog(str(repo))
@@ -937,6 +961,22 @@ class TestUnmergedBacklogRecovery:
         assert not has_conflict_markers(merged)
         meta = yaml.safe_load(merged.split("---", 2)[1])
         assert meta["status"] == "Done"  # more-advanced lifecycle wins
+        assert "COMMENT:BEGIN" in merged
+
+    def test_recover_resolves_archived_unmerged_entry(self, tmp_path):
+        repo, tf = _init_repo_with_unmerged_task(
+            tmp_path, task_subdir="archive/tasks"
+        )
+
+        result = recover_repo_unmerged_backlog(str(repo))
+
+        assert len(result["recovered"]) == 1
+        assert result["failed"] == []
+        assert _git(repo, "ls-files", "-u").stdout.strip() == ""
+        merged = tf.read_text(encoding="utf-8")
+        assert not has_conflict_markers(merged)
+        meta = yaml.safe_load(merged.split("---", 2)[1])
+        assert meta["status"] == "Done"
         assert "COMMENT:BEGIN" in merged
 
     def test_recover_noop_on_clean_repo(self, tmp_path):

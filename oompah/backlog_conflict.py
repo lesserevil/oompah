@@ -538,11 +538,26 @@ def _validate_task_content(content: str) -> bool:
     return True
 
 
+_BACKLOG_TASK_SUBDIRS = ("tasks", "completed", "archive/tasks")
+
+
+def _is_backlog_task_markdown_path(rel: str) -> bool:
+    """Return True for Backlog task markdown files oompah can repair."""
+    if not rel.endswith(".md"):
+        return False
+    norm = f"/{rel.replace(chr(92), '/')}"
+    return any(
+        f"/{backlog_name}/{subdir}/" in norm
+        for backlog_name in ("backlog", ".backlog")
+        for subdir in _BACKLOG_TASK_SUBDIRS
+    )
+
+
 def _backlog_task_dirs(repo_path: str) -> list[str]:
     """Return candidate backlog task directories within *repo_path*."""
     dirs = []
     for backlog_name in ("backlog", ".backlog"):
-        for sub in ("tasks", "completed"):
+        for sub in _BACKLOG_TASK_SUBDIRS:
             d = os.path.join(repo_path, backlog_name, sub)
             if os.path.isdir(d):
                 dirs.append(d)
@@ -712,11 +727,7 @@ def inspect_repo_unmerged_backlog(repo_path: str) -> list[str]:
         rels.add(rel)
     out_paths: list[str] = []
     for rel in sorted(rels):
-        if not rel.endswith(".md"):
-            continue
-        norm = rel.replace("\\", "/")
-        if "/backlog/tasks/" in f"/{norm}" or "/backlog/completed/" in f"/{norm}" \
-           or "/.backlog/tasks/" in f"/{norm}" or "/.backlog/completed/" in f"/{norm}":
+        if _is_backlog_task_markdown_path(rel):
             out_paths.append(os.path.join(repo_path, rel))
     return out_paths
 
