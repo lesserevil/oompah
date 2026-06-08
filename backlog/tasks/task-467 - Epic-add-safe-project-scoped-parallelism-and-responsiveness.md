@@ -1,9 +1,10 @@
 ---
 id: TASK-467
 title: 'Epic: add safe project-scoped parallelism and responsiveness'
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-08 18:48'
+updated_date: '2026-06-08 19:00'
 labels:
   - epic
   - tick-latency

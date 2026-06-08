@@ -1,9 +1,10 @@
 ---
 id: TASK-466
 title: 'Epic: move maintenance work off the dispatch critical path'
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-08 18:47'
+updated_date: '2026-06-08 19:00'
 labels:
   - epic
   - tick-latency
