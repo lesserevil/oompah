@@ -1099,3 +1099,264 @@ class TestEnsureRepoSound:
         res = ensure_repo_sound(str(work), "main")
         assert res["sound"] is True
         assert _git(work, "symbolic-ref", "--short", "HEAD").stdout.strip() == "main"
+
+
+# ---------------------------------------------------------------------------
+# Invalid task file detection and recovery (zero-byte / malformed frontmatter)
+# — TASK-450 regression tests
+# ---------------------------------------------------------------------------
+
+from oompah.backlog_conflict import (
+    inspect_repo_invalid_backlog_task_files,
+    recover_invalid_backlog_task_files,
+)
+
+_VALID_TASK = "---\nid: TASK-1\ntitle: A task\nstatus: Backlog\n---\nbody\n"
+
+
+def _init_git_repo(repo: Path) -> None:
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "t@t.test")
+    _git(repo, "config", "user.name", "t")
+
+
+class TestInspectInvalidBacklogTaskFiles:
+    """inspect_repo_invalid_backlog_task_files() catches zero-byte and
+    malformed-frontmatter Backlog task files while ignoring valid ones and
+    conflict-marker files (handled separately)."""
+
+    def test_detects_zero_byte_tracked_file(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write_backlog_config(repo)
+        f = repo / "backlog" / "tasks" / "task-1 - a.md"
+        f.write_bytes(b"")  # zero bytes
+        result = inspect_repo_invalid_backlog_task_files(str(repo))
+        assert str(f) in result
+
+    def test_detects_malformed_frontmatter_file(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write_backlog_config(repo)
+        f = repo / "backlog" / "tasks" / "task-2 - b.md"
+        # Content present but YAML frontmatter is truncated / malformed
+        f.write_text(
+            "---\nid: TASK-2\n: broken yaml: {\n", encoding="utf-8"
+        )
+        result = inspect_repo_invalid_backlog_task_files(str(repo))
+        assert str(f) in result
+
+    def test_detects_missing_frontmatter_delimiters(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write_backlog_config(repo)
+        f = repo / "backlog" / "tasks" / "task-3 - c.md"
+        # No leading ---
+        f.write_text("id: TASK-3\nstatus: Backlog\n", encoding="utf-8")
+        result = inspect_repo_invalid_backlog_task_files(str(repo))
+        assert str(f) in result
+
+    def test_ignores_valid_task_file(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write_backlog_config(repo)
+        f = repo / "backlog" / "tasks" / "task-1 - a.md"
+        f.write_text(_VALID_TASK, encoding="utf-8")
+        result = inspect_repo_invalid_backlog_task_files(str(repo))
+        assert result == []
+
+    def test_ignores_conflict_marker_file(self, tmp_path):
+        """Conflict-marker files are handled by repair_repo_backlog_conflicts."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write_backlog_config(repo)
+        f = repo / "backlog" / "tasks" / "task-1 - a.md"
+        f.write_text(
+            "---\n<<<<<<< HEAD\nid: TASK-1\n=======\nid: TASK-1\n"
+            ">>>>>>> other\n---\nbody\n",
+            encoding="utf-8",
+        )
+        # Should NOT appear in invalid (it has conflict markers, handled elsewhere)
+        result = inspect_repo_invalid_backlog_task_files(str(repo))
+        assert str(f) not in result
+
+    def test_detects_invalid_in_completed_subdir(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write_backlog_config(repo)
+        f = repo / "backlog" / "completed" / "task-5 - done.md"
+        f.write_bytes(b"")
+        result = inspect_repo_invalid_backlog_task_files(str(repo))
+        assert str(f) in result
+
+    def test_noop_on_empty_backlog_dir(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _write_backlog_config(repo)
+        result = inspect_repo_invalid_backlog_task_files(str(repo))
+        assert result == []
+
+
+class TestRecoverInvalidBacklogTaskFiles:
+    """recover_invalid_backlog_task_files() restores zero-byte/malformed
+    tracked files from git history, removes spurious untracked zero-byte files,
+    and reports unrecoverable tracked files."""
+
+    def test_recovers_zero_byte_tracked_file_from_head(self, tmp_path):
+        """A tracked task file truncated to zero bytes is restored from HEAD."""
+        remote, work = _mk_remote_clone(tmp_path)
+        tf = work / "backlog" / "tasks" / "task-1 - a.md"
+        # Simulate disk-full: file now zero bytes
+        tf.write_bytes(b"")
+        result = recover_invalid_backlog_task_files(str(work), "origin", "main")
+        assert str(tf) in result["recovered"]
+        assert result["failed"] == []
+        # File is restored to valid content
+        restored = tf.read_text(encoding="utf-8")
+        assert restored.startswith("---\n")
+        assert "status" in restored
+
+    def test_recovers_malformed_tracked_file_from_head(self, tmp_path):
+        """A tracked file with truncated/invalid YAML is restored from HEAD."""
+        remote, work = _mk_remote_clone(tmp_path)
+        tf = work / "backlog" / "tasks" / "task-1 - a.md"
+        tf.write_text("---\nbroken: {unclosed\n", encoding="utf-8")
+        result = recover_invalid_backlog_task_files(str(work), "origin", "main")
+        assert str(tf) in result["recovered"]
+        restored = tf.read_text(encoding="utf-8")
+        assert "status: Backlog" in restored
+
+    def test_recovers_zero_byte_from_origin_when_head_missing(self, tmp_path):
+        """If HEAD doesn't have the file (new commit on origin), recover from origin."""
+        remote, work = _mk_remote_clone(tmp_path)
+        # Advance origin with a new task file that is NOT yet in work's HEAD
+        _advance_origin(tmp_path, remote, "backlog/tasks/task-99 - new.md",
+                        _VALID_TASK.replace("TASK-1", "TASK-99"))
+        _git(work, "fetch", "origin")
+        # Simulate disk-full creating a zero-byte untracked copy
+        new_tf = work / "backlog" / "tasks" / "task-99 - new.md"
+        new_tf.write_bytes(b"")
+        result = recover_invalid_backlog_task_files(str(work), "origin", "main")
+        # The file isn't in HEAD but IS on origin/main → recovered from there
+        assert str(new_tf) in result["recovered"]
+        restored = new_tf.read_text(encoding="utf-8")
+        assert "TASK-99" in restored
+
+    def test_removes_spurious_untracked_zero_byte_file(self, tmp_path):
+        """A zero-byte UNTRACKED file with no git counterpart is removed."""
+        remote, work = _mk_remote_clone(tmp_path)
+        spurious = work / "backlog" / "tasks" / "task-77 - ghost.md"
+        spurious.write_bytes(b"")  # untracked, zero bytes, no git object
+        result = recover_invalid_backlog_task_files(str(work), "origin", "main")
+        assert str(spurious) in result["removed"]
+        assert result["failed"] == []
+        assert not spurious.exists()
+
+    def test_fails_for_tracked_file_with_no_valid_git_version(self, tmp_path):
+        """A tracked file that was committed as invalid can't be recovered."""
+        remote, work = _mk_remote_clone(tmp_path)
+        # Commit a malformed (zero-byte) file to HEAD so git has no valid version
+        tf = work / "backlog" / "tasks" / "task-bad - x.md"
+        tf.write_bytes(b"")
+        _git(work, "add", str(tf.relative_to(work)))
+        _git(work, "commit", "-qm", "commit zero-byte")
+        # Now origin doesn't have this file either → no valid recovery source
+        result = recover_invalid_backlog_task_files(str(work), "origin", "main")
+        assert str(tf) in result["failed"]
+        assert str(tf) not in result["recovered"]
+
+    def test_noop_on_clean_repo(self, tmp_path):
+        remote, work = _mk_remote_clone(tmp_path)
+        result = recover_invalid_backlog_task_files(str(work), "origin", "main")
+        assert result == {"recovered": [], "failed": [], "removed": []}
+
+
+class TestEnsureRepoSoundInvalidFiles:
+    """ensure_repo_sound() detects and recovers zero-byte/malformed task files."""
+
+    def test_recovers_zero_byte_tracked_file_and_reports_sound(self, tmp_path):
+        """A zero-byte tracked task file is recovered → checkout is sound."""
+        remote, work = _mk_remote_clone(tmp_path)
+        tf = work / "backlog" / "tasks" / "task-1 - a.md"
+        tf.write_bytes(b"")  # simulate disk-full corruption
+        res = ensure_repo_sound(str(work), "main")
+        assert res["sound"] is True
+        assert "recover-invalid" in res["actions"]
+        # File content restored
+        restored = tf.read_text(encoding="utf-8")
+        assert restored.startswith("---\n")
+
+    def test_reports_not_sound_for_unrecoverable_invalid_file(self, tmp_path):
+        """A tracked invalid file with no valid git version causes not-sound."""
+        remote, work = _mk_remote_clone(tmp_path)
+        # Commit zero-byte file so HEAD also has no valid content
+        tf = work / "backlog" / "tasks" / "task-bad - x.md"
+        tf.write_bytes(b"")
+        _git(work, "add", str(tf.relative_to(work)))
+        _git(work, "commit", "-qm", "commit zero-byte")
+        # Push so origin is in sync (no valid content at origin either)
+        _git(work, "push", "-q", "origin", "main")
+        res = ensure_repo_sound(str(work), "main")
+        assert res["sound"] is False
+        # The invalid file path is in unrecoverable so caller can quarantine
+        assert any("task-bad" in p for p in res["unrecoverable"])
+
+    def test_removes_spurious_untracked_zero_byte_and_stays_sound(self, tmp_path):
+        """A spurious untracked zero-byte file is removed; checkout stays sound."""
+        remote, work = _mk_remote_clone(tmp_path)
+        spurious = work / "backlog" / "tasks" / "task-77 - ghost.md"
+        spurious.write_bytes(b"")  # untracked, no git counterpart
+        res = ensure_repo_sound(str(work), "main")
+        assert res["sound"] is True
+        assert "remove-spurious" in res["actions"]
+        assert not spurious.exists()
+
+    def test_recovers_malformed_frontmatter_file_and_reports_sound(self, tmp_path):
+        """A task file with malformed frontmatter is recovered from HEAD → sound."""
+        remote, work = _mk_remote_clone(tmp_path)
+        tf = work / "backlog" / "tasks" / "task-1 - a.md"
+        tf.write_text(
+            "---\nbroken_yaml: {no close\n", encoding="utf-8"
+        )
+        res = ensure_repo_sound(str(work), "main")
+        assert res["sound"] is True
+        assert "recover-invalid" in res["actions"]
+        restored = tf.read_text(encoding="utf-8")
+        assert "status: Backlog" in restored
+
+
+class TestSyncProjectSourcesInvalidFiles:
+    """sync_project_sources() quarantines on unrecoverable invalid task files."""
+
+    def test_quarantines_on_unrecoverable_zero_byte_tracked_file(self, tmp_path):
+        """When a tracked task file is zero-byte and not recoverable, project is
+        quarantined and conflicts key shows the path."""
+        from unittest.mock import patch
+
+        remote, work = _mk_remote_clone(tmp_path)
+        # Commit a zero-byte file to HEAD and push (no valid version anywhere)
+        tf = work / "backlog" / "tasks" / "task-bad - z.md"
+        tf.write_bytes(b"")
+        _git(work, "add", str(tf.relative_to(work)))
+        _git(work, "commit", "-qm", "commit zero-byte")
+        _git(work, "push", "-q", "origin", "main")
+
+        store, _ = _store_with_project(tmp_path)
+        # Override the project's repo_path to point to our git work clone
+        proj = list(store._projects.values())[0]
+        from oompah.models import Project
+        updated = Project(
+            id=proj.id,
+            name=proj.name,
+            repo_url=proj.repo_url,
+            repo_path=str(work),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[proj.id] = updated
+
+        status = store.sync_project_sources(proj.id)
+        # Project should be quarantined (git not sound due to unrecoverable file)
+        quarantined = store._projects[proj.id].paused
+        assert quarantined or "quarantined" in status.get("conflicts", "") or \
+               status.get("git", "").startswith("failed")
