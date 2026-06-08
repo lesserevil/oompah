@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -565,8 +565,10 @@ class TestAutoArchiveThrottle:
 
     def _orch_with_spy_tracker(self, tmp_path):
         orch = _make_orchestrator(tmp_path)  # no projects → uses self.tracker
+        orch.config.maintenance_startup_delay_seconds = 0
         orch.tracker = MagicMock()
         orch.tracker.fetch_issues_by_states.return_value = []
+        orch.tracker.is_archived.return_value = False
         return orch
 
     def test_runs_first_time_then_throttled(self, tmp_path):
@@ -593,6 +595,21 @@ class TestAutoArchiveThrottle:
         assert canonicalize_status(ARCHIVED) not in canon
         # Done/Merged are still scanned (they can still become archived).
         assert canonicalize_status(DONE) in canon
+
+    def test_auto_archive_respects_batch_size(self, tmp_path):
+        orch = self._orch_with_spy_tracker(tmp_path)
+        orch.config.auto_archive_batch_size = 1
+        old = datetime.now(timezone.utc) - timedelta(days=8)
+        issue1 = _make_issue("TASK-1", state="Done")
+        issue1.closed_at = old
+        issue2 = _make_issue("TASK-2", state="Done")
+        issue2.closed_at = old
+        orch.tracker.fetch_issues_by_states.return_value = [issue1, issue2]
+
+        orch._auto_archive()
+
+        orch.tracker.archive_issue.assert_called_once_with("TASK-1")
+        assert orch._maintenance_status["auto_archive"]["deferred"] is True
 
 
 class TestHandleYoloReview:
@@ -891,6 +908,25 @@ class TestTerminalWorktreeCleanup:
         assert cleaned == 1
         assert orch.project_store.remove_worktree.call_count == 2
 
+    def test_cleanup_terminal_worktrees_respects_batch_size(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.config.worktree_cleanup_batch_size = 1
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Merged", project_id=project.id),
+            _make_issue("TASK-2", state="Archived", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 1
+        orch.project_store.remove_worktree.assert_called_once_with(
+            project.id, "TASK-1"
+        )
+        assert orch._maintenance_status["worktree_cleanup"]["deferred"] is True
+
     def test_cleanup_terminal_worktrees_preserves_done_legacy_workspace(
         self, tmp_path
     ):
@@ -913,6 +949,7 @@ class TestTerminalWorktreeCleanup:
     def test_maybe_heal_repos_cleans_terminal_worktrees_on_full_sync(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.config.maintenance_startup_delay_seconds = 0
         orch.project_store.sync_all_sources = MagicMock()
         orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock()
@@ -937,6 +974,7 @@ class TestTerminalWorktreeCleanup:
     def test_maybe_heal_repos_still_cleans_after_sync_failure(self, tmp_path):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.config.maintenance_startup_delay_seconds = 0
         orch.project_store.sync_all_sources = MagicMock(side_effect=RuntimeError("net"))
         orch._refresh_backlog_conflict_alerts = MagicMock()
         orch._cleanup_terminal_worktrees = MagicMock()
@@ -946,6 +984,20 @@ class TestTerminalWorktreeCleanup:
         orch.project_store.sync_all_sources.assert_called_once_with()
         orch._refresh_backlog_conflict_alerts.assert_called_once_with()
         orch._cleanup_terminal_worktrees.assert_called_once_with([project])
+
+    def test_maybe_heal_repos_delays_during_startup(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.config.maintenance_startup_delay_seconds = 60
+        orch._started_monotonic = time.monotonic()
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock()
+
+        orch._maybe_heal_repos()
+
+        orch.project_store.sync_all_sources.assert_not_called()
+        orch._cleanup_terminal_worktrees.assert_not_called()
+        assert orch._maintenance_status["repo_heal"]["delayed"] is True
 
 
 # ---------------------------------------------------------------------------

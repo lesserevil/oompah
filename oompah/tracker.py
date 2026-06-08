@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -222,6 +223,7 @@ class BacklogMdTracker:
         # mutation. Guarded for the orchestrator's concurrent tick phases.
         self._read_cache: dict[bool, list[dict]] = {}
         self._read_cache_guard = threading.Lock()
+        self._last_read_stats: dict[str, object] = {}
 
     def fetch_candidate_issues(self) -> list[Issue]:
         """Fetch tasks in active states, sorted for dispatch."""
@@ -696,10 +698,24 @@ class BacklogMdTracker:
         with self._read_cache_guard:
             self._read_cache.clear()
 
+    def read_stats(self) -> dict[str, object]:
+        """Return timing/count data for the most recent corpus read."""
+        with self._read_cache_guard:
+            return dict(self._last_read_stats)
+
     def _read_task_records(self, *, include_completed: bool) -> list[dict]:
+        start = time.monotonic()
         with self._read_cache_guard:
             cached = self._read_cache.get(include_completed)
         if cached is not None:
+            with self._read_cache_guard:
+                self._last_read_stats = {
+                    "include_completed": include_completed,
+                    "cache_hit": True,
+                    "record_count": len(cached),
+                    "duration_ms": round((time.monotonic() - start) * 1000, 3),
+                    "root": str(self._root),
+                }
             return cached
         records = []
         for path in self._task_files(include_completed=include_completed):
@@ -711,6 +727,13 @@ class BacklogMdTracker:
             records.append({"path": path, "meta": meta, "body": body})
         with self._read_cache_guard:
             self._read_cache[include_completed] = records
+            self._last_read_stats = {
+                "include_completed": include_completed,
+                "cache_hit": False,
+                "record_count": len(records),
+                "duration_ms": round((time.monotonic() - start) * 1000, 3),
+                "root": str(self._root),
+            }
         return records
 
     def _read_task_record(self, identifier: str) -> dict | None:

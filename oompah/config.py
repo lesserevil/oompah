@@ -429,9 +429,33 @@ class ServiceConfig:
     # Configurable via OOMPAH_EPIC_STALENESS_THRESHOLD_COMMITS or
     # agent.epic_staleness_threshold_commits in WORKFLOW.md.
     epic_staleness_threshold_commits: int = 5
+    # Responsiveness controls. These are intentionally environment-only
+    # tunables so WORKFLOW.md stays focused on project workflow structure.
+    dispatch_scan_limit: int = 64
+    dispatch_ready_buffer: int = 8
+    duplicate_detection_candidate_limit: int = 64
+    auto_archive_batch_size: int = 25
+    auto_archive_interval_seconds: int = 300
+    worktree_cleanup_batch_size: int = 25
+    maintenance_startup_delay_seconds: int = 60
 
     def __post_init__(self):
         self.tracker_kind = _parse_tracker_kind(self.tracker_kind)
+        self.dispatch_scan_limit = max(int(self.dispatch_scan_limit), 0)
+        self.dispatch_ready_buffer = max(int(self.dispatch_ready_buffer), 0)
+        self.duplicate_detection_candidate_limit = max(
+            int(self.duplicate_detection_candidate_limit), 0
+        )
+        self.auto_archive_batch_size = max(int(self.auto_archive_batch_size), 0)
+        self.auto_archive_interval_seconds = max(
+            int(self.auto_archive_interval_seconds), 1
+        )
+        self.worktree_cleanup_batch_size = max(
+            int(self.worktree_cleanup_batch_size), 0
+        )
+        self.maintenance_startup_delay_seconds = max(
+            int(self.maintenance_startup_delay_seconds), 0
+        )
         if not self.workspace_root:
             self.workspace_root = os.path.join(
                 tempfile.gettempdir(), "oompah_workspaces"
@@ -693,6 +717,23 @@ class ServiceConfig:
                 "OOMPAH_EPIC_STALENESS_THRESHOLD_COMMITS",
                 agent.get("epic_staleness_threshold_commits"),
                 5,
+            ),
+            dispatch_scan_limit=_env_int("OOMPAH_DISPATCH_SCAN_LIMIT", None, 64),
+            dispatch_ready_buffer=_env_int("OOMPAH_DISPATCH_READY_BUFFER", None, 8),
+            duplicate_detection_candidate_limit=_env_int(
+                "OOMPAH_DUPLICATE_DETECTION_CANDIDATE_LIMIT", None, 64
+            ),
+            auto_archive_batch_size=_env_int(
+                "OOMPAH_AUTO_ARCHIVE_BATCH_SIZE", None, 25
+            ),
+            auto_archive_interval_seconds=_env_int(
+                "OOMPAH_AUTO_ARCHIVE_INTERVAL_SECONDS", None, 300
+            ),
+            worktree_cleanup_batch_size=_env_int(
+                "OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", None, 25
+            ),
+            maintenance_startup_delay_seconds=_env_int(
+                "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60
             ),
         )
 

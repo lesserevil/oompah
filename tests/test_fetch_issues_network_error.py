@@ -100,3 +100,14 @@ def test_fetchIssues_try_catch_precedes_ok_check():
     assert try_pos < ok_check_pos, (
         "try-catch must appear before the !res.ok check in fetchIssues"
     )
+
+
+def test_normalizeBoardData_skips_snapshot_metadata():
+    """Board normalization must ignore _meta and other non-column payload keys."""
+    script = _load_dashboard_script()
+    start = script.index("function normalizeBoardData(")
+    end = script.index("function isSwimlaneParent(", start)
+    body = script[start:end]
+
+    assert "!Array.isArray(issues)" in body
+    assert "continue" in body

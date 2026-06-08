@@ -387,6 +387,20 @@ from concurrent.futures import ThreadPoolExecutor
 _api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
+_ISSUES_SNAPSHOT_STALE_MS = 5000
+_issues_snapshot_lock = threading.Lock()
+_issues_snapshot: dict[str, Any] = {
+    "data": None,
+    "orch_id": None,
+    "created_at_monotonic": 0.0,
+    "created_at_wall": None,
+    "duration_ms": None,
+    "issue_count": 0,
+    "error": None,
+}
+_issues_refresh_task: asyncio.Task | None = None
+_api_metrics_lock = threading.Lock()
+_api_metrics: dict[str, dict[str, Any]] = {}
 
 # Shared response cache for API endpoints
 _api_cache = TTLCache()
@@ -408,10 +422,231 @@ def _empty_state_counts() -> dict[str, int]:
     return {key: 0 for key in _DASHBOARD_STATE_KEYS}
 
 
+def _empty_issue_board() -> dict[str, list]:
+    return {key: [] for key in _DASHBOARD_STATE_KEYS}
+
+
+def _record_api_latency(endpoint: str, duration_ms: float, *, ok: bool = True) -> None:
+    with _api_metrics_lock:
+        stats = _api_metrics.setdefault(
+            endpoint,
+            {
+                "count": 0,
+                "error_count": 0,
+                "slow_count": 0,
+                "last_ms": 0.0,
+                "max_ms": 0.0,
+                "total_ms": 0.0,
+            },
+        )
+        stats["count"] += 1
+        if not ok:
+            stats["error_count"] += 1
+        if duration_ms > 1000:
+            stats["slow_count"] += 1
+        stats["last_ms"] = round(duration_ms, 3)
+        stats["max_ms"] = round(max(float(stats["max_ms"]), duration_ms), 3)
+        stats["total_ms"] += duration_ms
+        stats["avg_ms"] = round(stats["total_ms"] / stats["count"], 3)
+
+
+def _api_metrics_snapshot() -> dict[str, dict[str, Any]]:
+    with _api_metrics_lock:
+        return {
+            endpoint: {
+                key: value
+                for key, value in stats.items()
+                if key != "total_ms"
+            }
+            for endpoint, stats in _api_metrics.items()
+        }
+
+
 def _issue_dashboard_state(issue) -> str:
     if "archive:yes" in (issue.labels or []):
         return _dashboard_state(ARCHIVED)
     return _dashboard_state(issue.state)
+
+
+def _issue_count_from_board(board: dict[str, Any]) -> int:
+    return sum(len(v) for v in board.values() if isinstance(v, list))
+
+
+def _copy_issue_board(
+    board: dict[str, Any], filter_project: str | None = None
+) -> dict[str, list]:
+    copied: dict[str, list] = {}
+    for state in _DASHBOARD_STATE_KEYS:
+        issues = board.get(state, [])
+        if not isinstance(issues, list):
+            issues = []
+        if filter_project:
+            issues = [i for i in issues if i.get("project_id") == filter_project]
+        copied[state] = list(issues)
+    for state, issues in board.items():
+        if state in copied or not isinstance(issues, list):
+            continue
+        if filter_project:
+            issues = [i for i in issues if i.get("project_id") == filter_project]
+        copied[state] = list(issues)
+    return copied
+
+
+def _snapshot_refreshing_locked() -> bool:
+    return _issues_refresh_task is not None and not _issues_refresh_task.done()
+
+
+def _issues_snapshot_payload(
+    *,
+    filter_project: str | None = None,
+    allow_empty: bool = False,
+    orch: "Orchestrator | None" = None,
+    include_meta: bool = False,
+) -> dict[str, Any] | None:
+    with _issues_snapshot_lock:
+        data = _issues_snapshot.get("data")
+        snapshot_orch_id = _issues_snapshot.get("orch_id")
+        if (
+            data is not None
+            and orch is not None
+            and snapshot_orch_id is not None
+            and snapshot_orch_id != id(orch)
+        ):
+            data = None
+        if data is None and not allow_empty:
+            return None
+        nowm = time.monotonic()
+        created = float(_issues_snapshot.get("created_at_monotonic") or 0.0)
+        age_ms = (nowm - created) * 1000 if created else None
+        payload = _copy_issue_board(data or _empty_issue_board(), filter_project)
+        if include_meta:
+            payload["_meta"] = {
+                "snapshot_age_ms": round(age_ms, 0) if age_ms is not None else None,
+                "snapshot_created_at": _issues_snapshot.get("created_at_wall"),
+                "refreshing": _snapshot_refreshing_locked(),
+                "last_refresh_ms": _issues_snapshot.get("duration_ms"),
+                "issue_count": _issue_count_from_board(data or {}),
+                "error": _issues_snapshot.get("error"),
+                "stale": (
+                    age_ms is None or age_ms >= _ISSUES_SNAPSHOT_STALE_MS
+                ),
+            }
+        return payload
+
+
+def _issues_snapshot_headers(orch: "Orchestrator | None" = None) -> dict[str, str]:
+    payload = _issues_snapshot_payload(
+        allow_empty=True, orch=orch, include_meta=True
+    )
+    meta = (payload or {}).get("_meta", {})
+    headers: dict[str, str] = {}
+    if meta.get("snapshot_age_ms") is not None:
+        headers["X-Oompah-Issues-Snapshot-Age-Ms"] = str(meta["snapshot_age_ms"])
+    if meta.get("snapshot_created_at") is not None:
+        headers["X-Oompah-Issues-Snapshot-Created-At"] = str(
+            meta["snapshot_created_at"]
+        )
+    headers["X-Oompah-Issues-Refreshing"] = "true" if meta.get("refreshing") else "false"
+    headers["X-Oompah-Issues-Stale"] = "true" if meta.get("stale") else "false"
+    if meta.get("last_refresh_ms") is not None:
+        headers["X-Oompah-Issues-Refresh-Ms"] = str(meta["last_refresh_ms"])
+    headers["X-Oompah-Issues-Count"] = str(meta.get("issue_count", 0))
+    return headers
+
+
+def _set_issues_snapshot(
+    data: dict[str, list],
+    *,
+    duration_ms: float,
+    error: str | None = None,
+    orch_id: int | None = None,
+) -> None:
+    with _issues_snapshot_lock:
+        _issues_snapshot["data"] = data
+        _issues_snapshot["orch_id"] = orch_id
+        _issues_snapshot["created_at_monotonic"] = time.monotonic()
+        _issues_snapshot["created_at_wall"] = datetime.now(timezone.utc).isoformat()
+        _issues_snapshot["duration_ms"] = round(duration_ms, 3)
+        _issues_snapshot["issue_count"] = _issue_count_from_board(data)
+        _issues_snapshot["error"] = error
+    _api_cache.set("issues:all", data, ttl_ms=60_000)
+
+
+async def _ensure_issues_snapshot_refresh(
+    orch: "Orchestrator",
+    *,
+    force: bool = False,
+    broadcast: bool = False,
+) -> None:
+    """Start one background board refresh if the snapshot is absent/stale.
+
+    The request path never waits for the refresh. This keeps the dashboard
+    responsive even when the Backlog corpus takes tens of seconds to parse.
+    """
+    global _issues_refresh_task
+    with _issues_snapshot_lock:
+        existing = _issues_refresh_task
+        if existing is not None and not existing.done():
+            return
+        created = float(_issues_snapshot.get("created_at_monotonic") or 0.0)
+        snapshot_orch_id = _issues_snapshot.get("orch_id")
+        if snapshot_orch_id is not None and snapshot_orch_id != id(orch):
+            created = 0.0
+        age_ms = (time.monotonic() - created) * 1000 if created else None
+        if (
+            not force
+            and created
+            and age_ms is not None
+            and age_ms < _ISSUES_SNAPSHOT_STALE_MS
+        ):
+            return
+
+        async def _runner() -> None:
+            global _issues_refresh_task
+            start = time.monotonic()
+            try:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    _api_thread_pool, _fetch_and_serialize_issues, orch
+                )
+                duration_ms = (time.monotonic() - start) * 1000
+                _set_issues_snapshot(result, duration_ms=duration_ms, orch_id=id(orch))
+                if duration_ms > 1000:
+                    logger.warning(
+                        "Issues snapshot refresh slow: refresh=%.0fms issues=%d",
+                        duration_ms,
+                        _issue_count_from_board(result),
+                    )
+                if broadcast and _ws_clients:
+                    payload = _issues_snapshot_payload(allow_empty=True, orch=orch)
+                    await _broadcast({"type": "issues", "data": payload})
+            except Exception as exc:
+                duration_ms = (time.monotonic() - start) * 1000
+                logger.debug("issues snapshot refresh failed: %s", exc)
+                with _issues_snapshot_lock:
+                    _issues_snapshot["error"] = str(exc)
+                    _issues_snapshot["duration_ms"] = round(duration_ms, 3)
+                if broadcast and _ws_clients:
+                    payload = _issues_snapshot_payload(allow_empty=True, orch=orch)
+                    await _broadcast({"type": "issues", "data": payload})
+            finally:
+                with _issues_snapshot_lock:
+                    _issues_refresh_task = None
+
+        _issues_refresh_task = asyncio.create_task(
+            _runner(), name="issues-snapshot-refresh"
+        )
+
+
+async def _wait_for_issues_snapshot_refresh(timeout_ms: int = 250) -> None:
+    with _issues_snapshot_lock:
+        task = _issues_refresh_task
+    if task is None or task.done():
+        return
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout=timeout_ms / 1000.0)
+    except asyncio.TimeoutError:
+        return
 
 
 # Workflow rank for each canonical status (Backlog < Open < In Progress <
@@ -714,23 +949,24 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         if issue.id in parents:
             entry["children_counts"] = parents[issue.id]
         result[state].append(entry)
+    for state in result:
+        result[state].sort(
+            key=lambda i: i["priority"] if i["priority"] is not None else 999
+        )
     return result
 
 
 async def _do_broadcast_issues() -> None:
-    """Actually fetch and broadcast issues to all WS clients."""
+    """Broadcast the current board snapshot and refresh it in the background."""
     global _last_issues_broadcast, _issues_broadcast_pending
     _issues_broadcast_pending = False
     try:
         orch = _get_orchestrator()
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            _api_thread_pool, _fetch_and_serialize_issues, orch
-        )
         _last_issues_broadcast = time.monotonic() * 1000
-        _api_cache.set("issues:all", result, ttl_ms=5000)
-        if _ws_clients:
-            await _broadcast({"type": "issues", "data": result})
+        payload = _issues_snapshot_payload(allow_empty=False, orch=orch)
+        if payload is not None and _ws_clients:
+            await _broadcast({"type": "issues", "data": payload})
+        await _ensure_issues_snapshot_refresh(orch, force=True, broadcast=True)
     except Exception as exc:
         logger.debug("broadcast_issues failed: %s", exc)
 
@@ -788,12 +1024,11 @@ async def websocket_endpoint(ws: WebSocket):
         await ws.send_text(
             json.dumps({"type": "state", "data": orch.get_snapshot()}, default=str)
         )
-        # Send initial issues (fetch in thread to avoid blocking)
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            _api_thread_pool, _fetch_and_serialize_issues, orch
+        payload = _issues_snapshot_payload(allow_empty=True, orch=orch)
+        await ws.send_text(
+            json.dumps({"type": "issues", "data": payload}, default=str)
         )
-        await ws.send_text(json.dumps({"type": "issues", "data": result}, default=str))
+        await _ensure_issues_snapshot_refresh(orch, broadcast=True)
 
         # Keep connection alive, handle client messages
         while True:
@@ -1196,10 +1431,18 @@ async def api_console_delete(project_id: str):
 @app.get("/api/v1/state")
 async def api_state():
     """Return current system state snapshot."""
+    t_start = time.monotonic()
     try:
         orch = _get_orchestrator()
-        return JSONResponse(orch.get_snapshot())
+        snapshot = orch.get_snapshot()
+        duration_ms = (time.monotonic() - t_start) * 1000
+        _record_api_latency("/api/v1/state", duration_ms)
+        snapshot["api_metrics"] = _api_metrics_snapshot()
+        return JSONResponse(snapshot)
     except Exception as exc:
+        _record_api_latency(
+            "/api/v1/state", (time.monotonic() - t_start) * 1000, ok=False
+        )
         logger.error("State API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "unavailable", "message": str(exc)}},
@@ -1214,97 +1457,30 @@ async def api_issues(request: Request):
     Query params:
         project_id - filter to a single project (optional)
     """
+    t_start = time.monotonic()
     try:
-        t_start = time.monotonic()
         orch = _get_orchestrator()
         filter_project = request.query_params.get("project_id")
-
-        # Serve from cache if fresh and no project filter
-        if not filter_project:
-            cached = _api_cache.get("issues:all")
-            if cached is not None:
-                return JSONResponse(cached)
-
-        # Fetch issues from all projects (in dedicated pool to avoid tick contention)
-        loop = asyncio.get_event_loop()
-        all_issues = await loop.run_in_executor(
-            _api_thread_pool, _fetch_all_issues, orch, filter_project
+        await _ensure_issues_snapshot_refresh(orch, broadcast=bool(_ws_clients))
+        payload = _issues_snapshot_payload(
+            filter_project=filter_project, allow_empty=False, orch=orch
         )
-        project_names = _project_names_by_id(orch)
-        t_fetch = time.monotonic()
-        fetch_ms = (t_fetch - t_start) * 1000
-        if fetch_ms > 1000:
-            logger.warning(
-                "Issues API slow: fetch=%.0fms issues=%d", fetch_ms, len(all_issues)
+        if payload is None:
+            await _wait_for_issues_snapshot_refresh()
+            payload = _issues_snapshot_payload(
+                filter_project=filter_project, allow_empty=False, orch=orch
             )
-
-        # Build a map for epic child counts
-        epics: dict[str, dict] = {}
-        parent_ids: set[str] = set()
-        for issue in all_issues:
-            if issue.parent_id:
-                parent_ids.add(issue.parent_id)
-        for issue in all_issues:
-            if issue.id in parent_ids or issue.issue_type == "epic":
-                epics[issue.id] = _empty_state_counts()
-
-        # Count children per parent per state
-        for issue in all_issues:
-            if issue.parent_id and issue.parent_id in epics:
-                child_state = _issue_dashboard_state(issue)
-                if child_state in epics[issue.parent_id]:
-                    epics[issue.parent_id][child_state] += 1
-
-        # Build a quick set of branch names with open (unmerged) reviews
-        # so we can flag issues whose work is still in flight on a PR.
-        # Falls back to empty set if the orchestrator hasn't done its
-        # first review_check tick yet.
-        unmerged_branches: set[str] = set(
-            getattr(orch, "_unmerged_review_branches", set()) or set()
-        )
-
-        result: dict[str, list] = {}
-        for issue in all_issues:
-            state = _issue_dashboard_state(issue)
-            if state not in result:
-                result[state] = []
-            # has_open_review: True when this issue's branch is among the
-            # source branches of currently-open (unmerged) PRs across the
-            # project's tracked forge reviews. The dashboard's "show
-            # in-flight only" filter uses this to hide closed tasks whose
-            # work has fully landed (no PR open) while keeping closed
-            # tasks whose PR is still in queue/CI.
-            branch = issue.branch_name or issue.identifier
-            has_open_review = branch in unmerged_branches if branch else False
-            tracker_state = issue.state
-            entry = {
-                "id": issue.id,
-                "identifier": issue.identifier,
-                "title": issue.title,
-                "description": issue.description,
-                "priority": issue.priority,
-                "state": state,
-                "tracker_state": tracker_state,
-                "labels": issue.labels,
-                "issue_type": issue.issue_type,
-                "parent_id": issue.parent_id,
-                "project_id": issue.project_id,
-                "branch_name": issue.branch_name,
-                "has_open_review": has_open_review,
-                **_issue_display_fields(issue, project_names),
-            }
-            if issue.id in epics:
-                entry["children_counts"] = epics[issue.id]
-            result[state].append(entry)
-        # Sort each column by priority
-        for state in result:
-            result[state].sort(
-                key=lambda i: i["priority"] if i["priority"] is not None else 999
+        if payload is None:
+            payload = _issues_snapshot_payload(
+                filter_project=filter_project, allow_empty=True, orch=orch
             )
-        if not filter_project:
-            _api_cache.set("issues:all", result, ttl_ms=5000)
-        return JSONResponse(result)
+        duration_ms = (time.monotonic() - t_start) * 1000
+        _record_api_latency("/api/v1/issues", duration_ms)
+        return JSONResponse(payload, headers=_issues_snapshot_headers(orch))
     except Exception as exc:
+        _record_api_latency(
+            "/api/v1/issues", (time.monotonic() - t_start) * 1000, ok=False
+        )
         logger.error("Issues API error: %s", exc)
         return JSONResponse(
             {"error": {"code": "unavailable", "message": str(exc)}},

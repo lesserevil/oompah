@@ -594,7 +594,16 @@ class TestWebSocketConsoleInput:
                 "project_id": "proj-nope",
                 "text": "hello",
             })
-            msg = ws.receive_json()
+            msg = None
+            for _ in range(4):
+                candidate = ws.receive_json()
+                if (
+                    candidate.get("type") == "console_event"
+                    and candidate.get("project_id") == "proj-nope"
+                ):
+                    msg = candidate
+                    break
+        assert msg is not None
         assert msg["type"] == "console_event"
         assert msg["project_id"] == "proj-nope"
         assert msg["event"]["kind"] == "error"
