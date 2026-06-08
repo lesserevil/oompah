@@ -1,10 +1,10 @@
 ---
 id: TASK-454.2
 title: Honor task target branches when creating review PRs
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 17:55'
+updated_date: '2026-06-08 17:56'
 labels:
   - task
 dependencies:
@@ -52,4 +52,16 @@ created: 2026-06-08 17:55
 ---
 Verification: All 78 tests in test_epic_strategy.py pass (including 4 new TASK-454.2 tests). 194/194 tests pass in test_backlog_tracker.py + test_orchestrator_handlers.py. No regressions.
 ---
+
+author: oompah
+created: 2026-06-08 17:56
+---
+Completion: Updated oompah/orchestrator.py _ensure_review_exists() to honor Issue.target_branch when creating review PRs. Normal per-task PRs now target Issue.target_branch when set (e.g. release/2.3), falling back to project.default_branch. Stacked epic children still target the epic branch. Shared epic children still skip per-child PR creation. 4 new tests added, all 78 tests in test_epic_strategy.py pass. Code pushed to epic-TASK-454.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Updated _ensure_review_exists() in oompah/orchestrator.py to honor Issue.target_branch when creating review PRs: tasks with target_branch set (e.g. release/2.3) open PRs into that branch; fall back to project.default_branch when unset. Stacked epic behavior preserved (children still target epic branch). Shared epic behavior preserved (no per-child PR). 4 new tests added in test_epic_strategy.py, all 78 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

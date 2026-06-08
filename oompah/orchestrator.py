@@ -3697,6 +3697,23 @@ class Orchestrator:
         # Never dispatch candidates flagged as duplicates of existing open issues
         if canonicalize_status(issue.state) == DUPLICATE_CANDIDATE or "duplicate-candidate" in issue.labels:
             return _reject("duplicate_candidate")
+        # Validate release-pick target branch against project branch patterns
+        # (TASK-454.3). When an issue has a target_branch set, it must match
+        # at least one of the project's configured patterns, and must not
+        # point at the project's protected source-only (default) branch
+        # unless explicitly opted in via the ``backport:allow-source`` label.
+        if issue.target_branch:
+            _project = self.project_store.get(issue.project_id) if issue.project_id else None
+            if _project is not None:
+                from oompah.release_pick_validation import validate_release_pick_target
+                _tbv = validate_release_pick_target(issue, _project)
+                if not _tbv.valid:
+                    logger.warning(
+                        "Dispatch blocked for %s: %s",
+                        issue.identifier,
+                        _tbv.error,
+                    )
+                    return _reject(f"invalid_target_branch:{_tbv.reason}")
         state_norm = _state_key(issue.state)
         if state_norm not in {
             _state_key(s) for s in self.config.tracker_active_states
