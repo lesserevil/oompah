@@ -2523,6 +2523,190 @@ async def api_update_release_picks(identifier: str, request: Request):
         )
 
 
+@app.get("/api/v1/issues/{identifier}/release-picks/matrix")
+async def api_get_epic_release_picks_matrix(identifier: str, request: Request):
+    """Return the child-by-target-branch release-pick matrix for an epic.
+
+    Fetches all child tasks of the epic identified by *identifier*, reads
+    their ``oompah.backports`` metadata, and returns a matrix where each row
+    is a child task and each column is a unique target branch.
+
+    Response shape::
+
+        {
+            "epic_identifier": "TASK-456",
+            "branches": ["release/1.0", "release/2.0"],
+            "rows": [
+                {
+                    "identifier": "TASK-456.1",
+                    "title": "...",
+                    "state": "done",
+                    "entries": {
+                        "release/1.0": { <normalised entry> },
+                        "release/2.0": null
+                    }
+                }
+            ]
+        }
+
+    Optional query parameter: ``project_id`` — when supplied, target branches
+    are validated against the project's configured patterns.
+    """
+    try:
+        from oompah.release_pick_api import get_epic_release_pick_matrix
+
+        orch = _get_orchestrator()
+        project_id = request.query_params.get("project_id")
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, identifier, project_id
+        )
+        if tracker is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {identifier} not found",
+                    }
+                },
+                status_code=404,
+            )
+        project = None
+        if resolved_project_id:
+            try:
+                project = orch.project_store.get(resolved_project_id)
+            except Exception:
+                project = None
+        result = get_epic_release_pick_matrix(tracker, identifier, project=project)
+        return JSONResponse(result)
+    except Exception as exc:
+        logger.error(
+            "Release picks matrix GET API error for %s: %s", identifier, exc
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.post("/api/v1/issues/{identifier}/release-picks/apply-all")
+async def api_apply_release_picks_to_all_children(identifier: str, request: Request):
+    """Apply a set of release-pick branches to all children of an epic.
+
+    Accepts a JSON body::
+
+        {
+            "project_id": "my-project",
+            "branches": ["release/1.0", "release/2.0"],
+            "skip_children": ["TASK-456.3"]
+        }
+
+    * ``project_id`` — **required**.  Used to locate the tracker and
+      validate branch names.
+    * ``branches`` — **required**.  List of target branch names to apply to
+      every child.
+    * ``skip_children`` — optional list of child identifiers that should
+      receive a ``skipped`` entry instead of ``waiting``.
+
+    Returns the updated epic release-pick matrix (same shape as
+    ``GET /api/v1/issues/{identifier}/release-picks/matrix``).
+    """
+    try:
+        from oompah.release_pick_api import apply_release_picks_to_all_children
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "Request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "project_id is required for release-pick apply-all",
+                    }
+                },
+                status_code=400,
+            )
+
+        branches = body.get("branches")
+        if not branches or not isinstance(branches, list):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "'branches' must be a non-empty list of branch names",
+                    }
+                },
+                status_code=400,
+            )
+
+        orch = _get_orchestrator()
+        try:
+            tracker = _get_tracker(orch, project_id)
+        except Exception as exc:
+            return JSONResponse(
+                {"error": {"code": "project_not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        project = None
+        try:
+            project = orch.project_store.get(project_id)
+        except Exception:
+            project = None
+
+        skip_children = body.get("skip_children") or []
+        if not isinstance(skip_children, list):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "'skip_children' must be a list of identifiers",
+                    }
+                },
+                status_code=400,
+            )
+
+        try:
+            result = apply_release_picks_to_all_children(
+                tracker,
+                identifier,
+                branches=branches,
+                skip_children=skip_children,
+                project=project,
+            )
+        except ValueError as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": str(exc)}},
+                status_code=400,
+            )
+
+        return JSONResponse(result)
+    except Exception as exc:
+        logger.error(
+            "Release picks apply-all POST API error for %s: %s", identifier, exc
+        )
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
 @app.get("/api/v1/agents/{identifier}/activity")
 async def api_agent_activity(identifier: str):
     """Return the activity log for a running agent."""

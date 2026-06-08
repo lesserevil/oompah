@@ -387,3 +387,277 @@ class TestPatchReleasePicksEndpoint:
         tracker.set_metadata_field.assert_called_once()
         call_args = tracker.set_metadata_field.call_args
         assert call_args[0][1] == "oompah.backports"
+
+
+# ---------------------------------------------------------------------------
+# Helpers for epic matrix endpoint tests
+# ---------------------------------------------------------------------------
+
+
+def _make_child_issue(identifier: str, title: str = "Child", state: str = "open") -> Issue:
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title=title,
+        state=state,
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+
+
+def _make_epic_orchestrator(
+    *,
+    tracker: MagicMock | None = None,
+    project: MagicMock | None = None,
+    epic: Issue | None = None,
+    children: list | None = None,
+    meta_by_id: dict | None = None,
+    project_id: str = "proj-1",
+) -> tuple:
+    t = tracker or MagicMock()
+    p = project or _make_project(project_id)
+
+    epic_issue = epic or _make_issue("TASK-456")
+    all_children = children or []
+    meta_map = meta_by_id or {}
+
+    t.fetch_issue_detail = MagicMock(return_value=epic_issue)
+    t.fetch_children = MagicMock(return_value=all_children)
+    t.get_metadata = MagicMock(side_effect=lambda ident: meta_map.get(ident, {}))
+    t.set_metadata_field = MagicMock()
+
+    orch = MagicMock()
+    orch._tracker_for_project = MagicMock(return_value=t)
+    orch.project_store.list_all = MagicMock(return_value=[p])
+    orch.project_store.get = MagicMock(return_value=p)
+    return orch, t, p
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/issues/{identifier}/release-picks/matrix
+# ---------------------------------------------------------------------------
+
+
+class TestGetEpicReleasePicksMatrix:
+    def test_returns_200_with_empty_matrix(self, client):
+        orch, tracker, project = _make_epic_orchestrator()
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get(
+                "/api/v1/issues/TASK-456/release-picks/matrix",
+                params={"project_id": "proj-1"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["epic_identifier"] == "TASK-456"
+        assert data["branches"] == []
+        assert data["rows"] == []
+
+    def test_returns_matrix_with_children(self, client):
+        child1 = _make_child_issue("TASK-456.1", title="Sub 1", state="done")
+        child2 = _make_child_issue("TASK-456.2", title="Sub 2", state="open")
+        meta = {
+            "TASK-456.1": {
+                "oompah.backports": [{"branch": "release/1.0", "status": "merged"}]
+            },
+            "TASK-456.2": {
+                "oompah.backports": [
+                    {"branch": "release/1.0", "status": "waiting"},
+                    {"branch": "release/2.0", "status": "waiting"},
+                ]
+            },
+        }
+        orch, tracker, project = _make_epic_orchestrator(
+            children=[child1, child2], meta_by_id=meta
+        )
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get(
+                "/api/v1/issues/TASK-456/release-picks/matrix",
+                params={"project_id": "proj-1"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["branches"] == ["release/1.0", "release/2.0"]
+        assert len(data["rows"]) == 2
+        rows_by_id = {r["identifier"]: r for r in data["rows"]}
+        # child1 has no entry for release/2.0 → None
+        assert rows_by_id["TASK-456.1"]["entries"]["release/2.0"] is None
+        assert rows_by_id["TASK-456.1"]["entries"]["release/1.0"]["status"] == "merged"
+
+    def test_returns_404_when_epic_not_found(self, client):
+        # _find_tracker_for_issue returns (None, None, None) when all projects
+        # have been searched and none found the issue.
+        fake_project = _make_project("proj-1")
+        tracker_no_issue = MagicMock()
+        tracker_no_issue.fetch_issue_detail = MagicMock(return_value=None)
+        orch = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker_no_issue)
+        orch.project_store.list_all = MagicMock(return_value=[fake_project])
+        orch.project_store.get = MagicMock(return_value=fake_project)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get("/api/v1/issues/TASK-MISSING/release-picks/matrix")
+        assert resp.status_code == 404
+
+    def test_returns_503_on_unexpected_error(self, client):
+        with patch.object(
+            server_module, "_get_orchestrator", side_effect=RuntimeError("crash")
+        ):
+            resp = client.get("/api/v1/issues/TASK-456/release-picks/matrix")
+        assert resp.status_code == 503
+
+    def test_works_without_project_id(self, client):
+        orch, tracker, project = _make_epic_orchestrator()
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get("/api/v1/issues/TASK-456/release-picks/matrix")
+        assert resp.status_code == 200
+
+    def test_row_includes_title_and_state(self, client):
+        child = _make_child_issue("TASK-456.1", title="My child", state="done")
+        meta = {"TASK-456.1": {"oompah.backports": "release/1.0"}}
+        orch, tracker, project = _make_epic_orchestrator(
+            children=[child], meta_by_id=meta
+        )
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get(
+                "/api/v1/issues/TASK-456/release-picks/matrix",
+                params={"project_id": "proj-1"},
+            )
+        assert resp.status_code == 200
+        row = resp.json()["rows"][0]
+        assert row["title"] == "My child"
+        assert row["state"] == "done"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/issues/{identifier}/release-picks/apply-all
+# ---------------------------------------------------------------------------
+
+
+class TestPostApplyReleasePicksToAllChildren:
+    def test_returns_400_when_no_project_id(self, client):
+        resp = client.post(
+            "/api/v1/issues/TASK-456/release-picks/apply-all",
+            json={"branches": ["release/1.0"]},
+        )
+        assert resp.status_code == 400
+        assert "project_id" in resp.json()["error"]["message"]
+
+    def test_returns_400_when_no_branches(self, client):
+        orch, tracker, project = _make_epic_orchestrator()
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={"project_id": "proj-1"},
+            )
+        assert resp.status_code == 400
+        assert "branches" in resp.json()["error"]["message"]
+
+    def test_returns_400_when_branches_not_list(self, client):
+        orch, tracker, project = _make_epic_orchestrator()
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={"project_id": "proj-1", "branches": "release/1.0"},
+            )
+        assert resp.status_code == 400
+
+    def test_returns_400_on_invalid_json(self, client):
+        resp = client.post(
+            "/api/v1/issues/TASK-456/release-picks/apply-all",
+            data="not-json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+
+    def test_returns_200_with_matrix_result(self, client):
+        child = _make_child_issue("TASK-456.1")
+        orch, tracker, project = _make_epic_orchestrator(children=[child])
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={"project_id": "proj-1", "branches": ["release/1.0"]},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["epic_identifier"] == "TASK-456"
+        assert "branches" in data
+        assert "rows" in data
+
+    def test_skip_children_accepted(self, client):
+        child1 = _make_child_issue("TASK-456.1")
+        child2 = _make_child_issue("TASK-456.2")
+        orch, tracker, project = _make_epic_orchestrator(
+            children=[child1, child2]
+        )
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={
+                    "project_id": "proj-1",
+                    "branches": ["release/1.0"],
+                    "skip_children": ["TASK-456.2"],
+                },
+            )
+        assert resp.status_code == 200
+        # Check that TASK-456.2 had its branch set to skipped
+        calls = tracker.set_metadata_field.call_args_list
+        child2_calls = [c for c in calls if c[0][0] == "TASK-456.2"]
+        assert child2_calls, "Expected set_metadata_field call for skipped child"
+        written = child2_calls[0][0][2]
+        entry = written[0]
+        if isinstance(entry, dict):
+            assert entry["status"] == "skipped"
+
+    def test_branch_validation_failure_returns_400(self, client):
+        child = _make_child_issue("TASK-456.1")
+        orch, tracker, project = _make_epic_orchestrator(children=[child])
+        project.matches_branch = MagicMock(
+            side_effect=lambda b: b.startswith("release/")
+        )
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={"project_id": "proj-1", "branches": ["bad-branch"]},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "validation"
+
+    def test_returns_404_when_project_not_found(self, client):
+        orch = MagicMock()
+        orch._tracker_for_project = MagicMock(
+            side_effect=Exception("Unknown project")
+        )
+        orch.project_store.get = MagicMock(return_value=None)
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={"project_id": "nonexistent", "branches": ["release/1.0"]},
+            )
+        assert resp.status_code == 404
+
+    def test_returns_400_when_skip_children_not_list(self, client):
+        orch, tracker, project = _make_epic_orchestrator()
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={
+                    "project_id": "proj-1",
+                    "branches": ["release/1.0"],
+                    "skip_children": "TASK-456.2",
+                },
+            )
+        assert resp.status_code == 400
+        assert "skip_children" in resp.json()["error"]["message"]
+
+    def test_set_metadata_field_called_per_child(self, client):
+        child1 = _make_child_issue("TASK-456.1")
+        child2 = _make_child_issue("TASK-456.2")
+        orch, tracker, project = _make_epic_orchestrator(
+            children=[child1, child2]
+        )
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.post(
+                "/api/v1/issues/TASK-456/release-picks/apply-all",
+                json={"project_id": "proj-1", "branches": ["release/1.0"]},
+            )
+        assert resp.status_code == 200
+        assert tracker.set_metadata_field.call_count == 2

@@ -46,6 +46,7 @@ class TestReleasePickValues:
             "merged",
             "archived",
             "needs_human",
+            "skipped",
         }
         assert {m.value for m in ReleasePick} == expected
 

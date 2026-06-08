@@ -4948,6 +4948,21 @@ _wireConsoleInputs();
 connectWebSocket();
 
 // ---------------------------------------------------------------------------
+// Add Release Picks modal — event-bridge (TASK-456.3)
+//
+// TASK-456.2 exposes openAddReleasePicksModal(id, pid) which dispatches a
+// CustomEvent so that this modal (defined below) can open without creating a
+// circular dependency between the two features.  We listen here and forward
+// the call to the actual open function once the DOM is ready.
+// ---------------------------------------------------------------------------
+document.addEventListener('oompah:open-add-release-picks', function(e) {
+  const { identifier, projectId } = e.detail || {};
+  if (identifier && projectId) {
+    openAddReleasePicksDialog(identifier, projectId);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Add Release Picks modal (TASK-456.3)
 // ---------------------------------------------------------------------------
 //

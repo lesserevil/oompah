@@ -1,10 +1,10 @@
-"""Release-pick task detail API helpers (TASK-456.1).
+"""Release-pick task detail API helpers (TASK-456.1, TASK-456.4).
 
 Provides helper functions to read and update release-pick metadata for a
 task, validate target branches, and return normalized results consumed by
 the HTTP API endpoints in ``server.py``.
 
-The public API consists of two main helpers:
+The public API consists of:
 
 * :func:`get_release_pick_detail` — reads and normalises the
   ``oompah.backports`` / ``oompah.backport_of`` frontmatter fields from a
@@ -18,10 +18,20 @@ The public API consists of two main helpers:
   updates into the task's ``oompah.backports`` frontmatter after validating
   all target branches.
 
-All three functions are intentionally stateless with respect to the HTTP
-layer — they accept tracker / project objects and raise plain
-:class:`ValueError` on bad input so callers (server endpoints) can
-translate errors into appropriate HTTP responses.
+* :func:`get_epic_release_pick_matrix` — builds a child-by-target-branch
+  matrix showing per-child release-pick status for an epic.  Each row is a
+  child task; columns are all unique target branches seen across the epic's
+  children.
+
+* :func:`apply_release_picks_to_all_children` — applies a set of target
+  branches to every child of an epic in one operation.  Individual children
+  can be excluded (``skip_children``) — excluded children receive a
+  ``skipped`` entry for each branch rather than a ``waiting`` entry.
+
+All functions are intentionally stateless with respect to the HTTP layer —
+they accept tracker / project objects and raise plain :class:`ValueError` on
+bad input so callers (server endpoints) can translate errors into appropriate
+HTTP responses.
 """
 
 from __future__ import annotations
@@ -350,7 +360,7 @@ def update_release_pick_entry(
     return _build_result(identifier, entries, backport_of, project=project)
 
 
-def update_release_picks_bulk(
+def update_release_picks_bulk(  # noqa: WPS231
     tracker: Any,
     identifier: str,
     *,
@@ -448,3 +458,211 @@ def update_release_picks_bulk(
 
     # Build the response from in-memory state (no second tracker read needed)
     return _build_result(identifier, entries, backport_of, project=project)
+
+
+# ---------------------------------------------------------------------------
+# Public API — epic matrix
+# ---------------------------------------------------------------------------
+
+
+def get_epic_release_pick_matrix(
+    tracker: Any,
+    epic_identifier: str,
+    *,
+    project: Any | None = None,
+) -> dict[str, Any]:
+    """Build a child-by-target-branch matrix for an epic.
+
+    Fetches all child tasks of *epic_identifier*, reads their release-pick
+    metadata, and returns a matrix where each row is a child task and each
+    column is a unique target branch seen anywhere in the epic.
+
+    Args:
+        tracker: A :class:`~oompah.tracker.BacklogMdTracker` instance.
+        epic_identifier: The identifier of the parent epic task.
+        project: Optional :class:`~oompah.models.Project` for branch
+            validation.  When provided each entry's ``is_valid`` /
+            ``validation_error`` fields are populated.
+
+    Returns:
+        A JSON-serialisable dict::
+
+            {
+                "epic_identifier": "TASK-456",
+                "branches": ["release/1.0", "release/2.0"],
+                "rows": [
+                    {
+                        "identifier": "TASK-456.1",
+                        "title": "...",
+                        "state": "done",
+                        "entries": {
+                            "release/1.0": {
+                                "branch": "release/1.0",
+                                "status": "merged",
+                                "task_id": null,
+                                "pr_url": null,
+                                "pr_id": null,
+                                "is_valid": true,
+                                "validation_error": null
+                            },
+                            "release/2.0": null
+                        }
+                    }
+                ]
+            }
+
+        ``entries`` maps each known branch to a normalised entry dict (same
+        shape as an entry in :func:`get_release_pick_detail`) or ``null``
+        when the child has no entry for that branch.  ``branches`` is
+        sorted alphabetically.
+
+    Raises:
+        ValueError: When *epic_identifier* is empty/None.
+    """
+    if not epic_identifier:
+        raise ValueError("epic_identifier must not be empty")
+
+    children = tracker.fetch_children(epic_identifier)
+
+    # Collect all unique branches across all children and per-child entry maps
+    all_branches: set[str] = set()
+    child_data: list[dict[str, Any]] = []
+
+    for child in children:
+        meta = tracker.get_metadata(child.identifier) or {}
+        raw_backports = meta.get("oompah.backports")
+        entries: list[BackportEntry] = parse_backports(raw_backports)
+
+        # Validate branches when a project is available
+        validation_by_branch: dict[str, ReleaseBranchValidationResult] = {}
+        if project is not None and entries:
+            branch_names = [e.branch for e in entries]
+            results = validate_backports_list(branch_names, project)
+            for result in results:
+                if result.target_branch:
+                    validation_by_branch[result.target_branch] = result
+
+        entries_by_branch: dict[str, dict[str, Any]] = {
+            entry.branch: _normalise_entry(entry, validation_by_branch.get(entry.branch))
+            for entry in entries
+        }
+        for branch in entries_by_branch:
+            all_branches.add(branch)
+
+        child_data.append(
+            {
+                "identifier": child.identifier,
+                "title": child.title,
+                "state": child.state,
+                "_entries_by_branch": entries_by_branch,
+            }
+        )
+
+    sorted_branches = sorted(all_branches)
+
+    # Build the final rows — fill missing entries with None
+    rows: list[dict[str, Any]] = []
+    for item in child_data:
+        entries_by_branch = item.pop("_entries_by_branch")
+        item["entries"] = {
+            branch: entries_by_branch.get(branch)
+            for branch in sorted_branches
+        }
+        rows.append(item)
+
+    return {
+        "epic_identifier": epic_identifier,
+        "branches": sorted_branches,
+        "rows": rows,
+    }
+
+
+def apply_release_picks_to_all_children(
+    tracker: Any,
+    epic_identifier: str,
+    *,
+    branches: list[str],
+    skip_children: list[str] | None = None,
+    project: Any | None = None,
+) -> dict[str, Any]:
+    """Apply a set of target branches to every child of an epic.
+
+    For each child of *epic_identifier*:
+
+    * Children **not** in *skip_children* receive a ``waiting`` entry for
+      each branch (or preserve their existing entry if one already exists).
+    * Children **in** *skip_children* receive a ``skipped`` entry for each
+      branch so they are visible in the matrix but excluded from automation.
+
+    Branch validation is performed before any writes.  If any branch fails
+    validation a :class:`ValueError` is raised and no writes occur.
+
+    Args:
+        tracker: A :class:`~oompah.tracker.BacklogMdTracker` instance.
+        epic_identifier: The identifier of the parent epic task.
+        branches: List of target branch names to apply.
+        skip_children: Optional list of child identifiers to mark as
+            ``skipped`` instead of ``waiting``.  ``None`` or empty means
+            no children are skipped.
+        project: Optional :class:`~oompah.models.Project` for branch
+            validation.
+
+    Returns:
+        The updated epic release-pick matrix (same shape as
+        :func:`get_epic_release_pick_matrix`).
+
+    Raises:
+        ValueError: When *epic_identifier* or *branches* is empty, or
+            when branch validation fails.
+    """
+    if not epic_identifier:
+        raise ValueError("epic_identifier must not be empty")
+    if not branches:
+        raise ValueError("branches list must not be empty")
+
+    # Validate all branch names
+    clean_branches: list[str] = []
+    for b in branches:
+        b = (b or "").strip()
+        if not b:
+            raise ValueError("Each branch name must be non-empty")
+        clean_branches.append(b)
+
+    if project is not None:
+        validation_results = validate_backports_list(clean_branches, project)
+        failures = [v for v in validation_results if not v.valid]
+        if failures:
+            errors = "; ".join(
+                f"'{v.target_branch}': {v.error}" for v in failures
+            )
+            raise ValueError(f"Branch validation failed: {errors}")
+
+    skip_set: set[str] = set(skip_children or [])
+
+    children = tracker.fetch_children(epic_identifier)
+
+    for child in children:
+        meta = tracker.get_metadata(child.identifier) or {}
+        raw_backports = meta.get("oompah.backports")
+        entries: list[BackportEntry] = parse_backports(raw_backports)
+        entries_by_branch: dict[str, BackportEntry] = {e.branch: e for e in entries}
+
+        is_skipped = child.identifier in skip_set
+        desired_status = ReleasePick.SKIPPED if is_skipped else ReleasePick.WAITING
+
+        changed = False
+        for branch in clean_branches:
+            if branch not in entries_by_branch:
+                entries.append(BackportEntry(branch=branch, status=desired_status))
+                changed = True
+            elif is_skipped and entries_by_branch[branch].status != ReleasePick.SKIPPED:
+                # Mark existing entry as skipped when the child is excluded
+                entries_by_branch[branch].status = ReleasePick.SKIPPED
+                changed = True
+
+        if changed:
+            raw_updated = backports_to_raw(entries)
+            tracker.set_metadata_field(child.identifier, "oompah.backports", raw_updated)
+
+    # Return the updated matrix
+    return get_epic_release_pick_matrix(tracker, epic_identifier, project=project)
