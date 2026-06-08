@@ -4352,11 +4352,15 @@ class Orchestrator:
 
         branch = entry.identifier  # branch is named after the issue
         # Stacked mode: the child PR targets the epic branch instead of main.
+        # Otherwise, honor Issue.target_branch when set (e.g. release branches),
+        # falling back to the project's default branch.
         target_branch = project.default_branch
         if strategy == "stacked" and parent_epic is not None:
             target_branch = self.project_store.epic_branch_name(
                 parent_epic.identifier,
             )
+        elif entry.issue and entry.issue.target_branch:
+            target_branch = entry.issue.target_branch
 
         # Check if a review already exists for this branch
         reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
