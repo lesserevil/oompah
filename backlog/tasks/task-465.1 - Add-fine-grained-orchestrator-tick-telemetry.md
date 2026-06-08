@@ -1,24 +1,39 @@
 ---
 id: TASK-465.1
 title: Add fine-grained orchestrator tick telemetry
-status: Open
+status: Done
 assignee: []
-created_date: '2026-06-08 18:47'
+created_date: 2026-06-08 18:47
+updated_date: 2026-06-08 19:19
 labels:
-  - task
-  - tick-latency
-  - dispatch-performance
-  - 'needs:backend'
-  - 'needs:test'
+- task
+- tick-latency
+- dispatch-performance
 dependencies: []
-references:
-  - oompah/orchestrator.py
-modified_files:
-  - oompah/orchestrator.py
-  - tests/test_orchestrator_handlers.py
-parent_task_id: TASK-465
 priority: 0
+references:
+- oompah/orchestrator.py
+modified_files:
+- oompah/orchestrator.py
+- tests/test_orchestrator_handlers.py
+parent_task_id: TASK-465
 ordinal: 2
+oompah.task_costs:
+  total_input_tokens: 61
+  total_output_tokens: 30561
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 61
+      output_tokens: 30561
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: unknown
+    input_tokens: 61
+    output_tokens: 30561
+    cost_usd: 0.0
+    recorded_at: '2026-06-08T19:19:08.483928+00:00'
 ---
 
 ## Description
@@ -33,3 +48,40 @@ Instrument _tick() and _handle_dispatch_needed() with substep timings so slow-ti
 - [ ] #2 State snapshots expose recent tick timing summaries suitable for the dashboard without secrets.
 - [ ] #3 Tests cover timing collection and verify disabled or missing timings do not break existing snapshots.
 <!-- AC:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-08 19:06
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-08 19:06
+
+Focus: Test Engineer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-08 19:19
+
+Agent completed successfully in 783s (30622 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-08 19:19
+
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 104, Tool calls: 62
+- Tokens: 61 in / 30.6K out [30.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 13m 3s
+- Log: TASK-465.1__20260608T190627Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
