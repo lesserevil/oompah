@@ -843,6 +843,191 @@ def recover_repo_unmerged_backlog(repo_path: str) -> dict[str, list[str]]:
 
 
 # ---------------------------------------------------------------------------
+# Invalid task file detection and recovery (zero-byte / malformed frontmatter)
+# ---------------------------------------------------------------------------
+#
+# A disk-full event can truncate tracked Backlog task files to zero bytes or
+# leave them with partial content that has no valid YAML frontmatter.  Unlike
+# git conflict markers these files look structurally fine to git (no unmerged
+# index entries, no <<< markers) so they pass all existing soundness checks
+# while Backlog parses them as empty or invalid tasks.
+#
+# The helpers below detect such files and attempt to restore them from git's
+# object store (HEAD, then origin/<branch>) before the soundness check runs.
+# Unrecoverable tracked files are returned so the caller can quarantine the
+# project.  Zero-byte untracked files that have no git counterpart are removed
+# as spurious artifacts.
+
+
+def inspect_repo_invalid_backlog_task_files(repo_path: str) -> list[str]:
+    """Return absolute paths of Backlog task files that are zero-byte or have
+    missing/malformed YAML frontmatter.
+
+    Conflict-marker files are excluded — those are handled by
+    :func:`inspect_repo_backlog_conflicts` / :func:`repair_repo_backlog_conflicts`.
+    Only files that fail :func:`_validate_task_content` are reported, so
+    legitimate non-task markdown files that happen to sit in a backlog
+    sub-directory (e.g. README.md without frontmatter) are also caught if they
+    are in the task/completed/archive-tasks directories.
+    """
+    invalid: list[str] = []
+    for task_dir in _backlog_task_dirs(repo_path):
+        try:
+            entries = os.listdir(task_dir)
+        except OSError:
+            continue
+        for name in sorted(entries):
+            if not name.endswith(".md"):
+                continue
+            fpath = os.path.join(task_dir, name)
+            try:
+                content = Path(fpath).read_text(encoding="utf-8")
+            except OSError:
+                continue
+            # Conflict-marker files are handled by repair_repo_backlog_conflicts
+            if has_conflict_markers(content):
+                continue
+            # Detect zero-byte or missing/malformed frontmatter
+            if not content.strip() or not _validate_task_content(content):
+                invalid.append(fpath)
+
+    if invalid:
+        logger.info(
+            "Detected %d invalid (zero-byte/malformed) Backlog task file(s)"
+            " in %s: %s",
+            len(invalid),
+            repo_path,
+            ", ".join(os.path.basename(f) for f in invalid[:5])
+            + (" ..." if len(invalid) > 5 else ""),
+        )
+    return invalid
+
+
+def recover_invalid_backlog_task_files(
+    repo_path: str, remote: str = "origin", remote_branch: str = "main"
+) -> dict[str, list[str]]:
+    """Attempt to recover zero-byte or malformed Backlog task files from git.
+
+    For each invalid file detected by
+    :func:`inspect_repo_invalid_backlog_task_files`, tries in order:
+
+    1. ``git show HEAD:<relpath>`` — the last committed local version.
+    2. ``git show <remote>/<remote_branch>:<relpath>`` — the remote canonical
+       version.
+
+    If a valid version is found it is written back to disk and staged with
+    ``git add``.
+
+    For zero-byte files that have **no git counterpart** (untracked and not in
+    HEAD or the remote ref), the file is removed as a spurious artifact — it
+    was never a valid task and cannot be recovered.
+
+    Unrecoverable **tracked** files (tracked in git but invalid at every
+    available ref) are left unchanged and returned in ``"failed"`` so the
+    caller can quarantine the project.
+
+    Returns ``{"recovered": [...], "failed": [...], "removed": [...]}``
+    (absolute paths).
+    """
+    recovered: list[str] = []
+    failed: list[str] = []
+    removed: list[str] = []
+
+    invalid = inspect_repo_invalid_backlog_task_files(repo_path)
+    if not invalid:
+        return {"recovered": recovered, "failed": failed, "removed": removed}
+
+    for abspath in invalid:
+        rel = os.path.relpath(abspath, repo_path)
+
+        # Try HEAD first (preserves local committed state), then remote
+        restored: str | None = None
+        for ref in (f"HEAD:{rel}", f"{remote}/{remote_branch}:{rel}"):
+            rc, out, _ = _run_git(["show", ref], repo_path)
+            if rc == 0 and out and _validate_task_content(out):
+                restored = out
+                break
+
+        if restored is not None:
+            try:
+                Path(abspath).write_text(restored, encoding="utf-8")
+            except OSError as exc:
+                logger.warning(
+                    "Cannot write recovered task file %s: %s", abspath, exc
+                )
+                failed.append(abspath)
+                continue
+
+            rc_add, _, err = _run_git(["add", "--", rel], repo_path)
+            if rc_add != 0:
+                logger.warning(
+                    "git add failed for recovered invalid file %s: %s",
+                    abspath,
+                    err[:200],
+                )
+                failed.append(abspath)
+                continue
+
+            logger.info(
+                "Recovered invalid (zero-byte/malformed) backlog task file: %s",
+                abspath,
+            )
+            recovered.append(abspath)
+            continue
+
+        # No valid version in git — check if the file is tracked at all
+        rc_ls, ls_out, _ = _run_git(["ls-files", "--", rel], repo_path)
+        is_tracked = rc_ls == 0 and ls_out.strip() != ""
+
+        if not is_tracked:
+            # Untracked zero-byte/invalid file with no git counterpart.
+            # Remove it as a spurious artifact rather than quarantining.
+            try:
+                os.remove(abspath)
+                logger.info(
+                    "Removed spurious untracked invalid backlog file: %s", abspath
+                )
+                removed.append(abspath)
+            except OSError as exc:
+                logger.warning(
+                    "Cannot remove spurious untracked file %s: %s", abspath, exc
+                )
+                # Not tracked, so don't quarantine — just warn
+        else:
+            logger.warning(
+                "Cannot recover invalid backlog task file %s — "
+                "neither HEAD nor %s/%s has a valid version.",
+                abspath,
+                remote,
+                remote_branch,
+            )
+            failed.append(abspath)
+
+    if recovered:
+        logger.info(
+            "Recovered %d invalid backlog task file(s) in %s: %s",
+            len(recovered),
+            repo_path,
+            ", ".join(os.path.basename(p) for p in recovered[:5]),
+        )
+    if removed:
+        logger.info(
+            "Removed %d spurious untracked invalid backlog file(s) in %s: %s",
+            len(removed),
+            repo_path,
+            ", ".join(os.path.basename(p) for p in removed[:5]),
+        )
+    if failed:
+        logger.warning(
+            "Could not recover %d invalid backlog task file(s) in %s: %s",
+            len(failed),
+            repo_path,
+            ", ".join(os.path.basename(p) for p in failed[:5]),
+        )
+    return {"recovered": recovered, "failed": failed, "removed": removed}
+
+
+# ---------------------------------------------------------------------------
 # Aggressive whole-checkout self-heal
 # ---------------------------------------------------------------------------
 #
@@ -931,6 +1116,16 @@ def ensure_repo_sound(
     if repair_repo_backlog_conflicts(repo_path).get("repaired"):
         actions.append("repair-markers")
 
+    # 5b. Detect and recover zero-byte or malformed-frontmatter backlog files.
+    #     These arise after disk-full events and are invisible to the conflict-
+    #     marker scanners above.  Tracked files are restored from HEAD or the
+    #     remote ref; spurious untracked zero-byte files are removed.
+    _invalid_result = recover_invalid_backlog_task_files(repo_path, remote, default_branch)
+    if _invalid_result.get("recovered"):
+        actions.append("recover-invalid")
+    if _invalid_result.get("removed"):
+        actions.append("remove-spurious")
+
     # 6. Make sure we're on the default branch.
     if _current_branch(repo_path) != default_branch:
         if _run_git(["checkout", default_branch], repo_path)[0] == 0:
@@ -952,6 +1147,7 @@ def ensure_repo_sound(
             not list_unmerged_paths(repo_path)
             and _rev_count(repo_path, f"HEAD..{remote_ref}") == 0
             and not inspect_repo_backlog_conflicts(repo_path)
+            and not inspect_repo_invalid_backlog_task_files(repo_path)
             and _current_branch(repo_path) == default_branch
         )
 
@@ -979,10 +1175,15 @@ def ensure_repo_sound(
         _run_git(["reset", "--hard", remote_ref], repo_path)
         actions.append("hard-reset")
         sound = _sound()
+        if not sound:
+            _unrec = list(list_unmerged_paths(repo_path))
+            for p in inspect_repo_invalid_backlog_task_files(repo_path):
+                if p not in _unrec:
+                    _unrec.append(p)
         return {
             "sound": sound,
             "actions": actions,
-            "unrecoverable": [] if sound else list_unmerged_paths(repo_path),
+            "unrecoverable": [] if sound else _unrec,
             "reset": True,
         }
 
@@ -992,6 +1193,10 @@ def ensure_repo_sound(
         f"unsound: dirty/divergent checkout at {repo_path} "
         f"({unpushed} unpushed, dirty={not working_tree_clean})"
     ]
+    # Also include any remaining invalid task files (zero-byte/malformed).
+    for p in inspect_repo_invalid_backlog_task_files(repo_path):
+        if p not in unrec:
+            unrec.append(p)
     logger.warning(
         "Checkout %s not sound; preserving uncommitted/unpushed work and "
         "quarantining (no destructive reset). actions=%s",
