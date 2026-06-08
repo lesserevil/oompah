@@ -2318,6 +2318,211 @@ async def api_issue_full_detail(identifier: str, request: Request):
         )
 
 
+@app.get("/api/v1/issues/{identifier}/release-picks")
+async def api_get_release_picks(identifier: str, request: Request):
+    """Return normalised release-pick metadata for a task.
+
+    Reads ``oompah.backports`` and ``oompah.backport_of`` frontmatter from
+    the task identified by *identifier* and returns a dict with:
+
+    * ``identifier`` — the task identifier.
+    * ``backports`` — list of backport entries, each with ``branch``,
+      ``status``, ``task_id``, ``pr_url``, ``pr_id`` (derived),
+      ``is_valid``, and ``validation_error``.
+    * ``backport_of`` — ``{source, status}`` when this task is a child
+      backport task, otherwise ``null``.
+
+    When *project_id* is supplied as a query parameter the target branches
+    in ``backports`` are validated against the project's configured patterns.
+    """
+    try:
+        from oompah.release_pick_api import get_release_pick_detail
+
+        orch = _get_orchestrator()
+        project_id = request.query_params.get("project_id")
+        tracker, resolved_project_id, issue = _find_tracker_for_issue(
+            orch, identifier, project_id
+        )
+        if tracker is None or issue is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {identifier} not found",
+                    }
+                },
+                status_code=404,
+            )
+        project = None
+        if resolved_project_id:
+            try:
+                project = orch.project_store.get(resolved_project_id)
+            except Exception:
+                project = None
+        result = get_release_pick_detail(tracker, issue.identifier, project=project)
+        return JSONResponse(result)
+    except Exception as exc:
+        logger.error("Release picks GET API error for %s: %s", identifier, exc)
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
+@app.patch("/api/v1/issues/{identifier}/release-picks")
+async def api_update_release_picks(identifier: str, request: Request):
+    """Update release-pick metadata for a task.
+
+    Accepts a JSON body with one of two update modes:
+
+    **Single-entry update** (``branch`` key at root level)::
+
+        {
+            "project_id": "my-project",
+            "branch": "release/1.0",
+            "status": "pr_open",
+            "task_id": "TASK-123.1",
+            "pr_url": "https://github.com/org/repo/pull/42"
+        }
+
+    **Bulk update** (``backports`` list at root level)::
+
+        {
+            "project_id": "my-project",
+            "backports": [
+                {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-123.1"},
+                {"branch": "release/2.0", "status": "waiting"}
+            ]
+        }
+
+    ``project_id`` is **required** for write operations so the server can
+    look up the correct project tracker and validate target branches.
+
+    Returns the updated release-pick detail (same shape as GET).
+    """
+    try:
+        from oompah.release_pick_api import (
+            get_release_pick_detail,
+            update_release_pick_entry,
+            update_release_picks_bulk,
+        )
+
+        # Parse and validate body before touching the orchestrator so that
+        # basic input errors return 400 without requiring a running server.
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {"error": {"code": "validation", "message": f"Invalid JSON: {exc}"}},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "Request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        if not project_id:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "project_id is required for release-pick updates",
+                    }
+                },
+                status_code=400,
+            )
+
+        orch = _get_orchestrator()
+        try:
+            tracker = _get_tracker(orch, project_id)
+        except Exception as exc:
+            return JSONResponse(
+                {"error": {"code": "project_not_found", "message": str(exc)}},
+                status_code=404,
+            )
+
+        project = None
+        try:
+            project = orch.project_store.get(project_id)
+        except Exception:
+            project = None
+
+        # Determine update mode: bulk (backports list) or single-entry
+        backports_list = body.get("backports")
+        if backports_list is not None:
+            # Bulk mode
+            if not isinstance(backports_list, list):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "'backports' must be a list of objects",
+                        }
+                    },
+                    status_code=400,
+                )
+            try:
+                result = update_release_picks_bulk(
+                    tracker,
+                    identifier,
+                    backports=backports_list,
+                    project=project,
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "validation", "message": str(exc)}},
+                    status_code=400,
+                )
+        else:
+            # Single-entry mode — "branch" is required
+            branch = body.get("branch")
+            if not branch:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": (
+                                "Either 'branch' (single-entry mode) or "
+                                "'backports' (bulk mode) is required"
+                            ),
+                        }
+                    },
+                    status_code=400,
+                )
+            try:
+                result = update_release_pick_entry(
+                    tracker,
+                    identifier,
+                    branch=branch,
+                    status=body.get("status"),
+                    task_id=body.get("task_id"),
+                    pr_url=body.get("pr_url"),
+                    project=project,
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "validation", "message": str(exc)}},
+                    status_code=400,
+                )
+
+        # Invalidate any cached detail for this issue
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        return JSONResponse(result)
+    except Exception as exc:
+        logger.error("Release picks PATCH API error for %s: %s", identifier, exc)
+        return JSONResponse(
+            {"error": {"code": "unavailable", "message": str(exc)}},
+            status_code=503,
+        )
+
+
 @app.get("/api/v1/agents/{identifier}/activity")
 async def api_agent_activity(identifier: str):
     """Return the activity log for a running agent."""
