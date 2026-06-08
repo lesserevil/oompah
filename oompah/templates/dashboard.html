@@ -608,6 +608,92 @@
     }
     .comment-input:focus { border-color: var(--accent); }
 
+    /* Release Picks section */
+    .release-picks-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.2rem 0 0.4rem;
+    }
+    .release-pick-entry {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.25rem 0;
+      font-size: 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .release-pick-entry:last-child { border-bottom: none; }
+    .release-pick-branch {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.72rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .release-pick-status {
+      font-size: 0.68rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .release-pick-status-waiting    { background: rgba(125,133,144,0.15); color: var(--text-muted); }
+    .release-pick-status-task_created  { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .release-pick-status-cherry_picking { background: rgba(210,153,34,0.2); color: var(--yellow, #d2a520); }
+    .release-pick-status-pr_open    { background: rgba(63,185,80,0.15); color: var(--green); }
+    .release-pick-status-conflict   { background: rgba(248,81,73,0.15); color: var(--red); }
+    .release-pick-status-merged     { background: rgba(63,185,80,0.2); color: var(--green); }
+    .release-pick-status-archived   { background: rgba(125,133,144,0.1); color: var(--text-muted); }
+    .release-pick-status-needs_human { background: rgba(248,81,73,0.15); color: var(--red); }
+    .release-pick-status-skipped    { background: rgba(125,133,144,0.1); color: var(--text-muted); font-style: italic; }
+    .release-pick-task-link {
+      font-size: 0.72rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .release-pick-task-link:hover { opacity: 0.8; }
+    .release-pick-pr-link {
+      font-size: 0.72rem;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .release-pick-pr-link:hover { text-decoration: underline; }
+    .release-pick-next-action {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-left: auto;
+    }
+    .release-pick-backport-of {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      margin-bottom: 0.35rem;
+    }
+    .release-pick-validation-error {
+      font-size: 0.68rem;
+      color: var(--red, #f85149);
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      width: 100%;
+      margin-top: 0.15rem;
+      flex-basis: 100%;
+    }
+    .release-pick-pr-closed {
+      color: var(--text-muted);
+      text-decoration: line-through;
+      opacity: 0.65;
+    }
+
     /* Agent status bar */
     .agent-bar {
       display: flex;
@@ -3381,6 +3467,106 @@ function refreshOpenDetailPanel() {
   }, 500);
 }
 
+// ---------------------------------------------------------------------------
+// Release Picks helpers (TASK-456.2)
+// ---------------------------------------------------------------------------
+
+function releasePickNextAction(status) {
+  const actions = {
+    'waiting':        'Waiting for source to merge',
+    'task_created':   'Cherry-pick in progress',
+    'cherry_picking': 'Creating PR…',
+    'pr_open':        'Awaiting review',
+    'conflict':       'Resolve conflict and re-pick',
+    'merged':         '',
+    'archived':       '',
+    'needs_human':    'Manual action required',
+    'skipped':        '',
+  };
+  return actions[status] || '';
+}
+
+function renderReleasePicksSection(picksData, identifier, projectId) {
+  const backports = (picksData && picksData.backports) || [];
+  const backportOf = picksData && picksData.backport_of;
+
+  let html = `
+    <div class="detail-field" style="margin-top:0.75rem; border-top:1px solid var(--border); padding-top:0.75rem;">
+      <div class="detail-field-label">Release Picks</div>
+  `;
+
+  if (backportOf) {
+    html += `
+      <div class="release-pick-backport-of">
+        <span style="font-size:0.72rem;color:var(--text-muted);">Backport of</span>
+        <span class="release-pick-task-link" onclick="openDetailPanel('${esc(backportOf.source)}')">${esc(backportOf.source)}</span>
+        <span class="release-pick-status release-pick-status-${esc(backportOf.status)}">${esc(backportOf.status.replace(/_/g, ' '))}</span>
+      </div>
+    `;
+  }
+
+  if (backports.length > 0) {
+    html += '<ul class="release-picks-list">';
+    for (const entry of backports) {
+      const nextAction = releasePickNextAction(entry.status);
+      const taskLink = entry.task_id
+        ? `<span class="release-pick-task-link" onclick="openDetailPanel('${esc(entry.task_id)}')">${esc(entry.task_id)}</span>`
+        : '';
+      // Render PR link with state-aware styling:
+      //   pr_open   -> open PR (active link)
+      //   merged    -> merged PR (success)
+      //   otherwise -> PR was closed without merging
+      let prLink = '';
+      if (entry.pr_url) {
+        const prLabel = `PR #${esc(entry.pr_id || '')}`;
+        if (entry.status === 'pr_open') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-pick-pr-link">${prLabel}</a>`;
+        } else if (entry.status === 'merged') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-pick-pr-link">${prLabel} ✓</a>`;
+        } else {
+          // PR closed without merging (e.g. status reverted to cherry_picking)
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-pick-pr-link release-pick-pr-closed">${prLabel} (closed)</a>`;
+        }
+      }
+      const nextActionHtml = nextAction
+        ? `<span class="release-pick-next-action">${esc(nextAction)}</span>`
+        : '';
+      // Show branch validation error when is_valid is false
+      const validationErrorHtml = !entry.is_valid && entry.validation_error
+        ? `<span class="release-pick-validation-error">⚠ ${esc(entry.validation_error)}</span>`
+        : '';
+      html += `
+        <li class="release-pick-entry">
+          <span class="release-pick-branch">${esc(entry.branch)}</span>
+          <span class="release-pick-status release-pick-status-${esc(entry.status)}">${esc(entry.status.replace(/_/g, ' '))}</span>
+          ${taskLink}${prLink}${nextActionHtml}${validationErrorHtml}
+        </li>
+      `;
+    }
+    html += '</ul>';
+  } else if (!backportOf) {
+    html += '<div style="color:var(--text-muted);font-size:0.75rem;padding:0.2rem 0 0.4rem;">No release picks yet</div>';
+  }
+
+  const safeId  = esc(identifier || '');
+  const safePid = esc(projectId  || '');
+  html += `
+      <button onclick="openAddReleasePicksModal('${safeId}', '${safePid}')" style="margin-top:0.4rem;width:100%;font-size:0.8rem;">+ Add Release Picks</button>
+    </div>
+  `;
+  return html;
+}
+
+function openAddReleasePicksModal(identifier, projectId) {
+  // Full modal implemented by TASK-456.3.
+  // Dispatch a custom event so the modal listener (when present) can open it.
+  document.dispatchEvent(new CustomEvent('oompah:open-add-release-picks', {
+    detail: { identifier, projectId }
+  }));
+}
+
+// ---------------------------------------------------------------------------
+
 async function openDetailPanel(identifier) {
   _openDetailIdentifier = identifier;
   const panel = document.getElementById('detail-panel');
@@ -3393,6 +3579,8 @@ async function openDetailPanel(identifier) {
 
   const issue = allIssuesFlat.find(i => i.identifier === identifier);
   const pidParam = issue && issue.project_id ? `?project_id=${encodeURIComponent(issue.project_id)}` : '';
+  // Start release-picks fetch in parallel; failures are caught and handled below.
+  const _rpFetch = fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/release-picks${pidParam}`).catch(() => null);
   let res;
   try {
     res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail${pidParam}`);
@@ -3405,6 +3593,12 @@ async function openDetailPanel(identifier) {
     return;
   }
   const detail = await res.json();
+  // Settle the release-picks promise (already in-flight; degrade gracefully).
+  let _rpData = null;
+  try {
+    const _rpRes = await _rpFetch;
+    if (_rpRes && _rpRes.ok) { _rpData = await _rpRes.json(); }
+  } catch (_e) {}
   const detailDisplayIdentifier = issueDisplayIdentifier(detail);
   document.getElementById('detail-panel-title').textContent = detailDisplayIdentifier;
   body.dataset.projectId = detail.project_id || '';
@@ -3498,6 +3692,9 @@ async function openDetailPanel(identifier) {
       <button onclick="openCreateDialogForEpic('${esc(detail.id)}')" style="margin-top:0.5rem;width:100%;">+ Create Child</button>
     `;
   }
+
+  // Release Picks section (TASK-456.2)
+  html += renderReleasePicksSection(_rpData, detail.identifier, detail.project_id);
 
   // Comments section
   const comments = detail.comments || [];
@@ -4782,6 +4979,198 @@ function _wireConsoleInputs() {
 initHideMergedToggle();
 _wireConsoleInputs();
 connectWebSocket();
+
+// ---------------------------------------------------------------------------
+// Add Release Picks modal — event-bridge (TASK-456.3)
+//
+// TASK-456.2 exposes openAddReleasePicksModal(id, pid) which dispatches a
+// CustomEvent so that this modal (defined below) can open without creating a
+// circular dependency between the two features.  We listen here and forward
+// the call to the actual open function once the DOM is ready.
+// ---------------------------------------------------------------------------
+document.addEventListener('oompah:open-add-release-picks', function(e) {
+  const { identifier, projectId } = e.detail || {};
+  if (identifier && projectId) {
+    openAddReleasePicksDialog(identifier, projectId);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Add Release Picks modal (TASK-456.3)
+// ---------------------------------------------------------------------------
+//
+// Opens a dialog for choosing cherry-pick strategy, source commit mode, and
+// target release branches. Submits via PATCH /api/v1/issues/{id}/release-picks.
+// ---------------------------------------------------------------------------
+
+let _rpIssueIdentifier = null;
+let _rpProjectId = null;
+let _rpExistingBranches = new Set();
+
+async function openAddReleasePicksDialog(identifier, projectId) {
+  _rpIssueIdentifier = identifier;
+  _rpProjectId = projectId;
+  _rpExistingBranches = new Set();
+
+  const dlg = document.getElementById('add-release-picks-dialog');
+  const branchesList = document.getElementById('rp-branches-list');
+  const errorDiv = document.getElementById('rp-error');
+  errorDiv.style.display = 'none';
+  errorDiv.textContent = '';
+  branchesList.innerHTML = '<span style="color:var(--text-muted);font-size:0.85rem;">Loading branches…</span>';
+  dlg.classList.add('open');
+
+  // Fetch project branches
+  let project;
+  try {
+    const pResp = await fetch(`/api/v1/projects/${encodeURIComponent(projectId)}`);
+    if (!pResp.ok) { throw new Error('project fetch failed'); }
+    project = await pResp.json();
+  } catch (_e) {
+    branchesList.innerHTML = '<span style="color:var(--red);font-size:0.85rem;">Failed to load project branches.</span>';
+    return;
+  }
+
+  // Fetch existing release picks to avoid double-adding
+  try {
+    const picksResp = await fetch(
+      `/api/v1/issues/${encodeURIComponent(identifier)}/release-picks?project_id=${encodeURIComponent(projectId)}`
+    );
+    if (picksResp.ok) {
+      const picks = await picksResp.json();
+      _rpExistingBranches = new Set((picks.backports || []).map(b => b.branch));
+    }
+  } catch (_e) {
+    // non-fatal: proceed without existing pick info
+  }
+
+  // Populate branch checkboxes (exclude the default/source branch)
+  const defaultBranch = project.default_branch || 'main';
+  const releaseBranches = (project.branches || []).filter(b => b !== defaultBranch);
+  branchesList.innerHTML = '';
+
+  if (releaseBranches.length === 0) {
+    branchesList.innerHTML =
+      '<div style="color:var(--text-muted);font-size:0.85rem;">No release branches configured. ' +
+      'Add branch patterns (e.g. <code>release/*</code>) to the project settings.</div>';
+    return;
+  }
+
+  for (const branch of releaseBranches) {
+    const alreadyTracked = _rpExistingBranches.has(branch);
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;cursor:' +
+      (alreadyTracked ? 'default' : 'pointer') + ';user-select:none;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = branch;
+    if (alreadyTracked) {
+      cb.disabled = true;
+      cb.checked = true;
+    }
+    const name = document.createElement('span');
+    name.textContent = branch;
+    name.style.fontSize = '0.85rem';
+    row.appendChild(cb);
+    row.appendChild(name);
+    if (alreadyTracked) {
+      const badge = document.createElement('span');
+      badge.textContent = 'already tracked';
+      badge.style.cssText = 'font-size:0.7rem;color:var(--text-muted);margin-left:0.25rem;';
+      row.appendChild(badge);
+    }
+    branchesList.appendChild(row);
+  }
+
+  // Reset mode and strategy to defaults
+  const scheduleRadio = document.getElementById('rp-mode-schedule');
+  if (scheduleRadio) scheduleRadio.checked = true;
+  const strategySelect = document.getElementById('rp-strategy');
+  if (strategySelect) strategySelect.value = 'pr_commits';
+
+  // Reset submit button
+  const submitBtn = document.getElementById('rp-submit-btn');
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Add Release Picks'; }
+}
+
+function closeAddReleasePicksDialog() {
+  const dlg = document.getElementById('add-release-picks-dialog');
+  if (dlg) dlg.classList.remove('open');
+  _rpIssueIdentifier = null;
+  _rpProjectId = null;
+  _rpExistingBranches = new Set();
+}
+
+async function submitAddReleasePicksDialog() {
+  const identifier = _rpIssueIdentifier;
+  const projectId = _rpProjectId;
+  if (!identifier || !projectId) return;
+
+  const submitBtn = document.getElementById('rp-submit-btn');
+  const errorDiv = document.getElementById('rp-error');
+  errorDiv.style.display = 'none';
+  errorDiv.textContent = '';
+
+  // Collect selected (non-disabled) branch checkboxes
+  const checkedBoxes = document.querySelectorAll(
+    '#rp-branches-list input[type="checkbox"]:checked:not(:disabled)'
+  );
+  const selectedBranches = Array.from(checkedBoxes).map(cb => cb.value);
+
+  if (selectedBranches.length === 0) {
+    errorDiv.textContent = 'Select at least one target branch.';
+    errorDiv.style.display = 'block';
+    return;
+  }
+
+  // Determine status from mode radio
+  const modeEl = document.querySelector('input[name="rp-mode"]:checked');
+  const mode = modeEl ? modeEl.value : 'schedule';
+  const status = mode === 'create' ? 'task_created' : 'waiting';
+
+  // Cherry-pick strategy (extra metadata for future automation)
+  const strategyEl = document.getElementById('rp-strategy');
+  const strategy = strategyEl ? strategyEl.value : 'pr_commits';
+
+  const backports = selectedBranches.map(branch => ({ branch, status, strategy }));
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Adding…';
+
+  try {
+    const resp = await fetch(
+      `/api/v1/issues/${encodeURIComponent(identifier)}/release-picks`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId, backports }),
+      }
+    );
+
+    if (!resp.ok) {
+      let message = 'Failed to add release picks.';
+      try {
+        const errBody = await resp.json();
+        message = errBody?.error?.message || message;
+      } catch (_e) { /* non-JSON response */ }
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Add Release Picks';
+      return;
+    }
+
+    closeAddReleasePicksDialog();
+    // Refresh detail panel if it's currently showing this issue
+    if (_openDetailIdentifier) await openDetailPanel(_openDetailIdentifier);
+
+  } catch (_e) {
+    errorDiv.textContent = 'Network error — could not add release picks.';
+    errorDiv.style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Add Release Picks';
+  }
+}
 </script>
 
 <div class="dialog-overlay" id="create-dialog" onclick="if(event.target===this)closeCreateDialog()">
@@ -4907,5 +5296,58 @@ connectWebSocket();
     </div>
   </div>
 </div>
+<!-- Add Release Picks modal (TASK-456.3) -->
+<div class="dialog-overlay" id="add-release-picks-dialog"
+     onclick="if(event.target===this)closeAddReleasePicksDialog()"
+     role="dialog" aria-modal="true" aria-labelledby="rp-dialog-title">
+  <div class="dialog" style="width:500px;max-width:92vw;">
+    <h2 id="rp-dialog-title">Add Release Picks</h2>
+
+    <label for="rp-strategy">Cherry-pick Strategy</label>
+    <select id="rp-strategy">
+      <option value="pr_commits">All commits from source PR (default)</option>
+      <option value="single">Latest single commit only</option>
+      <option value="manual">Manual — automation will resolve</option>
+    </select>
+
+    <label>When to create picks</label>
+    <div style="display:flex;flex-direction:column;gap:0.35rem;margin-top:0.25rem;">
+      <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:0.85rem;color:var(--text);cursor:pointer;font-weight:normal;margin-top:0;">
+        <input type="radio" name="rp-mode" id="rp-mode-schedule" value="schedule" checked
+               style="margin-top:0.15rem;flex-shrink:0;">
+        <span>
+          <strong>Schedule (before source merge)</strong><br>
+          <span style="color:var(--text-muted);">Marks target branches as waiting — automation cherry-picks after the source PR merges.</span>
+        </span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:0.85rem;color:var(--text);cursor:pointer;font-weight:normal;margin-top:0;">
+        <input type="radio" name="rp-mode" id="rp-mode-create" value="create"
+               style="margin-top:0.15rem;flex-shrink:0;">
+        <span>
+          <strong>Create now (source already merged)</strong><br>
+          <span style="color:var(--text-muted);">Immediately queues child tasks for cherry-picking the already-merged source.</span>
+        </span>
+      </label>
+    </div>
+
+    <label>Target Release Branches</label>
+    <div id="rp-branches-list"
+         style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;
+                padding:0.5rem 0.75rem;background:var(--bg);margin-top:0.25rem;">
+      <span style="color:var(--text-muted);font-size:0.85rem;">Loading…</span>
+    </div>
+
+    <div id="rp-error"
+         style="display:none;color:var(--red);font-size:0.82rem;margin-top:0.5rem;"></div>
+
+    <div class="dialog-actions">
+      <button onclick="closeAddReleasePicksDialog()">Cancel</button>
+      <button class="btn-primary" id="rp-submit-btn" onclick="submitAddReleasePicksDialog()">
+        Add Release Picks
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

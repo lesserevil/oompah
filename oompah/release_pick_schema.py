@@ -107,6 +107,8 @@ class ReleasePick(str, Enum):
     ARCHIVED = "archived"
     #: Stuck; manual human intervention required before automation can proceed.
     NEEDS_HUMAN = "needs_human"
+    #: Intentionally excluded from backporting (operator-set; no automation will act on it).
+    SKIPPED = "skipped"
 
     @classmethod
     def from_raw(cls, raw: Any) -> "ReleasePick":
@@ -149,6 +151,7 @@ class ReleasePick(str, Enum):
 _TERMINAL_STATUSES: frozenset[ReleasePick] = frozenset({
     ReleasePick.MERGED,
     ReleasePick.ARCHIVED,
+    ReleasePick.SKIPPED,
 })
 
 _BLOCKED_STATUSES: frozenset[ReleasePick] = frozenset({
@@ -164,17 +167,20 @@ VALID_TRANSITIONS: dict[ReleasePick, frozenset[ReleasePick]] = {
         ReleasePick.TASK_CREATED,
         ReleasePick.ARCHIVED,
         ReleasePick.NEEDS_HUMAN,
+        ReleasePick.SKIPPED,
     }),
     ReleasePick.TASK_CREATED: frozenset({
         ReleasePick.CHERRY_PICKING,
         ReleasePick.ARCHIVED,
         ReleasePick.NEEDS_HUMAN,
+        ReleasePick.SKIPPED,
     }),
     ReleasePick.CHERRY_PICKING: frozenset({
         ReleasePick.PR_OPEN,
         ReleasePick.CONFLICT,
         ReleasePick.ARCHIVED,
         ReleasePick.NEEDS_HUMAN,
+        ReleasePick.SKIPPED,
     }),
     ReleasePick.PR_OPEN: frozenset({
         ReleasePick.MERGED,
@@ -182,17 +188,21 @@ VALID_TRANSITIONS: dict[ReleasePick, frozenset[ReleasePick]] = {
         ReleasePick.CONFLICT,
         ReleasePick.ARCHIVED,
         ReleasePick.NEEDS_HUMAN,
+        ReleasePick.SKIPPED,
     }),
     ReleasePick.CONFLICT: frozenset({
         ReleasePick.CHERRY_PICKING,   # conflict resolved, retry
         ReleasePick.NEEDS_HUMAN,
         ReleasePick.ARCHIVED,
+        ReleasePick.SKIPPED,
     }),
     ReleasePick.MERGED: frozenset(),          # terminal — no forward transitions
     ReleasePick.ARCHIVED: frozenset(),        # terminal — no forward transitions
+    ReleasePick.SKIPPED: frozenset(),         # terminal — no forward transitions
     ReleasePick.NEEDS_HUMAN: frozenset({
         ReleasePick.CHERRY_PICKING,   # operator resolved, retry
         ReleasePick.ARCHIVED,
+        ReleasePick.SKIPPED,
     }),
 }
 
