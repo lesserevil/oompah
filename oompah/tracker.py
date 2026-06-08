@@ -13,6 +13,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable, Protocol, runtime_checkable
 
 import yaml
 
@@ -195,6 +196,184 @@ def _write_attachments_manifest(
             exc,
         )
 
+
+@runtime_checkable
+class TrackerProtocol(Protocol):
+    """Common interface that every oompah tracker adapter must satisfy.
+
+    All operations used by the orchestrator, server, watchers, prompts, and
+    attachments are declared here.  Both ``BacklogMdTracker`` and any future
+    adapter (e.g. ``GitHubIssueTracker``) must implement every method in this
+    protocol so that callers can depend on the protocol rather than a concrete
+    class.
+
+    Methods that are specific to a single backend (such as
+    ``BacklogMdTracker.task_file_path`` and ``.root_path``) are intentionally
+    excluded; callers that need them should narrow the type with
+    ``isinstance(..., BacklogMdTracker)`` as appropriate.
+    """
+
+    # ------------------------------------------------------------------
+    # Issue reads
+    # ------------------------------------------------------------------
+
+    def fetch_candidate_issues(self) -> list[Issue]:
+        """Return issues in active (dispatchable) states, sorted for dispatch."""
+        ...
+
+    def fetch_all_issues(self) -> list[Issue]:
+        """Return all issues regardless of state."""
+        ...
+
+    def fetch_all_issues_enriched(self) -> list[Issue]:
+        """Return all issues with full detail (may make extra API calls)."""
+        ...
+
+    def fetch_issue_detail(self, identifier: str) -> Issue | None:
+        """Return a single issue by identifier, or None if not found."""
+        ...
+
+    def fetch_children(self, epic_id: str) -> list[Issue]:
+        """Return child issues that reference the given parent identifier."""
+        ...
+
+    def fetch_comments(self, identifier: str) -> list[dict]:
+        """Return all comments on an issue as a list of dicts."""
+        ...
+
+    def fetch_issues_by_states(self, state_names: list[str]) -> list[Issue]:
+        """Return all issues whose state matches any of the given names."""
+        ...
+
+    def fetch_issues_by_labels(
+        self,
+        labels: list[str],
+        *,
+        states: list[str] | None = None,
+    ) -> list[Issue]:
+        """Return issues matching all labels and an optional state filter."""
+        ...
+
+    def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
+        """Return current state snapshots for the given identifiers."""
+        ...
+
+    def fetch_memories(self) -> dict[str, str]:
+        """Return backend-specific memory key/value pairs (may be empty)."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Issue mutations
+    # ------------------------------------------------------------------
+
+    def create_issue(
+        self,
+        title: str,
+        issue_type: str = "task",
+        description: str | None = None,
+        priority: int | None = None,
+        initial_status: str | None = None,
+        labels: list[str] | None = None,
+        parent: str | None = None,
+    ) -> Issue:
+        """Create a new issue and return the normalized Issue record."""
+        ...
+
+    def update_issue(self, identifier: str, **fields: str) -> None:
+        """Update one or more fields on an existing issue."""
+        ...
+
+    def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
+        """Move an issue to the first configured terminal state."""
+        ...
+
+    def reopen_issue(self, identifier: str) -> None:
+        """Move an issue back to the first configured active state."""
+        ...
+
+    def archive_issue(self, identifier: str) -> None:
+        """Archive an issue (backend-specific semantics)."""
+        ...
+
+    def mark_needs_human(
+        self, identifier: str, comment: str, author: str = "oompah"
+    ) -> None:
+        """Move an issue to Needs Human and post the actionable comment."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Comments
+    # ------------------------------------------------------------------
+
+    def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
+        """Append a comment to an issue and return the comment dict."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Labels
+    # ------------------------------------------------------------------
+
+    def add_label(self, identifier: str, label: str) -> None:
+        """Add a label to an issue."""
+        ...
+
+    def remove_label(self, identifier: str, label: str) -> None:
+        """Remove a label from an issue (no-op if label is absent)."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Hierarchy and dependencies
+    # ------------------------------------------------------------------
+
+    def add_parent_child(self, child_id: str, parent_id: str) -> None:
+        """Link a child issue to a parent issue."""
+        ...
+
+    def add_dependency(self, blocked_id: str, blocker_id: str) -> None:
+        """Record that blocked_id depends on blocker_id."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Attachments
+    # ------------------------------------------------------------------
+
+    def fetch_attachments(self, identifier: str) -> list[dict]:
+        """Return rich attachment records for an issue."""
+        ...
+
+    def set_attachments(
+        self,
+        identifier: str,
+        attachments: list[dict],
+        *,
+        project_root: str | None = None,
+    ) -> None:
+        """Replace the attachment records for an issue."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Metadata
+    # ------------------------------------------------------------------
+
+    def get_metadata(self, identifier: str) -> dict[str, object]:
+        """Return oompah-owned metadata fields for an issue."""
+        ...
+
+    def set_metadata_field(self, identifier: str, key: str, value: object) -> None:
+        """Set one oompah-owned metadata field on an issue."""
+        ...
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def is_archived(self, issue: Issue) -> bool:
+        """Return True when the issue should be considered archived."""
+        ...
+
+    def invalidate_read_cache(self) -> None:
+        """Invalidate any cached reads so the next fetch returns fresh data."""
+        ...
 
 
 class BacklogMdTracker:
@@ -1366,3 +1545,45 @@ def _parse_timestamp(value) -> datetime | None:
         return datetime.fromisoformat(s)
     except (ValueError, TypeError):
         return None
+
+
+# ---------------------------------------------------------------------------
+# Adapter registry
+# ---------------------------------------------------------------------------
+
+#: Type alias for a tracker factory callable.
+#: A factory takes ``active_states``, ``terminal_states``, and an optional
+#: ``cwd`` keyword argument and returns a :class:`TrackerProtocol` instance.
+#: Additional keyword arguments may be accepted for future extensibility.
+TrackerFactory = Callable[..., TrackerProtocol]
+
+
+def _backlog_md_factory(
+    active_states: list[str],
+    terminal_states: list[str],
+    cwd: str | None = None,
+    **kwargs: object,
+) -> BacklogMdTracker:
+    """Factory for the Backlog.md tracker adapter."""
+    return BacklogMdTracker(
+        active_states=active_states,
+        terminal_states=terminal_states,
+        cwd=cwd,
+    )
+
+
+#: Adapter registry — maps a normalised ``tracker.kind`` string to a
+#: :data:`TrackerFactory` callable.
+#:
+#: The orchestrator uses this registry to instantiate the correct tracker for
+#: each project.  Unknown kinds are rejected by
+#: :func:`oompah.config.validate_dispatch_config` with a descriptive error that
+#: lists the registered adapters.
+#:
+#: Third-party adapters can extend this dict at import time::
+#:
+#:     from oompah.tracker import ADAPTER_REGISTRY
+#:     ADAPTER_REGISTRY["my_tracker"] = my_factory_function
+ADAPTER_REGISTRY: dict[str, TrackerFactory] = {
+    "backlog_md": _backlog_md_factory,
+}

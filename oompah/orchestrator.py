@@ -75,9 +75,11 @@ from oompah.roles import CandidateSelector, RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
-    BacklogMdTracker,
+    ADAPTER_REGISTRY,
+    BacklogMdTracker,  # kept for isinstance narrowing and external back-compat
     TrackerError,
     TrackerNotConfiguredError,
+    TrackerProtocol,
     TrackerTimeoutError,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
@@ -468,7 +470,7 @@ class Orchestrator:
         # Legacy single tracker (used when no projects configured)
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
-        self._project_trackers: dict[str, BacklogMdTracker] = {}
+        self._project_trackers: dict[str, TrackerProtocol] = {}
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -1048,15 +1050,30 @@ class Orchestrator:
 
     def _new_tracker(
         self, cwd: str | None = None,
-    ) -> BacklogMdTracker:
-        """Construct the Backlog.md tracker adapter."""
-        return BacklogMdTracker(
+    ) -> TrackerProtocol:
+        """Construct a tracker adapter for the configured tracker.kind.
+
+        The factory is looked up in :data:`oompah.tracker.ADAPTER_REGISTRY`
+        using the normalised ``tracker.kind`` from the service config.  An
+        unrecognised kind raises :class:`TrackerError`; callers should treat
+        that as a configuration error (``validate_dispatch_config`` will have
+        already reported it during startup).
+        """
+        kind = self.config.tracker_kind
+        factory = ADAPTER_REGISTRY.get(kind)
+        if factory is None:
+            registered = sorted(ADAPTER_REGISTRY)
+            raise TrackerError(
+                f"Unsupported tracker.kind: {kind!r}."
+                f" Registered adapters: {registered}"
+            )
+        return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
             cwd=cwd,
         )
 
-    def _tracker_for_project(self, project_id: str) -> BacklogMdTracker:
+    def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
         """Get or create a tracker for a project."""
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
@@ -1067,7 +1084,7 @@ class Orchestrator:
         self._project_trackers[project_id] = tracker
         return tracker
 
-    def _tracker_for_issue(self, issue: Issue) -> BacklogMdTracker:
+    def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue (project-specific or legacy)."""
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
@@ -2473,7 +2490,7 @@ class Orchestrator:
         """
         out: list[Issue] = []
         projects = self.project_store.list_all()
-        trackers: list[tuple[str | None, BacklogMdTracker]] = []
+        trackers: list[tuple[str | None, TrackerProtocol]] = []
         if projects:
             for p in projects:
                 try:
@@ -5077,7 +5094,7 @@ class Orchestrator:
 
     def _mark_stale_in_review_merged(
         self,
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         issue: Issue,
         branch: str,
     ) -> None:
@@ -5098,7 +5115,7 @@ class Orchestrator:
 
     def _mark_stale_in_review_needs_human(
         self,
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         issue: Issue,
         branch: str,
         target_branch: str,
@@ -5130,7 +5147,7 @@ class Orchestrator:
 
     def _reopen_stale_in_review_task(
         self,
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         issue: Issue,
         branch: str,
         target_branch: str,
@@ -11975,7 +11992,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self,
         parent_issue: Issue,
         tasks: list[dict],
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         project_id: str | None,
     ) -> None:
         """Create child issues from a decomposition plan."""
@@ -12410,7 +12427,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if canonicalize_status(s) != ARCHIVED
         ]
 
-        trackers: list[tuple[str | None, BacklogMdTracker]] = []
+        trackers: list[tuple[str | None, TrackerProtocol]] = []
         if projects:
             for project in projects:
                 try:

@@ -747,12 +747,18 @@ class ServiceConfig:
 
 def validate_dispatch_config(config: ServiceConfig) -> list[str]:
     """Validate config for dispatch readiness. Returns list of error strings."""
+    from oompah.tracker import ADAPTER_REGISTRY
+
     errors: list[str] = []
 
     if not config.tracker_kind:
         errors.append("tracker.kind is required")
-    elif _parse_tracker_kind(config.tracker_kind) != "backlog_md":
-        errors.append(f"Unsupported tracker.kind: {config.tracker_kind}")
+    elif _parse_tracker_kind(config.tracker_kind) not in ADAPTER_REGISTRY:
+        registered = sorted(ADAPTER_REGISTRY)
+        errors.append(
+            f"Unsupported tracker.kind: {config.tracker_kind!r}."
+            f" Registered adapters: {registered}"
+        )
 
     if not config.agent_command:
         errors.append("codex.command (agent_command) must be non-empty")

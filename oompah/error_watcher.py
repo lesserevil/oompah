@@ -26,7 +26,7 @@ from pathlib import Path
 
 from watchfiles import awatch
 
-from oompah.tracker import BacklogMdTracker
+from oompah.tracker import BacklogMdTracker, TrackerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -91,13 +91,14 @@ def _git_toplevel(path: Path) -> Path | None:
 
 
 def _persist_error_task_to_git(
-    tracker: BacklogMdTracker,
+    tracker: TrackerProtocol,
     identifier: str,
 ) -> bool:
     """Commit and push the Backlog.md file for an ErrorWatcher-created task.
 
-    Returns True only when a commit was created and pushed. All failures are
-    best-effort and reported to the logger by the caller.
+    This is a Backlog.md-specific operation; for other tracker backends it is
+    a no-op.  Returns True only when a commit was created and pushed.  All
+    failures are best-effort and reported to the logger by the caller.
     """
     if not isinstance(tracker, BacklogMdTracker):
         return False
@@ -221,7 +222,7 @@ class ErrorWatcher:
     explicit error reports (e.g. from a frontend error endpoint).
     """
 
-    def __init__(self, tracker: BacklogMdTracker, project_id: str | None = None):
+    def __init__(self, tracker: TrackerProtocol, project_id: str | None = None):
         self._tracker = tracker
         self._project_id = project_id
         self._seen: dict[str, _ErrorRecord] = {}
