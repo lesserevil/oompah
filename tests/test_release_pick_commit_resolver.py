@@ -94,7 +94,7 @@ def _make_scm(
     if commits_raises is not None:
         scm.get_pr_commits.side_effect = commits_raises
     else:
-        scm.get_pr_commits.return_value = list(commits or ["abc123", "def456"])
+        scm.get_pr_commits.return_value = list(commits) if commits is not None else ["abc123", "def456"]
 
     return scm
 
