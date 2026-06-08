@@ -85,3 +85,9 @@ Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Log: TASK-465.1__20260608T190627Z.jsonl
 <!-- COMMENT:END -->
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Instrumented _tick() and _handle_dispatch_needed() with fine-grained substep telemetry. _handle_dispatch_needed() now returns dict[str,float] with 10 substep timing keys. _tick() stores full breakdown in _last_tick_timings including watchdog_ms and heal_ms. Slow-tick log includes inline dispatch substep detail. get_snapshot() exposes tick_timings for dashboard (numeric only, no secrets). New test file tests/test_orchestrator_tick_telemetry.py with 34 tests covering all 3 acceptance criteria. All 178 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

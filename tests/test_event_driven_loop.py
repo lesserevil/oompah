@@ -404,15 +404,22 @@ class TestRunEventDrivenLoop:
         # At minimum the startup tick should have been called
         assert orch._tick.call_count >= 1
 
-    def test_run_coalesces_queued_events_into_one_tick(self, tmp_path, event_loop):
-        """run() drains queued bursts before calling _tick()."""
+    def test_run_calls_tick_for_queued_events(self, tmp_path, event_loop):
+        """run() calls _tick() for queued events.
+
+        Events posted synchronously (without yielding) may be coalesced:
+        two simultaneous events result in at least one event tick, not
+        necessarily two separate ticks.  See TASK-465.2 for the coalescing
+        contract.
+        """
         orch = self._make_orch_with_mocked_tick(tmp_path)
 
         async def _run_and_stop():
             async def _feed_events():
                 # Wait for loop to start
                 await asyncio.sleep(0.01)
-                # Post two events then stop
+                # Post two events back-to-back (no yield between them).
+                # With coalescing they may merge into a single dispatch pass.
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED))
                 orch._post_event(DispatchEvent(event_type=DispatchEventType.WORKER_EXIT))
                 await asyncio.sleep(0.05)
@@ -423,8 +430,43 @@ class TestRunEventDrivenLoop:
             await asyncio.gather(orch.run(), _feed_events())
 
         event_loop.run_until_complete(_run_and_stop())
-        # Startup tick + at least one event tick for the queued burst.
+        # Startup tick + at least 1 event tick (2 events may coalesce into 1).
         assert orch._tick.call_count >= 2
+
+    def test_run_coalesces_burst_events_into_fewer_ticks(self, tmp_path, event_loop):
+        """Events posted synchronously (no yield between them) coalesce into one tick.
+
+        This verifies TASK-465.2 acceptance criterion #3: repeated tick requests
+        coalesce instead of piling up unbounded full-tick work.  Five events
+        posted without yielding should result in fewer than 5+1=6 ticks.
+        """
+        orch = self._make_orch_with_mocked_tick(tmp_path)
+
+        async def _run_and_stop():
+            async def _feed_burst():
+                # Wait for loop to start.
+                await asyncio.sleep(0.01)
+                # Post 5 events without yielding between them.
+                for _ in range(5):
+                    orch._post_event(
+                        DispatchEvent(event_type=DispatchEventType.REFRESH_REQUESTED)
+                    )
+                # Give the loop time to process them.
+                await asyncio.sleep(0.08)
+                orch._stopping = True
+                orch._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
+
+            await asyncio.gather(orch.run(), _feed_burst())
+
+        event_loop.run_until_complete(_run_and_stop())
+        # Without coalescing we'd expect 1 (startup) + 5 (individual events) = 6.
+        # With coalescing the burst collapses: expect at most 3 total ticks.
+        assert orch._tick.call_count < 6, (
+            f"Expected coalescing to reduce tick count below 6, got {orch._tick.call_count}"
+        )
+        # But the loop must have run at least once (startup + some event tick).
+        assert orch._tick.call_count >= 2
+
 
     def test_run_stops_when_stopping_is_set(self, tmp_path, event_loop):
         """run() exits cleanly when _stopping is set."""

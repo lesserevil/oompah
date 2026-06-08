@@ -250,6 +250,33 @@ class DispatchEventType(str, Enum):
     FULL_SYNC = "full_sync"
 
 
+class DispatchLane(str, Enum):
+    """Lane identifiers for the orchestrator's two work channels.
+
+    The dispatch contract keeps candidate claiming and agent startup on a
+    single serialized lane (DISPATCH), while non-critical maintenance sweeps
+    run on a separate bounded lane (MAINTENANCE).  Lane names are stable
+    string constants used in comments, log messages, and tests so the
+    ownership rules are explicit and greppable.
+
+    DISPATCH:
+        Serialized, single-owner.  Candidate selection, issue claiming, and
+        ``_dispatch()`` run exclusively here.  Concurrent wakeups block until
+        the active pass completes (guarded by ``_dispatch_lane_lock``).
+
+    MAINTENANCE:
+        Bounded concurrency.  Non-critical sweeps — staleness checks, rebase
+        filing, orphan reset, watchdog, and repo self-heal — run here.
+        Maintenance work does **not** hold the dispatch lock except where its
+        output is required for correctness before the dispatch pass runs (e.g.
+        blocker pre-resolution happens before candidate selection but is still
+        part of the serialized dispatch pass).
+    """
+
+    DISPATCH = "dispatch"
+    MAINTENANCE = "maintenance"
+
+
 @dataclass
 class DispatchEvent:
     """A single event driving the orchestrator's dispatch loop.
@@ -720,6 +747,18 @@ class Orchestrator:
         # a nested "dispatch_substeps" dict with per-substep ms timings.
         # Empty until the first tick completes.
         self._last_tick_timings: dict[str, object] = {}
+
+        # Dispatch lane serialization contract (TASK-465.2).
+        # _dispatch_lane_lock serializes the DISPATCH lane: only one
+        # _handle_dispatch_needed() pass can run at a time, ensuring
+        # candidate selection and _dispatch() are single-owner.
+        # See DispatchLane for the full contract documentation.
+        self._dispatch_lane_lock: asyncio.Lock = asyncio.Lock()
+
+        # Tick-event coalescing counter (TASK-465.2).
+        # Counts events that were drained from the dispatch queue and coalesced
+        # into the current tick so slow-tick logs can report burst size.
+        self._last_coalesced_event_count: int = 0
 
         # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
         # the dashboard shows a banner whenever WORKFLOW.md still has a
@@ -1715,6 +1754,8 @@ class Orchestrator:
                         break
                     self._mark_dispatch_event_dequeued(extra)
                     drained += 1
+                # Track coalesced count for dashboard snapshots (TASK-465.2).
+                self._last_coalesced_event_count = drained
                 if drained:
                     logger.debug("Coalesced %d queued dispatch event(s)", drained)
 
@@ -1750,7 +1791,9 @@ class Orchestrator:
         DISPATCH lane (serialized, single-owner):
           1. _handle_reconcile()        — stall detection + tracker state refresh
           2. _handle_review_check()     — forge API: reviews + merged branches
-          3. _handle_dispatch_needed()  — candidates fetch, blocker resolution, dispatch
+          3. _handle_dispatch_needed()  — candidate fetch, blocker resolution,
+                                          selection, and _dispatch(); guarded by
+                                          ``_dispatch_lane_lock``.
 
         Supporting steps (not lane-gated):
           4. _handle_yolo_review()      — YOLO merge actions only.
@@ -1800,7 +1843,9 @@ class Orchestrator:
         await self._handle_review_check()
         t2 = time.monotonic()
 
-        # 4. Fetch candidates and dispatch eligible issues
+        # 4. DISPATCH LANE — fetch candidates and dispatch eligible issues.
+        # _handle_dispatch_needed() acquires _dispatch_lane_lock for its full
+        # duration so no second selection pass can start concurrently.
         t3_start = time.monotonic()
         dispatch_timings = await self._handle_dispatch_needed()
         t3 = time.monotonic()
@@ -1820,7 +1865,7 @@ class Orchestrator:
             yolo_ms = float(yolo_result)
         t4 = time.monotonic()
 
-        # 5a. Watchdog: detect and fix stuck issues (periodic, lightweight).
+        # 5a. MAINTENANCE LANE — watchdog: detect and fix stuck issues.
         # Offloaded to the tick thread pool to keep the event loop unblocked —
         # the four sub-checks iterate _last_candidates and may issue bd CLI
         # calls per stuck issue, which can block 200ms-2s. Safe because
@@ -1879,6 +1924,8 @@ class Orchestrator:
         }
 
         # Store per-substep telemetry for dashboard snapshots (TASK-465.1).
+        # Also record the number of coalesced events (TASK-465.2) so operators
+        # can see burst size when diagnosing tick latency.
         self._last_tick_timings = {
             "reconcile_ms": (t1 - t0) * 1000,
             "reviews_ms": (t2 - t1) * 1000,
@@ -1890,6 +1937,7 @@ class Orchestrator:
             "heal_ms": heal_ms,
             "total_ms": total_ms,
             "dispatch_substeps": dispatch_timings,
+            "coalesced_events": self._last_coalesced_event_count,
         }
         if total_ms > 2000:
             _dispatch_detail = " ".join(
@@ -2089,11 +2137,21 @@ class Orchestrator:
     async def _handle_dispatch_needed(self) -> dict[str, float]:
         """Fetch candidates, resolve blockers, and dispatch eligible issues.
 
+        Runs exclusively on the DISPATCH lane (``DispatchLane.DISPATCH``).
+        Acquires ``_dispatch_lane_lock`` for the full duration so that no
+        two dispatch selection passes can run concurrently — candidate
+        selection and ``_dispatch()`` are always single-owner.
+
         Returns a dict mapping substep name → elapsed milliseconds so the
         caller (_tick) can include per-substep timings in slow-tick logs and
         the dashboard snapshot.  Keys are stable; callers must tolerate new
         keys being added in future versions.
         """
+        async with self._dispatch_lane_lock:
+            return await self._handle_dispatch_needed_locked()
+
+    async def _handle_dispatch_needed_locked(self) -> dict[str, float]:
+        """Inner body of _handle_dispatch_needed; called with _dispatch_lane_lock held."""
         timings: dict[str, float] = {}
         self._blocker_state_cache = {}  # reset per fetch cycle
         loop = asyncio.get_event_loop()
