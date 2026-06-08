@@ -193,6 +193,23 @@ def test_fetch_all_issues_includes_completed_folder(tmp_path):
     assert {issue.identifier for issue in issues} == {"TASK-1", "TASK-2"}
 
 
+def test_read_stats_records_parse_and_cache_hit(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Open task")
+    tracker = _tracker(tmp_path)
+
+    tracker.fetch_all_issues()
+    first = tracker.read_stats()
+    tracker.fetch_all_issues()
+    second = tracker.read_stats()
+
+    assert first["cache_hit"] is False
+    assert first["record_count"] == 1
+    assert first["duration_ms"] >= 0
+    assert second["cache_hit"] is True
+    assert second["record_count"] == 1
+
+
 def test_fetch_issue_detail_and_comments(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "With comments", comments=True)

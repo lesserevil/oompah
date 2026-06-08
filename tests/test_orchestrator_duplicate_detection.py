@@ -6,7 +6,7 @@ Tests that find_similar_issues() is wired into the orchestrator dispatch flow:
 - _should_dispatch rejects duplicate-candidate labelled issues
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -436,3 +436,56 @@ class TestEndToEndDispatchFlow:
         assert focus.name == "duplicate_detector", (
             f"Expected duplicate_detector focus, got {focus.name}"
         )
+
+
+class TestDispatchResponsivenessLimits:
+    """Dispatch loops should bound work per tick under large candidate sets."""
+
+    def test_select_dispatchable_respects_scan_limit(self):
+        from oompah.orchestrator import Orchestrator
+        from oompah.config import ServiceConfig
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = ServiceConfig(dispatch_scan_limit=3, dispatch_ready_buffer=0)
+        orch.state = MagicMock()
+        orch.state.running = {}
+        orch.state.claimed = set()
+        orch.state.retry_attempts = {}
+        orch._available_slots = lambda: 2
+        orch._should_dispatch = MagicMock(return_value=False)
+
+        candidates = [
+            _make_issue(identifier=f"TASK-{i}", title=f"unique task {i}")
+            for i in range(10)
+        ]
+
+        ready = orch._select_dispatchable(candidates)
+
+        assert ready == []
+        assert orch._should_dispatch.call_count == 3
+        assert orch._last_selection_metrics["scanned_count"] == 3
+        assert orch._last_selection_metrics["deferred_count"] == 7
+
+    def test_duplicate_detection_respects_candidate_limit(self):
+        from oompah.orchestrator import Orchestrator
+        from oompah.config import ServiceConfig
+
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = ServiceConfig(duplicate_detection_candidate_limit=2)
+        orch.project_store = MagicMock()
+        orch.project_store.list_all.return_value = []
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues_by_states.return_value = []
+
+        candidates = [
+            _make_issue(identifier=f"TASK-{i}", title=f"unique task {i}", project_id=None)
+            for i in range(5)
+        ]
+
+        with patch("oompah.orchestrator.find_similar_issues", return_value=[]) as find:
+            result = orch._apply_duplicate_detection(candidates)
+
+        assert result == candidates
+        assert find.call_count == 2
+        assert orch._last_duplicate_detection_metrics["scanned_count"] == 2
+        assert orch._last_duplicate_detection_metrics["deferred_count"] == 3

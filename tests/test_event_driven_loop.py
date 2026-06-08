@@ -168,11 +168,12 @@ class TestPostEvent:
         assert got1.event_type == DispatchEventType.REFRESH_REQUESTED
         assert got2.event_type == DispatchEventType.WORKER_EXIT
 
-    def test_multiple_events_accumulate(self, tmp_path):
+    def test_duplicate_events_coalesce(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         for _ in range(5):
             orch._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
-        assert orch._dispatch_queue.qsize() == 5
+        assert orch._dispatch_queue.qsize() == 1
+        assert orch._dispatch_events_coalesced == 4
 
 
 # ---------------------------------------------------------------------------
@@ -403,8 +404,8 @@ class TestRunEventDrivenLoop:
         # At minimum the startup tick should have been called
         assert orch._tick.call_count >= 1
 
-    def test_run_calls_tick_per_queue_event(self, tmp_path, event_loop):
-        """run() calls _tick() for each event dequeued."""
+    def test_run_coalesces_queued_events_into_one_tick(self, tmp_path, event_loop):
+        """run() drains queued bursts before calling _tick()."""
         orch = self._make_orch_with_mocked_tick(tmp_path)
 
         async def _run_and_stop():
@@ -422,8 +423,8 @@ class TestRunEventDrivenLoop:
             await asyncio.gather(orch.run(), _feed_events())
 
         event_loop.run_until_complete(_run_and_stop())
-        # Startup tick + at least 2 event ticks (REFRESH_REQUESTED, WORKER_EXIT)
-        assert orch._tick.call_count >= 3
+        # Startup tick + at least one event tick for the queued burst.
+        assert orch._tick.call_count >= 2
 
     def test_run_stops_when_stopping_is_set(self, tmp_path, event_loop):
         """run() exits cleanly when _stopping is set."""
@@ -458,13 +459,14 @@ class TestRunEventDrivenLoop:
 
         event_loop.run_until_complete(_run_for_a_bit())
 
-        # Should have received at least 2 FULL_SYNC events (50ms interval, 200ms wait)
+        # Repeated FULL_SYNC wakeups coalesce while one is already pending.
         events = []
         while not orch._dispatch_queue.empty():
             events.append(orch._dispatch_queue.get_nowait())
 
         full_sync_events = [e for e in events if e.event_type == DispatchEventType.FULL_SYNC]
-        assert len(full_sync_events) >= 2
+        assert len(full_sync_events) == 1
+        assert orch._dispatch_events_coalesced >= 1
 
     def test_full_sync_loop_stops_when_stopping(self, tmp_path, event_loop):
         """_full_sync_loop() exits when _stopping is set."""

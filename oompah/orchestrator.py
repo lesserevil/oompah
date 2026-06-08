@@ -492,6 +492,18 @@ class Orchestrator:
         # but only ever acts on issues closed >= _ARCHIVE_DAYS ago, so it
         # needn't run every tick. monotonic() of the last run; None = never.
         self._last_auto_archive_monotonic: float | None = None
+        self._started_monotonic: float = time.monotonic()
+        state_data = self._load_state()
+        cursors = state_data.get("maintenance_cursors", {})
+        self._maintenance_cursors: dict[str, str | None] = (
+            dict(cursors) if isinstance(cursors, dict) else {}
+        )
+        self._maintenance_status: dict[str, Any] = {}
+        self._last_tick_metrics: dict[str, Any] = {}
+        self._last_dispatch_metrics: dict[str, Any] = {}
+        self._dispatch_pending_event_keys: set[str] = set()
+        self._dispatch_event_lock = threading.Lock()
+        self._dispatch_events_coalesced = 0
         # EventBus: typed pub/sub for internal event-driven communication.
         # The legacy _observers/_state_only_observers/_activity_observers lists
         # are kept for backward compatibility with server.py, but internally
@@ -766,6 +778,15 @@ class Orchestrator:
     def _save_paused_state(self) -> None:
         """Persist paused state to disk."""
         self._save_state(paused=self._paused)
+
+    def _set_maintenance_cursor(self, name: str, value: str | None) -> None:
+        cursors = getattr(self, "_maintenance_cursors", {})
+        if value is None:
+            cursors.pop(name, None)
+        else:
+            cursors[name] = value
+        self._maintenance_cursors = cursors
+        self._save_state(maintenance_cursors=cursors)
 
     def reload_config(self, config: ServiceConfig, prompt_template: str) -> None:
         """Apply new config and prompt template from workflow reload.
@@ -1146,6 +1167,18 @@ class Orchestrator:
         cleanup for other projects.
         """
         cleaned = 0
+        limit = getattr(self.config, "worktree_cleanup_batch_size", 25)
+        if limit <= 0:
+            self._maintenance_status["worktree_cleanup"] = {
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "cleaned": 0,
+                "limit": limit,
+                "deferred": True,
+            }
+            return 0
+        last_key = getattr(self, "_maintenance_cursors", {}).get("worktree_cleanup")
+        seen_cursor = last_key is None
+        last_processed_key = last_key
         if projects is None:
             projects = self.project_store.list_all()
         if projects:
@@ -1156,8 +1189,24 @@ class Orchestrator:
                         list(_WORKTREE_CLEANUP_STATES)
                     )
                     for issue in terminal_issues:
+                        issue_key = f"{project.id}:{issue.identifier}"
+                        if not seen_cursor:
+                            seen_cursor = issue_key == last_key
+                            continue
                         if not _is_cleanable_worktree_state(issue.state):
                             continue
+                        if cleaned >= limit:
+                            self._set_maintenance_cursor(
+                                "worktree_cleanup", last_processed_key
+                            )
+                            self._maintenance_status["worktree_cleanup"] = {
+                                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                                "cleaned": cleaned,
+                                "limit": limit,
+                                "deferred": True,
+                                "cursor": last_processed_key,
+                            }
+                            return cleaned
                         try:
                             self.project_store.remove_worktree(
                                 project.id, issue.identifier
@@ -1175,6 +1224,7 @@ class Orchestrator:
                                 issue.identifier,
                                 exc,
                             )
+                        last_processed_key = issue_key
                 except (TrackerError, ProjectError) as exc:
                     logger.warning(
                         "Terminal worktree cleanup failed for project %s: %s",
@@ -1187,8 +1237,24 @@ class Orchestrator:
                     list(_WORKTREE_CLEANUP_STATES)
                 )
                 for issue in terminal_issues:
+                    issue_key = f"legacy:{issue.identifier}"
+                    if not seen_cursor:
+                        seen_cursor = issue_key == last_key
+                        continue
                     if not _is_cleanable_worktree_state(issue.state):
                         continue
+                    if cleaned >= limit:
+                        self._set_maintenance_cursor(
+                            "worktree_cleanup", last_processed_key
+                        )
+                        self._maintenance_status["worktree_cleanup"] = {
+                            "last_run_at": datetime.now(timezone.utc).isoformat(),
+                            "cleaned": cleaned,
+                            "limit": limit,
+                            "deferred": True,
+                            "cursor": last_processed_key,
+                        }
+                        return cleaned
                     try:
                         self.workspace_mgr.remove_workspace(issue.identifier)
                         cleaned += 1
@@ -1202,8 +1268,17 @@ class Orchestrator:
                             issue.identifier,
                             exc,
                         )
+                    last_processed_key = issue_key
             except TrackerError as exc:
                 logger.warning("Terminal workspace cleanup failed: %s", exc)
+        self._set_maintenance_cursor("worktree_cleanup", None)
+        self._maintenance_status["worktree_cleanup"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "cleaned": cleaned,
+            "limit": limit,
+            "deferred": False,
+            "cursor": None,
+        }
         return cleaned
 
     async def startup_cleanup(self) -> None:
@@ -1213,7 +1288,11 @@ class Orchestrator:
             # Surface dashboard alerts for any projects quarantined due to
             # unresolvable Backlog.md conflict markers.
             self._refresh_backlog_conflict_alerts()
-        self._cleanup_terminal_worktrees(projects)
+        self._maintenance_status["startup_cleanup"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "worktree_cleanup_deferred": True,
+            "delay_seconds": self.config.maintenance_startup_delay_seconds,
+        }
 
     async def _recover_restart_issues(self) -> None:
         """Re-dispatch issues that were running when a graceful restart happened."""
@@ -1272,12 +1351,22 @@ class Orchestrator:
 
         Runs in the tick thread pool (blocking git I/O). Best-effort.
         """
+        startup_delay = getattr(self.config, "maintenance_startup_delay_seconds", 60)
+        startup_age = time.monotonic() - getattr(self, "_started_monotonic", 0.0)
+        if startup_age < startup_delay:
+            self._maintenance_status["repo_heal"] = {
+                "last_run_at": None,
+                "delayed": True,
+                "delay_remaining_seconds": round(startup_delay - startup_age, 1),
+            }
+            return
         interval_ms = self.config.full_sync_interval_ms
         if self._last_repo_heal != 0.0:
             elapsed_ms = (time.monotonic() - self._last_repo_heal) * 1000
             if elapsed_ms < interval_ms:
                 return
         self._last_repo_heal = time.monotonic()
+        start = time.monotonic()
         try:
             self.project_store.sync_all_sources()
         except Exception as exc:  # noqa: BLE001
@@ -1293,6 +1382,23 @@ class Orchestrator:
         projects = self.project_store.list_all()
         if projects:
             self._cleanup_terminal_worktrees(projects)
+        self._maintenance_status["repo_heal"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "duration_ms": round((time.monotonic() - start) * 1000, 3),
+            "delayed": False,
+        }
+
+    def _dispatch_event_key(self, event: DispatchEvent) -> str:
+        return str(event.event_type)
+
+    def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> None:
+        key = self._dispatch_event_key(event)
+        lock = getattr(self, "_dispatch_event_lock", None)
+        pending = getattr(self, "_dispatch_pending_event_keys", None)
+        if lock is None or pending is None:
+            return
+        with lock:
+            pending.discard(key)
 
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking).
@@ -1301,9 +1407,24 @@ class Orchestrator:
         Callers from threads should use asyncio.get_event_loop().call_soon_threadsafe
         if they need to post from outside the loop (rare — most callers are async).
         """
+        key = self._dispatch_event_key(event)
+        lock = getattr(self, "_dispatch_event_lock", None)
+        pending = getattr(self, "_dispatch_pending_event_keys", None)
+        if lock is not None and pending is not None:
+            with lock:
+                if key in pending:
+                    self._dispatch_events_coalesced = (
+                        getattr(self, "_dispatch_events_coalesced", 0) + 1
+                    )
+                    logger.debug("Coalesced pending dispatch event %s", key)
+                    return
+                pending.add(key)
         try:
             self._dispatch_queue.put_nowait(event)
         except asyncio.QueueFull:
+            if lock is not None and pending is not None:
+                with lock:
+                    pending.discard(key)
             # The queue is unbounded, so this should never happen in practice.
             logger.warning(
                 "Dispatch queue unexpectedly full; dropping event %s", event.event_type
@@ -1400,10 +1521,21 @@ class Orchestrator:
                     event.issue_id,
                 )
 
-                # All current event types result in a full _tick().
-                # Future optimisations can add targeted handlers per event type
-                # (e.g. only reconcile on WORKER_EXIT) without changing this
-                # loop's structure.
+                self._mark_dispatch_event_dequeued(event)
+                drained = 0
+                while True:
+                    try:
+                        extra = self._dispatch_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    self._mark_dispatch_event_dequeued(extra)
+                    drained += 1
+                if drained:
+                    logger.debug("Coalesced %d queued dispatch event(s)", drained)
+
+                # All current event types still result in a full _tick(), but
+                # bursts are coalesced so one worker-exit storm cannot queue a
+                # long train of identical world scans.
                 await _run_tick()
 
         finally:
@@ -1493,6 +1625,21 @@ class Orchestrator:
 
         t4b = time.monotonic()
         total_ms = (t4b - t0) * 1000
+        self._last_tick_metrics = {
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "total_ms": round(total_ms, 3),
+            "reconcile_ms": round((t1 - t0) * 1000, 3),
+            "reviews_ms": round((t2 - t1) * 1000, 3),
+            "dispatch_ms": round((t3 - t3_start) * 1000, 3),
+            "yolo_ms": round(yolo_ms, 3),
+            "archive_ms": round(archive_ms, 3),
+            "merged_ms": round(merged_ms, 3),
+            "post_yolo_ms": round((t4b - t4) * 1000, 3),
+            "tick_pool_queue_depth": self._tick_pool_queue_depth(),
+            "dispatch_events_coalesced": getattr(
+                self, "_dispatch_events_coalesced", 0
+            ),
+        }
         if total_ms > 2000:
             logger.warning(
                 "Slow tick: %.0fms (reconcile=%.0f reviews=%.0f dispatch=%.0f "
@@ -1510,6 +1657,15 @@ class Orchestrator:
 
         # 6. Auto-update when idle (no agents, no retries)
         await self._handle_auto_update()
+
+    def _tick_pool_queue_depth(self) -> int | None:
+        queue = getattr(getattr(self, "_tick_pool", None), "_work_queue", None)
+        if queue is None or not hasattr(queue, "qsize"):
+            return None
+        try:
+            return int(queue.qsize())
+        except Exception:  # noqa: BLE001
+            return None
 
     async def _handle_reconcile(self) -> None:
         """Reconcile running agents: stall detection + tracker state refresh.
@@ -1564,23 +1720,31 @@ class Orchestrator:
         """Fetch candidates, resolve blockers, and dispatch eligible issues."""
         self._blocker_state_cache = {}  # reset per fetch cycle
         loop = asyncio.get_event_loop()
+        metrics: dict[str, Any] = {
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "available_slots_start": self._available_slots(),
+        }
+
+        async def _timed(name: str, func, *args):
+            start = time.monotonic()
+            result = await loop.run_in_executor(self._tick_pool, func, *args)
+            metrics[f"{name}_ms"] = round((time.monotonic() - start) * 1000, 3)
+            return result
 
         # Fetch candidates from all trackers in parallel
-        candidates = await loop.run_in_executor(
-            self._tick_pool, self._fetch_all_candidates
-        )
+        candidates = await _timed("fetch_candidates", self._fetch_all_candidates)
         self._last_candidates = candidates
+        metrics["candidate_count"] = len(candidates)
         # Pre-resolve blocker states in thread (internally parallel)
-        await loop.run_in_executor(
-            self._tick_pool, self._pre_resolve_blockers, candidates
-        )
+        await _timed("pre_resolve_blockers", self._pre_resolve_blockers, candidates)
 
         # Run duplicate-detection pre-filter in the thread pool so
         # bd CLI calls (add-label, add-comment) don't block the event loop.
         # This detects pattern-based duplicates like "rogers-*" that share
         # a topic prefix even when suffixes differ.
-        await loop.run_in_executor(
-            self._tick_pool, self._apply_duplicate_detection, candidates
+        await _timed("duplicate_detection", self._apply_duplicate_detection, candidates)
+        metrics["duplicate_detection"] = getattr(
+            self, "_last_duplicate_detection_metrics", {}
         )
 
         # Run the entire sort + filter pass in a worker thread so the bd
@@ -1589,27 +1753,30 @@ class Orchestrator:
         # final ordered list of issues that passed _should_dispatch; the
         # async loop below only yields once per actual dispatch — no sync
         # work between yields. See task oompah-zlz_2-nvr.
-        ready = await loop.run_in_executor(
-            self._tick_pool, self._select_dispatchable, candidates
-        )
+        ready = await _timed("select_dispatchable", self._select_dispatchable, candidates)
+        metrics["selection"] = getattr(self, "_last_selection_metrics", {})
+        metrics["ready_count"] = len(ready)
+        dispatched = 0
         for issue in ready:
             if self._available_slots() <= 0:
                 break
             await self._dispatch(issue, attempt=None)
+            dispatched += 1
+        metrics["dispatched_count"] = dispatched
 
         # Dispatch epic planning agents for open epics without children
-        epics_to_plan = await loop.run_in_executor(
-            self._tick_pool, self._plan_open_epics, candidates
-        )
+        epics_to_plan = await _timed("plan_open_epics", self._plan_open_epics, candidates)
+        planned = 0
         for epic in epics_to_plan:
             if self._available_slots() <= 0:
                 break
             await self._dispatch(epic, attempt=None)
+            planned += 1
+        metrics["epics_to_plan_count"] = len(epics_to_plan)
+        metrics["epics_dispatched_count"] = planned
 
         # Auto-close epics whose children are all done
-        await loop.run_in_executor(
-            self._tick_pool, self._auto_close_completed_epics, candidates
-        )
+        await _timed("auto_close_completed_epics", self._auto_close_completed_epics, candidates)
 
         # Open the epic→main PR for stacked/shared epics whose children are
         # all done. Pass ALL non-terminal epics (not just dispatch
@@ -1617,46 +1784,40 @@ class Orchestrator:
         # active state, so they'd otherwise never reach this gate and their
         # completed work would never land. Only acts on stacked/shared
         # strategies; flat is a no-op.
-        epic_pool = await loop.run_in_executor(
-            self._tick_pool, self._all_non_terminal_epics
-        )
-        await loop.run_in_executor(
-            self._tick_pool, self._open_epic_main_prs, epic_pool
-        )
+        epic_pool = await _timed("all_non_terminal_epics", self._all_non_terminal_epics)
+        metrics["non_terminal_epic_count"] = len(epic_pool)
+        await _timed("open_epic_main_prs", self._open_epic_main_prs, epic_pool)
 
         # Check staleness of epic branches — whether they've fallen
         # behind main. Arms/clears per-epic staleness alerts.
         # Only runs for stacked/shared strategies where an epic branch
         # exists. Skip when the threshold is 0 (disabled).
         if self.config.epic_staleness_threshold_commits > 0:
-            await loop.run_in_executor(
-                self._tick_pool, self._check_epic_staleness, candidates
-            )
+            await _timed("check_epic_staleness", self._check_epic_staleness, candidates)
 
         # Dispatch proactive rebase agents for stale epics (oompah-zlz_2-82dr.2).
         # Filed as merge-conflict sibling tasks under the epic so the
         # normal dispatch loop picks them up.
         if self.config.epic_staleness_threshold_commits > 0:
-            await loop.run_in_executor(
-                self._tick_pool, self._dispatch_proactive_rebase_agents, candidates
+            await _timed(
+                "dispatch_proactive_rebase_agents",
+                self._dispatch_proactive_rebase_agents,
+                candidates,
             )
 
         # Prune stale epic rebase state entries so closed epics don't
         # accumulate ghost state forever (oompah-zlz_2-82dr.3).
-        await loop.run_in_executor(
-            self._tick_pool, self._prune_stale_epic_rebase_states, candidates
-        )
+        await _timed("prune_stale_epic_rebase_states", self._prune_stale_epic_rebase_states, candidates)
 
         # Reset orphaned in_progress issues (no agent, no retry).
         # Runs in the executor because orphan detection issues bd update
         # calls — keeping it inline would re-introduce the very same
         # event-loop blocking this task is fixing.
-        in_progress = await loop.run_in_executor(
-            self._tick_pool, self._fetch_in_progress_issues
-        )
-        await loop.run_in_executor(
-            self._tick_pool, self._reset_orphaned_in_progress, in_progress
-        )
+        in_progress = await _timed("fetch_in_progress", self._fetch_in_progress_issues)
+        metrics["in_progress_count"] = len(in_progress)
+        await _timed("reset_orphaned_in_progress", self._reset_orphaned_in_progress, in_progress)
+        metrics["finished_at"] = datetime.now(timezone.utc).isoformat()
+        self._last_dispatch_metrics = metrics
 
     async def _handle_yolo_review(self) -> tuple[float, float, float]:
         """Run YOLO merge actions, auto-archive, and merged-issue labeling.
@@ -6639,12 +6800,26 @@ class Orchestrator:
         if not candidates:
             return []
 
+        sorted_candidates = self._sort_for_dispatch(candidates)
+        limit = getattr(self.config, "duplicate_detection_candidate_limit", 64)
+        if limit > 0:
+            detection_candidates = sorted_candidates[:limit]
+        else:
+            detection_candidates = sorted_candidates
+        deferred_count = max(len(sorted_candidates) - len(detection_candidates), 0)
+        if deferred_count:
+            logger.debug(
+                "Duplicate detection deferred %d candidate(s) after limit=%d",
+                deferred_count,
+                limit,
+            )
+
         projects = self.project_store.list_all()
         project_by_id: dict[str, Project] = {p.id: p for p in projects}
 
         # Group candidates by project so we can batch queries
         by_project: dict[str | None, list[Issue]] = {}
-        for c in candidates:
+        for c in detection_candidates:
             by_project.setdefault(c.project_id, []).append(c)
 
         for project_id, proj_candidates in by_project.items():
@@ -6721,6 +6896,12 @@ class Orchestrator:
                                 )
                         break  # only flag the highest-scoring match
 
+        self._last_duplicate_detection_metrics = {
+            "candidate_count": len(candidates),
+            "scanned_count": len(detection_candidates),
+            "deferred_count": deferred_count,
+            "limit": limit,
+        }
         return candidates
 
     def _select_dispatchable(self, candidates: list[Issue]) -> list[Issue]:
@@ -6737,6 +6918,19 @@ class Orchestrator:
         dispatch.
         """
         sorted_issues = self._sort_for_dispatch(candidates)
+        slots = self._available_slots()
+        if slots <= 0:
+            self._last_selection_metrics = {
+                "candidate_count": len(sorted_issues),
+                "scanned_count": 0,
+                "ready_count": 0,
+                "deferred_count": len(sorted_issues),
+                "scan_limit": getattr(self.config, "dispatch_scan_limit", 64),
+            }
+            return []
+        configured_limit = getattr(self.config, "dispatch_scan_limit", 64)
+        scan_limit = configured_limit if configured_limit > 0 else len(sorted_issues)
+        target_ready = slots + getattr(self.config, "dispatch_ready_buffer", 8)
 
         # Build the comparison pool: running + claimed + retry_pending issues
         # from all projects. These are the issues that already have or will get
@@ -6758,8 +6952,12 @@ class Orchestrator:
         # list itself (to suppress inter-candidate duplicates, keeping the
         # highest-priority/oldest instance).
         dispatchable: list[Issue] = []
+        scanned = 0
 
         for issue in sorted_issues:
+            if scanned >= scan_limit:
+                break
+            scanned += 1
             # Build pool: full in-flight issues + already-accepted candidates this tick
             pool: list[Issue] = list(in_flight_issues) + list(dispatchable)
             similar = find_similar_issues(
@@ -6781,7 +6979,28 @@ class Orchestrator:
                 continue
 
             dispatchable.append(issue)
+            if len(dispatchable) >= target_ready:
+                break
 
+        deferred_count = max(len(sorted_issues) - scanned, 0)
+        if deferred_count:
+            logger.debug(
+                "Dispatch selection deferred %d candidate(s) after scanned=%d "
+                "ready=%d scan_limit=%d target_ready=%d",
+                deferred_count,
+                scanned,
+                len(dispatchable),
+                scan_limit,
+                target_ready,
+            )
+        self._last_selection_metrics = {
+            "candidate_count": len(sorted_issues),
+            "scanned_count": scanned,
+            "ready_count": len(dispatchable),
+            "deferred_count": deferred_count,
+            "scan_limit": scan_limit,
+            "target_ready": target_ready,
+        }
         return dispatchable
 
     def _match_agent_profile(self, issue: Issue) -> AgentProfile | None:
@@ -11962,13 +12181,34 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         dominant cost of the ~150s slow tick).
         """
         nowm = time.monotonic()
+        startup_delay = getattr(self.config, "maintenance_startup_delay_seconds", 60)
+        startup_age = nowm - getattr(self, "_started_monotonic", 0.0)
+        if startup_age < startup_delay:
+            self._maintenance_status["auto_archive"] = {
+                "last_run_at": None,
+                "delayed": True,
+                "delay_remaining_seconds": round(startup_delay - startup_age, 1),
+            }
+            return
+        interval_s = getattr(
+            self.config, "auto_archive_interval_seconds", self._AUTO_ARCHIVE_INTERVAL_S
+        )
         if (
             self._last_auto_archive_monotonic is not None
             and (nowm - self._last_auto_archive_monotonic)
-            < self._AUTO_ARCHIVE_INTERVAL_S
+            < interval_s
         ):
             return
         self._last_auto_archive_monotonic = nowm
+        limit = getattr(self.config, "auto_archive_batch_size", 25)
+        if limit <= 0:
+            self._maintenance_status["auto_archive"] = {
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                "archived": 0,
+                "limit": limit,
+                "deferred": True,
+            }
+            return
 
         now = datetime.now(timezone.utc)
         projects = self.project_store.list_all()
@@ -11991,18 +12231,42 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         else:
             trackers.append((None, self.tracker))
 
+        archived = 0
+        scanned = 0
+        last_key = getattr(self, "_maintenance_cursors", {}).get("auto_archive")
+        seen_cursor = last_key is None
+        last_processed_key = last_key
         for pid, tracker in trackers:
             try:
                 closed = tracker.fetch_issues_by_states(archive_scan_states)
                 for issue in closed:
+                    issue_key = f"{pid or 'legacy'}:{issue.identifier}"
+                    if not seen_cursor:
+                        seen_cursor = issue_key == last_key
+                        continue
+                    scanned += 1
                     if tracker.is_archived(issue):
                         continue
                     if (
                         issue.closed_at
                         and (now - issue.closed_at).days >= self._ARCHIVE_DAYS
                     ):
+                        if archived >= limit:
+                            self._set_maintenance_cursor(
+                                "auto_archive", last_processed_key
+                            )
+                            self._maintenance_status["auto_archive"] = {
+                                "last_run_at": datetime.now(timezone.utc).isoformat(),
+                                "archived": archived,
+                                "scanned": scanned,
+                                "limit": limit,
+                                "deferred": True,
+                                "cursor": last_processed_key,
+                            }
+                            return
                         try:
                             tracker.archive_issue(issue.identifier)
+                            archived += 1
                             logger.info(
                                 "Auto-archived issue %s (closed %d days ago)",
                                 issue.identifier,
@@ -12012,8 +12276,18 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                             logger.debug(
                                 "Failed to archive %s: %s", issue.identifier, exc
                             )
+                    last_processed_key = issue_key
             except (TrackerError, ProjectError) as exc:
                 logger.debug("Auto-archive fetch failed for project %s: %s", pid, exc)
+        self._set_maintenance_cursor("auto_archive", None)
+        self._maintenance_status["auto_archive"] = {
+            "last_run_at": datetime.now(timezone.utc).isoformat(),
+            "archived": archived,
+            "scanned": scanned,
+            "limit": limit,
+            "deferred": False,
+            "cursor": None,
+        }
 
     async def _terminate_running(self, issue_id: str, cleanup_workspace: bool) -> None:
         """Terminate a running worker and optionally clean its workspace."""
@@ -12069,6 +12343,22 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             entry.identifier,
             cleanup_workspace,
         )
+
+    def _tracker_read_stats_snapshot(self) -> dict[str, Any]:
+        stats: dict[str, Any] = {}
+        if hasattr(self.tracker, "read_stats"):
+            try:
+                stats["legacy"] = self.tracker.read_stats()
+            except Exception:  # noqa: BLE001
+                pass
+        for project_id, tracker in getattr(self, "_project_trackers", {}).items():
+            if not hasattr(tracker, "read_stats"):
+                continue
+            try:
+                stats[str(project_id)] = tracker.read_stats()
+            except Exception:  # noqa: BLE001
+                continue
+        return stats
 
     def get_snapshot(self) -> dict[str, Any]:
         """Return a snapshot of the current orchestrator state for the API."""
@@ -12209,6 +12499,16 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             },
             "alerts": list(self._alerts) + self._credential_error_alerts(),
             "reviews_summary": self._reviews_summary(),
+            "orchestrator_metrics": {
+                "last_tick": dict(getattr(self, "_last_tick_metrics", {}) or {}),
+                "last_dispatch": dict(
+                    getattr(self, "_last_dispatch_metrics", {}) or {}
+                ),
+                "maintenance": dict(
+                    getattr(self, "_maintenance_status", {}) or {}
+                ),
+                "tracker_reads": self._tracker_read_stats_snapshot(),
+            },
             "epic_rebase_states": {
                 epic_id: {
                     "state": entry.state,

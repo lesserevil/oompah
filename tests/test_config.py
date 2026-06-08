@@ -84,7 +84,31 @@ class TestServiceConfig:
         # think of $X/day rather than $X/process-lifetime.
         assert cfg.budget_window == "day"
         assert cfg.server_port == 8080
+        assert cfg.dispatch_scan_limit == 64
+        assert cfg.duplicate_detection_candidate_limit == 64
+        assert cfg.auto_archive_batch_size == 25
+        assert cfg.worktree_cleanup_batch_size == 25
         assert cfg.workspace_root  # should have a default
+
+    def test_responsiveness_tuning_from_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_DISPATCH_SCAN_LIMIT", "12")
+        monkeypatch.setenv("OOMPAH_DISPATCH_READY_BUFFER", "3")
+        monkeypatch.setenv("OOMPAH_DUPLICATE_DETECTION_CANDIDATE_LIMIT", "11")
+        monkeypatch.setenv("OOMPAH_AUTO_ARCHIVE_BATCH_SIZE", "7")
+        monkeypatch.setenv("OOMPAH_AUTO_ARCHIVE_INTERVAL_SECONDS", "30")
+        monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "5")
+        monkeypatch.setenv("OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", "9")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+
+        cfg = ServiceConfig.from_workflow(wf)
+
+        assert cfg.dispatch_scan_limit == 12
+        assert cfg.dispatch_ready_buffer == 3
+        assert cfg.duplicate_detection_candidate_limit == 11
+        assert cfg.auto_archive_batch_size == 7
+        assert cfg.auto_archive_interval_seconds == 30
+        assert cfg.worktree_cleanup_batch_size == 5
+        assert cfg.maintenance_startup_delay_seconds == 9
 
     def test_server_port_env_overrides_default(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_SERVER_PORT", "8090")

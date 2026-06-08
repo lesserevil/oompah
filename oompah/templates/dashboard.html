@@ -2136,12 +2136,16 @@ function applyHideMergedFilter(data) {
   }
   // Flatten to compute the show-set across the entire (project-filtered) tree.
   const allIssues = [];
-  for (const issues of Object.values(data)) for (const i of issues) allIssues.push(i);
+  for (const issues of Object.values(data)) {
+    if (!Array.isArray(issues)) continue;
+    for (const i of issues) allIssues.push(i);
+  }
   const showSet = _computeInFlightShowSet(allIssues);
 
   let hidden = 0;
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
+    if (!Array.isArray(issues)) continue;
     const stateKey = columnKeyForStatus(state);
     if (['Backlog', 'Open', 'In Progress', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(stateKey)) {
       filtered[state] = issues;
@@ -2171,6 +2175,7 @@ function filterByProject(data) {
   if (!pid) return data;
   const filtered = {};
   for (const [state, issues] of Object.entries(data)) {
+    if (!Array.isArray(issues)) continue;
     const matching = issues.filter(i => i.project_id === pid);
     if (matching.length > 0) filtered[state] = matching;
   }
@@ -2195,6 +2200,7 @@ function moveIssueInBoard(identifier, newState, projectId) {
   // Move an issue between columns in the local boardData
   if (!boardData) return;
   for (const [state, issues] of Object.entries(boardData)) {
+    if (!Array.isArray(issues)) continue;
     const idx = issues.findIndex(
       i => i.identifier === identifier && (!projectId || i.project_id === projectId)
     );
@@ -2293,6 +2299,7 @@ function setViewMode(mode) {
 function flattenIssues(data) {
   const all = [];
   for (const state of Object.keys(data)) {
+    if (!Array.isArray(data[state])) continue;
     for (const issue of data[state]) {
       all.push(issue);
     }
@@ -2303,6 +2310,7 @@ function flattenIssues(data) {
 function normalizeBoardData(data) {
   const normalized = {};
   for (const [rawState, issues] of Object.entries(data || {})) {
+    if (!Array.isArray(issues)) continue;
     const state = columnKeyForStatus(rawState);
     if (!normalized[state]) normalized[state] = [];
     for (const issue of issues || []) {
@@ -2351,6 +2359,7 @@ function applyOptimisticOverrides(data) {
     }
     // Find the issue in any column and move it to the correct one
     for (const [state, issues] of Object.entries(data)) {
+      if (!Array.isArray(issues)) continue;
       const idx = issues.findIndex(i => issueMatchesOptimisticUpdate(i, upd));
       if (idx !== -1) {
         const issue = issues[idx];
