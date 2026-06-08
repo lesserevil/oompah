@@ -1,7 +1,7 @@
 ---
 id: TASK-456.1
 title: Add release-pick task detail API
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:29'
 updated_date: '2026-06-08 21:19'
@@ -145,4 +145,16 @@ created: 2026-06-08 21:19
 ---
 Verification: 278 tests pass across test_release_pick_api.py (44), test_server_release_picks.py (18), test_release_pick_schema.py (97), test_release_pick_validation.py (44), test_server_issue_detail.py/api.py (33), test_backlog_tracker.py (50), test_server_label_api.py, test_server_create_issue.py. Zero regressions.
 ---
+
+author: oompah
+created: 2026-06-08 21:19
+---
+Completion: Delivered oompah/release_pick_api.py (helpers: get_release_pick_detail, update_release_pick_entry, update_release_picks_bulk) and two HTTP endpoints (GET + PATCH /api/v1/issues/{identifier}/release-picks) in server.py. GET returns normalized backports list with status, task_id, pr_url, pr_id, is_valid, validation_error and backport_of dict. PATCH supports single-entry and bulk update modes with pre-write branch validation. 62 new tests (44 unit + 18 integration), 278 total passing. Pushed to origin/epic-TASK-456.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Created oompah/release_pick_api.py with get_release_pick_detail(), update_release_pick_entry(), and update_release_picks_bulk() API helpers. Added GET and PATCH /api/v1/issues/{identifier}/release-picks endpoints to server.py. GET returns normalized backports list (branch, status, task_id, pr_url, pr_id derived from URL, is_valid, validation_error) and backport_of. PATCH supports single-entry and bulk update modes with pre-write branch validation via release_pick_validation.py. 62 new tests (44 unit + 18 server integration), 278 total passing. Not a duplicate.
+<!-- SECTION:FINAL_SUMMARY:END -->
