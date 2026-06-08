@@ -34,4 +34,16 @@ created: 2026-06-08 19:52
 ---
 Filed from live recovery: make restart started a replacement before the old process released port 8090 and left .oompah.pid pointing at the failed process.
 ---
+
+author: oompah
+created: 2026-06-08 23:08
+---
+Verification: 26 tests pass (20 new + 6 existing test_makefile_setup). Breakdown: 13 static-analysis (Makefile structure), 4 functional port_in_use shell tests, 3 end-to-end wait_for_stop behavior tests. Broader suite (260 tests including orchestrator/dispatch) also passes. Committed a7bbf34 on epic-TASK-465.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed make restart race: stop now calls wait_for_stop which polls kill -0 then port_in_use before returning. Fixed @ bug in wait_for_stop define (was causing shell error when expanded inline). start now refuses to launch when port is already in use and removes .oompah.pid on failed startup. Added 20 tests: static Makefile structure analysis + functional port_in_use shell + end-to-end wait_for_stop with lightweight TCP server.
+<!-- SECTION:FINAL_SUMMARY:END -->
