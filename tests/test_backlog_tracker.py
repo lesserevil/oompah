@@ -441,6 +441,103 @@ def test_update_issue_critical_priority_writes_numeric_p0_frontmatter(tmp_path):
     assert tracker.fetch_issue_detail("TASK-1").priority == 0
 
 
+def test_update_issue_status_only_preserves_p0_priority(tmp_path):
+    """A status-only update must not clobber an existing priority: 0 field.
+
+    Regression test for TASK-465.6: during restart recovery, tasks were marked
+    Open via update_issue(identifier, status=OPEN) with no priority argument.
+    The Backlog CLI dropped the numeric priority: 0 from frontmatter because it
+    only understands named priority strings.  The snapshot/restore mechanism
+    must now include numeric priority values so they survive the CLI round-trip.
+    """
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "P0 recovery task", priority=0)
+    tracker = _tracker(tmp_path)
+
+    def _cli_drops_priority(_args):
+        """Simulate the Backlog CLI silently dropping priority: 0."""
+        meta, body = _read_markdown_frontmatter(task_path)
+        meta["status"] = "In Progress"
+        # CLI does not recognise numeric priority — it omits the key entirely.
+        meta.pop("priority", None)
+        task_path.write_text(
+            "---\n" + yaml.safe_dump(meta, sort_keys=False) + "---\n" + body,
+            encoding="utf-8",
+        )
+        return ""
+
+    with patch.object(tracker, "_run_backlog", side_effect=_cli_drops_priority):
+        tracker.update_issue("TASK-1", status="In Progress")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["priority"] == 0, "priority: 0 must be preserved after status-only update"
+    assert tracker.fetch_issue_detail("TASK-1").priority == 0
+
+
+def test_reopen_issue_preserves_p0_priority(tmp_path):
+    """reopen_issue must not strip an existing priority: 0 field.
+
+    Regression test for TASK-465.6: the verifier-rejection and orphan-reset
+    paths call reopen_issue(), which previously did not protect numeric priority
+    from the Backlog CLI stripping it during the status rewrite.
+    """
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "P0 reopened", priority=0)
+    tracker = _tracker(tmp_path)
+
+    def _cli_drops_priority(_args):
+        """Simulate the Backlog CLI silently dropping priority: 0."""
+        meta, body = _read_markdown_frontmatter(task_path)
+        meta["status"] = "Open"
+        meta.pop("priority", None)
+        task_path.write_text(
+            "---\n" + yaml.safe_dump(meta, sort_keys=False) + "---\n" + body,
+            encoding="utf-8",
+        )
+        return ""
+
+    with patch.object(tracker, "_run_backlog", side_effect=_cli_drops_priority):
+        tracker.reopen_issue("TASK-1")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["priority"] == 0, "priority: 0 must survive reopen_issue"
+    assert tracker.fetch_issue_detail("TASK-1").priority == 0
+
+
+def test_restart_recovery_preserves_p0_priority(tmp_path):
+    """Restart recovery (status=Open, no priority arg) must not drop priority: 0.
+
+    Regression test for TASK-465.6: _recover_restart_issues calls
+    tracker.update_issue(identifier, status=OPEN), which is a pure status-only
+    call.  Verify this is functionally equivalent to the status-only test above
+    and that the issue still reads back as P0 afterwards.
+    """
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "P0 undrained", priority=0)
+    tracker = _tracker(tmp_path)
+
+    def _cli_drops_priority(_args):
+        meta, body = _read_markdown_frontmatter(task_path)
+        # Mimic the CLI rewriting the file during a --status Open edit and
+        # discarding the numeric priority it cannot represent.
+        meta["status"] = "Open"
+        meta.pop("priority", None)
+        task_path.write_text(
+            "---\n" + yaml.safe_dump(meta, sort_keys=False) + "---\n" + body,
+            encoding="utf-8",
+        )
+        return ""
+
+    # This mirrors exactly what _recover_restart_issues does:
+    #   tracker.update_issue(identifier, status=OPEN)
+    with patch.object(tracker, "_run_backlog", side_effect=_cli_drops_priority):
+        tracker.update_issue("TASK-1", status="Open")
+
+    meta = yaml.safe_load(task_path.read_text(encoding="utf-8").split("---\n", 2)[1])
+    assert meta["priority"] == 0, "priority: 0 must survive restart-recovery status update"
+    assert tracker.fetch_issue_detail("TASK-1").priority == 0
+
+
 def test_mark_needs_human_updates_status_then_appends_comment(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "Needs human")

@@ -1166,11 +1166,21 @@ class BacklogMdTracker(TrackerProtocol):
             meta, _body = _read_markdown_frontmatter(path)
         except TrackerError:
             return {}
-        return {
+        snapshot = {
             key: value
             for key, value in meta.items()
             if str(key) not in _BACKLOG_CLI_OWNED_FRONTMATTER
         }
+        # The Backlog CLI only accepts named priority strings (high/medium/low)
+        # and silently drops numeric values such as ``priority: 0`` (P0) when it
+        # rewrites frontmatter during any edit — even a status-only update.
+        # Include an existing numeric priority in the snapshot so that
+        # ``_restore_missing_frontmatter`` can put it back if the CLI drops it.
+        # This covers reopen_issue, close_issue, and status-only update_issue
+        # calls (e.g. the restart-recovery path). (TASK-465.6)
+        if isinstance(meta.get("priority"), int):
+            snapshot["priority"] = meta["priority"]
+        return snapshot
 
     def _restore_missing_frontmatter(
         self, identifier: str, custom_meta: dict,
