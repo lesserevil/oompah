@@ -947,6 +947,11 @@ class BacklogMdTracker(TrackerProtocol):
         identifier = _identifier_from_task_record(meta, path, task_prefix)
         title = _title_from_task_record(meta, path, task_prefix) or identifier
         state = canonicalize_status(str(meta.get("status") or self._default_status()))
+        # Files in archive/tasks/ are treated as Archived even when their
+        # frontmatter still shows the original status; the backlog CLI moves
+        # the file without updating the status field.
+        if path.is_relative_to(self._backlog_dir() / "archive" / "tasks"):
+            state = ARCHIVED
         labels = _string_list(meta.get("labels"))
         priority = _backlog_priority_int(meta.get("priority"))
         dependencies = _string_list(meta.get("dependencies"))
@@ -1013,6 +1018,10 @@ class BacklogMdTracker(TrackerProtocol):
         dirs = [backlog_dir / "tasks"]
         if include_completed:
             dirs.append(backlog_dir / "completed")
+            # The backlog CLI `task archive` command moves files to archive/tasks/
+            # (not completed/) without updating the status field.  Include that
+            # directory so fetch_issue_detail and other reads can still find them.
+            dirs.append(backlog_dir / "archive" / "tasks")
         files: list[Path] = []
         for directory in dirs:
             if directory.is_dir():
