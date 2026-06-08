@@ -419,6 +419,19 @@ class TestLoadDotenv:
         finally:
             os.environ.pop("OOMPAH_TEST_OV", None)
 
+    def test_startup_env_overrides_inherited_oompah_config(
+        self, tmp_path, monkeypatch
+    ):
+        from oompah.__main__ import _load_startup_env
+
+        monkeypatch.setenv("OOMPAH_MAX_CONCURRENT_AGENTS", "5")
+        path = self._make_env(tmp_path, "OOMPAH_MAX_CONCURRENT_AGENTS=16\n")
+
+        count = _load_startup_env(path)
+
+        assert count == 1
+        assert os.environ["OOMPAH_MAX_CONCURRENT_AGENTS"] == "16"
+
     def test_escape_sequences_in_double_quotes(self, tmp_path):
         path = self._make_env(tmp_path, r'OOMPAH_TEST_ESC="line1\nline2"' + "\n")
         try:
