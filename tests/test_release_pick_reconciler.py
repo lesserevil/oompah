@@ -1,0 +1,966 @@
+"""Tests for the release-pick reconciliation loop (TASK-455.1).
+
+Covers:
+  - reconcile_release_picks: all advancement scenarios and idempotency
+  - _build_child_index: correct indexing of backport children
+  - _most_terminal_child / _best_live_child: selection helpers
+  - _create_backport_child: title, labels, metadata written
+  - Orchestrator._reconcile_release_picks_pass: wired into the background tick
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass, field
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+
+from oompah.models import Issue
+from oompah.release_pick_reconciler import (
+    ReconcileResult,
+    _best_live_child,
+    _build_child_index,
+    _create_backport_child,
+    _most_terminal_child,
+    reconcile_release_picks,
+)
+from oompah.release_pick_schema import (
+    BackportEntry,
+    ReleasePick,
+    backports_to_raw,
+    parse_backports,
+)
+from oompah.statuses import ARCHIVED, BACKLOG, DONE, MERGED, OPEN
+
+
+# ---------------------------------------------------------------------------
+# Test helpers
+# ---------------------------------------------------------------------------
+
+
+def _issue(
+    identifier: str = "TASK-1",
+    title: str = "Do something",
+    state: str = OPEN,
+    target_branch: str | None = None,
+    parent_id: str | None = None,
+    labels: list[str] | None = None,
+    project_id: str | None = None,
+) -> Issue:
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title=title,
+        description="desc",
+        state=state,
+        target_branch=target_branch,
+        parent_id=parent_id,
+        labels=labels or [],
+        project_id=project_id,
+    )
+
+
+def _make_tracker(
+    all_issues: list[Issue] | None = None,
+    metadata_map: dict[str, dict] | None = None,
+    created_issues: list[Issue] | None = None,
+) -> MagicMock:
+    """Build a mock tracker with pre-configured return values.
+
+    Args:
+        all_issues: List returned by fetch_all_issues().
+        metadata_map: Maps identifier → oompah metadata dict (returned by
+            get_metadata()).
+        created_issues: Issues returned in sequence by create_issue() calls.
+    """
+    tracker = MagicMock()
+    tracker.fetch_all_issues.return_value = list(all_issues or [])
+    tracker.fetch_issue_detail.return_value = None
+
+    _meta = dict(metadata_map or {})
+
+    def _get_meta(identifier: str) -> dict:
+        return _meta.get(identifier, {})
+
+    tracker.get_metadata.side_effect = _get_meta
+
+    _created = list(created_issues or [])
+    _create_idx = [0]
+
+    def _create_issue(*args, **kwargs):
+        idx = _create_idx[0]
+        if idx < len(_created):
+            issue = _created[idx]
+            _create_idx[0] += 1
+            return issue
+        # Return a generic child if not enough pre-built ones
+        auto_id = f"TASK-AUTO-{idx}"
+        _create_idx[0] += 1
+        return _issue(identifier=auto_id, title=kwargs.get("title", "child"))
+
+    tracker.create_issue.side_effect = _create_issue
+    return tracker
+
+
+# ---------------------------------------------------------------------------
+# ReconcileResult
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileResult:
+    def test_changed_false_when_empty(self):
+        r = ReconcileResult()
+        assert r.changed is False
+
+    def test_changed_true_when_advanced(self):
+        r = ReconcileResult(advanced=1)
+        assert r.changed is True
+
+    def test_changed_true_when_created(self):
+        r = ReconcileResult(created=1)
+        assert r.changed is True
+
+    def test_changed_false_errors_only(self):
+        r = ReconcileResult(errors=3)
+        assert r.changed is False
+
+
+# ---------------------------------------------------------------------------
+# _most_terminal_child
+# ---------------------------------------------------------------------------
+
+
+class TestMostTerminalChild:
+    def test_returns_none_for_empty_list(self):
+        assert _most_terminal_child([]) is None
+
+    def test_returns_none_for_all_live_children(self):
+        children = [_issue(state=OPEN), _issue(identifier="B", state=BACKLOG)]
+        assert _most_terminal_child(children) is None
+
+    def test_returns_merged_over_done(self):
+        merged = _issue(identifier="M", state=MERGED)
+        done = _issue(identifier="D", state=DONE)
+        result = _most_terminal_child([done, merged])
+        assert result is merged
+
+    def test_returns_archived_over_done(self):
+        archived = _issue(identifier="A", state=ARCHIVED)
+        done = _issue(identifier="D", state=DONE)
+        result = _most_terminal_child([done, archived])
+        assert result is archived
+
+    def test_returns_merged_over_archived(self):
+        merged = _issue(identifier="M", state=MERGED)
+        archived = _issue(identifier="A", state=ARCHIVED)
+        result = _most_terminal_child([archived, merged])
+        assert result is merged
+
+    def test_single_terminal_child(self):
+        child = _issue(state=MERGED)
+        assert _most_terminal_child([child]) is child
+
+
+# ---------------------------------------------------------------------------
+# _best_live_child
+# ---------------------------------------------------------------------------
+
+
+class TestBestLiveChild:
+    def test_returns_none_for_empty_list(self):
+        assert _best_live_child([]) is None
+
+    def test_returns_none_for_all_terminal(self):
+        children = [
+            _issue(state=MERGED),
+            _issue(identifier="B", state=DONE),
+            _issue(identifier="C", state=ARCHIVED),
+        ]
+        assert _best_live_child(children) is None
+
+    def test_returns_first_live_child(self):
+        live = _issue(identifier="L", state=OPEN)
+        terminal = _issue(identifier="T", state=MERGED)
+        result = _best_live_child([live, terminal])
+        assert result is live
+
+    def test_returns_backlog_as_live(self):
+        child = _issue(state=BACKLOG)
+        assert _best_live_child([child]) is child
+
+
+# ---------------------------------------------------------------------------
+# _build_child_index
+# ---------------------------------------------------------------------------
+
+
+class TestBuildChildIndex:
+    def test_empty_when_no_issues(self):
+        tracker = _make_tracker()
+        index = _build_child_index(tracker, [])
+        assert index == {}
+
+    def test_indexes_child_by_source_and_branch(self):
+        child = _issue(identifier="TASK-2", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[child],
+            metadata_map={
+                "TASK-2": {"oompah.backport_of": {"source": "TASK-1", "status": "task_created"}},
+            },
+        )
+        index = _build_child_index(tracker, [child])
+        assert ("TASK-1", "release/1.0") in index
+        assert child in index[("TASK-1", "release/1.0")]
+
+    def test_lookup_key_is_uppercase_source_id(self):
+        child = _issue(identifier="TASK-2", target_branch="release/2.0")
+        tracker = _make_tracker(
+            all_issues=[child],
+            metadata_map={
+                "TASK-2": {"oompah.backport_of": "task-1"},  # lowercase
+            },
+        )
+        index = _build_child_index(tracker, [child])
+        # Key should be uppercased
+        assert ("TASK-1", "release/2.0") in index
+
+    def test_skips_issues_without_backport_of(self):
+        issue = _issue(identifier="TASK-3", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[issue],
+            metadata_map={"TASK-3": {}},
+        )
+        index = _build_child_index(tracker, [issue])
+        assert index == {}
+
+    def test_multiple_children_same_source_different_branches(self):
+        child1 = _issue(identifier="TASK-2", target_branch="release/1.0")
+        child2 = _issue(identifier="TASK-3", target_branch="release/2.0")
+        tracker = _make_tracker(
+            all_issues=[child1, child2],
+            metadata_map={
+                "TASK-2": {"oompah.backport_of": "TASK-1"},
+                "TASK-3": {"oompah.backport_of": "TASK-1"},
+            },
+        )
+        index = _build_child_index(tracker, [child1, child2])
+        assert ("TASK-1", "release/1.0") in index
+        assert ("TASK-1", "release/2.0") in index
+
+    def test_handles_metadata_exception_gracefully(self):
+        issue = _issue()
+        tracker = MagicMock()
+        tracker.get_metadata.side_effect = Exception("oops")
+        # Should not raise; just skip the issue
+        index = _build_child_index(tracker, [issue])
+        assert index == {}
+
+
+# ---------------------------------------------------------------------------
+# _create_backport_child
+# ---------------------------------------------------------------------------
+
+
+class TestCreateBackportChild:
+    def test_creates_issue_with_correct_title(self):
+        source = _issue(identifier="TASK-10", title="Fix important bug")
+        entry = BackportEntry(branch="release/1.0")
+        child = _issue(identifier="TASK-10.1")
+        tracker = _make_tracker(created_issues=[child])
+        tracker.fetch_issue_detail.return_value = child
+
+        result = _create_backport_child(tracker, source, entry)
+
+        tracker.create_issue.assert_called_once()
+        call_kwargs = tracker.create_issue.call_args
+        assert call_kwargs.kwargs.get("title") or call_kwargs.args[0] == (
+            "Backport Fix important bug to release/1.0"
+        )
+
+    def test_creates_with_backport_label(self):
+        source = _issue(identifier="TASK-10", title="Fix bug")
+        entry = BackportEntry(branch="release/2.0")
+        child = _issue(identifier="TASK-10.1")
+        tracker = _make_tracker(created_issues=[child])
+        tracker.fetch_issue_detail.return_value = child
+
+        _create_backport_child(tracker, source, entry)
+
+        call_kwargs = tracker.create_issue.call_args
+        labels = call_kwargs.kwargs.get("labels") or []
+        assert "backport" in labels
+
+    def test_creates_with_source_as_parent(self):
+        source = _issue(identifier="TASK-10", title="Fix bug")
+        entry = BackportEntry(branch="release/2.0")
+        child = _issue(identifier="TASK-10.1")
+        tracker = _make_tracker(created_issues=[child])
+        tracker.fetch_issue_detail.return_value = child
+
+        _create_backport_child(tracker, source, entry)
+
+        call_kwargs = tracker.create_issue.call_args
+        parent = call_kwargs.kwargs.get("parent")
+        assert parent == "TASK-10"
+
+    def test_sets_backport_of_metadata(self):
+        source = _issue(identifier="TASK-10", title="Fix bug")
+        entry = BackportEntry(branch="release/1.0")
+        child = _issue(identifier="TASK-10.1")
+        tracker = _make_tracker(created_issues=[child])
+        tracker.fetch_issue_detail.return_value = child
+
+        _create_backport_child(tracker, source, entry)
+
+        meta_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[1] == "oompah.backport_of"
+        ]
+        assert len(meta_calls) == 1
+        assert meta_calls[0].args[0] == "TASK-10.1"
+        value = meta_calls[0].args[2]
+        assert value["source"] == "TASK-10"
+
+    def test_sets_target_branch_metadata(self):
+        source = _issue(identifier="TASK-10", title="Fix bug")
+        entry = BackportEntry(branch="release/1.0")
+        child = _issue(identifier="TASK-10.1")
+        tracker = _make_tracker(created_issues=[child])
+        tracker.fetch_issue_detail.return_value = child
+
+        _create_backport_child(tracker, source, entry)
+
+        meta_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[1] == "oompah.target_branch"
+        ]
+        assert len(meta_calls) == 1
+        assert meta_calls[0].args[2] == "release/1.0"
+
+    def test_returns_refreshed_issue_when_available(self):
+        source = _issue(identifier="TASK-10", title="Fix bug")
+        entry = BackportEntry(branch="release/1.0")
+        child = _issue(identifier="TASK-10.1")
+        refreshed = _issue(identifier="TASK-10.1", title="Backport Fix bug to release/1.0")
+        tracker = _make_tracker(created_issues=[child])
+        tracker.fetch_issue_detail.return_value = refreshed
+
+        result = _create_backport_child(tracker, source, entry)
+
+        assert result is refreshed
+
+    def test_returns_original_child_when_refresh_returns_none(self):
+        source = _issue(identifier="TASK-10", title="Fix bug")
+        entry = BackportEntry(branch="release/1.0")
+        child = _issue(identifier="TASK-10.1")
+        tracker = _make_tracker(created_issues=[child])
+        tracker.fetch_issue_detail.return_value = None
+
+        result = _create_backport_child(tracker, source, entry)
+
+        assert result is child
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — no backports
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileNoBackports:
+    def test_returns_empty_result_when_no_issues(self):
+        tracker = _make_tracker()
+        result = reconcile_release_picks(tracker)
+        assert result.scanned == 0
+        assert result.advanced == 0
+        assert result.created == 0
+        assert result.errors == 0
+
+    def test_returns_empty_result_when_no_backport_metadata(self):
+        issues = [_issue("TASK-1"), _issue("TASK-2")]
+        tracker = _make_tracker(all_issues=issues, metadata_map={})
+        result = reconcile_release_picks(tracker)
+        assert result.scanned == 0
+
+    def test_skips_issues_with_empty_backports(self):
+        source = _issue("TASK-1")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={"TASK-1": {"oompah.backports": []}},
+        )
+        result = reconcile_release_picks(tracker)
+        assert result.scanned == 0
+
+    def test_handles_fetch_all_issues_failure(self):
+        tracker = MagicMock()
+        tracker.fetch_all_issues.side_effect = RuntimeError("db down")
+        result = reconcile_release_picks(tracker)
+        assert result.errors == 1
+        assert result.scanned == 0
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — waiting → task_created (create child)
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileWaitingCreateChild:
+    def test_creates_child_for_waiting_entry(self):
+        source = _issue("TASK-1", title="My Feature", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "waiting"}
+                    ]
+                }
+            },
+            created_issues=[child],
+        )
+        tracker.fetch_issue_detail.return_value = child
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.scanned == 1
+        assert result.created == 1
+        assert result.advanced == 1
+        tracker.create_issue.assert_called_once()
+
+    def test_writes_backports_metadata_after_creation(self):
+        source = _issue("TASK-1", title="Feature", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {"oompah.backports": "release/1.0"},
+            },
+            created_issues=[child],
+        )
+        tracker.fetch_issue_detail.return_value = child
+
+        reconcile_release_picks(tracker)
+
+        # set_metadata_field called for child (backport_of, target_branch)
+        # and for source (backports update)
+        source_backports_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        assert len(source_backports_calls) == 1
+        written_raw = source_backports_calls[0].args[2]
+        # The entry should now carry task_created status and the child id
+        written_entries = parse_backports(written_raw)
+        assert len(written_entries) == 1
+        assert written_entries[0].status == ReleasePick.TASK_CREATED
+        assert written_entries[0].task_id == "TASK-1.1"
+
+    def test_multiple_waiting_entries_creates_multiple_children(self):
+        source = _issue("TASK-1", title="Feature", state=DONE)
+        child1 = _issue("TASK-1.1", target_branch="release/1.0")
+        child2 = _issue("TASK-1.2", target_branch="release/2.0")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "waiting"},
+                        {"branch": "release/2.0", "status": "waiting"},
+                    ]
+                }
+            },
+            created_issues=[child1, child2],
+        )
+        tracker.fetch_issue_detail.side_effect = [child1, child2]
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.created == 2
+        assert result.advanced == 2
+
+    def test_create_failure_increments_errors_does_not_raise(self):
+        source = _issue("TASK-1", state=MERGED)
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {"oompah.backports": "release/1.0"}
+            },
+        )
+        tracker.create_issue.side_effect = RuntimeError("tracker down")
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.errors == 1
+        assert result.created == 0
+
+    def test_does_not_create_child_for_non_waiting_entry(self):
+        source = _issue("TASK-1", state=MERGED)
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "task_created", "task_id": "TASK-1.1"}
+                    ]
+                }
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.created == 0
+        tracker.create_issue.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — waiting → task_created (heal stale)
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileWaitingHealStale:
+    def test_heals_waiting_when_child_already_exists(self):
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "waiting"},
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "task_created"}},
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.advanced == 1
+        assert result.created == 0
+        tracker.create_issue.assert_not_called()
+
+    def test_healed_entry_carries_existing_child_id(self):
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {"oompah.backports": "release/1.0"},
+                "TASK-1.1": {"oompah.backport_of": "TASK-1"},
+            },
+        )
+
+        reconcile_release_picks(tracker)
+
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        assert source_calls
+        written_entries = parse_backports(source_calls[0].args[2])
+        assert written_entries[0].task_id == "TASK-1.1"
+        assert written_entries[0].status == ReleasePick.TASK_CREATED
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — terminal child → advance parent entry
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileTerminalChild:
+    def test_advances_to_merged_when_child_is_merged(self):
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0", state=MERGED)
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}},
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.advanced == 1
+        assert result.created == 0
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        written_entries = parse_backports(source_calls[0].args[2])
+        assert written_entries[0].status == ReleasePick.MERGED
+
+    def test_advances_to_archived_when_child_is_archived(self):
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0", state=ARCHIVED)
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "cherry_picking", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "cherry_picking"}},
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        written_entries = parse_backports(source_calls[0].args[2])
+        assert written_entries[0].status == ReleasePick.ARCHIVED
+
+    def test_advances_to_merged_when_child_is_done(self):
+        """Done is treated as merged (not archived)."""
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0", state=DONE)
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": "TASK-1"},
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        written_entries = parse_backports(source_calls[0].args[2])
+        assert written_entries[0].status == ReleasePick.MERGED
+
+    def test_no_write_when_entry_already_merged(self):
+        """Already-terminal entries are not re-written."""
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0", state=MERGED)
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "merged", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": "TASK-1"},
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.advanced == 0
+        assert result.scanned == 1  # still scanned
+        # No writes for already-terminal entries
+        source_backports_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        assert len(source_backports_calls) == 0
+
+    def test_preserves_pr_url_when_advancing(self):
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0", state=MERGED)
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {
+                            "branch": "release/1.0",
+                            "status": "pr_open",
+                            "task_id": "TASK-1.1",
+                            "pr_url": "https://github.com/org/repo/pull/42",
+                        }
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": "TASK-1"},
+            },
+        )
+
+        reconcile_release_picks(tracker)
+
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        written_entries = parse_backports(source_calls[0].args[2])
+        assert written_entries[0].pr_url == "https://github.com/org/repo/pull/42"
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — idempotency
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileIdempotency:
+    def test_second_pass_produces_no_changes(self):
+        """Running the reconciler twice on an already-reconciled state is a no-op."""
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0")
+
+        # Already advanced to task_created with child task
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {
+                            "branch": "release/1.0",
+                            "status": "task_created",
+                            "task_id": "TASK-1.1",
+                        }
+                    ]
+                },
+                "TASK-1.1": {
+                    "oompah.backport_of": {"source": "TASK-1", "status": "task_created"}
+                },
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.advanced == 0
+        assert result.created == 0
+
+    def test_same_branch_not_doubled_within_one_pass(self):
+        """Two entries for the same (source, branch) → only one child created."""
+        source = _issue("TASK-1", state=MERGED)
+        # Duplicate backports entries for same branch
+        child = _issue("TASK-1.1", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "waiting"},
+                        {"branch": "release/1.0", "status": "waiting"},
+                    ]
+                }
+            },
+            created_issues=[child],
+        )
+        tracker.fetch_issue_detail.return_value = child
+
+        result = reconcile_release_picks(tracker)
+
+        # First entry creates child; second entry heals against the same child
+        assert result.created == 1
+        assert result.advanced == 2
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — bad metadata resilience
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileBadMetadata:
+    def test_skips_unparseable_backports_increments_errors(self):
+        source = _issue("TASK-1", state=MERGED)
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {
+                    # Malformed: dict without 'branch' key
+                    "oompah.backports": [{"status": "waiting"}]
+                }
+            },
+        )
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.errors >= 1
+
+    def test_metadata_write_failure_increments_errors(self):
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={
+                "TASK-1": {"oompah.backports": "release/1.0"}
+            },
+            created_issues=[child],
+        )
+        tracker.fetch_issue_detail.return_value = child
+        # The call for child's metadata should succeed, source backports should fail
+        set_meta_call_count = [0]
+
+        def _set_meta(ident, key, value):
+            set_meta_call_count[0] += 1
+            if ident == "TASK-1" and key == "oompah.backports":
+                raise RuntimeError("write failed")
+
+        tracker.set_metadata_field.side_effect = _set_meta
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.errors == 1
+
+    def test_bad_backport_of_on_child_does_not_include_in_index(self):
+        source = _issue("TASK-1", state=MERGED)
+        malformed_child = _issue("TASK-1.1", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[source, malformed_child],
+            metadata_map={
+                "TASK-1": {"oompah.backports": "release/1.0"},
+                # Missing 'source' key — parse_backport_of raises ValueError
+                "TASK-1.1": {"oompah.backport_of": {"status": "waiting"}},
+            },
+            created_issues=[_issue("TASK-1.2", target_branch="release/1.0")],
+        )
+        tracker.fetch_issue_detail.return_value = _issue("TASK-1.2")
+
+        # Malformed child is not indexed, so we still create a new child
+        result = reconcile_release_picks(tracker)
+
+        assert result.created == 1
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator._reconcile_release_picks_pass
+# ---------------------------------------------------------------------------
+
+
+class TestOrchestratorReconcileReleasePicksPass:
+    """_reconcile_release_picks_pass delegates to reconcile_release_picks."""
+
+    def _make_orch(self, tmp_path, projects=None):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+        from oompah.roles import RoleStore
+
+        all_projects = list(projects or [])
+        project_store = MagicMock()
+        project_store.list_all.return_value = all_projects
+        role_store = RoleStore(path=str(tmp_path / "roles.json"))
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            role_store=role_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        orch._fetch_in_progress_issues = MagicMock(return_value=[])
+        return orch
+
+    def test_called_by_handle_yolo_review(self, tmp_path):
+        """_reconcile_release_picks_pass is invoked by _handle_yolo_review."""
+        orch = self._make_orch(tmp_path)
+        orch._yolo_review_actions_sync = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._label_merged_issues = MagicMock()
+        orch._label_merged_epics = MagicMock()
+        orch._reconcile_stale_in_review_tasks = MagicMock()
+        orch._reconcile_release_picks_pass = MagicMock()
+
+        asyncio.run(orch._handle_yolo_review())
+
+        orch._reconcile_release_picks_pass.assert_called_once()
+
+    def test_skips_when_no_projects(self, tmp_path):
+        """With no configured projects, the pass is a no-op (no legacy fallback)."""
+        orch = self._make_orch(tmp_path, projects=[])
+
+        called_with = []
+
+        with patch(
+            "oompah.release_pick_reconciler.reconcile_release_picks",
+            side_effect=lambda tracker: called_with.append(tracker) or ReconcileResult(),
+        ):
+            orch._reconcile_release_picks_pass()
+
+        # Should not call reconcile when there are no projects
+        assert len(called_with) == 0
+
+    def test_calls_reconcile_for_each_project(self, tmp_path):
+        """With multiple projects, reconcile is called once per project."""
+        p1 = MagicMock()
+        p1.id = "proj-1"
+        p1.name = "proj-1"
+        p2 = MagicMock()
+        p2.id = "proj-2"
+        p2.name = "proj-2"
+        orch = self._make_orch(tmp_path, projects=[p1, p2])
+
+        # Stub out _tracker_for_project
+        mock_tracker1 = MagicMock()
+        mock_tracker2 = MagicMock()
+
+        def _get_tracker(pid):
+            return mock_tracker1 if pid == "proj-1" else mock_tracker2
+
+        orch._tracker_for_project = MagicMock(side_effect=_get_tracker)
+
+        called_trackers = []
+
+        with patch(
+            "oompah.release_pick_reconciler.reconcile_release_picks",
+            side_effect=lambda t: called_trackers.append(t) or ReconcileResult(),
+        ):
+            orch._reconcile_release_picks_pass()
+
+        assert mock_tracker1 in called_trackers
+        assert mock_tracker2 in called_trackers
+        assert len(called_trackers) == 2
+
+    def test_continues_on_project_failure(self, tmp_path):
+        """A failure for one project does not prevent processing others."""
+        p1 = MagicMock()
+        p1.id = "proj-1"
+        p1.name = "proj-1"
+        p2 = MagicMock()
+        p2.id = "proj-2"
+        p2.name = "proj-2"
+        orch = self._make_orch(tmp_path, projects=[p1, p2])
+
+        call_count = [0]
+
+        def _tracker(pid):
+            t = MagicMock()
+            return t
+
+        orch._tracker_for_project = MagicMock(side_effect=_tracker)
+
+        def _reconcile(tracker):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError("first project broken")
+            return ReconcileResult()
+
+        with patch(
+            "oompah.release_pick_reconciler.reconcile_release_picks",
+            side_effect=_reconcile,
+        ):
+            # Should not raise
+            orch._reconcile_release_picks_pass()
+
+        # Both projects attempted
+        assert call_count[0] == 2
+
+    def test_project_exception_does_not_raise(self, tmp_path):
+        """Exception from one project's reconcile is swallowed."""
+        p1 = MagicMock()
+        p1.id = "proj-x"
+        p1.name = "proj-x"
+        orch = self._make_orch(tmp_path, projects=[p1])
+        orch._tracker_for_project = MagicMock(return_value=MagicMock())
+
+        with patch(
+            "oompah.release_pick_reconciler.reconcile_release_picks",
+            side_effect=RuntimeError("broken"),
+        ):
+            # Should not raise
+            orch._reconcile_release_picks_pass()

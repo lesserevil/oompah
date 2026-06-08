@@ -1681,6 +1681,7 @@ class Orchestrator:
             self._label_merged_issues()
             self._label_merged_epics()
             self._reconcile_stale_in_review_tasks()
+            self._reconcile_release_picks_pass()
             return (time.monotonic() - t) * 1000
 
         yolo_ms, archive_ms, merged_ms = await asyncio.gather(
@@ -4855,6 +4856,42 @@ class Orchestrator:
                 issue.identifier,
                 exc,
             )
+
+    def _reconcile_release_picks_pass(self) -> None:
+        """Run the release-pick reconciliation pass across all projects.
+
+        Calls :func:`~oompah.release_pick_reconciler.reconcile_release_picks`
+        for every configured project.  Results are logged at INFO when any
+        entries were advanced or child tasks created.
+
+        This method is intentionally best-effort: exceptions from individual
+        projects are caught and logged at DEBUG level so a single broken
+        project never prevents reconciliation for the others.  When no
+        projects are configured (legacy single-tracker mode), the pass is
+        skipped — the release-pick feature requires per-project configuration.
+        """
+        from oompah.release_pick_reconciler import reconcile_release_picks
+
+        for project in self.project_store.list_all():
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                result = reconcile_release_picks(tracker)
+                if result.changed:
+                    logger.info(
+                        "release_pick reconciliation [%s]: scanned=%d advanced=%d"
+                        " created=%d errors=%d",
+                        project.name,
+                        result.scanned,
+                        result.advanced,
+                        result.created,
+                        result.errors,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "release_pick reconciliation failed for project %s: %s",
+                    getattr(project, "name", project),
+                    exc,
+                )
 
     def _label_merged_epics(self) -> None:
         """When an epic→main PR has merged, mark the epic AND all its
