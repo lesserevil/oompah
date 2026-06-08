@@ -120,6 +120,12 @@ class Issue:
     # here carries just paths so prompt rendering and dispatch can ignore
     # the metadata structure.
     attachments: list[str] = field(default_factory=list)
+    tracker_kind: str | None = None
+    owner: str | None = None
+    repo: str | None = None
+    issue_number: str | None = None
+    display_identifier: str | None = None
+    provider_url: str | None = None
 
 
 @dataclass

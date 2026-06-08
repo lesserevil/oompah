@@ -1,19 +1,20 @@
 ---
 id: TASK-457.4
 title: Add shared tracker contract tests
-status: Backlog
+status: In Progress
 assignee: []
-created_date: '2026-06-08 17:56'
+created_date: 2026-06-08 17:56
+updated_date: 2026-06-08 20:44
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-457.1
+- TASK-457.1
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - tests
+- tests
 parent_task_id: TASK-457
 priority: high
 ordinal: 112000
@@ -30,3 +31,14 @@ Create backend-neutral contract tests for issue creation, state transitions, com
 - [ ] #1 Contract tests can run against BacklogMdTracker and a fake tracker implementation.
 - [ ] #2 Future GitHubIssueTracker tests can reuse the same contract suite.
 <!-- AC:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-08 20:44
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->

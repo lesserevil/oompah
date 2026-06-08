@@ -376,7 +376,7 @@ class TrackerProtocol(Protocol):
         ...
 
 
-class BacklogMdTracker:
+class BacklogMdTracker(TrackerProtocol):
     """Issue tracker client backed by Backlog.md task files and CLI writes."""
 
     def __init__(
