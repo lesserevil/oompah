@@ -1,10 +1,10 @@
 ---
 id: TASK-455.1
 title: Implement release-pick reconciliation loop
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 19:03'
+updated_date: '2026-06-08 19:04'
 labels:
   - task
 dependencies:
@@ -46,4 +46,16 @@ created: 2026-06-08 19:03
 ---
 Implementation: Created oompah/release_pick_reconciler.py with reconcile_release_picks(tracker)->ReconcileResult. The pass: (1) fetches all issues once; (2) builds a child index mapping (source_id, branch) to existing child tasks; (3) for each source with oompah.backports, advances 'waiting' entries by creating child tasks or healing stale entries, and mirrors terminal child states back to the parent entry; (4) writes updated backports metadata. Added _reconcile_release_picks_pass() to Orchestrator, wired into _timed_merged_labels() in _handle_yolo_review(). No legacy-tracker fallback — requires per-project config. 53 tests in tests/test_release_pick_reconciler.py.
 ---
+
+author: oompah
+created: 2026-06-08 19:03
+---
+Verification: 53/53 tests pass in tests/test_release_pick_reconciler.py; 395/395 tests pass across release_pick_reconciler, release_pick_schema, release_pick_validation, orchestrator_handlers, backlog_tracker, and backlog_compat — no regressions. The _timed_merged_labels hang in orchestrator_handlers was fixed by removing the legacy-tracker fallback path (match pattern of _reconcile_stale_in_review_tasks).
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented idempotent release-pick reconciliation loop. New module oompah/release_pick_reconciler.py with reconcile_release_picks(tracker)->ReconcileResult. Scans all issues for oompah.backports metadata, builds a child-task index to detect duplicates, advances 'waiting' entries (create child task or heal stale), and mirrors terminal child outcomes (merged/archived) back to the parent backports entry. Wired into Orchestrator._reconcile_release_picks_pass() called from _timed_merged_labels() in _handle_yolo_review() — one pass per background tick per configured project. 53 tests covering all scenarios including idempotency and bad-metadata resilience.
+<!-- SECTION:FINAL_SUMMARY:END -->
