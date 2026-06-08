@@ -13,6 +13,13 @@ from watchfiles import awatch
 logger = logging.getLogger("oompah")
 
 
+def _load_startup_env(env_file: str) -> int:
+    """Load the startup .env file as the authoritative config source."""
+    from oompah.config import load_dotenv
+
+    return load_dotenv(os.path.abspath(env_file), override=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="oompah",
@@ -47,11 +54,8 @@ def main() -> None:
     args = parser.parse_args()
 
     # Load .env file before anything else so $VAR references in WORKFLOW.md resolve.
-    # Import here to avoid circular imports at module load time.
-    from oompah.config import load_dotenv
-
     env_path = os.path.abspath(args.env_file)
-    n = load_dotenv(env_path)
+    n = _load_startup_env(env_path)
     if n > 0:
         # Use basic print here — logging not yet configured
         print(f"Loaded {n} variable(s) from {env_path}", file=sys.stderr)

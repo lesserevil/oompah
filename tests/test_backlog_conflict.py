@@ -780,7 +780,12 @@ class TestDispatchBlockingForQuarantinedProject:
         )
         store._projects["p1"] = project
 
-        orch = Orchestrator(ServiceConfig(), None, project_store=store)
+        orch = Orchestrator(
+            ServiceConfig(),
+            None,
+            project_store=store,
+            state_path=str(tmp_path / "state.json"),
+        )
 
         issue = Issue(
             id="TASK-1",
