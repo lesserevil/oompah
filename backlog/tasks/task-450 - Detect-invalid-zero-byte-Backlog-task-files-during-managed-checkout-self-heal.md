@@ -1,10 +1,10 @@
 ---
 id: TASK-450
 title: Detect invalid zero-byte Backlog task files during managed checkout self-heal
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 00:09'
-updated_date: '2026-06-08 00:36'
+updated_date: '2026-06-08 00:37'
 labels:
   - bug
 dependencies: []
@@ -27,3 +27,9 @@ Discovery: TASK-431 implemented conflict-marker detection/repair but _sound() in
 
 Implementation: Added inspect_repo_invalid_backlog_task_files() and recover_invalid_backlog_task_files() to oompah/backlog_conflict.py. Integrated recovery as step 5b in ensure_repo_sound(). Updated _sound() to include check. Updated unrecoverable list in steps 8/9 to include invalid files. Added 20 regression tests covering: zero-byte tracked detection, malformed frontmatter detection, conflict-marker exclusion, completed subdir detection, recovery from HEAD, recovery from origin, spurious untracked removal, unrecoverable tracked files, ensure_repo_sound integration, and sync_project_sources quarantine. All 89 tests pass.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented zero-byte/malformed-frontmatter Backlog task file detection and recovery in managed checkout self-heal. Added inspect_repo_invalid_backlog_task_files() and recover_invalid_backlog_task_files() to oompah/backlog_conflict.py; integrated as step 5b in ensure_repo_sound(); updated _sound() soundness check; updated unrecoverable path collection so quarantine triggers correctly. Added 20 regression tests (89 total pass). Confirmed not a duplicate of TASK-431 (which handled git conflict markers — this covers the orthogonal disk-full zero-byte scenario).
+<!-- SECTION:FINAL_SUMMARY:END -->
