@@ -791,6 +791,178 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         kwargs = call.kwargs
         assert kwargs.get("target_branch") == "main"
 
+    def test_task_target_branch_used_when_set(self, tmp_path):
+        """Normal task with Issue.target_branch set opens PR into that branch."""
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="42")
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        issue = Issue(
+            id="task-1",
+            identifier="task-1",
+            title="My release task",
+            description="body",
+            state="open",
+            issue_type="task",
+            project_id="proj-1",
+            target_branch="release/1.2",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        call = provider.create_review.call_args
+        kwargs = call.kwargs
+        assert kwargs.get("target_branch") == "release/1.2"
+
+    def test_task_without_target_branch_falls_back_to_project_default(self, tmp_path):
+        """Task with no target_branch set falls back to the project default branch."""
+        proj = _make_project_record(epic_strategy="flat")
+        proj.default_branch = "develop"
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="55")
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        issue = Issue(
+            id="task-2",
+            identifier="task-2",
+            title="Normal task",
+            description="body",
+            state="open",
+            issue_type="task",
+            project_id="proj-1",
+            target_branch=None,
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-2",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        call = provider.create_review.call_args
+        kwargs = call.kwargs
+        assert kwargs.get("target_branch") == "develop"
+
+    def test_release_task_opens_pr_into_release_branch(self, tmp_path):
+        """Release tasks (with target_branch=release/X) open PRs into that release branch."""
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="77")
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        release_issue = Issue(
+            id="TASK-123",
+            identifier="TASK-123",
+            title="Backport fix for 2.3",
+            description="cherry-pick of fix onto 2.3 branch",
+            state="open",
+            issue_type="task",
+            project_id="proj-1",
+            target_branch="release/2.3",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="TASK-123",
+            issue=release_issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        call = provider.create_review.call_args
+        kwargs = call.kwargs
+        # PR must target the release branch, not main
+        assert kwargs.get("target_branch") == "release/2.3"
+        assert kwargs.get("target_branch") != "main"
+
+    def test_stacked_child_with_target_branch_still_uses_epic_branch(self, tmp_path):
+        """In stacked mode, a child's target_branch does NOT override the epic branch."""
+        proj = _make_project_record(epic_strategy="stacked")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="42")
+
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = epic
+
+        # Child has a target_branch set — stacked mode should still win
+        issue = Issue(
+            id="task-1",
+            identifier="task-1",
+            title="child task",
+            description="body",
+            state="open",
+            issue_type="task",
+            parent_id="epic-1",
+            project_id="proj-1",
+            target_branch="release/3.0",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            orch._ensure_review_exists(entry, "proj-1")
+
+        call = provider.create_review.call_args
+        kwargs = call.kwargs
+        # Stacked child always targets the epic branch, not issue.target_branch
+        assert kwargs.get("target_branch") == "epic-epic-1"
+
 
 # --------------------------------------------------- epic completion + PR open
 

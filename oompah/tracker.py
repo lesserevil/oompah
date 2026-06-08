@@ -77,6 +77,10 @@ _KNOWN_BACKLOG_FIELDS: frozenset[str] = frozenset({
     # oompah-owned fields written via _write_markdown_frontmatter (not CLI)
     "oompah.attachments",
     "oompah_attachments",
+    # release-pick / target-branch metadata (TASK-454.1)
+    "oompah.target_branch",
+    "oompah.backports",
+    "oompah.backport_of",
 })
 
 
@@ -766,6 +770,10 @@ class BacklogMdTracker:
                 elif isinstance(entry, str):
                     attachments.append(entry)
         issue_type = str(meta.get("type") or _issue_type_from_labels(labels))
+        # Populate target_branch from oompah.target_branch (preferred) or the
+        # compatible top-level target_branch frontmatter field (TASK-454.1).
+        raw_target = meta.get("oompah.target_branch") or meta.get("target_branch")
+        target_branch = str(raw_target).strip() if raw_target else None
         return Issue(
             id=identifier,
             identifier=identifier,
@@ -774,6 +782,7 @@ class BacklogMdTracker:
             priority=priority,
             state=state,
             branch_name=_sanitize_identifier(identifier),
+            target_branch=target_branch,
             issue_type=issue_type,
             parent_id=str(parent_id) if parent_id else None,
             labels=[label.lower() for label in labels],

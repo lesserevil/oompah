@@ -991,3 +991,189 @@ def test_completed_and_active_reads_cached_independently(tmp_path):
         tracker.fetch_all_issues()                # cached
     # One miss per include_completed variant, then all cached.
     assert spy.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests for TASK-454.1: target_branch and release-pick metadata reading
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_task_sets_target_branch_from_oompah_frontmatter(tmp_path):
+    """Issue.target_branch is populated from oompah.target_branch frontmatter."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Release pick",
+        extra_meta={"oompah.target_branch": "release/1.2"},
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.target_branch == "release/1.2"
+
+
+def test_normalize_task_target_branch_missing_yields_none(tmp_path):
+    """Issue.target_branch is None when no target_branch frontmatter is present."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Regular task")
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.target_branch is None
+
+
+def test_normalize_task_sets_target_branch_from_compatible_frontmatter(tmp_path):
+    """Issue.target_branch falls back to the top-level target_branch field."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Compat target branch",
+        extra_meta={"target_branch": "hotfix/critical"},
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.target_branch == "hotfix/critical"
+
+
+def test_normalize_task_oompah_target_branch_takes_precedence(tmp_path):
+    """oompah.target_branch wins over the compatible top-level target_branch."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Priority check",
+        extra_meta={
+            "oompah.target_branch": "release/2.0",
+            "target_branch": "old-field",
+        },
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.target_branch == "release/2.0"
+
+
+def test_get_metadata_returns_scalar_backport_of(tmp_path):
+    """get_metadata exposes oompah.backport_of as a scalar string."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Backport task",
+        extra_meta={"oompah.backport_of": "TASK-100"},
+    )
+
+    meta = _tracker(tmp_path).get_metadata("TASK-1")
+
+    assert meta.get("oompah.backport_of") == "TASK-100"
+
+
+def test_get_metadata_returns_scalar_backports(tmp_path):
+    """get_metadata exposes oompah.backports as a scalar branch name."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Has backport branch",
+        extra_meta={"oompah.backports": "release/1.0"},
+    )
+
+    meta = _tracker(tmp_path).get_metadata("TASK-1")
+
+    assert meta.get("oompah.backports") == "release/1.0"
+
+
+def test_get_metadata_returns_nested_backports_list(tmp_path):
+    """get_metadata exposes oompah.backports as a list of branch names."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Multi-backport",
+        extra_meta={"oompah.backports": ["release/1.0", "release/2.0"]},
+    )
+
+    meta = _tracker(tmp_path).get_metadata("TASK-1")
+
+    assert meta.get("oompah.backports") == ["release/1.0", "release/2.0"]
+
+
+def test_get_metadata_returns_nested_backport_of_dict(tmp_path):
+    """get_metadata exposes oompah.backport_of as a nested dict."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Nested backport_of",
+        extra_meta={
+            "oompah.backport_of": {
+                "identifier": "TASK-42",
+                "branch": "release/1.5",
+            }
+        },
+    )
+
+    meta = _tracker(tmp_path).get_metadata("TASK-1")
+
+    assert meta.get("oompah.backport_of") == {
+        "identifier": "TASK-42",
+        "branch": "release/1.5",
+    }
+
+
+def test_get_metadata_missing_backport_fields_returns_empty(tmp_path):
+    """get_metadata returns an empty dict when no oompah.* keys are present."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Plain task")
+
+    meta = _tracker(tmp_path).get_metadata("TASK-1")
+
+    assert "oompah.backports" not in meta
+    assert "oompah.backport_of" not in meta
+    assert "oompah.target_branch" not in meta
+
+
+def test_set_metadata_field_stores_and_retrieves_backports(tmp_path):
+    """set_metadata_field persists oompah.backports and get_metadata reads it back."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Backport target")
+    tracker = _tracker(tmp_path)
+
+    tracker.set_metadata_field("TASK-1", "oompah.backports", ["release/3.0", "release/3.1"])
+
+    meta = tracker.get_metadata("TASK-1")
+    assert meta["oompah.backports"] == ["release/3.0", "release/3.1"]
+
+
+def test_set_metadata_field_stores_and_retrieves_backport_of(tmp_path):
+    """set_metadata_field persists oompah.backport_of and get_metadata reads it back."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Backport origin")
+    tracker = _tracker(tmp_path)
+
+    tracker.set_metadata_field("TASK-1", "oompah.backport_of", "TASK-200")
+
+    meta = tracker.get_metadata("TASK-1")
+    assert meta["oompah.backport_of"] == "TASK-200"
+
+
+def test_set_metadata_field_stores_and_retrieves_target_branch(tmp_path):
+    """set_metadata_field persists oompah.target_branch and it populates Issue."""
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Branch target")
+    tracker = _tracker(tmp_path)
+
+    tracker.set_metadata_field("TASK-1", "oompah.target_branch", "release/4.0")
+
+    issue = tracker.fetch_issue_detail("TASK-1")
+    assert issue is not None
+    assert issue.target_branch == "release/4.0"
+    meta = tracker.get_metadata("TASK-1")
+    assert meta["oompah.target_branch"] == "release/4.0"
