@@ -21,12 +21,12 @@ def test_setup_depends_on_backlog_cli_check():
     assert ".PHONY: help setup ensure-backlog" in text
 
 
-def test_ensure_backlog_installs_lesserevil_backlog_repo():
-    """The setup helper installs the Lesserevil Backlog.md repo."""
+def test_ensure_backlog_installs_upstream_backlog_repo():
+    """The setup helper installs the upstream Backlog.md repo."""
     text = _makefile_text()
 
     assert (
-        "BACKLOG_NPM_PACKAGE := https://github.com/lesserevil/backlog.md/archive/HEAD.tar.gz"
+        "BACKLOG_NPM_PACKAGE := https://github.com/MrLesk/Backlog.md/archive/HEAD.tar.gz"
         in text
     )
     assert "BACKLOG_CLI := $(VENV)/bin/backlog" in text

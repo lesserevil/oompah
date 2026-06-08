@@ -31,7 +31,7 @@ make setup
 make start
 ```
 
-> [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`. `make setup` also installs the Backlog.md CLI (`backlog`) from the `lesserevil/backlog.md` GitHub tarball into `.venv`.
+> [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`. `make setup` also installs the Backlog.md CLI (`backlog`) from the upstream `MrLesk/Backlog.md` GitHub tarball into `.venv`.
 
 ## Backends
 

@@ -7,7 +7,7 @@ LOG_FILE := oompah.log
 # oompah actually listens on, even when the operator hasn't exported the var.
 _ENV_PORT := $(shell grep -E '^OOMPAH_SERVER_PORT[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
 PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),$(if $(_ENV_PORT),$(_ENV_PORT),8080))
-BACKLOG_NPM_PACKAGE := https://github.com/lesserevil/backlog.md/archive/HEAD.tar.gz
+BACKLOG_NPM_PACKAGE := https://github.com/MrLesk/Backlog.md/archive/HEAD.tar.gz
 BACKLOG_CLI := $(VENV)/bin/backlog
 
 export PATH := $(abspath $(VENV)/bin):$(PATH)
