@@ -2647,6 +2647,63 @@ class TestSelectDispatchableDuplicateSuppression:
         if streak:
             assert "similar" not in streak[0].lower()
 
+    def test_weak_label_overlap_does_not_suppress_independent_p0_work(self, tmp_path):
+        """Shared project/type/labels alone should not serialize unrelated P0 work."""
+        from oompah.models import RunningEntry
+        from datetime import datetime, timezone
+
+        orch = _make_orchestrator(tmp_path)
+
+        running_issue = Issue(
+            id="TASK-465.3",
+            identifier="TASK-465.3",
+            title="Add regression coverage for tick lane serialization",
+            description="Add tests",
+            state="In Progress",
+            priority=0,
+            project_id="proj-1",
+            labels=["task", "tick-latency", "dispatch-performance"],
+            created_at=datetime(2026, 6, 8, tzinfo=timezone.utc),
+        )
+        orch.state.running[running_issue.id] = RunningEntry(
+            worker_task=None,
+            identifier=running_issue.identifier,
+            issue=running_issue,
+            session=None,
+            retry_attempt=1,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="standard",
+        )
+
+        maintenance = Issue(
+            id="TASK-466.1",
+            identifier="TASK-466.1",
+            title="Move worktree cleanup and repo self-heal to maintenance lane",
+            description="Move maintenance work",
+            state="Open",
+            priority=0,
+            project_id="proj-1",
+            labels=["task", "tick-latency", "maintenance", "needs:backend", "needs:test"],
+            created_at=datetime(2026, 6, 8, 0, 1, tzinfo=timezone.utc),
+        )
+        locks = Issue(
+            id="TASK-467.1",
+            identifier="TASK-467.1",
+            title="Add per-project locks for tracker writes and git mutations",
+            description="Add locks",
+            state="Open",
+            priority=0,
+            project_id="proj-1",
+            labels=["task", "tick-latency", "dispatch-performance", "needs:backend", "needs:test"],
+            created_at=datetime(2026, 6, 8, 0, 2, tzinfo=timezone.utc),
+        )
+
+        result = orch._select_dispatchable([maintenance, locks])
+
+        identifiers = {i.identifier for i in result}
+        assert "TASK-466.1" in identifiers
+        assert "TASK-467.1" in identifiers
+
     def test_inter_candidate_duplicate_only_oldest_passes(self, tmp_path):
         """When two similar candidates are in the same batch, only the oldest passes."""
         from datetime import datetime, timezone

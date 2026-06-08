@@ -102,6 +102,8 @@ from oompah.churn_magnet import (
 import json
 import os
 
+_DISPATCH_DUPLICATE_SUPPRESSION_SCORE = 0.75
+
 logger = logging.getLogger(__name__)
 
 
@@ -6717,7 +6719,11 @@ class Orchestrator:
         for issue in sorted_issues:
             # Build pool: full in-flight issues + already-accepted candidates this tick
             pool: list[Issue] = list(in_flight_issues) + list(dispatchable)
-            similar = find_similar_issues(issue, pool)
+            similar = find_similar_issues(
+                issue,
+                pool,
+                min_score=_DISPATCH_DUPLICATE_SUPPRESSION_SCORE,
+            )
             if similar:
                 dup_issue, score = similar[0]
                 logger.debug(
