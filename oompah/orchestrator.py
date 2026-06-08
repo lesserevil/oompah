@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -4913,7 +4914,15 @@ class Orchestrator:
                 elif "ci-fix" in labels:
                     status = NEEDS_CI_FIX
                     updates["priority"] = "0"
-                tracker.update_issue(issue.identifier, status=status, **updates)
+                # Acquire per-project write lock so concurrent maintenance
+                # passes don't interleave tracker writes for the same project.
+                _lock_ctx = (
+                    self.project_store.project_write_lock(project_id)
+                    if project_id
+                    else contextlib.nullcontext()
+                )
+                with _lock_ctx:
+                    tracker.update_issue(issue.identifier, status=status, **updates)
                 self.state.completed.discard(issue.id)
                 self._orphan_reset_counts[issue.id] = (
                     self._orphan_reset_counts.get(issue.id, 0) + 1
