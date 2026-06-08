@@ -677,6 +677,22 @@
       font-size: 0.78rem;
       margin-bottom: 0.35rem;
     }
+    .release-pick-validation-error {
+      font-size: 0.68rem;
+      color: var(--red, #f85149);
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      width: 100%;
+      margin-top: 0.15rem;
+      flex-basis: 100%;
+    }
+    .release-pick-pr-closed {
+      color: var(--text-muted);
+      text-decoration: line-through;
+      opacity: 0.65;
+    }
 
     /* Agent status bar */
     .agent-bar {
@@ -3457,11 +3473,11 @@ function refreshOpenDetailPanel() {
 
 function releasePickNextAction(status) {
   const actions = {
-    'waiting':        'Pending automation',
+    'waiting':        'Waiting for source to merge',
     'task_created':   'Cherry-pick in progress',
     'cherry_picking': 'Creating PR…',
     'pr_open':        'Awaiting review',
-    'conflict':       'Resolve conflict',
+    'conflict':       'Resolve conflict and re-pick',
     'merged':         '',
     'archived':       '',
     'needs_human':    'Manual action required',
@@ -3496,17 +3512,34 @@ function renderReleasePicksSection(picksData, identifier, projectId) {
       const taskLink = entry.task_id
         ? `<span class="release-pick-task-link" onclick="openDetailPanel('${esc(entry.task_id)}')">${esc(entry.task_id)}</span>`
         : '';
-      const prLink = entry.pr_url
-        ? `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-pick-pr-link">PR #${esc(entry.pr_id || '')}</a>`
-        : '';
+      // Render PR link with state-aware styling:
+      //   pr_open   -> open PR (active link)
+      //   merged    -> merged PR (success)
+      //   otherwise -> PR was closed without merging
+      let prLink = '';
+      if (entry.pr_url) {
+        const prLabel = `PR #${esc(entry.pr_id || '')}`;
+        if (entry.status === 'pr_open') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-pick-pr-link">${prLabel}</a>`;
+        } else if (entry.status === 'merged') {
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-pick-pr-link">${prLabel} ✓</a>`;
+        } else {
+          // PR closed without merging (e.g. status reverted to cherry_picking)
+          prLink = `<a href="${esc(entry.pr_url)}" target="_blank" rel="noopener noreferrer" class="release-pick-pr-link release-pick-pr-closed">${prLabel} (closed)</a>`;
+        }
+      }
       const nextActionHtml = nextAction
         ? `<span class="release-pick-next-action">${esc(nextAction)}</span>`
+        : '';
+      // Show branch validation error when is_valid is false
+      const validationErrorHtml = !entry.is_valid && entry.validation_error
+        ? `<span class="release-pick-validation-error">⚠ ${esc(entry.validation_error)}</span>`
         : '';
       html += `
         <li class="release-pick-entry">
           <span class="release-pick-branch">${esc(entry.branch)}</span>
           <span class="release-pick-status release-pick-status-${esc(entry.status)}">${esc(entry.status.replace(/_/g, ' '))}</span>
-          ${taskLink}${prLink}${nextActionHtml}
+          ${taskLink}${prLink}${nextActionHtml}${validationErrorHtml}
         </li>
       `;
     }
