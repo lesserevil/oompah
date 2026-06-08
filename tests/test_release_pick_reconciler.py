@@ -22,6 +22,7 @@ from oompah.release_pick_reconciler import (
     _best_live_child,
     _build_child_index,
     _create_backport_child,
+    _create_backport_worktree,
     _most_terminal_child,
     reconcile_release_picks,
 )
@@ -876,9 +877,13 @@ class TestOrchestratorReconcileReleasePicksPass:
 
         called_with = []
 
+        def _fake_reconcile(tracker, **kwargs):
+            called_with.append(tracker)
+            return ReconcileResult()
+
         with patch(
             "oompah.release_pick_reconciler.reconcile_release_picks",
-            side_effect=lambda tracker: called_with.append(tracker) or ReconcileResult(),
+            side_effect=_fake_reconcile,
         ):
             orch._reconcile_release_picks_pass()
 
@@ -906,15 +911,44 @@ class TestOrchestratorReconcileReleasePicksPass:
 
         called_trackers = []
 
+        def _fake_reconcile(tracker, **kwargs):
+            called_trackers.append(tracker)
+            return ReconcileResult()
+
         with patch(
             "oompah.release_pick_reconciler.reconcile_release_picks",
-            side_effect=lambda t: called_trackers.append(t) or ReconcileResult(),
+            side_effect=_fake_reconcile,
         ):
             orch._reconcile_release_picks_pass()
 
         assert mock_tracker1 in called_trackers
         assert mock_tracker2 in called_trackers
         assert len(called_trackers) == 2
+
+    def test_calls_reconcile_with_project_store_and_id(self, tmp_path):
+        """Reconcile is called with project_store and project_id kwargs."""
+        p1 = MagicMock()
+        p1.id = "proj-1"
+        p1.name = "proj-1"
+        orch = self._make_orch(tmp_path, projects=[p1])
+        orch._tracker_for_project = MagicMock(return_value=MagicMock())
+
+        captured_kwargs: list[dict] = []
+
+        def _fake_reconcile(tracker, **kwargs):
+            captured_kwargs.append(kwargs)
+            return ReconcileResult()
+
+        with patch(
+            "oompah.release_pick_reconciler.reconcile_release_picks",
+            side_effect=_fake_reconcile,
+        ):
+            orch._reconcile_release_picks_pass()
+
+        assert len(captured_kwargs) == 1
+        assert "project_store" in captured_kwargs[0]
+        assert "project_id" in captured_kwargs[0]
+        assert captured_kwargs[0]["project_id"] == "proj-1"
 
     def test_continues_on_project_failure(self, tmp_path):
         """A failure for one project does not prevent processing others."""
@@ -934,7 +968,7 @@ class TestOrchestratorReconcileReleasePicksPass:
 
         orch._tracker_for_project = MagicMock(side_effect=_tracker)
 
-        def _reconcile(tracker):
+        def _reconcile(tracker, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise RuntimeError("first project broken")
@@ -964,3 +998,163 @@ class TestOrchestratorReconcileReleasePicksPass:
         ):
             # Should not raise
             orch._reconcile_release_picks_pass()
+
+
+# ---------------------------------------------------------------------------
+# _create_backport_worktree (TASK-455.3)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateBackportWorktree:
+    """Tests for the target-branch worktree helper function."""
+
+    def test_calls_create_worktree_with_correct_args(self):
+        """create_worktree is called with the child identifier and target branch."""
+        child = _issue(identifier="TASK-10.1")
+        entry = BackportEntry(branch="release/1.0")
+        project_store = MagicMock()
+
+        _create_backport_worktree(child, entry, project_store, "proj-1")
+
+        project_store.create_worktree.assert_called_once_with(
+            "proj-1",
+            "TASK-10.1",
+            base_branch="release/1.0",
+        )
+
+    def test_uses_entry_branch_as_base_branch(self):
+        """base_branch kwarg is taken from entry.branch."""
+        child = _issue(identifier="TASK-5.1")
+        entry = BackportEntry(branch="maint/2.x")
+        project_store = MagicMock()
+
+        _create_backport_worktree(child, entry, project_store, "my-proj")
+
+        call_kwargs = project_store.create_worktree.call_args
+        assert call_kwargs.kwargs.get("base_branch") == "maint/2.x"
+
+    def test_propagates_project_error(self):
+        """ProjectError from create_worktree propagates to the caller."""
+        from oompah.projects import ProjectError
+
+        child = _issue(identifier="TASK-10.1")
+        entry = BackportEntry(branch="release/2.0")
+        project_store = MagicMock()
+        project_store.create_worktree.side_effect = ProjectError("git failed")
+
+        with pytest.raises(ProjectError):
+            _create_backport_worktree(child, entry, project_store, "proj-1")
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — worktree integration (TASK-455.3)
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileWorktreeIntegration:
+    """Verify worktree creation is wired through the reconcile pass."""
+
+    def test_worktree_created_for_new_waiting_entry(self):
+        """A 'waiting' entry that gets a new child also gets a worktree."""
+        source = _issue(identifier="TASK-1", title="Bug fix")
+        entries_raw = backports_to_raw(
+            [BackportEntry(branch="release/3.0", status=ReleasePick.WAITING)]
+        )
+        child = _issue(identifier="TASK-1.1")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={"TASK-1": {"oompah.backports": entries_raw}},
+            created_issues=[child],
+        )
+        tracker.fetch_issue_detail.return_value = child
+
+        project_store = MagicMock()
+        result = reconcile_release_picks(
+            tracker,
+            project_store=project_store,
+            project_id="proj-abc",
+        )
+
+        assert result.created == 1
+        project_store.create_worktree.assert_called_once_with(
+            "proj-abc",
+            "TASK-1.1",
+            base_branch="release/3.0",
+        )
+
+    def test_no_worktree_when_no_project_store(self):
+        """Without project_store, no worktrees are created (backward-compat)."""
+        source = _issue(identifier="TASK-2", title="Other fix")
+        entries_raw = backports_to_raw(
+            [BackportEntry(branch="release/1.0", status=ReleasePick.WAITING)]
+        )
+        child = _issue(identifier="TASK-2.1")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={"TASK-2": {"oompah.backports": entries_raw}},
+            created_issues=[child],
+        )
+        tracker.fetch_issue_detail.return_value = child
+
+        # No project_store — reconcile without worktree creation
+        result = reconcile_release_picks(tracker)
+
+        assert result.created == 1  # child task is still created
+
+    def test_worktree_failure_counted_in_errors(self):
+        """A worktree creation failure increments errors in the result."""
+        from oompah.projects import ProjectError
+
+        source = _issue(identifier="TASK-3", title="Security fix")
+        entries_raw = backports_to_raw(
+            [BackportEntry(branch="stable/4.0", status=ReleasePick.WAITING)]
+        )
+        child = _issue(identifier="TASK-3.1")
+        tracker = _make_tracker(
+            all_issues=[source],
+            metadata_map={"TASK-3": {"oompah.backports": entries_raw}},
+            created_issues=[child],
+        )
+        tracker.fetch_issue_detail.return_value = child
+
+        project_store = MagicMock()
+        project_store.create_worktree.side_effect = ProjectError("no git")
+
+        result = reconcile_release_picks(
+            tracker,
+            project_store=project_store,
+            project_id="proj-1",
+        )
+
+        # Child task was still created
+        assert result.created == 1
+        # Error from worktree failure was recorded
+        assert result.errors >= 1
+
+    def test_no_worktree_for_healed_stale_entry(self):
+        """A stale 'waiting' entry that's healed (child already exists) gets no new worktree."""
+        child = _issue(identifier="TASK-4.1", target_branch="release/1.0")
+        source = _issue(identifier="TASK-4", title="Already done fix")
+        entries_raw = backports_to_raw(
+            [BackportEntry(branch="release/1.0", status=ReleasePick.WAITING)]
+        )
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-4": {"oompah.backports": entries_raw},
+                "TASK-4.1": {"oompah.backport_of": {"source": "TASK-4", "status": "task_created"}},
+            },
+        )
+
+        project_store = MagicMock()
+        result = reconcile_release_picks(
+            tracker,
+            project_store=project_store,
+            project_id="proj-1",
+        )
+
+        # Entry healed (advanced) but no new task created
+        assert result.advanced == 1
+        assert result.created == 0
+        # No worktree created for heal path (child already exists)
+        project_store.create_worktree.assert_not_called()

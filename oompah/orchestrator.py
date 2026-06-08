@@ -4863,8 +4863,10 @@ class Orchestrator:
         """Run the release-pick reconciliation pass across all projects.
 
         Calls :func:`~oompah.release_pick_reconciler.reconcile_release_picks`
-        for every configured project.  Results are logged at INFO when any
-        entries were advanced or child tasks created.
+        for every configured project, passing the project store so that
+        target-branch worktrees are created alongside child backport tasks.
+        Results are logged at INFO when any entries were advanced or child
+        tasks created.
 
         This method is intentionally best-effort: exceptions from individual
         projects are caught and logged at DEBUG level so a single broken
@@ -4877,7 +4879,11 @@ class Orchestrator:
         for project in self.project_store.list_all():
             try:
                 tracker = self._tracker_for_project(str(project.id))
-                result = reconcile_release_picks(tracker)
+                result = reconcile_release_picks(
+                    tracker,
+                    project_store=self.project_store,
+                    project_id=str(project.id),
+                )
                 if result.changed:
                     logger.info(
                         "release_pick reconciliation [%s]: scanned=%d advanced=%d"

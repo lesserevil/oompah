@@ -260,6 +260,28 @@ class SCMProvider(ABC):
         """
         ...
 
+    def get_pr_commits(self, repo: str, review_id: str) -> list[str]:
+        """Return the commit SHAs included in a pull/merge request.
+
+        Returns commits in chronological order (oldest first) as full
+        40-character SHA strings.  Returns an empty list when the PR/MR
+        cannot be found, the provider API returns an error, or the
+        provider does not support this operation.
+
+        The default implementation returns an empty list so that
+        sub-classes that have not yet implemented this method degrade
+        gracefully rather than raising.
+
+        Args:
+            repo: Repository identifier (e.g. ``"owner/name"``).
+            review_id: PR/MR number as a string.
+
+        Returns:
+            List of commit SHAs (full length), oldest first.  May be
+            empty when the PR has no commits or on API error.
+        """
+        return []
+
 
 def _resolve_gh_token() -> str | None:
     """Resolve GitHub token from environment or gh CLI config."""
@@ -1391,6 +1413,48 @@ class GitHubProvider(SCMProvider):
                 repo, review_id, label, exc,
             )
 
+    def get_pr_commits(self, repo: str, review_id: str) -> list[str]:
+        """Return the commit SHAs included in a GitHub pull request.
+
+        Uses ``GET /repos/{repo}/pulls/{pr}/commits`` (max 250 commits per
+        GitHub API documentation — sufficient for any normal PR; large
+        squash-heavy PRs are handled by GitHub presenting a single commit).
+
+        Returns commits in chronological order (oldest first).  Empty list
+        on HTTP error, non-200 status, or JSON decode failure.
+
+        Args:
+            repo: ``"owner/name"`` slug.
+            review_id: PR number as a string.
+
+        Returns:
+            List of full-length commit SHAs, oldest first.
+        """
+        try:
+            r = self._api(
+                "GET",
+                f"/repos/{repo}/pulls/{review_id}/commits",
+                params={"per_page": 250},
+            )
+            if r.status_code != 200:
+                logger.debug(
+                    "GitHub get_pr_commits %s#%s: HTTP %d",
+                    repo, review_id, r.status_code,
+                )
+                return []
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitHub get_pr_commits failed for %s#%s: %s",
+                repo, review_id, exc,
+            )
+            return []
+        return [
+            c["sha"]
+            for c in data
+            if isinstance(c, dict) and c.get("sha")
+        ]
+
 
 class GitLabProvider(SCMProvider):
     """GitLab implementation using the REST API via httpx."""
@@ -1809,6 +1873,50 @@ class GitLabProvider(SCMProvider):
                 "GitLab remove_review_label failed for %s#%s '%s': %s",
                 repo, review_id, label, exc,
             )
+
+    def get_pr_commits(self, repo: str, review_id: str) -> list[str]:
+        """Return the commit SHAs included in a GitLab merge request.
+
+        Uses ``GET /projects/:id/merge_requests/:iid/commits`` (paginated
+        at 100 per page).  Returns commits in reverse-chronological order
+        as GitLab delivers them, then reverses to oldest-first to match the
+        GitHub behaviour.
+
+        Args:
+            repo: GitLab project path or numeric ID.
+            review_id: MR IID as a string.
+
+        Returns:
+            List of full-length commit SHAs, oldest first.  Empty on error.
+        """
+        encoded = self._project_path(repo)
+        try:
+            r = self._api(
+                "GET",
+                f"/projects/{encoded}/merge_requests/{review_id}/commits",
+                params={"per_page": 100},
+            )
+            if r.status_code != 200:
+                logger.debug(
+                    "GitLab get_pr_commits %s#%s: HTTP %d",
+                    repo, review_id, r.status_code,
+                )
+                return []
+            data = r.json()
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
+            logger.debug(
+                "GitLab get_pr_commits failed for %s#%s: %s",
+                repo, review_id, exc,
+            )
+            return []
+        shas = [
+            c["id"]
+            for c in data
+            if isinstance(c, dict) and c.get("id")
+        ]
+        # GitLab returns newest-first; reverse to oldest-first.
+        shas.reverse()
+        return shas
 
 
 # -- Helpers --

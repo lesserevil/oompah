@@ -1,4 +1,4 @@
-"""Release-pick reconciliation loop (TASK-455.1).
+"""Release-pick reconciliation loop (TASK-455.1 / TASK-455.3).
 
 Idempotent background pass that scans source tasks and epics with
 ``oompah.backports`` metadata, evaluates each target branch entry, and
@@ -14,8 +14,11 @@ It performs three operations:
 1. **Create child tasks** for ``waiting`` entries that have no matching child
    yet.  The child task is created under the source task (as a Backlog
    parent-child), carries ``oompah.backport_of`` pointing back to the source,
-   and has ``oompah.target_branch`` set to the target branch name.  The
-   parent entry is advanced from ``waiting`` → ``task_created``.
+   and has ``oompah.target_branch`` set to the target branch name.  A
+   target-branch worktree is also created (via ``project_store``) so that the
+   cherry-pick agent has an isolated working copy rooted at
+   ``origin/<target_branch>``.  The parent entry is advanced from
+   ``waiting`` → ``task_created``.
 
 2. **Heal stale ``waiting`` entries** where a child task already exists in the
    tracker (e.g. created by an earlier pass that crashed before writing the
@@ -48,6 +51,7 @@ from oompah.statuses import ARCHIVED, DONE, MERGED, canonicalize_status
 
 if TYPE_CHECKING:
     from oompah.models import Issue
+    from oompah.projects import ProjectStore
     from oompah.tracker import BacklogMdTracker
 
 logger = logging.getLogger(__name__)
@@ -89,6 +93,9 @@ class ReconcileResult:
 
 def reconcile_release_picks(
     tracker: "BacklogMdTracker",
+    *,
+    project_store: "ProjectStore | None" = None,
+    project_id: "str | None" = None,
 ) -> ReconcileResult:
     """Run one idempotent release-pick reconciliation pass.
 
@@ -97,6 +104,9 @@ def reconcile_release_picks(
 
     * Advances ``waiting`` entries to ``task_created`` by creating a child
       backport task (or healing a stale entry when the child already exists).
+      When *project_store* and *project_id* are supplied a target-branch
+      worktree is also created for the new child so the cherry-pick agent has
+      an isolated working copy rooted at ``origin/<target_branch>``.
     * Advances non-terminal entries whose child task is Done/Merged/Archived
       to ``merged`` or ``archived`` to mirror the child's outcome.
 
@@ -109,6 +119,12 @@ def reconcile_release_picks(
     Args:
         tracker: The :class:`~oompah.tracker.BacklogMdTracker` for the project
             to reconcile.
+        project_store: Optional :class:`~oompah.projects.ProjectStore` used to
+            create target-branch worktrees alongside child tasks.  When
+            omitted worktrees are not created (useful in tests and legacy
+            single-tracker mode).
+        project_id: Project identifier passed to *project_store* for worktree
+            path resolution.  Required when *project_store* is supplied.
 
     Returns:
         :class:`ReconcileResult` summarising changes made during this pass.
@@ -162,7 +178,9 @@ def reconcile_release_picks(
 
         result.scanned += 1
         entries, n_advanced, n_created, n_errors = _reconcile_entries(
-            tracker, source, entries, child_index
+            tracker, source, entries, child_index,
+            project_store=project_store,
+            project_id=project_id,
         )
         result.advanced += n_advanced
         result.created += n_created
@@ -230,6 +248,9 @@ def _reconcile_entries(
     source: "Issue",
     entries: "list[BackportEntry]",
     child_index: "dict[tuple[str, str], list[Issue]]",
+    *,
+    project_store: "ProjectStore | None" = None,
+    project_id: "str | None" = None,
 ) -> "tuple[list[BackportEntry], int, int, int]":
     """Reconcile the backport entries for one source task.
 
@@ -313,6 +334,21 @@ def _reconcile_entries(
                         source.identifier,
                         entry.branch,
                     )
+                    # Create target-branch worktree for the cherry-pick agent.
+                    if project_store is not None and project_id is not None:
+                        try:
+                            _create_backport_worktree(
+                                child, entry, project_store, project_id
+                            )
+                        except Exception as wt_exc:  # noqa: BLE001
+                            logger.warning(
+                                "release_pick_reconciler: failed to create"
+                                " worktree for child %s (branch=%r): %s",
+                                child.identifier,
+                                entry.branch,
+                                wt_exc,
+                            )
+                            n_errors += 1
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "release_pick_reconciler: failed to create child for"
@@ -367,6 +403,10 @@ def _create_backport_child(
     * ``oompah.backport_of`` frontmatter pointing at the source.
     * ``oompah.target_branch`` set to ``entry.branch``.
 
+    Callers that have a *project_store* should call
+    :func:`_create_backport_worktree` immediately after this function to
+    create the corresponding target-branch worktree for the cherry-pick agent.
+
     Args:
         tracker: Tracker to create the task in.
         source: Source task being backported.
@@ -403,3 +443,40 @@ def _create_backport_child(
     )
     refreshed = tracker.fetch_issue_detail(child.identifier)
     return refreshed if refreshed is not None else child
+
+
+def _create_backport_worktree(
+    child: "Issue",
+    entry: "BackportEntry",
+    project_store: "ProjectStore",
+    project_id: str,
+) -> None:
+    """Create a target-branch worktree for a newly created backport child task.
+
+    The worktree is rooted at ``origin/<entry.branch>`` so the cherry-pick
+    agent works on an isolated copy of the release branch rather than the
+    project's default branch.
+
+    This is a best-effort call — callers should catch any exceptions and
+    decide whether to count them as errors.
+
+    Args:
+        child: The newly created child backport task.
+        entry: The ``BackportEntry`` with the target branch name.
+        project_store: Store used to create the worktree.
+        project_id: Project identifier for path resolution.
+
+    Raises:
+        Any exception raised by :meth:`~oompah.projects.ProjectStore.create_worktree`.
+    """
+    project_store.create_worktree(
+        project_id,
+        child.identifier,
+        base_branch=entry.branch,
+    )
+    logger.info(
+        "release_pick_reconciler: created worktree for child %s"
+        " (base=origin/%s)",
+        child.identifier,
+        entry.branch,
+    )
