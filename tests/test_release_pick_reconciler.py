@@ -999,6 +999,71 @@ class TestOrchestratorReconcileReleasePicksPass:
             # Should not raise
             orch._reconcile_release_picks_pass()
 
+    def test_passes_scm_and_repo_to_reconcile(self, tmp_path):
+        """reconcile_release_picks receives scm and repo kwargs from orchestrator."""
+        p1 = MagicMock()
+        p1.id = "proj-1"
+        p1.name = "proj-1"
+        p1.repo_url = "https://github.com/org/repo.git"
+        p1.access_token = "tok"
+        orch = self._make_orch(tmp_path, projects=[p1])
+        orch._tracker_for_project = MagicMock(return_value=MagicMock())
+
+        mock_provider = MagicMock()
+        captured_kwargs: list[dict] = []
+
+        def _fake_reconcile(tracker, **kwargs):
+            captured_kwargs.append(kwargs)
+            return ReconcileResult()
+
+        # The pass does a local import, so we patch at oompah.scm to intercept
+        with (
+            patch(
+                "oompah.release_pick_reconciler.reconcile_release_picks",
+                side_effect=_fake_reconcile,
+            ),
+            patch("oompah.scm.detect_provider", return_value=mock_provider),
+            patch("oompah.scm.extract_repo_slug", return_value="org/repo"),
+        ):
+            orch._reconcile_release_picks_pass()
+
+        assert len(captured_kwargs) == 1
+        assert captured_kwargs[0].get("scm") is mock_provider
+        assert captured_kwargs[0].get("repo") == "org/repo"
+
+    def test_scm_detection_failure_does_not_prevent_reconcile(self, tmp_path):
+        """If SCM detection fails, reconcile still runs (without scm/repo)."""
+        p1 = MagicMock()
+        p1.id = "proj-1"
+        p1.name = "proj-1"
+        p1.repo_url = "https://github.com/org/repo.git"
+        orch = self._make_orch(tmp_path, projects=[p1])
+        orch._tracker_for_project = MagicMock(return_value=MagicMock())
+
+        captured_kwargs: list[dict] = []
+
+        def _fake_reconcile(tracker, **kwargs):
+            captured_kwargs.append(kwargs)
+            return ReconcileResult()
+
+        # Patch at oompah.scm since the pass does a local import
+        with (
+            patch(
+                "oompah.release_pick_reconciler.reconcile_release_picks",
+                side_effect=_fake_reconcile,
+            ),
+            patch(
+                "oompah.scm.detect_provider",
+                side_effect=RuntimeError("no token"),
+            ),
+        ):
+            # Should not raise
+            orch._reconcile_release_picks_pass()
+
+        assert len(captured_kwargs) == 1
+        # scm should be None when detection fails
+        assert captured_kwargs[0].get("scm") is None
+
 
 # ---------------------------------------------------------------------------
 # _create_backport_worktree (TASK-455.3)

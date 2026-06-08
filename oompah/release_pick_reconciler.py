@@ -52,6 +52,7 @@ from oompah.statuses import ARCHIVED, DONE, MERGED, canonicalize_status
 if TYPE_CHECKING:
     from oompah.models import Issue
     from oompah.projects import ProjectStore
+    from oompah.scm import SCMProvider
     from oompah.tracker import BacklogMdTracker
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,8 @@ def reconcile_release_picks(
     *,
     project_store: "ProjectStore | None" = None,
     project_id: "str | None" = None,
+    scm: "SCMProvider | None" = None,
+    repo: "str | None" = None,
 ) -> ReconcileResult:
     """Run one idempotent release-pick reconciliation pass.
 
@@ -107,6 +110,10 @@ def reconcile_release_picks(
       When *project_store* and *project_id* are supplied a target-branch
       worktree is also created for the new child so the cherry-pick agent has
       an isolated working copy rooted at ``origin/<target_branch>``.
+    * Advances ``task_created`` entries that have resolved commits to
+      ``pr_open`` (or ``conflict``) by cherry-picking the commits onto the
+      child worktree, pushing the branch, and opening a PR.  Requires
+      *project_store*, *project_id*, *scm*, and *repo* to all be supplied.
     * Advances non-terminal entries whose child task is Done/Merged/Archived
       to ``merged`` or ``archived`` to mirror the child's outcome.
 
@@ -120,11 +127,17 @@ def reconcile_release_picks(
         tracker: The :class:`~oompah.tracker.BacklogMdTracker` for the project
             to reconcile.
         project_store: Optional :class:`~oompah.projects.ProjectStore` used to
-            create target-branch worktrees alongside child tasks.  When
-            omitted worktrees are not created (useful in tests and legacy
+            create target-branch worktrees alongside child tasks and to resolve
+            the worktree path for cherry-pick operations.  When omitted
+            worktrees are not created (useful in tests and legacy
             single-tracker mode).
         project_id: Project identifier passed to *project_store* for worktree
             path resolution.  Required when *project_store* is supplied.
+        scm: Optional :class:`~oompah.scm.SCMProvider` used to open PRs
+            against the release branch.  When omitted the cherry-pick+PR step
+            is skipped even if commits are resolved.
+        repo: Repository slug (e.g. ``"org/repo"``) passed to *scm*.
+            Required when *scm* is supplied.
 
     Returns:
         :class:`ReconcileResult` summarising changes made during this pass.
@@ -181,6 +194,8 @@ def reconcile_release_picks(
             tracker, source, entries, child_index,
             project_store=project_store,
             project_id=project_id,
+            scm=scm,
+            repo=repo,
         )
         result.advanced += n_advanced
         result.created += n_created
@@ -251,6 +266,8 @@ def _reconcile_entries(
     *,
     project_store: "ProjectStore | None" = None,
     project_id: "str | None" = None,
+    scm: "SCMProvider | None" = None,
+    repo: "str | None" = None,
 ) -> "tuple[list[BackportEntry], int, int, int]":
     """Reconcile the backport entries for one source task.
 
@@ -294,7 +311,53 @@ def _reconcile_entries(
                 )
             continue
 
-        # --- Case 2: waiting — create child or heal stale ----------------
+        # --- Case 2: task_created with resolved commits — cherry-pick+PR ---
+        if (
+            entry.status == ReleasePick.TASK_CREATED
+            and entry.commits
+            and entry.task_id
+            and project_store is not None
+            and project_id is not None
+            and scm is not None
+            and repo is not None
+        ):
+            live_child = _best_live_child(children) if children else None
+            if live_child is None and entry.task_id:
+                # Try to find the child by task_id directly
+                for issue in child_index.get(key, []):
+                    if issue.identifier == entry.task_id:
+                        live_child = issue
+                        break
+            if live_child is not None:
+                try:
+                    updated = _cherry_pick_and_open_pr(
+                        tracker, source, entry, live_child,
+                        project_store=project_store,
+                        project_id=project_id,
+                        scm=scm,
+                        repo=repo,
+                    )
+                    entries[i] = updated
+                    n_advanced += 1
+                    logger.info(
+                        "release_pick_reconciler: %s branch=%r"
+                        " cherry-pick+PR → %s",
+                        source.identifier,
+                        entry.branch,
+                        updated.status.value,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "release_pick_reconciler: cherry-pick+PR failed for"
+                        " %s branch=%r: %s",
+                        source.identifier,
+                        entry.branch,
+                        exc,
+                    )
+                    n_errors += 1
+            continue
+
+        # --- Case 3: waiting — create child or heal stale ----------------
         if entry.status == ReleasePick.WAITING:
             live_child = _best_live_child(children)
             if live_child is not None:
@@ -443,6 +506,39 @@ def _create_backport_child(
     )
     refreshed = tracker.fetch_issue_detail(child.identifier)
     return refreshed if refreshed is not None else child
+
+
+def _cherry_pick_and_open_pr(
+    tracker: "BacklogMdTracker",
+    source: "Issue",
+    entry: "BackportEntry",
+    child_issue: "Issue",
+    *,
+    project_store: "ProjectStore",
+    project_id: str,
+    scm: "SCMProvider",
+    repo: str,
+) -> "BackportEntry":
+    """Delegate to :func:`~oompah.cherry_pick_pr_creator.cherry_pick_push_and_open_pr`.
+
+    Thin wrapper that imports the cherry-pick module lazily to keep the
+    reconciler importable without the SCM or subprocess stack present.
+
+    Returns the updated :class:`BackportEntry` with the new status and
+    optional ``pr_url``.
+    """
+    from oompah.cherry_pick_pr_creator import cherry_pick_push_and_open_pr
+
+    return cherry_pick_push_and_open_pr(
+        tracker,
+        source,
+        entry,
+        child_issue,
+        project_store=project_store,
+        project_id=project_id,
+        scm=scm,
+        repo=repo,
+    )
 
 
 def _create_backport_worktree(

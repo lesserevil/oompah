@@ -1,10 +1,10 @@
 ---
 id: TASK-455.3
 title: Create child tasks and target-branch worktrees for release picks
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 22:09'
+updated_date: '2026-06-08 22:18'
 labels:
   - task
 dependencies:
@@ -145,4 +145,16 @@ created: 2026-06-08 22:09
 ---
 Discovery: Root cause confirmed. reconcile_release_picks() in release_pick_reconciler.py only accepts tracker, but the orchestrator already calls it with project_store= and project_id= kwargs (added in anticipation of this task). The _create_backport_child() function creates the child task with backport label and metadata but never calls project_store.create_worktree(). Fix: (1) add project_store/project_id optional kwargs to reconcile_release_picks, thread them down to _create_backport_child; (2) in _create_backport_child, call project_store.create_worktree(project_id, child.identifier, base_branch=entry.branch) when project_store is provided; (3) fix 1 failing test (lambda signature mismatch) and add worktree creation tests.
 ---
+
+author: oompah
+created: 2026-06-08 22:18
+---
+Implementation: Updated release_pick_reconciler.py to add project_store/project_id optional kwargs to reconcile_release_picks() and _reconcile_entries(). New _create_backport_worktree() helper calls project_store.create_worktree(project_id, child.identifier, base_branch=entry.branch) immediately after child task creation. Worktree failures are caught, logged as warnings, and counted as errors without aborting the task_created advancement. Fixed 1 pre-existing failing orchestrator test (lambda signature mismatch) and added 8 new tests: TestCreateBackportWorktree (3), TestReconcileWorktreeIntegration (4), test_calls_reconcile_with_project_store_and_id (1). All 61 tests pass.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Extended reconcile_release_picks() to create target-branch worktrees alongside child backport tasks. Added project_store/project_id optional kwargs threaded through _reconcile_entries() to new _create_backport_worktree() helper that calls project_store.create_worktree(project_id, child.identifier, base_branch=entry.branch). Worktree failures are non-fatal: logged as warnings and counted in errors without aborting task_created advancement. Fixed 1 pre-existing test failure and added 8 new tests covering worktree creation, failure handling, and backward compatibility. 61/61 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

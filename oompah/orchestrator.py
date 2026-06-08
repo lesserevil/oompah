@@ -5025,7 +5025,10 @@ class Orchestrator:
 
         Calls :func:`~oompah.release_pick_reconciler.reconcile_release_picks`
         for every configured project, passing the project store so that
-        target-branch worktrees are created alongside child backport tasks.
+        target-branch worktrees are created alongside child backport tasks,
+        and passing the SCM provider and repo slug so that cherry-pick
+        commits can be applied, pushed, and turned into PRs.
+
         Results are logged at INFO when any entries were advanced or child
         tasks created.
 
@@ -5036,14 +5039,36 @@ class Orchestrator:
         skipped — the release-pick feature requires per-project configuration.
         """
         from oompah.release_pick_reconciler import reconcile_release_picks
+        from oompah.scm import detect_provider, extract_repo_slug
 
         for project in self.project_store.list_all():
             try:
                 tracker = self._tracker_for_project(str(project.id))
+                # Resolve SCM provider and repo slug for cherry-pick+PR step.
+                # Best-effort: if detection fails we still run the earlier
+                # reconcile steps (task creation, worktree creation).
+                scm = None
+                repo = None
+                try:
+                    if project.repo_url:
+                        scm = detect_provider(
+                            project.repo_url,
+                            access_token=getattr(project, "access_token", None),
+                        )
+                        repo = extract_repo_slug(project.repo_url)
+                except Exception as scm_exc:  # noqa: BLE001
+                    logger.debug(
+                        "release_pick reconciliation: SCM provider detection"
+                        " failed for project %s: %s",
+                        getattr(project, "name", project),
+                        scm_exc,
+                    )
                 result = reconcile_release_picks(
                     tracker,
                     project_store=self.project_store,
                     project_id=str(project.id),
+                    scm=scm,
+                    repo=repo,
                 )
                 if result.changed:
                     logger.info(
