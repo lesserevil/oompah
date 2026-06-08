@@ -1121,14 +1121,17 @@ class Orchestrator:
             )
         )
 
-    async def startup_cleanup(self) -> None:
-        """Remove workspaces/worktrees for issues in terminal states."""
-        projects = self.project_store.list_all()
-        if projects:
-            # Surface dashboard alerts for any projects quarantined due to
-            # unresolvable Backlog.md conflict markers.
-            self._refresh_backlog_conflict_alerts()
+    def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
+        """Remove workspaces/worktrees for issues in terminal states.
 
+        Returns the number of cleanup attempts that reached the workspace store.
+        Individual project/tracker/worktree failures are logged and do not stop
+        cleanup for other projects.
+        """
+        cleaned = 0
+        if projects is None:
+            projects = self.project_store.list_all()
+        if projects:
             for project in projects:
                 try:
                     tracker = self._tracker_for_project(project.id)
@@ -1140,6 +1143,7 @@ class Orchestrator:
                             self.project_store.remove_worktree(
                                 project.id, issue.identifier
                             )
+                            cleaned += 1
                             logger.info(
                                 "Cleaned terminal worktree project=%s issue=%s",
                                 project.name,
@@ -1154,7 +1158,9 @@ class Orchestrator:
                             )
                 except (TrackerError, ProjectError) as exc:
                     logger.warning(
-                        "Startup cleanup failed for project %s: %s", project.name, exc
+                        "Terminal worktree cleanup failed for project %s: %s",
+                        project.name,
+                        exc,
                     )
         else:
             try:
@@ -1164,6 +1170,7 @@ class Orchestrator:
                 for issue in terminal_issues:
                     try:
                         self.workspace_mgr.remove_workspace(issue.identifier)
+                        cleaned += 1
                         logger.info(
                             "Cleaned terminal workspace issue_identifier=%s",
                             issue.identifier,
@@ -1175,7 +1182,17 @@ class Orchestrator:
                             exc,
                         )
             except TrackerError as exc:
-                logger.warning("Startup terminal cleanup failed: %s", exc)
+                logger.warning("Terminal workspace cleanup failed: %s", exc)
+        return cleaned
+
+    async def startup_cleanup(self) -> None:
+        """Remove workspaces/worktrees for issues in terminal states."""
+        projects = self.project_store.list_all()
+        if projects:
+            # Surface dashboard alerts for any projects quarantined due to
+            # unresolvable Backlog.md conflict markers.
+            self._refresh_backlog_conflict_alerts()
+        self._cleanup_terminal_worktrees(projects)
 
     async def _recover_restart_issues(self) -> None:
         """Re-dispatch issues that were running when a graceful restart happened."""
@@ -1244,13 +1261,17 @@ class Orchestrator:
             self.project_store.sync_all_sources()
         except Exception as exc:  # noqa: BLE001
             logger.warning("Periodic repo self-heal failed: %s", exc)
-            return
         # Surface/clear dashboard alerts for any checkout that ended up
         # quarantined (or got healed) this pass.
         try:
             self._refresh_backlog_conflict_alerts()
         except Exception:  # noqa: BLE001
             pass
+        # Remove worktrees whose tasks became terminal while the service kept
+        # running, for example after a merge-queue webhook marks a task Merged.
+        projects = self.project_store.list_all()
+        if projects:
+            self._cleanup_terminal_worktrees(projects)
 
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking).

@@ -14,6 +14,7 @@ order.
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -827,6 +828,91 @@ class TestHandleAutoUpdate:
         assert len(alerts) == 1
         assert "git pull --rebase returned error" in alerts[0]["message"]
         assert "CONFLICT" in alerts[0]["message"]
+
+
+# ---------------------------------------------------------------------------
+# Terminal worktree cleanup
+# ---------------------------------------------------------------------------
+
+
+class TestTerminalWorktreeCleanup:
+    """Terminal task cleanup removes project worktrees outside startup."""
+
+    def test_cleanup_terminal_worktrees_removes_project_worktrees(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Done", project_id=project.id),
+            _make_issue("TASK-2", state="Merged", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 2
+        tracker.fetch_issues_by_states.assert_called_once_with(
+            orch.config.tracker_terminal_states
+        )
+        assert [
+            call.args for call in orch.project_store.remove_worktree.call_args_list
+        ] == [
+            (project.id, "TASK-1"),
+            (project.id, "TASK-2"),
+        ]
+
+    def test_cleanup_terminal_worktrees_continues_after_remove_error(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Done", project_id=project.id),
+            _make_issue("TASK-2", state="Merged", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch.project_store.remove_worktree.side_effect = [RuntimeError("busy"), None]
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 1
+        assert orch.project_store.remove_worktree.call_count == 2
+
+    def test_maybe_heal_repos_cleans_terminal_worktrees_on_full_sync(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock()
+
+        orch._maybe_heal_repos()
+
+        orch.project_store.sync_all_sources.assert_called_once_with()
+        orch._refresh_backlog_conflict_alerts.assert_called_once_with()
+        orch._cleanup_terminal_worktrees.assert_called_once_with([project])
+
+    def test_maybe_heal_repos_skips_cleanup_before_interval(self, tmp_path):
+        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
+        orch._last_repo_heal = time.monotonic()
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock()
+
+        orch._maybe_heal_repos()
+
+        orch.project_store.sync_all_sources.assert_not_called()
+        orch._cleanup_terminal_worktrees.assert_not_called()
+
+    def test_maybe_heal_repos_still_cleans_after_sync_failure(self, tmp_path):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock(side_effect=RuntimeError("net"))
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock()
+
+        orch._maybe_heal_repos()
+
+        orch.project_store.sync_all_sources.assert_called_once_with()
+        orch._refresh_backlog_conflict_alerts.assert_called_once_with()
+        orch._cleanup_terminal_worktrees.assert_called_once_with([project])
 
 
 # ---------------------------------------------------------------------------
