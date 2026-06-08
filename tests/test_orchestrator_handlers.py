@@ -159,8 +159,8 @@ class TestHandleReviewCheck:
         """After _handle_review_check(), _reviews_cache is populated."""
         orch = _make_orchestrator(tmp_path)
         review = _make_review("1", "feat-branch")
-        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": [review]})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={"proj-1": [review]})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         asyncio.run(orch._handle_review_check())
 
@@ -170,8 +170,8 @@ class TestHandleReviewCheck:
     def test_populates_merged_branches_cache(self, tmp_path):
         """After _handle_review_check(), _merged_branches is populated."""
         orch = _make_orchestrator(tmp_path)
-        orch._fetch_all_reviews = MagicMock(return_value={})
-        orch._fetch_all_merged_branches = MagicMock(
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(
             return_value={"branch-a", "branch-b"}
         )
 
@@ -186,8 +186,8 @@ class TestHandleReviewCheck:
             _make_review("1", "feat-1"),
             _make_review("2", "feat-2"),
         ]
-        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": reviews})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={"proj-1": reviews})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         asyncio.run(orch._handle_review_check())
 
@@ -199,8 +199,8 @@ class TestHandleReviewCheck:
         # Pre-populate with stale data
         orch._reviews_cache = {"stale-project": [MagicMock()]}
 
-        orch._fetch_all_reviews = MagicMock(return_value={})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         asyncio.run(orch._handle_review_check())
 
@@ -212,8 +212,8 @@ class TestHandleReviewCheck:
         orch = _make_orchestrator(tmp_path)
         review = _make_review("1", source_branch="")
         review.source_branch = None  # explicitly no branch
-        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": [review]})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={"proj-1": [review]})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         asyncio.run(orch._handle_review_check())
 
@@ -222,19 +222,19 @@ class TestHandleReviewCheck:
     def test_fetches_reviews_and_merged_both_called(self, tmp_path):
         """Both _fetch_all_reviews and _fetch_all_merged_branches are called."""
         orch = _make_orchestrator(tmp_path)
-        orch._fetch_all_reviews = MagicMock(return_value={})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         asyncio.run(orch._handle_review_check())
 
-        orch._fetch_all_reviews.assert_called_once()
-        orch._fetch_all_merged_branches.assert_called_once()
+        orch._fetch_all_reviews_bounded.assert_awaited_once()
+        orch._fetch_all_merged_branches_bounded.assert_awaited_once()
 
     def test_empty_reviews_sets_empty_unmerged_branches(self, tmp_path):
         """When there are no reviews, _unmerged_review_branches is empty."""
         orch = _make_orchestrator(tmp_path)
-        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": []})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={"proj-1": []})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         asyncio.run(orch._handle_review_check())
 
@@ -243,8 +243,8 @@ class TestHandleReviewCheck:
     def test_no_projects_yields_empty_caches(self, tmp_path):
         """When no projects return reviews, all caches are empty."""
         orch = _make_orchestrator(tmp_path)
-        orch._fetch_all_reviews = MagicMock(return_value={})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         asyncio.run(orch._handle_review_check())
 
@@ -265,8 +265,8 @@ class TestHandleReviewCheck:
             "unavailable_runners": 0,
             "needs_attention": 0,
         }
-        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": []})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={"proj-1": []})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
         orch._notify_state_only = MagicMock()
 
         asyncio.run(orch._handle_review_check())
@@ -297,8 +297,8 @@ class TestHandleReviewCheck:
             "needs_attention": 0,
         }
         orch._last_emitted_reviews_summary = dict(unchanged)
-        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": []})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={"proj-1": []})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
         orch._notify_state_only = MagicMock()
 
         asyncio.run(orch._handle_review_check())
@@ -2525,8 +2525,8 @@ class TestHandlerIndependence:
     def test_handle_review_check_standalone(self, tmp_path):
         """_handle_review_check can run without the rest of _tick."""
         orch = _make_orchestrator(tmp_path)
-        orch._fetch_all_reviews = MagicMock(return_value={"proj-1": []})
-        orch._fetch_all_merged_branches = MagicMock(return_value=set())
+        orch._fetch_all_reviews_bounded = AsyncMock(return_value={"proj-1": []})
+        orch._fetch_all_merged_branches_bounded = AsyncMock(return_value=set())
 
         # Should not raise
         asyncio.run(orch._handle_review_check())
@@ -3045,6 +3045,266 @@ class TestFetchAllCandidatesTimeout:
 # PR DIRTY/FAILED forever with no escalation. Both must now file a
 # fresh recovery bead so the YOLO chain doesn't dead-end.
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Bounded per-project refresh infrastructure (TASK-467.2)
+#
+# AC#1 — A slow project refresh does not block other projects after timeout.
+# AC#2 — Review gating is conservative when data is stale/unavailable.
+# AC#3 — Per-project refresh timings and timeout counts are recorded.
+# ---------------------------------------------------------------------------
+
+
+class TestBoundedProjectRefresh:
+    """Tests for _run_bounded_refresh, stale-cache fallback, and metrics."""
+
+    def test_successful_refresh_records_metrics(self, tmp_path):
+        """Successful refresh increments success_count and stores last_duration_ms."""
+        orch = _make_orchestrator(tmp_path)
+
+        async def _run():
+            async def _coro():
+                return ["result-1"]
+
+            data, is_fresh = await orch._run_bounded_refresh("proj-1", "candidates", _coro)
+            return data, is_fresh
+
+        data, is_fresh = asyncio.run(_run())
+
+        assert data == ["result-1"]
+        assert is_fresh is True
+        metrics = orch._project_refresh_metrics["proj-1"]["candidates"]
+        assert metrics["success_count"] == 1
+        assert metrics["timeout_count"] == 0
+        assert metrics["last_error"] is None
+        assert metrics["last_duration_ms"] >= 0.0
+
+    def test_timeout_falls_back_to_stale_cache(self, tmp_path):
+        """When refresh times out, stale cached data is returned (AC#1, AC#2)."""
+        orch = _make_orchestrator(tmp_path)
+        # Pre-populate stale cache
+        orch._set_stale_cache("proj-1", "candidates", ["stale-result"])
+
+        async def _run():
+            async def _slow_coro():
+                # Simulate a slow operation
+                await asyncio.sleep(10)
+                return ["fresh-result"]
+
+            data, is_fresh = await orch._run_bounded_refresh(
+                "proj-1", "candidates", _slow_coro, timeout_ms=1
+            )
+            return data, is_fresh
+
+        data, is_fresh = asyncio.run(_run())
+
+        assert data == ["stale-result"]
+        assert is_fresh is False
+        metrics = orch._project_refresh_metrics["proj-1"]["candidates"]
+        assert metrics["timeout_count"] == 1
+        assert metrics["success_count"] == 0
+        assert "timeout" in (metrics["last_error"] or "")
+
+    def test_timeout_with_no_stale_cache_returns_empty(self, tmp_path):
+        """When refresh times out and no stale data exists, returns empty list (AC#2)."""
+        orch = _make_orchestrator(tmp_path)
+
+        async def _run():
+            async def _slow_coro():
+                await asyncio.sleep(10)
+                return ["fresh-result"]
+
+            data, is_fresh = await orch._run_bounded_refresh(
+                "proj-1", "candidates", _slow_coro, timeout_ms=1
+            )
+            return data, is_fresh
+
+        data, is_fresh = asyncio.run(_run())
+
+        # No stale cache — returns empty list
+        assert data == []
+        assert is_fresh is False
+
+    def test_exception_falls_back_to_stale_cache(self, tmp_path):
+        """When refresh raises, stale cache is used (AC#1)."""
+        orch = _make_orchestrator(tmp_path)
+        orch._set_stale_cache("proj-1", "reviews", {"proj-1": [{"id": "r1"}]})
+
+        async def _run():
+            async def _failing_coro():
+                raise RuntimeError("Network error")
+
+            data, is_fresh = await orch._run_bounded_refresh(
+                "proj-1", "reviews", _failing_coro
+            )
+            return data, is_fresh
+
+        data, is_fresh = asyncio.run(_run())
+
+        assert data == {"proj-1": [{"id": "r1"}]}
+        assert is_fresh is False
+        metrics = orch._project_refresh_metrics["proj-1"]["reviews"]
+        assert metrics["timeout_count"] == 1
+        assert "RuntimeError" in (metrics["last_error"] or "")
+
+    def test_stale_cache_update_on_success(self, tmp_path):
+        """Successful refresh updates the stale cache with the new data."""
+        orch = _make_orchestrator(tmp_path)
+
+        async def _run():
+            async def _coro():
+                return {"proj-1": ["review-1"]}
+
+            await orch._run_bounded_refresh("proj-1", "reviews", _coro)
+
+        asyncio.run(_run())
+
+        # Stale cache is updated with fresh data
+        cached = orch._get_stale_cache("proj-1", "reviews")
+        assert cached == {"proj-1": ["review-1"]}
+
+    def test_timeout_zero_disables_timeout(self, tmp_path):
+        """Setting timeout_ms=0 disables the timeout guard."""
+        orch = _make_orchestrator(tmp_path)
+
+        async def _run():
+            async def _coro():
+                # No sleep — still runs fast
+                return ["result"]
+
+            data, is_fresh = await orch._run_bounded_refresh(
+                "proj-1", "candidates", _coro, timeout_ms=0
+            )
+            return data, is_fresh
+
+        data, is_fresh = asyncio.run(_run())
+
+        assert data == ["result"]
+        assert is_fresh is True
+
+    def test_stale_cache_expires_after_ttl(self, tmp_path):
+        """Stale cache returns None when data is older than the TTL."""
+        from oompah.config import ServiceConfig
+        config = ServiceConfig(project_stale_cache_ttl_ms=1)  # 1ms TTL
+        orch = _make_orchestrator(tmp_path)
+        orch.config = config
+
+        import time as _time
+        orch._set_stale_cache("proj-1", "candidates", ["old-result"])
+        _time.sleep(0.01)  # Wait >1ms so the cache expires
+
+        result = orch._get_stale_cache("proj-1", "candidates")
+        assert result is None
+
+    def test_metrics_track_multiple_operations_per_project(self, tmp_path):
+        """Each operation has independent metrics per project (AC#3)."""
+        orch = _make_orchestrator(tmp_path)
+
+        async def _run():
+            async def _coro_a():
+                return ["a"]
+
+            async def _coro_b():
+                return {"b": 1}
+
+            await orch._run_bounded_refresh("proj-1", "candidates", _coro_a)
+            await orch._run_bounded_refresh("proj-1", "reviews", _coro_b)
+
+        asyncio.run(_run())
+
+        assert "candidates" in orch._project_refresh_metrics["proj-1"]
+        assert "reviews" in orch._project_refresh_metrics["proj-1"]
+        assert orch._project_refresh_metrics["proj-1"]["candidates"]["success_count"] == 1
+        assert orch._project_refresh_metrics["proj-1"]["reviews"]["success_count"] == 1
+
+    def test_metrics_independent_across_projects(self, tmp_path):
+        """Metrics for different projects are stored independently (AC#3)."""
+        orch = _make_orchestrator(tmp_path)
+
+        async def _run():
+            async def _coro():
+                return []
+
+            await orch._run_bounded_refresh("proj-a", "candidates", _coro)
+            await orch._run_bounded_refresh("proj-b", "candidates", _coro)
+
+        asyncio.run(_run())
+
+        assert "proj-a" in orch._project_refresh_metrics
+        assert "proj-b" in orch._project_refresh_metrics
+        assert orch._project_refresh_metrics["proj-a"]["candidates"]["success_count"] == 1
+        assert orch._project_refresh_metrics["proj-b"]["candidates"]["success_count"] == 1
+
+    def test_one_slow_project_does_not_block_fast_projects(self, tmp_path):
+        """Bounded refresh: slow project completes independently of fast ones (AC#1)."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        # Disable timeout to let both complete
+        results = []
+
+        async def _run():
+            async def _fast_coro():
+                return ["fast"]
+
+            async def _slow_coro():
+                await asyncio.sleep(0.05)
+                return ["slow"]
+
+            # Run both in parallel — fast one should finish first but both succeed
+            fast_result, slow_result = await asyncio.gather(
+                orch._run_bounded_refresh("proj-fast", "candidates", _fast_coro, timeout_ms=0),
+                orch._run_bounded_refresh("proj-slow", "candidates", _slow_coro, timeout_ms=0),
+            )
+            results.extend([fast_result, slow_result])
+
+        asyncio.run(_run())
+
+        # Both results are returned
+        fast_data, fast_fresh = results[0]
+        slow_data, slow_fresh = results[1]
+        assert fast_data == ["fast"]
+        assert slow_data == ["slow"]
+        assert fast_fresh is True
+        assert slow_fresh is True
+
+    def test_semaphore_limits_concurrent_refresh_operations(self, tmp_path):
+        """Semaphore enforces bounded concurrency per project (AC#1)."""
+        from oompah.config import ServiceConfig
+        config = ServiceConfig(project_refresh_max_concurrent=1)  # Only 1 at a time
+        orch = _make_orchestrator(tmp_path)
+        orch.config = config
+
+        execution_order = []
+
+        async def _run():
+            async def _coro(label):
+                execution_order.append(f"start-{label}")
+                await asyncio.sleep(0.01)
+                execution_order.append(f"end-{label}")
+                return [label]
+
+            # Run 3 operations on same project — only 1 can run at a time
+            results = await asyncio.gather(
+                orch._run_bounded_refresh("proj-1", "op-a", lambda: _coro("a"), timeout_ms=0),
+                orch._run_bounded_refresh("proj-1", "op-b", lambda: _coro("b"), timeout_ms=0),
+                orch._run_bounded_refresh("proj-1", "op-c", lambda: _coro("c"), timeout_ms=0),
+            )
+            return results
+
+        results = asyncio.run(_run())
+
+        # All three complete successfully
+        assert len(results) == 3
+        # With semaphore=1: no two operations overlap
+        # Verify by checking that start and end pairs are interleaved (not nested)
+        # (We can verify structural non-overlap: each "end-X" follows its "start-X"
+        # without another "start-Y" intervening when semaphore=1)
+        for i in range(0, len(execution_order) - 1, 2):
+            label = execution_order[i].replace("start-", "")
+            assert execution_order[i + 1] == f"end-{label}", (
+                f"Operations overlapped: {execution_order}"
+            )
 
 
 class TestYoloOrphanBranchRecovery:

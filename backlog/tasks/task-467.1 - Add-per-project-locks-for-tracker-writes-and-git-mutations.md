@@ -1,7 +1,7 @@
 ---
 id: TASK-467.1
 title: Add per-project locks for tracker writes and git mutations
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 18:48'
 updated_date: '2026-06-08 21:08'
@@ -120,3 +120,9 @@ created: 2026-06-08 21:08
 Duplicate investigation complete: no duplicate found. TASK-467.1 is unique — no other task implements per-project write locks in ProjectStore or wires them into orchestrator maintenance paths. Prior agent run (commit e213dcf) already implemented the full solution: threading.RLock per project in ProjectStore.project_write_lock(), wrapped create/remove worktree methods, orchestrator _reset_orphaned_in_progress locked tracker writes. All 26 new tests in tests/test_project_locks.py pass. Proceeding to push and close.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented per-project write locks (threading.RLock) in ProjectStore. Added project_write_lock() method that creates and caches per-project RLocks (protected by a meta-lock). Wrapped create_worktree, remove_worktree, create_epic_worktree, and remove_epic_worktree to hold the per-project lock via locked helper methods. Wired the lock into orchestrator _reset_orphaned_in_progress() tracker writes. 26 tests in tests/test_project_locks.py verify serialization, independence across projects, RLock reentrancy, lock release on error, and thread-pool concurrency. All acceptance criteria satisfied.
+<!-- SECTION:FINAL_SUMMARY:END -->

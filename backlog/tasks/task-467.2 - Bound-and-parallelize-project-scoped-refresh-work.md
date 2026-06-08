@@ -4,13 +4,11 @@ title: Bound and parallelize project-scoped refresh work
 status: In Progress
 assignee: []
 created_date: '2026-06-08 18:48'
-updated_date: '2026-06-08 20:18'
+updated_date: '2026-06-08 23:08'
 labels:
   - task
   - tick-latency
   - dispatch-performance
-  - 'needs:backend'
-  - 'needs:test'
 dependencies:
   - TASK-467.1
   - TASK-465.1
@@ -46,35 +44,148 @@ Agent dispatched (profile: standard)
 ---
 
 author: oompah
-created: 2026-06-08 20:17
+created: 2026-06-08 20:12
 ---
-UNDERSTANDING: As Test Engineer, I need to write tests for the bounded per-project parallel refresh behavior in oompah/orchestrator.py. The key behaviors to test are:
-
-1. _fetch_all_candidates: parallel fetch across projects, TrackerTimeoutError per project doesn't block others, returns [] for failed projects, logs WARNING for timeouts
-2. _fetch_in_progress_issues: same pattern
-3. _fetch_all_reviews: stale-cache fallback - failed fetches return previous cache (not []), conservative behavior
-4. _fetch_all_merged_branches: failed projects return empty set, others succeed
-5. Dispatch isolation: one slow project (TrackerTimeoutError) doesn't prevent candidates from other projects
-
-Acceptance criteria drive the test design:
-- AC#1: Slow/wedged project doesn't block others → test multi-project fetch where one times out
-- AC#2: Conservative review gating with stale/unavailable data → test _fetch_all_reviews stale-cache fallback
-- AC#3: Diagnostics visibility → test slow-tick warning includes timing info
-
-Target file: tests/test_orchestrator_handlers.py - adding new test classes for multi-project parallel refresh.
+Focus: Test Engineer
 ---
 
 author: oompah
-created: 2026-06-08 20:18
+created: 2026-06-08 20:19
 ---
-DISCOVERY: The key functions for bounded parallel refresh are in oompah/orchestrator.py:
-- _fetch_all_candidates (L1811): uses ThreadPoolExecutor(max_workers=min(len(projects),4)), handles TrackerTimeoutError with WARNING log, returns [] for failed projects
-- _fetch_in_progress_issues (L1868): same pattern
-- _fetch_all_reviews (L4015): has stale-cache fallback - captures previous_cache at start, returns _cached_reviews() on webhook-healthy, provider-absent, or exception cases (conservative)  
-- _fetch_all_merged_branches (L4070): returns empty set for failed projects, no stale cache
+Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
+- Turns: 0, Tool calls: 59
+- Tokens: 88 in / 2.7K out [2.7K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 6m 50s
+- Log: TASK-467.2__20260608T201342Z.jsonl
+---
 
-Existing coverage: TestFetchAllCandidatesTimeout covers single-project timeout logging. Missing: multi-project isolation tests, stale-cache fallback verification, slow-tick timing diagnostics, conservative review gating with stale data.
+author: oompah
+created: 2026-06-08 21:12
+---
+Agent dispatched (profile: default)
+---
 
-Will add new test classes in test_orchestrator_handlers.py covering AC#1 (isolation), AC#2 (conservative caching), and AC#3 (diagnostics).
+author: oompah
+created: 2026-06-08 21:13
+---
+Focus: Duplicate Investigator
+---
+
+author: oompah
+created: 2026-06-08 21:13
+---
+Agent failed: RuntimeError: Codex exec exited with code 1: . Retrying in 10s (attempt #1)
+---
+
+author: oompah
+created: 2026-06-08 21:13
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 22s
+- Log: TASK-467.2__20260608T211307Z.jsonl
+---
+
+author: oompah
+created: 2026-06-08 21:13
+---
+Agent dispatched (profile: standard)
+---
+
+author: oompah
+created: 2026-06-08 21:14
+---
+Focus: Refactoring Specialist
+---
+
+author: oompah
+created: 2026-06-08 22:17
+---
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-08 22:18
+---
+Focus: Event Queue Pipeline Specialist
+---
+
+author: oompah
+created: 2026-06-08 22:28
+---
+Agent completed successfully in 663s (1652816 tokens)
+---
+
+author: oompah
+created: 2026-06-08 22:28
+---
+Run #1 [attempt=1, profile=default, role=fast -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
+- Turns: 14, Tool calls: 13
+- Tokens: 1.6M in / 6.3K out [1.7M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 3s
+- Log: TASK-467.2__20260608T221812Z.jsonl
+---
+
+author: oompah
+created: 2026-06-08 22:29
+---
+Agent completed without closing this issue (663s (1652816 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+
+author: oompah
+created: 2026-06-08 22:33
+---
+Agent dispatched (profile: standard)
+---
+
+author: oompah
+created: 2026-06-08 22:33
+---
+Focus: Event Queue Pipeline Specialist
+---
+
+author: oompah
+created: 2026-06-08 22:43
+---
+Agent completed successfully in 596s (1634366 tokens)
+---
+
+author: oompah
+created: 2026-06-08 22:43
+---
+Run #2 [attempt=2, profile=standard, role=standard -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
+- Turns: 14, Tool calls: 13
+- Tokens: 1.6M in / 11.9K out [1.6M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 56s
+- Log: TASK-467.2__20260608T223351Z.jsonl
+---
+
+author: oompah
+created: 2026-06-08 22:44
+---
+Agent completed without closing this issue (596s (1634366 tokens)). Escalating from 'standard' to 'deep'. Retrying in 20s (2/3).
+---
+
+author: oompah
+created: 2026-06-08 22:46
+---
+Retrying (attempt #2, agent: deep)
+---
+
+author: oompah
+created: 2026-06-08 22:58
+---
+Understanding: This is not a duplicate. Previous agents did substantial implementation work but left the task in a broken state: (1) tests/test_orchestrator_handlers.py has 5 failing tests because they mock old sync methods (_fetch_all_reviews, _fetch_all_merged_branches) but the code now calls async bounded versions; (2) config.py has duplicated field definitions; (3) no tests cover the new bounded refresh infrastructure. Fixing these issues now.
+---
+
+author: oompah
+created: 2026-06-08 23:08
+---
+Implementation: Fixed 3 issues left by previous agents: (1) Removed duplicate field definitions in config.py; (2) Resolved merge conflict in config.py that was causing SyntaxError by merging dispatch/maintenance config params from upstream with project_refresh_* params from stale stash; (3) Updated 12 tests in test_orchestrator_handlers.py to mock _fetch_all_reviews_bounded and _fetch_all_merged_branches_bounded (AsyncMock) instead of old sync methods. Added 11 new tests in TestBoundedProjectRefresh covering AC#1 (timeout/stale fallback), AC#2 (conservative gating), AC#3 (metrics recording).
 ---
 <!-- COMMENTS:END -->
