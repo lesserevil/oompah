@@ -1,9 +1,10 @@
 ---
 id: TASK-465
 title: 'Epic: reduce orchestrator tick latency and split dispatch lanes'
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-08 18:47'
+updated_date: '2026-06-08 19:00'
 labels:
   - epic
   - tick-latency
