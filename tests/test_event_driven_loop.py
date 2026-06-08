@@ -574,3 +574,153 @@ class TestDispatchQueueAttribute:
     def test_dispatch_queue_starts_empty(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         assert orch._dispatch_queue.empty()
+
+
+# ---------------------------------------------------------------------------
+# Graceful restart: SHUTDOWN event wakes the dispatch loop
+# ---------------------------------------------------------------------------
+
+class TestGracefulRestartShutdownEvent:
+    """graceful_restart() posts a SHUTDOWN event to wake the idle dispatch loop.
+
+    Regression test for TASK-465.4: When the dispatch queue is idle (no events
+    pending), graceful_restart() must still wake the loop so it can check
+    _stopping and exit cleanly. Without the SHUTDOWN event, the loop would
+    block forever on _dispatch_queue.get() and the old process would not exit.
+    """
+
+    @pytest.fixture
+    def event_loop(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        yield loop
+        loop.close()
+        asyncio.set_event_loop(None)
+
+    def test_shutdown_event_type_exists(self):
+        """SHUTDOWN event type is defined in DispatchEventType."""
+        assert DispatchEventType.SHUTDOWN == "shutdown"
+
+    def test_graceful_restart_posts_shutdown_event(self, tmp_path, event_loop):
+        """graceful_restart() posts a SHUTDOWN event after setting _stopping=True."""
+        orch = _make_orchestrator(tmp_path)
+        orch._paused = True  # So no agents are started during drain
+
+        event_loop.run_until_complete(
+            orch.graceful_restart(drain_timeout_s=1)
+        )
+
+        # Check that _stopping and _restart_requested are set
+        assert orch._stopping is True
+        assert orch._restart_requested is True
+
+        # Check that a SHUTDOWN event was posted to the queue
+        events = []
+        while not orch._dispatch_queue.empty():
+            events.append(orch._dispatch_queue.get_nowait())
+
+        shutdown_events = [
+            e for e in events if e.event_type == DispatchEventType.SHUTDOWN
+        ]
+        assert len(shutdown_events) == 1, (
+            f"Expected exactly 1 SHUTDOWN event, got {len(shutdown_events)}"
+        )
+
+    def test_run_loop_exits_on_shutdown_event_with_idle_queue(
+        self, tmp_path, event_loop
+    ):
+        """The run() loop exits when it receives a SHUTDOWN event, even with an idle queue.
+
+        This is the core regression test: the dispatch loop must not block
+        forever on _dispatch_queue.get() when graceful_restart() is called
+        while the queue is empty.
+        """
+        orch = _make_orchestrator(tmp_path, config=_make_config(full_sync_interval_ms=600000))
+        orch._tick = AsyncMock()
+        orch.startup_cleanup = AsyncMock()
+        orch._recover_restart_issues = AsyncMock()
+
+        async def _run_and_graceful_restart():
+            async def _trigger_restart():
+                # Wait for the loop to start and run the initial tick
+                await asyncio.sleep(0.02)
+                # Call graceful_restart with an undrained running task
+                # (simulating a task that didn't finish before the drain timeout)
+                await orch.graceful_restart(drain_timeout_s=1)
+                # The loop should now wake up and exit
+                await asyncio.sleep(0.05)
+
+            run_task = asyncio.create_task(orch.run())
+            await asyncio.gather(run_task, _trigger_restart())
+            return orch._tick.call_count
+
+        tick_count = event_loop.run_until_complete(
+            asyncio.wait_for(_run_and_graceful_restart(), timeout=5.0)
+        )
+
+        # The loop should have run the startup tick and exited cleanly
+        assert tick_count >= 1, "Expected at least startup tick to run"
+        # wants_restart should be True after graceful_restart
+        assert orch.wants_restart is True, "Expected wants_restart=True after graceful restart"
+
+    def test_graceful_restart_with_undrained_task_persists_once(
+        self, tmp_path, event_loop
+    ):
+        """Undrained tasks are persisted for restart recovery exactly once.
+
+        When graceful_restart() is called with running agents that don't
+        finish before the drain timeout, their issue IDs should be saved
+        to state for re-dispatch after restart. Calling graceful_restart
+        multiple times should not duplicate the persisted entries.
+        """
+        from oompah.models import RunningEntry, Issue
+        from datetime import datetime, timezone
+
+        orch = _make_orchestrator(tmp_path)
+
+        # Add a running task that won't finish
+        issue_id = "undrained-issue"
+        issue = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Undrained Task",
+            state="in_progress",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier=issue_id,
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=datetime.now(timezone.utc),
+            agent_profile_name="default",
+        )
+        orch.state.running[issue_id] = entry
+
+        # First graceful_restart call
+        event_loop.run_until_complete(
+            orch.graceful_restart(drain_timeout_s=0.01)
+        )
+
+        # Check state was saved
+        state = orch._load_state()
+        restart_issues = state.get("restart_issues", [])
+        assert len(restart_issues) == 1
+        assert restart_issues[0]["issue_id"] == issue_id
+
+        # Clear running state but keep the saved restart_issues
+        orch.state.running.clear()
+
+        # Second graceful_restart call (simulating a restart attempt)
+        event_loop.run_until_complete(
+            orch.graceful_restart(drain_timeout_s=0.01)
+        )
+
+        # Check state still has exactly one entry (no duplication)
+        state = orch._load_state()
+        restart_issues = state.get("restart_issues", [])
+        assert len(restart_issues) == 1, (
+            f"Expected restart_issues to have exactly 1 entry after second call, "
+            f"got {len(restart_issues)}"
+        )
+        assert restart_issues[0]["issue_id"] == issue_id

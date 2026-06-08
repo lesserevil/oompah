@@ -248,6 +248,8 @@ class DispatchEventType(str, Enum):
     RETRY_FIRED = "retry_fired"
     # Safety-net: periodic full sync to catch anything missed
     FULL_SYNC = "full_sync"
+    # Graceful shutdown: wake the dispatch loop so it can exit cleanly
+    SHUTDOWN = "shutdown"
 
 
 class DispatchLane(str, Enum):
@@ -1156,9 +1158,28 @@ class Orchestrator:
                 }
             )
 
-        if restart_issues:
+        # Merge with any restart_issues saved from a previous graceful_restart
+        # call (e.g. the user triggered restart twice before the process exited).
+        # Deduplication by issue_id ensures each task is persisted exactly once.
+        existing_restart_issues: list[dict] = self._load_state().get(
+            "restart_issues", []
+        )
+        existing_ids = {e["issue_id"] for e in existing_restart_issues}
+        new_issues = [
+            e for e in restart_issues if e["issue_id"] not in existing_ids
+        ]
+        merged_restart_issues = existing_restart_issues + new_issues
+
+        if new_issues:
             logger.info(
-                "Saving %d undrained issue(s) for re-dispatch after restart",
+                "Saving %d undrained issue(s) for re-dispatch after restart "
+                "(%d already queued)",
+                len(new_issues),
+                len(existing_restart_issues),
+            )
+        elif restart_issues:
+            logger.info(
+                "All %d undrained issue(s) already queued for restart recovery",
                 len(restart_issues),
             )
 
@@ -1166,12 +1187,16 @@ class Orchestrator:
         # come up unpaused so the saved restart_issues can re-dispatch.
         self._save_state(
             paused=was_user_paused,
-            restart_issues=restart_issues,
+            restart_issues=merged_restart_issues,
         )
 
         # Signal the main loop to stop and restart
         self._restart_requested = True
         self._stopping = True
+        # Wake the dispatch loop if it's blocked on _dispatch_queue.get()
+        self._post_event(
+            DispatchEvent(event_type=DispatchEventType.SHUTDOWN)
+        )
 
     @property
     def wants_restart(self) -> bool:
