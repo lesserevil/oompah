@@ -136,6 +136,17 @@ def _state_key(state: str | None) -> str:
     return canonicalize_status(state).strip().lower().replace("-", "_").replace(" ", "_")
 
 
+_WORKTREE_CLEANUP_STATES: tuple[str, ...] = (MERGED, ARCHIVED)
+_WORKTREE_CLEANUP_STATE_KEYS: frozenset[str] = frozenset(
+    _state_key(state) for state in _WORKTREE_CLEANUP_STATES
+)
+
+
+def _is_cleanable_worktree_state(state: str | None) -> bool:
+    """Return True when a task state is safe for automatic worktree removal."""
+    return _state_key(state) in _WORKTREE_CLEANUP_STATE_KEYS
+
+
 def _terminal_state_keys(terminal_states: list[str] | tuple[str, ...]) -> set[str]:
     """Return canonical terminal status keys including legacy aliases."""
     keys = {_state_key(s) for s in terminal_states}
@@ -1122,9 +1133,13 @@ class Orchestrator:
         )
 
     def _cleanup_terminal_worktrees(self, projects: list | None = None) -> int:
-        """Remove workspaces/worktrees for issues in terminal states.
+        """Remove workspaces/worktrees for issues safe to discard.
 
-        Returns the number of cleanup attempts that reached the workspace store.
+        Done worktrees are intentionally preserved because they may still hold
+        conflict state or other context needed for follow-up. Only Merged and
+        Archived tasks are cleanable.
+
+        Returns the number of successful removals.
         Individual project/tracker/worktree failures are logged and do not stop
         cleanup for other projects.
         """
@@ -1136,9 +1151,11 @@ class Orchestrator:
                 try:
                     tracker = self._tracker_for_project(project.id)
                     terminal_issues = tracker.fetch_issues_by_states(
-                        self.config.tracker_terminal_states
+                        list(_WORKTREE_CLEANUP_STATES)
                     )
                     for issue in terminal_issues:
+                        if not _is_cleanable_worktree_state(issue.state):
+                            continue
                         try:
                             self.project_store.remove_worktree(
                                 project.id, issue.identifier
@@ -1165,9 +1182,11 @@ class Orchestrator:
         else:
             try:
                 terminal_issues = self.tracker.fetch_issues_by_states(
-                    self.config.tracker_terminal_states
+                    list(_WORKTREE_CLEANUP_STATES)
                 )
                 for issue in terminal_issues:
+                    if not _is_cleanable_worktree_state(issue.state):
+                        continue
                     try:
                         self.workspace_mgr.remove_workspace(issue.identifier)
                         cleaned += 1

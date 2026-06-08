@@ -836,29 +836,30 @@ class TestHandleAutoUpdate:
 
 
 class TestTerminalWorktreeCleanup:
-    """Terminal task cleanup removes project worktrees outside startup."""
+    """Terminal task cleanup removes only discardable worktrees."""
 
-    def test_cleanup_terminal_worktrees_removes_project_worktrees(self, tmp_path):
+    def test_cleanup_terminal_worktrees_removes_only_merged_and_archived_project_worktrees(
+        self, tmp_path
+    ):
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = [
             _make_issue("TASK-1", state="Done", project_id=project.id),
             _make_issue("TASK-2", state="Merged", project_id=project.id),
+            _make_issue("TASK-3", state="Archived", project_id=project.id),
         ]
         orch._tracker_for_project = MagicMock(return_value=tracker)
 
         cleaned = orch._cleanup_terminal_worktrees()
 
         assert cleaned == 2
-        tracker.fetch_issues_by_states.assert_called_once_with(
-            orch.config.tracker_terminal_states
-        )
+        tracker.fetch_issues_by_states.assert_called_once_with(["Merged", "Archived"])
         assert [
             call.args for call in orch.project_store.remove_worktree.call_args_list
         ] == [
-            (project.id, "TASK-1"),
             (project.id, "TASK-2"),
+            (project.id, "TASK-3"),
         ]
 
     def test_cleanup_terminal_worktrees_continues_after_remove_error(self, tmp_path):
@@ -866,8 +867,8 @@ class TestTerminalWorktreeCleanup:
         orch = _make_orchestrator(tmp_path, projects=[project])
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = [
-            _make_issue("TASK-1", state="Done", project_id=project.id),
-            _make_issue("TASK-2", state="Merged", project_id=project.id),
+            _make_issue("TASK-1", state="Merged", project_id=project.id),
+            _make_issue("TASK-2", state="Archived", project_id=project.id),
         ]
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch.project_store.remove_worktree.side_effect = [RuntimeError("busy"), None]
@@ -876,6 +877,25 @@ class TestTerminalWorktreeCleanup:
 
         assert cleaned == 1
         assert orch.project_store.remove_worktree.call_count == 2
+
+    def test_cleanup_terminal_worktrees_preserves_done_legacy_workspace(
+        self, tmp_path
+    ):
+        orch = _make_orchestrator(tmp_path)
+        orch.tracker = MagicMock()
+        orch.workspace_mgr = MagicMock()
+        orch.tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Done"),
+            _make_issue("TASK-2", state="Archived"),
+        ]
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 1
+        orch.tracker.fetch_issues_by_states.assert_called_once_with(
+            ["Merged", "Archived"]
+        )
+        orch.workspace_mgr.remove_workspace.assert_called_once_with("TASK-2")
 
     def test_maybe_heal_repos_cleans_terminal_worktrees_on_full_sync(self, tmp_path):
         project = _make_project()
