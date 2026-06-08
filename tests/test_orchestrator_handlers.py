@@ -631,6 +631,19 @@ class TestHandleYoloReview:
 
         orch._label_merged_issues.assert_called_once()
 
+    def test_calls_stale_in_review_reconciliation(self, tmp_path):
+        """_reconcile_stale_in_review_tasks is invoked by _handle_yolo_review."""
+        orch = _make_orchestrator(tmp_path)
+        orch._yolo_review_actions_sync = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._label_merged_issues = MagicMock()
+        orch._label_merged_epics = MagicMock()
+        orch._reconcile_stale_in_review_tasks = MagicMock()
+
+        asyncio.run(orch._handle_yolo_review())
+
+        orch._reconcile_stale_in_review_tasks.assert_called_once()
+
     def test_returns_timing_tuple(self, tmp_path):
         """_handle_yolo_review returns a (yolo_ms, archive_ms, merged_ms) tuple."""
         orch = _make_orchestrator(tmp_path)

@@ -200,6 +200,196 @@ class TestLabelMergedIssues:
         orch._label_merged_issues()
 
 
+class TestReconcileStaleInReviewTasks:
+    """Tests for _reconcile_stale_in_review_tasks."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def test_keeps_task_in_review_when_open_review_is_cached(self, tmp_path):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                ReviewRequest(
+                    id="10",
+                    title="PR #10",
+                    url="https://github.com/org/repo/pull/10",
+                    author="alice",
+                    state="open",
+                    source_branch="TASK-1",
+                    target_branch="main",
+                    created_at="2026-01-01",
+                    updated_at="2026-01-01",
+                )
+            ]
+        }
+        orch._merged_branches = set()
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="In Review"),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        mock_tracker.update_issue.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+
+    def test_marks_in_review_task_merged_when_branch_is_merged(self, tmp_path):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = {"TASK-1"}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="In Review"),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        mock_tracker.update_issue.assert_called_once_with("TASK-1", status="Merged")
+        mock_tracker.add_comment.assert_not_called()
+
+    @patch("oompah.close_gate._count_commits_ahead")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_reopens_closed_unmerged_review_with_commits_ahead(
+        self,
+        mock_detect,
+        mock_slug,
+        mock_count,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="205",
+            title="TASK-1",
+            url="https://github.com/org/repo/pull/205",
+            author="alice",
+            state="closed",
+            source_branch="TASK-1",
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-02",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+        mock_count.return_value = (2, ["abc123 fix one", "def456 fix two"], "")
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="In Review"),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        provider.find_pr_for_branch.assert_called_once_with("org/repo", "TASK-1")
+        mock_count.assert_called_once_with(str(tmp_path), "main", "TASK-1")
+        mock_tracker.update_issue.assert_called_once_with("TASK-1", status="Open")
+        comment = mock_tracker.add_comment.call_args.args[1]
+        assert "review #205 was closed without merge" in comment
+        assert "Unmerged commits: 2 commits" in comment
+
+    @patch("oompah.close_gate._count_commits_ahead")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_marks_missing_review_merged_when_branch_has_no_commits_ahead(
+        self,
+        mock_detect,
+        mock_slug,
+        mock_count,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        project.default_branch = "main"
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = None
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+        mock_count.return_value = (0, [], "")
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="In Review"),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        mock_tracker.update_issue.assert_called_once_with("TASK-1", status="Merged")
+        mock_tracker.add_comment.assert_not_called()
+
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_provider_open_review_prevents_reopen_when_cache_is_stale(
+        self,
+        mock_detect,
+        mock_slug,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="10",
+            title="TASK-1",
+            url="https://github.com/org/repo/pull/10",
+            author="alice",
+            state="open",
+            source_branch="TASK-1",
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-02",
+        )
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="In Review"),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        mock_tracker.update_issue.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+
+
 class TestFetchAllMergedBranches:
     """Tests for _fetch_all_merged_branches."""
 

@@ -1680,6 +1680,7 @@ class Orchestrator:
             t = time.monotonic()
             self._label_merged_issues()
             self._label_merged_epics()
+            self._reconcile_stale_in_review_tasks()
             return (time.monotonic() - t) * 1000
 
         yolo_ms, archive_ms, merged_ms = await asyncio.gather(
@@ -4596,6 +4597,243 @@ class Orchestrator:
                         logger.debug(
                             "Failed to label %s as merged: %s", issue.identifier, exc
                         )
+
+    def _reconcile_stale_in_review_tasks(self) -> None:
+        """Move ``In Review`` tasks out of review when no live PR/MR exists.
+
+        ``In Review`` is only valid while the task branch has an open review
+        artifact. If the artifact disappears, classify it from the strongest
+        available signal:
+
+        * merged branch or merged PR/MR -> ``Merged``
+        * closed/unfound PR/MR with commits still ahead -> ``Open``
+        * missing local evidence -> ``Needs Human``
+        """
+        reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+        merged_branches = getattr(self, "_merged_branches", set()) or set()
+
+        for project in self.project_store.list_all():
+            project_id = str(project.id)
+            open_branches = {
+                str(r.source_branch)
+                for r in (reviews_cache.get(project_id, []) or [])
+                if getattr(r, "source_branch", None)
+            }
+            try:
+                tracker = self._tracker_for_project(project_id)
+                issues = tracker.fetch_issues_by_states([IN_REVIEW])
+            except (ProjectError, TrackerError) as exc:
+                logger.debug(
+                    "Stale In Review reconciliation fetch failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            provider = None
+            slug = ""
+            if getattr(project, "repo_url", None):
+                provider = detect_provider(
+                    project.repo_url, access_token=project.access_token
+                )
+                if provider:
+                    slug = extract_repo_slug(project.repo_url)
+
+            for issue in issues:
+                if canonicalize_status(issue.state) != IN_REVIEW:
+                    continue
+                branch = issue.branch_name or issue.identifier
+                if not branch or branch in open_branches:
+                    continue
+
+                if branch in merged_branches:
+                    self._mark_stale_in_review_merged(tracker, issue, branch)
+                    continue
+
+                review = None
+                if provider and slug:
+                    try:
+                        review = provider.find_pr_for_branch(slug, branch)
+                    except Exception as exc:  # noqa: BLE001 - provider best effort
+                        logger.debug(
+                            "find_pr_for_branch failed for %s branch %s: %s",
+                            project.name,
+                            branch,
+                            exc,
+                        )
+                review_state = str(getattr(review, "state", "") or "").lower()
+                if review_state == "open":
+                    continue
+                if review_state == "merged":
+                    self._mark_stale_in_review_merged(tracker, issue, branch)
+                    continue
+
+                target_branch = self._review_target_branch(project, review)
+                ahead, commit_lines, commit_error = self._count_review_branch_ahead(
+                    project,
+                    target_branch,
+                    branch,
+                )
+                if commit_error:
+                    self._mark_stale_in_review_needs_human(
+                        tracker,
+                        issue,
+                        branch,
+                        target_branch,
+                        commit_error,
+                    )
+                    continue
+                if ahead <= 0:
+                    self._mark_stale_in_review_merged(tracker, issue, branch)
+                    continue
+
+                self._reopen_stale_in_review_task(
+                    tracker,
+                    issue,
+                    branch,
+                    target_branch,
+                    ahead,
+                    commit_lines,
+                    review,
+                )
+
+    def _review_target_branch(
+        self,
+        project: Project,
+        review: ReviewRequest | None,
+    ) -> str:
+        """Return the review target branch with a safe project/default fallback."""
+        target = getattr(review, "target_branch", "") if review else ""
+        if not isinstance(target, str) or not target:
+            target = getattr(project, "default_branch", "")
+        if not isinstance(target, str) or not target:
+            target = "main"
+        return target
+
+    def _count_review_branch_ahead(
+        self,
+        project: Project,
+        target_branch: str,
+        branch: str,
+    ) -> tuple[int, list[str], str]:
+        repo_path = getattr(project, "repo_path", "")
+        if not isinstance(repo_path, str) or not repo_path:
+            return 0, [], "project has no managed repository path configured"
+        try:
+            from oompah.close_gate import _count_commits_ahead
+
+            return _count_commits_ahead(repo_path, target_branch, branch)
+        except Exception as exc:  # noqa: BLE001 - keep reconciliation best effort
+            return 0, [], str(exc)
+
+    def _mark_stale_in_review_merged(
+        self,
+        tracker: BacklogMdTracker,
+        issue: Issue,
+        branch: str,
+    ) -> None:
+        try:
+            tracker.update_issue(issue.identifier, status=MERGED)
+            logger.info(
+                "Marked %s as Merged during stale In Review reconciliation "
+                "(branch %s)",
+                issue.identifier,
+                branch,
+            )
+        except TrackerError as exc:
+            logger.debug(
+                "Failed to mark stale In Review task %s merged: %s",
+                issue.identifier,
+                exc,
+            )
+
+    def _mark_stale_in_review_needs_human(
+        self,
+        tracker: BacklogMdTracker,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
+        reason: str,
+    ) -> None:
+        comment = (
+            "Review reconciliation could not verify this task branch after its "
+            "review artifact disappeared.\n\n"
+            f"Branch: `{branch}`\n"
+            f"Target branch: `{target_branch}`\n"
+            f"Reason: {reason}\n\n"
+            "Required: confirm whether the branch landed, restore the PR/MR, "
+            "or archive the task."
+        )
+        try:
+            tracker.update_issue(issue.identifier, status=NEEDS_HUMAN)
+            tracker.add_comment(issue.identifier, comment, author="oompah")
+            logger.warning(
+                "Marked %s Needs Human during stale In Review reconciliation: %s",
+                issue.identifier,
+                reason,
+            )
+        except TrackerError as exc:
+            logger.debug(
+                "Failed to mark stale In Review task %s Needs Human: %s",
+                issue.identifier,
+                exc,
+            )
+
+    def _reopen_stale_in_review_task(
+        self,
+        tracker: BacklogMdTracker,
+        issue: Issue,
+        branch: str,
+        target_branch: str,
+        commits_ahead: int,
+        commit_lines: list[str],
+        review: ReviewRequest | None,
+    ) -> None:
+        commit_noun = "commit" if commits_ahead == 1 else "commits"
+        if review is not None:
+            review_id = getattr(review, "id", "")
+            review_note = (
+                f"Last known review #{review_id} was closed without merge."
+                if review_id
+                else "The last known review was closed without merge."
+            )
+        else:
+            review_note = "No PR/MR for this branch was found."
+        lines = [
+            "Review reconciliation reopened this task because it was marked "
+            "In Review but no open review artifact exists.",
+            "",
+            review_note,
+            f"Branch: `{branch}`",
+            f"Target branch: `{target_branch}`",
+            f"Unmerged commits: {commits_ahead} {commit_noun}",
+        ]
+        for line in commit_lines[:10]:
+            lines.append(f"  {line}")
+        lines.extend(
+            [
+                "",
+                "Required: restore or recreate the PR/MR for this branch, "
+                "then move the task back to In Review after the review exists.",
+            ]
+        )
+        try:
+            tracker.update_issue(issue.identifier, status=OPEN)
+            tracker.add_comment(issue.identifier, "\n".join(lines), author="oompah")
+            logger.warning(
+                "Reopened stale In Review task %s: branch %s has %d "
+                "unmerged %s and no open review",
+                issue.identifier,
+                branch,
+                commits_ahead,
+                commit_noun,
+            )
+        except TrackerError as exc:
+            logger.debug(
+                "Failed to reopen stale In Review task %s: %s",
+                issue.identifier,
+                exc,
+            )
 
     def _label_merged_epics(self) -> None:
         """When an epic→main PR has merged, mark the epic AND all its
