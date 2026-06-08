@@ -1,29 +1,29 @@
 ---
 id: TASK-467.3
 title: Keep state APIs and WebSocket updates responsive during background jobs
-status: Open
+status: In Progress
 assignee: []
-created_date: '2026-06-08 18:48'
+created_date: 2026-06-08 18:48
+updated_date: 2026-06-08 20:13
 labels:
-  - task
-  - tick-latency
-  - responsiveness
-  - 'needs:backend'
-  - 'needs:frontend'
-  - 'needs:test'
+- task
+- tick-latency
+- responsiveness
+- needs:backend
+- needs:frontend
+- needs:test
 dependencies:
-  - TASK-466.4
-  - TASK-467.2
+- TASK-466.4
+- TASK-467.2
 references:
-  - oompah/server.py
-  - oompah/orchestrator.py
+- oompah/server.py
+- oompah/orchestrator.py
 modified_files:
-  - oompah/server.py
-  - oompah/orchestrator.py
-  - tests/test_server_issue_detail.py
-  - tests/test_dashboard_running_agent_project_filter.py
+- oompah/server.py
+- oompah/orchestrator.py
+- tests/test_server_issue_detail.py
+- tests/test_dashboard_running_agent_project_filter.py
 parent_task_id: TASK-467
-priority: 0
 ordinal: 13
 ---
 
@@ -39,3 +39,14 @@ Ensure /api/v1/state, dashboard WebSocket state broadcasts, and status rendering
 - [ ] #2 WebSocket state broadcasts continue to reflect running agents and maintenance status.
 - [ ] #3 Diagnostics included in API responses are secret-safe.
 <!-- AC:END -->
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-08 20:13
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
