@@ -560,8 +560,8 @@ class TestHandleDispatchNeeded:
 
 
 class TestAutoArchiveThrottle:
-    """_auto_archive is throttled (it does a full-corpus read per project)
-    and must not re-scan already-archived issues."""
+    """_auto_archive is throttled via the maintenance lane gate and must not
+    re-scan already-archived issues."""
 
     def _orch_with_spy_tracker(self, tmp_path):
         orch = _make_orchestrator(tmp_path)  # no projects → uses self.tracker
@@ -574,14 +574,16 @@ class TestAutoArchiveThrottle:
     def test_runs_first_time_then_throttled(self, tmp_path):
         orch = self._orch_with_spy_tracker(tmp_path)
         orch._auto_archive()
-        orch._auto_archive()  # within the interval → no-op
+        orch._auto_archive()  # within the interval → gated by _run_maintenance_job
         assert orch.tracker.fetch_issues_by_states.call_count == 1
 
     def test_runs_again_after_interval_elapses(self, tmp_path):
         orch = self._orch_with_spy_tracker(tmp_path)
         orch._auto_archive()
-        # Backdate the last-run marker past the throttle window.
-        orch._last_auto_archive_monotonic -= orch._AUTO_ARCHIVE_INTERVAL_S + 1
+        # Backdate the maintenance job's next_run_monotonic past the throttle window.
+        state = orch._maintenance_jobs.get("auto_archive")
+        if state is not None:
+            state.next_run_monotonic = 0.0
         orch._auto_archive()
         assert orch.tracker.fetch_issues_by_states.call_count == 2
 
@@ -596,124 +598,213 @@ class TestAutoArchiveThrottle:
         # Done/Merged are still scanned (they can still become archived).
         assert canonicalize_status(DONE) in canon
 
-    def test_auto_archive_respects_batch_size(self, tmp_path):
+    def test_auto_archive_registered_as_maintenance_job(self, tmp_path):
+        """_auto_archive() registers state under 'auto_archive' in _maintenance_jobs."""
         orch = self._orch_with_spy_tracker(tmp_path)
-        orch.config.auto_archive_batch_size = 1
-        old = datetime.now(timezone.utc) - timedelta(days=8)
-        issue1 = _make_issue("TASK-1", state="Done")
-        issue1.closed_at = old
-        issue2 = _make_issue("TASK-2", state="Done")
-        issue2.closed_at = old
-        orch.tracker.fetch_issues_by_states.return_value = [issue1, issue2]
-
         orch._auto_archive()
+        assert "auto_archive" in orch._maintenance_jobs
+        state = orch._maintenance_jobs["auto_archive"]
+        assert state.run_count == 1
 
-        orch.tracker.archive_issue.assert_called_once_with("TASK-1")
-        assert orch._maintenance_status["auto_archive"]["deferred"] is True
+    def test_auto_archive_backfills_last_auto_archive_monotonic(self, tmp_path):
+        """_auto_archive() back-fills _last_auto_archive_monotonic for legacy compat."""
+        import time as _time
+
+        orch = self._orch_with_spy_tracker(tmp_path)
+        before = _time.monotonic()
+        orch._auto_archive()
+        after = _time.monotonic()
+        assert orch._last_auto_archive_monotonic is not None
+        assert before <= orch._last_auto_archive_monotonic <= after
 
 
 class TestHandleYoloReview:
-    """_handle_yolo_review() runs YOLO actions, auto-archive, and merged-labeling."""
+    """_handle_yolo_review() runs only YOLO actions (archive/merged moved to step 5b)."""
 
     def test_calls_yolo_review_actions(self, tmp_path):
         """_yolo_review_actions_sync is invoked by _handle_yolo_review."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
         asyncio.run(orch._handle_yolo_review())
 
         orch._yolo_review_actions_sync.assert_called_once()
 
-    def test_calls_auto_archive(self, tmp_path):
-        """_auto_archive is invoked by _handle_yolo_review."""
+    def test_does_not_call_auto_archive(self, tmp_path):
+        """_auto_archive is NOT invoked by _handle_yolo_review (moved to maintenance lane)."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
         orch._auto_archive = MagicMock()
+
+        asyncio.run(orch._handle_yolo_review())
+
+        orch._auto_archive.assert_not_called()
+
+    def test_does_not_call_label_merged_issues(self, tmp_path):
+        """_label_merged_issues is NOT invoked by _handle_yolo_review (moved to maintenance lane)."""
+        orch = _make_orchestrator(tmp_path)
+        orch._yolo_review_actions_sync = MagicMock()
         orch._label_merged_issues = MagicMock()
 
         asyncio.run(orch._handle_yolo_review())
 
-        orch._auto_archive.assert_called_once()
+        orch._label_merged_issues.assert_not_called()
 
-    def test_calls_label_merged_issues(self, tmp_path):
-        """_label_merged_issues is invoked by _handle_yolo_review."""
+    def test_does_not_call_stale_in_review_reconciliation(self, tmp_path):
+        """_reconcile_stale_in_review_tasks is NOT invoked by _handle_yolo_review
+        (moved to maintenance lane)."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
-
-        asyncio.run(orch._handle_yolo_review())
-
-        orch._label_merged_issues.assert_called_once()
-
-    def test_calls_stale_in_review_reconciliation(self, tmp_path):
-        """_reconcile_stale_in_review_tasks is invoked by _handle_yolo_review."""
-        orch = _make_orchestrator(tmp_path)
-        orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
-        orch._label_merged_epics = MagicMock()
         orch._reconcile_stale_in_review_tasks = MagicMock()
 
         asyncio.run(orch._handle_yolo_review())
 
-        orch._reconcile_stale_in_review_tasks.assert_called_once()
+        orch._reconcile_stale_in_review_tasks.assert_not_called()
 
-    def test_returns_timing_tuple(self, tmp_path):
-        """_handle_yolo_review returns a (yolo_ms, archive_ms, merged_ms) tuple."""
+    def test_returns_float_yolo_ms(self, tmp_path):
+        """_handle_yolo_review returns a single float (yolo_ms) for telemetry."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
         result = asyncio.run(orch._handle_yolo_review())
 
-        assert isinstance(result, tuple)
-        assert len(result) == 3
-        yolo_ms, archive_ms, merged_ms = result
-        assert isinstance(yolo_ms, float)
-        assert isinstance(archive_ms, float)
-        assert isinstance(merged_ms, float)
-        assert yolo_ms >= 0
-        assert archive_ms >= 0
-        assert merged_ms >= 0
+        assert isinstance(result, float)
+        assert result >= 0.0
 
-    def test_all_three_operations_run(self, tmp_path):
-        """All three operations run (yolo, archive, merged-labels)."""
-        orch = _make_orchestrator(tmp_path)
-        call_order = []
-
-        def yolo():
-            call_order.append("yolo")
-
-        def archive():
-            call_order.append("archive")
-
-        def merged():
-            call_order.append("merged")
-
-        orch._yolo_review_actions_sync = yolo
-        orch._auto_archive = archive
-        orch._label_merged_issues = merged
-
-        asyncio.run(orch._handle_yolo_review())
-
-        assert set(call_order) == {"yolo", "archive", "merged"}
-
-    def test_timing_values_are_non_negative(self, tmp_path):
-        """Timing values returned must always be >= 0."""
+    def test_timing_value_is_non_negative(self, tmp_path):
+        """Timing value returned must always be >= 0."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
-        yolo_ms, archive_ms, merged_ms = asyncio.run(orch._handle_yolo_review())
+        yolo_ms = asyncio.run(orch._handle_yolo_review())
 
         assert yolo_ms >= 0.0
-        assert archive_ms >= 0.0
-        assert merged_ms >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# _maybe_run_merged_labels  (TASK-466.2)
+# ---------------------------------------------------------------------------
+
+
+class TestMaybeRunMergedLabels:
+    """_maybe_run_merged_labels() delegates to the maintenance lane gate."""
+
+    def _orch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch._label_merged_issues = MagicMock()
+        orch._label_merged_epics = MagicMock()
+        orch._reconcile_stale_in_review_tasks = MagicMock()
+        return orch
+
+    def test_calls_all_three_sweeps(self, tmp_path):
+        """_maybe_run_merged_labels calls label_merged_issues, label_merged_epics,
+        and reconcile_stale_in_review_tasks on first run."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        orch._label_merged_issues.assert_called_once()
+        orch._label_merged_epics.assert_called_once()
+        orch._reconcile_stale_in_review_tasks.assert_called_once()
+
+    def test_throttled_on_second_call(self, tmp_path):
+        """Second call within interval is coalesced (not executed)."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        orch._maybe_run_merged_labels()  # within interval → skip
+        assert orch._label_merged_issues.call_count == 1
+
+    def test_runs_again_after_interval(self, tmp_path):
+        """Runs again once next_run_monotonic has passed."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        state = orch._maintenance_jobs.get("merged_labels")
+        assert state is not None
+        state.next_run_monotonic = 0.0  # backdate past interval
+        orch._maybe_run_merged_labels()
+        assert orch._label_merged_issues.call_count == 2
+
+    def test_registered_as_maintenance_job(self, tmp_path):
+        """After running, 'merged_labels' appears in _maintenance_jobs."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        assert "merged_labels" in orch._maintenance_jobs
+        assert orch._maintenance_jobs["merged_labels"].run_count == 1
+
+    def test_failure_captured_in_job_state(self, tmp_path):
+        """If one sweep raises, the error is captured in last_error (not re-raised)."""
+        orch = self._orch(tmp_path)
+        orch._label_merged_issues = MagicMock(side_effect=RuntimeError("forge error"))
+        orch._maybe_run_merged_labels()
+        state = orch._maintenance_jobs.get("merged_labels")
+        assert state is not None
+        assert state.last_status == "failed"
+        assert "forge error" in (state.last_error or "")
+
+
+# ---------------------------------------------------------------------------
+# _run_step5b_maintenance  (TASK-466.2: extended with archive + merged labels)
+# ---------------------------------------------------------------------------
+
+
+class TestRunStep5bMaintenanceExtended:
+    """_run_step5b_maintenance now includes auto_archive and merged_labels."""
+
+    def test_calls_auto_archive(self, tmp_path):
+        """_run_step5b_maintenance calls _auto_archive."""
+        orch = _make_orchestrator(tmp_path)
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._maybe_run_merged_labels = MagicMock()
+
+        orch._run_step5b_maintenance()
+
+        orch._auto_archive.assert_called_once()
+
+    def test_calls_merged_labels(self, tmp_path):
+        """_run_step5b_maintenance calls _maybe_run_merged_labels."""
+        orch = _make_orchestrator(tmp_path)
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._maybe_run_merged_labels = MagicMock()
+
+        orch._run_step5b_maintenance()
+
+        orch._maybe_run_merged_labels.assert_called_once()
+
+    def test_all_four_jobs_run_in_order(self, tmp_path):
+        """All four maintenance jobs run, with heal and cleanup before archive/merged."""
+        orch = _make_orchestrator(tmp_path)
+        call_order = []
+        orch._maybe_heal_repos = lambda: call_order.append("heal")
+        orch._maybe_cleanup_worktrees = lambda: call_order.append("cleanup")
+        orch._auto_archive = lambda: call_order.append("archive")
+        orch._maybe_run_merged_labels = lambda: call_order.append("merged_labels")
+
+        orch._run_step5b_maintenance()
+
+        assert call_order == ["heal", "cleanup", "archive", "merged_labels"]
+
+    def test_archive_and_merged_labels_in_maintenance_jobs_snapshot(self, tmp_path):
+        """After running, auto_archive and merged_labels appear in _maintenance_jobs."""
+        orch = _make_orchestrator(tmp_path)
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues_by_states.return_value = []
+        orch.project_store.list_all.return_value = []
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+        orch._label_merged_issues = MagicMock()
+        orch._label_merged_epics = MagicMock()
+        orch._reconcile_stale_in_review_tasks = MagicMock()
+
+        orch._run_step5b_maintenance()
+
+        assert "auto_archive" in orch._maintenance_jobs
+        assert "merged_labels" in orch._maintenance_jobs
+        snapshot = orch.get_snapshot()
+        assert "auto_archive" in snapshot["maintenance"]["jobs"]
+        assert "merged_labels" in snapshot["maintenance"]["jobs"]
 
 
 # ---------------------------------------------------------------------------
@@ -1305,8 +1396,8 @@ class TestMaintenanceLaneNonBlocking:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
-        orch._handle_epic_maintenance = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -1339,8 +1430,8 @@ class TestMaintenanceLaneNonBlocking:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
-        orch._handle_epic_maintenance = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -1361,8 +1452,8 @@ class TestMaintenanceLaneNonBlocking:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
-        orch._handle_epic_maintenance = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -1408,8 +1499,8 @@ class TestMaintenanceLaneNonBlocking:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
-        orch._handle_epic_maintenance = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -1548,8 +1639,8 @@ class TestRepoHealErrorReporting:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
-        orch._handle_epic_maintenance = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -1649,7 +1740,7 @@ class TestTickDelegation:
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
-            return (0.0, 0.0, 0.0)
+            return 0.0
 
         async def fake_auto_update():
             call_order.append("auto_update")
@@ -1687,7 +1778,7 @@ class TestTickDelegation:
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
-            return (0.0, 0.0, 0.0)
+            return 0.0
 
         async def fake_auto_update():
             call_order.append("auto_update")
@@ -1727,7 +1818,7 @@ class TestTickDelegation:
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
-            return (0.0, 0.0, 0.0)
+            return 0.0
 
         async def fake_auto_update():
             call_order.append("auto_update")
@@ -1758,7 +1849,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
@@ -1773,7 +1864,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
@@ -1791,7 +1882,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -1810,7 +1901,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
@@ -1863,11 +1954,9 @@ class TestHandlerIndependence:
         """_handle_yolo_review can run without the rest of _tick."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
         result = asyncio.run(orch._handle_yolo_review())
-        assert isinstance(result, tuple) and len(result) == 3
+        assert isinstance(result, float) and result >= 0.0
 
     def test_handle_auto_update_standalone(self, tmp_path):
         """_handle_auto_update can run without the rest of _tick."""
