@@ -8,7 +8,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-06-09 00:40'
-updated_date: '2026-06-09 20:01'
+updated_date: '2026-06-09 20:11'
 labels:
   - bug
 dependencies: []
@@ -126,14 +126,61 @@ Recent commits:
 ---
 
 author: oompah
+created: 2026-06-09 20:00
+---
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-09 20:00
+---
+Focus: Duplicate Investigator
+---
+
+author: oompah
 created: 2026-06-09 20:01
 ---
-Duplicate investigation (run #3): Confirmed no duplicate exists. TASK-471 is the only task with HTTP 404 litellm.NotFoundError from inference-api.nvidia.com (other similar tasks are HTTP 400 BadRequestError, a different error path). The fix from run #1 (commit 1da9020) is valid — treating litellm 404 NotFoundError as transient integrates with the retry loop so model-routing blips no longer create spurious error_watcher tasks. Task remains Done.
+Agent completed successfully in 77s (2472 tokens)
+---
+
+author: oompah
+created: 2026-06-09 20:01
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 21, Tool calls: 12
+- Tokens: 13 in / 2.5K out [2.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 1m 17s
+- Log: TASK-471__20260609T200035Z.jsonl
+---
+
+author: oompah
+created: 2026-06-09 20:01
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `TASK-471`
+Target branch: `main`
+Unmerged commits: 9 commits
+Open reviews: 1/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  cc9e620 TASK-471: close task as Done (run #3)
+  d1e2e52 TASK-471: update task comments (duplicate investigator run #3)
+  a316a03 TASK-471: close task as Done (run #2)
+  dba3022 TASK-471: update task comments (duplicate investigator run #2)
+  1199393 TASK-471: close task as Done
+  4bae920 TASK-471: update task comments (completion)
+  825b228 TASK-471: update task comments (duplicate investigator run)
+  2a4cf47 TASK-471: update task comments
+  1da9020 TASK-471: treat litellm HTTP 404 NotFoundError as transient
+---
+
+author: oompah
+created: 2026-06-09 20:11
+---
+Duplicate investigator run #4: Task is already Done. Fix was applied in commit 1da9020 (treat litellm HTTP 404 NotFoundError as transient). No duplicate exists — this is a unique issue. No further action needed; re-dispatching is due to deferred PR review (open review limit). Task remains Done.
 ---
 <!-- COMMENTS:END -->
-
-## Final Summary
-
-<!-- SECTION:FINAL_SUMMARY:BEGIN -->
-duplicate-investigator-run-3: Not a duplicate. Fix already applied in commit 1da9020 — litellm HTTP 404 NotFoundError is now treated as transient, integrating with the retry loop to prevent spurious error_watcher tasks.
-<!-- SECTION:FINAL_SUMMARY:END -->
