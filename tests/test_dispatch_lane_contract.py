@@ -460,20 +460,12 @@ class TestMaintenanceLaneDoesNotBlockDispatch:
             lock_state_during_heal.append(orch._dispatch_lane_lock.locked())
 
         orch._maybe_heal_repos = spy_heal
-        orch._maybe_run_watchdog = MagicMock()
-        orch._apply_pending_agent_profiles = MagicMock()
-        orch._invalidate_tracker_read_caches = MagicMock()
-        orch._handle_reconcile = AsyncMock()
-        orch._handle_review_check = AsyncMock()
-        orch._handle_dispatch_needed = AsyncMock(return_value={})
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
-        orch._notify_observers = MagicMock()
-        orch._handle_auto_update = AsyncMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._maybe_run_merged_labels = MagicMock()
+        orch._maybe_run_release_pick_reconciliation = MagicMock()
 
-        with patch(
-            "oompah.orchestrator.validate_dispatch_config", return_value=[]
-        ):
-            asyncio.run(orch._tick())
+        orch._run_step5b_maintenance()
 
         assert len(lock_state_during_heal) == 1
         assert lock_state_during_heal[0] is False, (
