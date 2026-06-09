@@ -39,3 +39,11 @@ Implementation guidance:
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 Fixed orphaned In Progress cleanup so stale completed markers no longer prevent resetting tasks back to Open, and the stale marker is discarded after reset. Verified with uv run pytest tests/test_orchestrator_merged.py tests/test_dashboard_conditional_columns.py -q and make test (3685 passed, 18 warnings).
 <!-- SECTION:FINAL_SUMMARY:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Understanding [2026-06-02]: Not a duplicate of TASK-402.11. Root cause found in _on_retry_timer: when an In Progress task fires its retry, it is NOT in candidates (candidates are Open tasks only), so the retry is released with 'no longer candidate' but the task remains In Progress. _reset_orphaned_in_progress also only iterates candidates so it never sees this orphaned In Progress task. Fix plan: (1) in _on_retry_timer no-longer-candidate path, fetch issue state and reset to Open if still In Progress. (2) supplement _reset_orphaned_in_progress to also sweep over running entry ids whose issue state is In Progress but have no active agent. Add regression tests.
+
+Discovery [2026-06-02]: Root cause confirmed. (1) _reset_orphaned_in_progress(candidates) only iterates Open/Needs CI Fix/Needs Rebase tasks — never In Progress. (2) _on_retry_timer drops the retry entry and releases the claim when the issue is 'no longer candidate' (because In Progress tasks are NOT candidates), but does not reset the tracker status. Fix: (A) Primary — in _on_retry_timer no-longer-candidate path, fetch the issue state and reset to Open if In Progress. (B) Defense-in-depth — add fetch_in_progress_issues() to tracker, add _fetch_all_in_progress_issues() to orchestrator, and extend _reset_orphaned_in_progress to also sweep In Progress tasks not in the candidates list.
+<!-- SECTION:NOTES:END -->

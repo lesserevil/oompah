@@ -414,6 +414,20 @@ class BacklogMdTracker(TrackerProtocol):
         ]
         return _sort_issues_for_dispatch(issues)
 
+    def fetch_in_progress_issues(self) -> list[Issue]:
+        """Fetch tasks currently in In Progress state (not completed).
+
+        Unlike ``fetch_candidate_issues``, this returns tasks in the working
+        state that are not normally in the dispatch candidate list.  Used by
+        the orphan-reset sweep to find tasks left In Progress after a retry
+        claim is released (TASK-409).
+        """
+        return [
+            issue
+            for issue in self._read_all_tasks(include_completed=False)
+            if canonicalize_status(issue.state) == IN_PROGRESS
+        ]
+
     def fetch_all_issues(self) -> list[Issue]:
         """Fetch all Backlog.md tasks from active and completed folders."""
         return self._read_all_tasks(include_completed=True)

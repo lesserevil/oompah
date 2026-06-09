@@ -734,3 +734,177 @@ class TestGracefulRestartShutdownEvent:
             f"got {len(restart_issues)}"
         )
         assert restart_issues[0]["issue_id"] == issue_id
+
+
+# ---------------------------------------------------------------------------
+# _on_retry_timer() resets stale In Progress after retry-claim release
+# ---------------------------------------------------------------------------
+
+class TestRetryTimerResetsInProgressOnRelease:
+    """TASK-409 regression coverage for retry release cleanup."""
+
+    @pytest.fixture
+    def event_loop(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        yield loop
+        loop.close()
+        asyncio.set_event_loop(None)
+
+    def _make_retry_orch(self, tmp_path):
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def _make_retry_entry(self, issue_id: str):
+        from oompah.models import RetryEntry
+        import time
+
+        return RetryEntry(
+            issue_id=issue_id,
+            identifier=issue_id,
+            attempt=1,
+            due_at_ms=time.monotonic() * 1000,
+            timer_handle=None,
+            error="completed_without_closing",
+            escalated_profile="standard",
+        )
+
+    def test_resets_in_progress_task_to_open_on_no_longer_candidate(
+        self, tmp_path, event_loop
+    ):
+        from oompah.models import Issue
+
+        orch = self._make_retry_orch(tmp_path)
+        issue_id = "TASK-389"
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+
+        in_progress_issue = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="Observed repro issue",
+            state="In Progress",
+        )
+        orch._fetch_issue_across_trackers = MagicMock(return_value=in_progress_issue)
+        mock_tracker = MagicMock()
+        orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
+
+        orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
+
+        event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+
+        assert issue_id not in orch.state.claimed
+        mock_tracker.update_issue.assert_called_once_with(issue_id, status="Open")
+
+    def test_does_not_reset_when_running_agent_exists(
+        self, tmp_path, event_loop
+    ):
+        from oompah.models import Issue
+
+        orch = self._make_retry_orch(tmp_path)
+        issue_id = "TASK-123"
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_issue_across_trackers = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Running issue",
+                state="In Progress",
+            )
+        )
+        mock_tracker = MagicMock()
+        orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
+        orch.state.running[issue_id] = MagicMock()
+        orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
+
+        event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_does_not_reset_when_issue_already_open(
+        self, tmp_path, event_loop
+    ):
+        from oompah.models import Issue
+
+        orch = self._make_retry_orch(tmp_path)
+        issue_id = "TASK-200"
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_issue_across_trackers = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Already open",
+                state="Open",
+            )
+        )
+        mock_tracker = MagicMock()
+        orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
+        orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
+
+        event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_does_not_reset_when_issue_is_terminal(self, tmp_path, event_loop):
+        from oompah.models import Issue
+
+        orch = self._make_retry_orch(tmp_path)
+        issue_id = "TASK-300"
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_issue_across_trackers = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Done issue",
+                state="Done",
+            )
+        )
+        mock_tracker = MagicMock()
+        orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
+        orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
+
+        event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_tolerates_tracker_error_on_reset(self, tmp_path, event_loop):
+        from oompah.models import Issue
+        from oompah.tracker import TrackerError
+
+        orch = self._make_retry_orch(tmp_path)
+        issue_id = "TASK-ERR"
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_issue_across_trackers = MagicMock(
+            return_value=Issue(
+                id=issue_id,
+                identifier=issue_id,
+                title="Tracker error issue",
+                state="In Progress",
+            )
+        )
+        mock_tracker = MagicMock()
+        mock_tracker.update_issue.side_effect = TrackerError("tracker boom")
+        orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
+        orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
+
+        event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+
+        assert issue_id not in orch.state.claimed
+
+    def test_does_not_reset_when_fetch_returns_none(self, tmp_path, event_loop):
+        orch = self._make_retry_orch(tmp_path)
+        issue_id = "TASK-GONE"
+        orch._fetch_all_candidates = MagicMock(return_value=[])
+        orch._fetch_issue_across_trackers = MagicMock(return_value=None)
+        mock_tracker = MagicMock()
+        orch._tracker_for_issue = MagicMock(return_value=mock_tracker)
+        orch.state.retry_attempts[issue_id] = self._make_retry_entry(issue_id)
+
+        event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+
+        mock_tracker.update_issue.assert_not_called()
