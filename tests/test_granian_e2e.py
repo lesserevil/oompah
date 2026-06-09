@@ -55,6 +55,7 @@ _ws_only = pytest.mark.skipif(
     not _WEBSOCKETS_SYNC_AVAILABLE,
     reason="websockets.sync.client not available",
 )
+_WS_RECV_TIMEOUT = 6.0
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +198,16 @@ def _stop_granian_server(proc: subprocess.Popen, timeout: float = 8.0) -> None:
             proc.wait(timeout=2)
 
 
+def _ws_recv_json(ws, timeout: float = _WS_RECV_TIMEOUT) -> dict:
+    """Receive one bounded WebSocket JSON message."""
+    return json.loads(ws.recv(timeout=timeout))
+
+
+def _drain_initial_ws_push(ws) -> list[dict]:
+    """Drain the server's initial state + issues push."""
+    return [_ws_recv_json(ws), _ws_recv_json(ws)]
+
+
 # ---------------------------------------------------------------------------
 # Module-scoped fixture: shared server for most tests
 # ---------------------------------------------------------------------------
@@ -309,18 +320,16 @@ class TestGranianWebSocketInitialPush:
         """Granian upgrades the HTTP connection to WebSocket without error."""
         uri = self._ws_uri(granian_e2e_base_url)
         with _ws_connect(uri) as ws:
-            # If we get here the handshake succeeded — drain one message so
-            # the server doesn't block.
-            ws.recv()
+            # If we get here the handshake succeeded. Drain the full initial
+            # state + issues push before closing so the single-worker Granian
+            # test server is ready for the next client.
+            _drain_initial_ws_push(ws)
 
     def test_ws_initial_push_sends_two_messages(self, granian_e2e_base_url: str):
         """The WS endpoint sends exactly two messages immediately after connect."""
         uri = self._ws_uri(granian_e2e_base_url)
         with _ws_connect(uri) as ws:
-            msgs = []
-            for _ in range(2):
-                raw = ws.recv()
-                msgs.append(json.loads(raw))
+            msgs = _drain_initial_ws_push(ws)
         assert len(msgs) == 2, (
             f"Expected 2 initial messages; got {len(msgs)}: {msgs}"
         )
@@ -329,7 +338,7 @@ class TestGranianWebSocketInitialPush:
         """One of the two initial WS messages has type == 'state'."""
         uri = self._ws_uri(granian_e2e_base_url)
         with _ws_connect(uri) as ws:
-            types = {json.loads(ws.recv())["type"], json.loads(ws.recv())["type"]}
+            types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
         assert "state" in types, (
             f"Initial WS push did not include a 'state' message; got types: {types}"
         )
@@ -338,7 +347,7 @@ class TestGranianWebSocketInitialPush:
         """One of the two initial WS messages has type == 'issues'."""
         uri = self._ws_uri(granian_e2e_base_url)
         with _ws_connect(uri) as ws:
-            types = {json.loads(ws.recv())["type"], json.loads(ws.recv())["type"]}
+            types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
         assert "issues" in types, (
             f"Initial WS push did not include an 'issues' message; got types: {types}"
         )
@@ -347,7 +356,7 @@ class TestGranianWebSocketInitialPush:
         """The state message from the initial push contains the 'running' key."""
         uri = self._ws_uri(granian_e2e_base_url)
         with _ws_connect(uri) as ws:
-            msgs = [json.loads(ws.recv()), json.loads(ws.recv())]
+            msgs = _drain_initial_ws_push(ws)
         state_msg = next((m for m in msgs if m.get("type") == "state"), None)
         assert state_msg is not None, "No state message in initial push"
         assert "running" in state_msg.get("data", {}), (
@@ -358,7 +367,7 @@ class TestGranianWebSocketInitialPush:
         """Both initial push messages are well-formed JSON objects with 'type' and 'data'."""
         uri = self._ws_uri(granian_e2e_base_url)
         with _ws_connect(uri) as ws:
-            msgs = [json.loads(ws.recv()), json.loads(ws.recv())]
+            msgs = _drain_initial_ws_push(ws)
         for msg in msgs:
             assert isinstance(msg, dict), f"Message is not a dict: {msg!r}"
             assert "type" in msg, f"Message missing 'type': {msg!r}"
@@ -371,7 +380,7 @@ class TestGranianWebSocketInitialPush:
         uri = self._ws_uri(granian_e2e_base_url)
         for i in range(3):
             with _ws_connect(uri) as ws:
-                types = {json.loads(ws.recv())["type"], json.loads(ws.recv())["type"]}
+                types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
             assert "state" in types and "issues" in types, (
                 f"Client {i + 1}: expected state+issues in initial push; got {types}"
             )
@@ -410,12 +419,10 @@ class TestGranianBroadcast:
             try:
                 with _ws_connect(uri) as ws_b:
                     # Drain initial 2 messages
-                    ws_b.recv()
-                    ws_b.recv()
+                    _drain_initial_ws_push(ws_b)
                     # Wait up to 6 s for the broadcast triggered by client A
                     try:
-                        raw = ws_b.recv()
-                        client_b_received.append(json.loads(raw))
+                        client_b_received.append(_ws_recv_json(ws_b))
                     except Exception as exc:
                         client_b_error.append(exc)
             except Exception as exc:
@@ -423,8 +430,7 @@ class TestGranianBroadcast:
 
         with _ws_connect(uri) as ws_a:
             # Drain client A's initial push
-            ws_a.recv()
-            ws_a.recv()
+            _drain_initial_ws_push(ws_a)
 
             # Start client B in background and give it time to connect and
             # drain its own initial push before client A fires the refresh.
@@ -437,6 +443,7 @@ class TestGranianBroadcast:
 
             t.join(timeout=8)
 
+        assert not t.is_alive(), "Client B thread did not finish"
         assert not client_b_error, (
             f"Client B raised an exception: {client_b_error[0]!r}"
         )
@@ -457,23 +464,21 @@ class TestGranianBroadcast:
 
         def _run_client_b():
             with _ws_connect(uri) as ws:
-                ws.recv()
-                ws.recv()
+                _drain_initial_ws_push(ws)
                 try:
-                    raw = ws.recv()
-                    client_b_msgs.append(json.loads(raw))
+                    client_b_msgs.append(_ws_recv_json(ws))
                 except Exception:
                     pass
 
         with _ws_connect(uri) as ws_a:
-            ws_a.recv()
-            ws_a.recv()
+            _drain_initial_ws_push(ws_a)
             t = threading.Thread(target=_run_client_b, daemon=True)
             t.start()
             time.sleep(0.4)
             ws_a.send(json.dumps({"action": "refresh"}))
             t.join(timeout=8)
 
+        assert not t.is_alive(), "Client B thread did not finish"
         if not client_b_msgs:
             pytest.skip("Client B received no message (timing); skipped to avoid flake")
         msg = client_b_msgs[0]
@@ -488,8 +493,7 @@ class TestGranianBroadcast:
         uri = self._ws_uri(granian_e2e_base_url)
         with _ws_connect(uri) as ws:
             # Drain initial push
-            ws.recv()
-            ws.recv()
+            _drain_initial_ws_push(ws)
 
             ws.send(json.dumps({"action": "refresh"}))
 
@@ -497,8 +501,7 @@ class TestGranianBroadcast:
             refresh_msgs: list[dict] = []
             for _ in range(3):
                 try:
-                    raw = ws.recv()
-                    refresh_msgs.append(json.loads(raw))
+                    refresh_msgs.append(_ws_recv_json(ws))
                 except Exception:
                     break
 
@@ -616,7 +619,7 @@ class TestGranianRestart:
 
             uri = f"ws://127.0.0.1:{port}/ws"
             with _ws_connect(uri) as ws:
-                types = {json.loads(ws.recv())["type"], json.loads(ws.recv())["type"]}
+                types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
 
             assert "state" in types and "issues" in types, (
                 f"WS initial push after restart: expected state+issues; got {types}"
