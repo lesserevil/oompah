@@ -616,9 +616,18 @@ class TestDispatchBeforeMaintenanceInTick:
 
         orch._maybe_run_watchdog = spy_watchdog
         orch._maybe_heal_repos = spy_heal
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._maybe_run_merged_labels = MagicMock()
+        orch._maybe_run_release_pick_reconciliation = MagicMock()
+
+        async def run_tick_and_drain_maintenance() -> None:
+            await orch._tick()
+            if orch._maintenance_future is not None:
+                await asyncio.wait_for(orch._maintenance_future, timeout=1)
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+            asyncio.run(run_tick_and_drain_maintenance())
 
         assert len(lock_state_at_maintenance) == 2, (
             "Expected both watchdog and heal to run"
