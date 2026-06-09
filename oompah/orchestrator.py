@@ -1460,6 +1460,19 @@ class Orchestrator:
 
         The actual work is in :meth:`_do_heal_repos`.
         """
+        # Honour startup delay: don't run expensive git I/O immediately after
+        # the service starts.  This mirrors the HEAD behaviour from TASK-469.2
+        # and keeps _maintenance_status visible for dashboard diagnostics.
+        startup_delay = getattr(self.config, "maintenance_startup_delay_seconds", 60)
+        startup_age = time.monotonic() - self._started_monotonic
+        if startup_age < startup_delay:
+            self._maintenance_status["repo_heal"] = {
+                "last_run_at": None,
+                "delayed": True,
+                "delay_remaining_seconds": round(startup_delay - startup_age, 1),
+            }
+            return
+
         interval_s = self.config.full_sync_interval_ms / 1000.0
         self._run_maintenance_job(
             "repo_heal",
@@ -1549,6 +1562,18 @@ class Orchestrator:
         self._maybe_cleanup_worktrees()
         self._auto_archive()
         self._maybe_run_merged_labels()
+
+    def _dispatch_event_key(self, event: DispatchEvent) -> str:
+        return str(event.event_type)
+
+    def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> None:
+        key = self._dispatch_event_key(event)
+        lock = getattr(self, "_dispatch_event_lock", None)
+        pending = getattr(self, "_dispatch_pending_event_keys", None)
+        if lock is None or pending is None:
+            return
+        with lock:
+            pending.discard(key)
 
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking).
@@ -1822,8 +1847,6 @@ class Orchestrator:
             "reviews_ms": round((t2 - t1) * 1000, 3),
             "dispatch_ms": round((t3 - t3_start) * 1000, 3),
             "yolo_ms": round(yolo_ms, 3),
-            "archive_ms": round(archive_ms, 3),
-            "merged_ms": round(merged_ms, 3),
             "post_yolo_ms": round((t4b - t4) * 1000, 3),
             "tick_pool_queue_depth": self._tick_pool_queue_depth(),
             "dispatch_events_coalesced": getattr(
