@@ -189,41 +189,31 @@ class TestHandleDispatchNeededTimings:
         # Sanity: should be very small (< 500ms) since no real work happens
         assert result["staleness_checks"] < 500
 
-    def test_staleness_timing_reflects_work_when_enabled(self, tmp_path):
-        """staleness_checks timing is non-trivially larger when threshold > 0."""
-        import time
-
+    def test_staleness_timing_stays_zero_on_dispatch_lane_when_enabled(self, tmp_path):
+        """staleness_checks is a compatibility key; work runs in step 5c maintenance."""
         orch = _make_orchestrator(tmp_path)
         _stub_dispatch_needed(orch)
         orch.config = _make_config()
         orch.config.epic_staleness_threshold_commits = 3  # enable
-
-        def slow_staleness(candidates):
-            time.sleep(0.05)
-
-        orch._check_epic_staleness = slow_staleness
+        orch._check_epic_staleness = MagicMock()
 
         result = asyncio.run(orch._handle_dispatch_needed())
 
-        assert result["staleness_checks"] >= 30.0
+        assert result["staleness_checks"] == 0.0
+        orch._check_epic_staleness.assert_not_called()
 
-    def test_rebase_filing_timing_reflects_work_when_enabled(self, tmp_path):
-        """rebase_filing timing captures proactive-rebase work when threshold > 0."""
-        import time
-
+    def test_rebase_filing_timing_stays_zero_on_dispatch_lane_when_enabled(self, tmp_path):
+        """rebase_filing is a compatibility key; work runs in step 5c maintenance."""
         orch = _make_orchestrator(tmp_path)
         _stub_dispatch_needed(orch)
         orch.config = _make_config()
         orch.config.epic_staleness_threshold_commits = 3  # enable
-
-        def slow_rebase(candidates):
-            time.sleep(0.05)
-
-        orch._dispatch_proactive_rebase_agents = slow_rebase
+        orch._dispatch_proactive_rebase_agents = MagicMock()
 
         result = asyncio.run(orch._handle_dispatch_needed())
 
-        assert result["rebase_filing"] >= 30.0
+        assert result["rebase_filing"] == 0.0
+        orch._dispatch_proactive_rebase_agents.assert_not_called()
 
     def test_no_unexpected_sensitive_keys_in_timings(self, tmp_path):
         """Timing dict must not contain keys that could hold sensitive values."""
