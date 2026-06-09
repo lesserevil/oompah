@@ -1,10 +1,10 @@
 ---
 id: TASK-459.3
 title: Add project tracker configuration API and model fields
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 04:48'
+updated_date: '2026-06-09 04:49'
 labels:
   - task
   - github-issues
@@ -61,4 +61,16 @@ created: 2026-06-09 04:48
 ---
 Implementation: (1) oompah/models.py - Added 7 fields to Project dataclass: tracker_kind, tracker_owner, tracker_repo, github_project_node_id (all str|None), legacy_backlog_enabled, legacy_backlog_dispatch (bool, default False), tracker_cutover_at (datetime|None). Updated to_dict() to emit tracker fields when set, always emit legacy flags. Updated from_dict() to parse and validate all new fields with safe fallbacks. (2) oompah/projects.py - Added 7 new field names to UPDATABLE_FIELDS frozenset. Added validation blocks in update(): string/null coercion for str fields, bool coercion for flags, ISO 8601 datetime parsing for tracker_cutover_at with clear error. Updated create() signature to accept tracker_kind, tracker_owner, tracker_repo, github_project_node_id, legacy_backlog_enabled, legacy_backlog_dispatch; passes them to Project() constructor. (3) oompah/server.py - Updated api_create_project to extract and forward all 6 new fields. Updated api_update_project to accept and pre-validate tracker fields before delegating to ProjectStore.update(). (4) tests/test_projects_crud.py - Updated test_updatable_fields_are_correct to include the 7 new fields. Added 3 new test classes (49 new tests): TestProjectTrackerFields (model unit tests), TestProjectStoreTrackerFieldUpdate (store tests), TestProjectAPITrackerFields (API integration tests).
 ---
+
+author: oompah
+created: 2026-06-09 04:48
+---
+Verification: All tests pass. python -m pytest tests/test_projects_crud.py tests/test_tracker_protocol.py tests/test_config.py tests/test_backlog_tracker.py: 252 passed. New tests cover: (1) Project model defaults, to_dict/from_dict round-trips for all 7 new tracker fields; (2) ProjectStore.update() validation for type errors, null coercion, ISO 8601 parsing of tracker_cutover_at, persistence across reload; (3) API endpoint PATCH/GET for all tracker fields including invalid type rejection (400) and null clearing. Acceptance criteria verified: (1) Existing projects with no tracker fields preserve prior behavior (from_dict defaults all new fields to None/False). (2) Per-project tracker settings round-trip through projects.json and API responses (tested explicitly with persistence-across-reload tests).
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added per-project tracker configuration fields (tracker_kind, tracker_owner, tracker_repo, github_project_node_id, legacy_backlog_enabled, legacy_backlog_dispatch, tracker_cutover_at) to Project model, ProjectStore UPDATABLE_FIELDS and update()/create(), and server API endpoints (create/update project). 49 new tests added to tests/test_projects_crud.py covering model round-trips, store validation, persistence, and API integration. All 252 relevant tests pass. Branch pushed to origin/epic-TASK-459.
+<!-- SECTION:FINAL_SUMMARY:END -->
