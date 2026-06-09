@@ -35,3 +35,9 @@ created: 2026-06-08 19:51
 Filed from live recovery: graceful restart saved restart_issues but left the event-driven loop blocked on the dispatch queue.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed graceful_restart() to wake the idle dispatch loop: added DispatchEventType.SHUTDOWN enum value, graceful_restart() posts a SHUTDOWN event after setting _stopping=True (unblocking any queue.get() wait). Added dedup merge logic so undrained tasks are persisted exactly once across repeated calls. Added TestGracefulRestartShutdownEvent with 4 regression tests (all pass). Committed in 4f5489b on epic-TASK-465, pushed.
+<!-- SECTION:FINAL_SUMMARY:END -->
