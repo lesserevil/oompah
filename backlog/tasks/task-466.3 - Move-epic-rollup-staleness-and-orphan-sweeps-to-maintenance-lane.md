@@ -1,7 +1,7 @@
 ---
 id: TASK-466.3
 title: Move epic rollup staleness and orphan sweeps to maintenance lane
-status: Open
+status: Done
 assignee: []
 created_date: '2026-06-08 18:48'
 updated_date: '2026-06-09 01:44'
@@ -213,3 +213,9 @@ created: 2026-06-09 01:44
 Verification: All acceptance criteria are met. AC#1: _handle_dispatch_needed() contains a comment that epic close/PR/staleness/rebase/orphan-reset have moved to _run_step5c_epic_maintenance (step 5c), not inline. AC#2: All jobs use _run_maintenance_job() with idempotent semantics and in-flight coalescing. AC#3: _get_project_maintenance_lock() provides per-project threading.Lock tested in TestRunStep5cEpicMaintenance (3 tests). 151 tests pass including 13 in TestRunStep5cEpicMaintenance, 23 in test_epic_rebase_state.py, 78 in test_epic_strategy.py, 37 in test_epic_staleness.py + test_epic_auto_close.py.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implementation completed in TASK-466.2 commits (9e842e4, a2d6e5f). _run_step5c_epic_maintenance() fires fire-and-forget from _tick() step 5c covering all 6 epic maintenance jobs (epic_auto_close, epic_open_prs, epic_staleness, epic_rebase_filing with ordering preserved, epic_prune_rebase, epic_orphan_reset). All jobs gated by _run_maintenance_job() for idempotency and interval throttling. Per-project lock mechanism via _get_project_maintenance_lock(). 151 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
