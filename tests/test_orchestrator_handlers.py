@@ -1903,6 +1903,325 @@ class TestMaintenancePreservesDoneWorktrees:
 
 
 # ---------------------------------------------------------------------------
+# _run_maintenance_job gate: backpressure, coalescing, budgets (TASK-466.4)
+# ---------------------------------------------------------------------------
+
+
+class TestRunMaintenanceJobGate:
+    """Direct unit tests for _run_maintenance_job() and _job_deadline_exceeded().
+
+    AC#1 — A long maintenance job cannot launch duplicate copies of itself.
+    AC#2 — Maintenance jobs enforce configured safety budgets and resume later.
+    AC#3 — State snapshots expose skipped/running/failed/completed status.
+    """
+
+    # ------------------------------------------------------------------
+    # AC#1: in-flight coalescing
+    # ------------------------------------------------------------------
+
+    def test_first_call_runs_job(self, tmp_path):
+        """First call with no prior state executes the function."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        orch._run_maintenance_job("test_job", lambda: calls.append(1), min_interval_s=60.0)
+        assert calls == [1]
+
+    def test_second_call_while_in_flight_is_coalesced(self, tmp_path):
+        """AC#1: If the job is already in_flight, a second call is dropped."""
+        orch = _make_orchestrator(tmp_path)
+
+        # Pre-seed an in-flight state (simulating a concurrent run).
+        state = orch._get_or_create_job_state("test_job")
+        state.in_flight = True
+        state.run_count = 1
+
+        calls = []
+        orch._run_maintenance_job("test_job", lambda: calls.append(1), min_interval_s=60.0)
+
+        # Must not have called the function.
+        assert calls == []
+
+    def test_in_flight_coalescing_increments_skip_count(self, tmp_path):
+        """AC#1: Coalesced (in-flight) calls increment skip_count."""
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        state.in_flight = True
+
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=60.0)
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=60.0)
+
+        assert state.skip_count == 2
+
+    def test_in_flight_coalescing_sets_status_skipped(self, tmp_path):
+        """AC#1: Status is 'skipped' when coalesced due to in_flight."""
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        state.in_flight = True
+
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=60.0)
+
+        assert state.last_status == "skipped"
+
+    # ------------------------------------------------------------------
+    # Interval throttling
+    # ------------------------------------------------------------------
+
+    def test_second_call_within_interval_is_throttled(self, tmp_path):
+        """A second call within min_interval_s is dropped."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        fn = lambda: calls.append(1)  # noqa: E731
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        assert len(calls) == 1
+
+    def test_interval_throttle_increments_skip_count(self, tmp_path):
+        """Throttled calls (interval not elapsed) increment skip_count."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        fn = lambda: calls.append(1)  # noqa: E731
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        initial_skips = orch._maintenance_jobs["test_job"].skip_count
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        assert orch._maintenance_jobs["test_job"].skip_count == initial_skips + 1
+
+    def test_call_after_interval_elapsed_runs_again(self, tmp_path):
+        """After next_run_monotonic passes, the job may run again."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        fn = lambda: calls.append(1)  # noqa: E731
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        # Backdate next_run_monotonic to the past.
+        orch._maintenance_jobs["test_job"].next_run_monotonic = 0.0
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        assert len(calls) == 2
+
+    def test_explicit_next_run_monotonic_blocks_early_run(self, tmp_path):
+        """next_run_monotonic in the far future prevents the job from running."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        # Set next_run_monotonic to 1 hour from now.
+        state.next_run_monotonic = _time.monotonic() + 3600.0
+
+        calls = []
+        orch._run_maintenance_job("test_job", lambda: calls.append(1), min_interval_s=1.0)
+        assert calls == []
+
+    # ------------------------------------------------------------------
+    # State transitions
+    # ------------------------------------------------------------------
+
+    def test_successful_run_sets_status_completed(self, tmp_path):
+        """After a successful run, last_status == 'completed'."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].last_status == "completed"
+
+    def test_failed_run_sets_status_failed(self, tmp_path):
+        """If the job function raises, last_status == 'failed'."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise RuntimeError("boom")
+
+        orch._run_maintenance_job("test_job", _fail, min_interval_s=0.0)
+        state = orch._maintenance_jobs["test_job"]
+        assert state.last_status == "failed"
+
+    def test_failed_run_captures_error(self, tmp_path):
+        """Exception message is stored in last_error after a failure."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise RuntimeError("kaboom")
+
+        orch._run_maintenance_job("test_job", _fail, min_interval_s=0.0)
+        assert "kaboom" in (orch._maintenance_jobs["test_job"].last_error or "")
+
+    def test_failed_run_clears_in_flight(self, tmp_path):
+        """in_flight is always reset to False after a failed run."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise RuntimeError("err")
+
+        orch._run_maintenance_job("test_job", _fail, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].in_flight is False
+
+    def test_successful_run_clears_last_error(self, tmp_path):
+        """last_error is cleared to None after a successful run."""
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        state.last_error = "stale error"
+
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].last_error is None
+
+    def test_run_count_accumulates_across_calls(self, tmp_path):
+        """run_count accumulates (not reset) across multiple interval-separated runs."""
+        orch = _make_orchestrator(tmp_path)
+        for _i in range(3):
+            orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].run_count == 3
+
+    def test_last_duration_s_recorded_after_run(self, tmp_path):
+        """last_duration_s is a non-negative float after the job completes."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        dur = orch._maintenance_jobs["test_job"].last_duration_s
+        assert dur is not None
+        assert dur >= 0.0
+
+    def test_next_run_monotonic_set_after_run(self, tmp_path):
+        """next_run_monotonic is set to approx (finish_time + min_interval_s) after a run."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        min_interval = 120.0
+        before = _time.monotonic()
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=min_interval)
+        after = _time.monotonic()
+        nxt = orch._maintenance_jobs["test_job"].next_run_monotonic
+        assert nxt is not None
+        assert (before + min_interval) <= nxt <= (after + min_interval + 1.0)
+
+    # ------------------------------------------------------------------
+    # AC#2: max runtime budget / _job_deadline_exceeded
+    # ------------------------------------------------------------------
+
+    def test_no_deadline_when_max_runtime_s_not_given(self, tmp_path):
+        """Without max_runtime_s, _job_deadline_exceeded returns False."""
+        orch = _make_orchestrator(tmp_path)
+        # No run yet — should return False.
+        assert orch._job_deadline_exceeded("test_job") is False
+
+    def test_deadline_not_exceeded_for_fast_job(self, tmp_path):
+        """During a fast job with a 60 s budget, deadline is not exceeded."""
+        orch = _make_orchestrator(tmp_path)
+        exceeded_during = []
+
+        def _check_deadline():
+            exceeded_during.append(orch._job_deadline_exceeded("test_job"))
+
+        orch._run_maintenance_job(
+            "test_job", _check_deadline, min_interval_s=0.0, max_runtime_s=60.0
+        )
+        # During execution the budget should not have been exceeded.
+        assert exceeded_during == [False]
+
+    def test_deadline_exceeded_flag_with_past_deadline(self, tmp_path):
+        """If current_deadline is in the past, _job_deadline_exceeded returns True."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        # Force a deadline 1 second in the past.
+        state.current_deadline = _time.monotonic() - 1.0
+        state.in_flight = True  # simulate active run
+
+        assert orch._job_deadline_exceeded("test_job") is True
+
+    def test_deadline_cleared_after_job_finishes(self, tmp_path):
+        """current_deadline is reset to None after a run (success or failure)."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job(
+            "test_job", lambda: None, min_interval_s=0.0, max_runtime_s=60.0
+        )
+        assert orch._maintenance_jobs["test_job"].current_deadline is None
+
+    def test_job_can_poll_deadline_and_stop_early(self, tmp_path):
+        """AC#2: A job that polls _job_deadline_exceeded can stop after budget expires."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        items_processed = []
+
+        def _budget_aware_job():
+            # Use a very short budget (10 ms) and process items in a loop.
+            for i in range(1000):
+                if orch._job_deadline_exceeded("budget_job"):
+                    break
+                items_processed.append(i)
+                _time.sleep(0.001)  # 1 ms per item
+
+        orch._run_maintenance_job(
+            "budget_job",
+            _budget_aware_job,
+            min_interval_s=0.0,
+            max_runtime_s=0.010,  # 10 ms budget
+        )
+
+        # Should have processed far fewer than 1000 items due to early stop.
+        assert len(items_processed) < 1000
+        # But at least one item must have been processed.
+        assert len(items_processed) >= 1
+
+    def test_unknown_job_deadline_not_exceeded(self, tmp_path):
+        """_job_deadline_exceeded returns False for an unregistered job name."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._job_deadline_exceeded("nonexistent_job") is False
+
+    # ------------------------------------------------------------------
+    # AC#3: snapshot visibility
+    # ------------------------------------------------------------------
+
+    def test_job_state_visible_in_snapshot(self, tmp_path):
+        """AC#3: After a run, the job appears in get_snapshot()['maintenance']['jobs']."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=0.0)
+        snap = orch.get_snapshot()
+        assert "snap_job" in snap["maintenance"]["jobs"]
+
+    def test_snapshot_job_has_required_fields(self, tmp_path):
+        """AC#3: The snapshot entry has all expected diagnostic fields."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=0.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        for field in ("status", "in_flight", "run_count", "skip_count",
+                      "last_run_monotonic", "next_run_monotonic",
+                      "last_duration_s", "last_error"):
+            assert field in job_snap, f"Missing field: {field}"
+
+    def test_snapshot_shows_skipped_status(self, tmp_path):
+        """AC#3: Snapshot status is 'skipped' after a throttled call."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["status"] == "skipped"
+        assert job_snap["skip_count"] >= 1
+
+    def test_snapshot_shows_failed_status(self, tmp_path):
+        """AC#3: Snapshot status is 'failed' when the last run raised."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise ValueError("test error")
+
+        orch._run_maintenance_job("snap_job", _fail, min_interval_s=0.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["status"] == "failed"
+        assert "test error" in (job_snap["last_error"] or "")
+
+    def test_snapshot_shows_completed_status(self, tmp_path):
+        """AC#3: Snapshot status is 'completed' after a successful run."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=0.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["status"] == "completed"
+        assert job_snap["in_flight"] is False
+
+    def test_snapshot_skip_count_matches_throttle_calls(self, tmp_path):
+        """AC#3: skip_count in snapshot reflects all throttled/coalesced calls."""
+        orch = _make_orchestrator(tmp_path)
+        # First call runs.
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        # Next 3 calls are throttled.
+        for _ in range(3):
+            orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["skip_count"] == 3
+
+
+# ---------------------------------------------------------------------------
 # Repo self-heal error reporting does not block dispatch (TASK-466.1 AC#3)
 # ---------------------------------------------------------------------------
 
