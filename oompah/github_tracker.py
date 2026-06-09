@@ -1086,6 +1086,25 @@ def _parse_body_metadata(body: str | None) -> dict[str, Any]:
         return {}
 
 
+def _extract_parent_from_labels(labels: list[dict[str, Any]]) -> str | None:
+    """Extract parent issue number from parent:<number> label."""
+    for lbl in labels:
+        name = lbl.get("name", "")
+        if name.startswith("parent:"):
+            return name[len("parent:"):]
+    return None
+
+
+def _extract_dependencies_from_labels(labels: list[dict[str, Any]]) -> list[str]:
+    """Extract dependency issue numbers from depends-on:<number> labels."""
+    deps = []
+    for lbl in labels:
+        name = lbl.get("name", "")
+        if name.startswith("depends-on:"):
+            deps.append(name[len("depends-on:"):])
+    return deps
+
+
 def _gh_timestamp(ts: str | None) -> datetime | None:
     """Parse a GitHub ISO-8601 timestamp string to a timezone-aware datetime.
 
@@ -1126,6 +1145,19 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     priority = _extract_priority(labels_raw)
     issue_type = _extract_issue_type(labels_raw)
 
+    # Extract parent from parent:<number> label (fallback for sub-issues API).
+    parent_number = _extract_parent_from_labels(labels_raw)
+    parent_id: str | None = None
+    if parent_number:
+        parent_id = f"{owner}/{repo}#{parent_number}"
+
+    # Extract dependencies from depends-on:<number> labels (fallback for dependencies API).
+    dep_numbers = _extract_dependencies_from_labels(labels_raw)
+    blocked_by = [
+        BlockerRef(id=dep, identifier=f"{owner}/{repo}#{dep}")
+        for dep in dep_numbers
+    ]
+
     # Collect user-facing labels (exclude oompah-internal prefixes).
     user_labels = [
         lbl["name"]
@@ -1134,6 +1166,8 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         and not lbl["name"].startswith("oompah:")
         and not lbl["name"].startswith("priority:")
         and not lbl["name"].startswith("type:")
+        and not lbl["name"].startswith("parent:")
+        and not lbl["name"].startswith("depends-on:")
     ]
 
     body: str = gh_issue.get("body") or ""
@@ -1168,6 +1202,8 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         issue_number=str(number),
         display_identifier=gh_id.display,
         provider_url=url,
+        parent_id=parent_id,
+        blocked_by=blocked_by,
     )
 
 
@@ -1785,17 +1821,108 @@ class GitHubIssueTracker:
     # Hierarchy and dependencies
     # ------------------------------------------------------------------
 
+    def _issue_database_id(self, gh_id: GitHubIssueIdentifier) -> int:
+        """Return GitHub's database id for an issue number."""
+        raw = self._client.get(self._issues_path(f"/{gh_id.number}"))
+        if not isinstance(raw, dict) or "id" not in raw:
+            raise TrackerError(
+                f"GitHub issue {gh_id.display} did not include a database id."
+            )
+        try:
+            return int(raw["id"])
+        except (TypeError, ValueError) as exc:
+            raise TrackerError(
+                f"GitHub issue {gh_id.display} has an invalid database id: "
+                f"{raw['id']!r}"
+            ) from exc
+
     def add_parent_child(self, child_id: str, parent_id: str) -> None:
-        """Link a child issue to a parent issue."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.add_parent_child is implemented in TASK-458.6"
-        )
+        """Link a child issue to a parent issue.
+
+        Tries the GitHub sub-issues REST API first.  When that endpoint
+        is not available (HTTP 404), falls back to setting a
+        ``parent:<number>`` label on the child issue.
+
+        Parameters
+        ----------
+        child_id:
+            Fully-qualified identifier of the child issue.
+        parent_id:
+            Fully-qualified identifier of the parent issue.
+
+        Raises
+        ------
+        TrackerError
+            If either identifier is invalid or the API call fails
+            unexpectedly.
+        """
+        try:
+            child_gh_id = self.parse_identifier(child_id)
+            parent_gh_id = self.parse_identifier(parent_id)
+        except TrackerError:
+            raise
+
+        child_database_id = self._issue_database_id(child_gh_id)
+
+        # Try the GitHub sub-issues API. It expects the child's database id,
+        # not the visible issue number.
+        try:
+            self._client.post(
+                self._issues_path(f"/{parent_gh_id.number}/sub_issues"),
+                json={"sub_issue_id": child_database_id},
+            )
+            return
+        except TrackerError as exc:
+            if "404" not in str(exc):
+                raise
+
+        # Fallback: set parent:<number> label on the child issue.
+        parent_label = f"parent:{parent_gh_id.number}"
+        self.add_label(child_id, parent_label)
 
     def add_dependency(self, blocked_id: str, blocker_id: str) -> None:
-        """Record that blocked_id depends on blocker_id."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.add_dependency is implemented in TASK-458.6"
-        )
+        """Record that blocked_id depends on blocker_id.
+
+        Tries the GitHub issue dependencies REST API first.  When that
+        endpoint is not available (HTTP 404), falls back to setting a
+        ``depends-on:<number>`` label on the blocked issue.
+
+        Parameters
+        ----------
+        blocked_id:
+            Fully-qualified identifier of the issue that is blocked.
+        blocker_id:
+            Fully-qualified identifier of the issue that blocks.
+
+        Raises
+        ------
+        TrackerError
+            If either identifier is invalid or the API call fails
+            unexpectedly.
+        """
+        try:
+            blocked_gh_id = self.parse_identifier(blocked_id)
+            blocker_gh_id = self.parse_identifier(blocker_id)
+        except TrackerError:
+            raise
+
+        blocker_database_id = self._issue_database_id(blocker_gh_id)
+
+        # Try the GitHub issue dependencies API. It expects the blocker
+        # issue's database id in the blocked_by collection.
+        try:
+            self._client.post(
+                self._issues_path(f"/{blocked_gh_id.number}/dependencies/blocked_by"),
+                json={"issue_id": blocker_database_id},
+            )
+            return
+        except TrackerError as exc:
+            if "404" not in str(exc):
+                raise
+
+        # Fallback: set depends-on:<number> label on the blocked issue.
+        depends_on_label = f"depends-on:{blocker_gh_id.number}"
+        self.add_label(blocked_id, depends_on_label)
 
     # ------------------------------------------------------------------
     # Attachments

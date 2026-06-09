@@ -3044,6 +3044,266 @@ class TestGitHubIssueTrackerMetadata:
 
 
 # ===========================================================================
+# GitHubIssueTracker - hierarchy and dependencies (TASK-458.6)
+# ===========================================================================
+
+
+class TestGitHubIssueTrackerHierarchyAndDependencies:
+    """Tests for add_parent_child and add_dependency methods.
+
+    Acceptance criteria:
+      #1  fetch_children and add_dependency work through the protocol.
+      #2  Fallback relationship metadata renders the same normalized Issue relationships.
+    """
+
+    def _make_tracker(self) -> GitHubIssueTracker:
+        auth = GitHubAuth(pat="test_token")
+        return GitHubIssueTracker(
+            owner="lesserevil",
+            repo="oompah-tasks",
+            active_states=["Open", "In Progress"],
+            terminal_states=["Done", "Archived"],
+            auth=auth,
+        )
+
+    # ------------------------------------------------------------------
+    # add_parent_child
+    # ------------------------------------------------------------------
+
+    def test_add_parent_child_uses_sub_issues_api_when_available(self):
+        """Tries the GitHub sub-issues REST API first."""
+        tracker = self._make_tracker()
+        child_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=10, issue_id=1010)
+        )
+        resp = _mock_response(200, json_data={"id": 123})
+        with patch.object(
+            tracker._client._http, "request", side_effect=[child_resp, resp]
+        ) as m:
+            tracker.add_parent_child(
+                "lesserevil/oompah-tasks#10",
+                "lesserevil/oompah-tasks#5",
+            )
+        lookup_call = m.call_args_list[0]
+        assert lookup_call[0][0] == "GET"
+        assert "/issues/10" in lookup_call[0][1]
+        call_args = m.call_args_list[1]
+        assert call_args[0][0] == "POST"
+        assert "/issues/5/sub_issues" in call_args[0][1]
+        assert call_args[1]["json"] == {"sub_issue_id": 1010}
+
+    def test_add_parent_child_falls_back_to_label_on_404(self):
+        """Falls back to parent:<number> label when sub-issues API unavailable."""
+        tracker = self._make_tracker()
+        child_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=10, issue_id=1010)
+        )
+        resp_404 = _mock_response(404, text="Not Found")
+        resp_404.is_success = False
+        label_resp = _mock_response(200, json_data=[{"name": "parent:5"}])
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[child_resp, resp_404, label_resp],
+        ) as m:
+            tracker.add_parent_child(
+                "lesserevil/oompah-tasks#10",
+                "lesserevil/oompah-tasks#5",
+            )
+        # Third call should be add_label
+        label_call = m.call_args_list[2]
+        assert label_call[0][0] == "POST"
+        assert "/issues/10/labels" in label_call[0][1]
+        assert label_call[1]["json"]["labels"] == ["parent:5"]
+
+    def test_add_parent_child_re_raises_non_404_errors(self):
+        """Non-404 errors from sub-issues API are propagated."""
+        tracker = self._make_tracker()
+        child_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=10, issue_id=1010)
+        )
+        resp_422 = _mock_response(422, text="Validation Failed")
+        with patch.object(
+            tracker._client._http, "request", side_effect=[child_resp, resp_422]
+        ):
+            with pytest.raises(TrackerError):
+                tracker.add_parent_child(
+                    "lesserevil/oompah-tasks#10",
+                    "lesserevil/oompah-tasks#5",
+                )
+
+    def test_add_parent_child_invalid_child_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.add_parent_child("bad-id", "lesserevil/oompah-tasks#5")
+
+    def test_add_parent_child_invalid_parent_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.add_parent_child("lesserevil/oompah-tasks#10", "bad-id")
+
+    # ------------------------------------------------------------------
+    # add_dependency
+    # ------------------------------------------------------------------
+
+    def test_add_dependency_uses_dependencies_api_when_available(self):
+        """Tries the GitHub issue dependencies REST API first."""
+        tracker = self._make_tracker()
+        blocker_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=5, issue_id=1005)
+        )
+        resp = _mock_response(200, json_data={"id": 123})
+        with patch.object(
+            tracker._client._http, "request", side_effect=[blocker_resp, resp]
+        ) as m:
+            tracker.add_dependency(
+                "lesserevil/oompah-tasks#10",
+                "lesserevil/oompah-tasks#5",
+            )
+        lookup_call = m.call_args_list[0]
+        assert lookup_call[0][0] == "GET"
+        assert "/issues/5" in lookup_call[0][1]
+        call_args = m.call_args_list[1]
+        assert call_args[0][0] == "POST"
+        assert "/issues/10/dependencies/blocked_by" in call_args[0][1]
+        assert call_args[1]["json"] == {"issue_id": 1005}
+
+    def test_add_dependency_falls_back_to_label_on_404(self):
+        """Falls back to depends-on:<number> label when dependencies API unavailable."""
+        tracker = self._make_tracker()
+        blocker_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=5, issue_id=1005)
+        )
+        resp_404 = _mock_response(404, text="Not Found")
+        resp_404.is_success = False
+        label_resp = _mock_response(200, json_data=[{"name": "depends-on:5"}])
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[blocker_resp, resp_404, label_resp],
+        ) as m:
+            tracker.add_dependency(
+                "lesserevil/oompah-tasks#10",
+                "lesserevil/oompah-tasks#5",
+            )
+        # Third call should be add_label
+        label_call = m.call_args_list[2]
+        assert label_call[0][0] == "POST"
+        assert "/issues/10/labels" in label_call[0][1]
+        assert label_call[1]["json"]["labels"] == ["depends-on:5"]
+
+    def test_add_dependency_re_raises_non_404_errors(self):
+        """Non-404 errors from dependencies API are propagated."""
+        tracker = self._make_tracker()
+        blocker_resp = _mock_response(
+            200, json_data=_make_gh_issue(number=5, issue_id=1005)
+        )
+        resp_422 = _mock_response(422, text="Validation Failed")
+        with patch.object(
+            tracker._client._http, "request", side_effect=[blocker_resp, resp_422]
+        ):
+            with pytest.raises(TrackerError):
+                tracker.add_dependency(
+                    "lesserevil/oompah-tasks#10",
+                    "lesserevil/oompah-tasks#5",
+                )
+
+    def test_add_dependency_invalid_blocked_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.add_dependency("bad-id", "lesserevil/oompah-tasks#5")
+
+    def test_add_dependency_invalid_blocker_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.add_dependency("lesserevil/oompah-tasks#10", "bad-id")
+
+    # ------------------------------------------------------------------
+    # _gh_issue_to_issue extracts parent and dependencies from labels
+    # ------------------------------------------------------------------
+
+    def test_gh_issue_to_issue_extracts_parent_from_label(self):
+        """parent:<number> label is converted to parent_id on the Issue."""
+        from oompah.github_tracker import _gh_issue_to_issue
+        gh_issue = _make_gh_issue(number=10, labels=["parent:5"])
+        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        assert issue.parent_id == "lesserevil/oompah-tasks#5"
+
+    def test_gh_issue_to_issue_no_parent_when_no_label(self):
+        """Issue has no parent_id when parent: label is absent."""
+        from oompah.github_tracker import _gh_issue_to_issue
+        gh_issue = _make_gh_issue(number=10)
+        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        assert issue.parent_id is None
+
+    def test_gh_issue_to_issue_extracts_dependencies_from_labels(self):
+        """depends-on:<number> labels are converted to blocked_by on the Issue."""
+        from oompah.github_tracker import _gh_issue_to_issue
+        gh_issue = _make_gh_issue(number=10, labels=["depends-on:5", "depends-on:7"])
+        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        assert len(issue.blocked_by) == 2
+        dep_ids = {b.identifier for b in issue.blocked_by}
+        assert "lesserevil/oompah-tasks#5" in dep_ids
+        assert "lesserevil/oompah-tasks#7" in dep_ids
+
+    def test_gh_issue_to_issue_no_dependencies_when_no_labels(self):
+        """Issue has empty blocked_by when depends-on: labels are absent."""
+        from oompah.github_tracker import _gh_issue_to_issue
+        gh_issue = _make_gh_issue(number=10)
+        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        assert issue.blocked_by == []
+
+    def test_gh_issue_to_issue_excludes_parent_and_depends_on_from_user_labels(self):
+        """parent: and depends-on: labels are excluded from user-facing labels."""
+        from oompah.github_tracker import _gh_issue_to_issue
+        gh_issue = _make_gh_issue(number=10, labels=["parent:5", "depends-on:7", "needs:backend"])
+        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        assert issue.labels == ["needs:backend"]
+        assert "parent:5" not in issue.labels
+        assert "depends-on:7" not in issue.labels
+
+    # ------------------------------------------------------------------
+    # fetch_children returns children with parent_id populated
+    # ------------------------------------------------------------------
+
+    def test_fetch_children_returns_children_with_parent_id(self):
+        """Children returned by fetch_children have parent_id set."""
+        tracker = self._make_tracker()
+        # Use fallback label-based path
+        resp_404 = _mock_response(404, text="Not Found")
+        resp_404.is_success = False
+        children = [
+            _make_gh_issue(number=10, labels=["parent:5"]),
+            _make_gh_issue(number=11, labels=["parent:5"]),
+        ]
+        resp_200 = _mock_response(200, json_data=children)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[resp_404, resp_200]
+        ):
+            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+        assert len(result) == 2
+        for child in result:
+            assert child.parent_id == "lesserevil/oompah-tasks#5"
+
+    # ------------------------------------------------------------------
+    # fetch_issue_detail returns issue with blocked_by populated
+    # ------------------------------------------------------------------
+
+    def test_fetch_issue_detail_returns_blocked_by(self):
+        """Issues fetched via fetch_issue_detail have blocked_by from depends-on labels."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=10, labels=["depends-on:5", "depends-on:7"])
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            issue = tracker.fetch_issue_detail("lesserevil/oompah-tasks#10")
+        assert issue is not None
+        assert len(issue.blocked_by) == 2
+        dep_ids = {b.identifier for b in issue.blocked_by}
+        assert "lesserevil/oompah-tasks#5" in dep_ids
+        assert "lesserevil/oompah-tasks#7" in dep_ids
+
+
+# ===========================================================================
 # Fixtures
 # ===========================================================================
 
