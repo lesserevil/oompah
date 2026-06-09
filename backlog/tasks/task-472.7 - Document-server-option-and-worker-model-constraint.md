@@ -1,10 +1,10 @@
 ---
 id: TASK-472.7
 title: Document --server option and worker-model constraint
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 15:58'
+updated_date: '2026-06-09 21:02'
 labels:
   - 'needs:backend'
 dependencies: []

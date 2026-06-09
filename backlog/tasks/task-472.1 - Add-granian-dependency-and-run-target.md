@@ -1,10 +1,10 @@
 ---
 id: TASK-472.1
 title: Add granian dependency and run target
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 16:15'
+updated_date: '2026-06-09 21:02'
 labels: []
 dependencies: []
 parent_task_id: TASK-472

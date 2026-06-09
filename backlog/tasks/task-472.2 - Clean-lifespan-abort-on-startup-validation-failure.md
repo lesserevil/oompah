@@ -1,10 +1,10 @@
 ---
 id: TASK-472.2
 title: Clean lifespan abort on startup-validation failure
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 16:16'
+updated_date: '2026-06-09 21:02'
 labels: []
 dependencies: []
 parent_task_id: TASK-472

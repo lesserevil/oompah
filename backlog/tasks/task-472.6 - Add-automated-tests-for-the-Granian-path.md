@@ -1,10 +1,10 @@
 ---
 id: TASK-472.6
 title: Add automated tests for the Granian path
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 20:21'
+updated_date: '2026-06-09 21:02'
 labels: []
 dependencies: []
 parent_task_id: TASK-472

@@ -1,10 +1,10 @@
 ---
 id: TASK-472.5
 title: 'Validate multipart upload, static mount, and Jinja routes under Granian'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 15:58'
+updated_date: '2026-06-09 21:02'
 labels:
   - 'needs:backend'
   - 'needs:test'

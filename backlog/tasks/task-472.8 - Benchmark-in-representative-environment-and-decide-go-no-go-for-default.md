@@ -1,10 +1,10 @@
 ---
 id: TASK-472.8
 title: Benchmark in representative environment and decide go/no-go for default
-status: Open
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 16:04'
+updated_date: '2026-06-09 21:02'
 labels:
   - 'needs:backend'
 dependencies: []
