@@ -4,7 +4,7 @@ title: Document --server option and worker-model constraint
 status: In Progress
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 15:58'
+updated_date: '2026-06-09 20:29'
 labels:
   - 'needs:backend'
 dependencies: []
@@ -29,32 +29,26 @@ Update README/AGENTS.md/.env.example for the --server {uvicorn,granian} option. 
 
 <!-- COMMENTS:BEGIN -->
 author: oompah
-created: 2026-06-09 15:44
+created: 2026-06-09 20:26
 ---
 Agent dispatched (profile: standard)
 ---
 
 author: oompah
-created: 2026-06-09 15:45
+created: 2026-06-09 20:26
 ---
-UNDERSTANDING: No duplicate found. This is a legitimate subtask of TASK-472 (Epic: Adopt Granian HTTP server). Task requires: (1) Update docs (README/AGENTS.md/.env.example) for --server {uvicorn,granian} option, (2) Document why granian must use workers=1 (shared in-process orchestrator + _ws_clients state), (3) Add a guard that rejects workers>1 when using granian. Exploring codebase now.
----
-
-author: oompah
-created: 2026-06-09 15:50
----
-DISCOVERY: Confirmed no duplicate. Codebase state: __main__.py has no --server flag yet; granian is not in pyproject.toml; bootstrap.py doesn't exist. This task needs to add: (1) --server {uvicorn,granian} and --workers N flags to __main__.py with env var support, (2) guard that exits with error when --server granian --workers > 1, (3) .env.example entries for OOMPAH_SERVER_BACKEND + OOMPAH_SERVER_WORKERS, (4) README.md section on server backend and workers=1 constraint, (5) tests for the guard.
+UNDERSTANDING: This task is not a duplicate - it's a unique subtask in the TASK-472 Granian HTTP server epic. The task requires: (1) documenting --server {uvicorn,granian} in README/AGENTS.md/.env.example, (2) documenting the workers=1 constraint for granian (shared in-process orchestrator + _ws_clients state), and (3) adding a guard that rejects or warns when workers>1 is used with granian. Plan: explore existing code in oompah/__main__.py and oompah/server.py, check README/AGENTS.md/.env.example, then implement docs + guard.
 ---
 
 author: oompah
-created: 2026-06-09 15:58
+created: 2026-06-09 20:27
 ---
-IMPLEMENTATION: Added --server {uvicorn,granian} and --workers N flags to oompah/__main__.py. Key changes: (1) _resolve_server_backend() and _resolve_workers() helpers honour CLI > OOMPAH_SERVER_BACKEND/OOMPAH_SERVER_WORKERS env > default. (2) _check_granian_workers_constraint() rejects workers>1 with granian via sys.exit(1) with clear error explaining _ws_clients and orchestrator singleton constraint. (3) _run() updated to log selected backend+workers and includes a fallback-to-uvicorn note for when full granian integration lands (TASK-472.1-6). (4) .env.example has OOMPAH_SERVER_BACKEND and OOMPAH_SERVER_WORKERS entries with full inline rationale. (5) README.md has new 'HTTP server backend' subsection with table, code examples, and workers=1 constraint explanation. (6) 18 unit tests in tests/test_granian_guard.py, all passing.
+DISCOVERY: The code and documentation are already largely in place. oompah/__main__.py has _check_granian_workers_constraint() (sys.exit(1) when granian + workers > 1), _resolve_server_backend(), and _resolve_workers() helper functions. README.md has a 'HTTP server backend' section documenting --server and the workers=1 constraint. .env.example documents OOMPAH_SERVER_BACKEND and OOMPAH_SERVER_WORKERS with constraint notes. The configuration table in README.md lists server.backend and server.workers. What is MISSING: unit tests for _resolve_server_backend, _resolve_workers, and _check_granian_workers_constraint in oompah/__main__.py. Creating tests/test_main_server_config.py to cover these functions.
 ---
 
 author: oompah
-created: 2026-06-09 15:58
+created: 2026-06-09 20:29
 ---
-VERIFICATION: 18/18 tests pass in tests/test_granian_guard.py. Also verified tests/test_config.py (49 tests) and tests/test_server_json_validation.py (17 tests) all still pass — no regressions.
+IMPLEMENTATION: The code guard (reject workers>1 with granian via sys.exit) and documentation (README.md, .env.example, --server/--workers argparse help) were already in place from prior work on the TASK-472 epic. What was missing and is now added: tests/test_main_server_config.py with 23 unit tests covering _resolve_server_backend (CLI > env > default precedence), _resolve_workers (same), and _check_granian_workers_constraint (no-exit for uvicorn/granian+1, sys.exit(1) for granian+>1, error log mentions 'granian' and '1'). All 23 tests pass.
 ---
 <!-- COMMENTS:END -->
