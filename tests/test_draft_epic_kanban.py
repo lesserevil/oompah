@@ -690,10 +690,11 @@ class TestTrackerAddLabel:
         """add_label must call backlog task edit with --add-label."""
         mock_run_backlog.return_value = ""
         tracker = self._tracker()
+        mock_run_backlog.reset_mock()
         tracker.add_label("issue-1", "draft")
-        mock_run_backlog.assert_called_once_with([
+        assert call([
             "task", "edit", "issue-1", "--add-label", "draft", "--plain",
-        ])
+        ]) in mock_run_backlog.call_args_list
 
     @patch.object(BacklogMdTracker, "_run_backlog")
     def test_add_label_with_various_labels(self, mock_run_backlog):

@@ -417,8 +417,8 @@ class TestHandleDispatchNeeded:
 
         orch._dispatch.assert_awaited_once_with(epic, attempt=None)
 
-    def test_resets_orphaned_in_progress(self, tmp_path):
-        """_reset_orphaned_in_progress is called with explicit In Progress tasks."""
+    def test_dispatch_does_not_reset_orphaned_in_progress(self, tmp_path):
+        """Orphan reset runs in step 5c maintenance, not dispatch."""
         orch = _make_orchestrator(tmp_path)
         candidates = [_make_issue("feat-open", state="open")]
         in_progress = [_make_issue("feat-1", state="in_progress")]
@@ -430,8 +430,8 @@ class TestHandleDispatchNeeded:
 
         asyncio.run(orch._handle_dispatch_needed())
 
-        orch._fetch_in_progress_issues.assert_called_once()
-        orch._reset_orphaned_in_progress.assert_called_once_with(in_progress)
+        orch._fetch_in_progress_issues.assert_not_called()
+        orch._reset_orphaned_in_progress.assert_not_called()
 
     def test_no_slots_also_stops_epic_dispatch(self, tmp_path):
         """Epic dispatch also stops early when no slots are available."""
@@ -510,12 +510,8 @@ class TestHandleDispatchNeeded:
         assert len(called_thread_ids) == 1
         assert called_thread_ids[0] != main_thread_id
 
-    def test_reset_orphaned_in_progress_runs_in_executor(self, tmp_path):
-        """_reset_orphaned_in_progress runs in the executor pool, not inline.
-
-        Regression test for oompah-zlz_2-nvr: orphan detection issues bd
-        update calls and would re-block uvicorn if it ran on the event loop.
-        """
+    def test_dispatch_does_not_run_orphan_reset_inline(self, tmp_path):
+        """Dispatch no longer runs orphan reset inline."""
         orch = _make_orchestrator(tmp_path)
         candidates = [_make_issue("feat-open", state="open")]
         in_progress = [_make_issue("feat-1", state="in_progress")]
@@ -525,22 +521,12 @@ class TestHandleDispatchNeeded:
         orch._plan_open_epics = MagicMock(return_value=[])
         orch._auto_close_completed_epics = MagicMock()
 
-        import threading
-
-        main_thread_id = threading.get_ident()
-        seen_thread_ids: list[int] = []
-
-        def tracking_reset(cands):
-            assert cands == in_progress
-            seen_thread_ids.append(threading.get_ident())
-
-        orch._reset_orphaned_in_progress = tracking_reset
+        orch._reset_orphaned_in_progress = MagicMock()
 
         asyncio.run(orch._handle_dispatch_needed())
 
-        # _reset_orphaned_in_progress was called once, on a worker thread.
-        assert len(seen_thread_ids) == 1
-        assert seen_thread_ids[0] != main_thread_id
+        orch._fetch_in_progress_issues.assert_not_called()
+        orch._reset_orphaned_in_progress.assert_not_called()
 
     def test_select_dispatchable_filters_and_sorts(self, tmp_path):
         """_select_dispatchable returns sort_for_dispatch(candidates) filtered by _should_dispatch."""
@@ -1010,6 +996,17 @@ class TestRunStep5cEpicMaintenance:
         assert orch._auto_close_completed_epics.call_count == 1
         assert orch._prune_stale_epic_rebase_states.call_count == 1
         assert orch._reset_orphaned_in_progress.call_count == 1
+
+    def test_orphan_reset_fetches_in_progress_inside_maintenance(self, tmp_path):
+        """Step 5c fetches fresh in-progress tasks before orphan reset."""
+        orch = self._orch(tmp_path)
+        in_progress = [_make_issue("feat-1", state="in_progress")]
+        orch._fetch_in_progress_issues.return_value = in_progress
+
+        orch._run_step5c_epic_maintenance()
+
+        orch._fetch_in_progress_issues.assert_called_once()
+        orch._reset_orphaned_in_progress.assert_called_once_with(in_progress)
 
     def test_reruns_after_interval_expires(self, tmp_path):
         """Jobs run again once their next_run_monotonic has passed."""
