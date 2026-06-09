@@ -40,3 +40,9 @@ created: 2026-06-09 22:18
 Discovery: No duplicate exists. TASK-437 addresses retry behavior (non-landing runs → escalate instead of Needs Human), while TASK-436 addresses wrong-branch detection for shared-epic children (TASK-706.1 should check epic-TASK-706, not TASK-706.1 branch). Distinct problems with distinct root causes. The implementation of TASK-436 is already committed on this branch (commits 086ad16 and bee3082) and the task was already marked Done on 2026-06-04.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Duplicate investigation complete: TASK-436 is not a duplicate. TASK-437 (retry non-landing runs) covers a different problem. TASK-436's implementation (shared-epic branch resolution in landing gate) was already completed and committed on 2026-06-04. Task remains Done.
+<!-- SECTION:FINAL_SUMMARY:END -->
