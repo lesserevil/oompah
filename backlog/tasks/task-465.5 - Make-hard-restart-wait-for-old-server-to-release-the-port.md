@@ -1,10 +1,10 @@
 ---
 id: TASK-465.5
 title: Make hard restart wait for old server to release the port
-status: Open
+status: Done
 assignee: []
 created_date: '2026-06-08 19:51'
-updated_date: '2026-06-08 19:52'
+updated_date: '2026-06-09 03:13'
 labels:
   - bug
 dependencies: []
@@ -30,20 +30,125 @@ Acceptance criteria:
 
 <!-- COMMENTS:BEGIN -->
 author: oompah
-created: 2026-06-08 19:52
+created: 2026-06-08 20:45
 ---
-Filed from live recovery: make restart started a replacement before the old process released port 8090 and left .oompah.pid pointing at the failed process.
+Agent dispatched (profile: default)
 ---
 
 author: oompah
-created: 2026-06-08 23:08
+created: 2026-06-08 20:46
 ---
-Verification: 26 tests pass (20 new + 6 existing test_makefile_setup). Breakdown: 13 static-analysis (Makefile structure), 4 functional port_in_use shell tests, 3 end-to-end wait_for_stop behavior tests. Broader suite (260 tests including orchestrator/dispatch) also passes. Committed a7bbf34 on epic-TASK-465.
+Focus: Duplicate Investigator
+---
+
+author: oompah
+created: 2026-06-08 20:46
+---
+Agent failed: RuntimeError: Codex exec exited with code 1: . Retrying in 10s (attempt #1)
+---
+
+author: oompah
+created: 2026-06-08 20:46
+---
+Run #1 [attempt=1, profile=default, role=fast -> Codex/default]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 40s
+- Log: TASK-465.5__20260608T204616Z.jsonl
+---
+
+author: oompah
+created: 2026-06-08 20:48
+---
+Agent dispatched (profile: deep)
+---
+
+author: oompah
+created: 2026-06-08 20:49
+---
+Focus: Duplicate Investigator
+---
+
+author: oompah
+created: 2026-06-08 20:49
+---
+Agent failed: RuntimeError: Codex exec exited with code 1: . Retrying in 20s (attempt #2)
+---
+
+author: oompah
+created: 2026-06-08 20:50
+---
+Run #2 [attempt=2, profile=deep, role=deep -> Codex/default]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1m 16s
+- Log: TASK-465.5__20260608T204939Z.jsonl
+---
+
+author: oompah
+created: 2026-06-08 20:52
+---
+Retrying (attempt #2, agent: deep)
+---
+
+author: oompah
+created: 2026-06-08 20:52
+---
+Focus: Duplicate Investigator
+---
+
+author: oompah
+created: 2026-06-08 22:24
+---
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-08 22:24
+---
+Focus: Duplicate Investigator
+---
+
+author: oompah
+created: 2026-06-08 23:09
+---
+Agent completed successfully in 2741s (78682 tokens)
+---
+
+author: oompah
+created: 2026-06-08 23:09
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 245, Tool calls: 152
+- Tokens: 132 in / 78.5K out [78.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 45m 41s
+- Log: TASK-465.5__20260608T222507Z.jsonl
+---
+
+author: oompah
+created: 2026-06-09 03:07
+---
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-09 03:12
+---
+Duplicate investigation: No duplicate found. TASK-465.4 covers graceful restart drain wakeup (different problem). TASK-465.5 is unique — hard restart port/PID race. Previous agent (2026-06-08 23:09) implemented the fix in commit 89ffd7e but did not update task status to Done. Proceeding to verify implementation and close properly.
+---
+
+author: oompah
+created: 2026-06-09 03:13
+---
+Verification: All 20 tests in tests/test_makefile_restart_wait.py pass (13 static-analysis, 4 functional port_in_use, 3 end-to-end wait_for_stop). Implementation from previous agent run is intact in commit 89ffd7e. Not a duplicate — closing task.
 ---
 <!-- COMMENTS:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Fixed make restart race: stop now calls wait_for_stop which polls kill -0 then port_in_use before returning. Fixed @ bug in wait_for_stop define (was causing shell error when expanded inline). start now refuses to launch when port is already in use and removes .oompah.pid on failed startup. Added 20 tests: static Makefile structure analysis + functional port_in_use shell + end-to-end wait_for_stop with lightweight TCP server.
+Fixed make restart port/PID race: added wait_for_stop Makefile define (polls kill -0 then port_in_use before returning), port_in_use define (ss with lsof fallback), STOP_TIMEOUT variable (default 30s). stop: now waits before returning; start: refuses launch if port busy and removes .oompah.pid on failed startup. 20 tests added covering structure, port detection, and end-to-end wait behavior. Not a duplicate of TASK-465.4 (which handles graceful restart drain wakeup).
 <!-- SECTION:FINAL_SUMMARY:END -->
