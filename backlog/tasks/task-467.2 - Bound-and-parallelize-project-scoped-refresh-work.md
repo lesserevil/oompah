@@ -1,10 +1,10 @@
 ---
 id: TASK-467.2
 title: Bound and parallelize project-scoped refresh work
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 18:48'
-updated_date: '2026-06-08 23:08'
+updated_date: '2026-06-08 23:09'
 labels:
   - task
   - tick-latency
@@ -188,4 +188,16 @@ created: 2026-06-08 23:08
 ---
 Implementation: Fixed 3 issues left by previous agents: (1) Removed duplicate field definitions in config.py; (2) Resolved merge conflict in config.py that was causing SyntaxError by merging dispatch/maintenance config params from upstream with project_refresh_* params from stale stash; (3) Updated 12 tests in test_orchestrator_handlers.py to mock _fetch_all_reviews_bounded and _fetch_all_merged_branches_bounded (AsyncMock) instead of old sync methods. Added 11 new tests in TestBoundedProjectRefresh covering AC#1 (timeout/stale fallback), AC#2 (conservative gating), AC#3 (metrics recording).
 ---
+
+author: oompah
+created: 2026-06-08 23:08
+---
+Verification: All tests pass. TestBoundedProjectRefresh (11 tests), TestHandleReviewCheck (10 tests), and full test_orchestrator_handlers.py suite (156 tests) green. Branch pushed to origin/epic-TASK-467.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Completed bounded per-project refresh infrastructure: (1) _run_bounded_refresh async helper with asyncio.Semaphore concurrency control, configurable timeout, and stale-cache fallback; (2) _fetch_all_reviews_bounded() and _fetch_all_merged_branches_bounded() replace synchronous executor-based fetches in _handle_review_check(); (3) _fetch_all_candidates() and _fetch_in_progress_issues() use asyncio.run() with per-project parallel gather; (4) Three new config fields (project_refresh_timeout_ms=10s, project_refresh_max_concurrent=4, project_stale_cache_ttl_ms=5min) wired via env and WORKFLOW.md; (5) 11 new tests in TestBoundedProjectRefresh covering all 3 acceptance criteria; (6) Fixed merge conflict in config.py and updated 12 existing tests to use AsyncMock for bounded methods. All 156 tests in test_orchestrator_handlers.py pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
