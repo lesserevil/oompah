@@ -1,10 +1,10 @@
 ---
 id: TASK-465.6
 title: Preserve Backlog priority when updating task status
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 19:52'
-updated_date: '2026-06-09 03:14'
+updated_date: '2026-06-09 03:15'
 labels:
   - bug
 dependencies: []
@@ -105,3 +105,9 @@ created: 2026-06-09 03:14
 Verification: All 4 regression tests pass (test_update_issue_status_only_preserves_p0_priority, test_reopen_issue_preserves_p0_priority, test_restart_recovery_preserves_p0_priority, test_fetch_candidate_issues_parses_numeric_p0_priority). The fix in oompah/tracker.py _custom_frontmatter_snapshot() correctly snapshots numeric int priorities and _restore_missing_frontmatter() restores them after CLI rewrites. All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Not a duplicate of TASK-425. Fix implemented in oompah/tracker.py: _custom_frontmatter_snapshot() now includes numeric int priorities (e.g. priority: 0) in its snapshot, so _restore_missing_frontmatter() can restore them after Backlog CLI rewrites the file during any edit (status-only, label, comment, reopen, close). Covers all paths through _run_backlog_task_edit. Three regression tests added: test_update_issue_status_only_preserves_p0_priority, test_reopen_issue_preserves_p0_priority, test_restart_recovery_preserves_p0_priority. All tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
