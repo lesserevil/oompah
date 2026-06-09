@@ -175,6 +175,16 @@ class TestPostEvent:
         assert orch._dispatch_queue.qsize() == 1
         assert orch._dispatch_events_coalesced == 4
 
+    def test_duplicate_event_count_is_returned_when_trigger_dequeued(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        for _ in range(5):
+            orch._post_event(DispatchEvent(event_type=DispatchEventType.FULL_SYNC))
+
+        trigger = orch._dispatch_queue.get_nowait()
+        assert orch._mark_dispatch_event_dequeued(trigger) == 4
+        assert DispatchEventType.FULL_SYNC not in orch._dispatch_pending_event_keys
+        assert not orch._dispatch_pending_coalesced_counts
+
 
 # ---------------------------------------------------------------------------
 # request_refresh() posts an event

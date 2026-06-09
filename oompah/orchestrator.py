@@ -589,6 +589,7 @@ class Orchestrator:
         self._last_tick_metrics: dict[str, Any] = {}
         self._last_dispatch_metrics: dict[str, Any] = {}
         self._dispatch_pending_event_keys: set[str] = set()
+        self._dispatch_pending_coalesced_counts: dict[str, int] = {}
         self._dispatch_event_lock = threading.Lock()
         self._dispatch_events_coalesced = 0
         # EventBus: typed pub/sub for internal event-driven communication.
@@ -1640,14 +1641,16 @@ class Orchestrator:
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
 
-    def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> None:
+    def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> int:
         key = self._dispatch_event_key(event)
         lock = getattr(self, "_dispatch_event_lock", None)
         pending = getattr(self, "_dispatch_pending_event_keys", None)
-        if lock is None or pending is None:
-            return
+        counts = getattr(self, "_dispatch_pending_coalesced_counts", None)
+        if lock is None or pending is None or counts is None:
+            return 0
         with lock:
             pending.discard(key)
+            return counts.pop(key, 0)
 
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking).
@@ -1665,6 +1668,9 @@ class Orchestrator:
                     self._dispatch_events_coalesced = (
                         getattr(self, "_dispatch_events_coalesced", 0) + 1
                     )
+                    counts = getattr(self, "_dispatch_pending_coalesced_counts", None)
+                    if counts is not None:
+                        counts[key] = counts.get(key, 0) + 1
                     logger.debug("Coalesced pending dispatch event %s", key)
                     return
                 pending.add(key)
@@ -1770,19 +1776,18 @@ class Orchestrator:
                     event.issue_id,
                 )
 
-                self._mark_dispatch_event_dequeued(event)
-                drained = 0
+                coalesced = self._mark_dispatch_event_dequeued(event)
                 while True:
                     try:
                         extra = self._dispatch_queue.get_nowait()
                     except asyncio.QueueEmpty:
                         break
-                    self._mark_dispatch_event_dequeued(extra)
-                    drained += 1
+                    coalesced += 1
+                    coalesced += self._mark_dispatch_event_dequeued(extra)
                 # Track coalesced count for dashboard snapshots (TASK-465.2).
-                self._last_coalesced_event_count = drained
-                if drained:
-                    logger.debug("Coalesced %d queued dispatch event(s)", drained)
+                self._last_coalesced_event_count = coalesced
+                if coalesced:
+                    logger.debug("Coalesced %d dispatch event(s)", coalesced)
 
                 # All current event types still result in a full _tick(), but
                 # bursts are coalesced so one worker-exit storm cannot queue a
