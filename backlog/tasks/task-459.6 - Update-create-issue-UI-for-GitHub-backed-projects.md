@@ -1,7 +1,7 @@
 ---
 id: TASK-459.6
 title: Update create issue UI for GitHub-backed projects
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
 updated_date: '2026-06-09 23:28'
@@ -67,3 +67,9 @@ created: 2026-06-09 23:28
 Verification: 45/45 new tests pass (10 server create labels tests + 35 dashboard create GitHub tests). 392/392 dashboard+server-issue tests pass. 373/373 tracker/config/projects/models tests pass. 266/266 server tests pass. No regressions found. AC #1 (GitHub-backed project never writes Backlog task): verified by server_create_labels tests showing labels/target_branch forwarded through tracker.create_issue() protocol (the same API endpoint that TASK-459.2 made backend-neutral). AC #2 (legacy Backlog projects still work): GitHub fields are hidden when isGitHubBacked() returns false, so legacy projects see no new UI changes.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Updated the create issue modal for GitHub-backed projects. Changes: (1) server.py api_create_issue now parses 'labels' from request body (JSON list or comma-separated string) and passes to tracker.create_issue(labels=). (2) dashboard.html: added #create-github-fields section (hidden by default) with Target Branch input, Focus Labels input (comma-separated), and Parent Epic select dropdown. Added isGitHubBacked() helper and updateGitHubFieldsVisibility() that shows the section and populates the epic selector only when the selected project has tracker_kind='github_issues'. Wired into onCreateProjectChange(), openCreateDialog(), openCreateDialogForEpic(). submitCreateDialog() includes target_branch, labels array, and parent_id from the GitHub fields. enhanceCreateDialog() forwards target_branch for context. Legacy Backlog projects unchanged. 45 new tests (test_server_create_labels.py, test_dashboard_create_github.py). All tests pass. Branch epic-TASK-459 pushed.
+<!-- SECTION:FINAL_SUMMARY:END -->
