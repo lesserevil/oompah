@@ -1,8 +1,10 @@
-"""Tests for oompah.github_tracker — GitHub auth and API client layer.
+"""Tests for oompah.github_tracker — GitHub auth, API client, and identifier support.
 
 Covers acceptance criteria:
-  #1  GitHub App, PAT, and missing-auth paths.
-  #2  Rate-limit and auth errors become actionable TrackerError messages.
+  #1  Identifier parsing rejects ambiguous bare numbers.
+  #2  Display identifiers and branch slugs are stable and filesystem-safe.
+  #3  GitHub App, PAT, and missing-auth paths.
+  #4  Rate-limit and auth errors become actionable TrackerError messages.
 """
 from __future__ import annotations
 
@@ -16,11 +18,15 @@ import pytest
 from oompah.github_tracker import (
     GitHubAuth,
     GitHubClient,
+    GitHubIdentifier,
+    GitHubIdentifierError,
     GitHubIssueTracker,
     _generate_app_jwt,
     _parse_next_link,
     _redact,
     _github_issues_factory,
+    github_identifier_to_issue_fields,
+    parse_github_identifier,
 )
 from oompah.tracker import ADAPTER_REGISTRY, TrackerProtocol
 from oompah.models import Issue
@@ -52,6 +58,371 @@ def _mock_response(
     resp.request.method = "GET"
     resp.request.url = "https://api.github.com/test"
     return resp
+
+
+# ===========================================================================
+# GitHubIdentifier — dataclass properties
+# ===========================================================================
+
+
+class TestGitHubIdentifier:
+    """Tests for the GitHubIdentifier dataclass and its computed properties.
+
+    Acceptance criterion #2: display identifiers and branch slugs are
+    stable and filesystem-safe.
+    """
+
+    def _make(self, owner="lesserevil", repo="oompah-tasks", number=1234):
+        return GitHubIdentifier(owner=owner, repo=repo, number=number)
+
+    # ------------------------------------------------------------------
+    # canonical form
+    # ------------------------------------------------------------------
+
+    def test_canonical_format(self):
+        gh = self._make()
+        assert gh.canonical == "lesserevil/oompah-tasks#1234"
+
+    def test_str_returns_canonical(self):
+        gh = self._make()
+        assert str(gh) == "lesserevil/oompah-tasks#1234"
+
+    def test_canonical_single_digit_number(self):
+        gh = self._make(number=1)
+        assert gh.canonical == "lesserevil/oompah-tasks#1"
+
+    # ------------------------------------------------------------------
+    # display form
+    # ------------------------------------------------------------------
+
+    def test_display_omits_owner(self):
+        gh = self._make()
+        assert gh.display == "oompah-tasks#1234"
+
+    def test_display_uses_repo_name(self):
+        gh = self._make(repo="my-tasks")
+        assert gh.display == "my-tasks#1234"
+
+    def test_display_is_stable_across_owners(self):
+        """Display form does not change when the owner changes (hub centralisation)."""
+        gh1 = self._make(owner="alice")
+        gh2 = self._make(owner="bob")
+        assert gh1.display == gh2.display
+
+    # ------------------------------------------------------------------
+    # url_safe form
+    # ------------------------------------------------------------------
+
+    def test_url_safe_has_no_hash(self):
+        gh = self._make()
+        assert "#" not in gh.url_safe
+
+    def test_url_safe_format(self):
+        gh = self._make()
+        assert gh.url_safe == "lesserevil/oompah-tasks/1234"
+
+    def test_url_safe_three_components(self):
+        gh = self._make()
+        parts = gh.url_safe.split("/")
+        assert len(parts) == 3
+        assert parts[0] == "lesserevil"
+        assert parts[1] == "oompah-tasks"
+        assert parts[2] == "1234"
+
+    def test_from_url_safe_round_trips(self):
+        original = self._make()
+        reconstructed = GitHubIdentifier.from_url_safe(original.url_safe)
+        assert reconstructed == original
+
+    def test_from_url_safe_invalid_not_three_parts(self):
+        with pytest.raises(GitHubIdentifierError, match="form"):
+            GitHubIdentifier.from_url_safe("owner/repo")
+
+    def test_from_url_safe_non_numeric_number(self):
+        with pytest.raises(GitHubIdentifierError, match="non-numeric"):
+            GitHubIdentifier.from_url_safe("owner/repo/abc")
+
+    # ------------------------------------------------------------------
+    # branch_slug
+    # ------------------------------------------------------------------
+
+    def test_branch_slug_format(self):
+        gh = self._make()
+        assert gh.branch_slug == "gh-1234"
+
+    def test_branch_slug_has_no_slash(self):
+        gh = self._make()
+        assert "/" not in gh.branch_slug
+
+    def test_branch_slug_has_no_hash(self):
+        gh = self._make()
+        assert "#" not in gh.branch_slug
+
+    def test_branch_slug_is_stable(self):
+        """Branch slug must not change across different owners/repos (number is primary key)."""
+        gh1 = self._make(owner="alice", repo="alpha-tasks")
+        gh2 = self._make(owner="bob", repo="beta-tasks")
+        assert gh1.branch_slug == gh2.branch_slug
+
+    def test_branch_slug_filesystem_safe_chars(self):
+        """Branch slug contains only A-Z, a-z, 0-9, hyphen, and dot."""
+        import re
+        gh = self._make(number=9999)
+        assert re.fullmatch(r"[A-Za-z0-9._\-]+", gh.branch_slug)
+
+    # ------------------------------------------------------------------
+    # frozen / immutable
+    # ------------------------------------------------------------------
+
+    def test_frozen_cannot_mutate(self):
+        gh = self._make()
+        with pytest.raises((AttributeError, TypeError)):
+            gh.number = 9999  # type: ignore[misc]
+
+    # ------------------------------------------------------------------
+    # validation in __post_init__
+    # ------------------------------------------------------------------
+
+    def test_empty_owner_raises(self):
+        with pytest.raises(GitHubIdentifierError, match="owner"):
+            GitHubIdentifier(owner="", repo="repo", number=1)
+
+    def test_empty_repo_raises(self):
+        with pytest.raises(GitHubIdentifierError, match="repo"):
+            GitHubIdentifier(owner="owner", repo="", number=1)
+
+    def test_zero_number_raises(self):
+        with pytest.raises(GitHubIdentifierError, match="positive"):
+            GitHubIdentifier(owner="owner", repo="repo", number=0)
+
+    def test_negative_number_raises(self):
+        with pytest.raises(GitHubIdentifierError, match="positive"):
+            GitHubIdentifier(owner="owner", repo="repo", number=-5)
+
+
+# ===========================================================================
+# parse_github_identifier — acceptance criterion #1 (reject bare numbers)
+# ===========================================================================
+
+
+class TestParseGitHubIdentifier:
+    """Tests for parse_github_identifier().
+
+    Acceptance criterion #1: identifier parsing rejects ambiguous bare numbers.
+    """
+
+    # ------------------------------------------------------------------
+    # Valid inputs
+    # ------------------------------------------------------------------
+
+    def test_parses_canonical_form(self):
+        gh = parse_github_identifier("lesserevil/oompah-tasks#1234")
+        assert gh.owner == "lesserevil"
+        assert gh.repo == "oompah-tasks"
+        assert gh.number == 1234
+
+    def test_parses_single_digit(self):
+        gh = parse_github_identifier("owner/repo#1")
+        assert gh.number == 1
+
+    def test_parses_with_hyphens_in_owner(self):
+        gh = parse_github_identifier("my-org/my-repo#42")
+        assert gh.owner == "my-org"
+        assert gh.repo == "my-repo"
+        assert gh.number == 42
+
+    def test_parses_with_underscores_in_repo(self):
+        gh = parse_github_identifier("org/my_awesome_repo#100")
+        assert gh.repo == "my_awesome_repo"
+
+    def test_parses_with_dots_in_repo(self):
+        gh = parse_github_identifier("org/my.dotted.repo#7")
+        assert gh.repo == "my.dotted.repo"
+
+    def test_returns_github_identifier_instance(self):
+        result = parse_github_identifier("owner/repo#5")
+        assert isinstance(result, GitHubIdentifier)
+
+    def test_strips_surrounding_whitespace(self):
+        gh = parse_github_identifier("  lesserevil/oompah-tasks#42  ")
+        assert gh.canonical == "lesserevil/oompah-tasks#42"
+
+    # ------------------------------------------------------------------
+    # Bare numbers — acceptance criterion #1
+    # ------------------------------------------------------------------
+
+    def test_rejects_bare_integer(self):
+        with pytest.raises(GitHubIdentifierError, match="bare numeric"):
+            parse_github_identifier("1234")
+
+    def test_rejects_bare_integer_small(self):
+        with pytest.raises(GitHubIdentifierError, match="bare numeric"):
+            parse_github_identifier("1")
+
+    def test_rejects_hash_number(self):
+        """#1234 (without owner/repo) must be rejected."""
+        with pytest.raises(GitHubIdentifierError, match="bare numeric|cannot parse"):
+            parse_github_identifier("#1234")
+
+    def test_rejects_zero(self):
+        """GitHub issue numbers start at 1; #0 is not valid."""
+        with pytest.raises(GitHubIdentifierError):
+            parse_github_identifier("owner/repo#0")
+
+    # ------------------------------------------------------------------
+    # Unqualified / incomplete forms
+    # ------------------------------------------------------------------
+
+    def test_rejects_repo_without_owner(self):
+        """repo#1234 is unqualified (missing owner) and must be rejected."""
+        with pytest.raises(GitHubIdentifierError, match="cannot parse|bare numeric|not a valid"):
+            parse_github_identifier("repo#1234")
+
+    def test_rejects_missing_issue_number(self):
+        with pytest.raises(GitHubIdentifierError):
+            parse_github_identifier("owner/repo")
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(GitHubIdentifierError, match="empty"):
+            parse_github_identifier("")
+
+    def test_rejects_none_coerced_to_empty(self):
+        with pytest.raises(GitHubIdentifierError, match="empty"):
+            parse_github_identifier(None)  # type: ignore[arg-type]
+
+    def test_rejects_owner_with_leading_hyphen(self):
+        with pytest.raises(GitHubIdentifierError, match="cannot parse"):
+            parse_github_identifier("-owner/repo#1")
+
+    def test_rejects_owner_with_trailing_hyphen(self):
+        with pytest.raises(GitHubIdentifierError, match="cannot parse"):
+            parse_github_identifier("owner-/repo#1")
+
+    def test_rejects_number_with_leading_zero(self):
+        """GitHub issue numbers don't have leading zeros."""
+        with pytest.raises(GitHubIdentifierError, match="cannot parse"):
+            parse_github_identifier("owner/repo#01")
+
+    # ------------------------------------------------------------------
+    # Error messages
+    # ------------------------------------------------------------------
+
+    def test_bare_number_error_mentions_canonical_form(self):
+        """The error for a bare number must tell the user the correct form."""
+        with pytest.raises(GitHubIdentifierError) as exc_info:
+            parse_github_identifier("999")
+        assert "owner/repo#" in str(exc_info.value)
+
+    def test_invalid_form_error_mentions_canonical_form(self):
+        with pytest.raises(GitHubIdentifierError) as exc_info:
+            parse_github_identifier("not-valid-at-all")
+        assert "owner/repo#" in str(exc_info.value)
+
+
+# ===========================================================================
+# github_identifier_to_issue_fields
+# ===========================================================================
+
+
+class TestGitHubIdentifierToIssueFields:
+    """Tests for the helper that maps GitHubIdentifier to Issue field dict."""
+
+    def test_returns_dict(self):
+        gh = GitHubIdentifier(owner="lesserevil", repo="oompah-tasks", number=1)
+        result = github_identifier_to_issue_fields(gh)
+        assert isinstance(result, dict)
+
+    def test_contains_tracker_kind(self):
+        gh = GitHubIdentifier(owner="o", repo="r", number=1)
+        result = github_identifier_to_issue_fields(gh)
+        assert result["tracker_kind"] == "github_issues"
+
+    def test_contains_owner(self):
+        gh = GitHubIdentifier(owner="myorg", repo="tasks", number=5)
+        result = github_identifier_to_issue_fields(gh)
+        assert result["owner"] == "myorg"
+
+    def test_contains_repo(self):
+        gh = GitHubIdentifier(owner="o", repo="myrepo", number=5)
+        result = github_identifier_to_issue_fields(gh)
+        assert result["repo"] == "myrepo"
+
+    def test_issue_number_is_string(self):
+        """issue_number is a string to match the Issue model field type."""
+        gh = GitHubIdentifier(owner="o", repo="r", number=42)
+        result = github_identifier_to_issue_fields(gh)
+        assert result["issue_number"] == "42"
+        assert isinstance(result["issue_number"], str)
+
+    def test_display_identifier(self):
+        gh = GitHubIdentifier(owner="lesserevil", repo="oompah-tasks", number=1234)
+        result = github_identifier_to_issue_fields(gh)
+        assert result["display_identifier"] == "oompah-tasks#1234"
+
+    def test_can_unpack_into_issue(self):
+        """The returned dict can be unpacked as Issue keyword arguments."""
+        from oompah.models import Issue
+        gh = GitHubIdentifier(owner="lesserevil", repo="oompah-tasks", number=7)
+        fields = github_identifier_to_issue_fields(gh)
+        issue = Issue(
+            id="7",
+            identifier=gh.canonical,
+            title="Test",
+            **fields,
+        )
+        assert issue.tracker_kind == "github_issues"
+        assert issue.owner == "lesserevil"
+        assert issue.repo == "oompah-tasks"
+        assert issue.issue_number == "7"
+        assert issue.display_identifier == "oompah-tasks#7"
+
+
+# ===========================================================================
+# GitHubIssueTracker identifier helpers
+# ===========================================================================
+
+
+class TestGitHubIssueTrackerIdentifierHelpers:
+    """Tests for parse_identifier() and identifier_for_number() on the tracker."""
+
+    def _make_tracker(self) -> GitHubIssueTracker:
+        return GitHubIssueTracker(
+            owner="lesserevil",
+            repo="oompah-tasks",
+            active_states=["Open", "In Progress"],
+            terminal_states=["Done", "Archived"],
+            auth=GitHubAuth(pat="test_token"),
+        )
+
+    def test_parse_identifier_valid(self):
+        tracker = self._make_tracker()
+        gh = tracker.parse_identifier("lesserevil/oompah-tasks#42")
+        assert gh.owner == "lesserevil"
+        assert gh.number == 42
+
+    def test_parse_identifier_raises_tracker_error_for_bare_number(self):
+        """parse_identifier() re-raises GitHubIdentifierError as TrackerError."""
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.parse_identifier("1234")
+
+    def test_parse_identifier_raises_tracker_error_for_invalid(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.parse_identifier("not-an-id")
+
+    def test_identifier_for_number(self):
+        tracker = self._make_tracker()
+        gh = tracker.identifier_for_number(99)
+        assert gh.owner == "lesserevil"
+        assert gh.repo == "oompah-tasks"
+        assert gh.number == 99
+        assert gh.canonical == "lesserevil/oompah-tasks#99"
+
+    def test_identifier_for_number_branch_slug(self):
+        tracker = self._make_tracker()
+        gh = tracker.identifier_for_number(7)
+        assert gh.branch_slug == "gh-7"
 
 
 # ===========================================================================

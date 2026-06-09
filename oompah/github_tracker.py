@@ -66,6 +66,227 @@ logger = logging.getLogger(__name__)
 _GH_API_BASE = "https://api.github.com"
 _GH_API_VERSION = "2022-11-28"
 
+# ---------------------------------------------------------------------------
+# GitHub issue identifier parsing and formatting
+# ---------------------------------------------------------------------------
+
+# Regex for the canonical ``owner/repo#number`` form.
+#
+# GitHub owner constraints:
+#   - 1–39 characters
+#   - Alphanumeric and hyphens
+#   - Must not start or end with a hyphen
+#
+# GitHub repo constraints:
+#   - 1–100 characters
+#   - Alphanumeric, hyphens, underscores, and dots
+#
+# Issue number:
+#   - One or more decimal digits, no leading zeros (GitHub starts at 1).
+_GITHUB_IDENTIFIER_RE = re.compile(
+    r"^"
+    r"(?P<owner>[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?|[A-Za-z0-9])"
+    r"/"
+    r"(?P<repo>[A-Za-z0-9][A-Za-z0-9_.\-]*)"
+    r"#"
+    r"(?P<number>[1-9][0-9]*)$"
+)
+
+# Characters that are unsafe in git branch names or filesystem paths. Replaced
+# by a dash when constructing branch slugs from arbitrary text.
+_BRANCH_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._\-/]")
+
+
+class GitHubIdentifierError(ValueError):
+    """Raised when a string cannot be parsed as a fully-qualified GitHub issue identifier.
+
+    Provides a user-facing message that distinguishes between bare-number
+    inputs (which are explicitly rejected as ambiguous) and other malformed
+    identifiers.
+    """
+
+
+@dataclass(frozen=True)
+class GitHubIdentifier:
+    """A parsed, fully-qualified GitHub issue identifier.
+
+    Canonical form:  ``owner/repo#1234``
+    Display form:    ``repo#1234``          (short, for UI / task hubs)
+    URL-safe form:   ``owner/repo/1234``    (no ``#`` fragment character)
+    Branch slug:     ``gh-1234``            (filesystem-safe, no ``/`` or ``#``)
+
+    Construct via :func:`parse_github_identifier` (preferred) or directly
+    when all three components are already known.
+
+    Parameters
+    ----------
+    owner:
+        GitHub organisation or user login (e.g. ``"lesserevil"``).
+    repo:
+        Repository name (e.g. ``"oompah-tasks"``).
+    number:
+        Positive issue number assigned by GitHub (e.g. ``1234``).
+    """
+
+    owner: str
+    repo: str
+    number: int
+
+    def __post_init__(self) -> None:
+        if not self.owner:
+            raise GitHubIdentifierError("owner must not be empty")
+        if not self.repo:
+            raise GitHubIdentifierError("repo must not be empty")
+        if self.number < 1:
+            raise GitHubIdentifierError(
+                f"issue number must be a positive integer, got {self.number!r}"
+            )
+
+    def __str__(self) -> str:  # noqa: D401
+        return self.canonical
+
+    @property
+    def canonical(self) -> str:
+        """Globally unique, fully-qualified identifier: ``owner/repo#1234``."""
+        return f"{self.owner}/{self.repo}#{self.number}"
+
+    @property
+    def display(self) -> str:
+        """Short display identifier: ``repo#1234``.
+
+        Suitable for UI labels, task hub cards, and log lines where the owner
+        can be inferred from context (e.g. a single central task hub).
+        """
+        return f"{self.repo}#{self.number}"
+
+    @property
+    def url_safe(self) -> str:
+        """URL-path-safe identifier: ``owner/repo/1234``.
+
+        The ``#`` character is the URL fragment separator and must not appear
+        in path segments.  This form replaces it with a third ``/`` path
+        component so the three components can be extracted from the route
+        without URL-encoding.
+        """
+        return f"{self.owner}/{self.repo}/{self.number}"
+
+    @property
+    def branch_slug(self) -> str:
+        """Git branch–safe and filesystem-safe slug: ``gh-<number>``.
+
+        Branch names derived from bare issue numbers are ambiguous across
+        repositories; the ``gh-`` prefix marks the slug as GitHub-sourced.
+        The slug is stable (does not change if the title changes) and safe
+        to embed in branch names following a project/epic prefix, e.g.
+        ``oompah/myproject/gh-1234``.
+        """
+        return f"gh-{self.number}"
+
+    @classmethod
+    def from_url_safe(cls, url_safe: str) -> "GitHubIdentifier":
+        """Reconstruct a :class:`GitHubIdentifier` from its URL-safe form.
+
+        Accepts ``owner/repo/1234`` (three slash-separated components).
+        Raises :class:`GitHubIdentifierError` for invalid input.
+        """
+        parts = url_safe.split("/")
+        if len(parts) != 3:
+            raise GitHubIdentifierError(
+                f"URL-safe identifier must have the form owner/repo/number, "
+                f"got {url_safe!r}"
+            )
+        owner, repo, raw_number = parts
+        try:
+            number = int(raw_number)
+        except ValueError:
+            raise GitHubIdentifierError(
+                f"URL-safe identifier has a non-numeric issue number: {raw_number!r}"
+            )
+        return cls(owner=owner, repo=repo, number=number)
+
+
+def parse_github_identifier(s: str) -> GitHubIdentifier:
+    """Parse a fully-qualified GitHub issue identifier string.
+
+    Accepted form:
+      ``owner/repo#1234`` — canonical, fully-qualified identifier.
+
+    Rejected forms (raises :class:`GitHubIdentifierError`):
+      ``1234``         — bare integer: ambiguous across repositories.
+      ``#1234``        — missing owner and repo.
+      ``repo#1234``    — missing owner (unqualified repo reference).
+      ``owner/repo``   — missing issue number.
+      ``owner/repo#0`` — issue numbers start at 1.
+
+    Parameters
+    ----------
+    s:
+        The string to parse.
+
+    Returns
+    -------
+    GitHubIdentifier
+        The parsed identifier with ``owner``, ``repo``, and ``number``
+        attributes populated.
+
+    Raises
+    ------
+    GitHubIdentifierError
+        When *s* is not a valid fully-qualified GitHub issue identifier.
+        Bare numeric strings produce a specific error message explaining
+        why they are rejected.
+    """
+    stripped = (s or "").strip()
+    if not stripped:
+        raise GitHubIdentifierError("identifier must not be empty")
+
+    # Detect bare numbers early to give a targeted error message.
+    if stripped.lstrip("0123456789") == "" or re.fullmatch(r"#\d+", stripped):
+        raise GitHubIdentifierError(
+            f"bare numeric identifier {stripped!r} is not a valid GitHub issue "
+            "identifier. Use the fully-qualified form owner/repo#<number>, e.g. "
+            "'lesserevil/oompah-tasks#1234'."
+        )
+
+    m = _GITHUB_IDENTIFIER_RE.match(stripped)
+    if not m:
+        raise GitHubIdentifierError(
+            f"cannot parse {stripped!r} as a GitHub issue identifier. "
+            "Expected the form owner/repo#<number> (e.g. "
+            "'lesserevil/oompah-tasks#1234')."
+        )
+
+    return GitHubIdentifier(
+        owner=m.group("owner"),
+        repo=m.group("repo"),
+        number=int(m.group("number")),
+    )
+
+
+def github_identifier_to_issue_fields(
+    gh_id: GitHubIdentifier,
+) -> dict[str, str | int]:
+    """Return a dict of :class:`~oompah.models.Issue` fields for a parsed identifier.
+
+    Maps :class:`GitHubIdentifier` attributes to the structured identity
+    fields added to :class:`~oompah.models.Issue` by TASK-457.2 so callers
+    can unpack the result directly::
+
+        issue = Issue(
+            id=str(gh_id.number),
+            identifier=gh_id.canonical,
+            title="...",
+            **github_identifier_to_issue_fields(gh_id),
+        )
+    """
+    return {
+        "tracker_kind": "github_issues",
+        "owner": gh_id.owner,
+        "repo": gh_id.repo,
+        "issue_number": str(gh_id.number),
+        "display_identifier": gh_id.display,
+    }
+
 # Default per-request timeout in seconds.  Override via OOMPAH_GITHUB_API_TIMEOUT.
 _DEFAULT_TIMEOUT_S = 30.0
 
@@ -800,6 +1021,28 @@ class GitHubIssueTracker:
 
     def _issues_path(self, suffix: str = "") -> str:
         return self._repo_path(f"/issues{suffix}")
+
+    def parse_identifier(self, s: str) -> GitHubIdentifier:
+        """Parse *s* as a fully-qualified GitHub issue identifier.
+
+        Thin wrapper around the module-level :func:`parse_github_identifier`
+        that raises :class:`~oompah.tracker.TrackerError` (rather than
+        :class:`GitHubIdentifierError`) so callers using the tracker
+        protocol receive a consistent error type.
+
+        Raises
+        ------
+        TrackerError
+            When *s* is not a valid fully-qualified identifier.
+        """
+        try:
+            return parse_github_identifier(s)
+        except GitHubIdentifierError as exc:
+            raise TrackerError(str(exc)) from exc
+
+    def identifier_for_number(self, number: int) -> GitHubIdentifier:
+        """Return a :class:`GitHubIdentifier` for a numeric issue number on this tracker."""
+        return GitHubIdentifier(owner=self.owner, repo=self.repo, number=number)
 
     # ------------------------------------------------------------------
     # Issue reads
