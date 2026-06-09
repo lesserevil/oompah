@@ -1,10 +1,10 @@
 ---
 id: TASK-473.2
 title: Move blocking calls out of server route handlers
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
-updated_date: '2026-06-09 18:25'
+updated_date: '2026-06-09 18:26'
 labels:
   - performance
 dependencies: []
@@ -96,4 +96,22 @@ created: 2026-06-09 18:25
 ---
 Discovery: Found uncommitted changes from a previous agent run (136 tool calls, terminated). The working tree already has all the blocking-call fixes implemented but not committed. Fixes include: (1) api_create_issue: _run_issue_enhancement wrapped in asyncio.to_thread; (2) api_issue_quality_source: has_quality_source + load_quality_source refactored into _check_quality_source() thread helper; (3) api_list_foci: load_foci wrapped in to_thread; (4) api_create_focus: refactored into _save_focus() helper via to_thread; (5) api_delete_focus: refactored into _delete_focus() helper via to_thread; (6) api_update_focus: refactored into _load_update_save() helper via to_thread; (7) api_list_focus_suggestions: load_suggestions via to_thread; (8) api_update_focus_suggestion: update_suggestion_status via to_thread; (9) api_upload_attachment: all file write+store+commit refactored into _upload_sync() via to_thread; (10) api_serve_attachment: file read refactored into _read_attachment() via to_thread. Test file tests/test_server_blocking_off_loop.py also present (16 tests). All 16 tests pass. Proceeding to commit.
 ---
+
+author: oompah
+created: 2026-06-09 18:26
+---
+Implementation: Confirmed not a duplicate. Recovered uncommitted implementation from previous agent run and committed. Changes to oompah/server.py: 10 route handlers fixed — api_create_issue, api_issue_quality_source, api_list_foci, api_create_focus, api_delete_focus, api_update_focus, api_list_focus_suggestions, api_update_focus_suggestion, api_upload_attachment, api_serve_attachment. Each blocking call refactored into a named sync helper function (e.g. _save_focus, _upload_sync, _read_attachment) called via await asyncio.to_thread(). 16 new tests in tests/test_server_blocking_off_loop.py using thread spy assertions to verify I/O runs in ThreadPoolExecutor workers. Both commits pushed to origin/epic-TASK-473.
+---
+
+author: oompah
+created: 2026-06-09 18:26
+---
+Verification: All 16 new tests in tests/test_server_blocking_off_loop.py pass. 33 combined tests (16 new + 5 favicon + 12 create_issue) pass with no regressions. Branch pushed to origin/epic-TASK-473.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Audited all ~11 blocking sync-I/O sites in oompah/server.py route handlers and moved them off the event loop using asyncio.to_thread(). 10 handlers fixed: api_create_issue (_run_issue_enhancement), api_issue_quality_source (_check_quality_source helper), api_list_foci (load_foci), api_create_focus (_save_focus helper), api_delete_focus (_delete_focus helper), api_update_focus (_load_update_save helper), api_list_focus_suggestions (load_suggestions), api_update_focus_suggestion (update_suggestion_status), api_upload_attachment (_upload_sync helper), api_serve_attachment (_read_attachment helper). The urllib.urlopen calls and run_in_executor calls were already properly wrapped. Added 16 tests in tests/test_server_blocking_off_loop.py using thread-spy assertions. All tests pass. Not a duplicate of TASK-473.3 (favicon-only fix) — this covers the full audit.
+<!-- SECTION:FINAL_SUMMARY:END -->
