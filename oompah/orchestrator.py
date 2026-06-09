@@ -4238,18 +4238,110 @@ class Orchestrator:
         and skip PR creation for this tick.
         """
         epic_branch = self.project_store.epic_branch_name(epic_identifier)
-        # The branch lives on the project's main repo (stacked mode
-        # children pushed there) or the shared epic worktree (shared
-        # mode). Either way ``git push origin <branch>`` from the main
-        # clone is sufficient because git knows about all worktrees.
+        push_cwd = project.repo_path
+        push_cmd = ["git", "push", "origin", epic_branch]
+
+        if self._project_epic_strategy(getattr(project, "id", None)) == "shared":
+            wt_path = self.project_store.epic_worktree_path_for(
+                project.id,
+                epic_identifier,
+            )
+            if os.path.isdir(wt_path):
+                self._commit_shared_epic_metadata_if_dirty(wt_path, epic_identifier)
+                push_cwd = wt_path
+                push_cmd = ["git", "push", "origin", f"HEAD:{epic_branch}"]
+
         subprocess.run(
-            ["git", "push", "origin", epic_branch],
-            cwd=project.repo_path,
+            push_cmd,
+            cwd=push_cwd,
             capture_output=True,
             text=True,
             check=True,
             timeout=60,
         )
+
+    def _commit_shared_epic_metadata_if_dirty(
+        self,
+        wt_path: str,
+        epic_identifier: str,
+    ) -> None:
+        """Commit pending Backlog metadata before opening a shared-epic PR."""
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        if not status.stdout.strip():
+            return
+
+        metadata_paths = [
+            path
+            for path in ("backlog/tasks", "backlog/completed", "backlog/archive")
+            if os.path.exists(os.path.join(wt_path, path))
+        ]
+        if not metadata_paths:
+            raise ProjectError(
+                "shared epic worktree is dirty but has no Backlog metadata paths "
+                f"to commit: {wt_path}"
+            )
+
+        subprocess.run(
+            ["git", "add", "--", *metadata_paths],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if staged.returncode == 0:
+            raise ProjectError(
+                "shared epic worktree has uncommitted non-metadata changes; "
+                f"refusing rollup PR for {epic_identifier}"
+            )
+        if staged.returncode != 1:
+            raise ProjectError(
+                "failed to inspect staged shared epic metadata changes: "
+                f"{staged.stderr.strip()}"
+            )
+
+        message = (
+            f"{epic_identifier}: Commit shared epic task metadata\n\n"
+            "Record shared-epic Backlog task state before opening the rollup PR.\n\n"
+            "🤖 Generated with https://github.com/lesserevil/oompah\n\n"
+            "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
+        )
+        subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
+        )
+
+        status_after = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        if status_after.stdout.strip():
+            raise ProjectError(
+                "shared epic worktree still has uncommitted non-metadata changes "
+                f"after metadata commit; refusing rollup PR for {epic_identifier}"
+            )
 
     # ------------------------------------------------------------------
     # Epic rebase outcome tracking (oompah-zlz_2-82dr.3)

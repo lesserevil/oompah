@@ -9,8 +9,9 @@ target selection (stacked mode), and the epic→main PR creation
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
 import fnmatch
+import subprocess
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -1431,6 +1432,119 @@ class TestOpenEpicMainPrs:
             opened = orch._open_epic_main_prs([epic])
         assert opened == 1
         provider.create_review.assert_called_once()
+
+
+class TestPushEpicBranch:
+    def test_shared_mode_commits_dirty_metadata_before_push(self, tmp_path):
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        wt_path = tmp_path / "worktree"
+        (wt_path / "backlog" / "tasks").mkdir(parents=True)
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_worktree_path_for.return_value = str(wt_path)
+
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            if cmd == ["git", "status", "--porcelain"]:
+                status_calls = sum(
+                    1 for called_cmd, _kwargs in calls
+                    if called_cmd == ["git", "status", "--porcelain"]
+                )
+                stdout = (
+                    " M backlog/tasks/task-1.md\n"
+                    if status_calls == 1
+                    else ""
+                )
+                return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+            if cmd == ["git", "diff", "--cached", "--quiet"]:
+                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
+            orch._push_epic_branch(proj, "epic-1")
+
+        commands = [cmd for cmd, _kwargs in calls]
+        assert commands == [
+            ["git", "status", "--porcelain"],
+            ["git", "add", "--", "backlog/tasks"],
+            ["git", "diff", "--cached", "--quiet"],
+            ["git", "commit", "-m", commands[3][3]],
+            ["git", "status", "--porcelain"],
+            ["git", "push", "origin", "HEAD:epic-epic-1"],
+        ]
+        assert calls[-1][1]["cwd"] == str(wt_path)
+        commit_message = commands[3][3]
+        assert commit_message.startswith("epic-1: Commit shared epic task metadata")
+        assert "Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in (
+            commit_message
+        )
+
+    def test_shared_mode_refuses_non_metadata_dirty_worktree(self, tmp_path):
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        wt_path = tmp_path / "worktree"
+        (wt_path / "backlog" / "tasks").mkdir(parents=True)
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_worktree_path_for.return_value = str(wt_path)
+
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd == ["git", "status", "--porcelain"]:
+                return subprocess.CompletedProcess(
+                    cmd,
+                    0,
+                    stdout=" M src/server.py\n",
+                    stderr="",
+                )
+            if cmd == ["git", "diff", "--cached", "--quiet"]:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        with (
+            patch("oompah.orchestrator.subprocess.run", side_effect=fake_run),
+            pytest.raises(ProjectError, match="non-metadata changes"),
+        ):
+            orch._push_epic_branch(proj, "epic-1")
+
+        assert ["git", "commit", "-m"] not in [cmd[:3] for cmd in calls]
+        assert ["git", "push", "origin", "HEAD:epic-epic-1"] not in calls
+
+    def test_stacked_mode_pushes_named_branch_from_project_repo(self, tmp_path):
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        proj = _make_project_record(epic_strategy="stacked")
+        proj.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path, projects=[proj])
+
+        with patch("oompah.orchestrator.subprocess.run") as run:
+            run.return_value = subprocess.CompletedProcess(
+                ["git", "push", "origin", "epic-epic-1"],
+                0,
+                stdout="",
+                stderr="",
+            )
+            orch._push_epic_branch(proj, "epic-1")
+
+        run.assert_called_once_with(
+            ["git", "push", "origin", "epic-epic-1"],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
+        )
+        orch.project_store.epic_worktree_path_for.assert_not_called()
 
 
 # --------------------------------- resolve_epic_target_branch (nested epics)
