@@ -1,4 +1,4 @@
-"""Cherry-pick, push, and PR-open step for release picks (TASK-455.4).
+"""Cherry-pick, push, and PR-open step for release picks (TASK-455.4 / TASK-455.5).
 
 Given a resolved :class:`~oompah.release_pick_schema.BackportEntry` with
 ``commits`` populated (set by TASK-455.2) and a child task with an existing
@@ -17,26 +17,39 @@ The operation is idempotent at the entry level: when the entry has already
 reached ``pr_open`` (or any other post-``task_created`` status), the caller
 should not call this module — the reconciler handles that gate.
 
-Conflict handling
------------------
+Conflict handling (TASK-455.5)
+-------------------------------
 
 When ``git cherry-pick`` exits with conflict markers the module:
 
-1. Aborts the cherry-pick so the worktree is left clean.
+1. **Does NOT abort** the cherry-pick — the worktree is left intact with
+   conflict markers in place so the developer can inspect and resolve them.
 2. Raises :class:`CherryPickConflictError`.
-3. The caller (reconciler) catches this and advances the entry to
-   ``conflict`` so the TASK-455.5 conflict-resolution path can take over.
+3. The caller (:func:`cherry_pick_push_and_open_pr`) catches this and:
+   a. Marks the child task ``Needs Rebase`` (the backlog status for merge
+      conflicts) with a diagnostic comment describing the conflicts.
+   b. Updates the child task's ``oompah.backport_of`` metadata to
+      ``conflict`` status.
+   c. Returns a :class:`~oompah.release_pick_schema.BackportEntry` with
+      ``status=CONFLICT`` so the reconciler advances the source entry.
+
+Later ticks will find the entry in ``conflict`` status and skip it (none of
+the reconciler's advance-cases match ``CONFLICT``).  Additionally, if the
+worktree still has an in-progress cherry-pick (``CHERRY_PICK_HEAD`` present),
+:func:`apply_cherry_pick` detects this and raises :class:`CherryPickConflictError`
+immediately rather than starting a second cherry-pick on top of the first.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 import subprocess
 from typing import TYPE_CHECKING, Any
 
 from oompah.release_pick_schema import BackportEntry, ReleasePick
-from oompah.statuses import IN_REVIEW
+from oompah.statuses import IN_REVIEW, NEEDS_REBASE
 
 if TYPE_CHECKING:
     from oompah.models import Issue
@@ -58,8 +71,14 @@ _GIT_TIMEOUT = 120
 class CherryPickConflictError(Exception):
     """Raised when ``git cherry-pick`` fails due to merge conflicts.
 
-    The cherry-pick is automatically aborted before this is raised so the
-    worktree is left in a clean state.
+    The worktree is left **intact** with conflict markers in place when this
+    is raised from a live cherry-pick failure.  When raised because a
+    cherry-pick is already in progress (``CHERRY_PICK_HEAD`` detected), the
+    existing conflict state is similarly preserved.
+
+    Callers should mark the corresponding task ``Needs Rebase`` and record
+    a diagnostic comment; they must **not** attempt another cherry-pick until
+    the conflicts have been resolved.
     """
 
 
@@ -123,6 +142,45 @@ def _has_new_commits(wt_path: str, base_branch: str) -> bool:
         return False
 
 
+def _has_cherry_pick_in_progress(wt_path: str) -> bool:
+    """Return True when the worktree has a cherry-pick in progress.
+
+    Checks for the presence of the ``CHERRY_PICK_HEAD`` file that git creates
+    when a cherry-pick starts and removes when it completes or is aborted.
+    When this file is present the worktree contains unresolved conflict markers
+    and a new ``git cherry-pick`` cannot be started without first resolving or
+    aborting the in-progress one.
+
+    This is used to detect a **conflicted worktree from a previous run** so
+    that later background ticks skip the cherry-pick instead of attempting to
+    run it a second time on top of the existing conflict state.
+
+    Args:
+        wt_path: Path to the git worktree.
+
+    Returns:
+        True when ``CHERRY_PICK_HEAD`` exists in the git dir; False on any
+        error or when the file is absent.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return False
+        git_dir = result.stdout.strip()
+        if not os.path.isabs(git_dir):
+            git_dir = os.path.join(wt_path, git_dir)
+        cherry_pick_head = os.path.join(git_dir, "CHERRY_PICK_HEAD")
+        return os.path.exists(cherry_pick_head)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Core building blocks
 # ---------------------------------------------------------------------------
@@ -139,18 +197,44 @@ def apply_cherry_pick(wt_path: str, commits: list[str]) -> None:
     upstream tracking reference.  If that cannot be determined the check is
     skipped and we always run the cherry-pick.
 
+    When ``git cherry-pick`` produces conflicts the worktree is **left
+    intact** — the conflict markers remain in the working tree and
+    ``CHERRY_PICK_HEAD`` is preserved so that the developer can inspect the
+    conflicts and resolve them manually.  The cherry-pick is **not aborted**
+    automatically.
+
     Args:
         wt_path: Absolute path to the git worktree.
         commits: Ordered list of commit SHAs to cherry-pick (oldest first).
 
     Raises:
         ValueError: When *commits* is empty.
-        CherryPickConflictError: When the cherry-pick produces merge
-            conflicts (cherry-pick is aborted automatically).
+        CherryPickConflictError: When a cherry-pick is already in progress
+            (``CHERRY_PICK_HEAD`` present) *or* when the cherry-pick produces
+            merge conflicts.  In both cases the worktree is left intact.
         CherryPickError: When the cherry-pick fails for any other reason.
     """
     if not commits:
         raise ValueError("commits list must not be empty")
+
+    # ------------------------------------------------------------------
+    # Guard: detect a conflicted worktree from a previous run.
+    # If CHERRY_PICK_HEAD exists the worktree already has conflict markers
+    # from an earlier run.  Raise immediately so later ticks do not try to
+    # start a second cherry-pick on top of the existing conflict state.
+    # ------------------------------------------------------------------
+    if _has_cherry_pick_in_progress(wt_path):
+        logger.warning(
+            "apply_cherry_pick: worktree %s has a cherry-pick in progress"
+            " (CHERRY_PICK_HEAD exists) — skipping to avoid overwriting"
+            " existing conflict markers",
+            wt_path,
+        )
+        raise CherryPickConflictError(
+            f"cherry-pick in {wt_path!r} is already in progress "
+            "(CHERRY_PICK_HEAD exists from a previous conflicted run); "
+            "resolve or abort the in-progress cherry-pick first"
+        )
 
     # ------------------------------------------------------------------
     # Idempotency: skip if cherry-pick already applied in a prior run
@@ -200,16 +284,10 @@ def apply_cherry_pick(wt_path: str, commits: list[str]) -> None:
     stdout = result.stdout or ""
     combined = (stdout + "\n" + stderr).lower()
 
-    # Abort the in-progress cherry-pick so the worktree is left clean
-    subprocess.run(
-        ["git", "cherry-pick", "--abort"],
-        cwd=wt_path,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-
-    # Distinguish conflict failures from other failures
+    # Distinguish conflict failures from other failures.
+    # NOTE: We intentionally do NOT call ``git cherry-pick --abort`` here.
+    # The worktree is left intact with the conflict markers in place so that
+    # the developer can inspect the conflicting files and resolve them.
     conflict_markers = (
         "conflict",
         "merge conflict",
@@ -218,11 +296,26 @@ def apply_cherry_pick(wt_path: str, commits: list[str]) -> None:
         "patch does not apply",
     )
     if any(m in combined for m in conflict_markers):
+        logger.warning(
+            "apply_cherry_pick: conflict detected in %s for commits %r"
+            " — leaving worktree intact (not aborting)",
+            wt_path,
+            commits,
+        )
         raise CherryPickConflictError(
             f"cherry-pick of {commits!r} in {wt_path!r} produced conflicts: "
             f"{stderr[:400]}"
         )
 
+    # Non-conflict failure: this is unexpected (bad SHA, missing object, etc.).
+    # Abort so the worktree stays usable for manual investigation.
+    subprocess.run(
+        ["git", "cherry-pick", "--abort"],
+        cwd=wt_path,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
     raise CherryPickError(
         f"cherry-pick of {commits!r} in {wt_path!r} failed "
         f"(exit={result.returncode}): {stderr[:400]}"
@@ -436,6 +529,47 @@ def cherry_pick_push_and_open_pr(
             entry.branch,
             exc,
         )
+
+        # Mark the child task Needs Rebase (the canonical status for merge
+        # conflicts) so it is visible in the backlog and can be dispatched
+        # to a rebase agent.
+        try:
+            tracker.update_issue(child_issue.identifier, status=NEEDS_REBASE)
+            logger.info(
+                "cherry_pick_push_and_open_pr: marked %s Needs Rebase (conflict)",
+                child_issue.identifier,
+            )
+        except Exception as update_exc:  # noqa: BLE001
+            logger.warning(
+                "cherry_pick_push_and_open_pr: failed to mark %s Needs Rebase: %s",
+                child_issue.identifier,
+                update_exc,
+            )
+
+        # Add a diagnostic comment to the child task so the developer (or a
+        # rebase agent) knows exactly what happened and what files need fixing.
+        diagnostic = (
+            f"**Cherry-pick conflict** when applying commits "
+            f"`{', '.join(entry.commits)}` to branch `{entry.branch}`.\n\n"
+            f"The worktree at `{wt_path}` has been left intact with conflict "
+            f"markers in place. Resolve the conflicts, then run:\n\n"
+            f"```\ngit cherry-pick --continue\ngit push\n```\n\n"
+            f"Conflict details:\n```\n{exc}\n```"
+        )
+        try:
+            tracker.add_comment(
+                child_issue.identifier,
+                diagnostic,
+                author="oompah",
+            )
+        except Exception as comment_exc:  # noqa: BLE001
+            logger.warning(
+                "cherry_pick_push_and_open_pr: failed to add diagnostic"
+                " comment to %s: %s",
+                child_issue.identifier,
+                comment_exc,
+            )
+
         _write_child_backport_of(
             tracker,
             child_issue.identifier,

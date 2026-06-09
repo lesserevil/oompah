@@ -1,4 +1,4 @@
-"""Tests for the cherry-pick + push + PR-open module (TASK-455.4)."""
+"""Tests for the cherry-pick + push + PR-open module (TASK-455.4 / TASK-455.5)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import pytest
 from oompah.cherry_pick_pr_creator import (
     CherryPickConflictError,
     CherryPickError,
+    _has_cherry_pick_in_progress,
     _has_new_commits,
     _sanitize_identifier,
     _write_child_backport_of,
@@ -21,7 +22,7 @@ from oompah.cherry_pick_pr_creator import (
 )
 from oompah.models import Issue
 from oompah.release_pick_schema import BackportEntry, ReleasePick
-from oompah.statuses import IN_REVIEW
+from oompah.statuses import IN_REVIEW, NEEDS_REBASE
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,50 @@ class TestHasNewCommits:
 
 
 # ---------------------------------------------------------------------------
+# _has_cherry_pick_in_progress
+# ---------------------------------------------------------------------------
+
+
+class TestHasCherryPickInProgress:
+    def test_returns_true_when_cherry_pick_head_exists(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="/wt/.git\n")
+            with patch("os.path.exists", return_value=True) as mock_exists:
+                result = _has_cherry_pick_in_progress("/wt")
+                assert result is True
+                mock_exists.assert_called_once_with("/wt/.git/CHERRY_PICK_HEAD")
+
+    def test_returns_false_when_cherry_pick_head_absent(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="/wt/.git\n")
+            with patch("os.path.exists", return_value=False):
+                assert _has_cherry_pick_in_progress("/wt") is False
+
+    def test_returns_false_when_git_dir_fails(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="")
+            assert _has_cherry_pick_in_progress("/wt") is False
+
+    def test_returns_false_on_exception(self):
+        with patch("subprocess.run", side_effect=OSError("no git")):
+            assert _has_cherry_pick_in_progress("/wt") is False
+
+    def test_resolves_relative_git_dir(self):
+        """Relative .git/worktrees paths are resolved relative to wt_path."""
+        with patch("subprocess.run") as mock_run:
+            # git worktrees return a relative path like ".git/worktrees/xxx"
+            mock_run.return_value = MagicMock(
+                returncode=0, stdout=".git/worktrees/child\n"
+            )
+            with patch("os.path.exists", return_value=True) as mock_exists:
+                _has_cherry_pick_in_progress("/the/worktree")
+                # Path must be resolved relative to wt_path
+                called_path = mock_exists.call_args[0][0]
+                assert called_path.startswith("/the/worktree/")
+                assert "CHERRY_PICK_HEAD" in called_path
+
+
+# ---------------------------------------------------------------------------
 # apply_cherry_pick
 # ---------------------------------------------------------------------------
 
@@ -127,50 +172,79 @@ class TestApplyCherryPick:
     def test_success_calls_cherry_pick_with_all_commits(self):
         commits = ["abc1234", "def5678"]
         with patch("subprocess.run") as mock_run:
-            # upstream detection returns empty (no upstream)
+            # no cherry-pick in progress; upstream detection returns empty
             mock_run.side_effect = [
-                MagicMock(returncode=1, stdout=""),  # rev-parse upstream
+                MagicMock(returncode=1, stdout=""),  # rev-parse --git-dir (no CHERRY_PICK_HEAD)
+                MagicMock(returncode=1, stdout=""),  # rev-parse upstream (no upstream)
                 MagicMock(returncode=0, stdout="", stderr=""),  # cherry-pick
             ]
-            apply_cherry_pick("/wt", commits)
-            # Second call should be the cherry-pick
-            cherry_call = mock_run.call_args_list[1]
+            with patch("os.path.exists", return_value=False):
+                apply_cherry_pick("/wt", commits)
+            # Third call should be the cherry-pick
+            cherry_call = mock_run.call_args_list[2]
             assert cherry_call[0][0] == ["git", "cherry-pick", "abc1234", "def5678"]
 
     def test_raises_conflict_error_on_conflict_in_output(self):
         with patch("subprocess.run") as mock_run:
             # upstream detection fails (no upstream set)
-            # cherry-pick exits 1 with conflict text
+            # cherry-pick exits 1 with conflict text — no abort call expected
             mock_run.side_effect = [
+                MagicMock(returncode=1, stdout=""),  # rev-parse --git-dir (in-progress check)
                 MagicMock(returncode=1, stdout=""),  # rev-parse upstream
                 MagicMock(returncode=1, stdout="", stderr="CONFLICT (content)"),  # cherry-pick
-                MagicMock(returncode=0, stdout=""),  # cherry-pick --abort
             ]
-            with pytest.raises(CherryPickConflictError):
-                apply_cherry_pick("/wt", ["abc123"])
+            with patch("os.path.exists", return_value=False):
+                with pytest.raises(CherryPickConflictError):
+                    apply_cherry_pick("/wt", ["abc123"])
 
     def test_raises_cherry_pick_error_on_other_failure(self):
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
+                MagicMock(returncode=1, stdout=""),  # rev-parse --git-dir (in-progress check)
+                MagicMock(returncode=1, stdout=""),  # rev-parse upstream
+                MagicMock(returncode=1, stdout="", stderr="fatal: bad object"),  # cherry-pick
+                MagicMock(returncode=0, stdout=""),  # cherry-pick --abort (non-conflict failure)
+            ]
+            with patch("os.path.exists", return_value=False):
+                with pytest.raises(CherryPickError):
+                    apply_cherry_pick("/wt", ["abc123"])
+
+    def test_does_not_abort_on_conflict(self):
+        """Cherry-pick --abort is NOT called when there are conflicts.
+
+        The worktree must be left intact with conflict markers so the developer
+        can inspect and resolve them.  Only non-conflict git failures trigger
+        --abort.
+        """
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=1, stdout=""),  # rev-parse --git-dir (in-progress check)
+                MagicMock(returncode=1, stdout=""),  # rev-parse upstream
+                MagicMock(returncode=1, stdout="CONFLICT found", stderr=""),  # cherry-pick
+            ]
+            with patch("os.path.exists", return_value=False):
+                with pytest.raises(CherryPickConflictError):
+                    apply_cherry_pick("/wt", ["abc123"])
+            # Only 3 calls (git-dir check, upstream, cherry-pick) — no --abort
+            assert mock_run.call_count == 3
+            # Verify --abort was NOT called
+            all_commands = [c[0][0] for c in mock_run.call_args_list]
+            assert ["git", "cherry-pick", "--abort"] not in all_commands
+
+    def test_aborts_on_non_conflict_failure(self):
+        """Cherry-pick --abort IS called when the failure is not a conflict."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=1, stdout=""),  # rev-parse --git-dir (in-progress check)
                 MagicMock(returncode=1, stdout=""),  # rev-parse upstream
                 MagicMock(returncode=1, stdout="", stderr="fatal: bad object"),  # cherry-pick
                 MagicMock(returncode=0, stdout=""),  # cherry-pick --abort
             ]
-            with pytest.raises(CherryPickError):
-                apply_cherry_pick("/wt", ["abc123"])
-
-    def test_aborts_on_conflict(self):
-        """Cherry-pick --abort is run when there are conflicts."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = [
-                MagicMock(returncode=1, stdout=""),  # rev-parse upstream
-                MagicMock(returncode=1, stdout="CONFLICT found", stderr=""),  # cherry-pick
-                MagicMock(returncode=0, stdout=""),  # cherry-pick --abort
-            ]
-            with pytest.raises(CherryPickConflictError):
-                apply_cherry_pick("/wt", ["abc123"])
-            # Verify --abort was called
-            abort_call = mock_run.call_args_list[2]
+            with patch("os.path.exists", return_value=False):
+                with pytest.raises(CherryPickError):
+                    apply_cherry_pick("/wt", ["abc123"])
+            # Verify --abort WAS called for non-conflict failure
+            abort_call = mock_run.call_args_list[3]
             assert abort_call[0][0] == ["git", "cherry-pick", "--abort"]
 
     def test_skips_cherry_pick_when_new_commits_exist(self):
@@ -178,23 +252,38 @@ class TestApplyCherryPick:
         with patch("subprocess.run") as mock_run:
             # upstream detection succeeds: origin/release/1.0
             mock_run.side_effect = [
-                MagicMock(returncode=0, stdout="origin/release/1.0\n"),  # rev-parse
+                MagicMock(returncode=1, stdout=""),  # rev-parse --git-dir (in-progress check)
+                MagicMock(returncode=0, stdout="origin/release/1.0\n"),  # rev-parse @{u}
                 MagicMock(returncode=0, stdout="2\n"),  # rev-list --count (ahead)
             ]
-            apply_cherry_pick("/wt", ["abc123"])
-            # Only 2 calls: upstream detection + rev-list count; no cherry-pick
-            assert mock_run.call_count == 2
+            with patch("os.path.exists", return_value=False):
+                apply_cherry_pick("/wt", ["abc123"])
+            # 3 calls: git-dir check, upstream detection, rev-list count; no cherry-pick
+            assert mock_run.call_count == 3
 
     def test_conflict_detected_via_patch_does_not_apply(self):
-        """'patch does not apply' in stderr triggers conflict error."""
+        """'patch does not apply' in stderr triggers conflict error without abort."""
         with patch("subprocess.run") as mock_run:
             mock_run.side_effect = [
+                MagicMock(returncode=1, stdout=""),  # rev-parse --git-dir (in-progress check)
                 MagicMock(returncode=1, stdout=""),  # rev-parse upstream
                 MagicMock(returncode=1, stdout="", stderr="error: patch does not apply"),
-                MagicMock(returncode=0),  # abort
+                # No abort expected for conflict failures
             ]
-            with pytest.raises(CherryPickConflictError):
-                apply_cherry_pick("/wt", ["abc123"])
+            with patch("os.path.exists", return_value=False):
+                with pytest.raises(CherryPickConflictError):
+                    apply_cherry_pick("/wt", ["abc123"])
+
+    def test_raises_conflict_error_when_cherry_pick_in_progress(self):
+        """When CHERRY_PICK_HEAD exists, raises CherryPickConflictError immediately."""
+        with patch("subprocess.run") as mock_run:
+            # rev-parse --git-dir succeeds; CHERRY_PICK_HEAD found
+            mock_run.return_value = MagicMock(returncode=0, stdout="/wt/.git\n")
+            with patch("os.path.exists", return_value=True):
+                with pytest.raises(CherryPickConflictError, match="already in progress"):
+                    apply_cherry_pick("/wt", ["abc123"])
+            # Only 1 call: git-dir check; no cherry-pick attempted
+            assert mock_run.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -500,6 +589,126 @@ class TestCherryPickPushAndOpenPr:
         ]
         assert len(meta_calls) == 1
         assert meta_calls[0].args[2]["status"] == ReleasePick.CONFLICT.value
+
+    def test_marks_child_needs_rebase_on_conflict(self):
+        """On conflict, the child task status is set to Needs Rebase."""
+        source = _issue("TASK-10", "My feature")
+        child = _issue("TASK-10.1")
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=ReleasePick.TASK_CREATED,
+            task_id="TASK-10.1",
+            commits=["abc123"],
+        )
+        tracker, project_store, scm = self._make_deps()
+
+        with patch(
+            "oompah.cherry_pick_pr_creator.apply_cherry_pick",
+            side_effect=CherryPickConflictError("CONFLICT in foo.py"),
+        ):
+            cherry_pick_push_and_open_pr(
+                tracker, source, entry, child,
+                project_store=project_store,
+                project_id="proj-1",
+                scm=scm,
+                repo="org/repo",
+            )
+
+        tracker.update_issue.assert_called_once_with(
+            "TASK-10.1", status=NEEDS_REBASE
+        )
+
+    def test_adds_diagnostic_comment_on_conflict(self):
+        """On conflict, a diagnostic comment is added to the child task."""
+        source = _issue("TASK-10", "My feature")
+        child = _issue("TASK-10.1")
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=ReleasePick.TASK_CREATED,
+            task_id="TASK-10.1",
+            commits=["abc123", "def456"],
+        )
+        tracker, project_store, scm = self._make_deps()
+
+        with patch(
+            "oompah.cherry_pick_pr_creator.apply_cherry_pick",
+            side_effect=CherryPickConflictError("CONFLICT in src/foo.py"),
+        ):
+            cherry_pick_push_and_open_pr(
+                tracker, source, entry, child,
+                project_store=project_store,
+                project_id="proj-1",
+                scm=scm,
+                repo="org/repo",
+            )
+
+        tracker.add_comment.assert_called_once()
+        comment_args = tracker.add_comment.call_args
+        assert comment_args.args[0] == "TASK-10.1"
+        comment_text = comment_args.args[1]
+        # Comment should mention the commits and branch
+        assert "abc123" in comment_text
+        assert "release/1.0" in comment_text
+        # Comment should mention worktree path
+        assert "/wt/TASK-10_1" in comment_text
+        # Comment should include the conflict details
+        assert "CONFLICT in src/foo.py" in comment_text
+
+    def test_needs_rebase_failure_is_non_fatal_on_conflict(self):
+        """A tracker failure when marking Needs Rebase is non-fatal."""
+        source = _issue("TASK-10", "My feature")
+        child = _issue("TASK-10.1")
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=ReleasePick.TASK_CREATED,
+            task_id="TASK-10.1",
+            commits=["abc123"],
+        )
+        tracker, project_store, scm = self._make_deps()
+        tracker.update_issue.side_effect = RuntimeError("tracker down")
+
+        with patch(
+            "oompah.cherry_pick_pr_creator.apply_cherry_pick",
+            side_effect=CherryPickConflictError("conflict!"),
+        ):
+            # Should not raise
+            result = cherry_pick_push_and_open_pr(
+                tracker, source, entry, child,
+                project_store=project_store,
+                project_id="proj-1",
+                scm=scm,
+                repo="org/repo",
+            )
+
+        assert result.status == ReleasePick.CONFLICT
+
+    def test_diagnostic_comment_failure_is_non_fatal_on_conflict(self):
+        """A failure adding the diagnostic comment is non-fatal."""
+        source = _issue("TASK-10", "My feature")
+        child = _issue("TASK-10.1")
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=ReleasePick.TASK_CREATED,
+            task_id="TASK-10.1",
+            commits=["abc123"],
+        )
+        tracker, project_store, scm = self._make_deps()
+        tracker.add_comment.side_effect = RuntimeError("tracker down")
+
+        with patch(
+            "oompah.cherry_pick_pr_creator.apply_cherry_pick",
+            side_effect=CherryPickConflictError("conflict!"),
+        ):
+            # Should not raise even when add_comment fails
+            result = cherry_pick_push_and_open_pr(
+                tracker, source, entry, child,
+                project_store=project_store,
+                project_id="proj-1",
+                scm=scm,
+                repo="org/repo",
+            )
+
+        assert result.status == ReleasePick.CONFLICT
 
     def test_propagates_cherry_pick_error(self):
         source = _issue("TASK-10", "My feature")
