@@ -15,9 +15,35 @@ from oompah.server import app
 
 
 @pytest.fixture(autouse=True)
-def clear_api_cache():
+def clear_api_state():
+    with server_module._issues_snapshot_lock:
+        server_module._issues_refresh_task = None
+        server_module._issues_snapshot.update(
+            {
+                "data": None,
+                "orch_id": None,
+                "created_at_monotonic": 0.0,
+                "created_at_wall": None,
+                "duration_ms": None,
+                "issue_count": 0,
+                "error": None,
+            }
+        )
     server_module._api_cache.clear()
     yield
+    with server_module._issues_snapshot_lock:
+        server_module._issues_refresh_task = None
+        server_module._issues_snapshot.update(
+            {
+                "data": None,
+                "orch_id": None,
+                "created_at_monotonic": 0.0,
+                "created_at_wall": None,
+                "duration_ms": None,
+                "issue_count": 0,
+                "error": None,
+            }
+        )
     server_module._api_cache.clear()
 
 

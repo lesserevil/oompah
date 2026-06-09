@@ -1,9 +1,10 @@
 ---
 id: TASK-472.4
 title: Validate WebSocket lifecycle under Granian
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
+updated_date: '2026-06-09 21:02'
 labels:
   - 'needs:backend'
   - 'needs:test'

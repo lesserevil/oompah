@@ -1,9 +1,10 @@
 ---
 id: TASK-472
 title: 'Epic: Adopt Granian HTTP server (Path B)'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-06-09 04:18'
+updated_date: '2026-06-09 21:02'
 labels:
   - feature
   - epic

@@ -12,6 +12,10 @@ from watchfiles import awatch
 
 logger = logging.getLogger("oompah")
 
+# Sentinel file written by the Granian lifespan _supervise() task to signal
+# that _run_granian() should re-exec after Granian exits.
+_GRANIAN_RESTART_SENTINEL = ".oompah-granian-restart"
+
 
 def _load_startup_env(env_file: str) -> int:
     """Load the startup .env file as the authoritative config source."""
@@ -156,6 +160,11 @@ def main() -> None:
         logger.error("Workflow file not found: %s", workflow_path)
         sys.exit(1)
 
+    if server_backend == "granian":
+        _run_granian(workflow_path, args.port, start_paused=args.paused)
+        return
+
+    # --- uvicorn path (default) ---
     while True:
         restart = False
         try:
@@ -178,6 +187,86 @@ def main() -> None:
         break
 
 
+def _run_granian(
+    workflow_path: str,
+    cli_port: int | None,
+    start_paused: bool = False,
+) -> None:
+    """Launch oompah under the Granian ASGI server.
+
+    Granian is started with ``workers=1`` because oompah holds shared
+    in-process state (orchestrator, WebSocket clients).  The orchestrator
+    runs inside the worker's ASGI lifespan (see ``oompah.server._lifespan``)
+    so ``_broadcast`` keeps working on the same event loop.
+
+    On restart: the lifespan's ``_supervise`` task writes a sentinel file and
+    SIGTERMs the Granian supervisor, causing ``serve()`` to return.  This
+    function then detects the sentinel, removes it, and re-execs.
+
+    Requires the ``granian`` extra: ``uv pip install -e .[granian]``
+    """
+    try:
+        from granian import Granian
+        from granian.server.common import Interfaces, Loops
+    except ImportError:
+        logger.error(
+            "granian is not installed. Install it with: "
+            "uv pip install -e '.[granian]'"
+        )
+        sys.exit(1)
+
+    # Pass configuration to the ASGI lifespan via environment variables so
+    # the Granian worker process (which re-imports the app) can read them.
+    os.environ["OOMPAH_EMBED_ORCHESTRATOR"] = "1"
+    os.environ["OOMPAH_WORKFLOW_PATH"] = workflow_path
+    if start_paused:
+        os.environ["OOMPAH_START_PAUSED"] = "1"
+    elif "OOMPAH_START_PAUSED" in os.environ:
+        del os.environ["OOMPAH_START_PAUSED"]
+
+    # Resolve port: CLI flag > OOMPAH_SERVER_PORT env > workflow config > 8080.
+    port = cli_port
+    if port is None:
+        env_port = os.environ.get("OOMPAH_SERVER_PORT")
+        if env_port:
+            try:
+                port = int(env_port)
+            except ValueError:
+                pass
+    if port is None:
+        try:
+            from oompah.config import ServiceConfig, WorkflowError, load_workflow
+
+            wf = load_workflow(workflow_path)
+            port = ServiceConfig.from_workflow(wf).server_port
+        except Exception:  # noqa: BLE001
+            pass
+    if port is None:
+        port = 8080
+
+    server = Granian(
+        target="oompah.server:app",
+        address="0.0.0.0",
+        port=port,
+        interface=Interfaces.ASGI,
+        workers=1,
+        loop=Loops.uvloop,
+        respawn_failed_workers=False,
+    )
+    logger.info("Starting Granian ASGI server on http://0.0.0.0:%d", port)
+    server.serve()  # blocks until the supervisor exits
+
+    # Check for restart sentinel written by the lifespan _supervise task.
+    if os.path.exists(_GRANIAN_RESTART_SENTINEL):
+        os.remove(_GRANIAN_RESTART_SENTINEL)
+        execv_args = [a for a in sys.argv[1:] if a != "--paused"]
+        logger.info(
+            "Restart sentinel found; re-executing: %s %s",
+            sys.executable, execv_args,
+        )
+        os.execv(sys.executable, [sys.executable, "-m", "oompah"] + execv_args)
+
+
 async def _run(
     workflow_path: str,
     cli_port: int | None,
@@ -185,183 +274,24 @@ async def _run(
     server_backend: str = "uvicorn",
     workers: int = 1,
 ) -> bool:
-    from oompah.backlog_compat import BacklogCompatibilityError, ensure_backlog_compatible
-    from oompah.agent_profile_store import AgentProfileStore
+    """Run oompah under uvicorn (the default server path).
+
+    Uses :func:`oompah.bootstrap.setup_services` for service wiring so both
+    the uvicorn and Granian paths share identical startup logic.
+    """
+    from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-    from oompah.orchestrator import Orchestrator
-    from oompah.projects import ProjectStore
-    from oompah.providers import ProviderStore
-    from oompah.roles import RoleStore, migrate_agent_profiles_to_roles
     from oompah.server import app, set_orchestrator
-    from oompah.webhooks import WebhookForwarder
-
-    # Load initial workflow
-    try:
-        workflow = load_workflow(workflow_path)
-    except WorkflowError as exc:
-        logger.error("Failed to load workflow: %s", exc)
-        sys.exit(1)
-
-    config = ServiceConfig.from_workflow(workflow)
-
-    # Validate config
-    errors = validate_dispatch_config(config)
-    if errors:
-        for err in errors:
-            logger.error("Config validation error: %s", err)
-        sys.exit(1)
 
     try:
-        compat = ensure_backlog_compatible(os.path.dirname(workflow_path))
-        if compat.changed:
-            logger.info(
-                "Updated Backlog.md config at %s (%s)",
-                compat.config_path,
-                ", ".join(compat.migrations),
-            )
-    except BacklogCompatibilityError as exc:
-        logger.error("Backlog.md compatibility error: %s", exc)
+        services = await setup_services(workflow_path, cli_port, start_paused)
+    except StartupError:
         sys.exit(1)
-
-    # Strict-mode profile source check (oompah-zlz_2-hye). When the
-    # operator has set strict mode, refuse to start if WORKFLOW.md
-    # still has an agent.profiles block at all — the dashboard /
-    # AgentProfileStore is the only authoritative source. Default
-    # mode is "warn", which lets startup proceed and surfaces the
-    # drift through the orchestrator alert mechanism below.
-    if (
-        config.strict_profile_source == "strict"
-        and config.workflow_has_profiles_block
-    ):
-        logger.error(
-            "Strict profile-source mode is enabled and WORKFLOW.md still "
-            "contains an agent.profiles block. This section is no longer "
-            "authoritative; profiles are managed via the dashboard "
-            "(/api/v1/agent-profiles) and stored in "
-            ".oompah/agent_profiles.json. Delete the agent.profiles "
-            "block from %s to start. To disable this strict check, set "
-            "OOMPAH_STRICT_PROFILE_SOURCE=warn (the default).",
-            workflow_path,
-        )
-        sys.exit(1)
-
-    # Drift warning (oompah-zlz_2-hye). When the persisted JSON store
-    # disagrees with WORKFLOW.md's profile block, log a warning here
-    # so the operator sees it during startup. The orchestrator below
-    # also raises a dashboard alert (same source) so the operator
-    # sees it without scrolling logs.
-    if config.agent_profiles_drift:
-        logger.warning(
-            "WORKFLOW.md agent.profiles block detected and differs from "
-            "persisted profile store — using the persisted store. Delete "
-            "the agent.profiles section from %s to clear this warning.",
-            workflow_path,
-        )
-
-    # Determine port
-    port = cli_port or config.server_port
-
-    # Create orchestrator with shared stores
-    provider_store = ProviderStore()
-    project_store = ProjectStore()
-    # Agent profile store: ServiceConfig.from_workflow already created
-    # the JSON file (or migrated WORKFLOW.md profiles into it) when it
-    # parsed the workflow above. Re-open the same path here so the
-    # orchestrator and the HTTP API share a single in-memory store.
-    agent_profile_store = AgentProfileStore()
-    # Role store (epic oompah-zlz_2-xau7): maps role_name → (provider, model).
-    # First-run migration copies existing AgentProfile.provider_id/model into
-    # RoleStore[profile.model_role] for empty slots — idempotent, so
-    # subsequent boots are no-ops.
-    role_store = RoleStore(provider_store=provider_store)
-    if role_store.is_empty:
-        migrate_agent_profiles_to_roles(
-            role_store, agent_profile_store.list_all(),
-            provider_store=provider_store,
-        )
-
-    # Start gh webhook forwarder for each project (subprocess lifecycle
-    # managed by WebhookForwarder; independent of orchestrator).
-    # The status_callback is wired below once the orchestrator exists so
-    # forwarder-down state surfaces as a dashboard banner.
-    webhook_forwarder = WebhookForwarder(project_store=project_store)
-
-    # Pull latest code and ensure Backlog.md config compatibility
-    # for every configured project BEFORE the orchestrator starts dispatching.
-    # Without this, agents work against stale local state.
-    # Best-effort, parallel, with per-call timeouts; failures are logged but
-    # never block boot.
-    projects = project_store.list_all()
-    if projects:
-        logger.info("Syncing sources for %d project(s) before dispatch...", len(projects))
-        sync_results = project_store.sync_all_sources()
-        for pid, st in sync_results.items():
-            name = next((p.name for p in projects if p.id == pid), pid)
-            logger.info(
-                "Startup sync %s: git=%s backlog=%s",
-                name, st.get("git", "?"), st.get("backlog", "?"),
-            )
-
-    # Ensure every managed project has a Backlog task-change webhook hook
-    # installed so oompah is notified promptly when task files change.
-    # Best-effort: failures are logged but never block boot.
-    if projects:
-        from oompah.backlog_webhooks import ensure_backlog_webhooks
-
-        server_base_url = (
-            os.environ.get("OOMPAH_SERVER_URL")
-            or f"http://localhost:{port}"
-        )
-        webhook_results = ensure_backlog_webhooks(project_store, server_base_url)
-        for pid, status in webhook_results.items():
-            name = next((p.name for p in projects if p.id == pid), pid)
-            if status.startswith("ok") or status.startswith("skipped"):
-                logger.info("Backlog webhook hook %s: %s", name, status)
-            else:
-                logger.warning("Backlog webhook hook %s: %s", name, status)
-
-    orchestrator = Orchestrator(config, workflow_path,
-                                provider_store=provider_store,
-                                project_store=project_store,
-                                agent_profile_store=agent_profile_store,
-                                role_store=role_store)
-    orchestrator.set_prompt_template(workflow.prompt_template)
-
-    # --paused CLI flag forces the orchestrator to boot paused regardless
-    # of what's in the persisted state file. Persist it so subsequent
-    # restarts stay paused until /resume is called.
-    if start_paused and not orchestrator.is_paused:
-        orchestrator._paused = True
-        orchestrator._save_paused_state()
-        logger.info("Booting paused (--paused flag)")
-    elif orchestrator.is_paused:
-        logger.info("Booting paused (persisted state)")
+    port = services.port
+    orchestrator = services.orchestrator
+    webhook_forwarder = services.webhook_forwarder
 
     set_orchestrator(orchestrator)
-
-    # Wire forwarder health into the orchestrator's alerts list so the
-    # dashboard surfaces a degraded-mode banner whenever the gh-webhook
-    # extension is missing. Without this, an operator would only notice
-    # webhooks were silently failing after agents started missing work.
-    def _on_forwarder_status(status: dict) -> None:
-        # Drop any prior webhook_forwarder alert (idempotent re-arming)
-        orchestrator._alerts = [
-            a for a in orchestrator._alerts
-            if a.get("source") != "webhook_forwarder"
-        ]
-        if not status.get("available"):
-            detail = status.get("detail") or "gh-webhook extension unavailable"
-            orchestrator._alerts.append({
-                "level": "warning",
-                "source": "webhook_forwarder",
-                "message": (
-                    f"Webhooks degraded: {detail}. "
-                    "Install with `make install-gh-extensions`. "
-                    "Falling back to periodic full-sync (slower)."
-                ),
-            })
-
-    webhook_forwarder._status_callback = _on_forwarder_status
 
     # Start webhook forwarder (runs gh webhook forward per project)
     await webhook_forwarder.start()
