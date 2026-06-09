@@ -9,6 +9,7 @@ import os
 import re
 import threading
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -115,7 +116,126 @@ def _html_response(name: str) -> HTMLResponse:
     return HTMLResponse(content=_load_template(name), headers=_NO_CACHE_HEADERS)
 
 
-app = FastAPI(title="oompah", version="0.1.0")
+# ---------------------------------------------------------------------------
+# ASGI lifespan — Granian / embed-orchestrator path
+#
+# When OOMPAH_EMBED_ORCHESTRATOR=1 is set (i.e. the operator invoked oompah
+# with ``--server granian``) the orchestrator is started *inside* this ASGI
+# lifespan so it shares the Granian worker's event loop — the same loop that
+# handles WebSocket connections.  Granian must be run with ``workers=1``
+# because the app holds shared in-process state (_orchestrator, _ws_clients).
+#
+# A ``_supervise`` background task watches orchestrator.wants_restart and,
+# when it fires, writes a sentinel file then SIGTERMs the Granian supervisor
+# process so ``_run_granian`` in ``__main__`` can re-exec.
+#
+# Note: this lifespan is a no-op for the normal uvicorn path (where the
+# orchestrator is started externally in ``__main__._run``).
+# ---------------------------------------------------------------------------
+
+_GRANIAN_RESTART_SENTINEL = ".oompah-granian-restart"
+
+
+@asynccontextmanager
+async def _lifespan(app_: FastAPI):  # noqa: ARG001
+    """ASGI lifespan context; no-op unless OOMPAH_EMBED_ORCHESTRATOR=1."""
+    import os as _os
+
+    _orch_task = None
+    _watch_task = None
+    _supervise_task = None
+    _services = None
+
+    if _os.environ.get("OOMPAH_EMBED_ORCHESTRATOR") == "1":
+        import asyncio as _asyncio
+        import signal as _signal
+
+        from oompah.bootstrap import setup_services
+
+        workflow_path = _os.environ.get("OOMPAH_GRANIAN_WORKFLOW", "./WORKFLOW.md")
+        cli_port: int | None = (
+            int(_os.environ["OOMPAH_SERVER_PORT"])
+            if "OOMPAH_SERVER_PORT" in _os.environ
+            else None
+        )
+        start_paused = _os.environ.get("OOMPAH_START_PAUSED") == "1"
+
+        _services = setup_services(workflow_path, cli_port, start_paused)
+        # Wire orchestrator into the server module's global state.
+        # set_orchestrator() is defined later in this file; calling it at
+        # runtime (not at parse time) is fine because Python resolves
+        # module-level names when the function is *called*.
+        set_orchestrator(_services.orchestrator)
+
+        await _services.webhook_forwarder.start()
+
+        # Workflow file watcher (mirrors __main__._run).
+        from watchfiles import awatch as _awatch
+        from oompah.config import ServiceConfig as _SC
+        from oompah.config import WorkflowError as _WFE
+        from oompah.config import load_workflow as _lw
+        from oompah.config import validate_dispatch_config as _vdc
+
+        async def _watch_workflow():
+            try:
+                async for _changes in _awatch(workflow_path):
+                    logger.info("Workflow file changed, reloading")
+                    try:
+                        _new_wf = _lw(workflow_path)
+                        _new_cfg = _SC.from_workflow(_new_wf)
+                        _errs = _vdc(_new_cfg)
+                        if _errs:
+                            logger.error(
+                                "Invalid workflow reload: %s", "; ".join(_errs)
+                            )
+                            continue
+                        _services.orchestrator.reload_config(
+                            _new_cfg, _new_wf.prompt_template
+                        )
+                    except _WFE as _exc:
+                        logger.error("Workflow reload failed: %s", _exc)
+            except _asyncio.CancelledError:
+                pass
+
+        # Supervisor: relay orchestrator restart requests to the Granian
+        # supervisor process (TASK-472.3 will harden the edge cases).
+        async def _supervise():
+            try:
+                while True:
+                    await _asyncio.sleep(0.5)
+                    if _services.orchestrator.wants_restart:
+                        logger.info(
+                            "Orchestrator wants restart; signalling Granian supervisor"
+                        )
+                        from pathlib import Path as _Path
+
+                        _Path(_GRANIAN_RESTART_SENTINEL).touch()
+                        _os.kill(_os.getppid(), _signal.SIGTERM)
+                        return
+            except _asyncio.CancelledError:
+                pass
+
+        _watch_task = _asyncio.create_task(_watch_workflow())
+        _orch_task = _asyncio.create_task(_services.orchestrator.run())
+        _supervise_task = _asyncio.create_task(_supervise())
+
+    # ---- yield: application is live ----
+    yield
+
+    # ---- shutdown ----
+    if _services is not None:
+        import asyncio as _asyncio
+
+        if _supervise_task is not None:
+            _supervise_task.cancel()
+        if _watch_task is not None:
+            _watch_task.cancel()
+        if _orch_task is not None:
+            await _services.orchestrator.stop()
+        await _services.webhook_forwarder.stop()
+
+
+app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
 
 # Serve static assets (favicon, etc.) from oompah/static/
 from fastapi.staticfiles import StaticFiles

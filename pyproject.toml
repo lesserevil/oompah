@@ -34,6 +34,13 @@ claude = [
 codex = [
     "openai-agents>=0.17.2,<0.18",
 ]
+# Granian ASGI server: opt-in replacement for uvicorn (--server granian).
+# Granian is a Rust/Tokio ASGI server with ~+23% HTTP throughput vs uvicorn
+# in single-worker mode.  Must be installed to use `oompah --server granian`
+# or `make run-granian`.  See TASK-472 / backlog/docs/doc-1 for background.
+granian = [
+    "granian>=1.0",
+]
 # Install both ACP backends at once.
 all = [
     "oompah[claude]",
@@ -48,6 +55,8 @@ dev = [
     # can run.  See bead oompah-zlz_2-bqkz.
     "claude-agent-sdk>=0.1.0",
     "openai-agents>=0.17.2,<0.18",
+    # Granian: included so the granian import guard tests can run.
+    "granian>=1.0",
 ]
 
 [project.scripts]
