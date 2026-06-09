@@ -447,6 +447,7 @@ class _ForwarderProcess:
         "project_name",
         "repo_path",
         "repo_slug",
+        "access_token",
         "process",
         "restart_delay_s",
         "restart_attempts",
@@ -460,11 +461,13 @@ class _ForwarderProcess:
         project_name: str,
         repo_path: str,
         repo_slug: str = "",
+        access_token: str | None = None,
     ):
         self.project_id = project_id
         self.project_name = project_name
         self.repo_path = repo_path
         self.repo_slug = repo_slug
+        self.access_token = access_token
         self.process: asyncio.subprocess.Process | None = None
         self.restart_delay_s: float = _WEBHOOK_BASE_DELAY_S
         self.restart_attempts: int = 0
@@ -680,13 +683,22 @@ class WebhookForwarder:
 
         # Ensure a _ForwarderProcess exists for every project.
         for project in projects:
+            repo_slug = extract_repo_slug(project.repo_url)
+            access_token = getattr(project, "access_token", None)
             if project.id not in self._processes:
                 self._processes[project.id] = _ForwarderProcess(
                     project_id=project.id,
                     project_name=project.name,
                     repo_path=project.repo_path,
-                    repo_slug=extract_repo_slug(project.repo_url),
+                    repo_slug=repo_slug,
+                    access_token=access_token,
                 )
+            else:
+                fp = self._processes[project.id]
+                fp.project_name = project.name
+                fp.repo_path = project.repo_path
+                fp.repo_slug = repo_slug
+                fp.access_token = access_token
 
         # Remove stale entries for deleted projects.
         stale = set(self._processes) - live_ids
@@ -778,6 +790,10 @@ class WebhookForwarder:
             )
             return
 
+        env = os.environ.copy()
+        if fp.access_token:
+            env["GH_TOKEN"] = fp.access_token
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "gh",
@@ -790,6 +806,7 @@ class WebhookForwarder:
                 "--url",
                 self._webhook_url,
                 cwd=repo_path,
+                env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

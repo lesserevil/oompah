@@ -518,11 +518,13 @@ class TestForwarderProcess:
             project_name="my-project",
             repo_path="/tmp/repos/my-project",
             repo_slug="org/my-project",
+            access_token="project-token",
         )
         assert fp.project_id == "p1"
         assert fp.project_name == "my-project"
         assert fp.repo_path == "/tmp/repos/my-project"
         assert fp.repo_slug == "org/my-project"
+        assert fp.access_token == "project-token"
         assert fp.process is None
         assert fp.restart_delay_s == 1.0
         assert fp.restart_attempts == 0
@@ -616,6 +618,7 @@ class TestWebhookForwarderPoll:
             name="test-repo",
             repo_url="https://github.com/org/repo.git",
             repo_path="/tmp/test-repo",
+            access_token="project-token",
         )
         store = _FakeProjectStore([proj])
         fwd = WebhookForwarder(project_store=store)
@@ -625,7 +628,34 @@ class TestWebhookForwarderPoll:
         assert fp.project_name == "test-repo"
         assert fp.repo_path == "/tmp/test-repo"
         assert fp.repo_slug == "org/repo"
+        assert fp.access_token == "project-token"
         assert fp.process is None  # gh not available, so not started
+
+    @pytest.mark.asyncio
+    async def test_existing_project_refreshes_forwarder_metadata(self):
+        proj = Project(
+            id="proj-1",
+            name="test-repo",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/tmp/test-repo",
+            access_token="old-token",
+        )
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+        await fwd._poll_and_restart()
+
+        proj.name = "renamed-repo"
+        proj.repo_url = "https://github.com/org/renamed.git"
+        proj.repo_path = "/tmp/renamed-repo"
+        proj.access_token = "new-token"
+
+        await fwd._poll_and_restart()
+
+        fp = fwd._processes["proj-1"]
+        assert fp.project_name == "renamed-repo"
+        assert fp.repo_path == "/tmp/renamed-repo"
+        assert fp.repo_slug == "org/renamed"
+        assert fp.access_token == "new-token"
 
     @pytest.mark.asyncio
     async def test_removing_project_terminates_forwarder(self):
@@ -1202,6 +1232,41 @@ class TestWebhookForwarderEventsFlag:
 
         exec_mock.assert_not_called()
         assert fp.process is None
+
+    @pytest.mark.asyncio
+    async def test_project_token_passed_as_gh_token_env(
+        self, git_repo, monkeypatch, caplog
+    ):
+        monkeypatch.setenv("GH_TOKEN", "ambient-token")
+        fwd = WebhookForwarder()
+        fwd._extension_available = True
+        fp = _ForwarderProcess(
+            "p1",
+            "test-repo",
+            str(git_repo),
+            "org/repo",
+            access_token="project-token",
+        )
+        fwd._processes["p1"] = fp
+
+        captured: dict = {}
+
+        class _FakeProc:
+            pid = 12345
+            returncode = None
+            stderr = None
+
+        async def fake_exec(*args, **kwargs):
+            captured["env"] = kwargs["env"]
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        assert captured["env"]["GH_TOKEN"] == "project-token"
+        assert os.environ["GH_TOKEN"] == "ambient-token"
+        assert "project-token" not in caplog.text
+        assert "project-token" not in str(fwd.status)
 
     @pytest.mark.asyncio
     async def test_custom_events_via_init(self, git_repo):
