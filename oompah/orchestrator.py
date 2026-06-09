@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -762,6 +763,18 @@ class Orchestrator:
         # Counts events that were drained from the dispatch queue and coalesced
         # into the current tick so slow-tick logs can report burst size.
         self._last_coalesced_event_count: int = 0
+        # ---- Bounded per-project refresh infrastructure (TASK-467.2) ----
+        # Per-project semaphores for bounded concurrency. Created on-demand
+        # when a project is first refreshed.
+        self._project_semaphores: dict[str, asyncio.Semaphore] = {}
+        # Per-project stale caches with timestamps. Keyed by project_id.
+        # Each cache entry is a tuple of (data, timestamp_ms).
+        self._stale_caches: dict[str, dict[str, tuple[Any, float]]] = {}
+        # Per-project refresh metrics for diagnostics.
+        # project_id -> {operation: {last_duration_ms, timeout_count, success_count, last_error}}
+        self._project_refresh_metrics: dict[str, dict[str, dict[str, Any]]] = {}
+        # Lock for thread-safe stale cache updates.
+        self._stale_cache_lock = threading.Lock()
 
         # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
         # the dashboard shows a banner whenever WORKFLOW.md still has a
@@ -775,6 +788,134 @@ class Orchestrator:
         # OOMPAH_IPC_DB_PATH env var.  If neither is configured, stays None
         # and the orchestrator operates in single-process / combined mode.
         self._ipc: OrchestratorIPC | None = ipc if ipc is not None else get_ipc()
+
+    # --- Bounded per-project refresh helpers (TASK-467.2) ---
+
+    def _get_project_semaphore(self, project_id: str) -> asyncio.Semaphore:
+        """Get or create a semaphore for a project's refresh operations."""
+        if project_id not in self._project_semaphores:
+            max_concurrent = self.config.project_refresh_max_concurrent
+            self._project_semaphores[project_id] = asyncio.Semaphore(max_concurrent)
+        return self._project_semaphores[project_id]
+
+    def _get_stale_cache(self, project_id: str, operation: str) -> Any | None:
+        """Retrieve stale cached data for a project operation if within TTL."""
+        ttl_ms = self.config.project_stale_cache_ttl_ms
+        if ttl_ms <= 0:
+            return None
+        with self._stale_cache_lock:
+            project_cache = self._stale_caches.get(project_id, {})
+            if operation in project_cache:
+                data, timestamp_ms = project_cache[operation]
+                age_ms = (time.time() * 1000) - timestamp_ms
+                if age_ms <= ttl_ms:
+                    logger.debug(
+                        "Using stale cache for project %s operation %s (age=%.0fms)",
+                        project_id, operation, age_ms
+                    )
+                    return data
+                else:
+                    # Expired - remove it
+                    del project_cache[operation]
+                    if not project_cache:
+                        self._stale_caches.pop(project_id, None)
+        return None
+
+    def _set_stale_cache(self, project_id: str, operation: str, data: Any) -> None:
+        """Store fresh data in the stale cache for a project operation."""
+        with self._stale_cache_lock:
+            if project_id not in self._stale_caches:
+                self._stale_caches[project_id] = {}
+            self._stale_caches[project_id][operation] = (data, time.time() * 1000)
+
+    def _record_refresh_metric(
+        self,
+        project_id: str,
+        operation: str,
+        duration_ms: float,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
+        """Record refresh metrics for diagnostics."""
+        if project_id not in self._project_refresh_metrics:
+            self._project_refresh_metrics[project_id] = {}
+        if operation not in self._project_refresh_metrics[project_id]:
+            self._project_refresh_metrics[project_id][operation] = {
+                "last_duration_ms": 0.0,
+                "timeout_count": 0,
+                "success_count": 0,
+                "last_error": None,
+            }
+        m = self._project_refresh_metrics[project_id][operation]
+        m["last_duration_ms"] = duration_ms
+        if success:
+            m["success_count"] += 1
+            m["last_error"] = None
+        else:
+            m["timeout_count"] += 1
+            m["last_error"] = error
+
+    async def _run_bounded_refresh(
+        self,
+        project_id: str,
+        operation: str,
+        coro_factory,
+        *,
+        timeout_ms: int | None = None,
+    ) -> tuple[Any, bool]:
+        """Run a project-scoped refresh operation with bounded concurrency and timeout.
+
+        Args:
+            project_id: The project identifier (or "legacy" for global tracker).
+            operation: Operation name for metrics/cache (e.g. "candidates", "reviews").
+            coro_factory: Async callable that returns the fresh data.
+            timeout_ms: Override timeout in milliseconds (None = use config default).
+
+        Returns:
+            Tuple of (data, is_fresh) where is_fresh is True if data came from
+            the live operation, False if it came from stale cache.
+        """
+        timeout_ms = timeout_ms or self.config.project_refresh_timeout_ms
+        semaphore = self._get_project_semaphore(project_id)
+        start = time.monotonic()
+
+        # If timeout is 0, disable timeout entirely
+        has_timeout = timeout_ms > 0
+        timeout_s = timeout_ms / 1000.0 if has_timeout else None
+
+        async def _run_with_semaphore():
+            async with semaphore:
+                if has_timeout:
+                    return await asyncio.wait_for(coro_factory(), timeout=timeout_s)
+                else:
+                    return await coro_factory()
+
+        try:
+            data = await _run_with_semaphore()
+            duration_ms = (time.monotonic() - start) * 1000
+            self._record_refresh_metric(project_id, operation, duration_ms, True)
+            self._set_stale_cache(project_id, operation, data)
+            return data, True
+        except asyncio.TimeoutError:
+            duration_ms = (time.monotonic() - start) * 1000
+            error = f"timeout after {timeout_ms}ms"
+            logger.warning(
+                "Project %s operation %s timed out after %.0fms, using stale cache",
+                project_id, operation, duration_ms
+            )
+            self._record_refresh_metric(project_id, operation, duration_ms, False, error)
+            stale = self._get_stale_cache(project_id, operation)
+            return stale if stale is not None else [], False
+        except Exception as exc:
+            duration_ms = (time.monotonic() - start) * 1000
+            error = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "Project %s operation %s failed after %.0fms: %s, using stale cache",
+                project_id, operation, duration_ms, exc
+            )
+            self._record_refresh_metric(project_id, operation, duration_ms, False, error)
+            stale = self._get_stale_cache(project_id, operation)
+            return stale if stale is not None else [], False
 
     def _arm_profile_drift_alert(self) -> None:
         """Add or clear the profile-drift alert based on config state.
@@ -2133,20 +2274,16 @@ class Orchestrator:
         ``_merged_branches_dirty`` is set (by webhooks or first tick).
         """
         self._reviews_cache = {}  # reset per tick — shared by PR branches + YOLO
-        loop = asyncio.get_event_loop()
-        reviews_task = loop.run_in_executor(self._tick_pool, self._fetch_all_reviews)
 
         if self._merged_branches_dirty:
-            merged_task = loop.run_in_executor(
-                self._tick_pool, self._fetch_all_merged_branches
-            )
             reviews_by_project, merged_branches = await asyncio.gather(
-                reviews_task, merged_task
+                self._fetch_all_reviews_bounded(),
+                self._fetch_all_merged_branches_bounded(),
             )
             self._merged_branches = merged_branches
             self._merged_branches_dirty = False
         else:
-            reviews_by_project = await reviews_task
+            reviews_by_project = await self._fetch_all_reviews_bounded()
 
         self._reviews_cache = reviews_by_project
         # Derive unmerged review branches from cached reviews
@@ -2508,57 +2645,67 @@ class Orchestrator:
         projects = self.project_store.list_all()
         if not projects:
             # No projects configured — use legacy tracker
-            try:
-                return self.tracker.fetch_candidate_issues()
-            except TrackerNotConfiguredError:
-                # Treat missing Backlog.md as an empty queue this tick.
-                return []
-            except TrackerTimeoutError as exc:
-                # Transient — log at WARNING so the error_watcher does
-                # not auto-file a duplicate bug task every tick.
-                logger.warning("Tracker fetch timed out: %s", exc)
-                return []
-            except TrackerError as exc:
-                logger.error(
-                    "Tracker fetch failed: %s",
-                    exc,
-                    extra={"error_class": _error_class_for_tracker_exc(exc)},
-                )
-                return []
+            return self._fetch_legacy_candidates()
 
-        def _fetch_for_project(project) -> list[Issue]:
-            try:
-                tracker = self._tracker_for_project(project.id)
-                issues = tracker.fetch_candidate_issues()
-                for issue in issues:
-                    issue.project_id = project.id
-                return issues
-            except TrackerNotConfiguredError:
-                # Project's tracker isn't initialized — environmental.
-                return []
-            except TrackerTimeoutError as exc:
-                # Transient — log at WARNING so the error_watcher does
-                # not auto-file a duplicate bug task every tick.
-                logger.warning(
-                    "Fetch timed out for project %s: %s",
-                    project.name,
-                    exc,
-                )
-                return []
-            except (TrackerError, ProjectError) as exc:
-                logger.error(
-                    "Fetch failed for project %s: %s",
-                    project.name,
-                    exc,
-                    extra={"error_class": _error_class_for_tracker_exc(exc)},
-                )
-                return []
+        async def _fetch_all_projects() -> list[Issue]:
+            # Use bounded per-project refresh for each project
+            async def _fetch_one(project) -> list[Issue]:
+                project_id = project.id
+                async def _coro():
+                    try:
+                        tracker = self._tracker_for_project(project_id)
+                        issues = tracker.fetch_candidate_issues()
+                        for issue in issues:
+                            issue.project_id = project_id
+                        return issues
+                    except TrackerNotConfiguredError:
+                        return []
+                    except TrackerTimeoutError as exc:
+                        logger.warning(
+                            "Fetch timed out for project %s: %s",
+                            project.name,
+                            exc,
+                        )
+                        return []
+                    except (TrackerError, ProjectError) as exc:
+                        logger.error(
+                            "Fetch failed for project %s: %s",
+                            project.name,
+                            exc,
+                            extra={"error_class": _error_class_for_tracker_exc(exc)},
+                        )
+                        return []
 
-        all_candidates: list[Issue] = []
-        with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
-            for issues in pool.map(_fetch_for_project, projects):
+                data, _ = await self._run_bounded_refresh(
+                    project_id, "candidates", _coro
+                )
+                return data
+
+            all_candidates: list[Issue] = []
+            # Use asyncio.gather for parallel bounded refresh
+            results = await asyncio.gather(*[_fetch_one(p) for p in projects])
+            for issues in results:
                 all_candidates.extend(issues)
-        return all_candidates
+            return all_candidates
+
+        return asyncio.run(_fetch_all_projects())
+
+    def _fetch_legacy_candidates(self) -> list[Issue]:
+        """Fetch candidates from legacy (no-projects) tracker."""
+        try:
+            return self.tracker.fetch_candidate_issues()
+        except TrackerNotConfiguredError:
+            return []
+        except TrackerTimeoutError as exc:
+            logger.warning("Tracker fetch timed out: %s", exc)
+            return []
+        except TrackerError as exc:
+            logger.error(
+                "Tracker fetch failed: %s",
+                exc,
+                extra={"error_class": _error_class_for_tracker_exc(exc)},
+            )
+            return []
 
     def _fetch_in_progress_issues(self) -> list[Issue]:
         """Fetch In Progress issues for orphan reconciliation.
@@ -2568,51 +2715,65 @@ class Orchestrator:
         """
         projects = self.project_store.list_all()
         if not projects:
-            try:
-                return self.tracker.fetch_issues_by_states([IN_PROGRESS])
-            except TrackerNotConfiguredError:
-                return []
-            except TrackerTimeoutError as exc:
-                logger.warning("Tracker In Progress fetch timed out: %s", exc)
-                return []
-            except TrackerError as exc:
-                logger.error(
-                    "Tracker In Progress fetch failed: %s",
-                    exc,
-                    extra={"error_class": _error_class_for_tracker_exc(exc)},
-                )
-                return []
+            return self._fetch_legacy_in_progress()
 
-        def _fetch_for_project(project) -> list[Issue]:
-            try:
-                tracker = self._tracker_for_project(project.id)
-                issues = tracker.fetch_issues_by_states([IN_PROGRESS])
-                for issue in issues:
-                    issue.project_id = project.id
-                return issues
-            except TrackerNotConfiguredError:
-                return []
-            except TrackerTimeoutError as exc:
-                logger.warning(
-                    "In Progress fetch timed out for project %s: %s",
-                    project.name,
-                    exc,
-                )
-                return []
-            except (TrackerError, ProjectError) as exc:
-                logger.error(
-                    "In Progress fetch failed for project %s: %s",
-                    project.name,
-                    exc,
-                    extra={"error_class": _error_class_for_tracker_exc(exc)},
-                )
-                return []
+        async def _fetch_all_projects() -> list[Issue]:
+            async def _fetch_one(project) -> list[Issue]:
+                project_id = project.id
+                async def _coro():
+                    try:
+                        tracker = self._tracker_for_project(project_id)
+                        issues = tracker.fetch_issues_by_states([IN_PROGRESS])
+                        for issue in issues:
+                            issue.project_id = project_id
+                        return issues
+                    except TrackerNotConfiguredError:
+                        return []
+                    except TrackerTimeoutError as exc:
+                        logger.warning(
+                            "In Progress fetch timed out for project %s: %s",
+                            project.name,
+                            exc,
+                        )
+                        return []
+                    except (TrackerError, ProjectError) as exc:
+                        logger.error(
+                            "In Progress fetch failed for project %s: %s",
+                            project.name,
+                            exc,
+                            extra={"error_class": _error_class_for_tracker_exc(exc)},
+                        )
+                        return []
 
-        in_progress: list[Issue] = []
-        with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
-            for issues in pool.map(_fetch_for_project, projects):
+                data, _ = await self._run_bounded_refresh(
+                    project_id, "in_progress", _coro
+                )
+                return data
+
+            in_progress: list[Issue] = []
+            results = await asyncio.gather(*[_fetch_one(p) for p in projects])
+            for issues in results:
                 in_progress.extend(issues)
-        return in_progress
+            return in_progress
+
+        return asyncio.run(_fetch_all_projects())
+
+    def _fetch_legacy_in_progress(self) -> list[Issue]:
+        """Fetch In Progress from legacy tracker."""
+        try:
+            return self.tracker.fetch_issues_by_states([IN_PROGRESS])
+        except TrackerNotConfiguredError:
+            return []
+        except TrackerTimeoutError as exc:
+            logger.warning("Tracker In Progress fetch timed out: %s", exc)
+            return []
+        except TrackerError as exc:
+            logger.error(
+                "Tracker In Progress fetch failed: %s",
+                exc,
+                extra={"error_class": _error_class_for_tracker_exc(exc)},
+            )
+            return []
 
     def _retryable_state_keys(self) -> set[str]:
         """Return states that may be dispatched by a scheduled retry."""
@@ -4843,6 +5004,57 @@ class Orchestrator:
                 result[pid] = reviews
         return result
 
+    async def _fetch_all_reviews_bounded(self) -> dict[str, list]:
+        """Fetch open reviews using bounded per-project concurrency with timeout and stale-cache fallback.
+
+        Uses the shared bounded refresh infrastructure (_run_bounded_refresh) to
+        ensure one slow project doesn't block others, and stale cached data is
+        used as fallback when a project times out.
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            return {}
+
+        previous_cache = {
+            str(project_id): list(reviews or [])
+            for project_id, reviews in (
+                getattr(self, "_reviews_cache", {}) or {}
+            ).items()
+        }
+
+        def _cached_reviews(project_id: str) -> list:
+            return list(previous_cache.get(str(project_id), []))
+
+        async def _fetch_one_project(project) -> tuple[str, list]:
+            project_id = str(project.id)
+            # Skip polling for webhook-healthy projects
+            if self.is_webhook_healthy(project_id):
+                return (project_id, _cached_reviews(project_id))
+
+            async def _coro() -> list:
+                provider = detect_provider(
+                    project.repo_url, access_token=project.access_token
+                )
+                if not provider:
+                    return _cached_reviews(project_id)
+                slug = extract_repo_slug(project.repo_url)
+                try:
+                    return provider.list_open_reviews(slug)
+                except Exception as exc:
+                    logger.debug(
+                        "Failed to fetch open reviews for %s: %s", project.name, exc
+                    )
+                    return _cached_reviews(project_id)
+
+            data, _ = await self._run_bounded_refresh(
+                project_id, "reviews", _coro
+            )
+            return (project_id, data)
+
+        # Run all project fetches concurrently with bounded concurrency
+        results = await asyncio.gather(*[_fetch_one_project(p) for p in projects])
+        return {pid: reviews for pid, reviews in results}
+
     def _fetch_all_merged_branches(self) -> set[str]:
         """Fetch merged PR/MR branch names across projects with stale webhooks.
 
@@ -4876,6 +5088,50 @@ class Orchestrator:
             for branches in pool.map(_fetch_for_project, projects):
                 result |= branches
         return result
+
+    async def _fetch_all_merged_branches_bounded(self) -> set[str]:
+        """Fetch merged branches using bounded per-project concurrency with timeout and stale-cache fallback.
+
+        Uses the shared bounded refresh infrastructure (_run_bounded_refresh) to
+        ensure one slow project doesn't block others, and stale cached data is
+        used as fallback when a project times out.
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            return set()
+
+        async def _fetch_one_project(project) -> set[str]:
+            project_id = str(project.id)
+            # Skip polling for webhook-healthy projects
+            if self.is_webhook_healthy(project_id):
+                return set()
+
+            async def _coro() -> set[str]:
+                provider = detect_provider(
+                    project.repo_url, access_token=project.access_token
+                )
+                if not provider:
+                    return set()
+                slug = extract_repo_slug(project.repo_url)
+                try:
+                    return provider.list_merged_branches(slug)
+                except Exception as exc:
+                    logger.debug(
+                        "Failed to fetch merged branches for %s: %s", project.name, exc
+                    )
+                    return set()
+
+            data, _ = await self._run_bounded_refresh(
+                project_id, "merged_branches", _coro
+            )
+            return data
+
+        # Run all project fetches concurrently with bounded concurrency
+        results = await asyncio.gather(*[_fetch_one_project(p) for p in projects])
+        merged: set[str] = set()
+        for branches in results:
+            merged |= branches
+        return merged
 
     def _reset_orphaned_in_progress(self, candidates: list[Issue]) -> None:
         """Reset in_progress issues back to open if no agent is attached.
@@ -4913,7 +5169,15 @@ class Orchestrator:
                 elif "ci-fix" in labels:
                     status = NEEDS_CI_FIX
                     updates["priority"] = "0"
-                tracker.update_issue(issue.identifier, status=status, **updates)
+                # Acquire per-project write lock so concurrent maintenance
+                # passes don't interleave tracker writes for the same project.
+                _lock_ctx = (
+                    self.project_store.project_write_lock(project_id)
+                    if project_id
+                    else contextlib.nullcontext()
+                )
+                with _lock_ctx:
+                    tracker.update_issue(issue.identifier, status=status, **updates)
                 self.state.completed.discard(issue.id)
                 self._orphan_reset_counts[issue.id] = (
                     self._orphan_reset_counts.get(issue.id, 0) + 1
@@ -13309,7 +13573,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "json",
             ),
             "rate_limits": self.state.rate_limits,
-            "projects": [p.to_dict() for p in self.project_store.list_all()],
+            "projects": [p.to_safe_dict() for p in self.project_store.list_all()],
             "open_reviews_by_project": {
                 pid: self._count_open_reviews(pid)
                 for pid in (getattr(self, "_reviews_cache", None) or {})
@@ -13324,6 +13588,22 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "maintenance": dict(
                     getattr(self, "_maintenance_status", {}) or {}
                 ),
+                # Per-project, per-operation refresh timing and timeout counts.
+                # Operators can use this to identify which project or operation
+                # is causing slow ticks. Each entry has:
+                #   last_duration_ms  — wall-clock time for the last attempt
+                #   success_count     — total successful refreshes since start
+                #   timeout_count     — total timeouts (stale data was used)
+                #   last_error        — error string from the most recent failure
+                # A high timeout_count for a project's "candidates" operation
+                # means that project's tracker is consistently slow and oompah
+                # is falling back to cached data. See docs/tick-latency-diagnostics.md.
+                "project_refresh": {
+                    pid: dict(ops)
+                    for pid, ops in (
+                        getattr(self, "_project_refresh_metrics", {}) or {}
+                    ).items()
+                },
                 "tracker_reads": self._tracker_read_stats_snapshot(),
                 "ipc": (
                     self._ipc.diagnostics()

@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -592,6 +593,18 @@ class ProjectStore:
         self.repos_root = repos_root or DEFAULT_REPOS_ROOT
         self.worktree_root = worktree_root or DEFAULT_WORKTREE_ROOT
         self._projects: dict[str, Project] = {}
+
+        # Per-project write locks for tracker mutations and git operations.
+        # Serializes concurrent tracker writes (Backlog task file updates) and
+        # git worktree/branch mutations for the same project so background
+        # parallelism cannot corrupt shared state.  Different projects hold
+        # independent locks so unrelated projects can make progress concurrently.
+        # RLock (reentrant) so a caller that already holds the lock can call
+        # worktree methods that also acquire it without deadlocking.
+        # Access to _project_locks dict itself is protected by _project_locks_meta.
+        self._project_locks: dict[str, threading.RLock] = {}
+        self._project_locks_meta: threading.Lock = threading.Lock()
+
         self._load()
 
     def _load(self) -> None:
@@ -620,6 +633,29 @@ class ProjectStore:
 
     def get(self, project_id: str) -> Project | None:
         return self._projects.get(project_id)
+
+    def project_write_lock(self, project_id: str) -> threading.RLock:
+        """Return the per-project write lock for *project_id*.
+
+        The lock is created on first access and cached for the lifetime of this
+        store instance.  Callers should hold the lock while performing any
+        operation that mutates Backlog task files, GitHub tracker state, git
+        worktrees, or review metadata for the given project:
+
+            with self.project_store.project_write_lock(project_id):
+                tracker.update_issue(...)
+                # or:
+                self.project_store.create_worktree(...)
+
+        Different projects have independent locks so unrelated projects can
+        run maintenance and dispatch concurrently without blocking each other.
+        The lock is reentrant (``threading.RLock``) so callers that already hold
+        it can invoke worktree methods without deadlocking.
+        """
+        with self._project_locks_meta:
+            if project_id not in self._project_locks:
+                self._project_locks[project_id] = threading.RLock()
+            return self._project_locks[project_id]
 
     def create(
         self,
@@ -1180,6 +1216,12 @@ class ProjectStore:
         on the wrong branch — keeps in-flight commits from previous
         agents on the shared branch).
         """
+        # Acquire per-project lock to serialize concurrent epic worktree
+        # create/remove operations for the same project.
+        with self.project_write_lock(project_id):
+            return self._create_epic_worktree_locked(project_id, epic_identifier)
+
+    def _create_epic_worktree_locked(self, project_id: str, epic_identifier: str) -> str:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
@@ -1357,6 +1399,11 @@ class ProjectStore:
         Mirrors :meth:`remove_worktree` but with the epic-named directory
         and a tolerant fall-through when the worktree no longer exists.
         """
+        # Acquire per-project lock so concurrent remove operations are serialized.
+        with self.project_write_lock(project_id):
+            self._remove_epic_worktree_locked(project_id, epic_identifier)
+
+    def _remove_epic_worktree_locked(self, project_id: str, epic_identifier: str) -> None:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
@@ -1382,6 +1429,18 @@ class ProjectStore:
         logger.info("Epic worktree removed path=%s", wt_path)
 
     def create_worktree(
+        self, project_id: str, issue_identifier: str, base_branch: str | None = None
+    ) -> str:
+        # Acquire the per-project lock so concurrent dispatch and maintenance
+        # operations for the same project are serialized through git.  The lock
+        # is reentrant so callers that already hold it (e.g. dispatch holding
+        # the lock across a tracker write + worktree create) do not deadlock.
+        with self.project_write_lock(project_id):
+            return self._create_worktree_locked(
+                project_id, issue_identifier, base_branch
+            )
+
+    def _create_worktree_locked(
         self, project_id: str, issue_identifier: str, base_branch: str | None = None
     ) -> str:
         project = self._projects.get(project_id)
@@ -1739,6 +1798,13 @@ class ProjectStore:
             )
 
     def remove_worktree(self, project_id: str, issue_identifier: str) -> None:
+        # Acquire the per-project lock so concurrent dispatch and maintenance
+        # operations (e.g. self-heal removing a worktree while dispatch creates
+        # one) for the same project are serialized.
+        with self.project_write_lock(project_id):
+            self._remove_worktree_locked(project_id, issue_identifier)
+
+    def _remove_worktree_locked(self, project_id: str, issue_identifier: str) -> None:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")

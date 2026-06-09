@@ -445,6 +445,30 @@ class ServiceConfig:
     # Overridden by the OOMPAH_IPC_DB_PATH environment variable.
     ipc_db_path: str = ""
 
+    # Per-project refresh timeout in milliseconds. When fetching
+    # candidates, reviews, merged branches, or running states from a
+    # project, if the operation takes longer than this, it is
+    # cancelled and stale cached data is used instead. 0 disables
+    # the timeout (wait indefinitely). Configurable via
+    # OOMPAH_PROJECT_REFRESH_TIMEOUT_MS or
+    # agent.project_refresh_timeout_ms in WORKFLOW.md.
+    project_refresh_timeout_ms: int = 10000
+
+    # Maximum concurrent per-project refresh operations. Limits how
+    # many projects can be refreshed simultaneously to avoid
+    # overwhelming the system or hitting forge API rate limits.
+    # Configurable via OOMPAH_PROJECT_REFRESH_MAX_CONCURRENT or
+    # agent.project_refresh_max_concurrent in WORKFLOW.md.
+    project_refresh_max_concurrent: int = 4
+
+    # Time-to-live for stale cached data in milliseconds. If cached
+    # data is older than this, it will not be used as a fallback and
+    # the operation will return empty results instead. 0 disables
+    # the TTL (stale cache never expires). Configurable via
+    # OOMPAH_PROJECT_STALE_CACHE_TTL_MS or
+    # agent.project_stale_cache_ttl_ms in WORKFLOW.md.
+    project_stale_cache_ttl_ms: int = 300000
+
     def __post_init__(self):
         self.tracker_kind = _parse_tracker_kind(self.tracker_kind)
         self.dispatch_scan_limit = max(int(self.dispatch_scan_limit), 0)
@@ -742,6 +766,21 @@ class ServiceConfig:
                 "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
+            project_refresh_timeout_ms=_env_int(
+                "OOMPAH_PROJECT_REFRESH_TIMEOUT_MS",
+                agent.get("project_refresh_timeout_ms"),
+                10000,
+            ),
+            project_refresh_max_concurrent=_env_int(
+                "OOMPAH_PROJECT_REFRESH_MAX_CONCURRENT",
+                agent.get("project_refresh_max_concurrent"),
+                4,
+            ),
+            project_stale_cache_ttl_ms=_env_int(
+                "OOMPAH_PROJECT_STALE_CACHE_TTL_MS",
+                agent.get("project_stale_cache_ttl_ms"),
+                300000,
+            ),
         )
 
 
