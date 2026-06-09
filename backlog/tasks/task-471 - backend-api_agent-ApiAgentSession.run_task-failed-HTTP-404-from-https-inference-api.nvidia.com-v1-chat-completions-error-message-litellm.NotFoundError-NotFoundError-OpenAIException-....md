@@ -80,3 +80,9 @@ created: 2026-06-09 19:57
 Duplicate investigation (run #2): confirmed NOT a duplicate. Searched for tasks matching 'nvidia', 'NotFoundError', 'HTTP 404', and 'litellm' — only TASK-471 matches. Prior 400-error tasks (TASK-432, TASK-435, TASK-438, TASK-440, TASK-442, TASK-443) are distinct error types (BadRequestError/ContextWindowExceeded). Task is already Done; fix committed on branch (litellm HTTP 404 NotFoundError now raises TransientServerError, 8 unit tests passing).
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+NOT a duplicate. Second duplicate investigation (run #2) confirmed: no other tasks share the HTTP 404 litellm.NotFoundError pattern. Fix already implemented on this branch — _http_post() detects litellm NotFoundError 404 and raises TransientServerError, 8 unit tests passing.
+<!-- SECTION:FINAL_SUMMARY:END -->
