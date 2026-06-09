@@ -5,7 +5,7 @@ title: >-
   https://inference-api.nvidia.com/v1/chat/completions:
   {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException
   -...
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-09 00:40'
 updated_date: '2026-06-09 19:47'
@@ -132,3 +132,9 @@ created: 2026-06-09 19:47
 Duplicate investigation complete: NOT a duplicate. Prior agents confirmed and fixed this issue. The model name 'nvidia/nvidia/nemotron-3-ultra' (with doubled prefix) in the error comes from litellm's routing table miss — the 404 is transient during model deployment windows. Fix already implemented and committed: _http_post() now detects litellm HTTP 404 NotFoundError (with 'Received Model Group=' in body) and raises TransientServerError instead of RuntimeError, enabling retries. 8 unit tests added in TestHttpPost404LitellmNotFoundClassifiedAsTransient, all passing. Branch pushed.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+NOT a duplicate. Fix implemented by prior agents: _http_post() in oompah/api_agent.py now detects litellm HTTP 404 NotFoundError (model router miss, transient during deployment) and raises TransientServerError instead of RuntimeError, enabling 5-retry backoff loop. 8 unit tests in TestHttpPost404LitellmNotFoundClassifiedAsTransient all passing. Branch pushed.
+<!-- SECTION:FINAL_SUMMARY:END -->
