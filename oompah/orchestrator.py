@@ -776,6 +776,19 @@ class Orchestrator:
         # Lock for thread-safe stale cache updates.
         self._stale_cache_lock = threading.Lock()
 
+        # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
+        # the dashboard shows a banner whenever WORKFLOW.md still has a
+        # stale agent.profiles block that disagrees with the persisted
+        # store. Same channel as auto-update warnings.
+        self._arm_profile_drift_alert()
+
+        # IPC layer for multi-process service split (TASK-469.5.1).
+        # When ipc is passed explicitly (tests / custom startup), use it.
+        # Otherwise try to pick up the process-level singleton from the
+        # OOMPAH_IPC_DB_PATH env var.  If neither is configured, stays None
+        # and the orchestrator operates in single-process / combined mode.
+        self._ipc: OrchestratorIPC | None = ipc if ipc is not None else get_ipc()
+
     # --- Bounded per-project refresh helpers (TASK-467.2) ---
 
     def _get_project_semaphore(self, project_id: str) -> asyncio.Semaphore:
@@ -903,19 +916,6 @@ class Orchestrator:
             self._record_refresh_metric(project_id, operation, duration_ms, False, error)
             stale = self._get_stale_cache(project_id, operation)
             return stale if stale is not None else [], False
-
-        # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
-        # the dashboard shows a banner whenever WORKFLOW.md still has a
-        # stale agent.profiles block that disagrees with the persisted
-        # store. Same channel as auto-update warnings.
-        self._arm_profile_drift_alert()
-
-        # IPC layer for multi-process service split (TASK-469.5.1).
-        # When ipc is passed explicitly (tests / custom startup), use it.
-        # Otherwise try to pick up the process-level singleton from the
-        # OOMPAH_IPC_DB_PATH env var.  If neither is configured, stays None
-        # and the orchestrator operates in single-process / combined mode.
-        self._ipc: OrchestratorIPC | None = ipc if ipc is not None else get_ipc()
 
     def _arm_profile_drift_alert(self) -> None:
         """Add or clear the profile-drift alert based on config state.
@@ -13573,7 +13573,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "json",
             ),
             "rate_limits": self.state.rate_limits,
-            "projects": [p.to_dict() for p in self.project_store.list_all()],
+            "projects": [p.to_safe_dict() for p in self.project_store.list_all()],
             "open_reviews_by_project": {
                 pid: self._count_open_reviews(pid)
                 for pid in (getattr(self, "_reviews_cache", None) or {})

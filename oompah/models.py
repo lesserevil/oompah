@@ -392,7 +392,14 @@ class Project:
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
-        """Return dict with the access token masked for display."""
+        """Return dict with secrets redacted for display / API responses.
+
+        Removes ``access_token`` and ``webhook_secret`` from the returned dict
+        so they are never surfaced through the state API or WebSocket
+        broadcasts.  Presence-flags (``has_access_token``, ``has_webhook_secret``)
+        are added so dashboards can indicate whether credentials are configured
+        without exposing the values.
+        """
         d = self.to_dict()
         token = d.pop("access_token", None)
         if token:
@@ -403,6 +410,9 @@ class Project:
         else:
             d["access_token_masked"] = ""
             d["has_access_token"] = False
+        # Redact webhook_secret — the value must not appear in API responses.
+        webhook_secret = d.pop("webhook_secret", None)
+        d["has_webhook_secret"] = bool(webhook_secret)
         return d
 
     @classmethod

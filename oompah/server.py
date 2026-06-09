@@ -410,6 +410,41 @@ _issues_refresh_task: asyncio.Task | None = None
 _api_metrics_lock = threading.Lock()
 _api_metrics: dict[str, dict[str, Any]] = {}
 
+# ---------------------------------------------------------------------------
+# State snapshot cache for combined-mode API responsiveness
+# ---------------------------------------------------------------------------
+# In combined (single-process) mode the /api/v1/state endpoint previously
+# called orch.get_snapshot() on every request, which rebuilds state from
+# scratch and can block behind GIL contention from heavy maintenance work
+# (YAML parsing, archive scans).  Instead we cache the last snapshot emitted
+# by the orchestrator's observer callbacks and serve it without recomputing.
+# Cache TTL is generous (30 s) — observers fire on every tick / agent event,
+# so in practice the snapshot is always fresher than this limit.
+_STATE_SNAPSHOT_MAX_AGE_S = 30.0
+_state_snapshot_lock = threading.Lock()
+_state_snapshot: dict[str, Any] | None = None
+_state_snapshot_at: float = 0.0  # monotonic seconds
+
+
+def _update_state_snapshot(snapshot: dict[str, Any]) -> None:
+    """Store a fresh snapshot from an orchestrator observer callback."""
+    global _state_snapshot, _state_snapshot_at
+    with _state_snapshot_lock:
+        _state_snapshot = snapshot
+        _state_snapshot_at = time.monotonic()
+
+
+def _read_state_snapshot() -> dict[str, Any] | None:
+    """Return the cached snapshot if it is fresh enough, else None."""
+    with _state_snapshot_lock:
+        if _state_snapshot is None:
+            return None
+        age = time.monotonic() - _state_snapshot_at
+        if age > _STATE_SNAPSHOT_MAX_AGE_S:
+            return None
+        return dict(_state_snapshot)
+
+
 # Shared response cache for API endpoints
 _api_cache = TTLCache()
 
@@ -836,6 +871,8 @@ def _on_state_only_change(snapshot: dict) -> None:
     import time
 
     global _last_state_broadcast
+    # Always cache the snapshot so api_state() can serve it without recomputing.
+    _update_state_snapshot(snapshot)
     if not _ws_clients:
         return
     now = time.monotonic() * 1000
@@ -855,6 +892,8 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     import time
 
     global _last_state_broadcast
+    # Always cache the snapshot so api_state() can serve it without recomputing.
+    _update_state_snapshot(snapshot)
     _api_cache.invalidate("issues:all")
     if not _ws_clients:
         return
@@ -1440,13 +1479,21 @@ async def api_console_delete(project_id: str):
 async def api_state():
     """Return current system state snapshot.
 
-    In multi-process / API-only mode (OOMPAH_IPC_DB_PATH set, no local
-    orchestrator) reads the pre-computed snapshot from the SQLite IPC cache
-    written by the scheduler process.  This path never touches the tracker,
-    YAML parsing, or any GIL-heavy scheduler code.
+    Read paths (fastest-first):
 
-    In combined / single-process mode falls back to the direct
-    ``orch.get_snapshot()`` call.
+    1. **API-only mode** (``_orchestrator is None``, IPC set): reads the
+       pre-computed snapshot from the SQLite IPC cache written by the
+       scheduler process.  Never touches the tracker, YAML parsing, or
+       GIL-heavy scheduler code.
+
+    2. **Combined mode — cached snapshot**: returns the snapshot that was
+       stored by the last orchestrator observer callback
+       (``_on_orchestrator_change`` / ``_on_state_only_change``).  This
+       avoids rebuilding state during a tick / maintenance burst.
+
+    3. **Combined mode — live fallback**: calls ``orch.get_snapshot()``
+       directly when no cached snapshot is available yet (e.g. on first
+       request before the first tick completes).
     """
     t_start = time.monotonic()
     try:
@@ -1463,9 +1510,13 @@ async def api_state():
             snapshot["api_metrics"] = _api_metrics_snapshot()
             return JSONResponse(snapshot)
 
-        # Combined mode: call orchestrator directly.
+        # Combined mode: prefer the cached snapshot to avoid recomputing
+        # during maintenance / tick bursts.
         orch = _get_orchestrator()
-        snapshot = orch.get_snapshot()
+        snapshot = _read_state_snapshot()
+        if snapshot is None:
+            # No cached snapshot yet — fall back to live computation.
+            snapshot = orch.get_snapshot()
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
         snapshot["api_metrics"] = _api_metrics_snapshot()
