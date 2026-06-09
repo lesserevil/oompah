@@ -256,6 +256,31 @@ class TestPruneStaleEpicRebaseStates:
         assert "epic-open" in orch._epic_rebase_states
         assert "epic-closed" not in orch._epic_rebase_states
 
+    def test_drops_alerts_for_pruned_epics(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch._epic_rebase_states["epic-open"] = EpicRebaseStateEntry(
+            state="stale", updated_at=time.time()
+        )
+        orch._epic_rebase_states["epic-closed"] = EpicRebaseStateEntry(
+            state="stale", updated_at=time.time()
+        )
+        orch._alerts = [
+            {"source": "epic_stale:epic-open"},
+            {"source": "epic_stale:epic-closed"},
+            {"source": "rate_limit"},
+        ]
+
+        candidates = [
+            _make_issue("epic-open", state="open"),
+            _make_issue("epic-closed", state="merged"),
+        ]
+        orch._prune_stale_epic_rebase_states(candidates)
+
+        assert [alert["source"] for alert in orch._alerts] == [
+            "epic_stale:epic-open",
+            "rate_limit",
+        ]
+
     def test_keeps_non_epic_issues_out_of_consideration(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
         orch._epic_rebase_states["epic-1"] = EpicRebaseStateEntry(

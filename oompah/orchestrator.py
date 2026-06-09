@@ -4522,6 +4522,7 @@ class Orchestrator:
         ]
         for epic_id in stale:
             entry = self._epic_rebase_states.pop(epic_id)
+            self._clear_epic_stale_alert(epic_id)
             logger.debug(
                 "Pruned stale epic rebase state for %s (was %s)",
                 epic_id,
