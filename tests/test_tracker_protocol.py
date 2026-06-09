@@ -184,6 +184,11 @@ class TestValidateDispatchConfigUsesRegistry:
         cfg = ServiceConfig(tracker_kind="backlog_md")
         assert validate_dispatch_config(cfg) == []
 
+    def test_github_issues_is_valid(self):
+        """'github_issues' must be accepted as a registered tracker kind."""
+        cfg = ServiceConfig(tracker_kind="github_issues")
+        assert validate_dispatch_config(cfg) == []
+
     def test_backlog_alias_is_valid(self):
         """'backlog' and 'backlog.md' are normalised to 'backlog_md'."""
         for alias in ("backlog", "backlog.md", "Backlog", "BACKLOG_MD"):
@@ -193,7 +198,7 @@ class TestValidateDispatchConfigUsesRegistry:
 
     def test_unknown_kind_is_rejected(self):
         """Unknown tracker.kind values must produce a descriptive error."""
-        for unknown in ("github_issues", "jira", "beans", "beads", "bd", ""):
+        for unknown in ("jira", "beans", "beads", "bd", ""):
             cfg = ServiceConfig(tracker_kind=unknown or "   ")
             errors = validate_dispatch_config(cfg)
             assert errors, f"Kind {unknown!r} should be rejected but errors is empty"

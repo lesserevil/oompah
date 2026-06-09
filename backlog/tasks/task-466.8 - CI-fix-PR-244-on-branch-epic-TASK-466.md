@@ -1,10 +1,10 @@
 ---
 id: TASK-466.8
 title: 'CI fix: PR #244 on branch epic-TASK-466'
-status: In Progress
+status: Open
 assignee: []
-created_date: 2026-06-09 03:24
-updated_date: 2026-06-09 03:33
+created_date: '2026-06-09 03:24'
+updated_date: '2026-06-09 04:51'
 labels: []
 dependencies: []
 parent_task_id: TASK-466

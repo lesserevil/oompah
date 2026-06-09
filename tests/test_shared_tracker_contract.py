@@ -5,6 +5,11 @@ TrackerProtocol contract for common operations. They are executed against
 a fake in-memory tracker that records state in-process.
 """
 
+import re as _re
+from unittest.mock import MagicMock, patch
+from urllib.parse import urlsplit, parse_qs, unquote
+
+import httpx
 import pytest
 from typing import List, Dict, Any
 
@@ -390,14 +395,335 @@ def backlog_tracker(tmp_path):
     )
 
 
+# ----------------------------------------------------------------------
+# Fake GitHub HTTP server for GitHubIssueTracker contract testing
+# ----------------------------------------------------------------------
+
+
+class FakeGitHubHTTPServer:
+    """Stateful fake that simulates the GitHub REST API at the httpx layer.
+
+    Intercepts ``httpx.Client.request(method, url, **kwargs)`` calls made
+    by :class:`~oompah.github_tracker.GitHubClient` and responds with
+    in-memory state rather than hitting the real network.
+
+    Supports the subset of GitHub's REST API used by
+    :class:`~oompah.github_tracker.GitHubIssueTracker`:
+
+    * Issue CRUD (list, create, get, patch)
+    * Label operations (get, add, remove)
+    * Comment operations (get, add)
+    * Sub-issues endpoint → always returns 404 so the label-based
+      fallback path is exercised.
+    * Dependencies endpoint → always returns 404 so the label-based
+      fallback path is exercised.
+    """
+
+    OWNER = "tester"
+    REPO = "fake-repo"
+
+    def __init__(self) -> None:
+        # number → raw GitHub issue dict
+        self._issues: Dict[int, Dict] = {}
+        # number → list of raw GitHub comment dicts
+        self._comments: Dict[int, List[Dict]] = {}
+        self._next_number: int = 1
+        self._next_comment_id: int = 1
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _resp(
+        self,
+        status_code: int,
+        json_data: Any = None,
+        headers: Dict[str, str] | None = None,
+    ) -> MagicMock:
+        """Build a mock *httpx.Response* with the given status and body."""
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = status_code
+        resp.is_success = 200 <= status_code < 300
+        resp.headers = httpx.Headers(headers or {})
+        resp.request = MagicMock()
+        resp.request.method = "GET"
+        resp.request.url = "https://api.github.com/fake"
+        if json_data is not None:
+            resp.json.return_value = json_data
+            resp.text = ""
+        else:
+            resp.json.side_effect = Exception("no JSON body")
+            resp.text = ""
+        return resp
+
+    def _make_issue_dict(
+        self,
+        number: int,
+        title: str,
+        body: str,
+        labels: List[str],
+        state: str,
+    ) -> Dict:
+        """Build a GitHub REST issue representation."""
+        return {
+            "id": 10000 + number,
+            "number": number,
+            "title": title,
+            "body": body,
+            "state": state,
+            "labels": [
+                {"id": i + 1, "name": name, "color": "ededed"}
+                for i, name in enumerate(labels)
+            ],
+            "html_url": (
+                f"https://github.com/{self.OWNER}/{self.REPO}/issues/{number}"
+            ),
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+            "closed_at": None,
+            "user": {"login": self.OWNER},
+        }
+
+    # ------------------------------------------------------------------
+    # Route handlers
+    # ------------------------------------------------------------------
+
+    def _handle_list_issues(self, params: Dict) -> MagicMock:
+        """GET /repos/.../issues — list and filter issues."""
+        state_filter = params.get("state", "open")
+        labels_filter = params.get("labels", "")
+
+        issues = list(self._issues.values())
+
+        # Filter by GitHub state.
+        if state_filter == "open":
+            issues = [i for i in issues if i["state"] == "open"]
+        elif state_filter == "closed":
+            issues = [i for i in issues if i["state"] == "closed"]
+        # "all" → return everything.
+
+        # Filter by labels (comma-separated; issue must carry ALL labels).
+        if labels_filter:
+            required = [lbl.strip() for lbl in labels_filter.split(",") if lbl.strip()]
+            if required:
+                issues = [
+                    iss for iss in issues
+                    if all(
+                        any(lbl["name"] == req for lbl in iss["labels"])
+                        for req in required
+                    )
+                ]
+
+        return self._resp(200, issues)
+
+    def _handle_create_issue(self, json_body: Dict) -> MagicMock:
+        """POST /repos/.../issues — create a new issue."""
+        number = self._next_number
+        self._next_number += 1
+        title: str = json_body.get("title", "")
+        body: str = json_body.get("body") or ""
+        label_names: List[str] = json_body.get("labels") or []
+        state: str = json_body.get("state", "open")
+
+        issue = self._make_issue_dict(number, title, body, label_names, state)
+        self._issues[number] = issue
+        self._comments[number] = []
+        return self._resp(201, issue)
+
+    def _handle_get_issue(self, number: int) -> MagicMock:
+        """GET /repos/.../issues/{number}."""
+        issue = self._issues.get(number)
+        if issue is None:
+            return self._resp(404, {"message": "Not Found"})
+        return self._resp(200, issue)
+
+    def _handle_patch_issue(self, number: int, json_body: Dict) -> MagicMock:
+        """PATCH /repos/.../issues/{number} — update title, body, or state."""
+        issue = self._issues.get(number)
+        if issue is None:
+            return self._resp(404, {"message": "Not Found"})
+
+        if "title" in json_body:
+            issue["title"] = json_body["title"]
+        if "body" in json_body:
+            issue["body"] = json_body["body"]
+        if "state" in json_body:
+            issue["state"] = json_body["state"]
+
+        return self._resp(200, issue)
+
+    def _handle_get_labels(self, number: int) -> MagicMock:
+        """GET /repos/.../issues/{number}/labels."""
+        issue = self._issues.get(number)
+        if issue is None:
+            return self._resp(404, {"message": "Not Found"})
+        return self._resp(200, list(issue["labels"]))
+
+    def _handle_add_labels(self, number: int, json_body: Dict) -> MagicMock:
+        """POST /repos/.../issues/{number}/labels — add labels (idempotent)."""
+        issue = self._issues.get(number)
+        if issue is None:
+            return self._resp(404, {"message": "Not Found"})
+
+        existing = {lbl["name"] for lbl in issue["labels"]}
+        for name in json_body.get("labels") or []:
+            if name not in existing:
+                issue["labels"].append(
+                    {"id": len(issue["labels"]) + 1, "name": name, "color": "ededed"}
+                )
+                existing.add(name)
+
+        return self._resp(200, list(issue["labels"]))
+
+    def _handle_remove_label(self, number: int, label: str) -> MagicMock:
+        """DELETE /repos/.../issues/{number}/labels/{label}."""
+        issue = self._issues.get(number)
+        if issue is None:
+            return self._resp(404, {"message": "Not Found"})
+
+        original = len(issue["labels"])
+        issue["labels"] = [lbl for lbl in issue["labels"] if lbl["name"] != label]
+
+        if len(issue["labels"]) == original:
+            # Label was not on the issue — GitHub returns 404.
+            return self._resp(404, {"message": "Label does not exist"})
+
+        return self._resp(204)  # GitHub returns 204 on successful label removal.
+
+    def _handle_get_comments(self, number: int) -> MagicMock:
+        """GET /repos/.../issues/{number}/comments."""
+        if number not in self._issues:
+            return self._resp(404, {"message": "Not Found"})
+        return self._resp(200, list(self._comments.get(number, [])))
+
+    def _handle_add_comment(self, number: int, json_body: Dict) -> MagicMock:
+        """POST /repos/.../issues/{number}/comments."""
+        if number not in self._issues:
+            return self._resp(404, {"message": "Not Found"})
+
+        cid = self._next_comment_id
+        self._next_comment_id += 1
+        comment = {
+            "id": cid,
+            "body": json_body.get("body") or "",
+            "created_at": "2024-01-01T00:00:00Z",
+            "user": {"login": self.OWNER},
+        }
+        self._comments[number].append(comment)
+        return self._resp(201, comment)
+
+    # ------------------------------------------------------------------
+    # Request dispatcher
+    # ------------------------------------------------------------------
+
+    def __call__(self, method: str, url: str, **kwargs: Any) -> MagicMock:
+        """Route an incoming ``httpx.Client.request`` call to a handler."""
+        # Strip query string from URL so routing regexes only see the path.
+        parsed = urlsplit(url)
+        clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+
+        # Merge URL-embedded params with explicit kwargs["params"].
+        url_params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+        explicit_params = dict(kwargs.get("params") or {})
+        params = {**url_params, **explicit_params}
+
+        json_body = kwargs.get("json") or {}
+
+        repo_base = f"https://api.github.com/repos/{self.OWNER}/{self.REPO}"
+        if not clean_url.startswith(repo_base):
+            return self._resp(404, {"message": "Not Found"})
+
+        path = clean_url[len(repo_base):]
+
+        # ── /issues (list or create) ──────────────────────────────────
+        if path == "/issues":
+            if method == "GET":
+                return self._handle_list_issues(params)
+            if method == "POST":
+                return self._handle_create_issue(json_body)
+
+        # ── /issues/{number} ─────────────────────────────────────────
+        m = _re.match(r"^/issues/(\d+)$", path)
+        if m:
+            number = int(m.group(1))
+            if method == "GET":
+                return self._handle_get_issue(number)
+            if method == "PATCH":
+                return self._handle_patch_issue(number, json_body)
+
+        # ── /issues/{number}/labels ───────────────────────────────────
+        m = _re.match(r"^/issues/(\d+)/labels$", path)
+        if m:
+            number = int(m.group(1))
+            if method == "GET":
+                return self._handle_get_labels(number)
+            if method == "POST":
+                return self._handle_add_labels(number, json_body)
+
+        # ── /issues/{number}/labels/{label} ──────────────────────────
+        m = _re.match(r"^/issues/(\d+)/labels/(.+)$", path)
+        if m:
+            number = int(m.group(1))
+            label = unquote(m.group(2))
+            if method == "DELETE":
+                return self._handle_remove_label(number, label)
+
+        # ── /issues/{number}/comments ─────────────────────────────────
+        m = _re.match(r"^/issues/(\d+)/comments$", path)
+        if m:
+            number = int(m.group(1))
+            if method == "GET":
+                return self._handle_get_comments(number)
+            if method == "POST":
+                return self._handle_add_comment(number, json_body)
+
+        # ── Sub-issues endpoint → 404 (forces label fallback) ─────────
+        m = _re.match(r"^/issues/(\d+)/sub_issues$", path)
+        if m:
+            return self._resp(404, {"message": "Not Found"})
+
+        # ── Dependencies endpoint → 404 (forces label fallback) ───────
+        m = _re.match(r"^/issues/(\d+)/dependencies(/.*)?$", path)
+        if m:
+            return self._resp(404, {"message": "Not Found"})
+
+        # Unknown route.
+        return self._resp(404, {"message": f"Unknown route: {method} {path}"})
+
+
+@pytest.fixture
+def github_tracker():
+    """Provide a :class:`~oompah.github_tracker.GitHubIssueTracker` backed
+    by :class:`FakeGitHubHTTPServer` so no live network calls are made.
+
+    The tracker is configured with the same state names used by the
+    BacklogMdTracker fixture so cross-backend contract tests pass.
+    """
+    from oompah.github_tracker import GitHubAuth, GitHubIssueTracker
+
+    server = FakeGitHubHTTPServer()
+    auth = GitHubAuth(pat="fake-token-for-tests")
+    tracker = GitHubIssueTracker(
+        owner=FakeGitHubHTTPServer.OWNER,
+        repo=FakeGitHubHTTPServer.REPO,
+        active_states=["Open", "In Progress", "Needs CI Fix", "Needs Rebase"],
+        terminal_states=["Done", "Merged", "Archived"],
+        auth=auth,
+    )
+    with patch.object(tracker._client._http, "request", side_effect=server):
+        yield tracker
+
+
 # Parametrize all contract tests to run against both tracker implementations
-@pytest.fixture(params=["fake", "backlog"])
-def tracker(request, fake_tracker, backlog_tracker):
+@pytest.fixture(params=["fake", "backlog", "github"])
+def tracker(request, fake_tracker, backlog_tracker, github_tracker):
     """Parametrized fixture yielding each tracker implementation."""
     if request.param == "fake":
         return fake_tracker
     elif request.param == "backlog":
         return backlog_tracker
+    elif request.param == "github":
+        return github_tracker
     pytest.fail(f"Unknown tracker param: {request.param}")
 
 
