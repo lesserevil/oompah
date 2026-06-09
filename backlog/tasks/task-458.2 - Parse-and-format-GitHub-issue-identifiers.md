@@ -1,10 +1,10 @@
 ---
 id: TASK-458.2
 title: Parse and format GitHub issue identifiers
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:56'
-updated_date: '2026-06-09 06:13'
+updated_date: '2026-06-09 06:14'
 labels:
   - task
   - github-issues
@@ -206,3 +206,9 @@ created: 2026-06-09 06:13
 Tests: 123/123 passing in test_github_tracker.py. Added 54 new test cases (TestGitHubIdentifier, TestParseGitHubIdentifier, TestGitHubIdentifierToIssueFields, TestGitHubIssueTrackerIdentifierHelpers). One pre-existing flaky test in test_collapsed_epics.py (ordering-sensitive, passes in isolation, was failing before my changes too).
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented GitHub issue identifier parser/formatter in oompah/github_tracker.py. Added: GitHubIdentifier frozen dataclass (canonical/display/url_safe/branch_slug properties), GitHubIdentifierError, parse_github_identifier() with explicit bare-number rejection, github_identifier_to_issue_fields() helper, and GitHubIssueTracker.parse_identifier()/identifier_for_number() methods. 54 new tests, 123 total passing. Both acceptance criteria met: AC#1 (bare number rejection) and AC#2 (stable display/branch slugs).
+<!-- SECTION:FINAL_SUMMARY:END -->

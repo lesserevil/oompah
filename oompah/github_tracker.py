@@ -1802,8 +1802,18 @@ class GitHubIssueTracker:
     # ------------------------------------------------------------------
 
     def fetch_attachments(self, identifier: str) -> list[dict]:
-        """Return rich attachment records for an issue."""
-        return []
+        """Return rich attachment records stored in the issue body metadata.
+
+        Attachment records are read from the ``attachments`` key inside the
+        hidden ``<!-- oompah:metadata … -->`` block in the issue body.  An
+        empty list is returned when no block is present or when the
+        ``attachments`` key is absent.
+        """
+        meta = self.get_metadata(identifier)
+        attachments = meta.get("oompah.attachments")
+        if not isinstance(attachments, list):
+            return []
+        return [a for a in attachments if isinstance(a, dict)]
 
     def set_attachments(
         self,
@@ -1812,23 +1822,101 @@ class GitHubIssueTracker:
         *,
         project_root: str | None = None,
     ) -> None:
-        """Replace the attachment records for an issue."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.set_attachments is implemented in TASK-458.5"
-        )
+        """Replace the attachment records stored in the issue body metadata.
+
+        Attachments are persisted in the hidden oompah metadata block in the
+        issue body so that the caller does not need to know whether this
+        deployment uses GitHub issue fields or body metadata.
+
+        Parameters
+        ----------
+        identifier:
+            Fully-qualified GitHub issue identifier.
+        attachments:
+            Replacement list of attachment dicts.
+        project_root:
+            Accepted for protocol compatibility; ignored here because GitHub
+            issues do not have a local file store.
+        """
+        self.set_metadata_field(identifier, "oompah.attachments", list(attachments))
 
     # ------------------------------------------------------------------
     # Metadata
     # ------------------------------------------------------------------
 
     def get_metadata(self, identifier: str) -> dict[str, object]:
-        """Return oompah-owned metadata fields for an issue."""
-        return {}
+        """Return oompah-owned metadata fields for an issue.
+
+        Reads the hidden ``<!-- oompah:metadata … -->`` block from the issue
+        body.  All keys are returned with an ``oompah.`` prefix so callers
+        receive a namespace-consistent mapping regardless of whether the
+        underlying storage is body metadata or GitHub issue fields.
+
+        Returns an empty dict when the issue cannot be found or when the
+        body contains no metadata block.
+
+        Parameters
+        ----------
+        identifier:
+            Fully-qualified GitHub issue identifier.
+        """
+        gh_id = self.parse_identifier(identifier)
+        try:
+            raw, _ = self._client.request(
+                "GET", self._issues_path(f"/{gh_id.number}")
+            )
+        except TrackerError:
+            return {}
+        body: str = (raw or {}).get("body") or ""
+        meta = _parse_body_metadata(body)
+        return {f"oompah.{k}": v for k, v in meta.items()}
 
     def set_metadata_field(self, identifier: str, key: str, value: object) -> None:
-        """Set one oompah-owned metadata field on an issue."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.set_metadata_field is implemented in TASK-458.5"
+        """Set one oompah-owned metadata field on an issue.
+
+        The value is written into the hidden ``<!-- oompah:metadata … -->``
+        block in the issue body.  The ``oompah.`` prefix is stripped before
+        writing so body JSON keys remain compact (e.g. ``oompah.target_branch``
+        is stored as ``target_branch``).
+
+        The description portion of the body is preserved unchanged.
+
+        Parameters
+        ----------
+        identifier:
+            Fully-qualified GitHub issue identifier.
+        key:
+            Metadata key — must start with ``oompah.``.
+        value:
+            JSON-serialisable value to store.
+
+        Raises
+        ------
+        TrackerError
+            When *key* does not start with ``oompah.``, or when the issue
+            cannot be found.
+        """
+        if not key.startswith("oompah."):
+            raise TrackerError(
+                f"GitHub metadata key must start with 'oompah.': {key!r}"
+            )
+        body_key = key[len("oompah."):]
+        gh_id = self.parse_identifier(identifier)
+        try:
+            raw, _ = self._client.request(
+                "GET", self._issues_path(f"/{gh_id.number}")
+            )
+        except TrackerError as exc:
+            raise TrackerError(
+                f"Cannot set metadata: issue not found: {identifier}"
+            ) from exc
+        current_body: str = (raw or {}).get("body") or ""
+        meta = _parse_body_metadata(current_body)
+        meta[body_key] = value
+        new_body = self._update_body_metadata(current_body, meta)
+        self._client.patch(
+            self._issues_path(f"/{gh_id.number}"),
+            json={"body": new_body},
         )
 
     # ------------------------------------------------------------------
@@ -1896,6 +1984,39 @@ class GitHubIssueTracker:
         if meta_block:
             new_body = f"{new_body}\n\n{meta_block}"
         return new_body
+
+    def _update_body_metadata(
+        self,
+        current_body: str,
+        meta: dict[str, Any],
+    ) -> str:
+        """Replace or insert the hidden oompah metadata block in a GitHub issue body.
+
+        The description portion of the body (everything before the existing
+        metadata block, or the entire body when no block is present) is
+        preserved unchanged.  The metadata block itself is rebuilt from *meta*.
+
+        Parameters
+        ----------
+        current_body:
+            The full current issue body text.
+        meta:
+            Complete metadata dict to embed.  An empty dict removes the block.
+
+        Returns
+        -------
+        str
+            Updated body with the metadata block replaced (or removed when
+            *meta* is empty).
+        """
+        stripped = _BODY_METADATA_RE.sub("", current_body).strip()
+        if not meta:
+            return stripped
+        meta_json = json.dumps(meta)
+        meta_block = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        if stripped:
+            return f"{stripped}\n\n{meta_block}"
+        return meta_block
 
     def _get_issue_label_names(self, number: int) -> list[str]:
         """Return the list of label names currently applied to an issue."""

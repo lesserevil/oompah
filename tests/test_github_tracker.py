@@ -1070,17 +1070,25 @@ class TestGitHubIssueTracker:
             result = tracker.fetch_all_issues()
         assert result == []
 
-    def test_fetch_attachments_returns_empty_list(self):
+    def test_fetch_attachments_returns_empty_list_when_no_body_metadata(self):
         tracker = self._make_tracker()
-        assert tracker.fetch_attachments("lesserevil/oompah-tasks#1") == []
+        gh_issue = _make_gh_issue(number=1, body="")
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_attachments("lesserevil/oompah-tasks#1")
+        assert result == []
 
     def test_fetch_memories_returns_empty_dict(self):
         tracker = self._make_tracker()
         assert tracker.fetch_memories() == {}
 
-    def test_get_metadata_returns_empty_dict(self):
+    def test_get_metadata_returns_empty_dict_when_no_body_metadata(self):
         tracker = self._make_tracker()
-        assert tracker.get_metadata("lesserevil/oompah-tasks#1") == {}
+        gh_issue = _make_gh_issue(number=1, body="")
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#1")
+        assert result == {}
 
     def test_create_issue_posts_to_github(self):
         tracker = self._make_tracker()
@@ -2596,6 +2604,443 @@ class TestGitHubIssueTrackerMutations:
         ) as m:
             tracker._set_priority_label(46, "not-a-number")
         assert m.call_count == 1  # only GET, no POST
+
+
+# ===========================================================================
+# GitHubIssueTracker — metadata and attachments (TASK-458.5)
+# ===========================================================================
+
+
+class TestGitHubIssueTrackerMetadata:
+    """Tests for get_metadata, set_metadata_field, fetch_attachments, and
+    set_attachments implemented in TASK-458.5.
+
+    Acceptance criteria:
+      #1  Metadata get/set works for project_id, target_branch, work_branch,
+          review fields, attachments, and release-pick data.
+      #2  Field-backed and body-backed metadata pass the same contract tests.
+    """
+
+    def _make_tracker(self) -> GitHubIssueTracker:
+        auth = GitHubAuth(pat="test_token")
+        return GitHubIssueTracker(
+            owner="lesserevil",
+            repo="oompah-tasks",
+            active_states=["Open", "In Progress"],
+            terminal_states=["Done", "Archived"],
+            auth=auth,
+        )
+
+    # ------------------------------------------------------------------
+    # _update_body_metadata helper
+    # ------------------------------------------------------------------
+
+    def test_update_body_metadata_adds_block_to_plain_body(self):
+        tracker = self._make_tracker()
+        result = tracker._update_body_metadata(
+            "Some description", {"target_branch": "main"}
+        )
+        assert "Some description" in result
+        assert '<!-- oompah:metadata' in result
+        assert '"target_branch": "main"' in result
+
+    def test_update_body_metadata_replaces_existing_block(self):
+        tracker = self._make_tracker()
+        body = 'Desc\n\n<!-- oompah:metadata\n{"target_branch":"old"}\n-->'
+        result = tracker._update_body_metadata(body, {"target_branch": "new"})
+        assert '"new"' in result
+        assert '"old"' not in result
+
+    def test_update_body_metadata_removes_block_when_meta_empty(self):
+        tracker = self._make_tracker()
+        body = 'Desc\n\n<!-- oompah:metadata\n{"key":"val"}\n-->'
+        result = tracker._update_body_metadata(body, {})
+        assert "oompah:metadata" not in result
+        assert result.strip() == "Desc"
+
+    def test_update_body_metadata_no_description_no_meta_returns_empty(self):
+        tracker = self._make_tracker()
+        result = tracker._update_body_metadata("", {})
+        assert result == ""
+
+    def test_update_body_metadata_no_description_with_meta(self):
+        tracker = self._make_tracker()
+        result = tracker._update_body_metadata("", {"key": "val"})
+        assert result.startswith("<!-- oompah:metadata")
+        assert '"key": "val"' in result
+
+    def test_update_body_metadata_preserves_description(self):
+        tracker = self._make_tracker()
+        body = "Original description"
+        result = tracker._update_body_metadata(body, {"work_branch": "oompah/feat-1"})
+        assert result.startswith("Original description")
+
+    # ------------------------------------------------------------------
+    # get_metadata — body-backed
+    # ------------------------------------------------------------------
+
+    def test_get_metadata_returns_prefixed_keys_from_body(self):
+        """AC#1: get_metadata reads project_id and target_branch."""
+        tracker = self._make_tracker()
+        meta_json = '{"project_id":"proj-abc","target_branch":"main"}'
+        body = f"Some description\n\n<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=10, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#10")
+        assert result == {
+            "oompah.project_id": "proj-abc",
+            "oompah.target_branch": "main",
+        }
+
+    def test_get_metadata_reads_work_branch(self):
+        """AC#1: get_metadata reads work_branch."""
+        tracker = self._make_tracker()
+        meta_json = '{"work_branch":"oompah/trickle/gh-42"}'
+        body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=42, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#42")
+        assert result["oompah.work_branch"] == "oompah/trickle/gh-42"
+
+    def test_get_metadata_reads_review_fields(self):
+        """AC#1: get_metadata reads review URL and number."""
+        tracker = self._make_tracker()
+        meta_json = '{"review_url":"https://github.com/org/repo/pull/7","review_number":7}'
+        body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=5, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#5")
+        assert result["oompah.review_url"] == "https://github.com/org/repo/pull/7"
+        assert result["oompah.review_number"] == 7
+
+    def test_get_metadata_reads_attachments(self):
+        """AC#1: get_metadata reads attachments list."""
+        tracker = self._make_tracker()
+        meta_json = '{"attachments":[{"name":"patch.diff","url":"https://example.com/patch.diff"}]}'
+        body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=3, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#3")
+        assert result["oompah.attachments"] == [
+            {"name": "patch.diff", "url": "https://example.com/patch.diff"}
+        ]
+
+    def test_get_metadata_reads_release_pick_data(self):
+        """AC#1: get_metadata reads release-pick data."""
+        tracker = self._make_tracker()
+        meta_json = '{"release_pick":["release/1.2","release/1.3"]}'
+        body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=8, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#8")
+        assert result["oompah.release_pick"] == ["release/1.2", "release/1.3"]
+
+    def test_get_metadata_returns_empty_when_no_block(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=1, body="Plain text, no metadata block.")
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#1")
+        assert result == {}
+
+    def test_get_metadata_returns_empty_when_body_is_null(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=2, body="")
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#2")
+        assert result == {}
+
+    def test_get_metadata_returns_empty_on_api_error(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(404, text="Not Found")
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.get_metadata("lesserevil/oompah-tasks#999")
+        assert result == {}
+
+    def test_get_metadata_invalid_identifier_raises_tracker_error(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.get_metadata("not-a-valid-id")
+
+    # ------------------------------------------------------------------
+    # set_metadata_field — body-backed
+    # ------------------------------------------------------------------
+
+    def test_set_metadata_field_adds_new_field_to_empty_body(self):
+        """AC#1: set_metadata_field writes target_branch."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=11, body="")
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data={**gh_issue, "body": "patched"})
+        responses = [get_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.set_metadata_field(
+                "lesserevil/oompah-tasks#11", "oompah.target_branch", "main"
+            )
+        # Second call should be a PATCH with the updated body.
+        patch_call = m.call_args_list[1]
+        assert patch_call.args[0] == "PATCH"
+        body_sent = patch_call.kwargs["json"]["body"]
+        assert '"target_branch": "main"' in body_sent
+        assert "oompah:metadata" in body_sent
+
+    def test_set_metadata_field_preserves_existing_description(self):
+        tracker = self._make_tracker()
+        original_body = "Keep this description."
+        gh_issue = _make_gh_issue(number=12, body=original_body)
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ) as m:
+            tracker.set_metadata_field(
+                "lesserevil/oompah-tasks#12", "oompah.work_branch", "oompah/feat-1"
+            )
+        body_sent = m.call_args_list[1].kwargs["json"]["body"]
+        assert "Keep this description." in body_sent
+        assert '"work_branch": "oompah/feat-1"' in body_sent
+
+    def test_set_metadata_field_preserves_other_metadata_keys(self):
+        tracker = self._make_tracker()
+        meta_json = '{"project_id":"proj-x","target_branch":"main"}'
+        original_body = f"Desc\n\n<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=13, body=original_body)
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ) as m:
+            tracker.set_metadata_field(
+                "lesserevil/oompah-tasks#13", "oompah.work_branch", "oompah/feat-2"
+            )
+        body_sent = m.call_args_list[1].kwargs["json"]["body"]
+        assert '"project_id": "proj-x"' in body_sent
+        assert '"target_branch": "main"' in body_sent
+        assert '"work_branch": "oompah/feat-2"' in body_sent
+
+    def test_set_metadata_field_updates_existing_value(self):
+        tracker = self._make_tracker()
+        meta_json = '{"target_branch":"old-branch"}'
+        original_body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=14, body=original_body)
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ) as m:
+            tracker.set_metadata_field(
+                "lesserevil/oompah-tasks#14", "oompah.target_branch", "new-branch"
+            )
+        body_sent = m.call_args_list[1].kwargs["json"]["body"]
+        assert '"new-branch"' in body_sent
+        assert '"old-branch"' not in body_sent
+
+    def test_set_metadata_field_raises_for_non_oompah_key(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError, match="oompah."):
+            tracker.set_metadata_field(
+                "lesserevil/oompah-tasks#1", "target_branch", "main"
+            )
+
+    def test_set_metadata_field_raises_for_issue_not_found(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(404, text="Not Found")
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            with pytest.raises(TrackerError, match="not found"):
+                tracker.set_metadata_field(
+                    "lesserevil/oompah-tasks#999", "oompah.target_branch", "main"
+                )
+
+    def test_set_metadata_field_invalid_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.set_metadata_field("bad-id", "oompah.key", "val")
+
+    def test_set_metadata_field_patches_correct_endpoint(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=20, body="")
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ) as m:
+            tracker.set_metadata_field(
+                "lesserevil/oompah-tasks#20", "oompah.project_id", "proj-y"
+            )
+        patch_call = m.call_args_list[1]
+        assert patch_call.args[0] == "PATCH"
+        assert "/repos/lesserevil/oompah-tasks/issues/20" in str(patch_call.args[1])
+
+    # ------------------------------------------------------------------
+    # fetch_attachments
+    # ------------------------------------------------------------------
+
+    def test_fetch_attachments_reads_from_body_metadata(self):
+        """AC#1: fetch_attachments reads stored attachment records."""
+        tracker = self._make_tracker()
+        attachment = {"name": "report.pdf", "url": "https://example.com/report.pdf"}
+        meta_json = f'{{"attachments":[{{"name":"report.pdf","url":"https://example.com/report.pdf"}}]}}'
+        body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=30, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_attachments("lesserevil/oompah-tasks#30")
+        assert result == [attachment]
+
+    def test_fetch_attachments_returns_empty_when_key_absent(self):
+        tracker = self._make_tracker()
+        meta_json = '{"target_branch":"main"}'
+        body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=31, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_attachments("lesserevil/oompah-tasks#31")
+        assert result == []
+
+    def test_fetch_attachments_filters_non_dict_entries(self):
+        tracker = self._make_tracker()
+        meta_json = '{"attachments":[{"name":"ok.diff"},"not-a-dict",42]}'
+        body = f"<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=32, body=body)
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_attachments("lesserevil/oompah-tasks#32")
+        assert result == [{"name": "ok.diff"}]
+
+    def test_fetch_attachments_returns_empty_on_api_error(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(404, text="Not Found")
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_attachments("lesserevil/oompah-tasks#999")
+        assert result == []
+
+    # ------------------------------------------------------------------
+    # set_attachments
+    # ------------------------------------------------------------------
+
+    def test_set_attachments_writes_to_body_metadata(self):
+        """AC#1: set_attachments persists attachment list."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=40, body="")
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        attachments = [{"name": "file.diff", "url": "https://example.com/file.diff"}]
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ) as m:
+            tracker.set_attachments("lesserevil/oompah-tasks#40", attachments)
+        body_sent = m.call_args_list[1].kwargs["json"]["body"]
+        assert '"attachments"' in body_sent
+        assert '"file.diff"' in body_sent
+
+    def test_set_attachments_empty_list_removes_attachments(self):
+        tracker = self._make_tracker()
+        meta_json = '{"attachments":[{"name":"old.diff"}]}'
+        original_body = f"Desc\n\n<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=41, body=original_body)
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ) as m:
+            tracker.set_attachments("lesserevil/oompah-tasks#41", [])
+        body_sent = m.call_args_list[1].kwargs["json"]["body"]
+        # Metadata block should still exist (target_branch absent, but block exists
+        # because attachments=[] is still stored) and contain empty attachments list.
+        assert '"attachments": []' in body_sent
+
+    def test_set_attachments_ignores_project_root(self):
+        """project_root is accepted for protocol compat but has no effect."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=42, body="")
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ):
+            # Should not raise even with project_root set.
+            tracker.set_attachments(
+                "lesserevil/oompah-tasks#42",
+                [{"name": "x.diff"}],
+                project_root="/some/path",
+            )
+
+    def test_set_attachments_preserves_other_metadata(self):
+        tracker = self._make_tracker()
+        meta_json = '{"target_branch":"main","project_id":"proj-q"}'
+        original_body = f"Desc\n\n<!-- oompah:metadata\n{meta_json}\n-->"
+        gh_issue = _make_gh_issue(number=43, body=original_body)
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_resp, patch_resp]
+        ) as m:
+            tracker.set_attachments("lesserevil/oompah-tasks#43", [{"name": "a.diff"}])
+        body_sent = m.call_args_list[1].kwargs["json"]["body"]
+        assert '"target_branch": "main"' in body_sent
+        assert '"project_id": "proj-q"' in body_sent
+        assert '"attachments"' in body_sent
+
+    # ------------------------------------------------------------------
+    # Contract tests — AC#2: body-backed metadata round-trips
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize(
+        "field_key,field_value",
+        [
+            ("oompah.project_id", "proj-contract-test"),
+            ("oompah.target_branch", "release/2.0"),
+            ("oompah.work_branch", "oompah/task-gh-99"),
+            ("oompah.review_url", "https://github.com/org/repo/pull/55"),
+            ("oompah.review_number", 55),
+            ("oompah.release_pick", ["release/1.9", "release/2.0"]),
+            (
+                "oompah.attachments",
+                [{"name": "out.diff", "url": "https://example.com/out.diff"}],
+            ),
+        ],
+    )
+    def test_body_backed_metadata_round_trips(self, field_key, field_value):
+        """AC#2: Body-backed metadata can be written and read back transparently.
+
+        This is the contract test for body-backed storage.  A future
+        field-backed test class would parameterise the same cases against
+        the GitHub Projects V2 adapter path.
+        """
+        tracker = self._make_tracker()
+        issue_number = 50
+
+        # --- write phase: set_metadata_field stores value in body ---
+        gh_issue_empty = _make_gh_issue(number=issue_number, body="")
+        get_for_write = _mock_response(200, json_data=gh_issue_empty)
+        patch_resp = _mock_response(200, json_data=gh_issue_empty)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[get_for_write, patch_resp]
+        ) as write_mock:
+            tracker.set_metadata_field(
+                f"lesserevil/oompah-tasks#{issue_number}", field_key, field_value
+            )
+
+        # Capture the body that was PATCHed back.
+        written_body = write_mock.call_args_list[1].kwargs["json"]["body"]
+
+        # --- read phase: get_metadata can read the stored body back ---
+        gh_issue_written = _make_gh_issue(number=issue_number, body=written_body)
+        get_for_read = _mock_response(200, json_data=gh_issue_written)
+        with patch.object(tracker._client._http, "request", return_value=get_for_read):
+            result = tracker.get_metadata(
+                f"lesserevil/oompah-tasks#{issue_number}"
+            )
+
+        assert result[field_key] == field_value
 
 
 # ===========================================================================

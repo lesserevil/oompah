@@ -1,10 +1,10 @@
 ---
 id: TASK-467.6
 title: Rebase epic-TASK-467 onto main
-status: In Progress
+status: Open
 assignee: []
 created_date: '2026-06-09 05:51'
-updated_date: '2026-06-09 05:56'
+updated_date: '2026-06-09 06:15'
 labels: []
 dependencies: []
 parent_task_id: TASK-467
