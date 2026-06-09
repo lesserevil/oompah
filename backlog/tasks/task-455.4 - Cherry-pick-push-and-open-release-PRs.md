@@ -4,7 +4,7 @@ title: 'Cherry-pick, push, and open release PRs'
 status: In Progress
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 23:25'
+updated_date: '2026-06-09 01:59'
 labels:
   - task
 dependencies:
@@ -60,20 +60,55 @@ Agent dispatched (profile: standard)
 ---
 
 author: oompah
-created: 2026-06-08 23:03
+created: 2026-06-08 23:01
 ---
-Understanding: This is NOT a duplicate. After searching for cherry-pick/push/PR/backport tasks, no prior work covers this scope. Dependencies TASK-455.2 (commit resolver) and TASK-455.3 (child task + worktree creation) are both Done. Plan: (1) Add a cherry-pick executor that applies resolved commits to the child worktree; (2) Push the child branch via git; (3) Open a PR against the release branch via SCM API; (4) Mark child task In Review; (5) Write PR metadata (PR URL, PR number) back to both source and child tasks. Will extend release_pick_reconciler.py and add a new cherry_pick_pr_creator.py module.
----
-
-author: oompah
-created: 2026-06-08 23:10
----
-Discovery: Key findings: (1) reconcile_release_picks() handles waiting→task_created but stops there; TASK-455.4 needs to add task_created+commits→pr_open/conflict. (2) ReviewRequest.url is the PR URL field. (3) Branch name = _sanitize_identifier(child.identifier). (4) Worktree path = project_store.worktree_path_for(project_id, child.identifier). (5) SCM provider: detect_provider(project.repo_url, access_token=project.access_token); repo slug: extract_repo_slug(project.repo_url). (6) tracker.update_issue(child_id, status=IN_REVIEW) marks In Review. Plan: create cherry_pick_pr_creator.py with apply_cherry_pick/push_branch/open_backport_pr/cherry_pick_push_and_open_pr; extend reconcile_release_picks with scm/repo params; update orchestrator to pass them.
+Focus: Duplicate Investigator
 ---
 
 author: oompah
-created: 2026-06-08 23:25
+created: 2026-06-09 01:53
 ---
-Implementation: Created oompah/cherry_pick_pr_creator.py with: CherryPickConflictError/CherryPickError exceptions; apply_cherry_pick() (idempotent: skips if worktree already has commits ahead of target); push_branch() (git push -u --force-with-lease); open_backport_pr() (scm.create_review); cherry_pick_push_and_open_pr() orchestrator. Extended release_pick_reconciler.py: added scm/repo params to reconcile_release_picks/_reconcile_entries; new Case 2 advances task_created+commits → pr_open/conflict via _cherry_pick_and_open_pr(). Updated orchestrator._reconcile_release_picks_pass() to detect SCM provider and repo slug per project and pass to reconciler. Added 303 passing tests (42 new + 2 new orchestrator tests).
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-09 01:53
+---
+Focus: Duplicate Investigator
+---
+
+author: oompah
+created: 2026-06-09 01:53
+---
+Agent failed: HTTP 500 from https://inference-api.nvidia.com/v1/chat/completions: {"error":{"message":"litellm.InternalServerError: InternalServerError: OpenAIException - Cannot connect to host nemotron-ultra-rl-052726-vllm-dynamo.prd.astra.nvidia.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1032)')]. Received Model Group=nvidia/nvidia/nemotron-3-ultra\nAvailable Model Group Fallbacks=None","type":null,"param":null,"code":"500"}}. Retrying in 10s (attempt #1)
+---
+
+author: oompah
+created: 2026-06-09 01:53
+---
+Run #1 [attempt=1, profile=default, role=fast -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 49s
+- Log: TASK-455.4__20260609T015326Z.jsonl
+---
+
+author: oompah
+created: 2026-06-09 01:55
+---
+Agent dispatched (profile: standard)
+---
+
+author: oompah
+created: 2026-06-09 01:56
+---
+Understanding: This task is NOT a duplicate. It is a unique subtask of TASK-455 implementing the cherry-pick → push → PR flow. Dependencies TASK-455.2 (commit resolver) and TASK-455.3 (child task + worktree creation) are both Done. Plan: (1) Cherry-pick resolved commits into target worktree; (2) Commit if needed; (3) Push child branch; (4) Open PR against release branch via SCM; (5) Mark child task In Review; (6) Write PR URL/metadata back to source and child tasks. Will explore existing code in release_pick_reconciler.py and release_pick_commit_resolver.py first.
+---
+
+author: oompah
+created: 2026-06-09 01:59
+---
+Discovery: Implementation already complete from prior agent run. oompah/cherry_pick_pr_creator.py implements all required steps: (1) apply_cherry_pick() with idempotency and conflict detection; (2) push_branch() with --force-with-lease; (3) open_backport_pr() via scm.create_review(); (4) cherry_pick_push_and_open_pr() orchestrating all steps with conflict → NEEDS_REBASE path. Integrated in release_pick_reconciler.py _reconcile_entries() Case 3 (task_created + commits → pr_open/conflict). All 53 dedicated tests pass. Branch diverged from origin, needs reconciliation.
 ---
 <!-- COMMENTS:END -->
