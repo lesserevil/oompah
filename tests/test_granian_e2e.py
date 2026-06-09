@@ -374,14 +374,25 @@ class TestGranianWebSocketInitialPush:
             assert "type" in msg, f"Message missing 'type': {msg!r}"
             assert "data" in msg, f"Message missing 'data': {msg!r}"
 
-    def test_multiple_sequential_clients_each_receive_initial_push(
-        self, granian_e2e_base_url: str
-    ):
-        """Three sequential WS clients each receive their own initial state + issues push."""
-        uri = self._ws_uri(granian_e2e_base_url)
+    def test_multiple_sequential_clients_each_receive_initial_push(self):
+        """Three fresh WS clients each receive their own initial state + issues push."""
         for i in range(3):
-            with _ws_connect(uri) as ws:
-                types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
+            port = _free_port()
+            proc = _start_granian_server(port)
+            try:
+                if not _wait_ready(port, proc):
+                    stdout, stderr = proc.communicate()
+                    pytest.fail(
+                        f"Granian e2e server did not become ready on port {port}.\n"
+                        f"stdout: {stdout.decode()[:400]}\n"
+                        f"stderr: {stderr.decode()[:400]}"
+                    )
+
+                with _ws_connect(f"ws://127.0.0.1:{port}/ws") as ws:
+                    types = {msg["type"] for msg in _drain_initial_ws_push(ws)}
+            finally:
+                _stop_granian_server(proc)
+
             assert "state" in types and "issues" in types, (
                 f"Client {i + 1}: expected state+issues in initial push; got {types}"
             )

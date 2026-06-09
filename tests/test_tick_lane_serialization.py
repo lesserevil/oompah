@@ -131,6 +131,11 @@ def _stub_full_tick(orch: Orchestrator) -> Orchestrator:
     orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
     orch._maybe_run_watchdog = MagicMock()
     orch._maybe_heal_repos = MagicMock()
+    orch._maybe_cleanup_worktrees = MagicMock()
+    orch._auto_archive = MagicMock()
+    orch._maybe_run_merged_labels = MagicMock()
+    orch._maybe_run_release_pick_reconciliation = MagicMock()
+    orch._run_step5c_epic_maintenance = MagicMock()
     orch._notify_observers = MagicMock()
     orch._handle_auto_update = AsyncMock()
     return orch
@@ -552,9 +557,16 @@ class TestDispatchBeforeMaintenanceInTick:
         orch._handle_dispatch_needed = tracking_dispatch
         orch._maybe_heal_repos = tracking_heal
 
-        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+        async def run_tick_and_drain_maintenance() -> None:
+            await orch._tick()
+            if orch._maintenance_future is not None:
+                await asyncio.wait_for(orch._maintenance_future, timeout=1)
 
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(run_tick_and_drain_maintenance())
+
+        assert "dispatch" in call_order
+        assert "heal" in call_order
         assert call_order.index("dispatch") < call_order.index("heal"), (
             f"Expected dispatch < heal_repos in call order, got: {call_order}"
         )
