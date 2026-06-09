@@ -50,11 +50,12 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
 from oompah.models import BlockerRef, Issue
-from oompah.statuses import CANONICAL_STATUSES
+from oompah.statuses import CANONICAL_STATUSES, NEEDS_HUMAN
 from oompah.tracker import (
     TrackerError,
     TrackerTimeoutError,
@@ -1507,68 +1508,278 @@ class GitHubIssueTracker:
         labels: list[str] | None = None,
         parent: str | None = None,
     ) -> Issue:
-        """Create a new issue and return the normalized Issue record."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.create_issue is implemented in TASK-458.4"
-        )
+        """Create a new GitHub issue and return the normalized Issue record.
+
+        The initial status is encoded as an ``oompah:status:*`` label.
+        Priority is encoded as a ``priority:N`` label.  Issue type (when
+        non-default) is encoded as a ``type:<kind>`` label.  User-supplied
+        labels are appended verbatim.
+
+        Returns
+        -------
+        Issue
+            Normalized issue record with fully-qualified GitHub identifier
+            (``owner/repo#number``) and issue URL populated.
+        """
+        all_labels: list[str] = []
+
+        # Status label — defaults to the first active state.
+        status = initial_status or self._active_status()
+        all_labels.append(_status_to_label(status))
+
+        # Priority label.
+        if priority is not None:
+            all_labels.append(f"priority:{int(priority)}")
+
+        # Issue type label (omit default "task" to keep issues uncluttered).
+        if issue_type and issue_type != "task":
+            all_labels.append(f"type:{issue_type}")
+
+        # User-supplied labels (skip duplicates already added above).
+        for lbl in (labels or []):
+            if lbl not in all_labels:
+                all_labels.append(lbl)
+
+        # Build the issue body.
+        body = self._build_issue_body(description)
+
+        payload: dict[str, Any] = {"title": title}
+        if body:
+            payload["body"] = body
+        if all_labels:
+            payload["labels"] = all_labels
+
+        gh_issue = self._client.post(self._issues_path(), json=payload)
+        if not isinstance(gh_issue, dict):
+            raise TrackerError(
+                "GitHub API returned unexpected response for issue creation"
+            )
+        return _gh_issue_to_issue(gh_issue, self.owner, self.repo)
 
     def update_issue(self, identifier: str, **fields: str) -> None:
-        """Update one or more fields on an existing issue."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.update_issue is implemented in TASK-458.3/458.4"
+        """Update one or more fields on an existing GitHub issue.
+
+        Supported field names (use ``_`` or ``-`` as separator):
+
+        ``title``
+            Issue title.
+        ``description`` / ``desc``
+            Issue body text.  The oompah metadata block is preserved.
+        ``status``
+            oompah status string.  Syncs the ``oompah:status:*`` label and
+            sets the GitHub ``state`` (open/closed) accordingly.
+        ``priority``
+            Numeric dispatch priority.  Syncs the ``priority:N`` label.
+        ``add_label`` / ``add-label``
+            Add a single label by name.
+        ``remove_label`` / ``remove-label``
+            Remove a single label by name (no-op when absent).
+
+        All unrecognised field names are silently ignored.
+        """
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            raise
+
+        patch_payload: dict[str, Any] = {}
+        label_ops: list[tuple[str, str]] = []
+        status_to_set: str | None = None
+        priority_to_set: Any = None
+
+        # Check whether we need to fetch the full body for a description update.
+        needs_body_fetch = any(
+            k.replace("_", "-") in ("description", "desc") for k in fields
         )
+        current_full_body: str = ""
+        if needs_body_fetch:
+            try:
+                raw, _ = self._client.request(
+                    "GET", self._issues_path(f"/{gh_id.number}")
+                )
+                current_full_body = (raw or {}).get("body") or ""
+            except TrackerError:
+                current_full_body = ""
+
+        for key, value in fields.items():
+            key_norm = key.replace("_", "-")
+            if key_norm == "title":
+                patch_payload["title"] = str(value)
+            elif key_norm in ("description", "desc"):
+                patch_payload["body"] = self._update_body_description(
+                    current_full_body, str(value)
+                )
+            elif key_norm == "status":
+                status_to_set = str(value)
+            elif key_norm == "priority":
+                priority_to_set = value
+            elif key_norm == "add-label":
+                label_ops.append(("add", str(value)))
+            elif key_norm == "remove-label":
+                label_ops.append(("remove", str(value)))
+            else:
+                logger.debug(
+                    "GitHub update_issue ignoring unsupported field %s", key
+                )
+
+        # Status change: swap the oompah:status:* label and sync GitHub state.
+        if status_to_set is not None:
+            self._set_status_label(gh_id.number, status_to_set)
+            if status_to_set in self.terminal_states:
+                patch_payload["state"] = "closed"
+            else:
+                patch_payload.setdefault("state", "open")
+
+        # Priority label swap.
+        if priority_to_set is not None:
+            self._set_priority_label(gh_id.number, priority_to_set)
+
+        # Issue a single PATCH for title/body/state changes.
+        if patch_payload:
+            self._client.patch(
+                self._issues_path(f"/{gh_id.number}"),
+                json=patch_payload,
+            )
+
+        # Label add/remove operations.
+        for op, label in label_ops:
+            if op == "add":
+                self.add_label(identifier, label)
+            else:
+                self.remove_label(identifier, label)
 
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
-        """Move an issue to the first configured terminal state."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.close_issue is implemented in TASK-458.3/458.4"
+        """Move an issue to the first configured terminal state.
+
+        Sets the ``oompah:status:*`` label to the terminal status, closes
+        the GitHub issue (``state: "closed"``), and optionally appends a
+        comment with the close reason.
+        """
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            raise
+
+        terminal = self._terminal_status()
+        self._set_status_label(gh_id.number, terminal)
+        self._client.patch(
+            self._issues_path(f"/{gh_id.number}"),
+            json={"state": "closed"},
         )
+        if reason:
+            self.add_comment(identifier, reason)
 
     def reopen_issue(self, identifier: str) -> None:
-        """Move an issue back to the first configured active state."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.reopen_issue is implemented in TASK-458.3/458.4"
+        """Move an issue back to the first configured active state.
+
+        Sets the ``oompah:status:*`` label to the active status and
+        reopens the GitHub issue (``state: "open"``).
+        """
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            raise
+
+        active = self._active_status()
+        self._set_status_label(gh_id.number, active)
+        self._client.patch(
+            self._issues_path(f"/{gh_id.number}"),
+            json={"state": "open"},
         )
 
     def archive_issue(self, identifier: str) -> None:
-        """Archive an issue (backend-specific semantics)."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.archive_issue is implemented in TASK-458.3/458.4"
+        """Archive an issue.
+
+        Sets ``oompah:status:archived`` label and closes the GitHub issue.
+        """
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            raise
+
+        self._set_status_label(gh_id.number, "Archived")
+        self._client.patch(
+            self._issues_path(f"/{gh_id.number}"),
+            json={"state": "closed"},
         )
 
     def mark_needs_human(
         self, identifier: str, comment: str, author: str = "oompah"
     ) -> None:
         """Move an issue to Needs Human and post the actionable comment."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.mark_needs_human is implemented in TASK-458.4"
-        )
+        self.update_issue(identifier, status=NEEDS_HUMAN)
+        self.add_comment(identifier, comment, author=author)
 
     # ------------------------------------------------------------------
     # Comments
     # ------------------------------------------------------------------
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
-        """Append a comment to an issue and return the comment dict."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.add_comment is implemented in TASK-458.4"
+        """Append a comment to a GitHub issue and return the comment dict.
+
+        The comment body is prefixed with ``**{author}**: `` so that
+        authorship is visible in the GitHub UI (GitHub REST comments are
+        always posted under the authenticated bot account).
+
+        Returns
+        -------
+        dict
+            The raw GitHub comment object returned by the API.
+        """
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            raise
+
+        comment_text = str(text).strip()
+        if not comment_text:
+            raise TrackerError("Comment text is required")
+
+        body = f"**{author}**: {comment_text}"
+        result = self._client.post(
+            self._repo_path(f"/issues/{gh_id.number}/comments"),
+            json={"body": body},
         )
+        if isinstance(result, dict):
+            return result
+        return {"body": body}
 
     # ------------------------------------------------------------------
     # Labels
     # ------------------------------------------------------------------
 
     def add_label(self, identifier: str, label: str) -> None:
-        """Add a label to an issue."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.add_label is implemented in TASK-458.4"
+        """Add a label to a GitHub issue.
+
+        The label must already exist in the repository.  If the label is
+        already applied to the issue, GitHub silently ignores the
+        duplicate.
+        """
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            raise
+
+        self._client.post(
+            self._issues_path(f"/{gh_id.number}/labels"),
+            json={"labels": [label]},
         )
 
     def remove_label(self, identifier: str, label: str) -> None:
-        """Remove a label from an issue (no-op if label is absent)."""
-        raise NotImplementedError(
-            "GitHubIssueTracker.remove_label is implemented in TASK-458.4"
-        )
+        """Remove a label from a GitHub issue (no-op if label is absent)."""
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            raise
+
+        try:
+            self._client.delete(
+                self._issues_path(f"/{gh_id.number}/labels/{quote(label, safe='')}"),
+            )
+        except TrackerError as exc:
+            if "404" in str(exc):
+                return  # Label not on issue — that is fine.
+            raise
 
     # ------------------------------------------------------------------
     # Hierarchy and dependencies
@@ -1623,6 +1834,139 @@ class GitHubIssueTracker:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _active_status(self) -> str:
+        """Return the first configured active status, defaulting to ``"Open"``."""
+        if self.active_states:
+            return self.active_states[0]
+        return "Open"
+
+    def _terminal_status(self) -> str:
+        """Return the first configured terminal status, defaulting to ``"Done"``."""
+        if self.terminal_states:
+            return self.terminal_states[0]
+        return "Done"
+
+    def _build_issue_body(
+        self,
+        description: str | None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        """Build a GitHub issue body from description text and optional metadata.
+
+        The metadata block is appended as a hidden HTML comment::
+
+            <!-- oompah:metadata
+            {"key": "value"}
+            -->
+
+        This follows the format expected by :func:`_parse_body_metadata`.
+        """
+        parts: list[str] = []
+        if description:
+            parts.append(description.strip())
+        if metadata:
+            meta_json = json.dumps(metadata)
+            parts.append(f"<!-- oompah:metadata\n{meta_json}\n-->")
+        return "\n\n".join(parts)
+
+    def _update_body_description(
+        self,
+        current_body: str,
+        new_description: str,
+    ) -> str:
+        """Replace the description part of an issue body while preserving the metadata block.
+
+        Parameters
+        ----------
+        current_body:
+            The full current issue body (may contain an oompah metadata block).
+        new_description:
+            Replacement description text.
+
+        Returns
+        -------
+        str
+            New body with the description replaced and the metadata block
+            preserved at the end (if one was present).
+        """
+        meta_match = _BODY_METADATA_RE.search(current_body)
+        meta_block = meta_match.group(0) if meta_match else None
+        new_body = new_description.strip()
+        if meta_block:
+            new_body = f"{new_body}\n\n{meta_block}"
+        return new_body
+
+    def _get_issue_label_names(self, number: int) -> list[str]:
+        """Return the list of label names currently applied to an issue."""
+        try:
+            raw = self._client.get(self._issues_path(f"/{number}/labels"))
+            return [
+                lbl["name"]
+                for lbl in (raw or [])
+                if isinstance(lbl, dict) and lbl.get("name")
+            ]
+        except TrackerError:
+            return []
+
+    def _set_status_label(self, number: int, status: str) -> None:
+        """Atomically swap the ``oompah:status:*`` label on an issue.
+
+        Removes all existing ``oompah:status:*`` labels, then adds the
+        label for *status*.  Both operations are best-effort: errors during
+        the remove step are suppressed so that the add step can still
+        succeed (e.g. when the label does not yet exist on the issue).
+        """
+        current_labels = self._get_issue_label_names(number)
+        # Remove any existing status labels.
+        for name in current_labels:
+            if name.startswith(_STATUS_LABEL_PREFIX):
+                try:
+                    self._client.delete(
+                        self._issues_path(
+                            f"/{number}/labels/{quote(name, safe='')}"
+                        )
+                    )
+                except TrackerError:
+                    pass
+        # Add the new status label.
+        new_label = _status_to_label(status)
+        self._client.post(
+            self._issues_path(f"/{number}/labels"),
+            json={"labels": [new_label]},
+        )
+
+    def _set_priority_label(self, number: int, priority: Any) -> None:
+        """Atomically swap the ``priority:N`` label on an issue.
+
+        Removes all existing ``priority:*`` labels, then adds
+        ``priority:{int(priority)}`` when *priority* is not *None* and
+        can be coerced to an integer.
+        """
+        current_labels = self._get_issue_label_names(number)
+        for name in current_labels:
+            if name.startswith("priority:"):
+                try:
+                    self._client.delete(
+                        self._issues_path(
+                            f"/{number}/labels/{quote(name, safe='')}"
+                        )
+                    )
+                except TrackerError:
+                    pass
+        if priority is not None:
+            try:
+                pri_int = int(priority)
+            except (ValueError, TypeError):
+                logger.debug(
+                    "GitHub _set_priority_label: cannot coerce %r to int, skipping",
+                    priority,
+                )
+                return
+            self._client.post(
+                self._issues_path(f"/{number}/labels"),
+                json={"labels": [f"priority:{pri_int}"]},
+            )
 
     def is_archived(self, issue: Issue) -> bool:
         """Return True when the issue should be considered archived."""

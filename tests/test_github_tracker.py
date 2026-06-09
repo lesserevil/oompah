@@ -1082,15 +1082,22 @@ class TestGitHubIssueTracker:
         tracker = self._make_tracker()
         assert tracker.get_metadata("lesserevil/oompah-tasks#1") == {}
 
-    def test_create_issue_raises_not_implemented(self):
+    def test_create_issue_posts_to_github(self):
         tracker = self._make_tracker()
-        with pytest.raises(NotImplementedError):
-            tracker.create_issue("Test issue")
+        gh_issue = _make_gh_issue(number=42, title="Test issue")
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            issue = tracker.create_issue("Test issue")
+        assert issue.identifier == "lesserevil/oompah-tasks#42"
+        assert issue.title == "Test issue"
 
-    def test_add_comment_raises_not_implemented(self):
+    def test_add_comment_posts_to_github(self):
         tracker = self._make_tracker()
-        with pytest.raises(NotImplementedError):
-            tracker.add_comment("lesserevil/oompah-tasks#1", "hello")
+        comment_resp = {"id": 1, "body": "**oompah**: hello", "created_at": "2024-01-01T00:00:00Z"}
+        resp = _mock_response(201, json_data=comment_resp)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.add_comment("lesserevil/oompah-tasks#1", "hello")
+        assert result["body"] == "**oompah**: hello"
 
     def test_repo_path_helper(self):
         tracker = self._make_tracker()
@@ -1877,6 +1884,718 @@ class TestGitHubIssueTrackerFetch:
         assert iss.project_id == "proj-1"
         assert iss.target_branch == "main"
         assert iss.tracker_kind == "github_issues"
+
+
+# ===========================================================================
+# Mutation methods (TASK-458.4)
+# ===========================================================================
+
+
+class TestGitHubIssueTrackerMutations:
+    """Tests for create_issue, update_issue, close_issue, reopen_issue,
+    archive_issue, mark_needs_human, add_comment, add_label, remove_label,
+    and the private helper methods introduced in TASK-458.4.
+
+    Acceptance criteria:
+      #1  Create returns a fully qualified GitHub issue identifier and URL.
+      #2  Status, comments, and labels round-trip through mocked GitHub APIs.
+    """
+
+    def _make_tracker(self) -> GitHubIssueTracker:
+        auth = GitHubAuth(pat="test_token")
+        return GitHubIssueTracker(
+            owner="lesserevil",
+            repo="oompah-tasks",
+            active_states=["Open", "In Progress", "Needs CI Fix"],
+            terminal_states=["Done", "Merged", "Archived"],
+            auth=auth,
+        )
+
+    # ------------------------------------------------------------------
+    # create_issue
+    # ------------------------------------------------------------------
+
+    def test_create_issue_returns_normalized_issue(self):
+        """AC#1: create returns a fully qualified identifier and URL."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=99, title="My new task")
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            issue = tracker.create_issue("My new task")
+        assert issue.identifier == "lesserevil/oompah-tasks#99"
+        assert issue.url is not None
+        assert "99" in issue.url
+        assert issue.title == "My new task"
+
+    def test_create_issue_sends_status_label(self):
+        """create_issue includes an oompah:status:* label in the POST."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=10, labels=["oompah:status:open"])
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Task with status", initial_status="Open")
+        call_kwargs = m.call_args[1]
+        labels_sent = call_kwargs["json"]["labels"]
+        assert "oompah:status:open" in labels_sent
+
+    def test_create_issue_uses_first_active_state_when_no_status(self):
+        """When initial_status is None, the first active state is used."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=11)
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("No status")
+        call_kwargs = m.call_args[1]
+        labels_sent = call_kwargs["json"]["labels"]
+        # "Open" is the first active state → "oompah:status:open"
+        assert "oompah:status:open" in labels_sent
+
+    def test_create_issue_sends_priority_label(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=12, labels=["priority:2", "oompah:status:open"])
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Prio task", priority=2)
+        call_kwargs = m.call_args[1]
+        assert "priority:2" in call_kwargs["json"]["labels"]
+
+    def test_create_issue_sends_type_label_for_non_task(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=13, labels=["type:bug", "oompah:status:open"])
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Bug", issue_type="bug")
+        call_kwargs = m.call_args[1]
+        assert "type:bug" in call_kwargs["json"]["labels"]
+
+    def test_create_issue_omits_type_label_for_default_task(self):
+        """Default issue_type='task' should NOT add a type:task label."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=14)
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Default task", issue_type="task")
+        call_kwargs = m.call_args[1]
+        labels_sent = call_kwargs["json"]["labels"]
+        assert "type:task" not in labels_sent
+
+    def test_create_issue_includes_user_labels(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=15, labels=["needs:backend", "oompah:status:open"])
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Label task", labels=["needs:backend"])
+        call_kwargs = m.call_args[1]
+        assert "needs:backend" in call_kwargs["json"]["labels"]
+
+    def test_create_issue_sends_body_when_description_given(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=16, body="Do the thing.")
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Task with desc", description="Do the thing.")
+        call_kwargs = m.call_args[1]
+        assert call_kwargs["json"]["body"] == "Do the thing."
+
+    def test_create_issue_no_body_when_no_description(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=17)
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("No desc")
+        call_kwargs = m.call_args[1]
+        assert "body" not in call_kwargs["json"]
+
+    def test_create_issue_posts_to_issues_endpoint(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=18)
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Endpoint test")
+        call_args = m.call_args
+        assert call_args[0][0] == "POST"
+        assert "/repos/lesserevil/oompah-tasks/issues" in str(call_args)
+
+    def test_create_issue_raises_on_bad_response(self):
+        tracker = self._make_tracker()
+        # Simulate a 422 Unprocessable Entity.
+        resp = _mock_response(422, text="Validation failed")
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            from oompah.tracker import TrackerError
+            with pytest.raises(TrackerError):
+                tracker.create_issue("Bad issue")
+
+    # ------------------------------------------------------------------
+    # update_issue
+    # ------------------------------------------------------------------
+
+    def test_update_issue_title(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=_make_gh_issue(number=5, title="New title"))
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.update_issue("lesserevil/oompah-tasks#5", title="New title")
+        patch_call = m.call_args
+        assert patch_call[0][0] == "PATCH"
+        assert patch_call[1]["json"]["title"] == "New title"
+
+    def test_update_issue_description_preserves_metadata(self):
+        """Updating description fetches current body and preserves metadata block."""
+        tracker = self._make_tracker()
+        meta_block = '<!-- oompah:metadata\n{"project_id": "p1"}\n-->'
+        full_body = f"Old description.\n\n{meta_block}"
+        gh_issue = _make_gh_issue(number=6, body=full_body)
+        get_resp = _mock_response(200, json_data=gh_issue)
+        patch_resp = _mock_response(200, json_data=gh_issue)
+        responses = [get_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.update_issue(
+                "lesserevil/oompah-tasks#6", description="New description."
+            )
+        patch_call = m.call_args_list[1]
+        new_body = patch_call[1]["json"]["body"]
+        assert "New description." in new_body
+        assert meta_block in new_body
+        assert "Old description." not in new_body
+
+    def test_update_issue_status_swaps_label_and_closes(self):
+        """Updating status to a terminal state also sets state=closed."""
+        tracker = self._make_tracker()
+        # _set_status_label calls GET labels, then DELETE old, then POST new.
+        # update_issue then PATCHes state.
+        labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=7, state="closed"))
+        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.update_issue("lesserevil/oompah-tasks#7", status="Done")
+        # Last call should be the PATCH with state=closed
+        last_call = m.call_args_list[-1]
+        assert last_call[0][0] == "PATCH"
+        assert last_call[1]["json"]["state"] == "closed"
+
+    def test_update_issue_status_active_opens_issue(self):
+        """Updating status to an active state sets state=open."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=8, state="open"))
+        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.update_issue("lesserevil/oompah-tasks#8", status="Open")
+        last_call = m.call_args_list[-1]
+        assert last_call[1]["json"]["state"] == "open"
+
+    def test_update_issue_priority_swaps_label(self):
+        """update_issue priority removes old priority:* label and adds new one."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "priority:3"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_label_resp = _mock_response(200, json_data=[{"name": "priority:1"}])
+        responses = [labels_resp, delete_resp, post_label_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.update_issue("lesserevil/oompah-tasks#9", priority=1)
+        # POST for new priority label
+        label_post_call = m.call_args_list[-1]
+        assert "priority:1" in label_post_call[1]["json"]["labels"]
+
+    def test_update_issue_add_label(self):
+        tracker = self._make_tracker()
+        post_resp = _mock_response(200, json_data=[{"name": "needs:review"}])
+        with patch.object(
+            tracker._client._http, "request", return_value=post_resp
+        ) as m:
+            tracker.update_issue("lesserevil/oompah-tasks#10", **{"add-label": "needs:review"})
+        assert m.call_args[0][0] == "POST"
+        assert "needs:review" in m.call_args[1]["json"]["labels"]
+
+    def test_update_issue_remove_label(self):
+        tracker = self._make_tracker()
+        del_resp = _mock_response(204, json_data=None)
+        with patch.object(
+            tracker._client._http, "request", return_value=del_resp
+        ) as m:
+            tracker.update_issue("lesserevil/oompah-tasks#10", **{"remove-label": "needs:review"})
+        assert m.call_args[0][0] == "DELETE"
+        assert "needs%3Areview" in m.call_args[0][1]
+
+    def test_update_issue_ignores_unknown_fields(self):
+        """Unknown field keys are silently ignored, no API call made."""
+        tracker = self._make_tracker()
+        with patch.object(tracker._client._http, "request") as m:
+            tracker.update_issue("lesserevil/oompah-tasks#11", nonexistent_field="x")
+        m.assert_not_called()
+
+    def test_update_issue_invalid_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.update_issue("not-valid-id", title="x")
+
+    # ------------------------------------------------------------------
+    # close_issue
+    # ------------------------------------------------------------------
+
+    def test_close_issue_sets_terminal_status_and_closes(self):
+        """close_issue sets oompah:status:done label and GitHub state=closed."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=20, state="closed"))
+        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.close_issue("lesserevil/oompah-tasks#20")
+        patch_call = m.call_args_list[-1]
+        assert patch_call[0][0] == "PATCH"
+        assert patch_call[1]["json"]["state"] == "closed"
+
+    def test_close_issue_posts_reason_comment(self):
+        """close_issue appends a comment when reason is provided."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[])
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=21))
+        comment_resp = _mock_response(201, json_data={"id": 1, "body": "**oompah**: Closed."})
+        responses = [labels_resp, post_label_resp, patch_resp, comment_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.close_issue("lesserevil/oompah-tasks#21", reason="Closed.")
+        # Comment POST should be the last call
+        last_call = m.call_args_list[-1]
+        assert last_call[0][0] == "POST"
+        assert "comments" in last_call[0][1]
+
+    def test_close_issue_no_comment_when_no_reason(self):
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[])
+        post_label_resp = _mock_response(200, json_data=[])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=22))
+        responses = [labels_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.close_issue("lesserevil/oompah-tasks#22")
+        # Should be exactly 3 calls: GET labels, POST label, PATCH state
+        assert m.call_count == 3
+
+    def test_close_issue_uses_first_terminal_state(self):
+        """close_issue uses terminal_states[0] ('Done') for the label."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[])
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=23))
+        responses = [labels_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.close_issue("lesserevil/oompah-tasks#23")
+        label_post = m.call_args_list[1]
+        assert "oompah:status:done" in label_post[1]["json"]["labels"]
+
+    # ------------------------------------------------------------------
+    # reopen_issue
+    # ------------------------------------------------------------------
+
+    def test_reopen_issue_sets_active_status_and_opens(self):
+        """reopen_issue sets oompah:status:open label and GitHub state=open."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=30, state="open"))
+        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.reopen_issue("lesserevil/oompah-tasks#30")
+        patch_call = m.call_args_list[-1]
+        assert patch_call[0][0] == "PATCH"
+        assert patch_call[1]["json"]["state"] == "open"
+
+    def test_reopen_issue_uses_first_active_state(self):
+        """reopen_issue uses active_states[0] ('Open') for the label."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[])
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=31))
+        responses = [labels_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.reopen_issue("lesserevil/oompah-tasks#31")
+        label_post = m.call_args_list[1]
+        assert "oompah:status:open" in label_post[1]["json"]["labels"]
+
+    # ------------------------------------------------------------------
+    # archive_issue
+    # ------------------------------------------------------------------
+
+    def test_archive_issue_sets_archived_label_and_closes(self):
+        """archive_issue sets oompah:status:archived and state=closed."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:in-progress"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:archived"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=40, state="closed"))
+        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.archive_issue("lesserevil/oompah-tasks#40")
+        label_post = m.call_args_list[2]
+        assert "oompah:status:archived" in label_post[1]["json"]["labels"]
+        patch_call = m.call_args_list[-1]
+        assert patch_call[1]["json"]["state"] == "closed"
+
+    # ------------------------------------------------------------------
+    # mark_needs_human
+    # ------------------------------------------------------------------
+
+    def test_mark_needs_human_updates_status_and_comments(self):
+        """mark_needs_human sets status to Needs Human then adds a comment."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_label_resp = _mock_response(
+            200, json_data=[{"name": "oompah:status:needs-human"}]
+        )
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=50))
+        comment_resp = _mock_response(
+            201, json_data={"id": 99, "body": "**oompah**: Action required."}
+        )
+        responses = [
+            labels_resp, delete_resp, post_label_resp, patch_resp, comment_resp
+        ]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.mark_needs_human(
+                "lesserevil/oompah-tasks#50", "Action required."
+            )
+        # Last call should be the comment POST
+        last_call = m.call_args_list[-1]
+        assert last_call[0][0] == "POST"
+        assert "comments" in last_call[0][1]
+        assert "Action required." in last_call[1]["json"]["body"]
+
+    # ------------------------------------------------------------------
+    # add_comment
+    # ------------------------------------------------------------------
+
+    def test_add_comment_returns_github_comment_dict(self):
+        """AC#2: add_comment round-trips via mocked API."""
+        tracker = self._make_tracker()
+        comment = {"id": 1, "body": "**oompah**: hello", "created_at": "2024-01-01T00:00:00Z"}
+        resp = _mock_response(201, json_data=comment)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.add_comment("lesserevil/oompah-tasks#1", "hello")
+        assert result["id"] == 1
+        assert result["body"] == "**oompah**: hello"
+
+    def test_add_comment_prefixes_author(self):
+        """Comment body is prefixed with **{author}**: ."""
+        tracker = self._make_tracker()
+        resp = _mock_response(201, json_data={"id": 2, "body": "**bot**: msg"})
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.add_comment("lesserevil/oompah-tasks#1", "msg", author="bot")
+        posted_body = m.call_args[1]["json"]["body"]
+        assert posted_body == "**bot**: msg"
+
+    def test_add_comment_custom_author(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(201, json_data={"id": 3, "body": "**alice**: hi"})
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.add_comment("lesserevil/oompah-tasks#2", "hi", author="alice")
+        assert "**alice**" in m.call_args[1]["json"]["body"]
+
+    def test_add_comment_posts_to_comments_endpoint(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(201, json_data={"id": 4, "body": "x"})
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.add_comment("lesserevil/oompah-tasks#3", "x")
+        call_args = m.call_args
+        assert call_args[0][0] == "POST"
+        assert "/issues/3/comments" in call_args[0][1]
+
+    def test_add_comment_raises_on_empty_text(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError, match="Comment text is required"):
+            tracker.add_comment("lesserevil/oompah-tasks#1", "")
+
+    def test_add_comment_raises_on_whitespace_text(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError, match="Comment text is required"):
+            tracker.add_comment("lesserevil/oompah-tasks#1", "   ")
+
+    def test_add_comment_invalid_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.add_comment("not-valid", "hello")
+
+    def test_add_comment_fallback_when_non_dict_response(self):
+        """When the API returns a non-dict, fallback body dict is returned."""
+        tracker = self._make_tracker()
+        # Simulate a response that parses as a list (unexpected but possible)
+        resp = _mock_response(201, json_data=[])
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.add_comment("lesserevil/oompah-tasks#1", "test msg")
+        assert "body" in result
+        assert "test msg" in result["body"]
+
+    # ------------------------------------------------------------------
+    # add_label
+    # ------------------------------------------------------------------
+
+    def test_add_label_posts_to_labels_endpoint(self):
+        """AC#2: add_label round-trips via mocked API."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[{"name": "bug"}])
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.add_label("lesserevil/oompah-tasks#5", "bug")
+        call_args = m.call_args
+        assert call_args[0][0] == "POST"
+        assert "/issues/5/labels" in call_args[0][1]
+        assert call_args[1]["json"]["labels"] == ["bug"]
+
+    def test_add_label_invalid_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.add_label("bad-id", "bug")
+
+    def test_add_label_with_colon_in_name(self):
+        """Labels with colons (e.g. oompah:status:open) are posted correctly."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.add_label("lesserevil/oompah-tasks#6", "oompah:status:open")
+        assert m.call_args[1]["json"]["labels"] == ["oompah:status:open"]
+
+    # ------------------------------------------------------------------
+    # remove_label
+    # ------------------------------------------------------------------
+
+    def test_remove_label_sends_delete_request(self):
+        """AC#2: remove_label round-trips via mocked API."""
+        tracker = self._make_tracker()
+        resp = _mock_response(204, json_data=None)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.remove_label("lesserevil/oompah-tasks#5", "bug")
+        call_args = m.call_args
+        assert call_args[0][0] == "DELETE"
+        assert "/issues/5/labels/bug" in call_args[0][1]
+
+    def test_remove_label_url_encodes_colon_labels(self):
+        """Label names containing colons must be URL-encoded in the path."""
+        tracker = self._make_tracker()
+        resp = _mock_response(204, json_data=None)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.remove_label("lesserevil/oompah-tasks#7", "oompah:status:open")
+        call_url = m.call_args[0][1]
+        assert "oompah%3Astatus%3Aopen" in call_url
+
+    def test_remove_label_noop_on_404(self):
+        """remove_label is a no-op when the label is not on the issue."""
+        tracker = self._make_tracker()
+        resp = _mock_response(404, text="Not Found")
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            # Should not raise
+            tracker.remove_label("lesserevil/oompah-tasks#5", "nonexistent")
+
+    def test_remove_label_re_raises_non_404_errors(self):
+        """Non-404 errors from remove_label are propagated."""
+        tracker = self._make_tracker()
+        resp = _mock_response(500, text="Server Error")
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            with pytest.raises(TrackerError):
+                tracker.remove_label("lesserevil/oompah-tasks#5", "bug")
+
+    def test_remove_label_invalid_identifier_raises(self):
+        tracker = self._make_tracker()
+        with pytest.raises(TrackerError):
+            tracker.remove_label("bad-id", "bug")
+
+    # ------------------------------------------------------------------
+    # Private helper: _active_status / _terminal_status
+    # ------------------------------------------------------------------
+
+    def test_active_status_returns_first_active_state(self):
+        tracker = self._make_tracker()
+        assert tracker._active_status() == "Open"
+
+    def test_terminal_status_returns_first_terminal_state(self):
+        tracker = self._make_tracker()
+        assert tracker._terminal_status() == "Done"
+
+    def test_active_status_defaults_to_Open_when_empty(self):
+        auth = GitHubAuth(pat="tok")
+        tracker = GitHubIssueTracker(
+            owner="o", repo="r",
+            active_states=[],
+            terminal_states=[],
+            auth=auth,
+        )
+        assert tracker._active_status() == "Open"
+
+    def test_terminal_status_defaults_to_Done_when_empty(self):
+        auth = GitHubAuth(pat="tok")
+        tracker = GitHubIssueTracker(
+            owner="o", repo="r",
+            active_states=[],
+            terminal_states=[],
+            auth=auth,
+        )
+        assert tracker._terminal_status() == "Done"
+
+    # ------------------------------------------------------------------
+    # Private helper: _build_issue_body
+    # ------------------------------------------------------------------
+
+    def test_build_body_description_only(self):
+        tracker = self._make_tracker()
+        body = tracker._build_issue_body("Do the thing.")
+        assert body == "Do the thing."
+
+    def test_build_body_empty_description(self):
+        tracker = self._make_tracker()
+        assert tracker._build_issue_body(None) == ""
+        assert tracker._build_issue_body("") == ""
+
+    def test_build_body_with_metadata(self):
+        tracker = self._make_tracker()
+        body = tracker._build_issue_body("Desc", {"project_id": "p1"})
+        assert "Desc" in body
+        assert '<!-- oompah:metadata' in body
+        assert '"project_id": "p1"' in body
+
+    def test_build_body_metadata_parseable(self):
+        """Body built by _build_issue_body must be parseable by _parse_body_metadata."""
+        from oompah.github_tracker import _parse_body_metadata
+        tracker = self._make_tracker()
+        body = tracker._build_issue_body("desc", {"project_id": "p2", "target_branch": "main"})
+        meta = _parse_body_metadata(body)
+        assert meta["project_id"] == "p2"
+        assert meta["target_branch"] == "main"
+
+    # ------------------------------------------------------------------
+    # Private helper: _update_body_description
+    # ------------------------------------------------------------------
+
+    def test_update_body_description_no_metadata(self):
+        tracker = self._make_tracker()
+        result = tracker._update_body_description("Old text.", "New text.")
+        assert result == "New text."
+
+    def test_update_body_description_preserves_metadata_block(self):
+        tracker = self._make_tracker()
+        meta_block = '<!-- oompah:metadata\n{"project_id": "p3"}\n-->'
+        current_body = f"Old text.\n\n{meta_block}"
+        result = tracker._update_body_description(current_body, "New text.")
+        assert "New text." in result
+        assert meta_block in result
+        assert "Old text." not in result
+
+    def test_update_body_empty_current_body(self):
+        tracker = self._make_tracker()
+        result = tracker._update_body_description("", "Fresh description.")
+        assert result == "Fresh description."
+
+    # ------------------------------------------------------------------
+    # Private helper: _set_status_label
+    # ------------------------------------------------------------------
+
+    def test_set_status_label_replaces_existing(self):
+        """_set_status_label removes old status labels and adds the new one."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[
+            {"name": "oompah:status:open"},
+            {"name": "bug"},  # non-status labels should not be removed
+        ])
+        delete_resp = _mock_response(204, json_data=None)
+        post_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        responses = [labels_resp, delete_resp, post_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker._set_status_label(42, "Done")
+        # GET labels
+        assert m.call_args_list[0][0][0] == "GET"
+        # DELETE old status label
+        delete_call = m.call_args_list[1]
+        assert delete_call[0][0] == "DELETE"
+        assert "oompah%3Astatus%3Aopen" in delete_call[0][1]
+        # POST new status label
+        post_call = m.call_args_list[2]
+        assert post_call[0][0] == "POST"
+        assert "oompah:status:done" in post_call[1]["json"]["labels"]
+
+    def test_set_status_label_no_existing_status_label(self):
+        """When no status label exists, just add the new one."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "bug"}])
+        post_resp = _mock_response(200, json_data=[{"name": "oompah:status:in-progress"}])
+        responses = [labels_resp, post_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker._set_status_label(43, "In Progress")
+        assert m.call_count == 2  # GET + POST only, no DELETE
+        post_call = m.call_args_list[1]
+        assert "oompah:status:in-progress" in post_call[1]["json"]["labels"]
+
+    # ------------------------------------------------------------------
+    # Private helper: _set_priority_label
+    # ------------------------------------------------------------------
+
+    def test_set_priority_label_replaces_existing(self):
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "priority:3"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_resp = _mock_response(200, json_data=[{"name": "priority:1"}])
+        responses = [labels_resp, delete_resp, post_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker._set_priority_label(44, 1)
+        delete_call = m.call_args_list[1]
+        assert delete_call[0][0] == "DELETE"
+        assert "priority%3A3" in delete_call[0][1]
+        post_call = m.call_args_list[2]
+        assert "priority:1" in post_call[1]["json"]["labels"]
+
+    def test_set_priority_label_none_removes_only(self):
+        """When priority is None, only remove existing priority labels."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "priority:2"}])
+        delete_resp = _mock_response(204, json_data=None)
+        responses = [labels_resp, delete_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker._set_priority_label(45, None)
+        assert m.call_count == 2  # GET + DELETE only, no POST
+
+    def test_set_priority_label_invalid_value_skips_add(self):
+        """An un-coercible priority value skips the POST call."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[])
+        responses = [labels_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker._set_priority_label(46, "not-a-number")
+        assert m.call_count == 1  # only GET, no POST
 
 
 # ===========================================================================
