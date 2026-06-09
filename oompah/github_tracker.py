@@ -988,6 +988,22 @@ def _parse_next_link(link_header: str) -> str | None:
 
 _STATUS_LABEL_PREFIX = "oompah:status:"
 
+# Regex for parsing oompah comment bodies: "**author**: text"
+_COMMENT_BODY_RE = re.compile(r"^\*\*([^*]+)\*\*:\s*(.*)", re.DOTALL)
+
+
+def _parse_comment_body(body: str, user_login: str | None = None) -> tuple[str, str]:
+    """Extract (author, text) from a GitHub comment body.
+
+    oompah comments are formatted as ``**author**: text``.  When the body
+    does not match this pattern, the GitHub user login is used as the
+    author and the full body as the text.
+    """
+    m = _COMMENT_BODY_RE.match(body)
+    if m:
+        return m.group(1), m.group(2).strip()
+    return user_login or "unknown", body
+
 # Build a bidirectional mapping between label slugs and canonical statuses.
 # "In Progress" → "in-progress", "Needs CI Fix" → "needs-ci-fix", etc.
 _LABEL_SLUG_TO_STATUS: dict[str, str] = {
@@ -1182,7 +1198,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     url: str | None = gh_issue.get("html_url") or None
 
     return Issue(
-        id=str(gh_issue.get("id", number)),
+        id=gh_id.canonical,
         identifier=gh_id.canonical,
         title=gh_issue.get("title") or "",
         description=description,
@@ -1408,19 +1424,38 @@ class GitHubIssueTracker:
             return []
 
     def fetch_comments(self, identifier: str) -> list[dict]:
-        """Return all comments on an issue as a list of raw GitHub dicts."""
+        """Return all comments on an issue as a list of normalized comment dicts.
+
+        Each comment dict contains at least ``author`` and ``text`` keys so that
+        callers following the tracker protocol contract can rely on those fields.
+        The raw GitHub fields (``id``, ``body``, ``created_at``, etc.) are also
+        preserved for backward compatibility.
+        """
         try:
             gh_id = self.parse_identifier(identifier)
         except TrackerError:
             return []
 
         try:
-            return self._client.request_paginated(
+            raw_comments = self._client.request_paginated(
                 self._repo_path(f"/issues/{gh_id.number}/comments"),
                 params={"per_page": 100},
             )
         except TrackerError:
             return []
+
+        result = []
+        for comment in raw_comments:
+            if not isinstance(comment, dict):
+                continue
+            body: str = comment.get("body") or ""
+            user_login: str | None = (comment.get("user") or {}).get("login")
+            author, text = _parse_comment_body(body, user_login)
+            normalized = dict(comment)
+            normalized["author"] = author
+            normalized["text"] = text
+            result.append(normalized)
+        return result
 
     def fetch_issues_by_states(self, state_names: list[str]) -> list[Issue]:
         """Return all issues whose oompah state matches any of *state_names*.
@@ -1576,6 +1611,17 @@ class GitHubIssueTracker:
             if lbl not in all_labels:
                 all_labels.append(lbl)
 
+        # Parent relationship — encode as parent:<number> label so that
+        # _gh_issue_to_issue can reconstruct parent_id from the label.
+        if parent:
+            try:
+                parent_gh_id = self.parse_identifier(parent)
+                parent_label = f"parent:{parent_gh_id.number}"
+                if parent_label not in all_labels:
+                    all_labels.append(parent_label)
+            except TrackerError:
+                pass  # Invalid parent identifier — skip silently.
+
         # Build the issue body.
         body = self._build_issue_body(description)
 
@@ -1590,6 +1636,23 @@ class GitHubIssueTracker:
             raise TrackerError(
                 "GitHub API returned unexpected response for issue creation"
             )
+
+        # If the initial status is terminal, close the GitHub issue immediately
+        # so that state-based filters (e.g. fetch_issues_by_states(["Done"]))
+        # correctly exclude / include it via the GitHub state field.
+        if status in self.terminal_states:
+            number = gh_issue.get("number")
+            if number is not None:
+                try:
+                    self._client.patch(
+                        self._issues_path(f"/{number}"),
+                        json={"state": "closed"},
+                    )
+                    gh_issue = dict(gh_issue)
+                    gh_issue["state"] = "closed"
+                except TrackerError:
+                    pass  # Best-effort; the label still encodes the terminal status.
+
         return _gh_issue_to_issue(gh_issue, self.owner, self.repo)
 
     def update_issue(self, identifier: str, **fields: str) -> None:
@@ -1777,8 +1840,11 @@ class GitHubIssueTracker:
             json={"body": body},
         )
         if isinstance(result, dict):
-            return result
-        return {"body": body}
+            normalized = dict(result)
+            normalized["author"] = author
+            normalized["text"] = comment_text
+            return normalized
+        return {"body": body, "author": author, "text": comment_text}
 
     # ------------------------------------------------------------------
     # Labels
@@ -1979,15 +2045,18 @@ class GitHubIssueTracker:
         receive a namespace-consistent mapping regardless of whether the
         underlying storage is body metadata or GitHub issue fields.
 
-        Returns an empty dict when the issue cannot be found or when the
-        body contains no metadata block.
+        Returns an empty dict when the issue cannot be found, when the
+        identifier is invalid, or when the body contains no metadata block.
 
         Parameters
         ----------
         identifier:
             Fully-qualified GitHub issue identifier.
         """
-        gh_id = self.parse_identifier(identifier)
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            return {}
         try:
             raw, _ = self._client.request(
                 "GET", self._issues_path(f"/{gh_id.number}")

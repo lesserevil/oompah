@@ -1424,9 +1424,12 @@ class TestGhIssueToIssue:
         issue = self._convert(body=body)
         assert issue.project_id == "myproject"
 
-    def test_id_uses_github_id(self):
+    def test_id_uses_canonical_identifier(self):
+        """issue.id must equal issue.identifier (canonical form) so that
+        ID-based lookups are consistent across the tracker protocol."""
         issue = self._convert(number=7, issue_id=99999)
-        assert issue.id == "99999"
+        assert issue.id == issue.identifier
+        assert issue.id == "lesserevil/oompah-tasks#7"
 
 
 # ===========================================================================
@@ -2763,10 +2766,12 @@ class TestGitHubIssueTrackerMetadata:
             result = tracker.get_metadata("lesserevil/oompah-tasks#999")
         assert result == {}
 
-    def test_get_metadata_invalid_identifier_raises_tracker_error(self):
+    def test_get_metadata_invalid_identifier_returns_empty(self):
+        """Invalid identifier returns empty dict rather than raising,
+        consistent with the tracker protocol contract."""
         tracker = self._make_tracker()
-        with pytest.raises(TrackerError):
-            tracker.get_metadata("not-a-valid-id")
+        result = tracker.get_metadata("not-a-valid-id")
+        assert result == {}
 
     # ------------------------------------------------------------------
     # set_metadata_field — body-backed
