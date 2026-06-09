@@ -209,16 +209,17 @@ def _drain_initial_ws_push(ws) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Module-scoped fixture: shared server for most tests
+# Function-scoped fixture: isolated server for each e2e test
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def granian_e2e_base_url() -> Generator[str, None, None]:
     """Start a Granian server with a stub orchestrator and yield its base URL.
 
-    Module-scoped so the (relatively slow) startup cost is paid once per
-    test module.  Each test class that needs a *fresh* server (e.g. restart
-    tests) starts its own server instead of using this fixture.
+    Function-scoped so a WebSocket close or handshake edge case in one test
+    cannot leave the single-worker Granian subprocess stuck for the next test.
+    Restart tests still start their own servers because they need precise
+    control over process lifetime and port reuse.
     """
     port = _free_port()
     proc = _start_granian_server(port)
