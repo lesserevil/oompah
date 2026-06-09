@@ -124,6 +124,11 @@ _STATIC_DIR = Path(__file__).resolve().parent / "static"
 if _STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
+# Favicon bytes cached at module load time to avoid a synchronous disk read
+# on every request (hot path — browsers hit /favicon.ico on every page load).
+_FAVICON_PATH = _STATIC_DIR / "favicon.svg"
+_FAVICON_CACHE: bytes | None = _FAVICON_PATH.read_bytes() if _FAVICON_PATH.is_file() else None
+
 
 @app.get("/favicon.ico")
 @app.get("/favicon.svg")
@@ -132,12 +137,15 @@ async def favicon():
 
     Browsers request /favicon.ico by default; modern browsers will accept
     an SVG response there as long as the Content-Type is correct.
+
+    The favicon bytes are loaded once at module import time and cached in
+    ``_FAVICON_CACHE`` so that no synchronous disk I/O occurs on the event
+    loop during request handling.
     """
-    fav = _STATIC_DIR / "favicon.svg"
-    if not fav.is_file():
+    if _FAVICON_CACHE is None:
         return Response(status_code=404)
     return Response(
-        content=fav.read_bytes(),
+        content=_FAVICON_CACHE,
         media_type="image/svg+xml",
         headers={"Cache-Control": "public, max-age=86400"},
     )
