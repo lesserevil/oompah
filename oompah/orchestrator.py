@@ -3318,6 +3318,32 @@ class Orchestrator:
             parent.project_id = issue.project_id
         return parent
 
+    def _epic_rollup_child_strategy(
+        self,
+        issue: Issue,
+        project_id: str | None = None,
+    ) -> str | None:
+        """Return the rollup strategy for a non-epic child of an epic.
+
+        In ``stacked`` and ``shared`` projects, child work does not become
+        ``Merged`` just because the child branch itself appears in forge
+        merged-branch history.  ``Merged`` is reserved for the epic rollup
+        merge; stacked child-branch merges only advance the child to ``Done``.
+        """
+        effective_project_id = project_id or issue.project_id
+        strategy = self._project_epic_strategy(effective_project_id)
+        if strategy not in ("stacked", "shared"):
+            return None
+        if (issue.issue_type or "").strip().lower() == "epic":
+            return None
+        if not (issue.parent_id or "").strip():
+            return None
+        if effective_project_id and not issue.project_id:
+            issue.project_id = effective_project_id
+        if self._resolve_parent_epic(issue) is None:
+            return None
+        return strategy
+
     def _sync_issue_task_file_to_workspace(self, issue: Issue, workspace_path: str) -> None:
         """[LEGACY: Backlog.md only] Best-effort sync of Backlog task metadata into a worktree.
 
@@ -5794,6 +5820,7 @@ class Orchestrator:
             return
 
         for project in self.project_store.list_all():
+            project_id = str(project.id)
             tracker = self._tracker_for_project(project.id)
             try:
                 merge_candidate_states = list(self.config.tracker_terminal_states)
@@ -5804,6 +5831,8 @@ class Orchestrator:
             except TrackerError:
                 continue
             for issue in closed_issues:
+                if not issue.project_id:
+                    issue.project_id = project_id
                 issue_status = canonicalize_status(issue.state)
                 labels = set(issue.labels or [])
                 if (
@@ -5815,6 +5844,37 @@ class Orchestrator:
                 # Branch name is typically the issue identifier
                 branch = issue.branch_name or issue.identifier
                 if branch in merged:
+                    rollup_strategy = self._epic_rollup_child_strategy(
+                        issue,
+                        project_id,
+                    )
+                    if rollup_strategy == "shared":
+                        logger.info(
+                            "Skipped marking %s Merged from child branch %s: "
+                            "project epic_strategy=shared waits for the epic "
+                            "rollup merge",
+                            issue.identifier,
+                            branch,
+                        )
+                        continue
+                    if rollup_strategy == "stacked":
+                        if issue_status == DONE:
+                            continue
+                        try:
+                            tracker.update_issue(issue.identifier, status=DONE)
+                            logger.info(
+                                "Marked %s as Done (child branch %s merged "
+                                "into epic branch; epic rollup owns Merged)",
+                                issue.identifier,
+                                branch,
+                            )
+                        except TrackerError as exc:
+                            logger.debug(
+                                "Failed to mark %s as done: %s",
+                                issue.identifier,
+                                exc,
+                            )
+                        continue
                     try:
                         tracker.update_issue(issue.identifier, status=MERGED)
                         logger.info(
@@ -5869,13 +5929,30 @@ class Orchestrator:
                     slug = extract_repo_slug(project.repo_url)
 
             for issue in issues:
+                if not issue.project_id:
+                    issue.project_id = project_id
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
                 branch = issue.branch_name or issue.identifier
                 if not branch or branch in open_branches:
                     continue
+                rollup_strategy = self._epic_rollup_child_strategy(
+                    issue,
+                    project_id,
+                )
+                if rollup_strategy == "shared":
+                    logger.debug(
+                        "Skipping stale In Review reconciliation for %s: "
+                        "epic_strategy=shared uses the epic rollup review, "
+                        "not a child PR",
+                        issue.identifier,
+                    )
+                    continue
 
                 if branch in merged_branches:
+                    if rollup_strategy == "stacked":
+                        self._mark_stale_in_review_done(tracker, issue, branch)
+                        continue
                     self._mark_stale_in_review_merged(tracker, issue, branch)
                     continue
 
@@ -5894,6 +5971,9 @@ class Orchestrator:
                 if review_state == "open":
                     continue
                 if review_state == "merged":
+                    if rollup_strategy == "stacked":
+                        self._mark_stale_in_review_done(tracker, issue, branch)
+                        continue
                     self._mark_stale_in_review_merged(tracker, issue, branch)
                     continue
 
@@ -5913,6 +5993,9 @@ class Orchestrator:
                     )
                     continue
                 if ahead <= 0:
+                    if rollup_strategy == "stacked":
+                        self._mark_stale_in_review_done(tracker, issue, branch)
+                        continue
                     self._mark_stale_in_review_merged(tracker, issue, branch)
                     continue
 
@@ -5972,6 +6055,33 @@ class Orchestrator:
         except TrackerError as exc:
             logger.debug(
                 "Failed to mark stale In Review task %s merged: %s",
+                issue.identifier,
+                exc,
+            )
+
+    def _mark_stale_in_review_done(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue,
+        branch: str,
+    ) -> None:
+        """Mark a stacked-epic child ``Done`` after its child PR merges.
+
+        Stacked children merge into the epic branch first. They are complete
+        for purposes of opening the epic rollup PR, but they are not globally
+        ``Merged`` until that epic branch lands.
+        """
+        try:
+            tracker.update_issue(issue.identifier, status=DONE)
+            logger.info(
+                "Marked %s as Done during stale In Review reconciliation "
+                "(child branch %s merged into epic branch)",
+                issue.identifier,
+                branch,
+            )
+        except TrackerError as exc:
+            logger.debug(
+                "Failed to mark stale In Review task %s done: %s",
                 issue.identifier,
                 exc,
             )
