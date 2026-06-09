@@ -1,10 +1,10 @@
 ---
 id: TASK-455.5
 title: Handle cherry-pick conflicts without losing work
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-09 01:12'
+updated_date: '2026-06-09 01:16'
 labels:
   - task
 dependencies:
@@ -180,4 +180,16 @@ created: 2026-06-09 01:12
 ---
 Implementation: Modified oompah/cherry_pick_pr_creator.py: (1) Added _has_cherry_pick_in_progress(wt_path) helper that checks for CHERRY_PICK_HEAD via 'git rev-parse --git-dir'; (2) apply_cherry_pick() now checks for in-progress cherry-pick at start and raises CherryPickConflictError immediately (prevents later ticks overwriting existing conflict state); (3) On conflict, cherry-pick --abort is NO LONGER called — worktree left intact with conflict markers; (4) cherry_pick_push_and_open_pr() now: marks child task Needs Rebase via tracker.update_issue(), adds diagnostic comment with commit list + worktree path + conflict details via tracker.add_comment(), both non-fatal. Non-conflict failures still call --abort for worktree hygiene. Added 11 new tests: 5 for _has_cherry_pick_in_progress, 4 for apply_cherry_pick conflict changes, 4 for cherry_pick_push_and_open_pr conflict marking. Total: 53 tests all passing.
 ---
+
+author: oompah
+created: 2026-06-09 01:15
+---
+Verification: 53 tests pass in test_cherry_pick_pr_creator.py. New coverage includes: _has_cherry_pick_in_progress (5 tests), apply_cherry_pick conflict non-abort behavior (4 tests: test_does_not_abort_on_conflict verifies no --abort call on conflict; test_aborts_on_non_conflict_failure verifies abort still happens for non-conflict errors; test_raises_conflict_error_when_cherry_pick_in_progress verifies early-exit), cherry_pick_push_and_open_pr conflict handling (4 tests: Needs Rebase marking, diagnostic comment content, non-fatal failures). Branch pushed to origin/epic-TASK-455.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented full cherry-pick conflict handling: (1) _has_cherry_pick_in_progress() detects CHERRY_PICK_HEAD so later ticks skip conflicted worktrees; (2) apply_cherry_pick() leaves worktree intact on conflict (no --abort) and raises immediately if conflict already in progress; (3) cherry_pick_push_and_open_pr() marks child task Needs Rebase + adds diagnostic comment with commit list, worktree path, and conflict details; (4) source metadata advances to conflict status. Non-conflict failures still abort for worktree hygiene. 53 tests pass (+11 new).
+<!-- SECTION:FINAL_SUMMARY:END -->

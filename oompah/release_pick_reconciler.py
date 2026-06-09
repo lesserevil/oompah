@@ -1,4 +1,4 @@
-"""Release-pick reconciliation loop (TASK-455.1 / TASK-455.3).
+"""Release-pick reconciliation loop (TASK-455.1 / TASK-455.3 / TASK-455.6).
 
 Idempotent background pass that scans source tasks and epics with
 ``oompah.backports`` metadata, evaluates each target branch entry, and
@@ -9,7 +9,7 @@ Overview
 
 The reconciler is called once per background tick by the orchestrator (wired
 into :meth:`~oompah.orchestrator.Orchestrator._reconcile_release_picks_pass`).
-It performs three operations:
+It performs four operations:
 
 1. **Create child tasks** for ``waiting`` entries that have no matching child
    yet.  The child task is created under the source task (as a Backlog
@@ -25,7 +25,14 @@ It performs three operations:
    parent metadata).  The entry is advanced to ``task_created`` without
    creating a duplicate.
 
-3. **Mirror terminal child outcomes** back to the parent entry.  When a child
+3. **Track PR outcomes** for ``pr_open`` and ``cherry_picking`` entries
+   (TASK-455.6).  When the SCM provider is available, each entry's PR is
+   queried.  A merged PR advances the entry to ``merged`` and marks the child
+   task as Merged.  A PR closed without merging escalates the entry to
+   ``needs_human`` and posts an actionable comment on the source task.  An
+   open PR is left unchanged (check on next pass).
+
+4. **Mirror terminal child outcomes** back to the parent entry.  When a child
    task reaches Done, Merged, or Archived the corresponding backports entry is
    advanced to ``merged`` or ``archived`` to keep the source task's metadata
    up to date.
@@ -47,12 +54,12 @@ from oompah.release_pick_schema import (
     parse_backport_of,
     parse_backports,
 )
-from oompah.statuses import ARCHIVED, DONE, MERGED, canonicalize_status
+from oompah.statuses import ARCHIVED, DONE, MERGED, NEEDS_HUMAN, canonicalize_status
 
 if TYPE_CHECKING:
     from oompah.models import Issue
     from oompah.projects import ProjectStore
-    from oompah.scm import SCMProvider
+    from oompah.scm import ReviewRequest, SCMProvider
     from oompah.tracker import BacklogMdTracker
 
 logger = logging.getLogger(__name__)
@@ -311,7 +318,39 @@ def _reconcile_entries(
                 )
             continue
 
-        # --- Case 2: task_created with resolved commits — cherry-pick+PR ---
+        # --- Case 2: pr_open/cherry_picking — check PR outcome via SCM ---
+        if (
+            entry.status in (ReleasePick.PR_OPEN, ReleasePick.CHERRY_PICKING)
+            and entry.task_id
+            and scm is not None
+            and repo is not None
+        ):
+            try:
+                updated = _check_pr_outcome(
+                    tracker, source, entry, children,
+                    scm=scm, repo=repo,
+                )
+                if updated is not entry:
+                    entries[i] = updated
+                    n_advanced += 1
+                    logger.info(
+                        "release_pick_reconciler: %s branch=%r PR outcome → %s",
+                        source.identifier,
+                        entry.branch,
+                        updated.status.value,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "release_pick_reconciler: PR outcome check failed for"
+                    " %s branch=%r: %s",
+                    source.identifier,
+                    entry.branch,
+                    exc,
+                )
+                n_errors += 1
+            continue
+
+        # --- Case 3: task_created with resolved commits — cherry-pick+PR ---
         if (
             entry.status == ReleasePick.TASK_CREATED
             and entry.commits
@@ -357,7 +396,7 @@ def _reconcile_entries(
                     n_errors += 1
             continue
 
-        # --- Case 3: waiting — create child or heal stale ----------------
+        # --- Case 4: waiting — create child or heal stale ----------------
         if entry.status == ReleasePick.WAITING:
             live_child = _best_live_child(children)
             if live_child is not None:
@@ -424,6 +463,206 @@ def _reconcile_entries(
 
     return entries, n_advanced, n_created, n_errors
 
+
+def _check_pr_outcome(
+    tracker: "BacklogMdTracker",
+    source: "Issue",
+    entry: "BackportEntry",
+    children: "list[Issue]",
+    *,
+    scm: "SCMProvider",
+    repo: str,
+) -> "BackportEntry":
+    """Check the PR status for a backport entry and advance accordingly.
+
+    Queries the SCM provider for the PR associated with the child task's
+    branch.  Based on the PR state:
+
+    * **merged**: Advance entry to ``merged``, mark the child task as Merged,
+      and update the child's ``oompah.backport_of`` metadata.
+    * **closed** (unmerged): Escalate entry to ``needs_human`` with an
+      actionable comment on the *source* task, and update the child's
+      ``oompah.backport_of`` metadata.
+    * **open**: No change (return original entry, will be re-checked next pass).
+    * **not found**: No change (return original entry).
+
+    Any exception from the SCM provider is caught and logged; the original
+    entry is returned unchanged so the pass remains non-fatal.
+
+    Args:
+        tracker: Tracker for reading/writing task metadata and status.
+        source: Source task being backported.
+        entry: The ``BackportEntry`` with PR-related status to check.
+        children: List of child issues for this (source, branch) pair.
+        scm: SCM provider for querying PR status.
+        repo: Repository slug (e.g. ``"org/repo"``).
+
+    Returns:
+        Updated ``BackportEntry`` if the PR state changed the entry; the
+        *same* object otherwise (identity comparison is safe for callers).
+    """
+    # Find the live child task to determine the PR branch name.
+    live_child = _best_live_child(children)
+    if live_child is None and entry.task_id:
+        # Fall back to any child whose identifier matches task_id even if terminal
+        # (so we can detect a merged PR for a child that was already closed).
+        for child in children:
+            if child.identifier == entry.task_id:
+                live_child = child
+                break
+
+    if live_child is None:
+        logger.debug(
+            "release_pick_reconciler: no child for %s branch=%r, "
+            "cannot check PR outcome",
+            source.identifier,
+            entry.branch,
+        )
+        return entry
+
+    # Use target_branch if available; fall back to the child identifier.
+    branch_name = live_child.target_branch or live_child.identifier
+
+    # --- Query SCM ---------------------------------------------------------
+    pr: "ReviewRequest | None" = None
+    try:
+        pr = scm.find_pr_for_branch(repo, branch_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "release_pick_reconciler: find_pr_for_branch failed for %s "
+            "branch=%r: %s",
+            source.identifier,
+            branch_name,
+            exc,
+        )
+        return entry
+
+    if pr is None:
+        logger.debug(
+            "release_pick_reconciler: no PR found for %s branch=%r",
+            source.identifier,
+            branch_name,
+        )
+        return entry
+
+    pr_state = (pr.state or "").lower()
+    logger.debug(
+        "release_pick_reconciler: PR check for %s branch=%r: state=%s",
+        source.identifier,
+        branch_name,
+        pr_state,
+    )
+
+    # --- PR merged: advance entry to merged, mark child Merged ------------
+    if pr_state == "merged":
+        try:
+            if canonicalize_status(live_child.state) != MERGED:
+                tracker.update_issue(live_child.identifier, status=MERGED)
+                logger.info(
+                    "release_pick_reconciler: marked child %s Merged (PR merged)",
+                    live_child.identifier,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "release_pick_reconciler: failed to mark child %s Merged: %s",
+                live_child.identifier,
+                exc,
+            )
+
+        # Mirror merged status into the child's backport_of metadata.
+        try:
+            from oompah.release_pick_schema import BackportOf
+
+            bof_raw = tracker.get_metadata(live_child.identifier).get(
+                "oompah.backport_of"
+            )
+            if bof_raw:
+                bof = BackportOf.from_raw(bof_raw)
+                bof.status = ReleasePick.MERGED
+                tracker.set_metadata_field(
+                    live_child.identifier,
+                    "oompah.backport_of",
+                    bof.to_raw(),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "release_pick_reconciler: failed to update backport_of for %s: %s",
+                live_child.identifier,
+                exc,
+            )
+
+        return BackportEntry(
+            branch=entry.branch,
+            status=ReleasePick.MERGED,
+            task_id=entry.task_id or live_child.identifier,
+            pr_url=entry.pr_url or pr.url,
+            commits=entry.commits,
+        )
+
+    # --- PR closed (unmerged): escalate to needs_human --------------------
+    if pr_state == "closed":
+        actionable_comment = (
+            f"Backport PR #{pr.id} ({pr.url}) for branch `{branch_name}` was "
+            f"closed without merging. The cherry-pick changes need to be "
+            f"re-applied or the backport abandoned.\n\n"
+            f"**Action required**:\n"
+            f"1. Check the PR at {pr.url} for closure reason.\n"
+            f"2. If the changes are still needed, reopen the PR or create a "
+            f"new one.\n"
+            f"3. If the backport is no longer needed, mark this entry as "
+            f"`archived`.\n"
+            f"4. If there are conflicts, resolve them and push a new branch."
+        )
+        try:
+            tracker.add_comment(
+                source.identifier, actionable_comment, author="oompah"
+            )
+            logger.warning(
+                "release_pick_reconciler: escalated %s branch=%r to "
+                "needs_human (PR closed unmerged)",
+                source.identifier,
+                branch_name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "release_pick_reconciler: failed to add escalation comment "
+                "for %s: %s",
+                source.identifier,
+                exc,
+            )
+
+        # Mirror needs_human status into the child's backport_of metadata.
+        try:
+            from oompah.release_pick_schema import BackportOf
+
+            bof_raw = tracker.get_metadata(live_child.identifier).get(
+                "oompah.backport_of"
+            )
+            if bof_raw:
+                bof = BackportOf.from_raw(bof_raw)
+                bof.status = ReleasePick.NEEDS_HUMAN
+                tracker.set_metadata_field(
+                    live_child.identifier,
+                    "oompah.backport_of",
+                    bof.to_raw(),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "release_pick_reconciler: failed to update backport_of for %s: %s",
+                live_child.identifier,
+                exc,
+            )
+
+        return BackportEntry(
+            branch=entry.branch,
+            status=ReleasePick.NEEDS_HUMAN,
+            task_id=entry.task_id or live_child.identifier,
+            pr_url=entry.pr_url or pr.url,
+            commits=entry.commits,
+        )
+
+    # --- PR still open: no change -----------------------------------------
+    return entry
 
 def _most_terminal_child(children: "list[Issue]") -> "Issue | None":
     """Return the most terminal (Done/Merged/Archived) child issue, or None.

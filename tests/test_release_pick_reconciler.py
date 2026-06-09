@@ -21,6 +21,7 @@ from oompah.release_pick_reconciler import (
     ReconcileResult,
     _best_live_child,
     _build_child_index,
+    _check_pr_outcome,
     _create_backport_child,
     _create_backport_worktree,
     _most_terminal_child,
@@ -32,7 +33,8 @@ from oompah.release_pick_schema import (
     backports_to_raw,
     parse_backports,
 )
-from oompah.statuses import ARCHIVED, BACKLOG, DONE, MERGED, OPEN
+from oompah.scm import ReviewRequest
+from oompah.statuses import ARCHIVED, BACKLOG, DONE, MERGED, NEEDS_HUMAN, OPEN
 
 
 # ---------------------------------------------------------------------------
@@ -1223,3 +1225,649 @@ class TestReconcileWorktreeIntegration:
         assert result.created == 0
         # No worktree created for heal path (child already exists)
         project_store.create_worktree.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _check_pr_outcome — unit tests (TASK-455.6)
+# ---------------------------------------------------------------------------
+
+
+def _make_review_request(
+    state: str,
+    *,
+    pr_id: str = "42",
+    url: str = "https://github.com/org/repo/pull/42",
+    source_branch: str = "TASK-1.1",
+    target_branch: str = "release/1.0",
+) -> ReviewRequest:
+    """Build a minimal ReviewRequest suitable for testing."""
+    return ReviewRequest(
+        id=pr_id,
+        title="Backport fix to release/1.0",
+        url=url,
+        author="bot",
+        state=state,
+        source_branch=source_branch,
+        target_branch=target_branch,
+        created_at="2026-01-01T00:00:00Z",
+        updated_at="2026-01-01T00:00:00Z",
+    )
+
+
+class TestCheckPrOutcome:
+    """Unit tests for _check_pr_outcome (TASK-455.6).
+
+    Covers all four PR states (merged, closed, open, not-found) plus error
+    paths.
+    """
+
+    def _setup(
+        self,
+        *,
+        entry_status: ReleasePick = ReleasePick.PR_OPEN,
+        child_state: str = OPEN,
+        child_target_branch: str = "release/1.0",
+        pr_state: str | None = "open",
+        scm_raises: bool = False,
+        entry_pr_url: str | None = None,
+        entry_task_id: str = "TASK-1.1",
+        child_backport_of_raw=None,
+    ):
+        """Return (tracker, source, entry, children, scm, repo) ready for testing."""
+        source = _issue("TASK-1", title="Fix bug", state=MERGED)
+        child = _issue(
+            "TASK-1.1",
+            target_branch=child_target_branch,
+            state=child_state,
+        )
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=entry_status,
+            task_id=entry_task_id,
+            pr_url=entry_pr_url,
+        )
+        children = [child]
+
+        meta_child = {}
+        if child_backport_of_raw is not None:
+            meta_child["oompah.backport_of"] = child_backport_of_raw
+        else:
+            meta_child["oompah.backport_of"] = {
+                "source": "TASK-1",
+                "status": entry_status.value,
+            }
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={"TASK-1.1": meta_child},
+        )
+
+        scm = MagicMock()
+        if scm_raises:
+            scm.find_pr_for_branch.side_effect = RuntimeError("SCM unavailable")
+        elif pr_state is None:
+            scm.find_pr_for_branch.return_value = None
+        else:
+            pr = _make_review_request(
+                pr_state,
+                source_branch=child_target_branch,
+            )
+            scm.find_pr_for_branch.return_value = pr
+
+        return tracker, source, entry, children, scm, "org/repo"
+
+    # --- PR merged ---
+
+    def test_merged_pr_advances_entry_to_merged(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.status == ReleasePick.MERGED
+
+    def test_merged_pr_marks_child_task_merged(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        tracker.update_issue.assert_called_once_with("TASK-1.1", status=MERGED)
+
+    def test_merged_pr_does_not_re_mark_already_merged_child(self):
+        """If child is already Merged, update_issue should NOT be called again."""
+        tracker, source, entry, children, scm, repo = self._setup(
+            pr_state="merged", child_state=MERGED
+        )
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        tracker.update_issue.assert_not_called()
+
+    def test_merged_pr_updates_child_backport_of_to_merged(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        bof_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1.1" and c.args[1] == "oompah.backport_of"
+        ]
+        assert len(bof_calls) == 1
+        written_value = bof_calls[0].args[2]
+        from oompah.release_pick_schema import BackportOf
+        bof = BackportOf.from_raw(written_value)
+        assert bof.status == ReleasePick.MERGED
+
+    def test_merged_pr_sets_pr_url_from_pr_when_entry_has_none(self):
+        tracker, source, entry, children, scm, repo = self._setup(
+            pr_state="merged", entry_pr_url=None
+        )
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.pr_url == "https://github.com/org/repo/pull/42"
+
+    def test_merged_pr_preserves_existing_entry_pr_url(self):
+        """When entry already has a pr_url, it is preserved over the PR url."""
+        original_url = "https://github.com/org/repo/pull/99"
+        tracker, source, entry, children, scm, repo = self._setup(
+            pr_state="merged", entry_pr_url=original_url
+        )
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.pr_url == original_url
+
+    def test_merged_pr_case_insensitive_state(self):
+        """State check is case-insensitive — 'MERGED' should be treated as merged."""
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="MERGED")
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.status == ReleasePick.MERGED
+
+    def test_merged_pr_preserves_task_id(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="merged")
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.task_id == "TASK-1.1"
+
+    # --- PR closed (unmerged) ---
+
+    def test_closed_pr_advances_entry_to_needs_human(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="closed")
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.status == ReleasePick.NEEDS_HUMAN
+
+    def test_closed_pr_posts_actionable_comment_on_source(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="closed")
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        tracker.add_comment.assert_called_once()
+        comment_call = tracker.add_comment.call_args
+        # Comment is posted on the source task
+        assert comment_call.args[0] == "TASK-1"
+        # Comment mentions the PR URL
+        comment_body = comment_call.args[1]
+        assert "https://github.com/org/repo/pull/42" in comment_body
+
+    def test_closed_pr_comment_author_is_oompah(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="closed")
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        comment_call = tracker.add_comment.call_args
+        assert comment_call.kwargs.get("author") == "oompah"
+
+    def test_closed_pr_updates_child_backport_of_to_needs_human(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="closed")
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        bof_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1.1" and c.args[1] == "oompah.backport_of"
+        ]
+        assert len(bof_calls) == 1
+        written_value = bof_calls[0].args[2]
+        from oompah.release_pick_schema import BackportOf
+        bof = BackportOf.from_raw(written_value)
+        assert bof.status == ReleasePick.NEEDS_HUMAN
+
+    def test_closed_pr_sets_pr_url_from_pr(self):
+        tracker, source, entry, children, scm, repo = self._setup(
+            pr_state="closed", entry_pr_url=None
+        )
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.pr_url == "https://github.com/org/repo/pull/42"
+
+    def test_closed_pr_comment_failure_does_not_prevent_status_advance(self):
+        """If add_comment fails, entry should still advance to needs_human."""
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="closed")
+        tracker.add_comment.side_effect = RuntimeError("comment failed")
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.status == ReleasePick.NEEDS_HUMAN
+
+    # --- PR still open ---
+
+    def test_open_pr_returns_unchanged_entry(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="open")
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result is entry
+
+    def test_open_pr_does_not_update_child(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state="open")
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    # --- PR not found ---
+
+    def test_no_pr_found_returns_unchanged_entry(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state=None)
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result is entry
+
+    def test_no_pr_found_does_not_write_anything(self):
+        tracker, source, entry, children, scm, repo = self._setup(pr_state=None)
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    # --- SCM error ---
+
+    def test_scm_exception_returns_unchanged_entry(self):
+        tracker, source, entry, children, scm, repo = self._setup(scm_raises=True)
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result is entry
+
+    def test_scm_exception_does_not_update_child(self):
+        tracker, source, entry, children, scm, repo = self._setup(scm_raises=True)
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
+
+    # --- No live child ---
+
+    def test_no_live_child_returns_unchanged_entry(self):
+        """When there are no children at all, the entry is returned unchanged."""
+        source = _issue("TASK-1", state=MERGED)
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=ReleasePick.PR_OPEN,
+            task_id="TASK-1.1",
+        )
+        tracker = MagicMock()
+        scm = MagicMock()
+
+        result = _check_pr_outcome(tracker, source, entry, [], scm=scm, repo="org/repo")
+
+        assert result is entry
+        scm.find_pr_for_branch.assert_not_called()
+
+    # --- Branch name resolution ---
+
+    def test_uses_child_target_branch_as_branch_name(self):
+        """The SCM lookup uses the child target_branch, not its identifier."""
+        tracker, source, entry, children, scm, repo = self._setup(
+            child_target_branch="release/1.0", pr_state="open"
+        )
+
+        _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        scm.find_pr_for_branch.assert_called_once_with(repo, "release/1.0")
+
+    def test_falls_back_to_child_identifier_when_no_target_branch(self):
+        """Without target_branch, the child identifier is used as the branch name."""
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch=None, state=OPEN)
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=ReleasePick.PR_OPEN,
+            task_id="TASK-1.1",
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = None
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1.1": {
+                    "oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}
+                }
+            },
+        )
+
+        _check_pr_outcome(tracker, source, entry, [child], scm=scm, repo="org/repo")
+
+        scm.find_pr_for_branch.assert_called_once_with("org/repo", "TASK-1.1")
+
+    def test_finds_child_by_task_id_when_all_terminal(self):
+        """When _best_live_child returns None but task_id matches a child, use that."""
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0", state=MERGED)
+        entry = BackportEntry(
+            branch="release/1.0",
+            status=ReleasePick.PR_OPEN,
+            task_id="TASK-1.1",
+        )
+        pr = _make_review_request("merged", source_branch="release/1.0")
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = pr
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1.1": {
+                    "oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}
+                }
+            },
+        )
+
+        result = _check_pr_outcome(tracker, source, entry, [child], scm=scm, repo="org/repo")
+
+        # Child found by task_id, PR was merged — entry advances
+        assert result.status == ReleasePick.MERGED
+
+    # --- cherry_picking entry ---
+
+    def test_cherry_picking_entry_with_merged_pr_advances_to_merged(self):
+        """cherry_picking entries also respond to merged PR checks."""
+        tracker, source, entry, children, scm, repo = self._setup(
+            entry_status=ReleasePick.CHERRY_PICKING,
+            pr_state="merged",
+        )
+
+        result = _check_pr_outcome(tracker, source, entry, children, scm=scm, repo=repo)
+
+        assert result.status == ReleasePick.MERGED
+
+
+# ---------------------------------------------------------------------------
+# reconcile_release_picks — PR outcome integration (TASK-455.6)
+# ---------------------------------------------------------------------------
+
+
+class TestReconcilePrOutcomeIntegration:
+    """Integration tests: full reconcile_release_picks with pr_open entries."""
+
+    def _source_with_pr_open(self, task_id="TASK-1", child_id="TASK-1.1", branch="release/1.0"):
+        source = _issue(task_id, state=MERGED)
+        child = _issue(child_id, target_branch=branch, state=OPEN)
+        return source, child
+
+    def test_merged_pr_advances_entry_in_full_pass(self):
+        """A pr_open entry whose PR has merged advances to merged via full reconcile."""
+        source, child = self._source_with_pr_open()
+        pr = _make_review_request("merged", source_branch="release/1.0")
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}},
+            },
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = pr
+
+        result = reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        assert result.advanced == 1
+        assert result.scanned == 1
+        source_backports_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        assert len(source_backports_calls) == 1
+        written_entries = parse_backports(source_backports_calls[0].args[2])
+        assert written_entries[0].status == ReleasePick.MERGED
+
+    def test_cherry_picking_entry_merged_pr_advances_in_full_pass(self):
+        """cherry_picking entries are also checked for PR outcomes."""
+        source = _issue("TASK-2", state=MERGED)
+        child = _issue("TASK-2.1", target_branch="release/1.0", state=OPEN)
+        pr = _make_review_request("merged", source_branch="release/1.0")
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-2": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "cherry_picking", "task_id": "TASK-2.1"}
+                    ]
+                },
+                "TASK-2.1": {
+                    "oompah.backport_of": {"source": "TASK-2", "status": "cherry_picking"}
+                },
+            },
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = pr
+
+        result = reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        assert result.advanced == 1
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-2" and c.args[1] == "oompah.backports"
+        ]
+        written_entries = parse_backports(source_calls[0].args[2])
+        assert written_entries[0].status == ReleasePick.MERGED
+
+    def test_closed_pr_escalates_to_needs_human_in_full_pass(self):
+        """A pr_open entry whose PR closed unmerged escalates to needs_human."""
+        source, child = self._source_with_pr_open()
+        pr = _make_review_request("closed", source_branch="release/1.0")
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}},
+            },
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = pr
+
+        result = reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        assert result.advanced == 1
+        tracker.add_comment.assert_called()
+        comment_call = tracker.add_comment.call_args
+        assert comment_call.args[0] == "TASK-1"
+
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        written_entries = parse_backports(source_calls[0].args[2])
+        assert written_entries[0].status == ReleasePick.NEEDS_HUMAN
+
+    def test_open_pr_does_not_advance_entry(self):
+        """An open PR causes no advancement in the reconcile pass."""
+        source, child = self._source_with_pr_open()
+        pr = _make_review_request("open", source_branch="release/1.0")
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}},
+            },
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = pr
+
+        result = reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        assert result.advanced == 0
+
+    def test_no_scm_skips_pr_outcome_for_pr_open_entries(self):
+        """Without an SCM provider, pr_open entries are not checked."""
+        source, child = self._source_with_pr_open()
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}},
+            },
+        )
+
+        result = reconcile_release_picks(tracker)  # no scm
+
+        assert result.advanced == 0
+
+    def test_scm_exception_entry_unchanged_pass_continues(self):
+        """SCM exception during PR check is absorbed; entry stays pr_open."""
+        source, child = self._source_with_pr_open()
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}},
+            },
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.side_effect = RuntimeError("SCM down")
+
+        # Should not raise
+        result = reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        assert result.advanced == 0
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-1" and c.args[1] == "oompah.backports"
+        ]
+        assert len(source_calls) == 0
+
+    def test_merged_pr_child_task_updated_to_merged(self):
+        """When PR merges, the child task status is updated to Merged."""
+        source, child = self._source_with_pr_open()
+        pr = _make_review_request("merged", source_branch="release/1.0")
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "pr_open"}},
+            },
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = pr
+
+        reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        tracker.update_issue.assert_called_once_with("TASK-1.1", status=MERGED)
+
+    def test_pr_outcome_idempotent_for_already_merged_entry(self):
+        """A source entry already at merged is not re-processed (terminal)."""
+        source = _issue("TASK-1", state=MERGED)
+        child = _issue("TASK-1.1", target_branch="release/1.0", state=MERGED)
+        pr = _make_review_request("merged", source_branch="release/1.0")
+
+        tracker = _make_tracker(
+            all_issues=[source, child],
+            metadata_map={
+                "TASK-1": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "merged", "task_id": "TASK-1.1"}
+                    ]
+                },
+                "TASK-1.1": {"oompah.backport_of": {"source": "TASK-1", "status": "merged"}},
+            },
+        )
+        scm = MagicMock()
+        scm.find_pr_for_branch.return_value = pr
+
+        result = reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        assert result.advanced == 0
+        scm.find_pr_for_branch.assert_not_called()
+
+    def test_multiple_branches_only_merged_pr_advances(self):
+        """Multiple backport entries: only the one with a merged PR advances."""
+        source = _issue("TASK-5", state=MERGED)
+        child1 = _issue("TASK-5.1", target_branch="release/1.0", state=OPEN)
+        child2 = _issue("TASK-5.2", target_branch="release/2.0", state=OPEN)
+
+        tracker = _make_tracker(
+            all_issues=[source, child1, child2],
+            metadata_map={
+                "TASK-5": {
+                    "oompah.backports": [
+                        {"branch": "release/1.0", "status": "pr_open", "task_id": "TASK-5.1"},
+                        {"branch": "release/2.0", "status": "pr_open", "task_id": "TASK-5.2"},
+                    ]
+                },
+                "TASK-5.1": {
+                    "oompah.backport_of": {"source": "TASK-5", "status": "pr_open"}
+                },
+                "TASK-5.2": {
+                    "oompah.backport_of": {"source": "TASK-5", "status": "pr_open"}
+                },
+            },
+        )
+
+        def _pr_for_branch(repo, branch):
+            if branch == "release/1.0":
+                return _make_review_request("merged", source_branch="release/1.0")
+            return _make_review_request("open", source_branch="release/2.0")
+
+        scm = MagicMock()
+        scm.find_pr_for_branch.side_effect = _pr_for_branch
+
+        result = reconcile_release_picks(tracker, scm=scm, repo="org/repo")
+
+        assert result.advanced == 1
+        source_calls = [
+            c for c in tracker.set_metadata_field.call_args_list
+            if c.args[0] == "TASK-5" and c.args[1] == "oompah.backports"
+        ]
+        written_entries = parse_backports(source_calls[0].args[2])
+        statuses = {e.branch: e.status for e in written_entries}
+        assert statuses["release/1.0"] == ReleasePick.MERGED
+        assert statuses["release/2.0"] == ReleasePick.PR_OPEN
