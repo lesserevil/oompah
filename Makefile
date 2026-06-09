@@ -7,10 +7,53 @@ LOG_FILE := oompah.log
 # oompah actually listens on, even when the operator hasn't exported the var.
 _ENV_PORT := $(shell grep -E '^OOMPAH_SERVER_PORT[[:space:]]*=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' \t\r\n')
 PORT ?= $(if $(OOMPAH_SERVER_PORT),$(OOMPAH_SERVER_PORT),$(if $(_ENV_PORT),$(_ENV_PORT),8080))
+# Timeout (seconds) for waiting on process exit and port release during stop/restart.
+STOP_TIMEOUT ?= 30
 BACKLOG_NPM_PACKAGE := https://github.com/MrLesk/Backlog.md/archive/HEAD.tar.gz
 BACKLOG_CLI := $(VENV)/bin/backlog
 
 export PATH := $(abspath $(VENV)/bin):$(PATH)
+
+# Internal helper: wait for a PID to exit, then wait for the port to be free.
+# Usage: $(call wait_for_stop,PID,PORT,TIMEOUT)
+# Returns 0 on success, non-zero on timeout.
+# NOTE: do NOT start this define body with @ — when expanded inline inside
+# another recipe (e.g. the stop target) the @ becomes a literal shell character
+# and causes a "command not found" error.  Echo suppression is handled by the
+# outer recipe's leading @.
+define wait_for_stop
+	PID=$1; PORT=$2; TIMEOUT=$3; \
+	echo "Waiting for process $$PID to exit and port $$PORT to be released (timeout: $${TIMEOUT}s)..."; \
+	ELAPSED=0; \
+	while kill -0 $$PID 2>/dev/null; do \
+		if [ $$ELAPSED -ge $${TIMEOUT} ]; then \
+			echo "ERROR: Process $$PID did not exit within $${TIMEOUT} seconds"; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+		ELAPSED=$$((ELAPSED + 1)); \
+	done; \
+	echo "Process $$PID exited. Waiting for port $$PORT to be released..."; \
+	ELAPSED=0; \
+	while $(call port_in_use,$$PORT); do \
+		if [ $$ELAPSED -ge $${TIMEOUT} ]; then \
+			echo "ERROR: Port $$PORT not released within $${TIMEOUT} seconds after process exit"; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+		ELAPSED=$$((ELAPSED + 1)); \
+	done; \
+	echo "Port $$PORT is free."
+endef
+
+# Internal helper: check if a port is in use (LISTEN state).
+# Usage: $(call port_in_use,PORT)
+# Returns 0 (true) if port is in use, 1 (false) if free.
+# Uses ss if available, falls back to lsof.
+define port_in_use
+	command -v ss >/dev/null 2>&1 && ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN; \
+	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
+endef
 
 .PHONY: help setup ensure-backlog start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions
 
@@ -53,18 +96,41 @@ start: setup
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
 		echo "oompah is already running (pid $$(cat $(PID_FILE)))"; \
 	else \
+		if $(call port_in_use,$(PORT)); then \
+			echo "ERROR: Port $(PORT) is already in use. Cannot start oompah."; \
+			exit 1; \
+		fi; \
 		if command -v setsid >/dev/null 2>&1; then \
 			setsid $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 </dev/null & \
 		else \
 			nohup $(PYTHON) -m oompah >> $(LOG_FILE) 2>&1 </dev/null & \
 		fi; \
-		echo $$! > $(PID_FILE); \
-		echo "oompah started (pid $$!); HTTP port defaults to $(PORT)"; \
+		NEWPID=$$!; \
+		echo $$NEWPID > $(PID_FILE); \
+		echo "Waiting for oompah (pid $$NEWPID) to start listening on port $(PORT)..."; \
+		ELAPSED=0; \
+		while ! $(call port_in_use,$(PORT)); do \
+			if [ $$ELAPSED -ge 10 ]; then \
+				echo "ERROR: oompah (pid $$NEWPID) did not start listening on port $(PORT) within 10 seconds"; \
+				rm -f $(PID_FILE); \
+				exit 1; \
+			fi; \
+			if ! kill -0 $$NEWPID 2>/dev/null; then \
+				echo "ERROR: oompah process $$NEWPID exited unexpectedly"; \
+				rm -f $(PID_FILE); \
+				exit 1; \
+			fi; \
+			sleep 1; \
+			ELAPSED=$$((ELAPSED + 1)); \
+		done; \
+		echo "oompah started (pid $$NEWPID); HTTP port defaults to $(PORT)"; \
 	fi
 
 stop:
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
-		kill $$(cat $(PID_FILE)); \
+		PID=$$(cat $(PID_FILE)); \
+		kill $$PID; \
+		$(call wait_for_stop,$$PID,$(PORT),$(STOP_TIMEOUT)); \
 		rm -f $(PID_FILE); \
 		echo "oompah stopped"; \
 	else \

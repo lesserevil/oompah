@@ -248,6 +248,35 @@ class DispatchEventType(str, Enum):
     RETRY_FIRED = "retry_fired"
     # Safety-net: periodic full sync to catch anything missed
     FULL_SYNC = "full_sync"
+    # Graceful shutdown: wake the dispatch loop so it can exit cleanly
+    SHUTDOWN = "shutdown"
+
+
+class DispatchLane(str, Enum):
+    """Lane identifiers for the orchestrator's two work channels.
+
+    The dispatch contract keeps candidate claiming and agent startup on a
+    single serialized lane (DISPATCH), while non-critical maintenance sweeps
+    run on a separate bounded lane (MAINTENANCE).  Lane names are stable
+    string constants used in comments, log messages, and tests so the
+    ownership rules are explicit and greppable.
+
+    DISPATCH:
+        Serialized, single-owner.  Candidate selection, issue claiming, and
+        ``_dispatch()`` run exclusively here.  Concurrent wakeups block until
+        the active pass completes (guarded by ``_dispatch_lane_lock``).
+
+    MAINTENANCE:
+        Bounded concurrency.  Non-critical sweeps — staleness checks, rebase
+        filing, orphan reset, watchdog, and repo self-heal — run here.
+        Maintenance work does **not** hold the dispatch lock except where its
+        output is required for correctness before the dispatch pass runs (e.g.
+        blocker pre-resolution happens before candidate selection but is still
+        part of the serialized dispatch pass).
+    """
+
+    DISPATCH = "dispatch"
+    MAINTENANCE = "maintenance"
 
 
 @dataclass
@@ -560,6 +589,7 @@ class Orchestrator:
         self._last_tick_metrics: dict[str, Any] = {}
         self._last_dispatch_metrics: dict[str, Any] = {}
         self._dispatch_pending_event_keys: set[str] = set()
+        self._dispatch_pending_coalesced_counts: dict[str, int] = {}
         self._dispatch_event_lock = threading.Lock()
         self._dispatch_events_coalesced = 0
         # EventBus: typed pub/sub for internal event-driven communication.
@@ -710,6 +740,28 @@ class Orchestrator:
         # filed) so YOLO doesn't re-file duplicates while a force-pushed rebase
         # is still settling and the forge hasn't recomputed PR mergeability.
         self._epic_rebase_filed_at: dict[str, float] = {}
+
+        # Fine-grained tick telemetry (TASK-465.1).
+        # Stores the timing breakdown of the most-recently completed _tick()
+        # call so the dashboard snapshot can surface per-substep latency
+        # without requiring the caller to hold a reference to the tick future.
+        # Keys: top-level phase names (reconcile_ms, reviews_ms, dispatch_ms,
+        # yolo_ms, archive_ms, merged_ms, watchdog_ms, heal_ms, total_ms) plus
+        # a nested "dispatch_substeps" dict with per-substep ms timings.
+        # Empty until the first tick completes.
+        self._last_tick_timings: dict[str, object] = {}
+
+        # Dispatch lane serialization contract (TASK-465.2).
+        # _dispatch_lane_lock serializes the DISPATCH lane: only one
+        # _handle_dispatch_needed() pass can run at a time, ensuring
+        # candidate selection and _dispatch() are single-owner.
+        # See DispatchLane for the full contract documentation.
+        self._dispatch_lane_lock: asyncio.Lock = asyncio.Lock()
+
+        # Tick-event coalescing counter (TASK-465.2).
+        # Counts events that were drained from the dispatch queue and coalesced
+        # into the current tick so slow-tick logs can report burst size.
+        self._last_coalesced_event_count: int = 0
 
         # Surface the agent.profiles drift alert (oompah-zlz_2-hye) so
         # the dashboard shows a banner whenever WORKFLOW.md still has a
@@ -1107,9 +1159,28 @@ class Orchestrator:
                 }
             )
 
-        if restart_issues:
+        # Merge with any restart_issues saved from a previous graceful_restart
+        # call (e.g. the user triggered restart twice before the process exited).
+        # Deduplication by issue_id ensures each task is persisted exactly once.
+        existing_restart_issues: list[dict] = self._load_state().get(
+            "restart_issues", []
+        )
+        existing_ids = {e["issue_id"] for e in existing_restart_issues}
+        new_issues = [
+            e for e in restart_issues if e["issue_id"] not in existing_ids
+        ]
+        merged_restart_issues = existing_restart_issues + new_issues
+
+        if new_issues:
             logger.info(
-                "Saving %d undrained issue(s) for re-dispatch after restart",
+                "Saving %d undrained issue(s) for re-dispatch after restart "
+                "(%d already queued)",
+                len(new_issues),
+                len(existing_restart_issues),
+            )
+        elif restart_issues:
+            logger.info(
+                "All %d undrained issue(s) already queued for restart recovery",
                 len(restart_issues),
             )
 
@@ -1117,12 +1188,16 @@ class Orchestrator:
         # come up unpaused so the saved restart_issues can re-dispatch.
         self._save_state(
             paused=was_user_paused,
-            restart_issues=restart_issues,
+            restart_issues=merged_restart_issues,
         )
 
         # Signal the main loop to stop and restart
         self._restart_requested = True
         self._stopping = True
+        # Wake the dispatch loop if it's blocked on _dispatch_queue.get()
+        self._post_event(
+            DispatchEvent(event_type=DispatchEventType.SHUTDOWN)
+        )
 
     @property
     def wants_restart(self) -> bool:
@@ -1566,14 +1641,16 @@ class Orchestrator:
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
 
-    def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> None:
+    def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> int:
         key = self._dispatch_event_key(event)
         lock = getattr(self, "_dispatch_event_lock", None)
         pending = getattr(self, "_dispatch_pending_event_keys", None)
-        if lock is None or pending is None:
-            return
+        counts = getattr(self, "_dispatch_pending_coalesced_counts", None)
+        if lock is None or pending is None or counts is None:
+            return 0
         with lock:
             pending.discard(key)
+            return counts.pop(key, 0)
 
     def _post_event(self, event: DispatchEvent) -> None:
         """Put an event onto the dispatch queue (thread-safe, non-blocking).
@@ -1591,6 +1668,9 @@ class Orchestrator:
                     self._dispatch_events_coalesced = (
                         getattr(self, "_dispatch_events_coalesced", 0) + 1
                     )
+                    counts = getattr(self, "_dispatch_pending_coalesced_counts", None)
+                    if counts is not None:
+                        counts[key] = counts.get(key, 0) + 1
                     logger.debug("Coalesced pending dispatch event %s", key)
                     return
                 pending.add(key)
@@ -1696,17 +1776,18 @@ class Orchestrator:
                     event.issue_id,
                 )
 
-                self._mark_dispatch_event_dequeued(event)
-                drained = 0
+                coalesced = self._mark_dispatch_event_dequeued(event)
                 while True:
                     try:
                         extra = self._dispatch_queue.get_nowait()
                     except asyncio.QueueEmpty:
                         break
-                    self._mark_dispatch_event_dequeued(extra)
-                    drained += 1
-                if drained:
-                    logger.debug("Coalesced %d queued dispatch event(s)", drained)
+                    coalesced += 1
+                    coalesced += self._mark_dispatch_event_dequeued(extra)
+                # Track coalesced count for dashboard snapshots (TASK-465.2).
+                self._last_coalesced_event_count = coalesced
+                if coalesced:
+                    logger.debug("Coalesced %d dispatch event(s)", coalesced)
 
                 # All current event types still result in a full _tick(), but
                 # bursts are coalesced so one worker-exit storm cannot queue a
@@ -1740,7 +1821,9 @@ class Orchestrator:
         DISPATCH lane (serialized, single-owner):
           1. _handle_reconcile()        — stall detection + tracker state refresh
           2. _handle_review_check()     — forge API: reviews + merged branches
-          3. _handle_dispatch_needed()  — candidates fetch, blocker resolution, dispatch
+          3. _handle_dispatch_needed()  — candidate fetch, blocker resolution,
+                                          selection, and _dispatch(); guarded by
+                                          ``_dispatch_lane_lock``.
 
         Supporting steps (not lane-gated):
           4. _handle_yolo_review()      — YOLO merge actions only.
@@ -1790,26 +1873,40 @@ class Orchestrator:
         await self._handle_review_check()
         t2 = time.monotonic()
 
-        # 4. Fetch candidates and dispatch eligible issues
+        # 4. DISPATCH LANE — fetch candidates and dispatch eligible issues.
+        # _handle_dispatch_needed() acquires _dispatch_lane_lock for its full
+        # duration so no second selection pass can start concurrently.
         t3_start = time.monotonic()
-        await self._handle_dispatch_needed()
+        dispatch_timings = await self._handle_dispatch_needed()
         t3 = time.monotonic()
 
         # 5. YOLO merge actions (uses cached forge state).
         # Auto-archive and merged-labeling have moved to step 5b maintenance lane.
-        yolo_ms = await self._handle_yolo_review()
+        yolo_result = await self._handle_yolo_review()
+        archive_ms = 0.0
+        merged_ms = 0.0
+        if isinstance(yolo_result, tuple):
+            yolo_ms = float(yolo_result[0])
+            if len(yolo_result) > 1:
+                archive_ms = float(yolo_result[1])
+            if len(yolo_result) > 2:
+                merged_ms = float(yolo_result[2])
+        else:
+            yolo_ms = float(yolo_result)
         t4 = time.monotonic()
 
-        # 5a. Watchdog: detect and fix stuck issues (periodic, lightweight).
+        # 5a. MAINTENANCE LANE — watchdog: detect and fix stuck issues.
         # Offloaded to the tick thread pool to keep the event loop unblocked —
         # the four sub-checks iterate _last_candidates and may issue bd CLI
         # calls per stuck issue, which can block 200ms-2s. Safe because
         # watchdog runs after all other tick handlers have settled, so the
         # shared mutable state it reads (state.completed, _orphan_reset_counts,
         # _last_candidates) is not being concurrently written.
+        _t_watchdog = time.monotonic()
         await asyncio.get_event_loop().run_in_executor(
             self._tick_pool, self._maybe_run_watchdog
         )
+        watchdog_ms = (time.monotonic() - _t_watchdog) * 1000
 
         # 5b. MAINTENANCE LANE — periodic managed-checkout self-heal, terminal
         # worktree cleanup, auto-archive, and merged-label sweeps (TASK-466.2).
@@ -1820,6 +1917,7 @@ class Orchestrator:
         # sub-job inside _run_step5b_maintenance() is independently gated by
         # _run_maintenance_job() so the four jobs have separate in-flight
         # coalescing and interval throttling.
+        _t_maintenance = time.monotonic()
         if self._maintenance_future is None or self._maintenance_future.done():
             self._maintenance_future = asyncio.get_event_loop().run_in_executor(
                 self._tick_pool, self._run_step5b_maintenance
@@ -1837,6 +1935,7 @@ class Orchestrator:
             self._epic_maintenance_future = asyncio.get_event_loop().run_in_executor(
                 self._tick_pool, self._run_step5c_epic_maintenance
             )
+        heal_ms = (time.monotonic() - _t_maintenance) * 1000
 
         t4b = time.monotonic()
         total_ms = (t4b - t0) * 1000
@@ -1853,15 +1952,41 @@ class Orchestrator:
                 self, "_dispatch_events_coalesced", 0
             ),
         }
+
+        # Store per-substep telemetry for dashboard snapshots (TASK-465.1).
+        # Also record the number of coalesced events (TASK-465.2) so operators
+        # can see burst size when diagnosing tick latency.
+        self._last_tick_timings = {
+            "reconcile_ms": (t1 - t0) * 1000,
+            "reviews_ms": (t2 - t1) * 1000,
+            "dispatch_ms": (t3 - t3_start) * 1000,
+            "yolo_ms": yolo_ms,
+            "archive_ms": archive_ms,
+            "merged_ms": merged_ms,
+            "watchdog_ms": watchdog_ms,
+            "heal_ms": heal_ms,
+            "total_ms": total_ms,
+            "dispatch_substeps": dispatch_timings,
+            "coalesced_events": self._last_coalesced_event_count,
+        }
         if total_ms > 2000:
+            _dispatch_detail = " ".join(
+                f"{k}={v:.0f}" for k, v in dispatch_timings.items()
+            )
             logger.warning(
-                "Slow tick: %.0fms (reconcile=%.0f reviews=%.0f dispatch=%.0f "
-                "yolo=%.0f)",
+                "Slow tick: %.0fms (reconcile=%.0f reviews=%.0f dispatch=%.0f"
+                " [%s] yolo=%.0f archive=%.0f merged=%.0f"
+                " watchdog=%.0f heal=%.0f)",
                 total_ms,
                 (t1 - t0) * 1000,
                 (t2 - t1) * 1000,
                 (t3 - t3_start) * 1000,
+                _dispatch_detail,
                 yolo_ms,
+                archive_ms,
+                merged_ms,
+                watchdog_ms,
+                heal_ms,
             )
 
         self._notify_observers()
@@ -2039,8 +2164,25 @@ class Orchestrator:
             self._last_emitted_reviews_summary = dict(summary)
             self._notify_state_only()
 
-    async def _handle_dispatch_needed(self) -> None:
-        """Fetch candidates, resolve blockers, and dispatch eligible issues."""
+    async def _handle_dispatch_needed(self) -> dict[str, float]:
+        """Fetch candidates, resolve blockers, and dispatch eligible issues.
+
+        Runs exclusively on the DISPATCH lane (``DispatchLane.DISPATCH``).
+        Acquires ``_dispatch_lane_lock`` for the full duration so that no
+        two dispatch selection passes can run concurrently — candidate
+        selection and ``_dispatch()`` are always single-owner.
+
+        Returns a dict mapping substep name → elapsed milliseconds so the
+        caller (_tick) can include per-substep timings in slow-tick logs and
+        the dashboard snapshot.  Keys are stable; callers must tolerate new
+        keys being added in future versions.
+        """
+        async with self._dispatch_lane_lock:
+            return await self._handle_dispatch_needed_locked()
+
+    async def _handle_dispatch_needed_locked(self) -> dict[str, float]:
+        """Inner body of _handle_dispatch_needed; called with _dispatch_lane_lock held."""
+        timings: dict[str, float] = {}
         self._blocker_state_cache = {}  # reset per fetch cycle
         loop = asyncio.get_event_loop()
         metrics: dict[str, Any] = {
@@ -2054,48 +2196,49 @@ class Orchestrator:
             metrics[f"{name}_ms"] = round((time.monotonic() - start) * 1000, 3)
             return result
 
-        # Fetch candidates from all trackers in parallel
+        # 1. Candidate fetch — dominant I/O cost (one bd list call per project)
         candidates = await _timed("fetch_candidates", self._fetch_all_candidates)
         self._last_candidates = candidates
         metrics["candidate_count"] = len(candidates)
-        # Pre-resolve blocker states in thread (internally parallel)
-        await _timed("pre_resolve_blockers", self._pre_resolve_blockers, candidates)
+        timings["candidate_fetch"] = metrics["fetch_candidates_ms"]
 
-        # Run duplicate-detection pre-filter in the thread pool so
-        # bd CLI calls (add-label, add-comment) don't block the event loop.
-        # This detects pattern-based duplicates like "rogers-*" that share
-        # a topic prefix even when suffixes differ.
+        # 2. Blocker pre-resolution — parallel bd state lookups per blocker
+        await _timed("pre_resolve_blockers", self._pre_resolve_blockers, candidates)
+        timings["blocker_pre_resolution"] = metrics["pre_resolve_blockers_ms"]
+
+        # 3. Duplicate detection — pattern-based de-dup (add-label, add-comment)
+        # bd CLI calls don't block the event loop. This detects pattern-based
+        # duplicates like "rogers-*" that share a topic prefix even when suffixes differ.
         await _timed("duplicate_detection", self._apply_duplicate_detection, candidates)
         metrics["duplicate_detection"] = getattr(
             self, "_last_duplicate_detection_metrics", {}
         )
+        timings["duplicate_detection"] = metrics["duplicate_detection_ms"]
 
-        # Fetch and reset orphaned In Progress issues (no agent attached)
-        in_progress = await loop.run_in_executor(
-            self._tick_pool, self._fetch_in_progress_issues
-        )
-        await loop.run_in_executor(
-            self._tick_pool, self._reset_orphaned_in_progress, in_progress
-        )
-
-        # Run the entire sort + filter pass in a worker thread so the bd
-        # CLI calls inside _should_dispatch (label/blocker resolution at
-        # ~150ms each) don't block uvicorn's event loop. Returns the
+        # 4. Candidate selection — sort + filter pass via _select_dispatchable.
+        # Run in a worker thread so bd CLI calls inside _should_dispatch
+        # (~150ms each) don't block uvicorn's event loop. Returns the
         # final ordered list of issues that passed _should_dispatch; the
         # async loop below only yields once per actual dispatch — no sync
         # work between yields. See task oompah-zlz_2-nvr.
         ready = await _timed("select_dispatchable", self._select_dispatchable, candidates)
         metrics["selection"] = getattr(self, "_last_selection_metrics", {})
         metrics["ready_count"] = len(ready)
+        timings["candidate_selection"] = metrics["select_dispatchable_ms"]
+
+        # 5. Normal dispatch — one await per dispatched agent
+        _t_dispatch = time.monotonic()
         dispatched = 0
         for issue in ready:
             if self._available_slots() <= 0:
                 break
             await self._dispatch(issue, attempt=None)
             dispatched += 1
+        timings["normal_dispatch"] = (time.monotonic() - _t_dispatch) * 1000
         metrics["dispatched_count"] = dispatched
 
-        # Dispatch epic planning agents for open epics without children
+        # 6. Epic planning — plan open epics without children
+        _t_epic = time.monotonic()
         epics_to_plan = await _timed("plan_open_epics", self._plan_open_epics, candidates)
         planned = 0
         for epic in epics_to_plan:
@@ -2103,6 +2246,7 @@ class Orchestrator:
                 break
             await self._dispatch(epic, attempt=None)
             planned += 1
+        timings["epic_planning"] = (time.monotonic() - _t_epic) * 1000
         metrics["epics_to_plan_count"] = len(epics_to_plan)
         metrics["epics_dispatched_count"] = planned
 
@@ -2110,6 +2254,16 @@ class Orchestrator:
         # reset (also), and proactive rebase pruning have been moved to the MAINTENANCE
         # LANE (_run_step5c_epic_maintenance, step 5c of _tick) so they do not
         # add to dispatch latency (TASK-466.3).
+        for moved_key in (
+            "epic_close_pr",
+            "staleness_checks",
+            "rebase_filing",
+            "orphan_reset",
+        ):
+            timings[moved_key] = 0.0
+        metrics["finished_at"] = datetime.now(timezone.utc).isoformat()
+        self._last_dispatch_metrics = metrics
+        return timings
 
     async def _handle_yolo_review(self) -> float:
         """Run YOLO merge actions only.
@@ -13213,6 +13367,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     for name, state in self._maintenance_jobs.items()
                 },
             },
+            # Fine-grained tick telemetry (TASK-465.1).  Empty dict until the
+            # first tick completes.  Top-level keys are phase timings in ms;
+            # "dispatch_substeps" contains per-substep breakdowns.  No secrets
+            # are stored here — only numeric timing data.
+            "tick_timings": dict(self._last_tick_timings),
         }
 
     def _reviews_summary(self) -> dict[str, int]:
