@@ -1,10 +1,10 @@
 ---
 id: TASK-466.4
 title: Add maintenance backpressure budgets and coalescing
-status: Open
+status: Done
 assignee: []
 created_date: '2026-06-08 18:48'
-updated_date: '2026-06-09 03:06'
+updated_date: '2026-06-09 03:13'
 labels:
   - task
   - tick-latency
@@ -159,4 +159,22 @@ created: 2026-06-09 03:06
 ---
 Understanding: Reviewing prior work. The MaintenanceJobState dataclass and _run_maintenance_job gate are fully implemented with in-flight coalescing, interval throttling, skip counters, max_runtime_s budget, and _job_deadline_exceeded(). The snapshot exposes per-job state. However, there are no dedicated unit tests for the _run_maintenance_job gate itself or _job_deadline_exceeded. Adding TestRunMaintenanceJobGate tests to close the coverage gap for the three acceptance criteria.
 ---
+
+author: oompah
+created: 2026-06-09 03:12
+---
+Implementation: Added TestRunMaintenanceJobGate class (28 tests) in tests/test_orchestrator_handlers.py directly testing the _run_maintenance_job() gate and _job_deadline_exceeded() helper. Tests cover all 3 acceptance criteria: AC#1 in-flight coalescing (second call while in_flight is dropped, skip_count incremented), AC#2 budget enforcement (_job_deadline_exceeded returns True when past deadline; budget-aware job stops early), AC#3 snapshot visibility (status/skip_count/in_flight/etc. all exposed in get_snapshot()['maintenance']['jobs']). Also tests interval throttling, state transitions, error capture, and run_count accumulation. The core implementation (MaintenanceJobState dataclass, _run_maintenance_job, _job_deadline_exceeded, snapshot integration) was already shipped in previous runs.
+---
+
+author: oompah
+created: 2026-06-09 03:12
+---
+Verification: All 28 new TestRunMaintenanceJobGate tests pass. Combined with the 65+ maintenance-related tests from prior runs (TestMaintenanceLaneJobStatus, TestMaintenanceLaneNonBlocking, TestTerminalWorktreeCleanup, TestRunStep5bMaintenanceExtended, TestRunStep5cEpicMaintenance, TestAutoArchiveThrottle, TestMaybeRunMergedLabels, TestRepoHealErrorReporting), the full maintenance backpressure suite has 93+ passing tests. No regressions across the other 205 test classes.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Delivered maintenance backpressure budgets and coalescing: MaintenanceJobState dataclass tracks per-job in_flight/skip_count/last_status/next_run_monotonic/last_duration_s/last_error; _run_maintenance_job() gate enforces in-flight coalescing (AC#1), min_interval throttling, and max_runtime_s budget via _job_deadline_exceeded() (AC#2); get_snapshot()['maintenance']['jobs'] exposes full per-job diagnostic state (AC#3). All 6 maintenance jobs (repo_heal, worktree_cleanup, auto_archive, merged_labels, epic sweeps, watchdog) route through this gate. 28 new TestRunMaintenanceJobGate tests directly validate all three ACs plus state transitions, error capture, and deadline polling. 93+ total maintenance tests pass with no regressions.
+<!-- SECTION:FINAL_SUMMARY:END -->
