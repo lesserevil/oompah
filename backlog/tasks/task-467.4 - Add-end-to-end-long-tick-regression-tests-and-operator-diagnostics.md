@@ -1,10 +1,10 @@
 ---
 id: TASK-467.4
 title: Add end-to-end long-tick regression tests and operator diagnostics
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 18:48'
-updated_date: '2026-06-09 05:36'
+updated_date: '2026-06-09 05:44'
 labels:
   - task
   - tick-latency
@@ -134,4 +134,22 @@ created: 2026-06-09 05:36
 ---
 Discovery: The long-tick scenario works as follows: (1) tick sequence is reconcile → review_check → dispatch_needed → yolo_review → watchdog → repo_heal, so dispatch always runs before maintenance; (2) slow maintenance (repo_heal via run_in_executor) blocks the NEXT tick from starting; (3) TASK-467.2 fixed this with bounded per-project refresh using _run_bounded_refresh with timeouts; (4) project_refresh_metrics are tracked in _project_refresh_metrics but not yet exposed in get_snapshot(). Implementing: regression tests in new file tests/test_long_tick_regression.py, adding project_refresh_metrics to get_snapshot() orchestrator_metrics, and docs/tick-latency-diagnostics.md for AC#3.
 ---
+
+author: oompah
+created: 2026-06-09 05:44
+---
+Implementation: Created tests/test_long_tick_regression.py (14 tests) across 3 test classes: (1) TestLongTickRegressionScenario - AC#1+AC#2 regression tests with synthetic slow maintenance, multi-project setup, dependency-blocked tasks, running agents; (2) TestOperatorDiagnostics - AC#3 tests verifying project_refresh_metrics are in get_snapshot(); (3) TestSyntheticSlowJobs - structural invariant tests for tick ordering. Added 'project_refresh' key to orchestrator_metrics in get_snapshot() to expose per-project/per-operation timing. Added docs/tick-latency-diagnostics.md operator guide explaining tick phases, maintenance metrics, and remediation.
+---
+
+author: oompah
+created: 2026-06-09 05:44
+---
+Verification: All 14 new tests pass. 253 tests pass in related test files (test_orchestrator_handlers.py, test_project_pause.py, test_state_api_responsiveness.py, test_project_locks.py). No regressions.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Delivered 14 regression tests in tests/test_long_tick_regression.py covering all 3 ACs: (AC#1+AC#2) TestLongTickRegressionScenario verifies eligible task in Project B dispatches in the same tick even when Project A has a running agent, a dependency-blocked task, and slow synthetic maintenance; (AC#2) tick-ordering tests assert dispatch_needed always precedes repo_heal/watchdog; (AC#3) TestOperatorDiagnostics verifies project_refresh_metrics appear in get_snapshot() orchestrator_metrics. Added project_refresh key to get_snapshot() exposing per-project/per-operation timing for operators. Added docs/tick-latency-diagnostics.md with operator guide for diagnosing slow ticks. All 14 new tests + 253 related tests pass. Committed c1fcc48 and pushed to epic-TASK-467.
+<!-- SECTION:FINAL_SUMMARY:END -->
