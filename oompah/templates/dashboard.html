@@ -390,6 +390,36 @@
       vertical-align: middle;
     }
 
+    /* Legacy Backlog task badge */
+    .legacy-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(227, 179, 65, 0.15);
+      color: var(--yellow, #e3b341);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* External tracker link (GitHub issue URL) on cards */
+    .tracker-link {
+      font-size: 0.65rem;
+      opacity: 0.65;
+      text-decoration: none;
+      color: inherit;
+      margin-left: 0.1rem;
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
+    .tracker-link:hover { opacity: 1; }
+
+    /* GitHub issue URL in detail panel */
+    .detail-github-link {
+      color: var(--accent, #58a6ff);
+      word-break: break-all;
+    }
+
     /* Epic badge on child cards */
     .epic-badge {
       font-size: 0.6rem;
@@ -2907,6 +2937,16 @@ function createCard(issue) {
     ? ' <span class="merged-badge">merged</span>'
     : '';
 
+  // Build tracker link (GitHub issue URL) for GitHub-backed issues
+  const trackerLinkHtml = issue.url
+    ? ` <a class="tracker-link" href="${esc(issue.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open in GitHub" aria-label="Open GitHub issue">&#8599;</a>`
+    : '';
+
+  // Build legacy badge for Backlog-backed tasks
+  const legacyBadgeHtml = issue.is_legacy
+    ? ' <span class="legacy-badge" aria-label="Legacy Backlog task">legacy</span>'
+    : '';
+
   const typeIcon = getTypeIcon(issue.issue_type);
   const typeLabel = issue.issue_type || 'task';
   const displayIdentifier = issueDisplayIdentifier(issue);
@@ -2915,10 +2955,11 @@ function createCard(issue) {
     <div class="card-id">
       <span class="card-id-left">
         <span class="type-icon" title="${esc(typeLabel)}" aria-label="${esc(typeLabel)}">${typeIcon}</span>
-        <span class="card-identifier">${esc(displayIdentifier)}</span>
+        <span class="card-identifier">${esc(displayIdentifier)}</span>${trackerLinkHtml}
         ${epicBadgeHtml}
         ${draftEpicBadgeHtml}
         ${mergedBadgeHtml}
+        ${legacyBadgeHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>
@@ -3742,6 +3783,39 @@ async function openDetailPanel(identifier) {
   `;
   // Asynchronously fetch + render after the detail HTML is in the DOM.
   setTimeout(() => loadIssueAttachments(detail.identifier), 0);
+
+  // GitHub issue URL — show for GitHub-backed issues
+  if (detail.url) {
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">GitHub Issue</div>
+        <div class="detail-field-value"><a href="${esc(detail.url)}" target="_blank" rel="noopener noreferrer" class="detail-github-link">${esc(detail.url)}</a></div>
+      </div>
+    `;
+  }
+
+  // Tracker identity — show kind and owner/repo for GitHub-backed issues
+  if (detail.tracker_kind) {
+    const trackerLabel = detail.tracker_owner && detail.tracker_repo
+      ? `${esc(detail.tracker_kind)} (${esc(detail.tracker_owner)}/${esc(detail.tracker_repo)})`
+      : esc(detail.tracker_kind);
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">Tracker</div>
+        <div class="detail-field-value tracker-kind-value">${trackerLabel}</div>
+      </div>
+    `;
+  }
+
+  // Legacy marker — show note for legacy Backlog.md tasks
+  if (detail.is_legacy) {
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">Note</div>
+        <div class="detail-field-value"><span class="legacy-badge">legacy</span> Legacy Backlog.md task</div>
+      </div>
+    `;
+  }
 
   if (detail.parent_id) {
     const epic = getEpicById(detail.parent_id, detail.project_id);
