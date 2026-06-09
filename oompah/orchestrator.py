@@ -102,6 +102,8 @@ from oompah.churn_magnet import (
 import json
 import os
 
+from oompah.ipc import OrchestratorIPC, get_ipc
+
 _DISPATCH_DUPLICATE_SUPPRESSION_SCORE = 0.75
 
 logger = logging.getLogger(__name__)
@@ -430,6 +432,7 @@ class Orchestrator:
         agent_profile_store: AgentProfileStore | None = None,
         role_store: RoleStore | None = None,
         state_path: str | None = None,
+        ipc: OrchestratorIPC | None = None,
     ):
         self.config = config
         self.workflow_path = workflow_path
@@ -631,6 +634,13 @@ class Orchestrator:
         # stale agent.profiles block that disagrees with the persisted
         # store. Same channel as auto-update warnings.
         self._arm_profile_drift_alert()
+
+        # IPC layer for multi-process service split (TASK-469.5.1).
+        # When ipc is passed explicitly (tests / custom startup), use it.
+        # Otherwise try to pick up the process-level singleton from the
+        # OOMPAH_IPC_DB_PATH env var.  If neither is configured, stays None
+        # and the orchestrator operates in single-process / combined mode.
+        self._ipc: OrchestratorIPC | None = ipc if ipc is not None else get_ipc()
 
     def _arm_profile_drift_alert(self) -> None:
         """Add or clear the profile-drift alert based on config state.
@@ -940,8 +950,15 @@ class Orchestrator:
                 retry.timer_handle.cancel()
             self.state.retry_attempts.pop(retry_iid, None)
             self.state.claimed.discard(retry_iid)
-        # Terminate all running agents (keep workspaces for resume)
-        asyncio.ensure_future(self._terminate_all_running())
+        # Terminate all running agents (keep workspaces for resume).
+        # Use get_running_loop() so we don't accidentally create a new
+        # event loop when called from a synchronous context (e.g. tests).
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._terminate_all_running())
+        except RuntimeError:
+            # No running event loop — no active agents to terminate.
+            pass
         logger.info("Orchestrator paused — all agents stopped")
         self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
         self._notify_observers()
@@ -1569,6 +1586,13 @@ class Orchestrator:
         """
         t0 = time.monotonic()
 
+        # -1. Process any commands queued by the API process via the IPC layer.
+        # Must run before profile swap so a "reload_profiles" command is
+        # visible in step 0. Non-blocking: drains the SQLite command queue
+        # in the current thread; individual command handlers are cheap.
+        if self._ipc is not None:
+            self._process_ipc_commands()
+
         # 0. Apply any pending profile swap queued via replace_agent_profiles().
         # Done at the very start of the tick so every step below sees a single
         # consistent profile list — mirrors the file-watcher reload semantics.
@@ -1666,6 +1690,118 @@ class Orchestrator:
             return int(queue.qsize())
         except Exception:  # noqa: BLE001
             return None
+
+    # Supported IPC command types and their handlers.
+    _IPC_COMMAND_HANDLERS: dict[str, str] = {
+        "pause": "_ipc_cmd_pause",
+        "unpause": "_ipc_cmd_unpause",
+        "request_refresh": "_ipc_cmd_request_refresh",
+        "dispatch_issue": "_ipc_cmd_dispatch_issue",
+        "cleanup_commands": "_ipc_cmd_cleanup_commands",
+    }
+
+    def _process_ipc_commands(self) -> None:
+        """Drain the IPC command queue and execute each pending command.
+
+        Called once per tick before any other processing.  Each command is
+        ACK'd (marked 'processed' or 'failed') regardless of outcome so
+        the queue doesn't grow unboundedly.
+
+        New command types can be added by implementing an
+        ``_ipc_cmd_<type>`` method and registering it in
+        ``_IPC_COMMAND_HANDLERS``.
+        """
+        if self._ipc is None:
+            return
+        try:
+            commands = self._ipc.poll_commands()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OrchestratorIPC.poll_commands failed: %s", exc)
+            return
+        for cmd in commands:
+            cmd_id: int = cmd["id"]
+            cmd_type: str = cmd.get("command", "")
+            payload: dict = cmd.get("payload", {}) or {}
+            handler_name = self._IPC_COMMAND_HANDLERS.get(cmd_type)
+            if handler_name is None:
+                logger.warning(
+                    "OrchestratorIPC: unknown command type %r (id=%d) — skipped",
+                    cmd_type,
+                    cmd_id,
+                )
+                self._ipc.ack_command(cmd_id, ok=False)
+                continue
+            handler = getattr(self, handler_name, None)
+            if handler is None:
+                logger.error(
+                    "OrchestratorIPC: handler %r not found for command %r (id=%d)",
+                    handler_name,
+                    cmd_type,
+                    cmd_id,
+                )
+                self._ipc.ack_command(cmd_id, ok=False)
+                continue
+            try:
+                handler(payload)
+                self._ipc.ack_command(cmd_id, ok=True)
+                logger.debug("OrchestratorIPC: executed command %r (id=%d)", cmd_type, cmd_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "OrchestratorIPC: command %r (id=%d) raised %s",
+                    cmd_type,
+                    cmd_id,
+                    exc,
+                )
+                self._ipc.ack_command(cmd_id, ok=False)
+
+    # ------------------------------------------------------------------
+    # IPC command implementations
+    # ------------------------------------------------------------------
+
+    def _ipc_cmd_pause(self, _payload: dict) -> None:
+        """IPC: pause the orchestrator."""
+        self.pause()
+
+    def _ipc_cmd_unpause(self, _payload: dict) -> None:
+        """IPC: resume the orchestrator."""
+        self.unpause()
+
+    def _ipc_cmd_request_refresh(self, _payload: dict) -> None:
+        """IPC: trigger a dispatch loop refresh."""
+        self.request_refresh()
+
+    def _ipc_cmd_dispatch_issue(self, payload: dict) -> None:
+        """IPC: force-dispatch a specific issue by identifier.
+
+        Payload: {"identifier": "TASK-123"}
+        """
+        identifier = payload.get("identifier")
+        if not identifier:
+            logger.warning("OrchestratorIPC: dispatch_issue command missing 'identifier'")
+            return
+        # Find the issue across all projects and dispatch it.  This reuses
+        # the existing force-dispatch endpoint logic (no eligibility checks).
+        # _process_ipc_commands is always called from the event-loop thread
+        # (sync call inside the async _tick), so asyncio.ensure_future is safe.
+        for project in self.project_store.list_all():
+            try:
+                tracker = self._tracker_for_project(project.id)
+                issue = tracker.fetch_issue_detail(identifier)
+            except Exception:  # noqa: BLE001
+                continue
+            if issue is not None:
+                asyncio.ensure_future(self._dispatch(issue, attempt=None))
+                return
+        logger.warning(
+            "OrchestratorIPC: dispatch_issue: issue %r not found in any project",
+            identifier,
+        )
+
+    def _ipc_cmd_cleanup_commands(self, _payload: dict) -> None:
+        """IPC: prune old processed/failed commands from the queue."""
+        if self._ipc is not None:
+            deleted = self._ipc.cleanup_old_commands()
+            logger.debug("OrchestratorIPC: cleaned up %d old commands", deleted)
 
     async def _handle_reconcile(self) -> None:
         """Reconcile running agents: stall detection + tracker state refresh.
@@ -12561,6 +12697,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                     getattr(self, "_maintenance_status", {}) or {}
                 ),
                 "tracker_reads": self._tracker_read_stats_snapshot(),
+                "ipc": (
+                    self._ipc.diagnostics()
+                    if self._ipc is not None
+                    else None
+                ),
             },
             "epic_rebase_states": {
                 epic_id: {
@@ -12729,8 +12870,19 @@ Return ONLY a JSON object (no markdown fences, no commentary):
 
         Emits EventType.ORCHESTRATOR_TICK on the EventBus (authoritative) and
         also calls legacy _observers callbacks for backward compatibility.
+
+        When the IPC layer is active (multi-process mode), also publishes the
+        state snapshot to the shared SQLite database so the API process can
+        serve cached reads without blocking on this process's GIL.
         """
         snapshot = self.get_snapshot()
+        # Publish to IPC before notifying local observers so the API process
+        # can serve reads as soon as the tick completes.
+        if self._ipc is not None:
+            try:
+                self._ipc.publish_state(snapshot)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("OrchestratorIPC.publish_state failed (non-fatal): %s", exc)
         # EventBus (authoritative)
         self.event_bus.emit(EventType.ORCHESTRATOR_TICK, {"snapshot": snapshot})
         # Legacy observer lists (backward compat)
