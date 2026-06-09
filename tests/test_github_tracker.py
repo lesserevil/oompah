@@ -5,6 +5,8 @@ Covers acceptance criteria:
   #2  Display identifiers and branch slugs are stable and filesystem-safe.
   #3  GitHub App, PAT, and missing-auth paths.
   #4  Rate-limit and auth errors become actionable TrackerError messages.
+  #5  fetch_candidate_issues returns only configured dispatchable statuses.
+  #6  Pagination and empty result sets are handled correctly.
 """
 from __future__ import annotations
 
@@ -27,6 +29,14 @@ from oompah.github_tracker import (
     _github_issues_factory,
     github_identifier_to_issue_fields,
     parse_github_identifier,
+    _status_to_label,
+    _label_to_status,
+    _extract_oompah_status,
+    _extract_priority,
+    _extract_issue_type,
+    _parse_body_metadata,
+    _gh_timestamp,
+    _gh_issue_to_issue,
 )
 from oompah.tracker import ADAPTER_REGISTRY, TrackerProtocol
 from oompah.models import Issue
@@ -1041,13 +1051,24 @@ class TestGitHubIssueTracker:
         tracker.invalidate_read_cache()
         assert tracker._etag_cache == {}
 
-    def test_fetch_candidate_issues_returns_empty_list(self):
+    def test_fetch_candidate_issues_queries_open_issues(self):
+        """fetch_candidate_issues requests state=open from GitHub."""
         tracker = self._make_tracker()
-        assert tracker.fetch_candidate_issues() == []
+        resp = _mock_response(200, json_data=[])
+        with patch.object(tracker._client._http, "request", return_value=resp) as mock_req:
+            result = tracker.fetch_candidate_issues()
+        assert result == []
+        # Verify the request went to the issues endpoint with state=open
+        call_args = mock_req.call_args
+        assert "issues" in str(call_args)
 
-    def test_fetch_all_issues_returns_empty_list(self):
+    def test_fetch_all_issues_queries_all_states(self):
+        """fetch_all_issues requests state=all from GitHub."""
         tracker = self._make_tracker()
-        assert tracker.fetch_all_issues() == []
+        resp = _mock_response(200, json_data=[])
+        with patch.object(tracker._client._http, "request", return_value=resp) as mock_req:
+            result = tracker.fetch_all_issues()
+        assert result == []
 
     def test_fetch_attachments_returns_empty_list(self):
         tracker = self._make_tracker()
@@ -1129,6 +1150,733 @@ class TestAdapterRegistry:
         tracker = factory(active_states=["Open"], terminal_states=["Done"])
         assert isinstance(tracker, GitHubIssueTracker)
         assert isinstance(tracker, TrackerProtocol)
+
+
+# ===========================================================================
+# Status encoding helpers
+# ===========================================================================
+
+
+class TestStatusLabelHelpers:
+    """Tests for status ↔ label conversion helpers.
+
+    Acceptance criterion #5: candidate fetch returns only configured
+    dispatchable statuses.
+    """
+
+    def test_status_to_label_open(self):
+        assert _status_to_label("Open") == "oompah:status:open"
+
+    def test_status_to_label_in_progress(self):
+        assert _status_to_label("In Progress") == "oompah:status:in-progress"
+
+    def test_status_to_label_done(self):
+        assert _status_to_label("Done") == "oompah:status:done"
+
+    def test_status_to_label_needs_ci_fix(self):
+        assert _status_to_label("Needs CI Fix") == "oompah:status:needs-ci-fix"
+
+    def test_status_to_label_archived(self):
+        assert _status_to_label("Archived") == "oompah:status:archived"
+
+    def test_label_to_status_open(self):
+        assert _label_to_status("oompah:status:open") == "Open"
+
+    def test_label_to_status_in_progress(self):
+        assert _label_to_status("oompah:status:in-progress") == "In Progress"
+
+    def test_label_to_status_done(self):
+        assert _label_to_status("oompah:status:done") == "Done"
+
+    def test_label_to_status_non_status_label(self):
+        assert _label_to_status("bug") is None
+        assert _label_to_status("priority:1") is None
+        assert _label_to_status("type:feature") is None
+
+    def test_label_to_status_empty(self):
+        assert _label_to_status("") is None
+
+    def test_round_trip_canonical_statuses(self):
+        """Every canonical status can be round-tripped through label encoding."""
+        from oompah.statuses import CANONICAL_STATUSES
+        for status in CANONICAL_STATUSES:
+            label = _status_to_label(status)
+            assert label.startswith("oompah:status:")
+            assert _label_to_status(label) == status
+
+    def test_extract_oompah_status_from_label(self):
+        labels = [{"name": "oompah:status:in-progress"}]
+        assert _extract_oompah_status(labels, "open") == "In Progress"
+
+    def test_extract_oompah_status_fallback_open(self):
+        labels: list = []
+        assert _extract_oompah_status(labels, "open") == "Open"
+
+    def test_extract_oompah_status_fallback_closed(self):
+        labels: list = []
+        assert _extract_oompah_status(labels, "closed") == "Done"
+
+    def test_extract_oompah_status_label_beats_gh_state(self):
+        """Status label overrides GitHub built-in state."""
+        labels = [{"name": "oompah:status:needs-human"}]
+        assert _extract_oompah_status(labels, "open") == "Needs Human"
+
+    def test_extract_priority_label(self):
+        labels = [{"name": "priority:2"}]
+        assert _extract_priority(labels) == 2
+
+    def test_extract_priority_no_label(self):
+        assert _extract_priority([]) is None
+
+    def test_extract_priority_ignores_non_priority(self):
+        labels = [{"name": "bug"}, {"name": "type:task"}]
+        assert _extract_priority(labels) is None
+
+    def test_extract_issue_type_feature(self):
+        labels = [{"name": "type:feature"}]
+        assert _extract_issue_type(labels) == "feature"
+
+    def test_extract_issue_type_default_task(self):
+        assert _extract_issue_type([]) == "task"
+
+    def test_extract_issue_type_bug(self):
+        labels = [{"name": "type:bug"}]
+        assert _extract_issue_type(labels) == "bug"
+
+    def test_parse_body_metadata_empty(self):
+        assert _parse_body_metadata("") == {}
+        assert _parse_body_metadata(None) == {}
+
+    def test_parse_body_metadata_basic(self):
+        body = "Issue body\n<!-- oompah:metadata\n{\"project_id\": \"proj-1\", \"target_branch\": \"main\"}\n-->"
+        meta = _parse_body_metadata(body)
+        assert meta["project_id"] == "proj-1"
+        assert meta["target_branch"] == "main"
+
+    def test_parse_body_metadata_no_block(self):
+        assert _parse_body_metadata("Just a regular issue body.") == {}
+
+    def test_parse_body_metadata_invalid_json(self):
+        body = "<!-- oompah:metadata\nnot valid json\n-->"
+        assert _parse_body_metadata(body) == {}
+
+    def test_gh_timestamp_parses_z_suffix(self):
+        ts = _gh_timestamp("2024-01-15T10:30:00Z")
+        from datetime import timezone
+        assert ts is not None
+        assert ts.tzinfo is not None
+
+    def test_gh_timestamp_parses_offset(self):
+        ts = _gh_timestamp("2024-01-15T10:30:00+00:00")
+        assert ts is not None
+
+    def test_gh_timestamp_none(self):
+        assert _gh_timestamp(None) is None
+        assert _gh_timestamp("") is None
+
+
+# ===========================================================================
+# _gh_issue_to_issue mapper
+# ===========================================================================
+
+
+def _make_gh_issue(
+    number: int = 1,
+    title: str = "Test issue",
+    state: str = "open",
+    labels: list[str] | None = None,
+    body: str = "",
+    created_at: str = "2024-01-01T00:00:00Z",
+    updated_at: str = "2024-01-02T00:00:00Z",
+    closed_at: str | None = None,
+    html_url: str | None = None,
+    issue_id: int | None = None,
+) -> dict:
+    """Build a minimal GitHub REST API issue dict for testing."""
+    return {
+        "number": number,
+        "id": issue_id or (1000 + number),
+        "title": title,
+        "body": body,
+        "state": state,
+        "labels": [{"name": lbl} for lbl in (labels or [])],
+        "html_url": html_url or f"https://github.com/lesserevil/oompah-tasks/issues/{number}",
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "closed_at": closed_at,
+        "node_id": f"I_node_{number}",
+    }
+
+
+class TestGhIssueToIssue:
+    """Tests for the _gh_issue_to_issue() mapper."""
+
+    def _convert(self, **kwargs) -> Issue:
+        return _gh_issue_to_issue(
+            _make_gh_issue(**kwargs), owner="lesserevil", repo="oompah-tasks"
+        )
+
+    def test_basic_fields(self):
+        issue = self._convert(number=42, title="Fix the bug")
+        assert issue.identifier == "lesserevil/oompah-tasks#42"
+        assert issue.title == "Fix the bug"
+        assert issue.owner == "lesserevil"
+        assert issue.repo == "oompah-tasks"
+        assert issue.issue_number == "42"
+        assert issue.display_identifier == "oompah-tasks#42"
+        assert issue.tracker_kind == "github_issues"
+
+    def test_state_open_defaults_to_Open(self):
+        issue = self._convert(state="open", labels=[])
+        assert issue.state == "Open"
+
+    def test_state_closed_defaults_to_Done(self):
+        issue = self._convert(state="closed", labels=[])
+        assert issue.state == "Done"
+
+    def test_status_label_overrides_state(self):
+        issue = self._convert(
+            state="open", labels=["oompah:status:in-progress"]
+        )
+        assert issue.state == "In Progress"
+
+    def test_priority_from_label(self):
+        issue = self._convert(labels=["priority:3"])
+        assert issue.priority == 3
+
+    def test_priority_none_when_no_label(self):
+        issue = self._convert(labels=[])
+        assert issue.priority is None
+
+    def test_issue_type_from_label(self):
+        issue = self._convert(labels=["type:bug"])
+        assert issue.issue_type == "bug"
+
+    def test_issue_type_defaults_to_task(self):
+        issue = self._convert(labels=[])
+        assert issue.issue_type == "task"
+
+    def test_user_labels_exclude_internal(self):
+        issue = self._convert(
+            labels=["oompah:status:open", "priority:1", "type:feature", "needs:frontend"]
+        )
+        assert issue.labels == ["needs:frontend"]
+
+    def test_url_set(self):
+        issue = self._convert(
+            number=5, html_url="https://github.com/lesserevil/oompah-tasks/issues/5"
+        )
+        assert issue.url == "https://github.com/lesserevil/oompah-tasks/issues/5"
+        assert issue.provider_url == issue.url
+
+    def test_timestamps_parsed(self):
+        issue = self._convert(
+            created_at="2024-03-01T12:00:00Z",
+            updated_at="2024-03-02T08:00:00Z",
+            closed_at="2024-03-03T09:00:00Z",
+        )
+        from datetime import timezone
+        assert issue.created_at is not None
+        assert issue.updated_at is not None
+        assert issue.closed_at is not None
+        assert issue.created_at.tzinfo is not None
+
+    def test_closed_at_none_when_open(self):
+        issue = self._convert(state="open", closed_at=None)
+        assert issue.closed_at is None
+
+    def test_description_from_body(self):
+        issue = self._convert(body="This is the description.")
+        assert issue.description == "This is the description."
+
+    def test_description_strips_metadata_block(self):
+        body = "Visible text.\n<!-- oompah:metadata\n{\"project_id\": \"p1\"}\n-->"
+        issue = self._convert(body=body)
+        assert issue.description == "Visible text."
+        assert issue.project_id == "p1"
+
+    def test_description_none_when_empty_body(self):
+        issue = self._convert(body="")
+        assert issue.description is None
+
+    def test_target_branch_from_metadata(self):
+        body = '<!-- oompah:metadata\n{"target_branch": "release/1.2"}\n-->'
+        issue = self._convert(body=body)
+        assert issue.target_branch == "release/1.2"
+
+    def test_project_id_from_metadata(self):
+        body = '<!-- oompah:metadata\n{"project_id": "myproject"}\n-->'
+        issue = self._convert(body=body)
+        assert issue.project_id == "myproject"
+
+    def test_id_uses_github_id(self):
+        issue = self._convert(number=7, issue_id=99999)
+        assert issue.id == "99999"
+
+
+# ===========================================================================
+# GitHubIssueTracker — issue fetch methods
+# ===========================================================================
+
+
+class TestGitHubIssueTrackerFetch:
+    """Tests for issue fetch and status filtering methods.
+
+    Acceptance criterion #5: candidate fetch returns only configured
+    dispatchable statuses.
+    Acceptance criterion #6: pagination and empty result sets are tested.
+    """
+
+    def _make_tracker(self) -> GitHubIssueTracker:
+        auth = GitHubAuth(pat="test_token")
+        return GitHubIssueTracker(
+            owner="lesserevil",
+            repo="oompah-tasks",
+            active_states=["Open", "In Progress", "Needs CI Fix", "Needs Rebase"],
+            terminal_states=["Done", "Merged", "Archived"],
+            auth=auth,
+        )
+
+    # ------------------------------------------------------------------
+    # fetch_all_issues
+    # ------------------------------------------------------------------
+
+    def test_fetch_all_issues_empty(self):
+        """Empty repository returns empty list (acceptance criterion #6)."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_all_issues()
+        assert result == []
+
+    def test_fetch_all_issues_returns_issues(self):
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, title="First"),
+            _make_gh_issue(number=2, title="Second"),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_all_issues()
+        assert len(result) == 2
+        assert result[0].title == "First"
+        assert result[1].title == "Second"
+
+    def test_fetch_all_issues_pagination(self):
+        """fetch_all_issues follows pagination links (acceptance criterion #6)."""
+        tracker = self._make_tracker()
+        page1 = _mock_response(
+            200,
+            json_data=[_make_gh_issue(number=1)],
+            headers={
+                "link": '<https://api.github.com/repos/lesserevil/oompah-tasks/issues?page=2>; rel="next"'
+            },
+        )
+        page2 = _mock_response(200, json_data=[_make_gh_issue(number=2)])
+        with patch.object(
+            tracker._client._http, "request", side_effect=[page1, page2]
+        ):
+            result = tracker.fetch_all_issues()
+        assert len(result) == 2
+        assert {iss.issue_number for iss in result} == {"1", "2"}
+
+    def test_fetch_all_issues_sets_state_all(self):
+        """fetch_all_issues requests state=all to include closed issues."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_all_issues()
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "all"
+
+    def test_fetch_all_issues_enriched_same_as_all(self):
+        """fetch_all_issues_enriched delegates to fetch_all_issues."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[_make_gh_issue(number=3)])
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            all_issues = tracker.fetch_all_issues()
+        resp2 = _mock_response(200, json_data=[_make_gh_issue(number=3)])
+        with patch.object(tracker._client._http, "request", return_value=resp2):
+            enriched = tracker.fetch_all_issues_enriched()
+        assert len(all_issues) == len(enriched)
+
+    # ------------------------------------------------------------------
+    # fetch_candidate_issues — acceptance criterion #5
+    # ------------------------------------------------------------------
+
+    def test_fetch_candidate_issues_empty_repo(self):
+        """fetch_candidate_issues handles empty response (criterion #6)."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+        assert result == []
+
+    def test_fetch_candidate_issues_only_active_states(self):
+        """Only issues in configured active_states are returned (criterion #5)."""
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, labels=["oompah:status:open"]),
+            _make_gh_issue(number=2, labels=["oompah:status:in-progress"]),
+            _make_gh_issue(number=3, labels=["oompah:status:done"]),     # terminal — excluded
+            _make_gh_issue(number=4, labels=["oompah:status:archived"]), # terminal — excluded
+            _make_gh_issue(number=5, labels=["oompah:status:backlog"]),  # not in active — excluded
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+        returned_numbers = {iss.issue_number for iss in result}
+        assert "1" in returned_numbers
+        assert "2" in returned_numbers
+        assert "3" not in returned_numbers
+        assert "4" not in returned_numbers
+        assert "5" not in returned_numbers
+
+    def test_fetch_candidate_issues_excludes_non_active(self):
+        """Issues whose oompah status is not in active_states are excluded."""
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=10, labels=["oompah:status:needs-human"]),
+            _make_gh_issue(number=11, labels=["oompah:status:in-review"]),
+            _make_gh_issue(number=12, labels=["oompah:status:needs-ci-fix"]),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+        returned_numbers = {iss.issue_number for iss in result}
+        # Only "Needs CI Fix" is in active_states for this tracker
+        assert "12" in returned_numbers
+        assert "10" not in returned_numbers
+        assert "11" not in returned_numbers
+
+    def test_fetch_candidate_issues_open_github_state_defaults_to_Open(self):
+        """GitHub open issues with no status label default to state 'Open'."""
+        tracker = self._make_tracker()
+        gh_issues = [_make_gh_issue(number=7, state="open", labels=[])]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+        # "Open" is in active_states, so the issue should be returned
+        assert len(result) == 1
+        assert result[0].state == "Open"
+
+    def test_fetch_candidate_issues_sorted_by_priority(self):
+        """Candidates are sorted by priority ascending (lower = higher priority)."""
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=3, labels=["oompah:status:open", "priority:3"]),
+            _make_gh_issue(number=1, labels=["oompah:status:open", "priority:1"]),
+            _make_gh_issue(number=2, labels=["oompah:status:open", "priority:2"]),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+        assert [iss.priority for iss in result] == [1, 2, 3]
+
+    def test_fetch_candidate_issues_no_priority_last(self):
+        """Issues without a priority label sort after those with priority."""
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, labels=["oompah:status:open"]),           # no priority
+            _make_gh_issue(number=2, labels=["oompah:status:open", "priority:1"]),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+        assert result[0].issue_number == "2"
+        assert result[1].issue_number == "1"
+
+    def test_fetch_candidate_issues_requests_open_state(self):
+        """fetch_candidate_issues queries GitHub for open issues only."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_candidate_issues()
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "open"
+
+    def test_fetch_candidate_issues_pagination(self):
+        """fetch_candidate_issues follows pagination links (criterion #6)."""
+        tracker = self._make_tracker()
+        page1 = _mock_response(
+            200,
+            json_data=[_make_gh_issue(number=1, labels=["oompah:status:open"])],
+            headers={
+                "link": '<https://api.github.com/repos/lesserevil/oompah-tasks/issues?page=2>; rel="next"'
+            },
+        )
+        page2 = _mock_response(
+            200,
+            json_data=[_make_gh_issue(number=2, labels=["oompah:status:open"])],
+        )
+        with patch.object(
+            tracker._client._http, "request", side_effect=[page1, page2]
+        ):
+            result = tracker.fetch_candidate_issues()
+        assert len(result) == 2
+
+    # ------------------------------------------------------------------
+    # fetch_issue_detail
+    # ------------------------------------------------------------------
+
+    def test_fetch_issue_detail_returns_issue(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=42, title="Detail test")
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#42")
+        assert result is not None
+        assert result.title == "Detail test"
+        assert result.issue_number == "42"
+
+    def test_fetch_issue_detail_returns_none_for_404(self):
+        tracker = self._make_tracker()
+        resp_404 = _mock_response(404, text="Not Found")
+        resp_404.is_success = False
+        with patch.object(tracker._client._http, "request", return_value=resp_404):
+            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#9999")
+        assert result is None
+
+    def test_fetch_issue_detail_returns_none_for_invalid_identifier(self):
+        tracker = self._make_tracker()
+        result = tracker.fetch_issue_detail("not-an-identifier")
+        assert result is None
+
+    def test_fetch_issue_detail_returns_none_for_bare_number(self):
+        tracker = self._make_tracker()
+        result = tracker.fetch_issue_detail("42")
+        assert result is None
+
+    # ------------------------------------------------------------------
+    # fetch_issues_by_states
+    # ------------------------------------------------------------------
+
+    def test_fetch_issues_by_states_empty_input(self):
+        tracker = self._make_tracker()
+        result = tracker.fetch_issues_by_states([])
+        assert result == []
+
+    def test_fetch_issues_by_states_active_only(self):
+        """Requesting only active states queries GitHub with state=open."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_issues_by_states(["Open", "In Progress"])
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "open"
+
+    def test_fetch_issues_by_states_terminal_only(self):
+        """Requesting only terminal states queries GitHub with state=closed."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_issues_by_states(["Done", "Archived"])
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "closed"
+
+    def test_fetch_issues_by_states_mixed(self):
+        """Mixed active+terminal states queries GitHub with state=all."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_issues_by_states(["Open", "Done"])
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "all"
+
+    def test_fetch_issues_by_states_filters_in_memory(self):
+        """Only issues matching the requested states are returned."""
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, labels=["oompah:status:open"]),
+            _make_gh_issue(number=2, labels=["oompah:status:in-progress"]),
+            _make_gh_issue(number=3, labels=["oompah:status:done"], state="closed"),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_issues_by_states(["Open"])
+        assert len(result) == 1
+        assert result[0].state == "Open"
+
+    def test_fetch_issues_by_states_empty_response(self):
+        """Empty API response returns empty list (criterion #6)."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_issues_by_states(["Open", "Done"])
+        assert result == []
+
+    # ------------------------------------------------------------------
+    # fetch_issue_states_by_ids
+    # ------------------------------------------------------------------
+
+    def test_fetch_issue_states_by_ids_empty_list(self):
+        """Empty input returns empty list without making any HTTP calls."""
+        tracker = self._make_tracker()
+        result = tracker.fetch_issue_states_by_ids([])
+        assert result == []
+
+    def test_fetch_issue_states_by_ids_returns_snapshots(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=5, labels=["oompah:status:in-progress"])
+        resp = _mock_response(200, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_issue_states_by_ids(["lesserevil/oompah-tasks#5"])
+        assert len(result) == 1
+        assert result[0].state == "In Progress"
+
+    def test_fetch_issue_states_by_ids_skips_invalid(self):
+        """Invalid or missing identifiers are silently skipped."""
+        tracker = self._make_tracker()
+        resp_valid = _mock_response(200, json_data=_make_gh_issue(number=1))
+        resp_404 = _mock_response(404, text="Not Found")
+        resp_404.is_success = False
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[resp_valid, resp_404],
+        ):
+            result = tracker.fetch_issue_states_by_ids([
+                "lesserevil/oompah-tasks#1",
+                "lesserevil/oompah-tasks#9999",
+            ])
+        assert len(result) == 1
+
+    # ------------------------------------------------------------------
+    # fetch_issues_by_labels
+    # ------------------------------------------------------------------
+
+    def test_fetch_issues_by_labels_empty_labels(self):
+        tracker = self._make_tracker()
+        result = tracker.fetch_issues_by_labels([])
+        assert result == []
+
+    def test_fetch_issues_by_labels_passes_labels_to_api(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_issues_by_labels(["needs:frontend"])
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert "needs:frontend" in params.get("labels", "")
+
+    def test_fetch_issues_by_labels_with_state_filter(self):
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, labels=["needs:frontend", "oompah:status:open"]),
+            _make_gh_issue(number=2, labels=["needs:frontend", "oompah:status:in-progress"]),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_issues_by_labels(
+                ["needs:frontend"], states=["Open"]
+            )
+        assert len(result) == 1
+        assert result[0].state == "Open"
+
+    # ------------------------------------------------------------------
+    # fetch_comments
+    # ------------------------------------------------------------------
+
+    def test_fetch_comments_returns_list(self):
+        tracker = self._make_tracker()
+        comments = [
+            {"id": 1, "body": "First comment", "user": {"login": "alice"}},
+            {"id": 2, "body": "Second comment", "user": {"login": "bob"}},
+        ]
+        resp = _mock_response(200, json_data=comments)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_comments("lesserevil/oompah-tasks#5")
+        assert len(result) == 2
+        assert result[0]["body"] == "First comment"
+
+    def test_fetch_comments_returns_empty_for_invalid_identifier(self):
+        tracker = self._make_tracker()
+        result = tracker.fetch_comments("not-valid")
+        assert result == []
+
+    def test_fetch_comments_empty_issue(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_comments("lesserevil/oompah-tasks#1")
+        assert result == []
+
+    # ------------------------------------------------------------------
+    # fetch_children
+    # ------------------------------------------------------------------
+
+    def test_fetch_children_returns_empty_for_invalid_identifier(self):
+        tracker = self._make_tracker()
+        result = tracker.fetch_children("not-valid")
+        assert result == []
+
+    def test_fetch_children_sub_issues_api(self):
+        """Uses the sub-issues endpoint when available."""
+        tracker = self._make_tracker()
+        children = [
+            _make_gh_issue(number=10, title="Child 1"),
+            _make_gh_issue(number=11, title="Child 2"),
+        ]
+        resp = _mock_response(200, json_data=children)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+        assert len(result) == 2
+
+    def test_fetch_children_falls_back_to_label_on_404(self):
+        """Falls back to label-based lookup when sub-issues API is unavailable."""
+        tracker = self._make_tracker()
+        resp_404 = _mock_response(404, text="Not Found")
+        resp_404.is_success = False
+        children = [_make_gh_issue(number=20, labels=["parent:5"])]
+        resp_200 = _mock_response(200, json_data=children)
+        with patch.object(
+            tracker._client._http, "request", side_effect=[resp_404, resp_200]
+        ):
+            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+        assert len(result) == 1
+
+    # ------------------------------------------------------------------
+    # Issue field mapping on normalized Issue record
+    # ------------------------------------------------------------------
+
+    def test_fetch_all_issues_normalizes_fields(self):
+        """Normalized Issue records carry all expected fields."""
+        tracker = self._make_tracker()
+        body = '<!-- oompah:metadata\n{"project_id": "proj-1", "target_branch": "main"}\n-->'
+        gh_issue = _make_gh_issue(
+            number=7,
+            title="Normalize me",
+            labels=["priority:2", "type:feature", "needs:backend"],
+            body=body,
+        )
+        resp = _mock_response(200, json_data=[gh_issue])
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            issues = tracker.fetch_all_issues()
+        assert len(issues) == 1
+        iss = issues[0]
+        assert iss.priority == 2
+        assert iss.issue_type == "feature"
+        assert "needs:backend" in iss.labels
+        assert iss.project_id == "proj-1"
+        assert iss.target_branch == "main"
+        assert iss.tracker_kind == "github_issues"
 
 
 # ===========================================================================

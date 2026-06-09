@@ -39,6 +39,7 @@ The :class:`GitHubClient` centralises:
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
@@ -47,11 +48,13 @@ import subprocess
 import time
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
 from oompah.models import BlockerRef, Issue
+from oompah.statuses import CANONICAL_STATUSES
 from oompah.tracker import (
     TrackerError,
     TrackerTimeoutError,
@@ -338,9 +341,8 @@ def _log_rate_limits(resp: httpx.Response) -> None:
         reset_dt = ""
         if reset:
             try:
-                import datetime
-                reset_dt = " reset=" + datetime.datetime.fromtimestamp(
-                    int(reset), tz=datetime.timezone.utc
+                reset_dt = " reset=" + datetime.fromtimestamp(
+                    int(reset), tz=timezone.utc
                 ).isoformat()
             except Exception:
                 reset_dt = f" reset={reset}"
@@ -552,11 +554,10 @@ class GitHubAuth:
         expires_at_str = data.get("expires_at", "")
         if expires_at_str:
             try:
-                import datetime
-                dt = datetime.datetime.fromisoformat(
+                dt = datetime.fromisoformat(
                     expires_at_str.replace("Z", "+00:00")
                 )
-                delta = (dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
+                delta = (dt - datetime.now(timezone.utc)).total_seconds()
                 expires_at_mono = time.monotonic() + max(delta, 0)
             except Exception:
                 pass  # fall back to 1 hour default
@@ -963,6 +964,213 @@ def _parse_next_link(link_header: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Status encoding helpers
+#
+# oompah status is stored as a GitHub label with a ``oompah:status:``
+# prefix, e.g. ``oompah:status:in-progress``.  This is the primary
+# mechanism for GitHub-REST-backed deployments that do not (yet) have a
+# GitHub Projects V2 custom field configured.
+#
+# When no status label is present on an issue, the adapter falls back to
+# the GitHub built-in ``state`` field: ``open`` → "Open", ``closed`` →
+# "Done".
+#
+# Priority is encoded as ``priority:N`` (e.g. ``priority:1``).
+# Issue type is encoded as ``type:<kind>`` (e.g. ``type:bug``).
+# Target branch and project ID are stored in a hidden HTML comment in the
+# issue body::
+#
+#     <!-- oompah:metadata
+#     {"project_id":"proj-123","target_branch":"main"}
+#     -->
+# ---------------------------------------------------------------------------
+
+_STATUS_LABEL_PREFIX = "oompah:status:"
+
+# Build a bidirectional mapping between label slugs and canonical statuses.
+# "In Progress" → "in-progress", "Needs CI Fix" → "needs-ci-fix", etc.
+_LABEL_SLUG_TO_STATUS: dict[str, str] = {
+    s.lower().replace(" ", "-"): s for s in CANONICAL_STATUSES
+}
+_STATUS_TO_LABEL_SLUG: dict[str, str] = {
+    v: k for k, v in _LABEL_SLUG_TO_STATUS.items()
+}
+
+# Sentinel used for sorting issues without timestamps.
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+# Regex that matches the hidden oompah metadata block in an issue body.
+_BODY_METADATA_RE = re.compile(
+    r"<!--\s*oompah:metadata\s*\n(.*?)\n\s*-->",
+    re.DOTALL,
+)
+
+
+def _status_to_label(status: str) -> str:
+    """Return the GitHub label name that represents *status*.
+
+    Example: ``"In Progress"`` → ``"oompah:status:in-progress"``.
+    """
+    slug = _STATUS_TO_LABEL_SLUG.get(status, status.lower().replace(" ", "-"))
+    return f"{_STATUS_LABEL_PREFIX}{slug}"
+
+
+def _label_to_status(label_name: str) -> str | None:
+    """Extract the oompah status from a GitHub label name.
+
+    Returns *None* when *label_name* is not an oompah status label.
+    """
+    if not label_name.startswith(_STATUS_LABEL_PREFIX):
+        return None
+    slug = label_name[len(_STATUS_LABEL_PREFIX):]
+    return _LABEL_SLUG_TO_STATUS.get(slug)
+
+
+def _extract_oompah_status(labels: list[dict[str, Any]], gh_state: str) -> str:
+    """Derive the oompah status for a GitHub issue.
+
+    Priority:
+
+    1. ``oompah:status:*`` label — explicit oompah status.
+    2. GitHub ``state`` field — ``open`` → ``"Open"``, ``closed`` → ``"Done"``.
+    """
+    for lbl in labels:
+        name = lbl.get("name", "")
+        status = _label_to_status(name)
+        if status is not None:
+            return status
+    return "Open" if gh_state == "open" else "Done"
+
+
+def _extract_priority(labels: list[dict[str, Any]]) -> int | None:
+    """Extract numeric dispatch priority from a ``priority:N`` label."""
+    for lbl in labels:
+        name = lbl.get("name", "")
+        if name.startswith("priority:"):
+            try:
+                return int(name[len("priority:"):])
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
+def _extract_issue_type(labels: list[dict[str, Any]]) -> str:
+    """Extract the issue type from a ``type:<kind>`` label.
+
+    Defaults to ``"task"`` when no type label is present.
+    """
+    for lbl in labels:
+        name = lbl.get("name", "")
+        if name.startswith("type:"):
+            kind = name[len("type:"):]
+            if kind:
+                return kind
+    return "task"
+
+
+def _parse_body_metadata(body: str | None) -> dict[str, Any]:
+    """Extract the structured oompah metadata block from an issue body.
+
+    Returns an empty dict when the body is *None* or contains no metadata
+    block.
+    """
+    if not body:
+        return {}
+    m = _BODY_METADATA_RE.search(body)
+    if not m:
+        return {}
+    try:
+        return json.loads(m.group(1).strip())
+    except (json.JSONDecodeError, Exception):
+        return {}
+
+
+def _gh_timestamp(ts: str | None) -> datetime | None:
+    """Parse a GitHub ISO-8601 timestamp string to a timezone-aware datetime.
+
+    Returns *None* when *ts* is empty or unparsable.
+    """
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue:
+    """Convert a GitHub REST API issue dict to a normalized oompah :class:`Issue`.
+
+    Parameters
+    ----------
+    gh_issue:
+        A single item from the ``GET /repos/{owner}/{repo}/issues`` response.
+    owner:
+        Repository owner (used to build the :class:`GitHubIdentifier`).
+    repo:
+        Repository name.
+
+    Returns
+    -------
+    Issue
+        Normalized issue record with all available fields populated.
+    """
+    number = int(gh_issue["number"])
+    gh_id = GitHubIdentifier(owner=owner, repo=repo, number=number)
+
+    labels_raw: list[dict[str, Any]] = gh_issue.get("labels") or []
+    gh_state: str = gh_issue.get("state", "open")
+
+    status = _extract_oompah_status(labels_raw, gh_state)
+    priority = _extract_priority(labels_raw)
+    issue_type = _extract_issue_type(labels_raw)
+
+    # Collect user-facing labels (exclude oompah-internal prefixes).
+    user_labels = [
+        lbl["name"]
+        for lbl in labels_raw
+        if lbl.get("name")
+        and not lbl["name"].startswith("oompah:")
+        and not lbl["name"].startswith("priority:")
+        and not lbl["name"].startswith("type:")
+    ]
+
+    body: str = gh_issue.get("body") or ""
+    meta = _parse_body_metadata(body)
+    target_branch: str | None = meta.get("target_branch") or None
+    project_id: str | None = meta.get("project_id") or None
+
+    # Description: issue body with metadata block stripped.
+    description_text = _BODY_METADATA_RE.sub("", body).strip()
+    description: str | None = description_text or None
+
+    url: str | None = gh_issue.get("html_url") or None
+
+    return Issue(
+        id=str(gh_issue.get("id", number)),
+        identifier=gh_id.canonical,
+        title=gh_issue.get("title") or "",
+        description=description,
+        priority=priority,
+        state=status,
+        url=url,
+        issue_type=issue_type,
+        project_id=project_id,
+        target_branch=target_branch,
+        labels=user_labels,
+        created_at=_gh_timestamp(gh_issue.get("created_at")),
+        updated_at=_gh_timestamp(gh_issue.get("updated_at")),
+        closed_at=_gh_timestamp(gh_issue.get("closed_at")),
+        tracker_kind="github_issues",
+        owner=owner,
+        repo=repo,
+        issue_number=str(number),
+        display_identifier=gh_id.display,
+        provider_url=url,
+    )
+
+
+# ---------------------------------------------------------------------------
 # GitHubIssueTracker — TrackerProtocol adapter
 # ---------------------------------------------------------------------------
 
@@ -1049,32 +1257,162 @@ class GitHubIssueTracker:
     # ------------------------------------------------------------------
 
     def fetch_candidate_issues(self) -> list[Issue]:
-        """Return issues in active (dispatchable) states, sorted for dispatch."""
-        return []
+        """Return issues in active (dispatchable) states, sorted for dispatch.
+
+        Fetches all open GitHub issues and filters to those whose oompah
+        status (derived from ``oompah:status:*`` labels or GitHub state)
+        is in :attr:`active_states`.
+
+        Results are sorted by priority (ascending, ``None`` last) then by
+        creation time (oldest first) so the orchestrator's dispatch loop
+        receives a stable, deterministic ordering.
+        """
+        raw = self._client.request_paginated(
+            self._issues_path(),
+            params={"state": "open", "per_page": 100},
+        )
+        issues = [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        active_set = set(self.active_states)
+        candidates = [iss for iss in issues if iss.state in active_set]
+        candidates.sort(
+            key=lambda i: (
+                i.priority if i.priority is not None else 999,
+                i.created_at or _EPOCH,
+            )
+        )
+        return candidates
 
     def fetch_all_issues(self) -> list[Issue]:
-        """Return all issues regardless of state."""
-        return []
+        """Return all issues regardless of state (open and closed)."""
+        raw = self._client.request_paginated(
+            self._issues_path(),
+            params={"state": "all", "per_page": 100},
+        )
+        return [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
 
     def fetch_all_issues_enriched(self) -> list[Issue]:
-        """Return all issues with full detail (may make extra API calls)."""
-        return []
+        """Return all issues with full detail (may make extra API calls).
+
+        For GitHub, the list endpoint already returns the full issue body,
+        labels, and timestamps, so this is equivalent to :meth:`fetch_all_issues`.
+        """
+        return self.fetch_all_issues()
 
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
-        """Return a single issue by identifier, or None if not found."""
-        return None
+        """Return a single issue by identifier, or *None* if not found.
+
+        Parameters
+        ----------
+        identifier:
+            Fully-qualified GitHub identifier, e.g.
+            ``"lesserevil/oompah-tasks#42"``.
+
+        Returns
+        -------
+        Issue | None
+            The normalized issue record, or *None* when the issue does not
+            exist (HTTP 404).
+
+        Raises
+        ------
+        TrackerError
+            On non-404 API errors.
+        """
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            return None
+
+        try:
+            raw, _ = self._client.request(
+                "GET", self._issues_path(f"/{gh_id.number}")
+            )
+            if raw is None:
+                return None
+            return _gh_issue_to_issue(raw, self.owner, self.repo)
+        except TrackerError as exc:
+            if "404" in str(exc):
+                return None
+            raise
 
     def fetch_children(self, epic_id: str) -> list[Issue]:
-        """Return child issues that reference the given parent identifier."""
-        return []
+        """Return child issues that reference the given parent identifier.
+
+        Attempts the GitHub sub-issues REST endpoint first.  When that
+        returns a 404 (the endpoint is not yet generally available),
+        falls back to searching for issues labelled
+        ``parent:<epic_number>``.
+        """
+        try:
+            gh_id = self.parse_identifier(epic_id)
+        except TrackerError:
+            return []
+
+        # Try the sub-issues endpoint (newer GitHub API).
+        try:
+            raw = self._client.request_paginated(
+                self._issues_path(f"/{gh_id.number}/sub_issues"),
+                params={"per_page": 100},
+            )
+            return [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        except TrackerError as exc:
+            if "404" not in str(exc):
+                raise
+
+        # Fallback: label-based parent lookup.
+        parent_label = f"parent:{gh_id.number}"
+        try:
+            raw = self._client.request_paginated(
+                self._issues_path(),
+                params={"state": "all", "labels": parent_label, "per_page": 100},
+            )
+            return [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        except TrackerError:
+            return []
 
     def fetch_comments(self, identifier: str) -> list[dict]:
-        """Return all comments on an issue as a list of dicts."""
-        return []
+        """Return all comments on an issue as a list of raw GitHub dicts."""
+        try:
+            gh_id = self.parse_identifier(identifier)
+        except TrackerError:
+            return []
+
+        try:
+            return self._client.request_paginated(
+                self._repo_path(f"/issues/{gh_id.number}/comments"),
+                params={"per_page": 100},
+            )
+        except TrackerError:
+            return []
 
     def fetch_issues_by_states(self, state_names: list[str]) -> list[Issue]:
-        """Return all issues whose state matches any of the given names."""
-        return []
+        """Return all issues whose oompah state matches any of *state_names*.
+
+        Optimises the GitHub API query by requesting only ``open`` issues
+        when all requested states are non-terminal, only ``closed`` when
+        all are terminal, or ``all`` for a mixed set.
+        """
+        if not state_names:
+            return []
+
+        terminal_set = set(self.terminal_states)
+        state_set = set(state_names)
+        needs_open = bool(state_set - terminal_set)
+        needs_closed = bool(state_set & terminal_set)
+
+        if needs_open and needs_closed:
+            gh_state = "all"
+        elif needs_closed:
+            gh_state = "closed"
+        else:
+            gh_state = "open"
+
+        raw = self._client.request_paginated(
+            self._issues_path(),
+            params={"state": gh_state, "per_page": 100},
+        )
+        issues = [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        return [iss for iss in issues if iss.state in state_set]
 
     def fetch_issues_by_labels(
         self,
@@ -1082,12 +1420,74 @@ class GitHubIssueTracker:
         *,
         states: list[str] | None = None,
     ) -> list[Issue]:
-        """Return issues matching all labels and an optional state filter."""
-        return []
+        """Return issues that carry *all* of the given labels.
+
+        Optionally filter the results to only those issues whose oompah
+        state is in *states*.
+        """
+        if not labels:
+            return []
+
+        if states is not None:
+            terminal_set = set(self.terminal_states)
+            state_set = set(states)
+            needs_open = bool(state_set - terminal_set)
+            needs_closed = bool(state_set & terminal_set)
+            if needs_open and needs_closed:
+                gh_state = "all"
+            elif needs_closed:
+                gh_state = "closed"
+            else:
+                gh_state = "open"
+        else:
+            gh_state = "all"
+
+        raw = self._client.request_paginated(
+            self._issues_path(),
+            params={
+                "state": gh_state,
+                "labels": ",".join(labels),
+                "per_page": 100,
+            },
+        )
+        issues = [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        if states is not None:
+            state_set = set(states)
+            issues = [iss for iss in issues if iss.state in state_set]
+        return issues
 
     def fetch_issue_states_by_ids(self, issue_ids: list[str]) -> list[Issue]:
-        """Return current state snapshots for the given identifiers."""
-        return []
+        """Return current state snapshots for the given identifiers.
+
+        Each identifier is fetched individually.  Invalid or missing
+        identifiers are silently skipped so a batch operation can return
+        partial results.
+        """
+        if not issue_ids:
+            return []
+
+        results: list[Issue] = []
+        for issue_id in issue_ids:
+            # Accept fully-qualified identifiers or bare issue numbers.
+            try:
+                gh_id = self.parse_identifier(issue_id)
+            except TrackerError:
+                try:
+                    number = int(issue_id)
+                    gh_id = self.identifier_for_number(number)
+                except (ValueError, TypeError):
+                    continue
+
+            try:
+                raw, _ = self._client.request(
+                    "GET", self._issues_path(f"/{gh_id.number}")
+                )
+                if raw is not None:
+                    results.append(_gh_issue_to_issue(raw, self.owner, self.repo))
+            except TrackerError:
+                continue
+
+        return results
 
     def fetch_memories(self) -> dict[str, str]:
         """Return backend-specific memory key/value pairs (may be empty)."""
