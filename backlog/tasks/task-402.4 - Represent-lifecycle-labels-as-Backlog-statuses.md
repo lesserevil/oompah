@@ -5,13 +5,11 @@ status: Done
 assignee:
   - oompah
 created_date: '2026-06-01 19:20'
-updated_date: '2026-06-01 22:40'
+updated_date: '2026-06-09 00:34'
 labels:
   - task
 dependencies:
   - TASK-402.1
-  - TASK-402.2
-  - TASK-402.10
 parent_task_id: TASK-402
 priority: high
 ordinal: 16000
