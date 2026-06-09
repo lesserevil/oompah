@@ -4,13 +4,11 @@ title: Add end-to-end long-tick regression tests and operator diagnostics
 status: In Progress
 assignee: []
 created_date: '2026-06-08 18:48'
-updated_date: '2026-06-08 20:17'
+updated_date: '2026-06-09 05:36'
 labels:
   - task
   - tick-latency
   - dispatch-performance
-  - 'needs:test'
-  - 'needs:docs'
 dependencies:
   - TASK-465.3
   - TASK-466.4
@@ -49,23 +47,91 @@ Agent dispatched (profile: standard)
 ---
 
 author: oompah
-created: 2026-06-08 20:17
+created: 2026-06-08 20:14
 ---
-Understanding: This task requires (1) end-to-end regression tests for the long-tick scenario where slow maintenance/cleanup should not block dispatch of eligible Open tasks, and (2) operator-facing diagnostics documentation.
+Focus: Test Engineer
+---
 
-Key findings from code exploration:
--  runs: reconcile → review_check → dispatch_needed → yolo_review → watchdog → heal_repos, in that order
-- Dispatch () runs BEFORE maintenance (, ) — this is the key architectural contract to test
-- All work runs via  (ThreadPoolExecutor with 8 workers)
-- For multi-project dispatch: each project's tracker is fetched in parallel via 
+author: oompah
+created: 2026-06-09 05:07
+---
+Agent dispatched (profile: default)
+---
 
-Test plan:
-1.  — tests that:
-   (a) dispatch completes before maintenance (tick phase ordering contract)
-   (b) slow cleanup/yolo does not delay an eligible Open task in a separate project
-   (c) multiple projects with dependency-blocked tasks and one ready task: only the ready task dispatches
-   (d) synthetic slow maintenance jobs do not exhaust the thread pool from the dispatch path
+author: oompah
+created: 2026-06-09 05:07
+---
+Focus: Test Engineer
+---
 
-2.  — operator guide explaining how to read slow-tick logs, use state snapshots, and identify which lane is slow
+author: oompah
+created: 2026-06-09 05:26
+---
+Agent completed successfully in 1131s (1450376 tokens)
+---
+
+author: oompah
+created: 2026-06-09 05:26
+---
+Run #1 [attempt=1, profile=default, role=fast -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
+- Turns: 13, Tool calls: 12
+- Tokens: 1.4M in / 5.4K out [1.5M total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 51s
+- Log: TASK-467.4__20260609T050743Z.jsonl
+---
+
+author: oompah
+created: 2026-06-09 05:26
+---
+Agent completed without closing this issue (1131s (1450376 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+
+author: oompah
+created: 2026-06-09 05:28
+---
+Agent dispatched (profile: standard)
+---
+
+author: oompah
+created: 2026-06-09 05:28
+---
+Focus: Integration Tests Session Specialist
+---
+
+author: oompah
+created: 2026-06-09 05:29
+---
+Agent failed: RuntimeError: Codex exec exited with code 1: 2026-06-09T05:29:13.092754Z ERROR codex_core_skills::loader: failed to stat skills path /home/shedwards/.codex/.tmp/plugins/plugins/sentry/skills/sentry/LICENSE.txt: No such file or directory (os error 2)
+. Retrying in 20s (attempt #2)
+---
+
+author: oompah
+created: 2026-06-09 05:29
+---
+Run #2 [attempt=2, profile=standard, role=standard -> Codex/default]
+- Turns: 1, Tool calls: 0
+- Tokens: 0 in / 0 out [0 total]
+- Cost: $0.0000
+- Exit: error, Duration: 1m 24s
+- Log: TASK-467.4__20260609T052857Z.jsonl
+---
+
+author: oompah
+created: 2026-06-09 05:31
+---
+Retrying (attempt #2, agent: standard)
+---
+
+author: oompah
+created: 2026-06-09 05:35
+---
+Understanding: The task requires (1) end-to-end regression tests verifying slow maintenance does not block dispatch of an eligible task from a different project/workstream, (2) tests covering synthetic slow jobs, multi-project setups, dependency-blocked tasks, and a ready task in a separate workstream, and (3) operator-facing diagnostics showing which project/lane is slow. Plan: Create tests/test_long_tick_regression.py with TestLongTickRegression class, add project_refresh_metrics to get_snapshot() for AC#3, and write docs/tick-latency-diagnostics.md.
+---
+
+author: oompah
+created: 2026-06-09 05:36
+---
+Discovery: The long-tick scenario works as follows: (1) tick sequence is reconcile → review_check → dispatch_needed → yolo_review → watchdog → repo_heal, so dispatch always runs before maintenance; (2) slow maintenance (repo_heal via run_in_executor) blocks the NEXT tick from starting; (3) TASK-467.2 fixed this with bounded per-project refresh using _run_bounded_refresh with timeouts; (4) project_refresh_metrics are tracked in _project_refresh_metrics but not yet exposed in get_snapshot(). Implementing: regression tests in new file tests/test_long_tick_regression.py, adding project_refresh_metrics to get_snapshot() orchestrator_metrics, and docs/tick-latency-diagnostics.md for AC#3.
 ---
 <!-- COMMENTS:END -->

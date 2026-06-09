@@ -13588,6 +13588,22 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "maintenance": dict(
                     getattr(self, "_maintenance_status", {}) or {}
                 ),
+                # Per-project, per-operation refresh timing and timeout counts.
+                # Operators can use this to identify which project or operation
+                # is causing slow ticks. Each entry has:
+                #   last_duration_ms  — wall-clock time for the last attempt
+                #   success_count     — total successful refreshes since start
+                #   timeout_count     — total timeouts (stale data was used)
+                #   last_error        — error string from the most recent failure
+                # A high timeout_count for a project's "candidates" operation
+                # means that project's tracker is consistently slow and oompah
+                # is falling back to cached data. See docs/tick-latency-diagnostics.md.
+                "project_refresh": {
+                    pid: dict(ops)
+                    for pid, ops in (
+                        getattr(self, "_project_refresh_metrics", {}) or {}
+                    ).items()
+                },
                 "tracker_reads": self._tracker_read_stats_snapshot(),
                 "ipc": (
                     self._ipc.diagnostics()
