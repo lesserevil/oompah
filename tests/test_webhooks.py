@@ -517,10 +517,12 @@ class TestForwarderProcess:
             project_id="p1",
             project_name="my-project",
             repo_path="/tmp/repos/my-project",
+            repo_slug="org/my-project",
         )
         assert fp.project_id == "p1"
         assert fp.project_name == "my-project"
         assert fp.repo_path == "/tmp/repos/my-project"
+        assert fp.repo_slug == "org/my-project"
         assert fp.process is None
         assert fp.restart_delay_s == 1.0
         assert fp.restart_attempts == 0
@@ -622,6 +624,7 @@ class TestWebhookForwarderPoll:
         fp = fwd._processes["proj-1"]
         assert fp.project_name == "test-repo"
         assert fp.repo_path == "/tmp/test-repo"
+        assert fp.repo_slug == "org/repo"
         assert fp.process is None  # gh not available, so not started
 
     @pytest.mark.asyncio
@@ -675,7 +678,7 @@ class TestWebhookForwarderPoll:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
 
         fwd = WebhookForwarder(project_store=_FakeProjectStore([proj]))
-        fp = _ForwarderProcess("proj-1", "test-repo", str(tmp_path))
+        fp = _ForwarderProcess("proj-1", "test-repo", str(tmp_path), "org/repo")
         await fwd._launch(fp)
         # gh is unlikely to be missing in CI, but if it is, process stays None.
         # Either way, no exception is raised.
@@ -811,7 +814,7 @@ class TestForwarderProcessFullLifecycle:
         store = _FakeProjectStore([proj])
         fwd = WebhookForwarder(project_store=store, poll_interval_s=100.0)
         fwd._processes["proj-1"] = _ForwarderProcess(
-            "proj-1", "test-repo", str(git_repo),
+            "proj-1", "test-repo", str(git_repo), "org/repo",
         )
 
         # Simulate a process that has already exited.
@@ -875,7 +878,7 @@ class TestForwarderProcessFullLifecycle:
         store = _FakeProjectStore([proj])
         fwd = WebhookForwarder(project_store=store)
 
-        fp = _ForwarderProcess("proj-capped", "test-repo", str(git_repo))
+        fp = _ForwarderProcess("proj-capped", "test-repo", str(git_repo), "org/repo")
         # Start at 30 so doubling gives exactly 60
         fp.restart_delay_s = 30.0
 
@@ -1158,7 +1161,7 @@ class TestWebhookForwarderEventsFlag:
         # _launch actually attempts the spawn.
         fwd._extension_available = True
 
-        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
 
         captured: dict = {}
 
@@ -1178,6 +1181,9 @@ class TestWebhookForwarderEventsFlag:
         assert "gh" == argv[0]
         assert "webhook" in argv
         assert "forward" in argv
+        assert "--repo" in argv
+        repo_index = argv.index("--repo")
+        assert argv[repo_index + 1] == "org/repo"
         # --events must be present and followed by the default set
         assert "--events" in argv
         i = argv.index("--events")
@@ -1186,10 +1192,22 @@ class TestWebhookForwarderEventsFlag:
         assert "--url" in argv
 
     @pytest.mark.asyncio
+    async def test_missing_repo_slug_skips_subprocess(self, git_repo):
+        fwd = WebhookForwarder()
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+
+        with patch("asyncio.create_subprocess_exec") as exec_mock:
+            await fwd._launch(fp)
+
+        exec_mock.assert_not_called()
+        assert fp.process is None
+
+    @pytest.mark.asyncio
     async def test_custom_events_via_init(self, git_repo):
         fwd = WebhookForwarder(events="pull_request")
         fwd._extension_available = True
-        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
 
         captured: dict = {}
 
@@ -1213,7 +1231,7 @@ class TestWebhookForwarderEventsFlag:
         monkeypatch.setenv("OOMPAH_WEBHOOK_EVENTS", "push,issues")
         fwd = WebhookForwarder()
         fwd._extension_available = True
-        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
 
         captured: dict = {}
 
@@ -1251,7 +1269,7 @@ class TestWebhookForwarderExtensionMissing:
     async def test_launch_skipped_when_extension_unavailable(self, git_repo):
         fwd = WebhookForwarder()
         fwd._extension_available = False  # set by start() probe in real code
-        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
 
         with patch("asyncio.create_subprocess_exec") as mock_exec:
             await fwd._launch(fp)
@@ -1363,7 +1381,7 @@ class TestWebhookForwarderStderrCapture:
     async def test_stderr_drained_into_last_stderr(self, git_repo):
         fwd = WebhookForwarder()
         fwd._extension_available = True
-        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
 
         # Fake stderr stream: yields a single chunk then EOF.
         class _FakeStderr:
@@ -1394,7 +1412,7 @@ class TestWebhookForwarderStderrCapture:
     async def test_terminate_cancels_stderr_task(self, git_repo):
         fwd = WebhookForwarder()
         fwd._extension_available = True
-        fp = _ForwarderProcess("p1", "test-repo", str(git_repo))
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
 
         class _BlockingStderr:
             async def read(self, _n):

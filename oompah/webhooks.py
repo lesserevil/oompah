@@ -380,6 +380,8 @@ import asyncio
 import os
 import shutil
 
+from oompah.scm import extract_repo_slug
+
 
 _WEBHOOK_FORWARD_URL_DEFAULT = "http://localhost:8080/api/v1/webhooks/github"
 _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
@@ -444,6 +446,7 @@ class _ForwarderProcess:
         "project_id",
         "project_name",
         "repo_path",
+        "repo_slug",
         "process",
         "restart_delay_s",
         "restart_attempts",
@@ -451,10 +454,17 @@ class _ForwarderProcess:
         "last_stderr",
     )
 
-    def __init__(self, project_id: str, project_name: str, repo_path: str):
+    def __init__(
+        self,
+        project_id: str,
+        project_name: str,
+        repo_path: str,
+        repo_slug: str = "",
+    ):
         self.project_id = project_id
         self.project_name = project_name
         self.repo_path = repo_path
+        self.repo_slug = repo_slug
         self.process: asyncio.subprocess.Process | None = None
         self.restart_delay_s: float = _WEBHOOK_BASE_DELAY_S
         self.restart_attempts: int = 0
@@ -675,6 +685,7 @@ class WebhookForwarder:
                     project_id=project.id,
                     project_name=project.name,
                     repo_path=project.repo_path,
+                    repo_slug=extract_repo_slug(project.repo_url),
                 )
 
         # Remove stale entries for deleted projects.
@@ -760,11 +771,20 @@ class WebhookForwarder:
             )
             return
 
+        if not fp.repo_slug:
+            logger.warning(
+                "WebhookForwarder: skipping project %s (could not determine repo slug)",
+                fp.project_name,
+            )
+            return
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "gh",
                 "webhook",
                 "forward",
+                "--repo",
+                fp.repo_slug,
                 "--events",
                 self._events,
                 "--url",
