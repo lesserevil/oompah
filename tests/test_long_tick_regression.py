@@ -560,9 +560,17 @@ class TestLongTickRegressionScenario:
         orch._maybe_heal_repos = MagicMock(
             side_effect=lambda: call_order.append("repo_heal")
         )
+        orch._run_step5b_maintenance = MagicMock(
+            side_effect=lambda: orch._maybe_heal_repos()
+        )
+
+        async def _run_tick_and_wait_for_maintenance() -> None:
+            await orch._tick()
+            if orch._maintenance_future is not None:
+                await orch._maintenance_future
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_wait_for_maintenance())
 
         dispatch_idx = call_order.index("dispatch_needed")
         watchdog_idx = call_order.index("watchdog")
@@ -791,9 +799,17 @@ class TestSyntheticSlowJobs:
         orch._maybe_heal_repos = MagicMock(
             side_effect=lambda: call_order.append("heal_repos")
         )
+        orch._run_step5b_maintenance = MagicMock(
+            side_effect=lambda: orch._maybe_heal_repos()
+        )
+
+        async def _run_tick_and_wait_for_maintenance() -> None:
+            await orch._tick()
+            if orch._maintenance_future is not None:
+                await orch._maintenance_future
 
         with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
+            asyncio.run(_run_tick_and_wait_for_maintenance())
 
         # dispatch_needed must appear in call_order before heal_repos
         assert "dispatch_needed" in call_order, "dispatch_needed was never called."
