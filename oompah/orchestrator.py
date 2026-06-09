@@ -75,9 +75,11 @@ from oompah.roles import CandidateSelector, RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
 from oompah.error_watcher import ErrorWatcher
 from oompah.tracker import (
-    BacklogMdTracker,
+    ADAPTER_REGISTRY,
+    BacklogMdTracker,  # isinstance guard for legacy-only Backlog paths (see TASK-457.5)
     TrackerError,
     TrackerNotConfiguredError,
+    TrackerProtocol,
     TrackerTimeoutError,
 )
 from oompah.workspace import WorkspaceError, WorkspaceManager
@@ -468,7 +470,7 @@ class Orchestrator:
         # Legacy single tracker (used when no projects configured)
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
-        self._project_trackers: dict[str, BacklogMdTracker] = {}
+        self._project_trackers: dict[str, TrackerProtocol] = {}
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -1048,15 +1050,30 @@ class Orchestrator:
 
     def _new_tracker(
         self, cwd: str | None = None,
-    ) -> BacklogMdTracker:
-        """Construct the Backlog.md tracker adapter."""
-        return BacklogMdTracker(
+    ) -> TrackerProtocol:
+        """Construct a tracker adapter for the configured tracker.kind.
+
+        The factory is looked up in :data:`oompah.tracker.ADAPTER_REGISTRY`
+        using the normalised ``tracker.kind`` from the service config.  An
+        unrecognised kind raises :class:`TrackerError`; callers should treat
+        that as a configuration error (``validate_dispatch_config`` will have
+        already reported it during startup).
+        """
+        kind = self.config.tracker_kind
+        factory = ADAPTER_REGISTRY.get(kind)
+        if factory is None:
+            registered = sorted(ADAPTER_REGISTRY)
+            raise TrackerError(
+                f"Unsupported tracker.kind: {kind!r}."
+                f" Registered adapters: {registered}"
+            )
+        return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
             cwd=cwd,
         )
 
-    def _tracker_for_project(self, project_id: str) -> BacklogMdTracker:
+    def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
         """Get or create a tracker for a project."""
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
@@ -1067,7 +1084,7 @@ class Orchestrator:
         self._project_trackers[project_id] = tracker
         return tracker
 
-    def _tracker_for_issue(self, issue: Issue) -> BacklogMdTracker:
+    def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue (project-specific or legacy)."""
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
@@ -2343,7 +2360,7 @@ class Orchestrator:
         return n
 
     def _shared_epic_child_done(self, issue: Issue) -> bool:
-        """True when a shared-epic child already records a terminal status
+        """[LEGACY: Backlog.md only] True when a shared-epic child already records a terminal status
         on its epic branch worktree.
 
         The dispatch loop reads status from the main checkout, which only
@@ -2358,8 +2375,20 @@ class Orchestrator:
         a local file only (no git/CLI), and fails open (returns False) if
         the worktree or task file is absent, so a missing worktree just
         falls through to normal dispatch rather than wrongly skipping.
+
+        For API-backed trackers (e.g. GitHub Issues), task state is
+        centralised and always current; this worktree file check is a no-op.
         """
         if not issue.project_id or not issue.parent_id:
+            return False
+        # Guard: worktree task-file reads are only meaningful for
+        # BacklogMdTracker.  API-backed trackers keep task state in the remote
+        # service, so fetch_issue_detail is always authoritative.
+        try:
+            tracker = self._tracker_for_project(issue.project_id)
+        except Exception:  # noqa: BLE001
+            return False
+        if not isinstance(tracker, BacklogMdTracker):
             return False
         try:
             status = self.project_store.read_task_status_in_epic_worktree(
@@ -2382,13 +2411,15 @@ class Orchestrator:
         """Whether a dependency/blocker counts as resolved for dispatch.
 
         Terminal on the default branch always satisfies. Additionally, for
-        a shared-epic child, a blocker that is a SIBLING in the same epic
-        records its terminal status on the epic branch (not the default
-        branch the tracker reads) — so treat it satisfied if it's terminal
-        there too. Without this, a child that depends on a sibling which is
-        Done-on-branch-but-Open-on-main is blocked forever: the epic can't
-        land until this child runs, but this child won't run until the epic
-        lands. (Same stale-default-branch read as the dispatch/landing gates.)
+        a shared-epic child using BacklogMdTracker, a blocker that is a SIBLING
+        in the same epic records its terminal status on the epic branch (not the
+        default branch the tracker reads) — so treat it satisfied if it's
+        terminal there too. Without this, a child that depends on a sibling
+        which is Done-on-branch-but-Open-on-main is blocked forever.
+
+        The worktree file check (``read_task_status_in_epic_worktree``) is a
+        LEGACY Backlog.md-only path.  For API-backed trackers the tracker's
+        own state is always current and no filesystem read is needed.
         """
         if _is_terminal_state(blocker_state, self.config.tracker_terminal_states):
             return True
@@ -2400,6 +2431,14 @@ class Orchestrator:
             getattr(blocker, "identifier", None) or getattr(blocker, "id", None)
         )
         if not blocker_ident:
+            return False
+        # Guard: worktree file reads are Backlog.md-only.  API-backed trackers
+        # do not store task state as files in the epic worktree.
+        try:
+            tracker = self._tracker_for_project(issue.project_id)
+        except Exception:  # noqa: BLE001
+            return False
+        if not isinstance(tracker, BacklogMdTracker):
             return False
         # read_task_status_in_epic_worktree returns None when the blocker
         # isn't a child of this epic (not in the epic worktree), so a
@@ -2422,18 +2461,25 @@ class Orchestrator:
         * the default branch (``child.state``) — e.g. a child that merged
           via its own PR, so it's Done/Merged on main but may be stale on
           the epic branch; OR
-        * the epic branch — where a shared child records its status; the
-          default branch only catches up once THIS epic's PR lands, so
-          reading only the default branch would deadlock the gate.
+        * the epic branch — [LEGACY: Backlog.md only] where a shared child
+          records its status; the default branch only catches up once THIS
+          epic's PR lands, so reading only the default branch would deadlock
+          the gate.
 
-        "Terminal on either" is safe: both sources mean the child's work
-        is genuinely finished. Reading only one would either deadlock
-        (default-only, the bug we're fixing) or wrongly block on a stale
-        epic-branch copy of an already-merged child.
+        For API-backed trackers (e.g. GitHub Issues), task state is
+        centralised; only ``child.state`` from the tracker is checked.
         """
         if _is_terminal_state(child.state, self.config.tracker_terminal_states):
             return True
         if not epic.project_id or not child.identifier:
+            return False
+        # Guard: worktree file reads are Backlog.md-only.  API-backed trackers
+        # keep task state in the remote service — child.state is authoritative.
+        try:
+            tracker = self._tracker_for_project(epic.project_id)
+        except Exception:  # noqa: BLE001
+            return False
+        if not isinstance(tracker, BacklogMdTracker):
             return False
         try:
             status = self.project_store.read_task_status_in_epic_worktree(
@@ -2448,17 +2494,28 @@ class Orchestrator:
     def _epic_child_effective_state(self, epic: Issue, child: Issue) -> str:
         """The further-along of a shared-epic child's default-branch and
         epic-branch statuses — the child's true progress regardless of which
-        branch carries it. Used to roll an epic up to a state."""
+        branch carries it. Used to roll an epic up to a state.
+
+        The epic-branch read (``read_task_status_in_epic_worktree``) is a
+        LEGACY Backlog.md-only path.  For API-backed trackers the tracker
+        state is always current; only ``child.state`` is used.
+        """
         eff = child.state
         if epic.project_id and child.identifier:
+            # Guard: worktree file reads are Backlog.md-only.
             try:
-                branch_status = self.project_store.read_task_status_in_epic_worktree(
-                    epic.project_id, epic.identifier, child.identifier
-                )
-            except Exception:  # noqa: BLE001 — best-effort; default branch stands
-                branch_status = None
-            if branch_status:
-                eff = more_advanced_status(child.state, branch_status)
+                tracker = self._tracker_for_project(epic.project_id)
+            except Exception:  # noqa: BLE001
+                tracker = None
+            if isinstance(tracker, BacklogMdTracker):
+                try:
+                    branch_status = self.project_store.read_task_status_in_epic_worktree(
+                        epic.project_id, epic.identifier, child.identifier
+                    )
+                except Exception:  # noqa: BLE001 — best-effort; default branch stands
+                    branch_status = None
+                if branch_status:
+                    eff = more_advanced_status(child.state, branch_status)
         return eff
 
     def _all_non_terminal_epics(self) -> list[Issue]:
@@ -2473,7 +2530,7 @@ class Orchestrator:
         """
         out: list[Issue] = []
         projects = self.project_store.list_all()
-        trackers: list[tuple[str | None, BacklogMdTracker]] = []
+        trackers: list[tuple[str | None, TrackerProtocol]] = []
         if projects:
             for p in projects:
                 try:
@@ -2720,8 +2777,21 @@ class Orchestrator:
         return parent
 
     def _sync_issue_task_file_to_workspace(self, issue: Issue, workspace_path: str) -> None:
-        """Best-effort sync of current Backlog task metadata into a worktree."""
+        """[LEGACY: Backlog.md only] Best-effort sync of Backlog task metadata into a worktree.
+
+        No-op for API-backed trackers (e.g. GitHub Issues) — their task state
+        is centralised and does not live as files in the managed checkout.
+        """
         if not issue.project_id:
+            return
+        # Guard: only BacklogMdTracker stores task state as filesystem files
+        # that need copying into the worker worktree.  API-backed trackers
+        # have no file to sync.
+        try:
+            tracker = self._tracker_for_project(issue.project_id)
+        except Exception:  # noqa: BLE001
+            return
+        if not isinstance(tracker, BacklogMdTracker):
             return
         try:
             self.project_store.sync_task_file_to_worktree(
@@ -5077,7 +5147,7 @@ class Orchestrator:
 
     def _mark_stale_in_review_merged(
         self,
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         issue: Issue,
         branch: str,
     ) -> None:
@@ -5098,7 +5168,7 @@ class Orchestrator:
 
     def _mark_stale_in_review_needs_human(
         self,
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         issue: Issue,
         branch: str,
         target_branch: str,
@@ -5130,7 +5200,7 @@ class Orchestrator:
 
     def _reopen_stale_in_review_task(
         self,
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         issue: Issue,
         branch: str,
         target_branch: str,
@@ -10842,13 +10912,37 @@ class Orchestrator:
     def _fetch_terminal_issue_from_worker_workspace(
         self,
         entry: "RunningEntry",
+        tracker: TrackerProtocol | None = None,
     ) -> Issue | None:
-        """Return a terminal Backlog task from the worker workspace, if present.
+        """[LEGACY: Backlog.md only] Return a terminal task state from the worker workspace.
 
-        Project trackers read the managed checkout. Agents edit Backlog task
-        files in their own worktree, so a valid close can exist there before
-        the managed checkout sees it.
+        BacklogMdTracker stores task state as files in the managed checkout.
+        Agents edit these files in their own git worktree, so a valid close
+        can exist in the worker worktree before the managed checkout's copy is
+        updated.  This function bridges that gap by reading state directly from
+        the agent's worktree directory.
+
+        For API-backed trackers (e.g. GitHub Issues), task state is always
+        centralised in the remote service and this function is a no-op.  Pass
+        the active project tracker via ``tracker`` so the guard can fire early
+        without constructing a new adapter.
         """
+        # Guard: only BacklogMdTracker stores task state as files in the worker
+        # worktree.  API-backed trackers update the central service directly, so
+        # their state is already fresh via the standard fetch_issue_detail call.
+        #
+        # Use the passed project tracker when it is a concrete BacklogMdTracker
+        # instance.  If it is a test double or a non-Backlog adapter, fall back
+        # to checking self.tracker (the global default) — all projects currently
+        # share the same tracker_kind since per-project tracker_kinds are not
+        # yet supported.  Revisit when TASK-461.1 adds per-project tracker
+        # resolution.
+        check_tracker = tracker if tracker is not None else self.tracker
+        if not isinstance(check_tracker, BacklogMdTracker) and not isinstance(
+            self.tracker, BacklogMdTracker
+        ):
+            return None
+
         workspace_path = (entry.workspace_path or "").strip()
         if not workspace_path:
             return None
@@ -10860,8 +10954,8 @@ class Orchestrator:
             )
             return None
         try:
-            tracker = self._new_tracker(cwd=workspace_path)
-            issue = tracker.fetch_issue_detail(entry.identifier)
+            ws_tracker = self._new_tracker(cwd=workspace_path)
+            issue = ws_tracker.fetch_issue_detail(entry.identifier)
         except Exception as exc:
             logger.warning(
                 "Failed to read worker workspace task state for %s from %s: %s",
@@ -11028,7 +11122,7 @@ class Orchestrator:
                 )
                 current = tracker.fetch_issue_detail(entry.identifier)
                 workspace_current = self._fetch_terminal_issue_from_worker_workspace(
-                    entry
+                    entry, tracker=tracker
                 )
                 if workspace_current is not None:
                     current = workspace_current
@@ -11975,7 +12069,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         self,
         parent_issue: Issue,
         tasks: list[dict],
-        tracker: BacklogMdTracker,
+        tracker: TrackerProtocol,
         project_id: str | None,
     ) -> None:
         """Create child issues from a decomposition plan."""
@@ -12410,7 +12504,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             if canonicalize_status(s) != ARCHIVED
         ]
 
-        trackers: list[tuple[str | None, BacklogMdTracker]] = []
+        trackers: list[tuple[str | None, TrackerProtocol]] = []
         if projects:
             for project in projects:
                 try:

@@ -1,4 +1,4 @@
-"""Error watcher: intercepts backend errors and creates Backlog tasks for tracking.
+"""Error watcher: intercepts backend errors and creates tracker tasks for tracking.
 
 Provides two mechanisms for detecting errors:
 
@@ -9,6 +9,11 @@ Provides two mechanisms for detecting errors:
 2. **Log file watcher** — ``LogFileWatcher`` monitors an external log file
    for error lines and feeds them to an ``ErrorWatcher``.  Any project can
    use this by setting a ``log_path`` on its :class:`~oompah.models.Project`.
+
+Task creation goes through the :class:`~oompah.tracker.TrackerProtocol` so any
+configured tracker backend (Backlog.md, GitHub Issues, etc.) is supported.
+The :func:`_persist_error_task_to_git` helper is the only Backlog.md-specific
+path; it is guarded by an ``isinstance(tracker, BacklogMdTracker)`` check.
 """
 
 from __future__ import annotations
@@ -26,7 +31,7 @@ from pathlib import Path
 
 from watchfiles import awatch
 
-from oompah.tracker import BacklogMdTracker
+from oompah.tracker import BacklogMdTracker, TrackerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -91,13 +96,14 @@ def _git_toplevel(path: Path) -> Path | None:
 
 
 def _persist_error_task_to_git(
-    tracker: BacklogMdTracker,
+    tracker: TrackerProtocol,
     identifier: str,
 ) -> bool:
     """Commit and push the Backlog.md file for an ErrorWatcher-created task.
 
-    Returns True only when a commit was created and pushed. All failures are
-    best-effort and reported to the logger by the caller.
+    This is a Backlog.md-specific operation; for other tracker backends it is
+    a no-op.  Returns True only when a commit was created and pushed.  All
+    failures are best-effort and reported to the logger by the caller.
     """
     if not isinstance(tracker, BacklogMdTracker):
         return False
@@ -215,13 +221,14 @@ _AUTO_CLOSE_QUIET_SECONDS = 60
 
 
 class ErrorWatcher:
-    """Watches for errors and creates Backlog tasks to track them.
+    """Watches for errors and creates tracker tasks to track them.
 
     Hooks into Python's logging system via a custom handler. Also accepts
-    explicit error reports (e.g. from a frontend error endpoint).
+    explicit error reports (e.g. from a frontend error endpoint).  Works
+    with any :class:`~oompah.tracker.TrackerProtocol` backend.
     """
 
-    def __init__(self, tracker: BacklogMdTracker, project_id: str | None = None):
+    def __init__(self, tracker: TrackerProtocol, project_id: str | None = None):
         self._tracker = tracker
         self._project_id = project_id
         self._seen: dict[str, _ErrorRecord] = {}

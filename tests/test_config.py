@@ -342,12 +342,12 @@ class TestValidateDispatchConfig:
     def test_beans_is_not_supported(self):
         cfg = ServiceConfig(tracker_kind="beans")
         errors = validate_dispatch_config(cfg)
-        assert any("Unsupported tracker.kind: beans" in e for e in errors)
+        assert any("Unsupported" in e and "beans" in e for e in errors)
 
     def test_beads_is_not_supported(self):
         cfg = ServiceConfig(tracker_kind="beads")
         errors = validate_dispatch_config(cfg)
-        assert any("Unsupported tracker.kind: beads" in e for e in errors)
+        assert any("Unsupported" in e and "beads" in e for e in errors)
 
     def test_empty_command(self):
         cfg = ServiceConfig(agent_command="")

@@ -1,9 +1,10 @@
 ---
 id: TASK-457.2
 title: Add structured tracker identity to Issue records
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-06-08 17:56'
+updated_date: '2026-06-08 20:51'
 labels:
   - task
   - github-issues
@@ -32,3 +33,31 @@ Extend normalized issue data so oompah can represent fully qualified GitHub issu
 - [ ] #1 Backlog tasks continue to serialize with their existing identifier shape.
 - [ ] #2 GitHub-backed issues can be represented without bare-number ambiguity.
 <!-- AC:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-08 20:42
+---
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-08 20:46
+---
+Extended Issue class with GitHub identity fields: tracker_kind, owner, repo, issue_number, display_identifier, provider_url. Preserves existing Backlog identifiers.
+---
+
+author: oompah
+created: 2026-06-08 20:50
+---
+Successfully extended the normalized Issue class with GitHub identity fields: tracker_kind, owner, repo, issue_number, display_identifier, provider_url. Preserves existing Backlog identifiers while enabling structured GitHub issue representation.
+---
+<!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Extended Issue class with GitHub identity fields
+<!-- SECTION:FINAL_SUMMARY:END -->
