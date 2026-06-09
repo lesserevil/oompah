@@ -1603,6 +1603,13 @@ def _backlog_md_factory(
 #:
 #:     from oompah.tracker import ADAPTER_REGISTRY
 #:     ADAPTER_REGISTRY["my_tracker"] = my_factory_function
+def _github_issues_registry_factory(**kwargs) -> "TrackerProtocol":
+    """Lazy-import wrapper so github_tracker is only loaded when needed."""
+    from oompah.github_tracker import _github_issues_factory
+    return _github_issues_factory(**kwargs)
+
+
 ADAPTER_REGISTRY: dict[str, TrackerFactory] = {
     "backlog_md": _backlog_md_factory,
+    "github_issues": _github_issues_registry_factory,
 }
