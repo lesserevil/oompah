@@ -1,9 +1,10 @@
 ---
 id: TASK-473
 title: 'Epic: Reduce HTTP event-loop contention from orchestrator and blocking work'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-06-09 04:19'
+updated_date: '2026-06-09 22:10'
 labels:
   - feature
   - epic
@@ -27,3 +28,9 @@ Complementary to the Granian adoption (Epic TASK-472) and the bigger performance
 - [ ] #1 Hot request paths no longer block the event loop on sync I/O
 - [ ] #2 Profiling identifies the true latency bottleneck under load
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Epic PR #255 merged into main with all four child tasks complete.
+<!-- SECTION:FINAL_SUMMARY:END -->
