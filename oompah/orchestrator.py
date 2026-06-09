@@ -950,8 +950,15 @@ class Orchestrator:
                 retry.timer_handle.cancel()
             self.state.retry_attempts.pop(retry_iid, None)
             self.state.claimed.discard(retry_iid)
-        # Terminate all running agents (keep workspaces for resume)
-        asyncio.ensure_future(self._terminate_all_running())
+        # Terminate all running agents (keep workspaces for resume).
+        # Use get_running_loop() so we don't accidentally create a new
+        # event loop when called from a synchronous context (e.g. tests).
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._terminate_all_running())
+        except RuntimeError:
+            # No running event loop — no active agents to terminate.
+            pass
         logger.info("Orchestrator paused — all agents stopped")
         self.event_bus.emit(EventType.ORCHESTRATOR_PAUSED, {})
         self._notify_observers()
