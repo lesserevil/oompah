@@ -4,7 +4,7 @@ title: Move auto-archive and merged-label sweeps to maintenance lane
 status: Done
 assignee: []
 created_date: '2026-06-08 18:48'
-updated_date: '2026-06-09 00:59'
+updated_date: '2026-06-09 01:06'
 labels:
   - task
   - tick-latency
@@ -118,3 +118,9 @@ created: 2026-06-09 00:59
 Completion: Implementation was fully done in commit 9e842e4 by the previous agent. This run committed the backlog status (Done) and archived task files that were left uncommitted. Branch epic-TASK-466 is now up to date with origin. Key changes delivered: (1) _handle_yolo_review() returns only yolo_ms float; (2) _auto_archive() runs via maintenance gate (3600s interval); (3) new _maybe_run_merged_labels()/_do_merged_labels() via maintenance gate (60s interval) covering _label_merged_issues, _label_merged_epics, _reconcile_stale_in_review_tasks; (4) _run_step5b_maintenance() extended with both jobs; all fire-and-forget off dispatch path. Tests pass.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Moved auto-archive (_auto_archive via maintenance gate, 3600s interval) and merged-label sweeps (_maybe_run_merged_labels/_do_merged_labels via maintenance gate, 60s interval, covering _label_merged_issues/_label_merged_epics/_reconcile_stale_in_review_tasks) to fire-and-forget step 5b maintenance lane. _handle_yolo_review() now returns only yolo_ms float. All jobs throttled and coalesced via _run_maintenance_job(). Job status exposed in get_snapshot() maintenance key. Tests pass. Branch epic-TASK-466 pushed to origin.
+<!-- SECTION:FINAL_SUMMARY:END -->
