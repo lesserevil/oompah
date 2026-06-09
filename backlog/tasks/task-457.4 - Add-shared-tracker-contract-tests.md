@@ -1,10 +1,10 @@
 ---
 id: TASK-457.4
 title: Add shared tracker contract tests
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:56'
-updated_date: '2026-06-08 23:05'
+updated_date: '2026-06-08 23:18'
 labels:
   - task
   - github-issues
@@ -174,4 +174,43 @@ created: 2026-06-08 23:05
 ---
 Understanding: Contract test file exists at tests/test_shared_tracker_contract.py with 184 tests (107 pass, 77 fail). Two categories of failures: (1) 65 FakeTracker failures - create_issue passes invalid Issue kwargs (children, blockers, metadata) not in dataclass; fetch_children always returns []; mark_needs_human doesn't change state/add comments; set_attachments has recursive duplicate definition. (2) 12 BacklogMdTracker failures - archive_issue uses CLI which moves to archive/tasks/ not completed/, so fetch_issue_detail returns None after archiving; mark_needs_human fails because Needs Human status not in test config; several tests call pytest.fail on exception but should allow TrackerError. Plan: Fix FakeTracker in test file, add archive/tasks/ to _task_files in tracker.py, fix normalize_task to set Archived state for archive dir files, and fix test config/assertions.
 ---
+
+author: oompah
+created: 2026-06-08 23:17
+---
+Implementation: Fixed tests/test_shared_tracker_contract.py (FakeTracker bugs) and oompah/tracker.py (BacklogMdTracker archive detection).
+
+FakeTracker fixes:
+- create_issue: removed invalid Issue kwargs (children/blockers/metadata not in dataclass)
+- Added _comments_store for proper comment persistence separate from Issue objects
+- fetch_children: now returns from _children_store
+- fetch_comments/add_comment: use _comments_store
+- set_metadata_field/get_metadata: use _metadata_store
+- is_archived: checks _archived_ids set (not attribute on Issue)
+- update_issue: maps 'status' field to 'state' dataclass attribute
+- fetch_issue_states_by_ids: correct Issue constructor with identifier/title args
+- fetch_candidate_issues: sorts by priority (lower = higher priority)
+- mark_needs_human: sets state='Needs Human' and adds a comment
+- Removed recursive set_attachments duplicate definition
+
+BacklogMdTracker fixes in tracker.py:
+- _task_files: now includes backlog/archive/tasks/ when include_completed=True (CLI archives there, not completed/)
+- _normalize_task: overrides state to ARCHIVED for files found in archive/tasks/
+
+Test fixture fixes:
+- backlog_tracker: added 'Needs Human' and 'Needs Answer' to valid statuses
+- Updated nonexistent-issue tests to accept TrackerError (not just pytest.fail)
+---
+
+author: oompah
+created: 2026-06-08 23:18
+---
+Verification: All 184 contract tests pass (0 failures). Tests cover both FakeTracker and BacklogMdTracker backends. Covers: issue creation, state transitions, comments, labels, parent/child relationships, dependencies, metadata, archive detection, missing issue behavior, candidate sorting, full workflow integration, and BacklogMdTracker-specific file I/O tests.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Delivered 184 passing backend-neutral contract tests in tests/test_shared_tracker_contract.py covering: issue creation, state transitions, comments, labels, parent/child relationships, dependencies, metadata, archive detection, missing issue behavior, candidate sorting, and full workflow integration. Tests run against both FakeTracker (in-memory) and BacklogMdTracker. Also fixed oompah/tracker.py to support backlog CLI archive/tasks/ directory and detect archived state correctly.
+<!-- SECTION:FINAL_SUMMARY:END -->

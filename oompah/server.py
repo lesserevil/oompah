@@ -1878,8 +1878,8 @@ async def api_update_issue(identifier: str, request: Request):
 
     This lets the operator understand that epic state is derived
     (controlled by children's states) and that manual transitions must
-    either go through the child-issue flow or be done directly in Backlog.md
-    when intentionally bypassing any backend hooks.
+    either go through the child-issue flow or be done directly via the
+    tracker backend when intentionally bypassing any backend hooks.
     """
     try:
         orch = _get_orchestrator()
@@ -4332,7 +4332,7 @@ async def api_list_projects():
 
 @app.post("/api/v1/projects")
 async def api_create_project(request: Request):
-    """Register a new project (git repo with Backlog.md tasks)."""
+    """Register a new project (git repo with tracker-managed tasks)."""
     try:
         orch = _get_orchestrator()
         try:
@@ -5882,7 +5882,7 @@ def _sync_project_after_webhook(
     project_id: str,
     project_name: str,
 ) -> None:
-    """Pull source + validate Backlog.md config for one project after a webhook.
+    """Pull source + validate tracker config for one project after a webhook.
 
     Best-effort: any failure is logged but does not raise. The next
     service restart's startup sync remains the safety net.
