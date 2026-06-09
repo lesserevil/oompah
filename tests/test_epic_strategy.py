@@ -492,6 +492,116 @@ class TestSharedModeDispatchGating:
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
 
+    def test_select_dispatchable_serializes_shared_siblings_in_same_batch(
+        self, tmp_path
+    ):
+        """Selection must reserve a shared epic before agents start running.
+
+        _should_dispatch() can only see already-running/claimed siblings. When
+        _select_dispatchable() builds a ready batch, newly accepted candidates
+        are not running yet, so same-epic siblings need a batch-local gate too.
+        """
+        proj = _make_project_record(epic_strategy="shared")
+        proj.max_in_flight_prs = 5
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {}
+        children = [
+            _make_issue(
+                identifier="task-a",
+                title="alpha work",
+                parent_id="epic-1",
+                state="open",
+            ),
+            _make_issue(
+                identifier="task-b",
+                title="beta work",
+                parent_id="epic-1",
+                state="open",
+            ),
+        ]
+
+        ready = orch._select_dispatchable(children)
+
+        assert [issue.identifier for issue in ready] == ["task-a"]
+
+    def test_select_dispatchable_allows_different_shared_epics_in_same_batch(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.max_in_flight_prs = 5
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {}
+        children = [
+            _make_issue(
+                identifier="task-a",
+                title="alpha work",
+                parent_id="epic-1",
+                state="open",
+            ),
+            _make_issue(
+                identifier="task-b",
+                title="beta work",
+                parent_id="epic-2",
+                state="open",
+            ),
+        ]
+
+        ready = orch._select_dispatchable(children)
+
+        assert [issue.identifier for issue in ready] == ["task-a", "task-b"]
+
+    @pytest.mark.parametrize("strategy", ["flat", "stacked"])
+    def test_select_dispatchable_only_serializes_shared_strategy(
+        self, tmp_path, strategy
+    ):
+        proj = _make_project_record(epic_strategy=strategy)
+        proj.max_in_flight_prs = 5
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {}
+        children = [
+            _make_issue(
+                identifier="task-a",
+                title="alpha work",
+                parent_id="epic-1",
+                state="open",
+            ),
+            _make_issue(
+                identifier="task-b",
+                title="beta work",
+                parent_id="epic-1",
+                state="open",
+            ),
+        ]
+
+        ready = orch._select_dispatchable(children)
+
+        assert [issue.identifier for issue in ready] == ["task-a", "task-b"]
+
+    def test_select_dispatchable_keeps_p0_shared_sibling_bypass(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {}
+        children = [
+            _make_issue(
+                identifier="task-a",
+                title="alpha work",
+                parent_id="epic-1",
+                state="open",
+                priority=0,
+            ),
+            _make_issue(
+                identifier="task-b",
+                title="beta work",
+                parent_id="epic-1",
+                state="open",
+                priority=0,
+            ),
+        ]
+
+        ready = orch._select_dispatchable(children)
+
+        assert [issue.identifier for issue in ready] == ["task-a", "task-b"]
+
 
 # ------------------------------------------------------- workspace allocation
 

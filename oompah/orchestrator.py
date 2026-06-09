@@ -8240,6 +8240,7 @@ class Orchestrator:
         # list itself (to suppress inter-candidate duplicates, keeping the
         # highest-priority/oldest instance).
         dispatchable: list[Issue] = []
+        reserved_shared_epics: set[tuple[str, str]] = set()
         scanned = 0
 
         for issue in sorted_issues:
@@ -8263,10 +8264,32 @@ class Orchestrator:
                 )
                 continue
 
+            shared_epic_key: tuple[str, str] | None = None
+            if (
+                issue.parent_id
+                and issue.priority != 0
+                and self._project_epic_strategy(issue.project_id) == "shared"
+            ):
+                shared_epic_key = (
+                    str(issue.project_id or ""),
+                    str(issue.parent_id).strip(),
+                )
+                if shared_epic_key in reserved_shared_epics:
+                    logger.debug(
+                        "Dispatch shared-epic batch suppress %s "
+                        "(epic=%s project=%s)",
+                        issue.identifier,
+                        issue.parent_id,
+                        issue.project_id,
+                    )
+                    continue
+
             if not self._should_dispatch(issue):
                 continue
 
             dispatchable.append(issue)
+            if shared_epic_key is not None:
+                reserved_shared_epics.add(shared_epic_key)
             if len(dispatchable) >= target_ready:
                 break
 
