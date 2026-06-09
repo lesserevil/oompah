@@ -8,7 +8,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-06-09 00:40'
-updated_date: '2026-06-09 19:57'
+updated_date: '2026-06-09 20:01'
 labels:
   - bug
 dependencies: []
@@ -75,14 +75,59 @@ Recent commits:
 ---
 
 author: oompah
+created: 2026-06-09 19:55
+---
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-09 19:55
+---
+Focus: Duplicate Investigator
+---
+
+author: oompah
 created: 2026-06-09 19:57
 ---
-Duplicate investigation (run #2): confirmed NOT a duplicate. Searched for tasks matching 'nvidia', 'NotFoundError', 'HTTP 404', and 'litellm' — only TASK-471 matches. Prior 400-error tasks (TASK-432, TASK-435, TASK-438, TASK-440, TASK-442, TASK-443) are distinct error types (BadRequestError/ContextWindowExceeded). Task is already Done; fix committed on branch (litellm HTTP 404 NotFoundError now raises TransientServerError, 8 unit tests passing).
+Agent completed successfully in 142s (3349 tokens)
+---
+
+author: oompah
+created: 2026-06-09 19:57
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 22, Tool calls: 14
+- Tokens: 13 in / 3.3K out [3.3K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 22s
+- Log: TASK-471__20260609T195521Z.jsonl
+---
+
+author: oompah
+created: 2026-06-09 19:57
+---
+Review handoff deferred: the task branch has unmerged work, but this project is at its open review limit.
+
+Branch: `TASK-471`
+Target branch: `main`
+Unmerged commits: 7 commits
+Open reviews: 1/1
+
+oompah will create the review automatically when review capacity is available.
+
+Recent commits:
+  a316a03 TASK-471: close task as Done (run #2)
+  dba3022 TASK-471: update task comments (duplicate investigator run #2)
+  1199393 TASK-471: close task as Done
+  4bae920 TASK-471: update task comments (completion)
+  825b228 TASK-471: update task comments (duplicate investigator run)
+  2a4cf47 TASK-471: update task comments
+  1da9020 TASK-471: treat litellm HTTP 404 NotFoundError as transient
+---
+
+author: oompah
+created: 2026-06-09 20:01
+---
+Duplicate investigation (run #3): Confirmed no duplicate exists. TASK-471 is the only task with HTTP 404 litellm.NotFoundError from inference-api.nvidia.com (other similar tasks are HTTP 400 BadRequestError, a different error path). The fix from run #1 (commit 1da9020) is valid — treating litellm 404 NotFoundError as transient integrates with the retry loop so model-routing blips no longer create spurious error_watcher tasks. Task remains Done.
 ---
 <!-- COMMENTS:END -->
-
-## Final Summary
-
-<!-- SECTION:FINAL_SUMMARY:BEGIN -->
-NOT a duplicate. Second duplicate investigation (run #2) confirmed: no other tasks share the HTTP 404 litellm.NotFoundError pattern. Fix already implemented on this branch — _http_post() detects litellm NotFoundError 404 and raises TransientServerError, 8 unit tests passing.
-<!-- SECTION:FINAL_SUMMARY:END -->
