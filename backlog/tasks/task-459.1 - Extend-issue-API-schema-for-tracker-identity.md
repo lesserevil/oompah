@@ -1,11 +1,11 @@
 ---
 id: TASK-459.1
 title: Extend issue API schema for tracker identity
-status: Open
+status: Done
 assignee:
   - oompah
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 22:33'
+updated_date: '2026-06-09 22:34'
 labels:
   - task
   - github-issues
@@ -62,4 +62,16 @@ created: 2026-06-09 22:33
 ---
 Implementation: Updated oompah/models.py Issue dataclass - renamed owner/repo to tracker_owner/tracker_repo, added managed_repo, work_branch, is_legacy fields. Updated server.py: _issue_display_fields now prefers model display_identifier (GitHub short form), _fetch_and_serialize_issues and api_issue_full_detail now include all tracker identity fields (tracker_kind, tracker_owner, tracker_repo, issue_number, url, managed_repo, target_branch, work_branch, is_legacy). api_create_issue accepts and validates managed_repo/target_branch/work_branch in request body, validates managed_repo format (owner/repo). api_update_issue accepts same tracker fields and passes them to tracker adapter. Added 25 tests in tests/test_server_tracker_identity_schema.py.
 ---
+
+author: oompah
+created: 2026-06-09 22:34
+---
+Verification: All 25 new tests pass. Also confirmed 389 tests across the broader test suite pass (server, models, backlog tracker, tracker protocol, dashboard, project CRUD). No regressions. Tests cover: board entry serialization with tracker fields for Backlog/GitHub/legacy issues, detail endpoint with all tracker fields, display_identifier preference (model vs computed fallback), url vs provider_url fallback, create endpoint validation (managed_repo format, field passthrough), update endpoint validation and field forwarding, and Issue model dataclass defaults.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Extended issue API schema for tracker identity: renamed Issue.owner/repo to tracker_owner/tracker_repo, added managed_repo/work_branch/is_legacy to Issue model. Updated server serialization (_fetch_and_serialize_issues, api_issue_full_detail) to expose all tracker identity fields. Updated api_create_issue and api_update_issue to accept/validate managed_repo (owner/repo format), target_branch, work_branch. display_identifier now prefers model field over computed fallback enabling GitHub short forms. Backlog-backed issues remain backward-compatible (null tracker fields, is_legacy=false). 25 new tests in tests/test_server_tracker_identity_schema.py, all passing.
+<!-- SECTION:FINAL_SUMMARY:END -->
