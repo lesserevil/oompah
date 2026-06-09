@@ -808,6 +808,255 @@ class TestRunStep5bMaintenanceExtended:
 
 
 # ---------------------------------------------------------------------------
+# _run_step5c_epic_maintenance  (TASK-466.3)
+# ---------------------------------------------------------------------------
+
+
+class TestRunStep5cEpicMaintenance:
+    """_run_step5c_epic_maintenance() runs epic maintenance jobs via the maintenance gate.
+
+    Covers TASK-466.3 acceptance criteria:
+      AC#1 — epic maintenance does not run inline before dispatch (fire-and-forget).
+      AC#2 — completion PRs, staleness, rebase filing, and orphan reset remain idempotent.
+      AC#3 — maintenance jobs are gated by _run_maintenance_job with per-job throttle.
+    """
+
+    def _orch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        # Mock out every sub-operation so tests focus on orchestration logic.
+        orch._auto_close_completed_epics = MagicMock()
+        orch._all_non_terminal_epics = MagicMock(return_value=[])
+        orch._open_epic_main_prs = MagicMock()
+        orch._check_epic_staleness = MagicMock()
+        orch._dispatch_proactive_rebase_agents = MagicMock()
+        orch._prune_stale_epic_rebase_states = MagicMock()
+        orch._reset_orphaned_in_progress = MagicMock()
+        orch._fetch_in_progress_issues = MagicMock(return_value=[])
+        return orch
+
+    # ---- AC#1: fire-and-forget from tick ----
+
+    def test_tick_sets_epic_maintenance_future(self, tmp_path):
+        """_tick() must set _epic_maintenance_future so status is trackable."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
+
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+
+        assert orch._epic_maintenance_future is not None
+
+    def test_tick_does_not_await_epic_maintenance(self, tmp_path):
+        """_tick() must complete even if _run_step5c_epic_maintenance is slow.
+
+        AC#1: epic maintenance is fire-and-forget, not awaited inline.
+        """
+        import time as _time
+
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+
+        def _slow_epic_maintenance():
+            _time.sleep(0.1)  # 100 ms blocking
+
+        orch._run_step5c_epic_maintenance = _slow_epic_maintenance
+
+        tick_start = _time.monotonic()
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+        tick_ms = (_time.monotonic() - tick_start) * 1000
+
+        assert tick_ms < 80, (
+            f"Tick took {tick_ms:.0f}ms — epic maintenance should not block the tick"
+        )
+
+    def test_tick_skips_new_epic_maintenance_when_previous_still_running(self, tmp_path):
+        """When the previous epic_maintenance_future is not done, tick skips a new one."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
+
+        async def _run_with_fake_future():
+            loop = asyncio.get_event_loop()
+            fake_future: asyncio.Future = loop.create_future()
+            orch._epic_maintenance_future = fake_future  # not done
+
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                await orch._tick()
+
+            fake_future.cancel()
+
+        asyncio.run(_run_with_fake_future())
+
+        # _run_step5c_epic_maintenance should NOT have been called — future was in-flight
+        orch._run_step5c_epic_maintenance.assert_not_called()
+
+    # ---- AC#2: idempotency through maintenance gate ----
+
+    def test_all_six_jobs_registered(self, tmp_path):
+        """All six epic maintenance jobs appear in _maintenance_jobs after a run."""
+        orch = self._orch(tmp_path)
+        # Enable staleness threshold so staleness + rebase jobs fire.
+        orch.config.epic_staleness_threshold_commits = 5
+
+        orch._run_step5c_epic_maintenance()
+
+        job_names = set(orch._maintenance_jobs.keys())
+        assert "epic_auto_close" in job_names
+        assert "epic_open_prs" in job_names
+        assert "epic_staleness" in job_names
+        assert "epic_rebase_filing" in job_names
+        assert "epic_prune_rebase" in job_names
+        assert "epic_orphan_reset" in job_names
+
+    def test_jobs_skipped_when_threshold_zero(self, tmp_path):
+        """staleness and rebase jobs are skipped when threshold is 0 (disabled)."""
+        orch = self._orch(tmp_path)
+        orch.config.epic_staleness_threshold_commits = 0
+
+        orch._run_step5c_epic_maintenance()
+
+        orch._check_epic_staleness.assert_not_called()
+        orch._dispatch_proactive_rebase_agents.assert_not_called()
+
+    def test_staleness_runs_before_rebase_filing(self, tmp_path):
+        """Staleness job MUST complete before rebase filing (ordering contract).
+
+        AC#2: ordering preserved so _check_epic_staleness updates
+        _epic_rebase_states before _dispatch_proactive_rebase_agents reads it.
+        """
+        orch = self._orch(tmp_path)
+        orch.config.epic_staleness_threshold_commits = 5
+        call_order = []
+        orch._check_epic_staleness = MagicMock(
+            side_effect=lambda c: call_order.append("staleness")
+        )
+        orch._dispatch_proactive_rebase_agents = MagicMock(
+            side_effect=lambda c: call_order.append("rebase_filing")
+        )
+
+        orch._run_step5c_epic_maintenance()
+
+        staleness_idx = call_order.index("staleness")
+        rebase_idx = call_order.index("rebase_filing")
+        assert staleness_idx < rebase_idx, (
+            "staleness must run before rebase filing but order was: "
+            + str(call_order)
+        )
+
+    def test_idempotent_second_call_within_interval(self, tmp_path):
+        """Second call within interval is coalesced (no double-dispatch).
+
+        AC#2: idempotency preserved — jobs are throttled by _run_maintenance_job.
+        """
+        orch = self._orch(tmp_path)
+        orch._run_step5c_epic_maintenance()
+        orch._run_step5c_epic_maintenance()  # within interval
+
+        # Each sub-function should have been called only once.
+        assert orch._auto_close_completed_epics.call_count == 1
+        assert orch._prune_stale_epic_rebase_states.call_count == 1
+        assert orch._reset_orphaned_in_progress.call_count == 1
+
+    def test_reruns_after_interval_expires(self, tmp_path):
+        """Jobs run again once their next_run_monotonic has passed."""
+        orch = self._orch(tmp_path)
+        orch._run_step5c_epic_maintenance()
+
+        # Backdate every epic job past its interval.
+        for name in ("epic_auto_close", "epic_open_prs", "epic_prune_rebase",
+                     "epic_orphan_reset"):
+            state = orch._maintenance_jobs.get(name)
+            if state is not None:
+                state.next_run_monotonic = 0.0
+
+        orch._run_step5c_epic_maintenance()
+
+        assert orch._auto_close_completed_epics.call_count == 2
+        assert orch._prune_stale_epic_rebase_states.call_count == 2
+        assert orch._reset_orphaned_in_progress.call_count == 2
+
+    def test_failure_captured_does_not_propagate(self, tmp_path):
+        """A failing sub-job is captured in last_error, not re-raised.
+
+        AC#2: idempotent — failures do not crash the maintenance runner.
+        """
+        orch = self._orch(tmp_path)
+        orch._auto_close_completed_epics = MagicMock(
+            side_effect=RuntimeError("auto-close blew up")
+        )
+
+        # Must not raise.
+        orch._run_step5c_epic_maintenance()
+
+        state = orch._maintenance_jobs.get("epic_auto_close")
+        assert state is not None
+        assert state.last_status == "failed"
+        assert "auto-close blew up" in (state.last_error or "")
+
+    def test_job_status_appears_in_snapshot(self, tmp_path):
+        """Epic maintenance job states are visible via get_snapshot()."""
+        orch = self._orch(tmp_path)
+        orch._run_step5c_epic_maintenance()
+
+        snapshot = orch.get_snapshot()
+        jobs = snapshot["maintenance"]["jobs"]
+        assert "epic_auto_close" in jobs
+        assert "epic_orphan_reset" in jobs
+
+    # ---- AC#3: per-project maintenance lock ----
+
+    def test_get_project_maintenance_lock_returns_lock(self, tmp_path):
+        """_get_project_maintenance_lock returns a threading.Lock."""
+        import threading
+
+        orch = _make_orchestrator(tmp_path)
+        lock = orch._get_project_maintenance_lock("proj-1")
+        assert isinstance(lock, type(threading.Lock()))
+
+    def test_get_project_maintenance_lock_same_project_same_lock(self, tmp_path):
+        """Same project ID returns the same lock object (identity)."""
+        orch = _make_orchestrator(tmp_path)
+        lock1 = orch._get_project_maintenance_lock("proj-1")
+        lock2 = orch._get_project_maintenance_lock("proj-1")
+        assert lock1 is lock2
+
+    def test_get_project_maintenance_lock_different_projects_different_locks(
+        self, tmp_path
+    ):
+        """Different project IDs get distinct lock objects."""
+        orch = _make_orchestrator(tmp_path)
+        lock_a = orch._get_project_maintenance_lock("proj-a")
+        lock_b = orch._get_project_maintenance_lock("proj-b")
+        assert lock_a is not lock_b
+
+
+# ---------------------------------------------------------------------------
 # _handle_auto_update
 # ---------------------------------------------------------------------------
 

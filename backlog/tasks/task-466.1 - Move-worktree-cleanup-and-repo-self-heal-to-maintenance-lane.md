@@ -1,7 +1,7 @@
 ---
 id: TASK-466.1
 title: Move worktree cleanup and repo self-heal to maintenance lane
-status: Open
+status: Done
 assignee: []
 created_date: '2026-06-08 18:48'
 updated_date: '2026-06-08 23:03'
@@ -146,4 +146,16 @@ created: 2026-06-08 23:03
 ---
 Understanding: This task moves terminal worktree cleanup and repo self-heal from inline dispatch work to a scheduled maintenance lane. Previous agents did the implementation work but didn't commit. As Duplicate Investigator, I checked TASK-469.2 (Budget auto-archive and worktree cleanup) and TASK-452 (Preserve Done worktrees) — neither is a duplicate. TASK-469.2 is broader scope (auto-archive + budget/cursor); TASK-452 is Done. Proceeding to commit the completed implementation.
 ---
+
+author: oompah
+created: 2026-06-08 23:03
+---
+Completion: Confirmed no duplicates (TASK-469.2 is distinct broader scope; TASK-452 is already Done). Committed and pushed complete implementation to origin/epic-TASK-466. Key changes: (1) _maybe_heal_repos() and _maybe_cleanup_worktrees() are now separate maintenance jobs going through _run_maintenance_job() gate with in-flight coalescing, interval throttling, skip accounting; (2) Both jobs fire fire-and-forget from _run_step5b_maintenance() on the tick thread pool; (3) Only MERGED/ARCHIVED worktrees removed (Done preserved); (4) Job status exposed in get_snapshot() under 'maintenance' key. 180 tests passed.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Moved terminal worktree cleanup and repo self-heal to separate maintenance lane jobs. Both run fire-and-forget via _run_maintenance_job() with in-flight coalescing and interval throttling. Only MERGED/ARCHIVED worktrees removed (Done preserved). Job status exposed in get_snapshot() under 'maintenance'. 180 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

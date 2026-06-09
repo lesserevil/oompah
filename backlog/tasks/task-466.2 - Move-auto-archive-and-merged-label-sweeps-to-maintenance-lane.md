@@ -1,23 +1,45 @@
 ---
 id: TASK-466.2
 title: Move auto-archive and merged-label sweeps to maintenance lane
-status: Open
+status: Done
 assignee: []
-created_date: '2026-06-08 18:48'
-updated_date: '2026-06-09 00:25'
+created_date: 2026-06-08 18:48
+updated_date: 2026-06-09 00:39
 labels:
-  - task
-  - tick-latency
-  - maintenance
+- task
+- tick-latency
+- maintenance
 dependencies:
-  - TASK-466.1
+- TASK-466.1
 references:
-  - oompah/orchestrator.py
+- oompah/orchestrator.py
 modified_files:
-  - oompah/orchestrator.py
-  - tests/test_orchestrator_merged.py
+- oompah/orchestrator.py
+- tests/test_orchestrator_merged.py
 parent_task_id: TASK-466
 ordinal: 7
+oompah.task_costs:
+  total_input_tokens: 211
+  total_output_tokens: 23344
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 211
+      output_tokens: 23344
+      cost_usd: 0.0
+  runs:
+  - profile: standard
+    model: unknown
+    input_tokens: 140
+    output_tokens: 4833
+    cost_usd: 0.0
+    recorded_at: '2026-06-08T20:08:45.515621+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 71
+    output_tokens: 18511
+    cost_usd: 0.0
+    recorded_at: '2026-06-09T00:34:56.798049+00:00'
 ---
 
 ## Description
@@ -34,58 +56,92 @@ Move auto-archive, merged issue labeling, merged epic labeling, and stale In Rev
 <!-- AC:END -->
 
 ## Comments
-
 <!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
 author: oompah
 created: 2026-06-08 19:50
----
+
 Agent dispatched (profile: standard)
----
-
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
 author: oompah
 created: 2026-06-08 19:50
----
-Focus: Test Engineer
----
 
+Focus: Test Engineer
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
 author: oompah
 created: 2026-06-08 20:08
----
+
 Run #1 [attempt=1, profile=standard, role=standard -> Claude/default]
 - Turns: 0, Tool calls: 95
 - Tokens: 140 in / 4.8K out [5.0K total]
 - Cost: $0.0000
 - Exit: terminated, Duration: 18m 21s
 - Log: TASK-466.2__20260608T195117Z.jsonl
----
-
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
 author: oompah
 created: 2026-06-08 23:05
----
+
 Agent dispatched (profile: default)
----
-
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
 author: oompah
 created: 2026-06-08 23:05
----
-Focus: Duplicate Investigator
----
 
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
 author: oompah
 created: 2026-06-09 00:05
----
+
 Agent dispatched (profile: default)
----
-
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
 author: oompah
-created: 2026-06-09 00:08
----
-Understanding: TASK-466.2 is NOT a duplicate — it's a unique task in the TASK-466 epic. Previous agent runs implemented the code changes but failed to commit. The uncommitted working tree has substantial changes: (1) _handle_yolo_review now returns only yolo_ms float (removed archive/merged-label work); (2) _auto_archive and _maybe_run_merged_labels moved to step 5b maintenance lane; (3) _run_step5c_epic_maintenance() added as sync fire-and-forget for step 5c; (4) tests updated to match. Plan: verify tests pass, then commit and push.
----
+created: 2026-06-09 00:05
 
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 8
 author: oompah
-created: 2026-06-09 00:25
----
-Discovery: Previous agents implemented the full TASK-466.2 changes (and TASK-466.3 epic maintenance sync wrapper) but never committed. Key code changes found in working tree: (1) _handle_yolo_review() stripped of archive/merged work, returns single float; (2) _auto_archive() delegates to _run_maintenance_job('auto_archive', min_interval=3600s); (3) new _maybe_run_merged_labels()/_do_merged_labels() delegates to _run_maintenance_job('merged_labels', min_interval=60s); (4) _run_step5b_maintenance() extended with both new jobs; (5) _run_step5c_epic_maintenance() sync wrapper replaces async _handle_epic_maintenance(); (6) tests updated for new signatures. All 214+ tests pass.
----
+created: 2026-06-09 00:35
+
+Agent completed successfully in 1758s (18582 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 9
+author: oompah
+created: 2026-06-09 00:35
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 119, Tool calls: 81
+- Tokens: 71 in / 18.5K out [18.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 29m 18s
+- Log: TASK-466.2__20260609T000658Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 10
+author: oompah
+created: 2026-06-09 00:35
+
+Agent completed without closing this issue (1758s (18582 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 11
+author: oompah
+created: 2026-06-09 00:39
+
+Agent dispatched (profile: standard)
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
