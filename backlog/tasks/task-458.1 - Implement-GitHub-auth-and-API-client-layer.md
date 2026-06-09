@@ -1,10 +1,10 @@
 ---
 id: TASK-458.1
 title: Implement GitHub auth and API client layer
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:56'
-updated_date: '2026-06-09 04:50'
+updated_date: '2026-06-09 05:34'
 labels:
   - task
   - github-issues
@@ -44,20 +44,94 @@ Agent dispatched (profile: default)
 ---
 
 author: oompah
-created: 2026-06-09 04:41
+created: 2026-06-09 04:40
 ---
-Understanding: No duplicate found. Searched for 'GitHub auth', 'GitHub installation token', 'PAT token github app', 'rate limit retry pagination' — TASK-458.1 is the only task covering GitHub App installation-token auth + PAT/gh-auth fallback + centralized API client. TASK-457.1 (Done) delivered TrackerProtocol and ADAPTER_REGISTRY; TASK-458.1 builds the concrete GitHub client layer on top of that. Plan: (1) check existing code structure and config; (2) implement oompah/github_tracker.py with GitHubClient class covering App auth, PAT fallback, gh-auth fallback; (3) add retry/timeout/pagination/rate-limit/ETag/redaction logic; (4) register GitHubIssueTracker in ADAPTER_REGISTRY; (5) cover all auth paths in tests; (6) verify tests pass.
----
-
-author: oompah
-created: 2026-06-09 04:42
----
-Discovery: No duplicate. TASK-458.1 is unique. Key findings: (1) oompah/tracker.py has TrackerProtocol, TrackerFactory, ADAPTER_REGISTRY (from TASK-457.1); (2) oompah/scm.py has GitHubProvider for PRs and _resolve_gh_token() pattern I can reuse; (3) PyJWT + cryptography are available in the venv for GitHub App JWT generation; (4) httpx is the HTTP library in use; (5) oompah/models.py Issue already has tracker_kind, owner, repo, issue_number, display_identifier fields; (6) TrackerError and TrackerTimeoutError are the exception types. Implementation plan: create oompah/github_tracker.py with GitHubClient (App auth → JWT → installation token, PAT fallback, gh-auth fallback, retry, timeout, pagination, rate-limit logging, ETag cache, response redaction) + GitHubIssueTracker stub (full TrackerProtocol); register 'github_issues' in ADAPTER_REGISTRY; tests in tests/test_github_tracker.py covering all 3 auth paths + rate-limit/auth error handling.
+Focus: Duplicate Investigator
 ---
 
 author: oompah
-created: 2026-06-09 04:50
+created: 2026-06-09 04:51
 ---
-Implementation: Created oompah/github_tracker.py with: (1) GitHubAuth class — resolves tokens in priority order: GitHub App (JWT → installation token via PyJWT+cryptography, auto-refreshed 2 min before expiry), PAT (OOMPAH_GITHUB_TOKEN/GH_TOKEN/GITHUB_TOKEN), gh CLI fallback; (2) GitHubClient class — centralised HTTP with _MAX_RETRIES=3 exponential backoff, per-request timeout (OOMPAH_GITHUB_API_TIMEOUT), automatic link-header pagination (request_paginated), rate-limit logging (DEBUG) + 429 retry with Retry-After/X-RateLimit-Reset, ETag/conditional-GET cache support, response redaction; (3) GitHubIssueTracker — full TrackerProtocol skeleton (all 27 methods), auth wired in; (4) _github_issues_factory — reads OOMPAH_GITHUB_TRACKER_OWNER/REPO env vars. Updated oompah/tracker.py: registered 'github_issues' in ADAPTER_REGISTRY via lazy-import wrapper. Updated tests/test_tracker_protocol.py: removed 'github_issues' from unknown-kinds list; added test_github_issues_is_valid(). Created tests/test_github_tracker.py with 69 tests covering all 3 auth paths, rate-limit/auth error handling, retry logic, ETag cache, pagination.
+Agent completed successfully in 706s (29596 tokens)
+---
+
+author: oompah
+created: 2026-06-09 04:51
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 103, Tool calls: 73
+- Tokens: 62 in / 29.5K out [29.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 46s
+- Log: TASK-458.1__20260609T044007Z.jsonl
+---
+
+author: oompah
+created: 2026-06-09 04:51
+---
+Agent completed without closing this issue (706s (29596 tokens)). Escalating from 'default' to 'standard'. Retrying in 10s (1/3).
+---
+
+author: oompah
+created: 2026-06-09 04:53
+---
+Agent dispatched (profile: standard)
+---
+
+author: oompah
+created: 2026-06-09 04:55
+---
+Understanding the task: Implement GitHub auth and API client layer with GitHub App installation-token support as preferred production auth, PAT and gh-auth fallback for development. Centralize request retries, timeout handling, pagination, rate-limit logging, ETag/cache hooks, and response redaction.
+---
+
+author: oompah
+created: 2026-06-09 05:34
+---
+Implementation complete. All acceptance criteria met:
+
+1. ✅ GitHub App, PAT, and missing-auth paths are covered by tests (69 tests in test_github_tracker.py)
+2. ✅ Rate-limit and auth errors become actionable TrackerError messages (tests verify 401, 403, 429 handling)
+
+Implementation summary:
+- GitHubAuth class with three auth paths: GitHub App (preferred production), PAT (dev/CI), gh CLI fallback (local dev)
+- GitHubClient with centralized request retries (exponential backoff), timeout handling, pagination (Link header), rate-limit logging (DEBUG), rate-limit block handling (429 with Retry-After/X-RateLimit-Reset wait and retry), ETag/conditional GET cache hooks, response body redaction
+- GitHubIssueTracker implementing TrackerProtocol with skeleton methods (NotImplementedError for mutations to be implemented in TASK-458.2-458.7)
+- ADAPTER_REGISTRY integration with github_issues factory
+- All 69 tests pass, plus existing server/orchestrator/config tests pass
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented GitHub auth and API client layer with:
+
+1. **GitHubAuth** — Three-tier auth priority:
+   - GitHub App installation tokens (preferred production path) with auto-refresh before expiry
+   - PAT via OOMPAH_GITHUB_TOKEN / GH_TOKEN / GITHUB_TOKEN env vars
+   - gh CLI fallback (gh auth token) for local development
+   - Missing auth returns None gracefully (no exception)
+
+2. **GitHubClient** — Centralized HTTP client with:
+   - Exponential backoff retries for transient failures (5xx, network, timeout)
+   - Configurable per-request timeout (OOMPAH_GITHUB_API_TIMEOUT)
+   - Automatic Link-header pagination (request_paginated)
+   - Rate-limit logging at DEBUG (remaining quota, reset time)
+   - Rate-limit block handling (HTTP 429) with Retry-After/X-RateLimit-Reset wait and retry
+   - ETag/conditional GET cache hooks (If-None-Match, 304 returns cached value)
+   - Response redaction (Bearer tokens scrubbed from logs)
+
+3. **GitHubIssueTracker** — TrackerProtocol adapter with:
+   - Full protocol conformance (27 methods)
+   - Read operations return empty collections (skeleton for TASK-458.2+)
+   - Mutation operations raise NotImplementedError (to be implemented in TASK-458.3-458.7)
+   - In-memory ETag cache with invalidation
+
+4. **ADAPTER_REGISTRY integration** — github_issues factory registered, validates required env vars (OOMPAH_GITHUB_TRACKER_OWNER, OOMPAH_GITHUB_TRACKER_REPO)
+
+All 69 unit tests pass covering both acceptance criteria:
+- #1: GitHub App, PAT, and missing-auth paths tested
+- #2: Rate-limit (429) and auth errors (401, 403) produce actionable TrackerError messages
+
+Existing server, orchestrator, and config tests also pass (no regressions).
+<!-- SECTION:FINAL_SUMMARY:END -->
