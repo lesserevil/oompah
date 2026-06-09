@@ -1770,6 +1770,8 @@ class Orchestrator:
         3. :meth:`_auto_archive` — archive closed issues older than _ARCHIVE_DAYS.
         4. :meth:`_maybe_run_merged_labels` — label merged issues/epics + reconcile
            stale In Review tasks.
+        5. :meth:`_maybe_run_release_pick_reconciliation` — reconcile release-pick
+           metadata and backport tasks.
 
         Submitted to ``_tick_pool`` by :meth:`_tick` and **not** awaited so it
         does not contribute to dispatch tick latency.
@@ -1778,6 +1780,7 @@ class Orchestrator:
         self._maybe_cleanup_worktrees()
         self._auto_archive()
         self._maybe_run_merged_labels()
+        self._maybe_run_release_pick_reconciliation()
 
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
@@ -5788,12 +5791,10 @@ class Orchestrator:
 
         Labels merged issues and epics and reconciles stale In Review tasks
         using the forge state cached by :meth:`_handle_review_check`.
-        Also runs the release-picks reconciliation pass (TASK-455).
         """
         self._label_merged_issues()
         self._label_merged_epics()
         self._reconcile_stale_in_review_tasks()
-        self._reconcile_release_picks_pass()
 
     def _maybe_run_merged_labels(self) -> None:
         """Periodically label merged issues/epics and reconcile stale In Review tasks.
@@ -5811,6 +5812,19 @@ class Orchestrator:
             "merged_labels",
             self._do_merged_labels,
             min_interval_s=self._MERGED_LABELS_INTERVAL_S,
+        )
+
+    def _maybe_run_release_pick_reconciliation(self) -> None:
+        """Periodically reconcile release-pick metadata and backport tasks.
+
+        Release-pick reconciliation can do full-corpus metadata scans and SCM
+        checks, so it has its own maintenance job state instead of being hidden
+        behind ``merged_labels``.
+        """
+        self._run_maintenance_job(
+            "release_picks",
+            self._reconcile_release_picks_pass,
+            min_interval_s=self._RELEASE_PICKS_INTERVAL_S,
         )
 
     def _label_merged_issues(self) -> None:
@@ -13447,6 +13461,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     # _handle_review_check — they are cheap reads but should still be
     # rate-limited to avoid hammering the tracker on every tick.
     _MERGED_LABELS_INTERVAL_S = 60.0  # 1 minute
+    # Release-pick reconciliation also does full-corpus tracker scans and SCM
+    # checks, but it needs separate observability from merged-label sweeps.
+    _RELEASE_PICKS_INTERVAL_S = 60.0  # 1 minute
 
     def _analyze_focus_fit(self, issue: Issue, project_id: str | None) -> None:
         """Analyze a completed issue's work against existing foci.

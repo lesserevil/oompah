@@ -859,13 +859,17 @@ class TestOrchestratorReconcileReleasePicksPass:
         orch._fetch_in_progress_issues = MagicMock(return_value=[])
         return orch
 
-    def test_called_by_do_merged_labels(self, tmp_path):
-        """_reconcile_release_picks_pass is invoked by _do_merged_labels.
+    def test_release_pick_maintenance_job_invokes_pass(self, tmp_path):
+        """_maybe_run_release_pick_reconciliation runs the release-pick pass."""
+        orch = self._make_orch(tmp_path)
+        orch._reconcile_release_picks_pass = MagicMock()
 
-        TASK-466.2 moved release-pick reconciliation from _handle_yolo_review
-        into the maintenance lane (_do_merged_labels) to avoid blocking
-        dispatch-critical tick latency.
-        """
+        orch._maybe_run_release_pick_reconciliation()
+
+        orch._reconcile_release_picks_pass.assert_called_once()
+
+    def test_do_merged_labels_does_not_run_release_picks(self, tmp_path):
+        """Merged-label maintenance no longer hides release-pick reconciliation."""
         orch = self._make_orch(tmp_path)
         orch._label_merged_issues = MagicMock()
         orch._label_merged_epics = MagicMock()
@@ -874,7 +878,7 @@ class TestOrchestratorReconcileReleasePicksPass:
 
         orch._do_merged_labels()
 
-        orch._reconcile_release_picks_pass.assert_called_once()
+        orch._reconcile_release_picks_pass.assert_not_called()
 
     def test_skips_when_no_projects(self, tmp_path):
         """With no configured projects, the pass is a no-op (no legacy fallback)."""

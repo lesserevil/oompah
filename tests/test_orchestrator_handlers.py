@@ -737,7 +737,7 @@ class TestMaybeRunMergedLabels:
 
 
 class TestRunStep5bMaintenanceExtended:
-    """_run_step5b_maintenance now includes auto_archive and merged_labels."""
+    """_run_step5b_maintenance includes archive, merged labels, and release picks."""
 
     def test_calls_auto_archive(self, tmp_path):
         """_run_step5b_maintenance calls _auto_archive."""
@@ -746,6 +746,7 @@ class TestRunStep5bMaintenanceExtended:
         orch._maybe_cleanup_worktrees = MagicMock()
         orch._auto_archive = MagicMock()
         orch._maybe_run_merged_labels = MagicMock()
+        orch._maybe_run_release_pick_reconciliation = MagicMock()
 
         orch._run_step5b_maintenance()
 
@@ -758,26 +759,49 @@ class TestRunStep5bMaintenanceExtended:
         orch._maybe_cleanup_worktrees = MagicMock()
         orch._auto_archive = MagicMock()
         orch._maybe_run_merged_labels = MagicMock()
+        orch._maybe_run_release_pick_reconciliation = MagicMock()
 
         orch._run_step5b_maintenance()
 
         orch._maybe_run_merged_labels.assert_called_once()
 
-    def test_all_four_jobs_run_in_order(self, tmp_path):
-        """All four maintenance jobs run, with heal and cleanup before archive/merged."""
+    def test_calls_release_pick_reconciliation(self, tmp_path):
+        """_run_step5b_maintenance calls _maybe_run_release_pick_reconciliation."""
+        orch = _make_orchestrator(tmp_path)
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._maybe_run_merged_labels = MagicMock()
+        orch._maybe_run_release_pick_reconciliation = MagicMock()
+
+        orch._run_step5b_maintenance()
+
+        orch._maybe_run_release_pick_reconciliation.assert_called_once()
+
+    def test_all_five_jobs_run_in_order(self, tmp_path):
+        """All five maintenance jobs run in stable order."""
         orch = _make_orchestrator(tmp_path)
         call_order = []
         orch._maybe_heal_repos = lambda: call_order.append("heal")
         orch._maybe_cleanup_worktrees = lambda: call_order.append("cleanup")
         orch._auto_archive = lambda: call_order.append("archive")
         orch._maybe_run_merged_labels = lambda: call_order.append("merged_labels")
+        orch._maybe_run_release_pick_reconciliation = lambda: call_order.append(
+            "release_picks"
+        )
 
         orch._run_step5b_maintenance()
 
-        assert call_order == ["heal", "cleanup", "archive", "merged_labels"]
+        assert call_order == [
+            "heal",
+            "cleanup",
+            "archive",
+            "merged_labels",
+            "release_picks",
+        ]
 
-    def test_archive_and_merged_labels_in_maintenance_jobs_snapshot(self, tmp_path):
-        """After running, auto_archive and merged_labels appear in _maintenance_jobs."""
+    def test_archive_merged_labels_and_release_picks_in_snapshot(self, tmp_path):
+        """After running, step-5b jobs appear in _maintenance_jobs."""
         orch = _make_orchestrator(tmp_path)
         orch.tracker = MagicMock()
         orch.tracker.fetch_issues_by_states.return_value = []
@@ -788,14 +812,17 @@ class TestRunStep5bMaintenanceExtended:
         orch._label_merged_issues = MagicMock()
         orch._label_merged_epics = MagicMock()
         orch._reconcile_stale_in_review_tasks = MagicMock()
+        orch._reconcile_release_picks_pass = MagicMock()
 
         orch._run_step5b_maintenance()
 
         assert "auto_archive" in orch._maintenance_jobs
         assert "merged_labels" in orch._maintenance_jobs
+        assert "release_picks" in orch._maintenance_jobs
         snapshot = orch.get_snapshot()
         assert "auto_archive" in snapshot["maintenance"]["jobs"]
         assert "merged_labels" in snapshot["maintenance"]["jobs"]
+        assert "release_picks" in snapshot["maintenance"]["jobs"]
 
 
 # ---------------------------------------------------------------------------
