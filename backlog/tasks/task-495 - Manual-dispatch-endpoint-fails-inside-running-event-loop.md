@@ -1,9 +1,10 @@
 ---
 id: TASK-495
 title: Manual dispatch endpoint fails inside running event loop
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-09 19:42'
+updated_date: '2026-06-09 22:15'
 labels:
   - bug
 dependencies: []

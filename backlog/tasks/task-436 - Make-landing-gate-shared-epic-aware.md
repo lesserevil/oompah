@@ -1,9 +1,10 @@
 ---
 id: TASK-436
 title: Make landing gate shared-epic aware
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-03 19:35'
+updated_date: '2026-06-09 22:15'
 labels:
   - bug
 dependencies: []
