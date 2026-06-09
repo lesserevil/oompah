@@ -11,6 +11,7 @@ import re
 import signal
 import threading
 import time
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -1816,6 +1817,83 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
     return None, None, None
 
 
+def _resolve_identifier(
+    identifier: str,
+    body: dict | None = None,
+    query_params=None,
+) -> str:
+    """Resolve the canonical issue identifier for a request.
+
+    For GitHub-backed issues whose identifiers contain slashes (e.g.
+    ``owner/repo#123``), HTTP servers normalise ``%2F`` to ``/`` before
+    routing, so the raw identifier cannot be embedded in a path segment.
+    Callers can pass the identifier in the request body (``issue_key``) or
+    as a ``?issue_key=`` query parameter instead.  This function prefers
+    those over the path-captured value.
+
+    Falls back to URL-decoding the path parameter so that any
+    percent-encoded but slash-free characters (e.g. ``%23`` for ``#``) are
+    handled correctly.
+    """
+    if body:
+        key = body.get("issue_key")
+        if key and str(key).strip():
+            return str(key).strip()
+    if query_params:
+        key = query_params.get("issue_key")
+        if key and str(key).strip():
+            return str(key).strip()
+    return urllib.parse.unquote(identifier)
+
+
+def _managed_repo_slug(repo_url: str) -> str | None:
+    """Extract ``owner/repo`` from a GitHub/GitLab remote URL.
+
+    Handles both https (``https://github.com/owner/repo``) and ssh
+    (``git@github.com:owner/repo``) URL forms.  Returns ``None`` when the
+    URL cannot be parsed.
+    """
+    url = (repo_url or "").strip().rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    # https://host/owner/repo or http://host/owner/subgroup/repo
+    m = re.match(r"https?://[^/]+/(.+)", url)
+    if m:
+        parts = m.group(1).split("/")
+        if len(parts) >= 2:
+            return "/".join(parts[:2])
+    # git@host:owner/repo or git@host:owner/subgroup/repo
+    m = re.match(r"[^@]+@[^:]+:(.+)", url)
+    if m:
+        parts = m.group(1).split("/")
+        if len(parts) >= 2:
+            return "/".join(parts[:2])
+    return None
+
+
+def _get_tracker_for_managed_repo(orch, managed_repo: str):
+    """Find the tracker and project_id for a given managed-repo slug.
+
+    Args:
+        orch: Orchestrator instance.
+        managed_repo: ``owner/repo`` of the managed code repository as
+            registered in the project store (matched against the project's
+            ``repo_url``).
+
+    Returns:
+        ``(tracker, project_id)`` tuple.
+
+    Raises:
+        ValueError: No project matched the given ``managed_repo``.
+    """
+    projects = orch.project_store.list_all()
+    for project in projects:
+        slug = _managed_repo_slug(getattr(project, "repo_url", "") or "")
+        if slug and slug.lower() == managed_repo.lower():
+            return orch._tracker_for_project(project.id), project.id
+    raise ValueError(f"No project found for managed_repo: {managed_repo!r}")
+
+
 def _fetch_all_issues(orch, filter_project: str | None = None):
     """Fetch issues from all projects or a specific one (parallel)."""
     from concurrent.futures import ThreadPoolExecutor
@@ -1947,7 +2025,55 @@ async def api_create_issue(request: Request):
             )
 
         project_id = body.get("project_id")
-        tracker = _get_tracker(orch, project_id)
+        # Optional tracker-identity / branch metadata.  Extract early so
+        # managed_repo can be used as an alternative to project_id for tracker
+        # resolution when project_id is absent.
+        managed_repo = (body.get("managed_repo") or "").strip() or None
+        target_branch = (body.get("target_branch") or "").strip() or None
+        work_branch = (body.get("work_branch") or "").strip() or None
+
+        # Basic format validation: managed_repo must be "owner/repo" when given.
+        if managed_repo and "/" not in managed_repo:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "managed_repo must be in 'owner/repo' format",
+                    }
+                },
+                status_code=400,
+            )
+
+        # Resolve tracker: project_id wins; fall back to managed_repo lookup;
+        # error if neither is given (GitHub-backed tasks require an explicit
+        # project target so the adapter knows where to create the issue).
+        if project_id:
+            tracker = _get_tracker(orch, project_id)
+        elif managed_repo:
+            try:
+                tracker, project_id = _get_tracker_for_managed_repo(
+                    orch, managed_repo
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "not_found",
+                            "message": str(exc),
+                        }
+                    },
+                    status_code=404,
+                )
+        else:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "project_id or managed_repo is required",
+                    }
+                },
+                status_code=400,
+            )
 
         # Optional enhancement pass (oompah-zlz_2-u8pz).
         enhance_mode = (request.query_params.get("enhance") or "").strip().lower()
@@ -1997,27 +2123,6 @@ async def api_create_issue(request: Request):
 
         issue_type = body.get("type", "task")
         parent_id = body.get("parent_id") or None
-
-        # Optional tracker-identity / branch metadata.  Validated here so
-        # clients get a clear 400 for unknown values; passed through to the
-        # tracker when the adapter supports them.
-        managed_repo = (body.get("managed_repo") or "").strip() or None
-        target_branch = (body.get("target_branch") or "").strip() or None
-        work_branch = (body.get("work_branch") or "").strip() or None
-
-        # Basic format validation: managed_repo must be "owner/repo" when given.
-        if managed_repo and "/" not in managed_repo:
-            return JSONResponse(
-                {
-                    "error": {
-                        "code": "validation",
-                        "message": (
-                            "managed_repo must be in 'owner/repo' format"
-                        ),
-                    }
-                },
-                status_code=400,
-            )
 
         issue = tracker.create_issue(
             title=title,
@@ -2201,12 +2306,54 @@ async def api_update_issue(identifier: str, request: Request):
                 status_code=400,
             )
         project_id = body.get("project_id") or request.query_params.get("project_id")
-        if not project_id:
-            return JSONResponse(
-                {"error": {"code": "validation", "message": "project_id is required"}},
-                status_code=400,
+
+        # Resolve canonical identifier: support issue_key for GitHub identifiers
+        # with slashes that cannot survive in URL path segments.
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+
+        # Resolve tracker: project_id wins; then managed_repo; then search by
+        # identifier so GitHub-backed clients don't need to know the internal
+        # project_id when the identifier is unambiguous.
+        managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if project_id:
+            tracker = _get_tracker(orch, project_id)
+        elif managed_repo_req:
+            if "/" not in managed_repo_req:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "managed_repo must be in 'owner/repo' format",
+                        }
+                    },
+                    status_code=400,
+                )
+            try:
+                tracker, project_id = _get_tracker_for_managed_repo(
+                    orch, managed_repo_req
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "not_found", "message": str(exc)}},
+                    status_code=404,
+                )
+        else:
+            tracker, project_id, _ = _find_tracker_for_issue(
+                orch, resolved_identifier, project_id
             )
-        tracker = _get_tracker(orch, project_id)
+            if tracker is None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "issue_not_found",
+                            "message": f"Issue {resolved_identifier!r} not found in any project",
+                        }
+                    },
+                    status_code=404,
+                )
+
+        # Re-map identifier to the resolved value for all downstream calls.
+        identifier = resolved_identifier
 
         new_status = body.get("status")
         new_priority = body.get("priority")
@@ -2418,11 +2565,40 @@ async def api_add_label(identifier: str, request: Request):
                 {"error": {"code": "validation", "message": "label is required"}},
                 status_code=400,
             )
+        # Resolve identifier: issue_key body field overrides path param to
+        # support GitHub identifiers with slashes.
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         project_id = body.get("project_id") or request.query_params.get("project_id")
-        tracker = _get_tracker(orch, project_id)
-        tracker.add_label(identifier, label)
+        managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if project_id:
+            tracker = _get_tracker(orch, project_id)
+        elif managed_repo_req:
+            try:
+                tracker, project_id = _get_tracker_for_managed_repo(
+                    orch, managed_repo_req
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "not_found", "message": str(exc)}},
+                    status_code=404,
+                )
+        else:
+            tracker, project_id, _ = _find_tracker_for_issue(
+                orch, resolved_identifier
+            )
+            if tracker is None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "issue_not_found",
+                            "message": f"Issue {resolved_identifier!r} not found",
+                        }
+                    },
+                    status_code=404,
+                )
+        tracker.add_label(resolved_identifier, label)
         _api_cache.invalidate("issues:all")
-        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
         return JSONResponse({"ok": True}, status_code=201)
     except Exception as exc:
@@ -2445,11 +2621,42 @@ async def api_remove_label(identifier: str, label: str, request: Request):
             body = await request.json()
         except Exception:
             pass
+        # Resolve identifier: issue_key query or body param overrides path param
+        # to support GitHub identifiers with slashes.
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+        # URL-decode the label in case it contains percent-encoded characters.
+        decoded_label = urllib.parse.unquote(label)
         project_id = body.get("project_id") or request.query_params.get("project_id")
-        tracker = _get_tracker(orch, project_id)
-        tracker.remove_label(identifier, label)
+        managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if project_id:
+            tracker = _get_tracker(orch, project_id)
+        elif managed_repo_req:
+            try:
+                tracker, project_id = _get_tracker_for_managed_repo(
+                    orch, managed_repo_req
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "not_found", "message": str(exc)}},
+                    status_code=404,
+                )
+        else:
+            tracker, project_id, _ = _find_tracker_for_issue(
+                orch, resolved_identifier
+            )
+            if tracker is None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "issue_not_found",
+                            "message": f"Issue {resolved_identifier!r} not found",
+                        }
+                    },
+                    status_code=404,
+                )
+        tracker.remove_label(resolved_identifier, decoded_label)
         _api_cache.invalidate("issues:all")
-        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
         return JSONResponse({"ok": True})
     except Exception as exc:
@@ -2542,25 +2749,54 @@ async def api_add_comment(identifier: str, request: Request):
                 status_code=400,
             )
         author = body.get("author", "user")
+        # Resolve identifier: issue_key body field overrides path param to
+        # support GitHub identifiers with slashes.
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         project_id = body.get("project_id") or request.query_params.get("project_id")
-        tracker = _get_tracker(orch, project_id)
-        result = tracker.add_comment(identifier, text, author=author)
+        managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if project_id:
+            tracker = _get_tracker(orch, project_id)
+        elif managed_repo_req:
+            try:
+                tracker, project_id = _get_tracker_for_managed_repo(
+                    orch, managed_repo_req
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "not_found", "message": str(exc)}},
+                    status_code=404,
+                )
+        else:
+            tracker, project_id, _ = _find_tracker_for_issue(
+                orch, resolved_identifier
+            )
+            if tracker is None:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "issue_not_found",
+                            "message": f"Issue {resolved_identifier!r} not found",
+                        }
+                    },
+                    status_code=404,
+                )
+        result = tracker.add_comment(resolved_identifier, text, author=author)
 
         # When a human (non-oompah) answers a question, move the task
         # back to Open so the orchestrator picks it up.
         if author != "oompah":
             try:
-                issue = tracker.fetch_issue_detail(identifier)
+                issue = tracker.fetch_issue_detail(resolved_identifier)
                 if issue and (
                     canonicalize_status(issue.state) == NEEDS_ANSWER
                     or "asking_question" in issue.labels
                 ):
-                    tracker.update_issue(identifier, status=OPEN)
+                    tracker.update_issue(resolved_identifier, status=OPEN)
                     if "asking_question" in issue.labels:
-                        tracker.remove_label(identifier, "asking_question")
+                        tracker.remove_label(resolved_identifier, "asking_question")
                     logger.info(
                         "Moved %s from Needs Answer to Open after user comment",
-                        identifier,
+                        resolved_identifier,
                     )
                     # Trigger dispatch so the orchestrator re-dispatches promptly
                     orch = _get_orchestrator()
@@ -2569,12 +2805,12 @@ async def api_add_comment(identifier: str, request: Request):
             except Exception as exc:
                 logger.debug(
                     "Failed to check/remove asking_question label on %s: %s",
-                    identifier,
+                    resolved_identifier,
                     exc,
                 )
 
-        _api_cache.invalidate(f"comments:{project_id}:{identifier}")
-        _api_cache.invalidate_prefix(f"detail:{project_id}:{identifier}")
+        _api_cache.invalidate(f"comments:{project_id}:{resolved_identifier}")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         _api_cache.invalidate("issues:all")
         await broadcast_issues()
         return JSONResponse(result, status_code=201)
@@ -2598,19 +2834,22 @@ async def api_issue_full_detail(identifier: str, request: Request):
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
-        cache_key = f"detail:{project_id}:{identifier}"
+        # Resolve identifier: issue_key query param overrides path param to
+        # support GitHub identifiers with slashes.
+        resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
+        cache_key = f"detail:{project_id}:{resolved_identifier}"
         cached = _api_cache.get(cache_key)
         if cached is not None:
             return JSONResponse(cached)
         tracker, resolved_project_id, issue = _find_tracker_for_issue(
-            orch, identifier, project_id
+            orch, resolved_identifier, project_id
         )
         if tracker is None or issue is None:
             return JSONResponse(
                 {
                     "error": {
                         "code": "issue_not_found",
-                        "message": f"Issue {identifier} not found",
+                        "message": f"Issue {resolved_identifier} not found",
                     }
                 },
                 status_code=404,

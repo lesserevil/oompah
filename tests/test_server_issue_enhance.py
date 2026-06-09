@@ -1,6 +1,6 @@
-"""Tests for the issue-enhancement query param on POST /api/v1/issues
-and the supporting GET /api/v1/projects/{id}/issue-quality-source
-endpoint. See oompah-zlz_2-u8pz.
+"""Tests for the issue-enhancement query param on POST /api/v1/issues,
+the managed_repo create flow, and the supporting GET
+/api/v1/projects/{id}/issue-quality-source endpoint. See oompah-zlz_2-u8pz.
 """
 
 from __future__ import annotations
@@ -353,3 +353,269 @@ class TestRunIssueEnhancementHelper:
                 orch=mock_orch, project_id="proj-1", title="t", description="d",
             )
         assert captured["model"] == "the-default"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/issues — create via managed_repo (backend-neutral, TASK-459.2)
+# ---------------------------------------------------------------------------
+
+
+def _make_orch_with_managed_repo(
+    tmp_path,
+    project_id: str = "proj-2",
+    repo_url: str = "https://github.com/lesserevil/trickle",
+):
+    """Build a mock orchestrator whose project is identified by managed repo URL."""
+    mock_project = MagicMock()
+    mock_project.id = project_id
+    mock_project.repo_path = str(tmp_path)
+    mock_project.repo_url = repo_url
+
+    mock_tracker = MagicMock()
+    mock_tracker.create_issue = MagicMock(return_value=_make_issue())
+    mock_tracker.add_label = MagicMock()
+
+    mock_orch = MagicMock()
+    mock_orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+    mock_orch.project_store.get = MagicMock(return_value=mock_project)
+    mock_orch.project_store.list_all = MagicMock(return_value=[mock_project])
+    mock_orch._resolve_role = MagicMock(return_value=(MagicMock(), "m"))
+    mock_orch.provider_store.get_default = MagicMock(return_value=None)
+    return mock_orch, mock_tracker, mock_project
+
+
+class TestCreateIssueManagedRepo:
+    """POST /api/v1/issues with managed_repo instead of project_id."""
+
+    def test_create_via_managed_repo_succeeds(self, client, tmp_path):
+        """Creating with managed_repo finds the project by URL slug."""
+        mock_orch, mock_tracker, _ = _make_orch_with_managed_repo(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "New GitHub task",
+                    "managed_repo": "lesserevil/trickle",
+                    "type": "task",
+                },
+            )
+        assert resp.status_code == 201
+        assert resp.json()["ok"] is True
+        mock_tracker.create_issue.assert_called_once()
+
+    def test_create_via_managed_repo_ssh_url(self, client, tmp_path):
+        """SSH git remote URLs are also matched for managed_repo lookup."""
+        mock_orch, mock_tracker, _ = _make_orch_with_managed_repo(
+            tmp_path, repo_url="git@github.com:lesserevil/trickle.git"
+        )
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "SSH repo task",
+                    "managed_repo": "lesserevil/trickle",
+                    "type": "task",
+                },
+            )
+        assert resp.status_code == 201
+        mock_tracker.create_issue.assert_called_once()
+
+    def test_create_without_project_id_or_managed_repo_returns_400(self, client, tmp_path):
+        """Neither project_id nor managed_repo → 400 validation error."""
+        mock_orch, mock_tracker, _ = _make_orch_with_managed_repo(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={"title": "no project"},
+            )
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"]["code"] == "validation"
+        assert "project_id" in data["error"]["message"] or "managed_repo" in data["error"]["message"]
+        mock_tracker.create_issue.assert_not_called()
+
+    def test_create_managed_repo_bad_format_returns_400(self, client, tmp_path):
+        """managed_repo without slash returns 400 validation error."""
+        mock_orch, _, _ = _make_orch_with_managed_repo(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={"title": "bad repo", "managed_repo": "nodash"},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "validation"
+
+    def test_create_managed_repo_no_match_returns_404(self, client, tmp_path):
+        """managed_repo that matches no project returns 404."""
+        mock_orch, _, _ = _make_orch_with_managed_repo(tmp_path)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={"title": "unknown repo", "managed_repo": "nobody/nowhere"},
+            )
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "not_found"
+
+    def test_project_id_wins_over_managed_repo(self, client, tmp_path):
+        """When both project_id and managed_repo are given, project_id wins."""
+        mock_orch, mock_tracker, mock_project = _make_orch_with_managed_repo(tmp_path)
+        # project_store.get returns the project when looked up by project_id
+        mock_orch.project_store.get = MagicMock(return_value=mock_project)
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "explicit project",
+                    "project_id": "proj-2",
+                    "managed_repo": "lesserevil/trickle",
+                    "type": "task",
+                },
+            )
+        assert resp.status_code == 201
+        # Tracker was fetched via _tracker_for_project (project_id path)
+        mock_orch._tracker_for_project.assert_called_with("proj-2")
+
+
+# ---------------------------------------------------------------------------
+# Helpers: _resolve_identifier, _managed_repo_slug, _get_tracker_for_managed_repo
+# ---------------------------------------------------------------------------
+
+
+class TestResolveIdentifier:
+    """Unit tests for the _resolve_identifier helper."""
+
+    def test_path_param_used_when_no_overrides(self):
+        result = server_module._resolve_identifier("TASK-123", {}, {})
+        assert result == "TASK-123"
+
+    def test_body_issue_key_overrides_path_param(self):
+        result = server_module._resolve_identifier(
+            "placeholder", {"issue_key": "lesserevil/oompah-tasks#1234"}, {}
+        )
+        assert result == "lesserevil/oompah-tasks#1234"
+
+    def test_query_issue_key_overrides_path_param(self):
+        result = server_module._resolve_identifier(
+            "placeholder", {}, {"issue_key": "lesserevil/oompah-tasks#1234"}
+        )
+        assert result == "lesserevil/oompah-tasks#1234"
+
+    def test_body_issue_key_wins_over_query(self):
+        result = server_module._resolve_identifier(
+            "placeholder",
+            {"issue_key": "body-key"},
+            {"issue_key": "query-key"},
+        )
+        assert result == "body-key"
+
+    def test_url_decodes_path_param(self):
+        # %23 is #; this should be decoded even when no issue_key is given.
+        result = server_module._resolve_identifier("tasks%231234", {}, {})
+        assert result == "tasks#1234"
+
+    def test_empty_issue_key_falls_back_to_path_param(self):
+        result = server_module._resolve_identifier("TASK-99", {"issue_key": "   "}, {})
+        assert result == "TASK-99"
+
+    def test_none_body_uses_path_param(self):
+        result = server_module._resolve_identifier("TASK-42", None, None)
+        assert result == "TASK-42"
+
+
+class TestManagedRepoSlug:
+    """Unit tests for the _managed_repo_slug helper."""
+
+    def test_https_url(self):
+        assert server_module._managed_repo_slug(
+            "https://github.com/lesserevil/trickle"
+        ) == "lesserevil/trickle"
+
+    def test_https_url_with_git_suffix(self):
+        assert server_module._managed_repo_slug(
+            "https://github.com/lesserevil/trickle.git"
+        ) == "lesserevil/trickle"
+
+    def test_ssh_url(self):
+        assert server_module._managed_repo_slug(
+            "git@github.com:lesserevil/trickle.git"
+        ) == "lesserevil/trickle"
+
+    def test_ssh_url_no_git_suffix(self):
+        assert server_module._managed_repo_slug(
+            "git@github.com:lesserevil/trickle"
+        ) == "lesserevil/trickle"
+
+    def test_returns_none_for_local_path(self):
+        assert server_module._managed_repo_slug("/home/user/repo") is None
+
+    def test_empty_string(self):
+        assert server_module._managed_repo_slug("") is None
+
+
+class TestGetTrackerForManagedRepo:
+    """Unit tests for the _get_tracker_for_managed_repo helper."""
+
+    def _make_orch(self, repo_url: str, project_id: str = "proj-x"):
+        mock_project = MagicMock()
+        mock_project.id = project_id
+        mock_project.repo_url = repo_url
+        mock_tracker = MagicMock()
+        mock_orch = MagicMock()
+        mock_orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        mock_orch.project_store.list_all = MagicMock(return_value=[mock_project])
+        return mock_orch, mock_tracker, mock_project
+
+    def test_finds_project_by_https_url(self):
+        mock_orch, mock_tracker, _ = self._make_orch(
+            "https://github.com/lesserevil/trickle.git"
+        )
+        tracker, project_id = server_module._get_tracker_for_managed_repo(
+            mock_orch, "lesserevil/trickle"
+        )
+        assert tracker is mock_tracker
+        assert project_id == "proj-x"
+
+    def test_finds_project_by_ssh_url(self):
+        mock_orch, mock_tracker, _ = self._make_orch(
+            "git@github.com:lesserevil/trickle.git"
+        )
+        tracker, project_id = server_module._get_tracker_for_managed_repo(
+            mock_orch, "lesserevil/trickle"
+        )
+        assert tracker is mock_tracker
+
+    def test_case_insensitive_match(self):
+        mock_orch, mock_tracker, _ = self._make_orch(
+            "https://github.com/LesserEvil/Trickle"
+        )
+        tracker, _ = server_module._get_tracker_for_managed_repo(
+            mock_orch, "lesserevil/trickle"
+        )
+        assert tracker is mock_tracker
+
+    def test_raises_when_no_match(self):
+        mock_orch, _, _ = self._make_orch(
+            "https://github.com/someone/other"
+        )
+        with pytest.raises(ValueError, match="No project found"):
+            server_module._get_tracker_for_managed_repo(
+                mock_orch, "lesserevil/trickle"
+            )

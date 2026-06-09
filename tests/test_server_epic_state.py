@@ -77,18 +77,18 @@ def test_state_key_normalizes_backlog_in_progress_for_ui_termination_guard():
 
 
 class TestUpdateIssueProjectIdValidation:
-    """Tests for oompah-zlz_2-4avr: PATCH returns 400 when project_id is missing.
+    """Tests for PATCH /api/v1/issues/{identifier} tracker resolution.
 
-    Previously, omitting project_id from the request body caused
-    ``_get_tracker()`` to raise ``ValueError("project_id is required")``,
-    which was caught by the generic ``except Exception`` handler and
-    returned **HTTP 500** with ``code: "update_failed"``.  The fix adds
-    an explicit validation check that returns **HTTP 400** with
-    ``code: "validation"`` and ``message: "project_id is required"``.
+    Previously project_id was strictly required (400 when absent).  After
+    TASK-459.2 the endpoint falls back to searching all projects by identifier
+    when project_id is omitted, so omitting project_id for an unknown
+    identifier returns 404 (issue_not_found) rather than 400 (validation).
+    Clients can still pass project_id explicitly for faster, unambiguous
+    resolution.
     """
 
-    def test_missing_project_id_in_body_returns_400(self, client):
-        """When project_id is absent from the JSON body, return 400."""
+    def test_missing_project_id_with_unknown_identifier_returns_404(self, client):
+        """When project_id is absent and identifier not found, return 404."""
         mock_orch, _ = _make_mock_orchestrator()
 
         with (
@@ -99,43 +99,32 @@ class TestUpdateIssueProjectIdValidation:
                 json={"status": "in_progress"},  # no project_id
             )
 
-        assert resp.status_code == 400
+        # Falls back to searching all projects; none found → 404.
+        assert resp.status_code == 404
         err = resp.json()["error"]
-        assert err["code"] == "validation"
-        assert "project_id is required" in err["message"]
+        assert err["code"] == "issue_not_found"
 
-    def test_missing_project_id_in_query_returns_400(self, client):
-        """When project_id is absent from the query string, return 400."""
-        mock_orch, _ = _make_mock_orchestrator()
+    def test_missing_project_id_resolves_via_identifier_search(self, client):
+        """When project_id is absent but identifier found, update succeeds."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        found_issue = _make_issue(identifier="task-1", issue_type="task", state="open")
+        # Set up project store to return a project and tracker that has the issue.
+        mock_project = MagicMock()
+        mock_project.id = "proj-1"
+        mock_orch.project_store.list_all.return_value = [mock_project]
+        mock_tracker.fetch_issue_detail.return_value = found_issue
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
         ):
             resp = client.patch(
                 "/api/v1/issues/task-1",
-                json={"status": "in_progress"},
+                json={"status": "open"},  # no project_id
             )
 
-        assert resp.status_code == 400
-        err = resp.json()["error"]
-        assert err["code"] == "validation"
-
-    def test_empty_string_project_id_returns_400(self, client):
-        """When project_id is an empty string, return 400."""
-        mock_orch, _ = _make_mock_orchestrator()
-
-        with (
-            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
-        ):
-            resp = client.patch(
-                "/api/v1/issues/task-1",
-                json={"status": "in_progress", "project_id": ""},
-            )
-
-        assert resp.status_code == 400
-        err = resp.json()["error"]
-        assert err["code"] == "validation"
-        assert "project_id is required" in err["message"]
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
 
     def test_valid_project_id_in_body_proceeds(self, client):
         """When project_id is present, the normal flow proceeds."""
