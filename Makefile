@@ -55,7 +55,7 @@ define port_in_use
 	[ $$? -eq 0 ] || (command -v lsof >/dev/null 2>&1 && lsof -ti:"$1" -sTCP:LISTEN 2>/dev/null | grep -q .)
 endef
 
-.PHONY: help setup ensure-backlog start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions
+.PHONY: help setup ensure-backlog start stop restart graceful status logs test clean install-hooks check-secrets install-gh-extensions run-granian
 
 help:
 	@echo "oompah — make targets:"
@@ -67,6 +67,7 @@ help:
 	@echo "  status         Print PID + state JSON if running"
 	@echo "  logs           Tail $(LOG_FILE)"
 	@echo "  test           Run the pytest suite"
+	@echo "  run-granian    Run oompah in the foreground using the Granian ASGI server (opt-in; see TASK-472)"
 	@echo "  install-hooks  Install pre-commit hooks (idempotent) — runs gitleaks + secret scan on commit"
 	@echo "  check-secrets  Run the paranoid secret scan over the whole tree (use before pushing)"
 	@echo "  install-gh-extensions  Install gh CLI extensions oompah needs (cli/gh-webhook). Idempotent."
@@ -139,6 +140,22 @@ stop:
 	fi
 
 restart: stop start
+
+# Run oompah in the foreground using the Granian ASGI server.
+#
+# Granian is an experimental opt-in server (~+23% HTTP throughput vs uvicorn,
+# tighter tail latency). It must be run with a single worker because oompah
+# holds shared in-process state; the orchestrator runs inside the worker's
+# ASGI lifespan. See backlog/docs/doc-1 (Granian HTTP server migration plan)
+# and TASK-472 for context.
+#
+# Requires: uv pip install -e '.[granian]'   (or: make setup-granian)
+run-granian:
+	@if ! $(PYTHON) -c "import granian" 2>/dev/null; then \
+		echo "granian is not installed. Run: uv pip install -e '.[granian]'"; \
+		exit 1; \
+	fi
+	$(PYTHON) -m oompah --server granian
 
 graceful:
 	@curl -sf -X POST http://0.0.0.0:$(PORT)/api/v1/orchestrator/restart \
