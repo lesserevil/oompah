@@ -54,6 +54,7 @@ class TestServicesDataclass:
         svc = Services(
             config=MagicMock(name="config"),
             workflow_path=str(tmp_path / "WORKFLOW.md"),
+            workflow=MagicMock(name="workflow"),
             port=8080,
             orchestrator=MagicMock(name="orchestrator"),
             provider_store=MagicMock(name="provider_store"),
@@ -78,25 +79,23 @@ class TestServicesDataclass:
 
 
 class TestSetupServicesInvalidWorkflow:
-    """setup_services() calls sys.exit(1) on missing/broken workflow."""
+    """setup_services() raises StartupError on missing/broken workflow."""
 
-    def test_exits_on_missing_workflow(self, tmp_path):
-        from oompah.bootstrap import setup_services
+    @pytest.mark.asyncio
+    async def test_raises_on_missing_workflow(self, tmp_path):
+        from oompah.bootstrap import StartupError, setup_services
 
-        with pytest.raises(SystemExit) as exc_info:
-            setup_services(str(tmp_path / "no_such_file.md"))
+        with pytest.raises(StartupError):
+            await setup_services(str(tmp_path / "no_such_file.md"))
 
-        assert exc_info.value.code == 1
-
-    def test_exits_on_broken_workflow(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_raises_on_broken_workflow(self, tmp_path):
         wf = tmp_path / "WORKFLOW.md"
         wf.write_text("not: valid: yaml: : :\n")
-        from oompah.bootstrap import setup_services
+        from oompah.bootstrap import StartupError, setup_services
 
-        with pytest.raises(SystemExit) as exc_info:
-            setup_services(str(wf))
-
-        assert exc_info.value.code == 1
+        with pytest.raises(StartupError):
+            await setup_services(str(wf))
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +160,8 @@ class TestSetupServicesSuccess:
         "Orchestrator": "oompah.orchestrator.Orchestrator",
     }
 
-    def test_returns_services_bundle(self, tmp_path, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_returns_services_bundle(self, tmp_path, monkeypatch):
         """setup_services() returns a Services with the expected orchestrator."""
         mocks = self._make_mocks()
 
@@ -192,7 +192,7 @@ class TestSetupServicesSuccess:
         ):
             from oompah.bootstrap import setup_services
 
-            services = setup_services(
+            services = await setup_services(
                 str(tmp_path / "WORKFLOW.md"), cli_port=9090
             )
 
@@ -200,7 +200,8 @@ class TestSetupServicesSuccess:
         assert services.orchestrator is mocks["orchestrator"]
         assert services.webhook_forwarder is mocks["forwarder"]
 
-    def test_start_paused_flag_sets_paused(self, tmp_path):
+    @pytest.mark.asyncio
+    async def test_start_paused_flag_sets_paused(self, tmp_path):
         """When start_paused=True and orchestrator is not paused, it is paused."""
         mocks = self._make_mocks()
         mocks["orchestrator"].is_paused = False
@@ -232,7 +233,7 @@ class TestSetupServicesSuccess:
         ):
             from oompah.bootstrap import setup_services
 
-            setup_services(str(tmp_path / "WORKFLOW.md"), start_paused=True)
+            await setup_services(str(tmp_path / "WORKFLOW.md"), start_paused=True)
 
         assert mocks["orchestrator"]._paused is True
         mocks["orchestrator"]._save_paused_state.assert_called_once()
