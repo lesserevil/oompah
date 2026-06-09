@@ -917,6 +917,43 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         # No per-child PR is created — the epic→main PR is the only one
         provider.create_review.assert_not_called()
 
+    def test_shared_skips_per_child_pr_when_parent_epic_unresolved(self, tmp_path):
+        """Shared child PR creation is blocked even if parent lookup is stale."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = None
+        issue = _make_issue(
+            identifier="task-1", parent_id="epic-1", project_id="proj-1"
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(2, ["abc123 feature"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        tracker.fetch_issue_detail.assert_called_once_with("epic-1")
+        provider.create_review.assert_not_called()
+
     def test_stacked_top_level_targets_main(self, tmp_path):
         """Top-level beads in stacked mode (no parent_id) still target main."""
         proj = _make_project_record(epic_strategy="stacked")
