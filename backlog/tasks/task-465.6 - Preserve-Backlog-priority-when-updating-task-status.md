@@ -4,7 +4,7 @@ title: Preserve Backlog priority when updating task status
 status: In Progress
 assignee: []
 created_date: '2026-06-08 19:52'
-updated_date: '2026-06-09 03:13'
+updated_date: '2026-06-09 03:14'
 labels:
   - bug
 dependencies: []
@@ -97,5 +97,11 @@ author: oompah
 created: 2026-06-09 03:13
 ---
 Understanding: This issue is NOT a duplicate of TASK-425. TASK-425 fixed the general P0 priority read/write round-trip (mapping 0 vs 'high'). TASK-465.6 is distinct: the Backlog CLI silently drops numeric frontmatter priority (like 'priority: 0') during any edit — even status-only edits — because it only accepts named strings (high/medium/low). A prior agent (run #1) already implemented the fix: _custom_frontmatter_snapshot() now includes numeric int priorities in its snapshot, so _restore_missing_frontmatter() can restore them after the CLI rewrites the file. Implementation and regression tests are committed in commit f9fb998.
+---
+
+author: oompah
+created: 2026-06-09 03:14
+---
+Verification: All 4 regression tests pass (test_update_issue_status_only_preserves_p0_priority, test_reopen_issue_preserves_p0_priority, test_restart_recovery_preserves_p0_priority, test_fetch_candidate_issues_parses_numeric_p0_priority). The fix in oompah/tracker.py _custom_frontmatter_snapshot() correctly snapshots numeric int priorities and _restore_missing_frontmatter() restores them after CLI rewrites. All acceptance criteria met.
 ---
 <!-- COMMENTS:END -->
