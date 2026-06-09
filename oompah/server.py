@@ -1767,11 +1767,13 @@ async def api_create_issue(request: Request):
         description = body.get("description")
         if enhance_mode in ("true", "apply"):
             try:
-                enhancement = _run_issue_enhancement(
-                    orch=orch,
-                    project_id=project_id,
-                    title=title,
-                    description=description,
+                enhancement = await asyncio.to_thread(
+                    lambda: _run_issue_enhancement(
+                        orch=orch,
+                        project_id=project_id,
+                        title=title,
+                        description=description,
+                    )
                 )
             except IssueEnhancerError as exc:
                 # Preview-mode failures surface to the dashboard so the
@@ -1907,14 +1909,18 @@ async def api_issue_quality_source(project_id: str):
                 status_code=404,
             )
         repo_path = getattr(project, "repo_path", None)
-        has = has_quality_source(repo_path)
-        # The kind reported here matches load_quality_source's tag so
-        # the dashboard can surface AGENTS.md vs WORKFLOW.md hints.
-        kind = ""
-        if has:
-            from oompah.issue_enhancer import load_quality_source
 
-            kind, _ = load_quality_source(repo_path)
+        def _check_quality_source() -> tuple[bool, str]:
+            """Check quality source availability. File I/O — runs in thread."""
+            _has = has_quality_source(repo_path)
+            _kind = ""
+            if _has:
+                from oompah.issue_enhancer import load_quality_source as _load_qs
+
+                _kind, _ = _load_qs(repo_path)
+            return _has, _kind
+
+        has, kind = await asyncio.to_thread(_check_quality_source)
         return JSONResponse({"has_source": has, "kind": kind})
     except Exception as exc:
         logger.error("issue-quality-source API error: %s", exc)
@@ -4740,7 +4746,7 @@ async def api_list_worktrees(project_id: str):
 @app.get("/api/v1/foci")
 async def api_list_foci():
     """List all foci (user + builtins)."""
-    foci = load_foci()
+    foci = await asyncio.to_thread(load_foci)
     return JSONResponse([f.to_dict() for f in foci])
 
 
@@ -4776,27 +4782,24 @@ async def api_create_focus(request: Request):
                 {"error": {"code": "validation", "message": "name is required"}},
                 status_code=400,
             )
-        # Load existing user foci, replace if same name exists
-        foci = load_foci()
-        user_foci = [
-            f
-            for f in foci
-            if f.name not in {b.name for b in BUILTIN_FOCI} or f.name == new_focus.name
-        ]
-        # Actually, just load the user file directly
         import os, json as _json
 
         user_path = ".oompah/foci.json"
-        existing_user: list[Focus] = []
-        if os.path.exists(user_path):
-            try:
-                with open(user_path, "r") as fp:
-                    existing_user = [Focus.from_dict(d) for d in _json.load(fp)]
-            except Exception:
-                pass
-        existing_user = [f for f in existing_user if f.name != new_focus.name]
-        existing_user.append(new_focus)
-        save_foci(existing_user)
+
+        def _save_focus() -> None:
+            """Load user foci, replace if same name exists, then save. Runs in thread."""
+            existing_user: list[Focus] = []
+            if os.path.exists(user_path):
+                try:
+                    with open(user_path, "r") as fp:
+                        existing_user = [Focus.from_dict(d) for d in _json.load(fp)]
+                except Exception:
+                    pass
+            existing_user = [f for f in existing_user if f.name != new_focus.name]
+            existing_user.append(new_focus)
+            save_foci(existing_user)
+
+        await asyncio.to_thread(_save_focus)
         return JSONResponse(new_focus.to_dict(), status_code=201)
     except Exception as exc:
         logger.error("Create focus error: %s", exc)
@@ -4812,7 +4815,24 @@ async def api_delete_focus(name: str):
     import os, json as _json
 
     user_path = ".oompah/foci.json"
-    if not os.path.exists(user_path):
+
+    def _delete_focus() -> bool:
+        """Load user foci, remove by name, save. Returns True if found. Runs in thread."""
+        if not os.path.exists(user_path):
+            return False
+        try:
+            with open(user_path, "r") as fp:
+                existing = [Focus.from_dict(d) for d in _json.load(fp)]
+        except Exception:
+            existing = []
+        new_list = [f for f in existing if f.name != name]
+        if len(new_list) == len(existing):
+            return False
+        save_foci(new_list)
+        return True
+
+    found = await asyncio.to_thread(_delete_focus)
+    if not found:
         return JSONResponse(
             {
                 "error": {
@@ -4822,23 +4842,6 @@ async def api_delete_focus(name: str):
             },
             status_code=404,
         )
-    try:
-        with open(user_path, "r") as fp:
-            existing = [Focus.from_dict(d) for d in _json.load(fp)]
-    except Exception:
-        existing = []
-    new_list = [f for f in existing if f.name != name]
-    if len(new_list) == len(existing):
-        return JSONResponse(
-            {
-                "error": {
-                    "code": "not_found",
-                    "message": f"Focus '{name}' not found in user foci",
-                }
-            },
-            status_code=404,
-        )
-    save_foci(new_list)
     return JSONResponse({"deleted": name})
 
 
@@ -4882,67 +4885,74 @@ async def api_update_focus(name: str, request: Request):
             status_code=400,
         )
 
-    # Load user foci
-    existing: list[Focus] = []
-    if os.path.exists(user_path):
-        try:
-            with open(user_path, "r") as fp:
-                existing = [Focus.from_dict(d) for d in _json.load(fp)]
-        except Exception:
-            pass
+    def _load_update_save() -> Focus | None:
+        """Load foci, apply updates, save. Returns updated Focus or None. Runs in thread."""
+        # Load user foci
+        existing: list[Focus] = []
+        if os.path.exists(user_path):
+            try:
+                with open(user_path, "r") as fp:
+                    existing = [Focus.from_dict(d) for d in _json.load(fp)]
+            except Exception:
+                pass
 
-    # Find in user foci first
-    found = None
-    for f in existing:
-        if f.name == name:
-            found = f
-            break
-
-    if not found:
-        # Check builtins — create a user override
-        for b in BUILTIN_FOCI:
-            if b.name == name:
-                found = Focus.from_dict(b.to_dict())
-                existing.append(found)
+        # Find in user foci first
+        _found: Focus | None = None
+        for f in existing:
+            if f.name == name:
+                _found = f
                 break
 
-    if not found:
+        if not _found:
+            # Check builtins — create a user override
+            for b in BUILTIN_FOCI:
+                if b.name == name:
+                    _found = Focus.from_dict(b.to_dict())
+                    existing.append(_found)
+                    break
+
+        if not _found:
+            return None
+
+        # Apply updates
+        for key in ("status", "role", "description"):
+            if key in body:
+                setattr(_found, key, body[key])
+        for key in ("must_do", "must_not_do", "keywords", "issue_types", "labels"):
+            if key in body:
+                setattr(_found, key, body[key])
+        if "priority" in body:
+            try:
+                _found.priority = int(body["priority"])
+            except (ValueError, TypeError):
+                pass
+        # Optional model overrides — empty string clears the override.
+        for key in ("model_role", "model", "provider_id"):
+            if key in body:
+                v = body[key]
+                if v is None or (isinstance(v, str) and not v.strip()):
+                    setattr(_found, key, None)
+                else:
+                    setattr(_found, key, str(v).strip())
+        if "allow_image_output" in body:
+            _found.allow_image_output = bool(body["allow_image_output"])
+
+        save_foci(existing, user_path)
+        return _found
+
+    found = await asyncio.to_thread(_load_update_save)
+    if found is None:
         return JSONResponse(
             {"error": {"code": "not_found", "message": f"Focus '{name}' not found"}},
             status_code=404,
         )
-
-    # Apply updates
-    for key in ("status", "role", "description"):
-        if key in body:
-            setattr(found, key, body[key])
-    for key in ("must_do", "must_not_do", "keywords", "issue_types", "labels"):
-        if key in body:
-            setattr(found, key, body[key])
-    if "priority" in body:
-        try:
-            found.priority = int(body["priority"])
-        except (ValueError, TypeError):
-            pass
-    # Optional model overrides — empty string clears the override.
-    for key in ("model_role", "model", "provider_id"):
-        if key in body:
-            v = body[key]
-            if v is None or (isinstance(v, str) and not v.strip()):
-                setattr(found, key, None)
-            else:
-                setattr(found, key, str(v).strip())
-    if "allow_image_output" in body:
-        found.allow_image_output = bool(body["allow_image_output"])
-
-    save_foci(existing, user_path)
     return JSONResponse(found.to_dict())
 
 
 @app.get("/api/v1/foci/suggestions")
 async def api_list_focus_suggestions():
     """List focus suggestions generated by the analyzer."""
-    suggestions = load_suggestions()
+    suggestions = await asyncio.to_thread(load_suggestions)
     return JSONResponse([s.to_dict() for s in suggestions])
 
 
@@ -4982,7 +4992,8 @@ async def api_update_focus_suggestion(name: str, request: Request):
             },
             status_code=400,
         )
-    if update_suggestion_status(name, status):
+    found = await asyncio.to_thread(update_suggestion_status, name, status)
+    if found:
         return JSONResponse({"name": name, "status": status})
     return JSONResponse(
         {"error": {"code": "not_found", "message": f"Suggestion '{name}' not found"}},
@@ -5572,56 +5583,69 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
         )
 
     # Stage to a temp file then hand to AttachmentStore.add.
+    # All blocking I/O (write, file-copy, git commit) runs in a thread to
+    # avoid stalling the shared event loop.
     import tempfile
 
     contents = await file.read()
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=ext,
-        dir=tempfile.gettempdir(),
-    ) as tmp:
-        tmp.write(contents)
-        tmp_path = tmp.name
 
-    try:
-        store = AttachmentStore(project.repo_path)
+    def _upload_sync() -> tuple[dict | None, tuple[str, str, int] | None]:
+        """Write, store, and commit. Returns (record_dict, None) on success or
+        (None, (error_code, message, http_status)) on known errors."""
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=ext,
+            dir=tempfile.gettempdir(),
+        ) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
         try:
-            rec = store.add(identifier, tmp_path, mime_type=mime, added_by="user")
-        except AttachmentTooLarge as exc:
-            return JSONResponse(
-                {"error": {"code": "payload_too_large", "message": str(exc)}},
-                status_code=413,
+            _store = AttachmentStore(project.repo_path)
+            try:
+                _rec = _store.add(identifier, tmp_path, mime_type=mime, added_by="user")
+            except AttachmentTooLarge as _exc:
+                return None, ("payload_too_large", str(_exc), 413)
+            except AttachmentMimeRejected as _exc:
+                return None, ("unsupported_media_type", str(_exc), 415)
+
+            # Update task metadata: append the new record to the existing list.
+            _existing: list = []
+            try:
+                _existing = list(tracker.fetch_attachments(identifier) or [])
+            except Exception:
+                pass
+            _merged = _existing + [_rec.to_dict()]
+            tracker.set_attachments(
+                identifier, _merged, project_root=project.repo_path
             )
-        except AttachmentMimeRejected as exc:
-            return JSONResponse(
-                {"error": {"code": "unsupported_media_type", "message": str(exc)}},
-                status_code=415,
-            )
 
-        # Update tasks metadata: append the new record to the existing list.
-        existing = []
-        try:
-            existing = list(tracker.fetch_attachments(identifier) or [])
-        except Exception:
-            pass
-        merged = existing + [rec.to_dict()]
-        tracker.set_attachments(identifier, merged, project_root=project.repo_path)
+            # Commit the file so it travels with the repo.
+            try:
+                _store.commit(
+                    [_rec.path],
+                    f"Add attachment {os.path.basename(_rec.path)} for {identifier}",
+                )
+            except Exception as _exc:
+                logger.warning(
+                    "attachment commit failed for %s: %s", identifier, _exc
+                )
 
-        # Commit the file so it travels with the repo.
-        try:
-            store.commit(
-                [rec.path],
-                f"Add attachment {os.path.basename(rec.path)} for {identifier}",
-            )
-        except Exception as exc:
-            logger.warning("attachment commit failed for %s: %s", identifier, exc)
+            return _rec.to_dict(), None
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
-        return JSONResponse(rec.to_dict(), status_code=201)
-    finally:
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
+    rec_dict, upload_error = await asyncio.to_thread(_upload_sync)
+    if upload_error is not None:
+        err_code, err_msg, err_status = upload_error
+        return JSONResponse(
+            {"error": {"code": err_code, "message": err_msg}},
+            status_code=err_status,
+        )
+    return JSONResponse(rec_dict, status_code=201)
 
 
 @app.get("/api/v1/attachments/{path:path}")
@@ -5641,9 +5665,14 @@ async def api_serve_attachment(path: str):
         )
     ext = os.path.splitext(abs_path)[1].lower()
     mime = _ATTACHMENT_MIME_BY_EXT.get(ext, "application/octet-stream")
-    try:
+
+    def _read_attachment() -> bytes:
+        """Read attachment file. Runs in thread to avoid blocking the event loop."""
         with open(abs_path, "rb") as f:
-            data = f.read()
+            return f.read()
+
+    try:
+        data = await asyncio.to_thread(_read_attachment)
     except OSError:
         return JSONResponse({"error": {"code": "io_error"}}, status_code=500)
     if mime == "image/svg+xml":
