@@ -1,10 +1,10 @@
 ---
 id: TASK-458.7
 title: Add GitHub tracker fake and contract coverage
-status: In Progress
+status: Open
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 13:53'
+updated_date: '2026-06-09 15:51'
 labels:
   - task
   - github-issues
