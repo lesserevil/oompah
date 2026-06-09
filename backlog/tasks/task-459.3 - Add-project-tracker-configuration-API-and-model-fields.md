@@ -1,9 +1,10 @@
 ---
 id: TASK-459.3
 title: Add project tracker configuration API and model fields
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-08 17:57'
+updated_date: '2026-06-09 22:13'
 labels:
   - task
   - github-issues

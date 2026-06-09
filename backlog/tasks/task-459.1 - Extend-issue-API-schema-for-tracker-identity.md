@@ -1,9 +1,10 @@
 ---
 id: TASK-459.1
 title: Extend issue API schema for tracker identity
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-08 17:57'
+updated_date: '2026-06-09 22:13'
 labels:
   - task
   - github-issues
