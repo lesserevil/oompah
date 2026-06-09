@@ -8,7 +8,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-06-09 00:40'
-updated_date: '2026-06-09 02:11'
+updated_date: '2026-06-09 19:46'
 labels:
   - bug
 dependencies: []
@@ -118,5 +118,11 @@ IMPLEMENTATION: Added two changes to oompah/api_agent.py:
 2. In _http_post(), added a new branch before the 'All other 4xx: permanent' line: if exc.code == 404 and _is_litellm_not_found_error(error_body), raise TransientServerError instead of RuntimeError. This integrates cleanly with the existing 5-retry loop in _call_api (1s/2s/4s/8s/30s backoff) and ensures run_task logs at WARNING (not ERROR) on exhaustion.
 
 Added 8 unit tests in TestHttpPost404LitellmNotFoundClassifiedAsTransient covering: transient path fires for NVIDIA pattern, status_code preserved as 404, plain 404 remains permanent, partial-indicator match remains permanent, and _is_litellm_not_found_error() edge cases.
+---
+
+author: oompah
+created: 2026-06-09 19:46
+---
+Understanding: The error shows 'Model Group=nvidia/nvidia/nemotron-3-ultra' — the 'nvidia/' prefix is being doubled when constructing the model name for NVIDIA's litellm inference API. This causes a 404 because the model path is invalid. My plan: (1) search for duplicate tasks, (2) find where the model name is constructed in ApiAgentSession/api_agent code, (3) determine if it's a dup or new issue.
 ---
 <!-- COMMENTS:END -->
