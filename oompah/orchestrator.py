@@ -327,6 +327,59 @@ class DispatchTarget:
 
 
 # ---------------------------------------------------------------------------
+# Maintenance lane scheduling controls (TASK-466.4)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class MaintenanceJobState:
+    """Per-job scheduling state for the maintenance lane.
+
+    Tracks in-flight coalescing, throttle timestamps, skip counters, and
+    observability status for a named maintenance job.  One instance lives in
+    ``Orchestrator._maintenance_jobs[name]`` for every job that has been
+    submitted at least once.
+
+    Attributes:
+        name:                 Stable job name used in logs and snapshots.
+        last_run_monotonic:   ``time.monotonic()`` timestamp of the last run
+                              start.  ``None`` if the job has never run.
+        next_run_monotonic:   Earliest ``time.monotonic()`` at which the job
+                              may next be scheduled.  Set to
+                              ``last_run_monotonic + min_interval_s`` after
+                              each completed or failed run.  ``None`` means
+                              "run as soon as possible."
+        in_flight:            True while a run is currently executing.  A
+                              second request while ``in_flight`` is coalesced
+                              (dropped) and counted in ``skip_count``.
+        skip_count:           Number of times this job was skipped — either
+                              because it was already in flight, because
+                              ``next_run_monotonic`` was in the future, or
+                              because the dispatch lane was busy.
+        run_count:            Number of times the job has successfully started
+                              (including runs that subsequently failed).
+        last_status:          Human-readable last lifecycle status:
+                              ``"never_run"`` | ``"running"`` |
+                              ``"completed"`` | ``"failed"`` | ``"skipped"``.
+        last_duration_s:      Wall-clock seconds of the most recent run.
+                              ``None`` if the job has never completed.
+        last_error:           String representation of the last exception, or
+                              ``None`` if the last run completed cleanly.
+    """
+
+    name: str
+    last_run_monotonic: float | None = None
+    next_run_monotonic: float | None = None
+    in_flight: bool = False
+    skip_count: int = 0
+    run_count: int = 0
+    last_status: str = "never_run"
+    last_duration_s: float | None = None
+    last_error: str | None = None
+    current_deadline: float | None = None  # monotonic deadline for the active run
+
+
+# ---------------------------------------------------------------------------
 # YOLO merge-failure classification (oompah-zlz_2-btf.2)
 #
 # When ``enable_auto_merge`` (queue mode) or ``merge_review`` (direct mode)
@@ -531,6 +584,29 @@ class Orchestrator:
         # Drives the periodic ensure_repo_sound() sweep so checkouts can't
         # silently drift/wedge between restarts. 0.0 => never run yet.
         self._last_repo_heal: float = 0.0
+        # Maintenance lane job status (TASK-466.1).
+        # Populated by _maybe_heal_repos() so operators can see when the
+        # maintenance lane last ran and whether it encountered errors.
+        # Exposed via get_snapshot() under the "maintenance" key.
+        self._last_heal_at: float = 0.0           # monotonic; 0.0 = never run
+        self._heal_error_last: str | None = None   # most recent heal error, or None
+        self._last_cleanup_at: float = 0.0         # monotonic; 0.0 = never run
+        self._cleanup_count_last: int = 0          # worktrees removed in last run
+        self._cleanup_error_last: str | None = None  # most recent cleanup error, or None
+        # Running maintenance executor future so _tick() can fire-and-forget
+        # without accumulating unbounded concurrent maintenance runs.
+        self._maintenance_future: "asyncio.Future[None] | None" = None
+        # Dedicated future for epic maintenance (step 5c) so it does not
+        # compete for the same coalescing gate as the step-5b heal/cleanup
+        # jobs.  Fire-and-forget: a new run starts only when the previous one
+        # has finished.
+        self._epic_maintenance_future: "asyncio.Future[None] | None" = None
+        # Per-project threading locks for epic maintenance jobs (TASK-466.3).
+        # Serialises epic close/PR/staleness/rebase/orphan-reset on the same
+        # project so two concurrent maintenance sweeps (e.g. from a tick burst)
+        # cannot corrupt per-epic git state or tracker state concurrently.
+        # Lazily populated on first access via _get_project_maintenance_lock().
+        self._epic_maintenance_project_locks: dict[str, threading.Lock] = {}
         # Dedicated thread pool for tick operations so they don't compete
         # with agent tool-execution threads on the default pool.
         self._tick_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="tick")
@@ -538,6 +614,10 @@ class Orchestrator:
         self._last_watchdog_run: float = 0.0
         self._watchdog_interval_s: float = 300.0  # 5 minutes
         self._last_candidates: list[Issue] = []
+        # Maintenance lane scheduling state (TASK-466.4).
+        # Maps job name → MaintenanceJobState for in-flight coalescing,
+        # skip counters, throttle timestamps, and observability.
+        self._maintenance_jobs: dict[str, MaintenanceJobState] = {}
         self._orphan_reset_counts: dict[str, int] = {}
         self._yolo_limbo_ticks: dict[str, int] = {}
         self._last_emitted_reviews_summary: dict[str, int] | None = None
@@ -1374,19 +1454,17 @@ class Orchestrator:
     def _maybe_heal_repos(self) -> None:
         """Periodically drive every managed checkout back to a sound state.
 
-        Gated to the full-sync cadence so the git fetch/pull/heal runs at most
-        once per ``full_sync_interval_ms`` regardless of tick frequency. Each
-        project goes through ``ensure_repo_sound`` (via ``sync_all_sources``),
-        which aborts stranded merges, clears colliding untracked files,
-        recovers unmerged-index entries, repairs conflict markers, returns to
-        the default branch, fast-forwards to origin, and hard-resets to origin
-        as a safe last resort — quarantining (with a dashboard alert) only a
-        checkout it cannot heal without losing unpushed code work.
+        Delegates to the maintenance lane scheduling gate (:meth:`_run_maintenance_job`)
+        so the job participates in in-flight coalescing, interval throttling, skip
+        accounting, and observability alongside all other maintenance jobs.
 
-        Runs in the tick thread pool (blocking git I/O). Best-effort.
+        The actual work is in :meth:`_do_heal_repos`.
         """
+        # Honour startup delay: don't run expensive git I/O immediately after
+        # the service starts.  This mirrors the HEAD behaviour from TASK-469.2
+        # and keeps _maintenance_status visible for dashboard diagnostics.
         startup_delay = getattr(self.config, "maintenance_startup_delay_seconds", 60)
-        startup_age = time.monotonic() - getattr(self, "_started_monotonic", 0.0)
+        startup_age = time.monotonic() - self._started_monotonic
         if startup_age < startup_delay:
             self._maintenance_status["repo_heal"] = {
                 "last_run_at": None,
@@ -1394,16 +1472,31 @@ class Orchestrator:
                 "delay_remaining_seconds": round(startup_delay - startup_age, 1),
             }
             return
-        interval_ms = self.config.full_sync_interval_ms
-        if self._last_repo_heal != 0.0:
-            elapsed_ms = (time.monotonic() - self._last_repo_heal) * 1000
-            if elapsed_ms < interval_ms:
-                return
-        self._last_repo_heal = time.monotonic()
-        start = time.monotonic()
+
+        interval_s = self.config.full_sync_interval_ms / 1000.0
+        self._run_maintenance_job(
+            "repo_heal",
+            self._do_heal_repos,
+            min_interval_s=interval_s,
+        )
+        # Back-fill _last_repo_heal for legacy callers that read it directly.
+        state = self._maintenance_jobs.get("repo_heal")
+        if state and state.last_run_monotonic is not None:
+            self._last_repo_heal = state.last_run_monotonic
+
+    def _do_heal_repos(self) -> None:
+        """Inner body of _maybe_heal_repos; called with the maintenance gate held.
+
+        Performs managed checkout self-heal (sync_all_sources) only.
+        Terminal worktree cleanup is handled by the separate 'worktree_cleanup' job.
+        """
+        # Record the start time for diagnostics even if we fail early.
+        self._last_heal_at = time.monotonic()
         try:
             self.project_store.sync_all_sources()
+            self._heal_error_last = None
         except Exception as exc:  # noqa: BLE001
+            self._heal_error_last = str(exc)
             logger.warning("Periodic repo self-heal failed: %s", exc)
         # Surface/clear dashboard alerts for any checkout that ended up
         # quarantined (or got healed) this pass.
@@ -1411,16 +1504,64 @@ class Orchestrator:
             self._refresh_backlog_conflict_alerts()
         except Exception:  # noqa: BLE001
             pass
-        # Remove worktrees whose tasks became terminal while the service kept
-        # running, for example after a merge-queue webhook marks a task Merged.
+
+    def _maybe_cleanup_worktrees(self) -> None:
+        """Periodically remove terminal worktrees (merged/archived tasks only).
+
+        Delegates to the maintenance lane scheduling gate (:meth:`_run_maintenance_job`)
+        so the job participates in in-flight coalescing, interval throttling, skip
+        accounting, and observability alongside all other maintenance jobs.
+
+        The actual work is in :meth:`_do_cleanup_worktrees`.
+        """
+        interval_s = self.config.full_sync_interval_ms / 1000.0
+        self._run_maintenance_job(
+            "worktree_cleanup",
+            self._do_cleanup_worktrees,
+            min_interval_s=interval_s,
+        )
+        # Back-fill _last_cleanup_at for legacy callers that read it directly.
+        state = self._maintenance_jobs.get("worktree_cleanup")
+        if state and state.last_run_monotonic is not None:
+            self._last_cleanup_at = state.last_run_monotonic
+
+    def _do_cleanup_worktrees(self) -> None:
+        """Inner body of _maybe_cleanup_worktrees; called with the maintenance gate held.
+
+        Removes worktrees for tasks in MERGED or ARCHIVED state only.
+        Done/conflict worktrees are intentionally preserved.
+        """
         projects = self.project_store.list_all()
         if projects:
-            self._cleanup_terminal_worktrees(projects)
-        self._maintenance_status["repo_heal"] = {
-            "last_run_at": datetime.now(timezone.utc).isoformat(),
-            "duration_ms": round((time.monotonic() - start) * 1000, 3),
-            "delayed": False,
-        }
+            try:
+                count = self._cleanup_terminal_worktrees(projects)
+                self._last_cleanup_at = time.monotonic()
+                self._cleanup_count_last = count
+                self._cleanup_error_last = None
+            except Exception as exc:  # noqa: BLE001
+                self._cleanup_error_last = str(exc)
+                logger.warning("Terminal worktree cleanup failed during maintenance: %s", exc)
+
+    def _run_step5b_maintenance(self) -> None:
+        """Combined fire-and-forget maintenance wrapper for ``_tick`` step 5b.
+
+        Runs the following maintenance jobs back-to-back, each individually gated
+        by :meth:`_run_maintenance_job` so in-flight coalescing, interval throttling,
+        and observability tracking apply independently:
+
+        1. :meth:`_maybe_heal_repos` — managed-checkout self-heal.
+        2. :meth:`_maybe_cleanup_worktrees` — terminal worktree removal.
+        3. :meth:`_auto_archive` — archive closed issues older than _ARCHIVE_DAYS.
+        4. :meth:`_maybe_run_merged_labels` — label merged issues/epics + reconcile
+           stale In Review tasks.
+
+        Submitted to ``_tick_pool`` by :meth:`_tick` and **not** awaited so it
+        does not contribute to dispatch tick latency.
+        """
+        self._maybe_heal_repos()
+        self._maybe_cleanup_worktrees()
+        self._auto_archive()
+        self._maybe_run_merged_labels()
 
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
@@ -1594,12 +1735,25 @@ class Orchestrator:
     async def _tick(self) -> None:
         """One poll-and-dispatch cycle.
 
-        Delegates to targeted handlers:
-        1. _handle_reconcile()        — stall detection + tracker state refresh
-        2. _handle_review_check()     — forge API: reviews + merged branches
-        3. _handle_dispatch_needed()  — candidates fetch, blocker resolution, dispatch
-        4. _handle_yolo_review()      — YOLO merge actions, auto-archive, merged-labeling
-        5. _handle_auto_update()      — git pull + restart when idle
+        Delegates to targeted handlers in lane order:
+
+        DISPATCH lane (serialized, single-owner):
+          1. _handle_reconcile()        — stall detection + tracker state refresh
+          2. _handle_review_check()     — forge API: reviews + merged branches
+          3. _handle_dispatch_needed()  — candidates fetch, blocker resolution, dispatch
+
+        Supporting steps (not lane-gated):
+          4. _handle_yolo_review()      — YOLO merge actions only.
+
+        MAINTENANCE lane (bounded concurrency, non-blocking to dispatch):
+          5a. _maybe_run_watchdog()     — stuck-issue detection + repair.
+          5b. _run_step5b_maintenance()  — repo self-heal + terminal worktree cleanup
+                                          + auto-archive + merged-label sweeps
+                                          (TASK-466.2).
+          5c. _run_step5c_epic_maintenance() — epic close/PR, staleness, rebase, orphan reset
+                                             fire-and-forget, same pattern as 5b (TASK-466.3).
+
+          6.  _handle_auto_update()     — git pull + restart when idle.
         """
         t0 = time.monotonic()
 
@@ -1641,8 +1795,9 @@ class Orchestrator:
         await self._handle_dispatch_needed()
         t3 = time.monotonic()
 
-        # 5. YOLO actions, auto-archive, merged-labeling (uses cached forge state)
-        yolo_ms, archive_ms, merged_ms = await self._handle_yolo_review()
+        # 5. YOLO merge actions (uses cached forge state).
+        # Auto-archive and merged-labeling have moved to step 5b maintenance lane.
+        yolo_ms = await self._handle_yolo_review()
         t4 = time.monotonic()
 
         # 5a. Watchdog: detect and fix stuck issues (periodic, lightweight).
@@ -1656,13 +1811,32 @@ class Orchestrator:
             self._tick_pool, self._maybe_run_watchdog
         )
 
-        # 5b. Periodic managed-checkout self-heal. Runs on the full-sync
-        # cadence (not every event) so checkouts are driven back to a sound
-        # state continuously — users can't see a wedged checkout, so oompah
-        # must detect and fix it automatically.
-        await asyncio.get_event_loop().run_in_executor(
-            self._tick_pool, self._maybe_heal_repos
-        )
+        # 5b. MAINTENANCE LANE — periodic managed-checkout self-heal, terminal
+        # worktree cleanup, auto-archive, and merged-label sweeps (TASK-466.2).
+        # Submitted to the tick thread pool but NOT awaited so dispatch latency
+        # is not inflated by git I/O or tracker queries.  A new run is only
+        # started when the previous one has finished (or never started) so we
+        # don't pile up concurrent maintenance jobs on a slow filesystem.  Each
+        # sub-job inside _run_step5b_maintenance() is independently gated by
+        # _run_maintenance_job() so the four jobs have separate in-flight
+        # coalescing and interval throttling.
+        if self._maintenance_future is None or self._maintenance_future.done():
+            self._maintenance_future = asyncio.get_event_loop().run_in_executor(
+                self._tick_pool, self._run_step5b_maintenance
+            )
+
+        # 5c. MAINTENANCE LANE — epic rollup, staleness, rebase filing, and
+        # orphan sweeps.  Submitted to the tick thread pool but NOT awaited so
+        # dispatch latency is not inflated by git I/O or tracker writes.
+        # A new run is only started when the previous one has finished (or never
+        # started) so we don't pile up concurrent epic maintenance jobs on a
+        # slow system.  Runs AFTER _handle_dispatch_needed so _last_candidates
+        # is populated before the job reads it.  Ordering within the job is
+        # preserved: staleness before rebase filing (oompah-zlz_2-82dr).
+        if self._epic_maintenance_future is None or self._epic_maintenance_future.done():
+            self._epic_maintenance_future = asyncio.get_event_loop().run_in_executor(
+                self._tick_pool, self._run_step5c_epic_maintenance
+            )
 
         t4b = time.monotonic()
         total_ms = (t4b - t0) * 1000
@@ -1673,8 +1847,6 @@ class Orchestrator:
             "reviews_ms": round((t2 - t1) * 1000, 3),
             "dispatch_ms": round((t3 - t3_start) * 1000, 3),
             "yolo_ms": round(yolo_ms, 3),
-            "archive_ms": round(archive_ms, 3),
-            "merged_ms": round(merged_ms, 3),
             "post_yolo_ms": round((t4b - t4) * 1000, 3),
             "tick_pool_queue_depth": self._tick_pool_queue_depth(),
             "dispatch_events_coalesced": getattr(
@@ -1684,14 +1856,12 @@ class Orchestrator:
         if total_ms > 2000:
             logger.warning(
                 "Slow tick: %.0fms (reconcile=%.0f reviews=%.0f dispatch=%.0f "
-                "yolo=%.0f archive=%.0f merged=%.0f)",
+                "yolo=%.0f)",
                 total_ms,
                 (t1 - t0) * 1000,
                 (t2 - t1) * 1000,
                 (t3 - t3_start) * 1000,
                 yolo_ms,
-                archive_ms,
-                merged_ms,
             )
 
         self._notify_observers()
@@ -1900,6 +2070,14 @@ class Orchestrator:
             self, "_last_duplicate_detection_metrics", {}
         )
 
+        # Fetch and reset orphaned In Progress issues (no agent attached)
+        in_progress = await loop.run_in_executor(
+            self._tick_pool, self._fetch_in_progress_issues
+        )
+        await loop.run_in_executor(
+            self._tick_pool, self._reset_orphaned_in_progress, in_progress
+        )
+
         # Run the entire sort + filter pass in a worker thread so the bd
         # CLI calls inside _should_dispatch (label/blocker resolution at
         # ~150ms each) don't block uvicorn's event loop. Returns the
@@ -1928,57 +2106,23 @@ class Orchestrator:
         metrics["epics_to_plan_count"] = len(epics_to_plan)
         metrics["epics_dispatched_count"] = planned
 
-        # Auto-close epics whose children are all done
-        await _timed("auto_close_completed_epics", self._auto_close_completed_epics, candidates)
+        # Epic close / PR maintenance, staleness checks, rebase filing, orphan
+        # reset (also), and proactive rebase pruning have been moved to the MAINTENANCE
+        # LANE (_run_step5c_epic_maintenance, step 5c of _tick) so they do not
+        # add to dispatch latency (TASK-466.3).
 
-        # Open the epic→main PR for stacked/shared epics whose children are
-        # all done. Pass ALL non-terminal epics (not just dispatch
-        # candidates): epics usually sit in Backlog, which is not a dispatch-
-        # active state, so they'd otherwise never reach this gate and their
-        # completed work would never land. Only acts on stacked/shared
-        # strategies; flat is a no-op.
-        epic_pool = await _timed("all_non_terminal_epics", self._all_non_terminal_epics)
-        metrics["non_terminal_epic_count"] = len(epic_pool)
-        await _timed("open_epic_main_prs", self._open_epic_main_prs, epic_pool)
-
-        # Check staleness of epic branches — whether they've fallen
-        # behind main. Arms/clears per-epic staleness alerts.
-        # Only runs for stacked/shared strategies where an epic branch
-        # exists. Skip when the threshold is 0 (disabled).
-        if self.config.epic_staleness_threshold_commits > 0:
-            await _timed("check_epic_staleness", self._check_epic_staleness, candidates)
-
-        # Dispatch proactive rebase agents for stale epics (oompah-zlz_2-82dr.2).
-        # Filed as merge-conflict sibling tasks under the epic so the
-        # normal dispatch loop picks them up.
-        if self.config.epic_staleness_threshold_commits > 0:
-            await _timed(
-                "dispatch_proactive_rebase_agents",
-                self._dispatch_proactive_rebase_agents,
-                candidates,
-            )
-
-        # Prune stale epic rebase state entries so closed epics don't
-        # accumulate ghost state forever (oompah-zlz_2-82dr.3).
-        await _timed("prune_stale_epic_rebase_states", self._prune_stale_epic_rebase_states, candidates)
-
-        # Reset orphaned in_progress issues (no agent, no retry).
-        # Runs in the executor because orphan detection issues bd update
-        # calls — keeping it inline would re-introduce the very same
-        # event-loop blocking this task is fixing.
-        in_progress = await _timed("fetch_in_progress", self._fetch_in_progress_issues)
-        metrics["in_progress_count"] = len(in_progress)
-        await _timed("reset_orphaned_in_progress", self._reset_orphaned_in_progress, in_progress)
-        metrics["finished_at"] = datetime.now(timezone.utc).isoformat()
-        self._last_dispatch_metrics = metrics
-
-    async def _handle_yolo_review(self) -> tuple[float, float, float]:
-        """Run YOLO merge actions, auto-archive, and merged-issue labeling.
+    async def _handle_yolo_review(self) -> float:
+        """Run YOLO merge actions only.
 
         Uses the forge state cached by ``_handle_review_check()`` to avoid
         redundant API calls within the same tick.
 
-        Returns timing tuple (yolo_ms, archive_ms, merged_ms) for telemetry.
+        Auto-archive, merged-issue labeling, merged-epic labeling, and stale
+        In Review reconciliation have been moved to the maintenance lane (step 5b,
+        :meth:`_run_step5b_maintenance`) so they no longer block dispatch-critical
+        tick latency (TASK-466.2).
+
+        Returns yolo_ms timing float for telemetry.
         """
         loop = asyncio.get_event_loop()
 
@@ -1987,25 +2131,108 @@ class Orchestrator:
             self._yolo_review_actions_sync()
             return (time.monotonic() - t) * 1000
 
-        def _timed_archive():
-            t = time.monotonic()
-            self._auto_archive()
-            return (time.monotonic() - t) * 1000
+        yolo_ms: float = await loop.run_in_executor(self._tick_pool, _timed_yolo)
+        return yolo_ms
 
-        def _timed_merged_labels():
-            t = time.monotonic()
-            self._label_merged_issues()
-            self._label_merged_epics()
-            self._reconcile_stale_in_review_tasks()
-            self._reconcile_release_picks_pass()
-            return (time.monotonic() - t) * 1000
+    def _get_project_maintenance_lock(self, project_id: str) -> threading.Lock:
+        """Return the per-project maintenance lock, creating it on first access.
 
-        yolo_ms, archive_ms, merged_ms = await asyncio.gather(
-            loop.run_in_executor(self._tick_pool, _timed_yolo),
-            loop.run_in_executor(self._tick_pool, _timed_archive),
-            loop.run_in_executor(self._tick_pool, _timed_merged_labels),
+        Epic maintenance jobs that touch git branches or tracker state for a
+        specific project acquire this lock so two concurrent maintenance sweeps
+        (e.g. from a tick burst) cannot corrupt per-epic git state or tracker
+        state concurrently.
+
+        The lock is a ``threading.Lock`` rather than an ``asyncio.Lock``
+        because maintenance jobs run inside the tick thread pool via
+        ``run_in_executor``, not on the event loop.
+        """
+        if project_id not in self._epic_maintenance_project_locks:
+            self._epic_maintenance_project_locks[project_id] = threading.Lock()
+        return self._epic_maintenance_project_locks[project_id]
+
+    def _run_step5c_epic_maintenance(self) -> None:
+        """Sync fire-and-forget wrapper for tick step 5c (epic maintenance).
+
+        Runs in the tick thread pool so epic I/O (git branch reads, tracker
+        label writes) does not block the event loop or inflate dispatch tick
+        latency.  Called from :meth:`_tick` via ``run_in_executor`` and **not
+        awaited** — identical in structure to :meth:`_run_step5b_maintenance`.
+
+        Sub-operations run sequentially inside this single worker to preserve
+        the staleness→rebase ordering contract (oompah-zlz_2-82dr).  Each
+        sub-operation is gated by :meth:`_run_maintenance_job` so in-flight
+        coalescing, interval throttling, and observability tracking apply
+        independently per job.
+
+        Jobs registered here:
+
+          ``epic_auto_close``   — auto-close epics whose children are terminal.
+          ``epic_open_prs``     — open epic→main PRs for stacked/shared epics.
+          ``epic_staleness``    — arm/clear staleness alerts; update rebase
+                                  states.  **MUST run before** ``epic_rebase_filing``.
+          ``epic_rebase_filing``— dispatch proactive rebase agents for stale
+                                  epics (depends on ``epic_staleness`` state).
+          ``epic_prune_rebase`` — drop ghost rebase-state entries for closed
+                                  epics.
+          ``epic_orphan_reset`` — reset in_progress issues with no agent.
+
+        Per-project maintenance locks (TASK-466.3 AC#3) are acquired inside
+        the individual worker functions for any operation that touches git
+        branches or tracker state.
+        """
+        # Snapshot candidates once at job-start time so all sub-steps share a
+        # consistent view even if a concurrent tick updates _last_candidates.
+        candidates = list(self._last_candidates)
+
+        # 1. Auto-close epics whose children are all terminal.
+        self._run_maintenance_job(
+            "epic_auto_close",
+            lambda: self._auto_close_completed_epics(candidates),
+            min_interval_s=60.0,
         )
-        return yolo_ms, archive_ms, merged_ms
+
+        # 2. Open the epic→main PR for stacked/shared epics.
+        # _all_non_terminal_epics() re-reads tracker state at call time so
+        # epics that just closed in step 1 are correctly excluded.
+        self._run_maintenance_job(
+            "epic_open_prs",
+            lambda: self._open_epic_main_prs(self._all_non_terminal_epics()),
+            min_interval_s=60.0,
+        )
+
+        # 3 + 4. Staleness check then proactive rebase filing.
+        # Step 3 MUST complete before step 4 — _check_epic_staleness()
+        # updates _epic_rebase_states which _dispatch_proactive_rebase_agents()
+        # reads.  Both share the same threshold guard; running them back-to-back
+        # inside a single sequential function guarantees ordering regardless of
+        # individual job throttle states (oompah-zlz_2-82dr ordering contract).
+        if self.config.epic_staleness_threshold_commits > 0:
+            self._run_maintenance_job(
+                "epic_staleness",
+                lambda: self._check_epic_staleness(candidates),
+                min_interval_s=300.0,
+            )
+            self._run_maintenance_job(
+                "epic_rebase_filing",
+                lambda: self._dispatch_proactive_rebase_agents(candidates),
+                min_interval_s=300.0,
+            )
+
+        # 5. Prune ghost rebase-state entries for closed epics.
+        self._run_maintenance_job(
+            "epic_prune_rebase",
+            lambda: self._prune_stale_epic_rebase_states(candidates),
+            min_interval_s=300.0,
+        )
+
+        # 6. Orphan reset — _fetch_in_progress_issues() reads tracker state
+        # fresh at call time so issues that just closed during this tick are
+        # not wrongly reset.
+        self._run_maintenance_job(
+            "epic_orphan_reset",
+            lambda: self._reset_orphaned_in_progress(self._fetch_in_progress_issues()),
+            min_interval_s=60.0,
+        )
 
     async def _handle_auto_update(self) -> None:
         """Trigger git auto-update when the orchestrator is idle.
@@ -4550,16 +4777,151 @@ class Orchestrator:
                 )
 
     # ------------------------------------------------------------------
+    # Maintenance lane scheduling gate (TASK-466.4)
+    # ------------------------------------------------------------------
+
+    def _get_or_create_job_state(self, name: str) -> MaintenanceJobState:
+        """Return the :class:`MaintenanceJobState` for *name*, creating it on first access."""
+        if name not in self._maintenance_jobs:
+            self._maintenance_jobs[name] = MaintenanceJobState(name=name)
+        return self._maintenance_jobs[name]
+
+    def _run_maintenance_job(
+        self,
+        name: str,
+        fn: Any,
+        *,
+        min_interval_s: float,
+        max_runtime_s: float | None = None,
+    ) -> None:
+        """Gate-and-run a maintenance job with backpressure controls.
+
+        Enforces three scheduling policies in order:
+
+        1. **In-flight coalescing** — if a run of *name* is already executing,
+           the request is dropped (coalesced) and ``skip_count`` is
+           incremented.  This prevents a slow maintenance job from spawning
+           duplicate concurrent copies of itself.
+
+        2. **Minimum interval** — if the time since the last run is less than
+           *min_interval_s*, the request is dropped and ``skip_count`` is
+           incremented.  The explicit ``next_run_monotonic`` timestamp takes
+           priority over the interval calculation when set.
+
+        3. **Max runtime budget** — if *max_runtime_s* is given and the job
+           runs longer, a deadline flag is set so callers can stop early (the
+           job function receives no argument; callers must poll
+           ``_job_deadline_exceeded(name)`` if they wish to respect it).
+
+        State transitions (tracked in :class:`MaintenanceJobState`):
+
+        * Before running: ``last_status = "running"``, ``in_flight = True``
+        * After success:  ``last_status = "completed"``, ``in_flight = False``,
+                          ``next_run_monotonic = now + min_interval_s``
+        * After failure:  ``last_status = "failed"``, ``in_flight = False``,
+                          ``last_error`` set, ``next_run_monotonic`` set
+        * When skipped:   ``last_status = "skipped"``, ``skip_count`` incremented
+        """
+        state = self._get_or_create_job_state(name)
+        now = time.monotonic()
+
+        # ---- 1. In-flight coalescing ----
+        if state.in_flight:
+            state.skip_count += 1
+            state.last_status = "skipped"
+            logger.debug(
+                "Maintenance job %r skipped: already in flight (total skips=%d)",
+                name,
+                state.skip_count,
+            )
+            return
+
+        # ---- 2. Minimum interval / next-run gate ----
+        if state.next_run_monotonic is not None:
+            if now < state.next_run_monotonic:
+                state.skip_count += 1
+                state.last_status = "skipped"
+                logger.debug(
+                    "Maintenance job %r skipped: next_run in %.1fs (total skips=%d)",
+                    name,
+                    state.next_run_monotonic - now,
+                    state.skip_count,
+                )
+                return
+        elif state.last_run_monotonic is not None:
+            elapsed = now - state.last_run_monotonic
+            if elapsed < min_interval_s:
+                state.skip_count += 1
+                state.last_status = "skipped"
+                logger.debug(
+                    "Maintenance job %r skipped: %.1fs < min_interval %.1fs "
+                    "(total skips=%d)",
+                    name,
+                    elapsed,
+                    min_interval_s,
+                    state.skip_count,
+                )
+                return
+
+        # ---- 3. Run the job ----
+        state.in_flight = True
+        state.last_status = "running"
+        state.last_run_monotonic = now
+        state.run_count += 1
+        # Store per-job deadline in the state (thread-safe: each job has its own state).
+        state.current_deadline = (
+            (now + max_runtime_s) if max_runtime_s is not None else None
+        )
+        t_start = time.monotonic()
+        try:
+            fn()
+            state.last_status = "completed"
+            state.last_error = None
+        except Exception as exc:  # noqa: BLE001
+            state.last_status = "failed"
+            state.last_error = str(exc)
+            logger.warning("Maintenance job %r failed: %s", name, exc)
+        finally:
+            elapsed_s = time.monotonic() - t_start
+            state.last_duration_s = elapsed_s
+            state.in_flight = False
+            finished = time.monotonic()
+            state.next_run_monotonic = finished + min_interval_s
+            state.current_deadline = None
+
+    def _job_deadline_exceeded(self, name: str) -> bool:
+        """Return True if the current run of *name* has exceeded its runtime budget.
+
+        Maintenance jobs that process items in a loop should call this
+        periodically to honour the ``max_runtime_s`` budget passed to
+        :meth:`_run_maintenance_job`.  Returns ``False`` when no deadline
+        is active (either no budget was set or no run is in progress).
+        """
+        state = self._maintenance_jobs.get(name)
+        if state is None or state.current_deadline is None:
+            return False
+        return time.monotonic() > state.current_deadline
+
+    # ------------------------------------------------------------------
     # Watchdog: periodic health checks for stuck issues
     # ------------------------------------------------------------------
 
     def _maybe_run_watchdog(self) -> None:
-        """Run watchdog if enough time has elapsed since last run."""
-        now = time.monotonic()
-        if now - self._last_watchdog_run < self._watchdog_interval_s:
-            return
-        self._last_watchdog_run = now
-        self._watchdog_check()
+        """Run watchdog if enough time has elapsed since last run.
+
+        Delegates to the maintenance lane scheduling gate so the watchdog
+        participates in in-flight coalescing and skip accounting.
+        """
+        self._run_maintenance_job(
+            "watchdog",
+            self._watchdog_check,
+            min_interval_s=self._watchdog_interval_s,
+        )
+        # Back-fill _last_watchdog_run so legacy callers that read it
+        # directly see a consistent value.
+        state = self._maintenance_jobs.get("watchdog")
+        if state and state.last_run_monotonic is not None:
+            self._last_watchdog_run = state.last_run_monotonic
 
     def _watchdog_check(self) -> None:
         """Run all watchdog sub-checks."""
@@ -4976,6 +5338,36 @@ class Orchestrator:
                 entry.identifier,
                 exc,
             )
+
+    def _do_merged_labels(self) -> None:
+        """Inner body of :meth:`_maybe_run_merged_labels`.
+
+        Labels merged issues and epics and reconciles stale In Review tasks
+        using the forge state cached by :meth:`_handle_review_check`.
+        Also runs the release-picks reconciliation pass (TASK-455).
+        """
+        self._label_merged_issues()
+        self._label_merged_epics()
+        self._reconcile_stale_in_review_tasks()
+        self._reconcile_release_picks_pass()
+
+    def _maybe_run_merged_labels(self) -> None:
+        """Periodically label merged issues/epics and reconcile stale In Review tasks.
+
+        Uses the ``_merged_branches`` and ``_reviews_cache`` sets populated by
+        :meth:`_handle_review_check` to avoid redundant forge API calls.
+
+        Delegates to the maintenance lane scheduling gate (:meth:`_run_maintenance_job`)
+        so the job participates in in-flight coalescing, interval throttling, skip
+        accounting, and observability alongside all other maintenance jobs.
+
+        The actual work is in :meth:`_do_merged_labels`.
+        """
+        self._run_maintenance_job(
+            "merged_labels",
+            self._do_merged_labels,
+            min_interval_s=self._MERGED_LABELS_INTERVAL_S,
+        )
 
     def _label_merged_issues(self) -> None:
         """Label closed issues whose branch has been merged."""
@@ -12432,6 +12824,11 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     # that changes at most once a day — yet each run does a full-corpus task
     # read per project. Run it at most this often instead of every tick.
     _AUTO_ARCHIVE_INTERVAL_S = 3600.0  # 1 hour
+    # merged-label sweeps (_label_merged_issues, _label_merged_epics) and stale
+    # In Review reconciliation use the cached forge state populated by
+    # _handle_review_check — they are cheap reads but should still be
+    # rate-limited to avoid hammering the tracker on every tick.
+    _MERGED_LABELS_INTERVAL_S = 60.0  # 1 minute
 
     def _analyze_focus_fit(self, issue: Issue, project_id: str | None) -> None:
         """Analyze a completed issue's work against existing foci.
@@ -12457,43 +12854,26 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     def _auto_archive(self) -> None:
         """Archive closed issues older than _ARCHIVE_DAYS days.
 
-        Throttled to at most once per :data:`_AUTO_ARCHIVE_INTERVAL_S`: the
-        scan does a full-corpus task read per project, but the set of
-        issues eligible to archive (closed >= _ARCHIVE_DAYS ago) changes at
-        most daily, so running it every tick was pure overhead (it was the
-        dominant cost of the ~150s slow tick).
-        """
-        nowm = time.monotonic()
-        startup_delay = getattr(self.config, "maintenance_startup_delay_seconds", 60)
-        startup_age = nowm - getattr(self, "_started_monotonic", 0.0)
-        if startup_age < startup_delay:
-            self._maintenance_status["auto_archive"] = {
-                "last_run_at": None,
-                "delayed": True,
-                "delay_remaining_seconds": round(startup_delay - startup_age, 1),
-            }
-            return
-        interval_s = getattr(
-            self.config, "auto_archive_interval_seconds", self._AUTO_ARCHIVE_INTERVAL_S
-        )
-        if (
-            self._last_auto_archive_monotonic is not None
-            and (nowm - self._last_auto_archive_monotonic)
-            < interval_s
-        ):
-            return
-        self._last_auto_archive_monotonic = nowm
-        limit = getattr(self.config, "auto_archive_batch_size", 25)
-        if limit <= 0:
-            self._maintenance_status["auto_archive"] = {
-                "last_run_at": datetime.now(timezone.utc).isoformat(),
-                "archived": 0,
-                "limit": limit,
-                "deferred": True,
-            }
-            return
+        Delegates to the maintenance lane scheduling gate (:meth:`_run_maintenance_job`)
+        so the job participates in in-flight coalescing, interval throttling, skip
+        accounting, and observability alongside all other maintenance jobs.
 
+        The actual work is in :meth:`_do_auto_archive`.
+        """
+        self._run_maintenance_job(
+            "auto_archive",
+            self._do_auto_archive,
+            min_interval_s=self._AUTO_ARCHIVE_INTERVAL_S,
+        )
+        # Back-fill _last_auto_archive_monotonic for legacy callers that read it directly.
+        state = self._maintenance_jobs.get("auto_archive")
+        if state and state.last_run_monotonic is not None:
+            self._last_auto_archive_monotonic = state.last_run_monotonic
+
+    def _do_auto_archive(self) -> None:
+        """Inner body of _auto_archive; called with the maintenance gate held."""
         now = datetime.now(timezone.utc)
+        limit = getattr(self.config, "auto_archive_batch_size", 25)
         projects = self.project_store.list_all()
         # Only scan states that can still transition to archived. Including
         # ARCHIVED would re-read every already-archived issue each run just
@@ -12806,6 +13186,33 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 for epic_id, entry in self._epic_rebase_states.items()
             },
             "proposed_foci_count": self._proposed_foci_count(),
+            # Maintenance lane job status (TASK-466.1 / TASK-466.4).
+            # Populated by _maybe_heal_repos() and the unified
+            # _run_maintenance_job() gate.  The top-level keys preserve the
+            # TASK-466.1 heal/cleanup fields for backward compatibility;
+            # "jobs" carries per-job scheduling state (TASK-466.4) so
+            # operators can diagnose skipped, running, failed, and completed
+            # jobs without reading logs.
+            "maintenance": {
+                "last_heal_at": self._last_heal_at if self._last_heal_at != 0.0 else None,
+                "heal_error": self._heal_error_last,
+                "last_cleanup_at": self._last_cleanup_at if self._last_cleanup_at != 0.0 else None,
+                "cleanup_count": self._cleanup_count_last,
+                "cleanup_error": self._cleanup_error_last,
+                "jobs": {
+                    name: {
+                        "status": state.last_status,
+                        "in_flight": state.in_flight,
+                        "run_count": state.run_count,
+                        "skip_count": state.skip_count,
+                        "last_run_monotonic": state.last_run_monotonic,
+                        "next_run_monotonic": state.next_run_monotonic,
+                        "last_duration_s": state.last_duration_s,
+                        "last_error": state.last_error,
+                    }
+                    for name, state in self._maintenance_jobs.items()
+                },
+            },
         }
 
     def _reviews_summary(self) -> dict[str, int]:

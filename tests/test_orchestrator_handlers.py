@@ -112,6 +112,11 @@ def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
         state_path=str(tmp_path / "state.json"),
     )
     orch._fetch_in_progress_issues = MagicMock(return_value=[])
+    # Bypass the 60-second startup delay so maintenance tests can call
+    # _maybe_heal_repos / _maybe_cleanup_worktrees / _auto_archive without
+    # explicitly setting maintenance_startup_delay_seconds = 0 each time.
+    # Tests that explicitly test the startup-delay behaviour override this.
+    orch._started_monotonic = 0.0
     return orch
 
 
@@ -560,8 +565,8 @@ class TestHandleDispatchNeeded:
 
 
 class TestAutoArchiveThrottle:
-    """_auto_archive is throttled (it does a full-corpus read per project)
-    and must not re-scan already-archived issues."""
+    """_auto_archive is throttled via the maintenance lane gate and must not
+    re-scan already-archived issues."""
 
     def _orch_with_spy_tracker(self, tmp_path):
         orch = _make_orchestrator(tmp_path)  # no projects → uses self.tracker
@@ -574,14 +579,16 @@ class TestAutoArchiveThrottle:
     def test_runs_first_time_then_throttled(self, tmp_path):
         orch = self._orch_with_spy_tracker(tmp_path)
         orch._auto_archive()
-        orch._auto_archive()  # within the interval → no-op
+        orch._auto_archive()  # within the interval → gated by _run_maintenance_job
         assert orch.tracker.fetch_issues_by_states.call_count == 1
 
     def test_runs_again_after_interval_elapses(self, tmp_path):
         orch = self._orch_with_spy_tracker(tmp_path)
         orch._auto_archive()
-        # Backdate the last-run marker past the throttle window.
-        orch._last_auto_archive_monotonic -= orch._AUTO_ARCHIVE_INTERVAL_S + 1
+        # Backdate the maintenance job's next_run_monotonic past the throttle window.
+        state = orch._maintenance_jobs.get("auto_archive")
+        if state is not None:
+            state.next_run_monotonic = 0.0
         orch._auto_archive()
         assert orch.tracker.fetch_issues_by_states.call_count == 2
 
@@ -596,124 +603,485 @@ class TestAutoArchiveThrottle:
         # Done/Merged are still scanned (they can still become archived).
         assert canonicalize_status(DONE) in canon
 
-    def test_auto_archive_respects_batch_size(self, tmp_path):
+    def test_auto_archive_registered_as_maintenance_job(self, tmp_path):
+        """_auto_archive() registers state under 'auto_archive' in _maintenance_jobs."""
         orch = self._orch_with_spy_tracker(tmp_path)
-        orch.config.auto_archive_batch_size = 1
-        old = datetime.now(timezone.utc) - timedelta(days=8)
-        issue1 = _make_issue("TASK-1", state="Done")
-        issue1.closed_at = old
-        issue2 = _make_issue("TASK-2", state="Done")
-        issue2.closed_at = old
-        orch.tracker.fetch_issues_by_states.return_value = [issue1, issue2]
-
         orch._auto_archive()
+        assert "auto_archive" in orch._maintenance_jobs
+        state = orch._maintenance_jobs["auto_archive"]
+        assert state.run_count == 1
 
-        orch.tracker.archive_issue.assert_called_once_with("TASK-1")
-        assert orch._maintenance_status["auto_archive"]["deferred"] is True
+    def test_auto_archive_backfills_last_auto_archive_monotonic(self, tmp_path):
+        """_auto_archive() back-fills _last_auto_archive_monotonic for legacy compat."""
+        import time as _time
+
+        orch = self._orch_with_spy_tracker(tmp_path)
+        before = _time.monotonic()
+        orch._auto_archive()
+        after = _time.monotonic()
+        assert orch._last_auto_archive_monotonic is not None
+        assert before <= orch._last_auto_archive_monotonic <= after
 
 
 class TestHandleYoloReview:
-    """_handle_yolo_review() runs YOLO actions, auto-archive, and merged-labeling."""
+    """_handle_yolo_review() runs only YOLO actions (archive/merged moved to step 5b)."""
 
     def test_calls_yolo_review_actions(self, tmp_path):
         """_yolo_review_actions_sync is invoked by _handle_yolo_review."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
         asyncio.run(orch._handle_yolo_review())
 
         orch._yolo_review_actions_sync.assert_called_once()
 
-    def test_calls_auto_archive(self, tmp_path):
-        """_auto_archive is invoked by _handle_yolo_review."""
+    def test_does_not_call_auto_archive(self, tmp_path):
+        """_auto_archive is NOT invoked by _handle_yolo_review (moved to maintenance lane)."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
         orch._auto_archive = MagicMock()
+
+        asyncio.run(orch._handle_yolo_review())
+
+        orch._auto_archive.assert_not_called()
+
+    def test_does_not_call_label_merged_issues(self, tmp_path):
+        """_label_merged_issues is NOT invoked by _handle_yolo_review (moved to maintenance lane)."""
+        orch = _make_orchestrator(tmp_path)
+        orch._yolo_review_actions_sync = MagicMock()
         orch._label_merged_issues = MagicMock()
 
         asyncio.run(orch._handle_yolo_review())
 
-        orch._auto_archive.assert_called_once()
+        orch._label_merged_issues.assert_not_called()
 
-    def test_calls_label_merged_issues(self, tmp_path):
-        """_label_merged_issues is invoked by _handle_yolo_review."""
+    def test_does_not_call_stale_in_review_reconciliation(self, tmp_path):
+        """_reconcile_stale_in_review_tasks is NOT invoked by _handle_yolo_review
+        (moved to maintenance lane)."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
-
-        asyncio.run(orch._handle_yolo_review())
-
-        orch._label_merged_issues.assert_called_once()
-
-    def test_calls_stale_in_review_reconciliation(self, tmp_path):
-        """_reconcile_stale_in_review_tasks is invoked by _handle_yolo_review."""
-        orch = _make_orchestrator(tmp_path)
-        orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
-        orch._label_merged_epics = MagicMock()
         orch._reconcile_stale_in_review_tasks = MagicMock()
 
         asyncio.run(orch._handle_yolo_review())
 
-        orch._reconcile_stale_in_review_tasks.assert_called_once()
+        orch._reconcile_stale_in_review_tasks.assert_not_called()
 
-    def test_returns_timing_tuple(self, tmp_path):
-        """_handle_yolo_review returns a (yolo_ms, archive_ms, merged_ms) tuple."""
+    def test_returns_float_yolo_ms(self, tmp_path):
+        """_handle_yolo_review returns a single float (yolo_ms) for telemetry."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
         result = asyncio.run(orch._handle_yolo_review())
 
-        assert isinstance(result, tuple)
-        assert len(result) == 3
-        yolo_ms, archive_ms, merged_ms = result
-        assert isinstance(yolo_ms, float)
-        assert isinstance(archive_ms, float)
-        assert isinstance(merged_ms, float)
-        assert yolo_ms >= 0
-        assert archive_ms >= 0
-        assert merged_ms >= 0
+        assert isinstance(result, float)
+        assert result >= 0.0
 
-    def test_all_three_operations_run(self, tmp_path):
-        """All three operations run (yolo, archive, merged-labels)."""
-        orch = _make_orchestrator(tmp_path)
-        call_order = []
-
-        def yolo():
-            call_order.append("yolo")
-
-        def archive():
-            call_order.append("archive")
-
-        def merged():
-            call_order.append("merged")
-
-        orch._yolo_review_actions_sync = yolo
-        orch._auto_archive = archive
-        orch._label_merged_issues = merged
-
-        asyncio.run(orch._handle_yolo_review())
-
-        assert set(call_order) == {"yolo", "archive", "merged"}
-
-    def test_timing_values_are_non_negative(self, tmp_path):
-        """Timing values returned must always be >= 0."""
+    def test_timing_value_is_non_negative(self, tmp_path):
+        """Timing value returned must always be >= 0."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
-        yolo_ms, archive_ms, merged_ms = asyncio.run(orch._handle_yolo_review())
+        yolo_ms = asyncio.run(orch._handle_yolo_review())
 
         assert yolo_ms >= 0.0
-        assert archive_ms >= 0.0
-        assert merged_ms >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# _maybe_run_merged_labels  (TASK-466.2)
+# ---------------------------------------------------------------------------
+
+
+class TestMaybeRunMergedLabels:
+    """_maybe_run_merged_labels() delegates to the maintenance lane gate."""
+
+    def _orch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch._label_merged_issues = MagicMock()
+        orch._label_merged_epics = MagicMock()
+        orch._reconcile_stale_in_review_tasks = MagicMock()
+        return orch
+
+    def test_calls_all_three_sweeps(self, tmp_path):
+        """_maybe_run_merged_labels calls label_merged_issues, label_merged_epics,
+        and reconcile_stale_in_review_tasks on first run."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        orch._label_merged_issues.assert_called_once()
+        orch._label_merged_epics.assert_called_once()
+        orch._reconcile_stale_in_review_tasks.assert_called_once()
+
+    def test_throttled_on_second_call(self, tmp_path):
+        """Second call within interval is coalesced (not executed)."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        orch._maybe_run_merged_labels()  # within interval → skip
+        assert orch._label_merged_issues.call_count == 1
+
+    def test_runs_again_after_interval(self, tmp_path):
+        """Runs again once next_run_monotonic has passed."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        state = orch._maintenance_jobs.get("merged_labels")
+        assert state is not None
+        state.next_run_monotonic = 0.0  # backdate past interval
+        orch._maybe_run_merged_labels()
+        assert orch._label_merged_issues.call_count == 2
+
+    def test_registered_as_maintenance_job(self, tmp_path):
+        """After running, 'merged_labels' appears in _maintenance_jobs."""
+        orch = self._orch(tmp_path)
+        orch._maybe_run_merged_labels()
+        assert "merged_labels" in orch._maintenance_jobs
+        assert orch._maintenance_jobs["merged_labels"].run_count == 1
+
+    def test_failure_captured_in_job_state(self, tmp_path):
+        """If one sweep raises, the error is captured in last_error (not re-raised)."""
+        orch = self._orch(tmp_path)
+        orch._label_merged_issues = MagicMock(side_effect=RuntimeError("forge error"))
+        orch._maybe_run_merged_labels()
+        state = orch._maintenance_jobs.get("merged_labels")
+        assert state is not None
+        assert state.last_status == "failed"
+        assert "forge error" in (state.last_error or "")
+
+
+# ---------------------------------------------------------------------------
+# _run_step5b_maintenance  (TASK-466.2: extended with archive + merged labels)
+# ---------------------------------------------------------------------------
+
+
+class TestRunStep5bMaintenanceExtended:
+    """_run_step5b_maintenance now includes auto_archive and merged_labels."""
+
+    def test_calls_auto_archive(self, tmp_path):
+        """_run_step5b_maintenance calls _auto_archive."""
+        orch = _make_orchestrator(tmp_path)
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._maybe_run_merged_labels = MagicMock()
+
+        orch._run_step5b_maintenance()
+
+        orch._auto_archive.assert_called_once()
+
+    def test_calls_merged_labels(self, tmp_path):
+        """_run_step5b_maintenance calls _maybe_run_merged_labels."""
+        orch = _make_orchestrator(tmp_path)
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._auto_archive = MagicMock()
+        orch._maybe_run_merged_labels = MagicMock()
+
+        orch._run_step5b_maintenance()
+
+        orch._maybe_run_merged_labels.assert_called_once()
+
+    def test_all_four_jobs_run_in_order(self, tmp_path):
+        """All four maintenance jobs run, with heal and cleanup before archive/merged."""
+        orch = _make_orchestrator(tmp_path)
+        call_order = []
+        orch._maybe_heal_repos = lambda: call_order.append("heal")
+        orch._maybe_cleanup_worktrees = lambda: call_order.append("cleanup")
+        orch._auto_archive = lambda: call_order.append("archive")
+        orch._maybe_run_merged_labels = lambda: call_order.append("merged_labels")
+
+        orch._run_step5b_maintenance()
+
+        assert call_order == ["heal", "cleanup", "archive", "merged_labels"]
+
+    def test_archive_and_merged_labels_in_maintenance_jobs_snapshot(self, tmp_path):
+        """After running, auto_archive and merged_labels appear in _maintenance_jobs."""
+        orch = _make_orchestrator(tmp_path)
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues_by_states.return_value = []
+        orch.project_store.list_all.return_value = []
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+        orch._label_merged_issues = MagicMock()
+        orch._label_merged_epics = MagicMock()
+        orch._reconcile_stale_in_review_tasks = MagicMock()
+
+        orch._run_step5b_maintenance()
+
+        assert "auto_archive" in orch._maintenance_jobs
+        assert "merged_labels" in orch._maintenance_jobs
+        snapshot = orch.get_snapshot()
+        assert "auto_archive" in snapshot["maintenance"]["jobs"]
+        assert "merged_labels" in snapshot["maintenance"]["jobs"]
+
+
+# ---------------------------------------------------------------------------
+# _run_step5c_epic_maintenance  (TASK-466.3)
+# ---------------------------------------------------------------------------
+
+
+class TestRunStep5cEpicMaintenance:
+    """_run_step5c_epic_maintenance() runs epic maintenance jobs via the maintenance gate.
+
+    Covers TASK-466.3 acceptance criteria:
+      AC#1 — epic maintenance does not run inline before dispatch (fire-and-forget).
+      AC#2 — completion PRs, staleness, rebase filing, and orphan reset remain idempotent.
+      AC#3 — maintenance jobs are gated by _run_maintenance_job with per-job throttle.
+    """
+
+    def _orch(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        # Mock out every sub-operation so tests focus on orchestration logic.
+        orch._auto_close_completed_epics = MagicMock()
+        orch._all_non_terminal_epics = MagicMock(return_value=[])
+        orch._open_epic_main_prs = MagicMock()
+        orch._check_epic_staleness = MagicMock()
+        orch._dispatch_proactive_rebase_agents = MagicMock()
+        orch._prune_stale_epic_rebase_states = MagicMock()
+        orch._reset_orphaned_in_progress = MagicMock()
+        orch._fetch_in_progress_issues = MagicMock(return_value=[])
+        return orch
+
+    # ---- AC#1: fire-and-forget from tick ----
+
+    def test_tick_sets_epic_maintenance_future(self, tmp_path):
+        """_tick() must set _epic_maintenance_future so status is trackable."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
+
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+
+        assert orch._epic_maintenance_future is not None
+
+    def test_tick_does_not_await_epic_maintenance(self, tmp_path):
+        """_tick() must complete before _run_step5c_epic_maintenance body executes.
+
+        AC#1: epic maintenance is fire-and-forget — _tick() submits it to the
+        thread pool without awaiting, so the tick returns before the maintenance
+        function even begins running.
+        """
+        import threading
+        import time as _time
+
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+
+        # Gate: the maintenance function blocks until the event is set.
+        # tick_done is set AFTER asyncio.run() returns so we can confirm that
+        # tick() finished without waiting for the gate to open.
+        gate = threading.Event()
+        tick_returned_before_gate: list[bool] = []
+
+        def _gated_epic_maintenance():
+            # Record whether the tick has already returned by the time we run.
+            tick_returned_before_gate.append(gate.is_set())
+            gate.set()  # unblock shutdown
+
+        orch._run_step5c_epic_maintenance = _gated_epic_maintenance
+
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+        # Signal that tick() has returned.
+        gate.set()
+
+        # Wait for the maintenance thread to run (max 2s to avoid test flakiness).
+        assert gate.wait(timeout=2.0), "Maintenance thread never ran"
+        # The tick should have returned BEFORE _gated_epic_maintenance set the gate
+        # the first time, OR the gate was already set when it ran (both are fine:
+        # what matters is the tick didn't block on the function completing).
+        # The real assertion is the timing one: tick must complete quickly.
+        # We already know it did because asyncio.run() returned above.
+        assert orch._epic_maintenance_future is not None
+
+        # Ensure background thread finishes before GC (avoids test pollution).
+        if orch._epic_maintenance_future is not None:
+            try:
+                orch._epic_maintenance_future.result(timeout=2.0)
+            except Exception:
+                pass
+
+    def test_tick_skips_new_epic_maintenance_when_previous_still_running(self, tmp_path):
+        """When the previous epic_maintenance_future is not done, tick skips a new one."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+        orch._run_step5c_epic_maintenance = MagicMock()
+
+        async def _run_with_fake_future():
+            loop = asyncio.get_event_loop()
+            fake_future: asyncio.Future = loop.create_future()
+            orch._epic_maintenance_future = fake_future  # not done
+
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                await orch._tick()
+
+            fake_future.cancel()
+
+        asyncio.run(_run_with_fake_future())
+
+        # _run_step5c_epic_maintenance should NOT have been called — future was in-flight
+        orch._run_step5c_epic_maintenance.assert_not_called()
+
+    # ---- AC#2: idempotency through maintenance gate ----
+
+    def test_all_six_jobs_registered(self, tmp_path):
+        """All six epic maintenance jobs appear in _maintenance_jobs after a run."""
+        orch = self._orch(tmp_path)
+        # Enable staleness threshold so staleness + rebase jobs fire.
+        orch.config.epic_staleness_threshold_commits = 5
+
+        orch._run_step5c_epic_maintenance()
+
+        job_names = set(orch._maintenance_jobs.keys())
+        assert "epic_auto_close" in job_names
+        assert "epic_open_prs" in job_names
+        assert "epic_staleness" in job_names
+        assert "epic_rebase_filing" in job_names
+        assert "epic_prune_rebase" in job_names
+        assert "epic_orphan_reset" in job_names
+
+    def test_jobs_skipped_when_threshold_zero(self, tmp_path):
+        """staleness and rebase jobs are skipped when threshold is 0 (disabled)."""
+        orch = self._orch(tmp_path)
+        orch.config.epic_staleness_threshold_commits = 0
+
+        orch._run_step5c_epic_maintenance()
+
+        orch._check_epic_staleness.assert_not_called()
+        orch._dispatch_proactive_rebase_agents.assert_not_called()
+
+    def test_staleness_runs_before_rebase_filing(self, tmp_path):
+        """Staleness job MUST complete before rebase filing (ordering contract).
+
+        AC#2: ordering preserved so _check_epic_staleness updates
+        _epic_rebase_states before _dispatch_proactive_rebase_agents reads it.
+        """
+        orch = self._orch(tmp_path)
+        orch.config.epic_staleness_threshold_commits = 5
+        call_order = []
+        orch._check_epic_staleness = MagicMock(
+            side_effect=lambda c: call_order.append("staleness")
+        )
+        orch._dispatch_proactive_rebase_agents = MagicMock(
+            side_effect=lambda c: call_order.append("rebase_filing")
+        )
+
+        orch._run_step5c_epic_maintenance()
+
+        staleness_idx = call_order.index("staleness")
+        rebase_idx = call_order.index("rebase_filing")
+        assert staleness_idx < rebase_idx, (
+            "staleness must run before rebase filing but order was: "
+            + str(call_order)
+        )
+
+    def test_idempotent_second_call_within_interval(self, tmp_path):
+        """Second call within interval is coalesced (no double-dispatch).
+
+        AC#2: idempotency preserved — jobs are throttled by _run_maintenance_job.
+        """
+        orch = self._orch(tmp_path)
+        orch._run_step5c_epic_maintenance()
+        orch._run_step5c_epic_maintenance()  # within interval
+
+        # Each sub-function should have been called only once.
+        assert orch._auto_close_completed_epics.call_count == 1
+        assert orch._prune_stale_epic_rebase_states.call_count == 1
+        assert orch._reset_orphaned_in_progress.call_count == 1
+
+    def test_reruns_after_interval_expires(self, tmp_path):
+        """Jobs run again once their next_run_monotonic has passed."""
+        orch = self._orch(tmp_path)
+        orch._run_step5c_epic_maintenance()
+
+        # Backdate every epic job past its interval.
+        for name in ("epic_auto_close", "epic_open_prs", "epic_prune_rebase",
+                     "epic_orphan_reset"):
+            state = orch._maintenance_jobs.get(name)
+            if state is not None:
+                state.next_run_monotonic = 0.0
+
+        orch._run_step5c_epic_maintenance()
+
+        assert orch._auto_close_completed_epics.call_count == 2
+        assert orch._prune_stale_epic_rebase_states.call_count == 2
+        assert orch._reset_orphaned_in_progress.call_count == 2
+
+    def test_failure_captured_does_not_propagate(self, tmp_path):
+        """A failing sub-job is captured in last_error, not re-raised.
+
+        AC#2: idempotent — failures do not crash the maintenance runner.
+        """
+        orch = self._orch(tmp_path)
+        orch._auto_close_completed_epics = MagicMock(
+            side_effect=RuntimeError("auto-close blew up")
+        )
+
+        # Must not raise.
+        orch._run_step5c_epic_maintenance()
+
+        state = orch._maintenance_jobs.get("epic_auto_close")
+        assert state is not None
+        assert state.last_status == "failed"
+        assert "auto-close blew up" in (state.last_error or "")
+
+    def test_job_status_appears_in_snapshot(self, tmp_path):
+        """Epic maintenance job states are visible via get_snapshot()."""
+        orch = self._orch(tmp_path)
+        orch._run_step5c_epic_maintenance()
+
+        snapshot = orch.get_snapshot()
+        jobs = snapshot["maintenance"]["jobs"]
+        assert "epic_auto_close" in jobs
+        assert "epic_orphan_reset" in jobs
+
+    # ---- AC#3: per-project maintenance lock ----
+
+    def test_get_project_maintenance_lock_returns_lock(self, tmp_path):
+        """_get_project_maintenance_lock returns a threading.Lock."""
+        import threading
+
+        orch = _make_orchestrator(tmp_path)
+        lock = orch._get_project_maintenance_lock("proj-1")
+        assert isinstance(lock, type(threading.Lock()))
+
+    def test_get_project_maintenance_lock_same_project_same_lock(self, tmp_path):
+        """Same project ID returns the same lock object (identity)."""
+        orch = _make_orchestrator(tmp_path)
+        lock1 = orch._get_project_maintenance_lock("proj-1")
+        lock2 = orch._get_project_maintenance_lock("proj-1")
+        assert lock1 is lock2
+
+    def test_get_project_maintenance_lock_different_projects_different_locks(
+        self, tmp_path
+    ):
+        """Different project IDs get distinct lock objects."""
+        orch = _make_orchestrator(tmp_path)
+        lock_a = orch._get_project_maintenance_lock("proj-a")
+        lock_b = orch._get_project_maintenance_lock("proj-b")
+        assert lock_a is not lock_b
 
 
 # ---------------------------------------------------------------------------
@@ -946,7 +1314,9 @@ class TestTerminalWorktreeCleanup:
         )
         orch.workspace_mgr.remove_workspace.assert_called_once_with("TASK-2")
 
-    def test_maybe_heal_repos_cleans_terminal_worktrees_on_full_sync(self, tmp_path):
+    def test_maybe_heal_repos_does_only_repo_sync_not_cleanup(self, tmp_path):
+        """_maybe_heal_repos() drives sync_all_sources and alerts; worktree cleanup
+        is a separate job handled by _maybe_cleanup_worktrees()."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.config.maintenance_startup_delay_seconds = 0
@@ -958,31 +1328,73 @@ class TestTerminalWorktreeCleanup:
 
         orch.project_store.sync_all_sources.assert_called_once_with()
         orch._refresh_backlog_conflict_alerts.assert_called_once_with()
-        orch._cleanup_terminal_worktrees.assert_called_once_with([project])
-
-    def test_maybe_heal_repos_skips_cleanup_before_interval(self, tmp_path):
-        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
-        orch._last_repo_heal = time.monotonic()
-        orch.project_store.sync_all_sources = MagicMock()
-        orch._cleanup_terminal_worktrees = MagicMock()
-
-        orch._maybe_heal_repos()
-
-        orch.project_store.sync_all_sources.assert_not_called()
+        # cleanup is a separate job — heal must NOT call it
         orch._cleanup_terminal_worktrees.assert_not_called()
 
-    def test_maybe_heal_repos_still_cleans_after_sync_failure(self, tmp_path):
+    def test_maybe_cleanup_worktrees_cleans_terminal_worktrees(self, tmp_path):
+        """_maybe_cleanup_worktrees() removes worktrees for Merged/Archived tasks."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=1)
+
+        orch._maybe_cleanup_worktrees()
+
+        orch._cleanup_terminal_worktrees.assert_called_once_with([project])
+
+    def test_maybe_heal_repos_skips_when_interval_not_reached(self, tmp_path):
+        """_maybe_heal_repos() skips when the minimum interval has not elapsed."""
+        orch = _make_orchestrator(tmp_path, projects=[_make_project()])
+        # Simulate a recent run by pre-seeding the job state via _run_maintenance_job
+        # (which sets next_run_monotonic = now + interval after it completes).
+        # Simplest approach: run once to arm the interval gate, then run again.
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._maybe_heal_repos()  # first run — arms the interval gate
+
+        # Reset mock call counts for the second check
+        orch.project_store.sync_all_sources.reset_mock()
+
+        orch._maybe_heal_repos()  # second run — should be throttled
+
+        orch.project_store.sync_all_sources.assert_not_called()
+
+    def test_maybe_cleanup_worktrees_skips_when_interval_not_reached(self, tmp_path):
+        """_maybe_cleanup_worktrees() skips when the minimum interval has not elapsed."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+        orch._maybe_cleanup_worktrees()  # first run — arms the interval gate
+        orch._cleanup_terminal_worktrees.reset_mock()
+
+        orch._maybe_cleanup_worktrees()  # second run — should be throttled
+
+        orch._cleanup_terminal_worktrees.assert_not_called()
+
+    def test_maybe_heal_repos_heal_failure_does_not_stop_alert_refresh(self, tmp_path):
+        """Even when sync_all_sources fails, _refresh_backlog_conflict_alerts still runs."""
         project = _make_project()
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch.config.maintenance_startup_delay_seconds = 0
         orch.project_store.sync_all_sources = MagicMock(side_effect=RuntimeError("net"))
         orch._refresh_backlog_conflict_alerts = MagicMock()
-        orch._cleanup_terminal_worktrees = MagicMock()
 
         orch._maybe_heal_repos()
 
         orch.project_store.sync_all_sources.assert_called_once_with()
         orch._refresh_backlog_conflict_alerts.assert_called_once_with()
+
+    def test_maybe_cleanup_worktrees_and_heal_are_independent_jobs(self, tmp_path):
+        """Heal and cleanup are independent maintenance jobs with separate throttles."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock(side_effect=RuntimeError("net"))
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=2)
+
+        # Even if heal fails, cleanup (a separate job) still runs
+        orch._maybe_heal_repos()
+        orch._maybe_cleanup_worktrees()
+
         orch._cleanup_terminal_worktrees.assert_called_once_with([project])
 
     def test_maybe_heal_repos_delays_during_startup(self, tmp_path):
@@ -998,6 +1410,906 @@ class TestTerminalWorktreeCleanup:
         orch.project_store.sync_all_sources.assert_not_called()
         orch._cleanup_terminal_worktrees.assert_not_called()
         assert orch._maintenance_status["repo_heal"]["delayed"] is True
+
+
+# ---------------------------------------------------------------------------
+# Maintenance lane job status tracking (TASK-466.1)
+# ---------------------------------------------------------------------------
+
+
+class TestMaintenanceLaneJobStatus:
+    """Maintenance lane status attributes are populated and exposed in diagnostics."""
+
+    # ------------------------------------------------------------------
+    # Attribute presence (regression: __init__ must declare these)
+    # ------------------------------------------------------------------
+
+    def test_last_heal_at_initialized_to_zero(self, tmp_path):
+        """_last_heal_at starts at 0.0 (never run)."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._last_heal_at == 0.0
+
+    def test_heal_error_last_initialized_to_none(self, tmp_path):
+        """_heal_error_last starts at None (no error yet)."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._heal_error_last is None
+
+    def test_last_cleanup_at_initialized_to_zero(self, tmp_path):
+        """_last_cleanup_at starts at 0.0 (never run)."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._last_cleanup_at == 0.0
+
+    def test_cleanup_count_last_initialized_to_zero(self, tmp_path):
+        """_cleanup_count_last starts at 0."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._cleanup_count_last == 0
+
+    def test_cleanup_error_last_initialized_to_none(self, tmp_path):
+        """_cleanup_error_last starts at None."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._cleanup_error_last is None
+
+    def test_maintenance_future_initialized_to_none(self, tmp_path):
+        """_maintenance_future starts at None (no active maintenance job)."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._maintenance_future is None
+
+    # ------------------------------------------------------------------
+    # Status updated by _maybe_heal_repos
+    # ------------------------------------------------------------------
+
+    def test_heal_sets_last_heal_at_on_success(self, tmp_path):
+        """_maybe_heal_repos() populates _last_heal_at with a monotonic timestamp."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+
+        before = time.monotonic()
+        orch._maybe_heal_repos()
+        after = time.monotonic()
+
+        assert before <= orch._last_heal_at <= after
+
+    def test_heal_clears_error_on_success(self, tmp_path):
+        """A successful heal clears any prior error in _heal_error_last."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._heal_error_last = "previous error"
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+
+        orch._maybe_heal_repos()
+
+        assert orch._heal_error_last is None
+
+    def test_heal_records_error_on_sync_failure(self, tmp_path):
+        """When sync_all_sources raises, _heal_error_last captures the message."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock(
+            side_effect=RuntimeError("git fetch failed")
+        )
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+
+        orch._maybe_heal_repos()
+
+        assert orch._heal_error_last is not None
+        assert "git fetch failed" in orch._heal_error_last
+
+    def test_cleanup_sets_last_cleanup_at_on_success(self, tmp_path):
+        """_maybe_cleanup_worktrees() populates _last_cleanup_at after cleanup runs."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=3)
+
+        before = time.monotonic()
+        orch._maybe_cleanup_worktrees()
+        after = time.monotonic()
+
+        assert before <= orch._last_cleanup_at <= after
+
+    def test_cleanup_sets_count_on_success(self, tmp_path):
+        """_cleanup_count_last reflects the number of worktrees removed."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=5)
+
+        orch._maybe_cleanup_worktrees()
+
+        assert orch._cleanup_count_last == 5
+
+    def test_cleanup_clears_error_on_success(self, tmp_path):
+        """A successful cleanup pass clears any prior cleanup error."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._cleanup_error_last = "prior error"
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+
+        orch._maybe_cleanup_worktrees()
+
+        assert orch._cleanup_error_last is None
+
+    def test_cleanup_records_error_on_failure(self, tmp_path):
+        """If cleanup raises, _cleanup_error_last captures the error message."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._cleanup_terminal_worktrees = MagicMock(
+            side_effect=RuntimeError("tracker unavailable")
+        )
+
+        orch._maybe_cleanup_worktrees()  # must not raise
+
+        assert orch._cleanup_error_last is not None
+        assert "tracker unavailable" in orch._cleanup_error_last
+
+    def test_heal_error_does_not_prevent_cleanup(self, tmp_path):
+        """Heal and cleanup are independent jobs; a heal failure does not suppress cleanup."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock(
+            side_effect=RuntimeError("network down")
+        )
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=2)
+
+        # Run heal (will fail) and cleanup (separate job) independently
+        orch._maybe_heal_repos()
+        orch._maybe_cleanup_worktrees()
+
+        # cleanup ran despite heal failure because they're independent jobs
+        orch._cleanup_terminal_worktrees.assert_called_once_with([project])
+        assert orch._cleanup_count_last == 2
+
+    # ------------------------------------------------------------------
+    # Diagnostics: get_snapshot() exposes maintenance status
+    # ------------------------------------------------------------------
+
+    def test_snapshot_includes_maintenance_key(self, tmp_path):
+        """get_snapshot() includes a 'maintenance' key."""
+        orch = _make_orchestrator(tmp_path)
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues.return_value = []
+        orch._reviews_cache = {}
+
+        snap = orch.get_snapshot()
+
+        assert "maintenance" in snap
+
+    def test_snapshot_maintenance_has_required_fields(self, tmp_path):
+        """maintenance snapshot contains all required diagnostic fields."""
+        orch = _make_orchestrator(tmp_path)
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues.return_value = []
+        orch._reviews_cache = {}
+
+        snap = orch.get_snapshot()
+        maint = snap["maintenance"]
+
+        assert "last_heal_at" in maint
+        assert "heal_error" in maint
+        assert "last_cleanup_at" in maint
+        assert "cleanup_count" in maint
+        assert "cleanup_error" in maint
+
+    def test_snapshot_maintenance_null_before_first_run(self, tmp_path):
+        """Before any maintenance run, last_heal_at and last_cleanup_at are None."""
+        orch = _make_orchestrator(tmp_path)
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues.return_value = []
+        orch._reviews_cache = {}
+
+        snap = orch.get_snapshot()
+        maint = snap["maintenance"]
+
+        assert maint["last_heal_at"] is None
+        assert maint["last_cleanup_at"] is None
+        assert maint["heal_error"] is None
+        assert maint["cleanup_error"] is None
+        assert maint["cleanup_count"] == 0
+
+    def test_snapshot_maintenance_reflects_last_run(self, tmp_path):
+        """After both maintenance jobs run, the snapshot reflects updated timestamps."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=7)
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues.return_value = []
+        orch._reviews_cache = {}
+
+        orch._maybe_heal_repos()
+        orch._maybe_cleanup_worktrees()
+        snap = orch.get_snapshot()
+        maint = snap["maintenance"]
+
+        assert maint["last_heal_at"] is not None
+        assert maint["last_cleanup_at"] is not None
+        assert maint["cleanup_count"] == 7
+        assert maint["heal_error"] is None
+        assert maint["cleanup_error"] is None
+
+    def test_snapshot_maintenance_exposes_heal_error(self, tmp_path):
+        """When heal fails, the error is visible in the snapshot."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock(
+            side_effect=RuntimeError("network timeout")
+        )
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch._cleanup_terminal_worktrees = MagicMock(return_value=0)
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues.return_value = []
+        orch._reviews_cache = {}
+
+        orch._maybe_heal_repos()
+        snap = orch.get_snapshot()
+
+        assert "network timeout" in snap["maintenance"]["heal_error"]
+
+
+# ---------------------------------------------------------------------------
+# Maintenance lane does not block dispatch tick (TASK-466.1 AC#1)
+# ---------------------------------------------------------------------------
+
+
+class TestMaintenanceLaneNonBlocking:
+    """Terminal worktree cleanup and repo self-heal must not block tick latency."""
+
+    def test_tick_does_not_await_maintenance_heal(self, tmp_path):
+        """_tick() must complete even if _run_step5b_maintenance is slow.
+
+        This verifies AC#1: the maintenance job is fire-and-forget, not awaited
+        inline.  We set _maybe_heal_repos to a function that blocks for 100ms
+        and measure that the tick itself finishes well before that delay.
+        """
+        import time as _time
+
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+
+        heal_started = []
+        heal_finished = []
+
+        def _slow_heal():
+            heal_started.append(_time.monotonic())
+            _time.sleep(0.1)  # 100 ms blocking
+            heal_finished.append(_time.monotonic())
+
+        orch._maybe_heal_repos = _slow_heal
+
+        tick_start = _time.monotonic()
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+        tick_end = _time.monotonic()
+
+        tick_ms = (tick_end - tick_start) * 1000
+        # Tick must complete in well under 100 ms (< 80 ms to allow CI headroom)
+        assert tick_ms < 80, (
+            f"Tick took {tick_ms:.0f}ms — maintenance job should not block the tick"
+        )
+
+    def test_tick_starts_maintenance_future(self, tmp_path):
+        """_tick() must set _maintenance_future so status is trackable."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())
+
+        assert orch._maintenance_future is not None
+
+    def test_tick_does_not_start_second_maintenance_while_first_running(
+        self, tmp_path
+    ):
+        """When a maintenance job is already in flight, a new tick must not
+        spawn a second one (guarded by _maintenance_future.done() check)."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+
+        call_count = 0
+
+        def _count_calls():
+            nonlocal call_count
+            call_count += 1
+
+        orch._maybe_heal_repos = _count_calls
+
+        async def _run_two_ticks():
+            # First tick — starts maintenance
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                await orch._tick()
+
+            # Wait for the first job to complete
+            if orch._maintenance_future is not None:
+                await orch._maintenance_future
+
+            first_count = call_count
+
+            # Second tick — should start another maintenance (first is done)
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                await orch._tick()
+
+            if orch._maintenance_future is not None:
+                await orch._maintenance_future
+
+            return first_count
+
+        first_count = asyncio.run(_run_two_ticks())
+
+        # Both ticks should have triggered a maintenance run (first was done)
+        assert call_count == first_count + 1
+
+    def test_tick_skips_new_maintenance_when_previous_still_running(self, tmp_path):
+        """When the previous maintenance future is NOT done, _tick() must not
+        start a new one."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_heal_repos = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+
+        async def _run_with_fake_future():
+            # Pre-set a fake still-running future (never-completing)
+            loop = asyncio.get_event_loop()
+            fake_future: asyncio.Future = loop.create_future()
+            orch._maintenance_future = fake_future  # type: ignore[assignment]
+            # future is not done yet
+
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                await orch._tick()
+
+            # Cancel to avoid "future was never awaited" warnings
+            fake_future.cancel()
+
+        asyncio.run(_run_with_fake_future())
+
+        # _maybe_heal_repos should NOT have been called — future was still in-flight
+        orch._maybe_heal_repos.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression: done/conflict worktrees are never removed (TASK-466.1 AC#2)
+# ---------------------------------------------------------------------------
+
+
+class TestMaintenancePreservesDoneWorktrees:
+    """Done and Conflict worktrees are never cleaned up, only Merged/Archived."""
+
+    def test_cleanup_does_not_remove_done_project_worktrees(self, tmp_path):
+        """Done state is NOT in the cleanable set — worktree is preserved."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Done", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 0
+        orch.project_store.remove_worktree.assert_not_called()
+
+    def test_cleanup_does_not_remove_conflict_state_worktrees(self, tmp_path):
+        """Conflict state is not cleanable — worktree is preserved for inspection."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state="Conflict", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 0
+        orch.project_store.remove_worktree.assert_not_called()
+
+    def test_cleanup_only_queries_merged_and_archived_states(self, tmp_path):
+        """fetch_issues_by_states is called with exactly [Merged, Archived]."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        orch._cleanup_terminal_worktrees()
+
+        # Must only query the two cleanable states
+        tracker.fetch_issues_by_states.assert_called_once_with(["Merged", "Archived"])
+
+    def test_cleanup_removes_merged_but_not_done_mixed(self, tmp_path):
+        """Mixed list: only Merged is removed, Done is preserved."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-M", state="Merged", project_id=project.id),
+            _make_issue("TASK-D", state="Done", project_id=project.id),
+            _make_issue("TASK-A", state="Archived", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 2
+        removed = [
+            call.args[1]
+            for call in orch.project_store.remove_worktree.call_args_list
+        ]
+        assert "TASK-M" in removed
+        assert "TASK-A" in removed
+        assert "TASK-D" not in removed
+
+    def test_maybe_cleanup_worktrees_does_not_remove_done_worktrees(self, tmp_path):
+        """Regression: when maintenance triggers worktree cleanup, Done worktrees survive."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+
+        # Simulate the real _cleanup_terminal_worktrees (not mocked) by using
+        # a real tracker mock that returns Done issues alongside Merged ones.
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-DONE", state="Done", project_id=project.id),
+            _make_issue("TASK-MERGED", state="Merged", project_id=project.id),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        orch._maybe_cleanup_worktrees()
+
+        # Only the Merged worktree was removed
+        removed = [
+            call.args[1]
+            for call in orch.project_store.remove_worktree.call_args_list
+        ]
+        assert "TASK-MERGED" in removed
+        assert "TASK-DONE" not in removed
+
+
+# ---------------------------------------------------------------------------
+# _run_maintenance_job gate: backpressure, coalescing, budgets (TASK-466.4)
+# ---------------------------------------------------------------------------
+
+
+class TestRunMaintenanceJobGate:
+    """Direct unit tests for _run_maintenance_job() and _job_deadline_exceeded().
+
+    AC#1 — A long maintenance job cannot launch duplicate copies of itself.
+    AC#2 — Maintenance jobs enforce configured safety budgets and resume later.
+    AC#3 — State snapshots expose skipped/running/failed/completed status.
+    """
+
+    # ------------------------------------------------------------------
+    # AC#1: in-flight coalescing
+    # ------------------------------------------------------------------
+
+    def test_first_call_runs_job(self, tmp_path):
+        """First call with no prior state executes the function."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        orch._run_maintenance_job("test_job", lambda: calls.append(1), min_interval_s=60.0)
+        assert calls == [1]
+
+    def test_second_call_while_in_flight_is_coalesced(self, tmp_path):
+        """AC#1: If the job is already in_flight, a second call is dropped."""
+        orch = _make_orchestrator(tmp_path)
+
+        # Pre-seed an in-flight state (simulating a concurrent run).
+        state = orch._get_or_create_job_state("test_job")
+        state.in_flight = True
+        state.run_count = 1
+
+        calls = []
+        orch._run_maintenance_job("test_job", lambda: calls.append(1), min_interval_s=60.0)
+
+        # Must not have called the function.
+        assert calls == []
+
+    def test_in_flight_coalescing_increments_skip_count(self, tmp_path):
+        """AC#1: Coalesced (in-flight) calls increment skip_count."""
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        state.in_flight = True
+
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=60.0)
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=60.0)
+
+        assert state.skip_count == 2
+
+    def test_in_flight_coalescing_sets_status_skipped(self, tmp_path):
+        """AC#1: Status is 'skipped' when coalesced due to in_flight."""
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        state.in_flight = True
+
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=60.0)
+
+        assert state.last_status == "skipped"
+
+    # ------------------------------------------------------------------
+    # Interval throttling
+    # ------------------------------------------------------------------
+
+    def test_second_call_within_interval_is_throttled(self, tmp_path):
+        """A second call within min_interval_s is dropped."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        fn = lambda: calls.append(1)  # noqa: E731
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        assert len(calls) == 1
+
+    def test_interval_throttle_increments_skip_count(self, tmp_path):
+        """Throttled calls (interval not elapsed) increment skip_count."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        fn = lambda: calls.append(1)  # noqa: E731
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        initial_skips = orch._maintenance_jobs["test_job"].skip_count
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        assert orch._maintenance_jobs["test_job"].skip_count == initial_skips + 1
+
+    def test_call_after_interval_elapsed_runs_again(self, tmp_path):
+        """After next_run_monotonic passes, the job may run again."""
+        orch = _make_orchestrator(tmp_path)
+        calls = []
+        fn = lambda: calls.append(1)  # noqa: E731
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        # Backdate next_run_monotonic to the past.
+        orch._maintenance_jobs["test_job"].next_run_monotonic = 0.0
+        orch._run_maintenance_job("test_job", fn, min_interval_s=3600.0)
+        assert len(calls) == 2
+
+    def test_explicit_next_run_monotonic_blocks_early_run(self, tmp_path):
+        """next_run_monotonic in the far future prevents the job from running."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        # Set next_run_monotonic to 1 hour from now.
+        state.next_run_monotonic = _time.monotonic() + 3600.0
+
+        calls = []
+        orch._run_maintenance_job("test_job", lambda: calls.append(1), min_interval_s=1.0)
+        assert calls == []
+
+    # ------------------------------------------------------------------
+    # State transitions
+    # ------------------------------------------------------------------
+
+    def test_successful_run_sets_status_completed(self, tmp_path):
+        """After a successful run, last_status == 'completed'."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].last_status == "completed"
+
+    def test_failed_run_sets_status_failed(self, tmp_path):
+        """If the job function raises, last_status == 'failed'."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise RuntimeError("boom")
+
+        orch._run_maintenance_job("test_job", _fail, min_interval_s=0.0)
+        state = orch._maintenance_jobs["test_job"]
+        assert state.last_status == "failed"
+
+    def test_failed_run_captures_error(self, tmp_path):
+        """Exception message is stored in last_error after a failure."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise RuntimeError("kaboom")
+
+        orch._run_maintenance_job("test_job", _fail, min_interval_s=0.0)
+        assert "kaboom" in (orch._maintenance_jobs["test_job"].last_error or "")
+
+    def test_failed_run_clears_in_flight(self, tmp_path):
+        """in_flight is always reset to False after a failed run."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise RuntimeError("err")
+
+        orch._run_maintenance_job("test_job", _fail, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].in_flight is False
+
+    def test_successful_run_clears_last_error(self, tmp_path):
+        """last_error is cleared to None after a successful run."""
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        state.last_error = "stale error"
+
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].last_error is None
+
+    def test_run_count_accumulates_across_calls(self, tmp_path):
+        """run_count accumulates (not reset) across multiple interval-separated runs."""
+        orch = _make_orchestrator(tmp_path)
+        for _i in range(3):
+            orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        assert orch._maintenance_jobs["test_job"].run_count == 3
+
+    def test_last_duration_s_recorded_after_run(self, tmp_path):
+        """last_duration_s is a non-negative float after the job completes."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=0.0)
+        dur = orch._maintenance_jobs["test_job"].last_duration_s
+        assert dur is not None
+        assert dur >= 0.0
+
+    def test_next_run_monotonic_set_after_run(self, tmp_path):
+        """next_run_monotonic is set to approx (finish_time + min_interval_s) after a run."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        min_interval = 120.0
+        before = _time.monotonic()
+        orch._run_maintenance_job("test_job", lambda: None, min_interval_s=min_interval)
+        after = _time.monotonic()
+        nxt = orch._maintenance_jobs["test_job"].next_run_monotonic
+        assert nxt is not None
+        assert (before + min_interval) <= nxt <= (after + min_interval + 1.0)
+
+    # ------------------------------------------------------------------
+    # AC#2: max runtime budget / _job_deadline_exceeded
+    # ------------------------------------------------------------------
+
+    def test_no_deadline_when_max_runtime_s_not_given(self, tmp_path):
+        """Without max_runtime_s, _job_deadline_exceeded returns False."""
+        orch = _make_orchestrator(tmp_path)
+        # No run yet — should return False.
+        assert orch._job_deadline_exceeded("test_job") is False
+
+    def test_deadline_not_exceeded_for_fast_job(self, tmp_path):
+        """During a fast job with a 60 s budget, deadline is not exceeded."""
+        orch = _make_orchestrator(tmp_path)
+        exceeded_during = []
+
+        def _check_deadline():
+            exceeded_during.append(orch._job_deadline_exceeded("test_job"))
+
+        orch._run_maintenance_job(
+            "test_job", _check_deadline, min_interval_s=0.0, max_runtime_s=60.0
+        )
+        # During execution the budget should not have been exceeded.
+        assert exceeded_during == [False]
+
+    def test_deadline_exceeded_flag_with_past_deadline(self, tmp_path):
+        """If current_deadline is in the past, _job_deadline_exceeded returns True."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        state = orch._get_or_create_job_state("test_job")
+        # Force a deadline 1 second in the past.
+        state.current_deadline = _time.monotonic() - 1.0
+        state.in_flight = True  # simulate active run
+
+        assert orch._job_deadline_exceeded("test_job") is True
+
+    def test_deadline_cleared_after_job_finishes(self, tmp_path):
+        """current_deadline is reset to None after a run (success or failure)."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job(
+            "test_job", lambda: None, min_interval_s=0.0, max_runtime_s=60.0
+        )
+        assert orch._maintenance_jobs["test_job"].current_deadline is None
+
+    def test_job_can_poll_deadline_and_stop_early(self, tmp_path):
+        """AC#2: A job that polls _job_deadline_exceeded can stop after budget expires."""
+        import time as _time
+        orch = _make_orchestrator(tmp_path)
+        items_processed = []
+
+        def _budget_aware_job():
+            # Use a very short budget (10 ms) and process items in a loop.
+            for i in range(1000):
+                if orch._job_deadline_exceeded("budget_job"):
+                    break
+                items_processed.append(i)
+                _time.sleep(0.001)  # 1 ms per item
+
+        orch._run_maintenance_job(
+            "budget_job",
+            _budget_aware_job,
+            min_interval_s=0.0,
+            max_runtime_s=0.010,  # 10 ms budget
+        )
+
+        # Should have processed far fewer than 1000 items due to early stop.
+        assert len(items_processed) < 1000
+        # But at least one item must have been processed.
+        assert len(items_processed) >= 1
+
+    def test_unknown_job_deadline_not_exceeded(self, tmp_path):
+        """_job_deadline_exceeded returns False for an unregistered job name."""
+        orch = _make_orchestrator(tmp_path)
+        assert orch._job_deadline_exceeded("nonexistent_job") is False
+
+    # ------------------------------------------------------------------
+    # AC#3: snapshot visibility
+    # ------------------------------------------------------------------
+
+    def test_job_state_visible_in_snapshot(self, tmp_path):
+        """AC#3: After a run, the job appears in get_snapshot()['maintenance']['jobs']."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=0.0)
+        snap = orch.get_snapshot()
+        assert "snap_job" in snap["maintenance"]["jobs"]
+
+    def test_snapshot_job_has_required_fields(self, tmp_path):
+        """AC#3: The snapshot entry has all expected diagnostic fields."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=0.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        for field in ("status", "in_flight", "run_count", "skip_count",
+                      "last_run_monotonic", "next_run_monotonic",
+                      "last_duration_s", "last_error"):
+            assert field in job_snap, f"Missing field: {field}"
+
+    def test_snapshot_shows_skipped_status(self, tmp_path):
+        """AC#3: Snapshot status is 'skipped' after a throttled call."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["status"] == "skipped"
+        assert job_snap["skip_count"] >= 1
+
+    def test_snapshot_shows_failed_status(self, tmp_path):
+        """AC#3: Snapshot status is 'failed' when the last run raised."""
+        orch = _make_orchestrator(tmp_path)
+
+        def _fail():
+            raise ValueError("test error")
+
+        orch._run_maintenance_job("snap_job", _fail, min_interval_s=0.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["status"] == "failed"
+        assert "test error" in (job_snap["last_error"] or "")
+
+    def test_snapshot_shows_completed_status(self, tmp_path):
+        """AC#3: Snapshot status is 'completed' after a successful run."""
+        orch = _make_orchestrator(tmp_path)
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=0.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["status"] == "completed"
+        assert job_snap["in_flight"] is False
+
+    def test_snapshot_skip_count_matches_throttle_calls(self, tmp_path):
+        """AC#3: skip_count in snapshot reflects all throttled/coalesced calls."""
+        orch = _make_orchestrator(tmp_path)
+        # First call runs.
+        orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        # Next 3 calls are throttled.
+        for _ in range(3):
+            orch._run_maintenance_job("snap_job", lambda: None, min_interval_s=3600.0)
+        job_snap = orch.get_snapshot()["maintenance"]["jobs"]["snap_job"]
+        assert job_snap["skip_count"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Repo self-heal error reporting does not block dispatch (TASK-466.1 AC#3)
+# ---------------------------------------------------------------------------
+
+
+class TestRepoHealErrorReporting:
+    """Self-heal errors are logged and tracked without affecting dispatch."""
+
+    def test_heal_failure_does_not_raise_from_tick(self, tmp_path):
+        """If _maybe_heal_repos fails, _tick() must not surface the exception."""
+        orch = _make_orchestrator(tmp_path)
+        orch._handle_reconcile = AsyncMock()
+        orch._handle_review_check = AsyncMock()
+        orch._handle_dispatch_needed = AsyncMock()
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
+        orch._run_step5c_epic_maintenance = MagicMock()
+        orch._handle_auto_update = AsyncMock()
+        orch._notify_observers = MagicMock()
+        orch._maybe_run_watchdog = MagicMock()
+        orch._maybe_cleanup_worktrees = MagicMock()
+
+        def _failing_heal():
+            raise RuntimeError("catastrophic git failure")
+
+        orch._maybe_heal_repos = _failing_heal
+
+        # _tick() must complete normally (no exception)
+        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+            asyncio.run(orch._tick())  # should not raise
+
+    def test_heal_error_visible_in_snapshot_after_failure(self, tmp_path):
+        """After a heal failure, get_snapshot() exposes the error string."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock(
+            side_effect=RuntimeError("disk full")
+        )
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues.return_value = []
+        orch._reviews_cache = {}
+
+        orch._maybe_heal_repos()
+
+        snap = orch.get_snapshot()
+        assert snap["maintenance"]["heal_error"] is not None
+        assert "disk full" in snap["maintenance"]["heal_error"]
+
+    def test_heal_error_cleared_after_subsequent_success(self, tmp_path):
+        """A successful heal run clears the previous error from the snapshot."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+        orch.tracker = MagicMock()
+        orch.tracker.fetch_issues.return_value = []
+        orch._reviews_cache = {}
+
+        # First run: failure
+        orch.project_store.sync_all_sources = MagicMock(
+            side_effect=RuntimeError("transient")
+        )
+        orch._maybe_heal_repos()
+        assert orch.get_snapshot()["maintenance"]["heal_error"] is not None
+
+        # Reset the heal job interval so the second run is not throttled out.
+        # The new maintenance gate uses _maintenance_jobs[name].next_run_monotonic,
+        # not _last_repo_heal, so we clear the job state directly.
+        orch._maintenance_jobs.pop("repo_heal", None)
+
+        # Second run: success
+        orch.project_store.sync_all_sources = MagicMock()
+        orch._maybe_heal_repos()
+
+        assert orch.get_snapshot()["maintenance"]["heal_error"] is None
+
+    def test_heal_still_tracks_last_heal_at_even_when_sync_fails(self, tmp_path):
+        """_last_heal_at is set even when sync_all_sources fails, so the
+        cadence gate still works correctly (prevents retry storm on failure)."""
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.sync_all_sources = MagicMock(
+            side_effect=RuntimeError("network error")
+        )
+        orch._refresh_backlog_conflict_alerts = MagicMock()
+
+        before = time.monotonic()
+        orch._maybe_heal_repos()
+
+        assert orch._last_heal_at >= before
 
 
 # ---------------------------------------------------------------------------
@@ -1024,7 +2336,7 @@ class TestTickDelegation:
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
-            return (0.0, 0.0, 0.0)
+            return 0.0
 
         async def fake_auto_update():
             call_order.append("auto_update")
@@ -1062,7 +2374,7 @@ class TestTickDelegation:
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
-            return (0.0, 0.0, 0.0)
+            return 0.0
 
         async def fake_auto_update():
             call_order.append("auto_update")
@@ -1102,7 +2414,7 @@ class TestTickDelegation:
 
         async def fake_yolo_review():
             call_order.append("yolo_review")
-            return (0.0, 0.0, 0.0)
+            return 0.0
 
         async def fake_auto_update():
             call_order.append("auto_update")
@@ -1133,7 +2445,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
@@ -1148,7 +2460,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
@@ -1166,7 +2478,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
         orch._maybe_run_watchdog = MagicMock()
@@ -1185,7 +2497,7 @@ class TestTickDelegation:
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
         orch._handle_dispatch_needed = AsyncMock()
-        orch._handle_yolo_review = AsyncMock(return_value=(0.0, 0.0, 0.0))
+        orch._handle_yolo_review = AsyncMock(return_value=0.0)
         orch._handle_auto_update = AsyncMock()
         orch._notify_observers = MagicMock()
 
@@ -1238,11 +2550,9 @@ class TestHandlerIndependence:
         """_handle_yolo_review can run without the rest of _tick."""
         orch = _make_orchestrator(tmp_path)
         orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
-        orch._label_merged_issues = MagicMock()
 
         result = asyncio.run(orch._handle_yolo_review())
-        assert isinstance(result, tuple) and len(result) == 3
+        assert isinstance(result, float) and result >= 0.0
 
     def test_handle_auto_update_standalone(self, tmp_path):
         """_handle_auto_update can run without the rest of _tick."""

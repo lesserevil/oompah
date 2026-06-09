@@ -6,29 +6,13 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-05-05 20:08'
-updated_date: '2026-06-01 16:05'
+updated_date: '2026-06-09 00:28'
 labels:
   - beads-migrated
 dependencies:
   - TASK-383
-  - TASK-386
 priority: high
 ordinal: 1000
-type: task
-beads:
-  id: oompah-zlz_2-0c3
-  state: open
-  parent_id: oompah-zlz_2-btf
-  dependencies:
-    - oompah-zlz_2-7fp
-    - oompah-zlz_2-d7o
-  branch_name: oompah-zlz_2-0c3
-  target_branch: null
-  url: null
-  created_at: '2026-05-05T20:08:07Z'
-  updated_at: '2026-05-05T20:08:07Z'
-  closed_at: null
-parent: TASK-382
 ---
 
 ## Description

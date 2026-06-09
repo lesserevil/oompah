@@ -4,11 +4,10 @@ title: Fix Backlog In Progress status reconciliation
 status: Done
 assignee: []
 created_date: '2026-06-01 19:30'
-updated_date: '2026-06-01 22:40'
+updated_date: '2026-06-09 00:29'
 labels:
   - bug
-dependencies:
-  - TASK-402.1
+dependencies: []
 parent_task_id: TASK-402
 priority: high
 ordinal: 23000

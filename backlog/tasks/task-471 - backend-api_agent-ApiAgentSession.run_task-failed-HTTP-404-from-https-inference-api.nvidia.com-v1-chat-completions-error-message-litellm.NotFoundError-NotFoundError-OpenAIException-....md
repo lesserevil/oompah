@@ -5,10 +5,10 @@ title: >-
   https://inference-api.nvidia.com/v1/chat/completions:
   {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException
   -...
-status: In Progress
+status: Open
 assignee: []
 created_date: '2026-06-09 00:40'
-updated_date: '2026-06-09 02:11'
+updated_date: '2026-06-09 02:57'
 labels:
   - bug
 dependencies: []

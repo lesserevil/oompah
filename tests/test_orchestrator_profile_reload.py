@@ -193,7 +193,7 @@ class TestStoreOrchestratorIntegration:
         async def _no_op():
             return None
         async def _no_op2():
-            return (0.0, 0.0, 0.0)
+            return 0.0
         orch._handle_reconcile = _no_op
         orch._handle_review_check = _no_op
         orch._handle_dispatch_needed = _no_op

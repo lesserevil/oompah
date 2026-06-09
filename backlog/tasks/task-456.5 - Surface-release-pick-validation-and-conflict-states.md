@@ -1,10 +1,10 @@
 ---
 id: TASK-456.5
 title: Surface release-pick validation and conflict states
-status: In Progress
+status: Open
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 23:05'
+updated_date: '2026-06-09 02:34'
 labels:
   - task
 dependencies:

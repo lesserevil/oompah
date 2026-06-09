@@ -1,17 +1,17 @@
 ---
 id: TASK-469.5.1
-title: >-
-  Split Oompah into physical API, scheduler, and maintenance services if metrics
+title: Split Oompah into physical API, scheduler, and maintenance services if metrics
   still show coupling
-status: In Progress
+status: Needs CI Fix
 assignee: []
-created_date: '2026-06-08 23:02'
-updated_date: '2026-06-09 01:40'
+created_date: 2026-06-08 23:02
+updated_date: 2026-06-09 02:34
 labels:
-  - ci-fix
+- ci-fix
 dependencies: []
 parent_task_id: TASK-469.5
 ordinal: 175000
+priority: 0
 ---
 
 ## Description

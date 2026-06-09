@@ -1,10 +1,10 @@
 ---
 id: TASK-457.5
 title: Audit and isolate direct BacklogMdTracker assumptions
-status: In Progress
+status: Open
 assignee: []
 created_date: '2026-06-08 17:56'
-updated_date: '2026-06-09 02:08'
+updated_date: '2026-06-09 03:24'
 labels:
   - task
   - github-issues

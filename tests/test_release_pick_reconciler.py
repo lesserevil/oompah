@@ -859,17 +859,20 @@ class TestOrchestratorReconcileReleasePicksPass:
         orch._fetch_in_progress_issues = MagicMock(return_value=[])
         return orch
 
-    def test_called_by_handle_yolo_review(self, tmp_path):
-        """_reconcile_release_picks_pass is invoked by _handle_yolo_review."""
+    def test_called_by_do_merged_labels(self, tmp_path):
+        """_reconcile_release_picks_pass is invoked by _do_merged_labels.
+
+        TASK-466.2 moved release-pick reconciliation from _handle_yolo_review
+        into the maintenance lane (_do_merged_labels) to avoid blocking
+        dispatch-critical tick latency.
+        """
         orch = self._make_orch(tmp_path)
-        orch._yolo_review_actions_sync = MagicMock()
-        orch._auto_archive = MagicMock()
         orch._label_merged_issues = MagicMock()
         orch._label_merged_epics = MagicMock()
         orch._reconcile_stale_in_review_tasks = MagicMock()
         orch._reconcile_release_picks_pass = MagicMock()
 
-        asyncio.run(orch._handle_yolo_review())
+        orch._do_merged_labels()
 
         orch._reconcile_release_picks_pass.assert_called_once()
 
