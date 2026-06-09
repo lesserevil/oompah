@@ -7,8 +7,7 @@ Covers:
 - Orchestrator._count_open_reviews() counting logic
 - Orchestrator._project_max_in_flight() fallback and override logic
 - Orchestrator._project_has_open_review() compat wrapper
-- _should_dispatch() gating: default cap=1, cap=3, P0 bypass, per-project independence
-- Reject reason format: open_reviews_at_cap=<n>/<limit>
+- _should_dispatch() does not gate on review cap; PR creation owns that limit
 - Server PATCH /api/v1/projects/{project_id} accepts and validates max_in_flight_prs
 - /api/v1/state exposes max_in_flight_prs per project and open_reviews_by_project
 """
@@ -353,12 +352,12 @@ class TestProjectHasOpenReviewCompat:
 
 
 # ---------------------------------------------------------------------------
-# _should_dispatch gating tests
+# _should_dispatch review-cap tests
 # ---------------------------------------------------------------------------
 
 
 class TestShouldDispatchOpenReviewGate:
-    """_should_dispatch() respects the per-project in-flight PR cap."""
+    """_should_dispatch() ignores the per-project in-flight PR cap."""
 
     def _orch_with_reviews(self, tmp_path, project_id: str, n_open: int, cap: int) -> Orchestrator:
         proj = _make_project_mock(project_id, max_in_flight_prs=cap)
@@ -367,24 +366,24 @@ class TestShouldDispatchOpenReviewGate:
         orch._reviews_cache = {project_id: reviews}
         return orch
 
-    # --- Default cap=1 (preserves today's behavior) ---
+    # --- Default cap=1 ---
 
     def test_cap1_zero_open_dispatches(self, tmp_path):
         orch = self._orch_with_reviews(tmp_path, "proj-a", n_open=0, cap=1)
         issue = _make_issue("issue-1", project_id="proj-a")
         assert orch._should_dispatch(issue) is True
 
-    def test_cap1_one_open_rejects(self, tmp_path):
+    def test_cap1_one_open_still_dispatches(self, tmp_path):
         orch = self._orch_with_reviews(tmp_path, "proj-a", n_open=1, cap=1)
         issue = _make_issue("issue-1", project_id="proj-a")
-        assert orch._should_dispatch(issue) is False
+        assert orch._should_dispatch(issue) is True
 
-    def test_cap1_reject_reason_is_new_format(self, tmp_path):
+    def test_cap1_at_limit_does_not_set_reject_reason(self, tmp_path):
         orch = self._orch_with_reviews(tmp_path, "proj-a", n_open=1, cap=1)
         issue = _make_issue("issue-1", project_id="proj-a")
         orch._should_dispatch(issue)
         reason, _ = orch.state.reject_streak.get("issue-1", ("", 0))
-        assert reason == "open_reviews_at_cap=1/1"
+        assert "open_reviews_at_cap" not in reason
 
     # --- Cap=3 at various fill levels ---
 
@@ -403,42 +402,43 @@ class TestShouldDispatchOpenReviewGate:
         issue = _make_issue("issue-2", project_id="proj-b")
         assert orch._should_dispatch(issue) is True
 
-    def test_cap3_three_open_rejects(self, tmp_path):
+    def test_cap3_three_open_still_dispatches(self, tmp_path):
         orch = self._orch_with_reviews(tmp_path, "proj-b", n_open=3, cap=3)
         issue = _make_issue("issue-2", project_id="proj-b")
-        assert orch._should_dispatch(issue) is False
+        assert orch._should_dispatch(issue) is True
 
-    def test_cap3_three_open_reject_reason(self, tmp_path):
+    def test_cap3_three_open_does_not_set_reject_reason(self, tmp_path):
         orch = self._orch_with_reviews(tmp_path, "proj-b", n_open=3, cap=3)
         issue = _make_issue("issue-2", project_id="proj-b")
         orch._should_dispatch(issue)
         reason, _ = orch.state.reject_streak.get("issue-2", ("", 0))
-        assert reason == "open_reviews_at_cap=3/3"
+        assert "open_reviews_at_cap" not in reason
 
-    # --- P0 bypass ---
+    # --- P0 remains allowed ---
 
-    def test_p0_bypasses_cap_at_limit(self, tmp_path):
-        """P0 (priority=0) issues bypass the open review gate entirely."""
+    def test_p0_dispatches_at_limit(self, tmp_path):
+        """P0 (priority=0) issues still dispatch at the open review limit."""
         orch = self._orch_with_reviews(tmp_path, "proj-c", n_open=1, cap=1)
         issue = _make_issue("issue-p0", project_id="proj-c", priority=0)
-        # P0 should not be rejected by the open_review gate
         result = orch._should_dispatch(issue)
         reason = orch.state.reject_streak.get("issue-p0", ("", 0))[0]
+        assert result is True
         assert reason != "open_reviews_at_cap=1/1", (
             f"P0 issue was rejected for open_review reason: {reason!r}"
         )
 
-    def test_p0_bypasses_cap_above_limit(self, tmp_path):
-        """P0 issues bypass even when there are many open reviews."""
+    def test_p0_dispatches_above_limit(self, tmp_path):
+        """P0 issues dispatch even when there are many open reviews."""
         orch = self._orch_with_reviews(tmp_path, "proj-c", n_open=5, cap=3)
         issue = _make_issue("issue-p0b", project_id="proj-c", priority=0)
+        assert orch._should_dispatch(issue) is True
         reason = orch.state.reject_streak.get("issue-p0b", ("", 0))[0]
         assert "open_reviews_at_cap" not in reason
 
     # --- Per-project independence ---
 
-    def test_cap1_on_one_project_does_not_block_other(self, tmp_path):
-        """Reaching cap on proj-a must not affect proj-b dispatch."""
+    def test_cap1_on_one_project_does_not_block_any_dispatch(self, tmp_path):
+        """Reaching cap on proj-a does not block dispatch for either project."""
         proj_a = _make_project_mock("proj-a", max_in_flight_prs=1, name="a")
         proj_b = _make_project_mock("proj-b", max_in_flight_prs=3, name="b")
         orch = _make_orchestrator(tmp_path, projects=[proj_a, proj_b])
@@ -448,11 +448,11 @@ class TestShouldDispatchOpenReviewGate:
         }
         issue_a = _make_issue("issue-a", project_id="proj-a")
         issue_b = _make_issue("issue-b", project_id="proj-b")
-        assert orch._should_dispatch(issue_a) is False  # proj-a at cap
-        assert orch._should_dispatch(issue_b) is True   # proj-b not at cap
+        assert orch._should_dispatch(issue_a) is True
+        assert orch._should_dispatch(issue_b) is True
 
     def test_two_projects_independent_limits(self, tmp_path):
-        """Two projects with different caps behave independently."""
+        """Two projects with different caps both keep dispatching."""
         proj_a = _make_project_mock("proj-a", max_in_flight_prs=1, name="a")
         proj_b = _make_project_mock("proj-b", max_in_flight_prs=2, name="b")
         orch = _make_orchestrator(tmp_path, projects=[proj_a, proj_b])
@@ -462,17 +462,16 @@ class TestShouldDispatchOpenReviewGate:
         }
         issue_a = _make_issue("issue-a", project_id="proj-a")
         issue_b = _make_issue("issue-b", project_id="proj-b")
-        assert orch._should_dispatch(issue_a) is True   # proj-a not at cap
-        assert orch._should_dispatch(issue_b) is False  # proj-b at cap
+        assert orch._should_dispatch(issue_a) is True
+        assert orch._should_dispatch(issue_b) is True
 
     # --- Legacy: no project_id ---
 
     def test_no_project_id_not_gated(self, tmp_path):
-        """Issues with no project_id skip the open review gate entirely."""
+        """Issues with no project_id do not get a review-cap reject reason."""
         orch = _make_orchestrator(tmp_path)
         orch._reviews_cache = {}
         issue = _make_issue("issue-legacy", project_id=None)
-        # Should not be rejected by open_review gate (other gates may apply but not this one)
         result = orch._should_dispatch(issue)
         reason = orch.state.reject_streak.get("issue-legacy", ("", 0))[0]
         assert "open_reviews_at_cap" not in reason

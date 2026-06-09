@@ -3116,6 +3116,15 @@ class Orchestrator:
         except (TypeError, ValueError):
             return 1
 
+    def _project_review_capacity(
+        self,
+        project_id: str | None,
+    ) -> tuple[int, int, bool]:
+        """Return ``(open_reviews, limit, at_capacity)`` for review handoff."""
+        n_open = self._count_open_reviews(project_id)
+        limit = self._project_max_in_flight(project_id)
+        return n_open, limit, n_open >= limit
+
     def _is_project_paused(self, project_id: str | None) -> bool:
         """Return True when the project has been individually paused.
 
@@ -4143,6 +4152,18 @@ class Orchestrator:
             if already_open:
                 continue
 
+            n_open, limit, at_capacity = self._project_review_capacity(project_id)
+            if at_capacity:
+                logger.info(
+                    "Deferred epic PR for %s on %s: project review cap "
+                    "reached (%d/%d)",
+                    issue.identifier,
+                    project.name,
+                    n_open,
+                    limit,
+                )
+                continue
+
             # Push the epic branch from the shared epic worktree (shared
             # mode) or from the project's main repo path (stacked mode —
             # children's PRs already pushed their commits to the epic
@@ -4819,19 +4840,6 @@ class Orchestrator:
                 if self._blocker_has_unmerged_pr(blocker):
                     # Blocker is closed but PR hasn't merged — still blocked
                     return _reject(f"blocker={blocker.id} unmerged_review")
-        # Serialize MR/PR fixes by project: if a project has reached its
-        # configured in-flight PR cap, don't dispatch another agent until an
-        # existing review merges. This prevents multiple simultaneous merges
-        # from conflicting with each other (each merge changes the target branch).
-        # P0 issues bypass this check to ensure critical fixes are never blocked.
-        # The cap defaults to 1 (preserving the original single-in-flight
-        # behavior) and can be raised per-project via Project.max_in_flight_prs
-        # once GitHub Merge Queue is enabled for that repo.
-        if not is_p0:
-            n_open = self._count_open_reviews(issue.project_id)
-            limit = self._project_max_in_flight(issue.project_id)
-            if n_open >= limit:
-                return _reject(f"open_reviews_at_cap={n_open}/{limit}")
         # epic_strategy=='shared' serializes child dispatch within an epic.
         # Multiple children share one worktree+branch and we don't have an
         # in-worktree coordination protocol yet (out of scope per the task),
@@ -5740,6 +5748,20 @@ class Orchestrator:
             return True
         slug = extract_repo_slug(project.repo_url)
 
+        if review_required:
+            n_open, limit, at_capacity = self._project_review_capacity(project_id)
+            if at_capacity:
+                self._defer_review_handoff(
+                    entry,
+                    project_id,
+                    target_branch,
+                    commits_ahead,
+                    commit_lines,
+                    n_open,
+                    limit,
+                )
+                return True
+
         # Create the review
         try:
             title = (
@@ -5823,6 +5845,53 @@ class Orchestrator:
                 exc,
             )
 
+    def _defer_review_handoff(
+        self,
+        entry: RunningEntry,
+        project_id: str | None,
+        target_branch: str,
+        commits_ahead: int,
+        commit_lines: list[str],
+        n_open: int,
+        limit: int,
+    ) -> None:
+        """Leave a completed task closed while PR creation waits for capacity."""
+        logger.info(
+            "Deferred review handoff for %s: project review cap reached (%d/%d)",
+            entry.identifier,
+            n_open,
+            limit,
+        )
+        commit_noun = "commit" if commits_ahead == 1 else "commits"
+        lines = [
+            "Review handoff deferred: the task branch has unmerged work, but "
+            "this project is at its open review limit.",
+            "",
+            f"Branch: `{entry.identifier}`",
+            f"Target branch: `{target_branch}`",
+            f"Unmerged commits: {commits_ahead} {commit_noun}",
+            f"Open reviews: {n_open}/{limit}",
+            "",
+            "oompah will create the review automatically when review capacity "
+            "is available.",
+        ]
+        if commit_lines:
+            lines.extend(["", "Recent commits:"])
+            for line in commit_lines[:10]:
+                lines.append(f"  {line}")
+        try:
+            self._post_comment(
+                entry.identifier,
+                "\n".join(lines),
+                project_id=project_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to post review handoff deferral comment for %s: %s",
+                entry.identifier,
+                exc,
+            )
+
     def _reopen_missing_review(
         self,
         entry: RunningEntry,
@@ -5887,6 +5956,110 @@ class Orchestrator:
         self._label_merged_issues()
         self._label_merged_epics()
         self._reconcile_stale_in_review_tasks()
+        self._open_deferred_done_reviews()
+
+    def _open_deferred_done_reviews(self) -> None:
+        """Retry review handoff for Done tasks when project capacity frees."""
+        merged_branches = getattr(self, "_merged_branches", set()) or set()
+        for project in self.project_store.list_all():
+            project_id = str(project.id)
+            if self._project_review_capacity(project_id)[2]:
+                continue
+            try:
+                tracker = self._tracker_for_project(project_id)
+                issues = tracker.fetch_issues_by_states([DONE])
+            except (ProjectError, TrackerError) as exc:
+                logger.debug(
+                    "Deferred Done review fetch failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            for issue in issues:
+                if self._project_review_capacity(project_id)[2]:
+                    break
+                if not issue.project_id:
+                    issue.project_id = project_id
+                if canonicalize_status(issue.state) != DONE:
+                    continue
+                if (issue.issue_type or "").strip().lower() == "epic":
+                    continue
+                branch = issue.branch_name or issue.identifier
+                if branch and branch in merged_branches:
+                    continue
+                if (
+                    issue.parent_id
+                    and self._epic_rollup_child_strategy(issue, project_id)
+                    == "shared"
+                ):
+                    continue
+                if not self._done_issue_has_unmerged_review_work(
+                    issue,
+                    project,
+                    project_id,
+                ):
+                    continue
+                entry = RunningEntry(
+                    worker_task=None,
+                    identifier=issue.identifier,
+                    issue=issue,
+                    session=None,
+                    retry_attempt=0,
+                    started_at=datetime.now(timezone.utc),
+                    agent_profile_name="maintenance",
+                )
+                self._ensure_review_exists(entry, project_id)
+
+    def _done_issue_has_unmerged_review_work(
+        self,
+        issue: Issue,
+        project: Project,
+        project_id: str,
+    ) -> bool:
+        """Return True when a Done task branch is provably ahead of its base."""
+        branch = issue.branch_name or issue.identifier
+        repo_path = getattr(project, "repo_path", "") or ""
+        if not branch or not repo_path:
+            return False
+
+        target_branch = getattr(project, "default_branch", None) or "main"
+        strategy = self._project_epic_strategy(project_id)
+        parent_epic: Issue | None = None
+        if issue.parent_id and strategy in ("stacked", "shared"):
+            parent_epic = self._resolve_parent_epic(issue)
+        if strategy == "stacked" and parent_epic is not None:
+            target_branch = self.project_store.epic_branch_name(
+                parent_epic.identifier,
+            )
+        elif issue.target_branch:
+            target_branch = issue.target_branch
+
+        try:
+            from oompah.close_gate import _count_commits_ahead
+
+            commits_ahead, _commit_lines, commit_error = _count_commits_ahead(
+                repo_path,
+                target_branch,
+                branch,
+            )
+        except Exception as exc:
+            logger.debug(
+                "Deferred Done review git check failed for %s: %s",
+                issue.identifier,
+                exc,
+            )
+            return False
+        if commit_error:
+            logger.debug(
+                "Deferred Done review skip for %s branch=%s base=%s: %s",
+                issue.identifier,
+                branch,
+                target_branch,
+                commit_error,
+            )
+            return False
+        return commits_ahead > 0
 
     def _maybe_run_merged_labels(self) -> None:
         """Periodically label merged issues/epics and reconcile stale In Review tasks.
@@ -11809,6 +11982,23 @@ class Orchestrator:
                     result.merged_prs,
                 )
             return True
+
+        if (
+            project_id
+            and result.commits_ahead > 0
+            and result.open_prs == 0
+            and result.merged_prs == 0
+        ):
+            n_open, limit, at_capacity = self._project_review_capacity(project_id)
+            if at_capacity:
+                logger.info(
+                    "close_gate: allowing %s with deferred review handoff "
+                    "because project review cap is full (%d/%d)",
+                    entry.identifier,
+                    n_open,
+                    limit,
+                )
+                return True
 
         # REFUSED — post comment, reopen, return False
         try:

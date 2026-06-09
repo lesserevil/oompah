@@ -1597,7 +1597,7 @@ class TestProjectHasOpenReview:
 
 
 class TestDispatchSerializationByProject:
-    """Tests that _should_dispatch gates on open reviews to serialize per project."""
+    """Tests that open reviews no longer serialize agent dispatch."""
 
     def _make_orchestrator(self, tmp_path, projects=None):
         project_store = MagicMock()
@@ -1625,14 +1625,14 @@ class TestDispatchSerializationByProject:
         issue.priority = priority
         return issue
 
-    def test_dispatch_blocked_when_project_has_open_review(self, tmp_path):
-        """An issue in a project with an open review should not be dispatched."""
+    def test_dispatch_allowed_when_project_has_open_review(self, tmp_path):
+        """An issue in a project with an open review can still be dispatched."""
         orch = self._make_orchestrator(tmp_path)
         issue = self._make_project_issue("feat-2", state="open", priority=2)
         # Project already has an open non-draft review
         orch._reviews_cache = {"proj-1": [_make_review("10")]}
 
-        assert orch._should_dispatch(issue) is False
+        assert orch._should_dispatch(issue) is True
 
     def test_dispatch_allowed_when_project_has_no_open_review(self, tmp_path):
         """An issue in a project with no open reviews can be dispatched."""
@@ -1650,11 +1650,11 @@ class TestDispatchSerializationByProject:
 
         assert orch._should_dispatch(issue) is True
 
-    def test_p0_issue_bypasses_open_review_gate(self, tmp_path):
-        """P0 issues bypass the open-review gate to ensure critical fixes are never blocked."""
+    def test_p0_issue_dispatches_with_open_review(self, tmp_path):
+        """P0 issues dispatch when a project has an open review."""
         orch = self._make_orchestrator(tmp_path)
         issue = self._make_project_issue("feat-crit", state="open", priority=0)
-        # Project has an open review, but P0 should bypass the check
+        # Project has an open review, but dispatch is no longer capped by it.
         orch._reviews_cache = {"proj-1": [_make_review("10")]}
 
         assert orch._should_dispatch(issue) is True
@@ -1683,31 +1683,31 @@ class TestProjectHasOpenReview:
         return orch
 
     def test_no_project_id_returns_false(self, tmp_path):
-        """Issues without a project_id never block on open reviews."""
+        """Issues without a project_id are never at review capacity."""
         orch = self._make_orchestrator(tmp_path)
         orch._reviews_cache = {"proj-1": [_make_review("1", "feat-1", ci_status="passed")]}
         assert orch._project_has_open_review(None) is False
 
     def test_no_reviews_cache_returns_false(self, tmp_path):
-        """If the reviews cache is absent (before first tick), don't block."""
+        """If the reviews cache is absent, capacity is not full."""
         orch = self._make_orchestrator(tmp_path)
         # _reviews_cache not set — should fall back gracefully
         assert orch._project_has_open_review("proj-1") is False
 
     def test_empty_project_reviews_returns_false(self, tmp_path):
-        """A project with no open reviews allows dispatch."""
+        """A project with no open reviews is below capacity."""
         orch = self._make_orchestrator(tmp_path)
         orch._reviews_cache = {"proj-1": []}
         assert orch._project_has_open_review("proj-1") is False
 
     def test_unknown_project_returns_false(self, tmp_path):
-        """A project not in the reviews cache allows dispatch."""
+        """A project not in the reviews cache is below capacity."""
         orch = self._make_orchestrator(tmp_path)
         orch._reviews_cache = {"proj-2": [_make_review("1", "feat-1", ci_status="passed")]}
         assert orch._project_has_open_review("proj-1") is False
 
     def test_one_open_review_returns_true(self, tmp_path):
-        """A project with one open non-draft review blocks dispatch."""
+        """A project with one open non-draft review is at the default cap."""
         orch = self._make_orchestrator(tmp_path)
         orch._reviews_cache = {
             "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
@@ -1735,7 +1735,7 @@ class TestProjectHasOpenReview:
 
 
 class TestDispatchSerializationByProject:
-    """Tests that _should_dispatch gates new work on projects with open reviews."""
+    """Tests that open reviews no longer gate new work dispatch."""
 
     def _make_orchestrator(self, tmp_path, projects=None):
         project_store = MagicMock()
@@ -1763,14 +1763,14 @@ class TestDispatchSerializationByProject:
             priority=priority,
         )
 
-    def test_open_review_blocks_dispatch(self, tmp_path):
-        """When a project has an open PR, new issues for that project are not dispatched."""
+    def test_open_review_allows_dispatch(self, tmp_path):
+        """When a project has an open PR, new issues still dispatch."""
         orch = self._make_orchestrator(tmp_path)
         issue = self._make_project_issue("feat-2", project_id="proj-1", state="open")
         orch._reviews_cache = {
             "proj-1": [_make_review("1", "feat-1", ci_status="passed")]
         }
-        assert orch._should_dispatch(issue) is False
+        assert orch._should_dispatch(issue) is True
 
     def test_no_reviews_allows_dispatch(self, tmp_path):
         """When a project has no open PRs, dispatch proceeds normally."""
@@ -1789,8 +1789,8 @@ class TestDispatchSerializationByProject:
         }
         assert orch._should_dispatch(issue) is True
 
-    def test_p0_issue_bypasses_review_gate(self, tmp_path):
-        """P0 issues are never blocked by the open-review gate."""
+    def test_p0_issue_dispatches_with_open_review(self, tmp_path):
+        """P0 issues dispatch when a project has an open review."""
         orch = self._make_orchestrator(tmp_path)
         issue = self._make_project_issue("feat-2", project_id="proj-1",
                                           state="open", priority=0)

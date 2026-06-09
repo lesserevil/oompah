@@ -178,13 +178,13 @@ def _project_max_in_flight(self, project_id: str | None) -> int:
     return max(1, project.max_in_flight_prs)
 ```
 
-Dispatch check (in `_should_dispatch`):
+Review handoff check (during PR/MR creation):
 
 ```python
-n_open = self._count_open_reviews(issue.project_id)
-limit = self._project_max_in_flight(issue.project_id)
-if not is_p0 and n_open >= limit:
-    return _reject(f"open_reviews_at_cap={n_open}/{limit}")
+n_open, limit, at_capacity = self._project_review_capacity(project_id)
+if at_capacity:
+    defer_review_handoff()
+    return True
 ```
 
 The old `_project_has_open_review` is retained as a thin compat
@@ -193,7 +193,7 @@ wrapper: `return self._count_open_reviews(pid) >= self._project_max_in_flight(pi
 Configuration surface:
 
 - Per-project field `Project.max_in_flight_prs: int = 1` (default
-  preserves current single-in-flight behavior).
+  preserves current single-review-handoff behavior).
 - Editable via the Projects management UI (`/projects-manage`) and
   the `PATCH /api/v1/projects/{project_id}` endpoint.
 - The `/api/v1/state` response includes `max_in_flight_prs` per project

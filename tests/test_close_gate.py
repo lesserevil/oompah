@@ -693,6 +693,47 @@ class TestOrchestratorCloseGateWiring:
         update_call = mock_tracker.update_issue.call_args
         assert update_call.kwargs.get("status") == "Open"
 
+    def test_gate_refusal_allowed_when_review_cap_is_full(self, tmp_path):
+        """Unmerged work without a PR can stay closed while PR capacity is full."""
+        orch = _make_orch(tmp_path, close_gate_enabled=True)
+        issue = _make_issue(project_id="proj-1")
+
+        mock_project = MagicMock()
+        mock_project.repo_path = "/tmp/myrepo"
+        mock_project.default_branch = "main"
+        mock_project.repo_url = "https://github.com/myorg/myrepo.git"
+        mock_project.access_token = "gh_tok"
+        mock_project.max_in_flight_prs = 1
+        orch.project_store.get = MagicMock(return_value=mock_project)
+
+        existing_review = MagicMock()
+        existing_review.draft = False
+        orch._reviews_cache = {"proj-1": [existing_review]}
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+
+        entry = _make_entry(issue)
+        current = _closed_issue(issue.identifier)
+        refused = CloseGateResult(
+            allowed=False,
+            commits_ahead=2,
+            open_prs=0,
+            merged_prs=0,
+            commit_lines=["abc fix"],
+        )
+        with (
+            patch("oompah.close_gate.check_close_gate") as mock_check,
+            patch("oompah.close_gate.build_refusal_comment") as mock_comment,
+        ):
+            mock_check.return_value = refused
+            result = orch._run_close_gate(entry, current, "proj-1")
+
+        assert result is True
+        mock_comment.assert_not_called()
+        orch._post_comment.assert_not_called()
+        tracker.update_issue.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Unit tests for _count_commits_ahead

@@ -19,7 +19,7 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
-from oompah.statuses import IN_REVIEW, OPEN
+from oompah.statuses import DONE, IN_REVIEW, OPEN
 
 
 # --------------------------------------------------------------------- helpers
@@ -438,7 +438,7 @@ class TestSharedModeDispatchGating:
         assert "epic_branch_done" in reason
 
     def test_flat_mode_allows_multiple_children_of_same_epic(self, tmp_path):
-        """Flat mode → no per-epic serial cap, only the global PR cap applies."""
+        """Flat mode has no per-epic serial cap."""
         proj = _make_project_record(epic_strategy="flat")
         # Allow multiple PRs in flight at once
         proj.max_in_flight_prs = 5
@@ -817,6 +817,49 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         comment = orch._post_comment.call_args.args[1]
         assert "Review handoff failed" in comment
         assert "Unmerged commits: 2 commits" in comment
+
+    def test_defers_review_creation_when_project_at_review_cap(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        proj.max_in_flight_prs = 1
+        orch = _make_orch(tmp_path, projects=[proj])
+        existing_review = MagicMock()
+        existing_review.source_branch = "other-task"
+        existing_review.draft = False
+        orch._reviews_cache = {"proj-1": [existing_review]}
+
+        provider = MagicMock()
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+
+        issue = _make_issue(identifier="task-1", project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(2, ["abc123 feature"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        provider.create_review.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        orch._post_comment.assert_called_once()
+        comment = orch._post_comment.call_args.args[1]
+        assert "Review handoff deferred" in comment
+        assert "Open reviews: 1/1" in comment
 
     def test_existing_review_marks_task_in_review(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
@@ -1351,6 +1394,30 @@ class TestOpenEpicMainPrs:
         provider.create_review.assert_not_called()
         push.assert_not_called()
 
+    def test_defers_epic_pr_when_project_at_review_cap(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="stacked")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        existing_review = MagicMock()
+        existing_review.source_branch = "other-task"
+        existing_review.draft = False
+        orch._reviews_cache = {"proj-1": [existing_review]}
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="open"
+        )
+        child = _make_issue(state="closed")
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 0
+        provider.create_review.assert_not_called()
+        push.assert_not_called()
+
     def test_skips_when_provider_unavailable(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
         epic = _make_issue(
@@ -1432,6 +1499,86 @@ class TestOpenEpicMainPrs:
             opened = orch._open_epic_main_prs([epic])
         assert opened == 1
         provider.create_review.assert_called_once()
+
+
+class TestDeferredDoneReviews:
+    def test_done_task_review_handoff_retried_when_capacity_available(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        issue = _make_issue(identifier="task-1", state=DONE, project_id=None)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        with patch(
+            "oompah.close_gate._count_commits_ahead",
+            return_value=(1, ["abc123 feature"], ""),
+        ):
+            orch._open_deferred_done_reviews()
+
+        tracker.fetch_issues_by_states.assert_called_once_with([DONE])
+        orch._ensure_review_exists.assert_called_once()
+        entry, project_id = orch._ensure_review_exists.call_args.args
+        assert project_id == "proj-1"
+        assert entry.identifier == "task-1"
+        assert entry.issue.project_id == "proj-1"
+        assert entry.agent_profile_name == "maintenance"
+
+    def test_done_task_review_handoff_skips_project_at_capacity(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        proj.max_in_flight_prs = 1
+        orch = _make_orch(tmp_path, projects=[proj])
+        existing_review = MagicMock()
+        existing_review.draft = False
+        orch._reviews_cache = {"proj-1": [existing_review]}
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        orch._open_deferred_done_reviews()
+
+        tracker.fetch_issues_by_states.assert_not_called()
+        orch._ensure_review_exists.assert_not_called()
+
+    def test_done_task_review_handoff_skips_shared_epic_child(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        issue = _make_issue(
+            identifier="task-1",
+            state=DONE,
+            parent_id="epic-1",
+            project_id="proj-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        with patch.object(orch, "_epic_rollup_child_strategy", return_value="shared"):
+            orch._open_deferred_done_reviews()
+
+        orch._ensure_review_exists.assert_not_called()
+
+    def test_done_task_review_handoff_skips_when_branch_check_fails(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        issue = _make_issue(identifier="task-1", state=DONE, project_id="proj-1")
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        with patch(
+            "oompah.close_gate._count_commits_ahead",
+            return_value=(0, [], "unknown revision"),
+        ):
+            orch._open_deferred_done_reviews()
+
+        orch._ensure_review_exists.assert_not_called()
 
 
 class TestPushEpicBranch:

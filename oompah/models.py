@@ -245,9 +245,10 @@ class Project:
     # project, updated every time a forge webhook (GitHub/GitLab) is received.
     last_webhook_received_at: datetime | None = None
     # Maximum number of concurrent open (non-draft) PRs/MRs allowed for this
-    # project before dispatch is held. Default 1 preserves the original
-    # single-in-flight behavior. Raise per-project once GitHub Merge Queue
-    # (Step 5) is enabled and verified for that repo.
+    # project before new review handoffs are deferred. Dispatch can continue
+    # while this limit is full. Default 1 preserves the original
+    # single-review-handoff behavior. Raise per-project once GitHub Merge
+    # Queue is enabled and verified for that repo.
     max_in_flight_prs: int = 1
     # When True, YOLO auto-merge calls enable_auto_merge (GitHub merge queue)
     # instead of directly merging the PR.  Default False preserves today's
