@@ -795,6 +795,18 @@ def _http_post(
                 f"HTTP {exc.code} from {url}: {error_body}",
                 status_code=exc.code,
             ) from exc
+        # 404 from litellm's model router: "litellm.NotFoundError ...
+        # Received Model Group=..." means the model is not (yet)
+        # registered in the routing table.  This can happen transiently
+        # during model deployment or planned maintenance.  Treat as
+        # transient so the in-session retry loop can recover, and so
+        # run_task logs at WARNING instead of ERROR (avoiding spurious
+        # error_watcher bug tasks for infrastructure blips).
+        if exc.code == 404 and _is_litellm_not_found_error(error_body):
+            raise TransientServerError(
+                f"HTTP {exc.code} from {url}: {error_body}",
+                status_code=exc.code,
+            ) from exc
         # All other 4xx: permanent client failure — do not retry.
         raise RuntimeError(f"HTTP {exc.code} from {url}: {error_body}") from exc
     except urllib.error.URLError as exc:
@@ -903,6 +915,34 @@ def _is_context_window_error(error_body: str) -> bool:
     the request because ``input_tokens + max_tokens > context_window``.
     """
     return any(phrase in error_body for phrase in _CONTEXT_WINDOW_INDICATORS)
+
+
+# Phrases that together uniquely identify a litellm model-router "not found"
+# response.  Both must be present.  These appear in the JSON error body when
+# the model group is not registered in litellm's routing table, which can
+# happen transiently during model deployment or maintenance:
+#
+#   {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException
+#       - . Received Model Group=nvidia/nvidia/nemotron-3-ultra\n
+#       Available Model Group Fallbacks=None","code":"404"}}
+#
+# TASK-471
+_LITELLM_NOT_FOUND_INDICATORS: tuple[str, ...] = (
+    "litellm.NotFoundError",
+    "Received Model Group=",
+)
+
+
+def _is_litellm_not_found_error(error_body: str) -> bool:
+    """Return True when *error_body* describes a litellm model-router not-found error.
+
+    HTTP 404 responses from the NVIDIA inference API that contain both
+    ``"litellm.NotFoundError"`` and ``"Received Model Group="`` mean that
+    the model is not (yet) registered in litellm's routing table.  This
+    can happen transiently during model deployment or maintenance, so these
+    should be retried rather than treated as permanent failures.
+    """
+    return all(phrase in error_body for phrase in _LITELLM_NOT_FOUND_INDICATORS)
 
 
 def _prune_messages_to_fit(
