@@ -762,6 +762,55 @@
     .cred-error-banner .cred-error-list li {
       padding: 0.1rem 0;
     }
+    .alerts-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.6rem 1.5rem;
+      background: rgba(210, 153, 34, 0.12);
+      border-bottom: 1px solid rgba(210, 153, 34, 0.4);
+      flex-shrink: 0;
+    }
+    .alerts-banner[hidden] { display: none; }
+    .alerts-banner .alerts-icon {
+      font-size: 1rem;
+      color: var(--yellow);
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .alerts-banner .alerts-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .alerts-banner .alerts-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 0.25rem;
+    }
+    .alerts-banner .alerts-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--text);
+    }
+    .alerts-banner .alert-title {
+      font-weight: 700;
+      color: var(--text);
+    }
+    .alerts-banner .alert-detail,
+    .alerts-banner .alert-action,
+    .alerts-banner .alert-source {
+      margin-top: 0.1rem;
+      color: var(--text-muted);
+      overflow-wrap: anywhere;
+    }
+    .alerts-banner .alert-action {
+      color: var(--text);
+    }
     .running-agents {
       display: flex;
       gap: 0.4rem;
@@ -1576,6 +1625,14 @@
       <ul class="cred-error-list" id="cred-error-list"></ul>
     </div>
   </div>
+  <div class="alerts-banner" id="alerts-banner" hidden
+       role="status" aria-live="polite" aria-label="Oompah alerts">
+    <span class="alerts-icon" aria-hidden="true">&#9888;</span>
+    <div class="alerts-body">
+      <div class="alerts-title">Oompah alerts</div>
+      <ul class="alerts-list" id="alerts-list"></ul>
+    </div>
+  </div>
   <div class="main-area">
     <div class="board" id="board">
       <div id="board-spinner" style="display:flex;align-items:center;justify-content:center;width:100%;padding:3rem;color:var(--text-muted);font-size:0.9rem;gap:0.75rem;">
@@ -1766,6 +1823,42 @@ function renderRunningAgentChips(running, paused) {
   }
 }
 
+function alertPrimaryText(alert) {
+  if (!alert) return 'Oompah alert';
+  return alert.title || alert.message || 'Oompah alert';
+}
+
+function alertDetailText(alert) {
+  if (!alert) return '';
+  return alert.detail || alert.explanation || '';
+}
+
+function alertActionText(alert) {
+  if (!alert) return '';
+  return alert.action || alert.remediation || '';
+}
+
+function renderAlertSummary(alert) {
+  const title = alertPrimaryText(alert);
+  const detail = alertDetailText(alert);
+  const action = alertActionText(alert);
+  const tooltip = [title, detail, action].filter(Boolean).join('\n\n');
+  return '<span title="' + esc(tooltip) + '">&#9888; ' + esc(title) + '</span>';
+}
+
+function renderAlertItem(alert) {
+  const title = alertPrimaryText(alert);
+  const detail = alertDetailText(alert);
+  const action = alertActionText(alert);
+  const source = alert && alert.source ? String(alert.source) : '';
+  return '<li class="alert-item">' +
+    '<div class="alert-title">' + esc(title) + '</div>' +
+    (detail ? '<div class="alert-detail">' + esc(detail) + '</div>' : '') +
+    (action ? '<div class="alert-action">Action: ' + esc(action) + '</div>' : '') +
+    (source ? '<div class="alert-source">Source: ' + esc(source) + '</div>' : '') +
+    '</li>';
+}
+
 function handleStateUpdate(state) {
   // Update pause state
   orchPaused = state.paused || false;
@@ -1790,10 +1883,20 @@ function handleStateUpdate(state) {
   });
   if (otherAlerts.length > 0) {
     warningsEl.innerHTML = otherAlerts.map(function(a) {
-      return '<span>&#9888; ' + esc(a.message) + '</span>';
+      return renderAlertSummary(a);
     }).join(' &middot; ');
   } else {
     warningsEl.textContent = '';
+  }
+
+  const alertsBanner = document.getElementById('alerts-banner');
+  const alertsList = document.getElementById('alerts-list');
+  if (otherAlerts.length > 0) {
+    alertsList.innerHTML = otherAlerts.map(renderAlertItem).join('');
+    alertsBanner.hidden = false;
+  } else {
+    alertsBanner.hidden = true;
+    alertsList.innerHTML = '';
   }
 
   // Render credential-error banner above the board.

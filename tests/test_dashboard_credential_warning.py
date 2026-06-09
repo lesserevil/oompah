@@ -13,6 +13,8 @@ Acceptance criteria verified here:
 - handleStateUpdate() hides the banner when there are no cred_error alerts
 - The banner renders alert messages using the esc() sanitiser (XSS safety)
 - Non-cred-error alerts are still rendered in the agent-bar warnings span
+- Non-credential alerts are also rendered in a dedicated banner with title,
+  detail, action, and source context when provided
 """
 
 from __future__ import annotations
@@ -78,6 +80,16 @@ def script(html: str) -> str:
 @pytest.fixture(scope="module")
 def handle_state_body(script: str) -> str:
     return _get_func_body(script, "handleStateUpdate")
+
+
+@pytest.fixture(scope="module")
+def render_alert_item_body(script: str) -> str:
+    return _get_func_body(script, "renderAlertItem")
+
+
+@pytest.fixture(scope="module")
+def render_alert_summary_body(script: str) -> str:
+    return _get_func_body(script, "renderAlertSummary")
 
 
 # ===========================================================================
@@ -253,3 +265,106 @@ class TestHandleStateUpdateCredentialBanner:
             r"otherAlerts|other_alerts",
             handle_state_body,
         ), "must have a separate variable for non-credential alerts rendered in agent bar"
+
+
+# ===========================================================================
+# 4. JavaScript — explanatory alert banner for non-credential alerts
+# ===========================================================================
+
+
+class TestGenericAlertBannerHTML:
+    """Non-credential alerts must have a visible explanatory banner."""
+
+    def test_alerts_banner_element_exists(self, html: str):
+        assert 'id="alerts-banner"' in html, (
+            "dashboard must contain element with id='alerts-banner'"
+        )
+
+    def test_alerts_banner_is_hidden_by_default(self, html: str):
+        match = re.search(r'id="alerts-banner"[^>]*>', html)
+        assert match, "alerts-banner element not found"
+        assert "hidden" in match.group(0), (
+            "alerts-banner must have 'hidden' so it starts invisible"
+        )
+
+    def test_alerts_banner_has_status_region(self, html: str):
+        match = re.search(r'id="alerts-banner"[^>]*>', html)
+        assert match, "alerts-banner element not found"
+        tag_str = match.group(0)
+        assert 'role="status"' in tag_str
+        assert "aria-live" in tag_str
+        assert "aria-label" in tag_str
+
+    def test_alerts_list_element_exists(self, html: str):
+        assert 'id="alerts-list"' in html, (
+            "dashboard must contain a list with id='alerts-list'"
+        )
+
+
+class TestHandleStateUpdateGenericAlertBanner:
+    """handleStateUpdate() must show explanatory fields for other alerts."""
+
+    def test_references_alert_banner_elements(self, handle_state_body: str):
+        assert re.search(
+            r"getElementById\(['\"]alerts-banner['\"]\)",
+            handle_state_body,
+        ), "must get alerts-banner by id"
+        assert re.search(
+            r"getElementById\(['\"]alerts-list['\"]\)",
+            handle_state_body,
+        ), "must get alerts-list by id"
+
+    def test_shows_alert_banner_when_other_alerts_present(
+        self, handle_state_body: str
+    ):
+        assert re.search(
+            r"alertsBanner\.hidden\s*=\s*false",
+            handle_state_body,
+        ), "must show alerts-banner when non-credential alerts are present"
+
+    def test_hides_alert_banner_when_no_other_alerts(self, handle_state_body: str):
+        assert re.search(
+            r"alertsBanner\.hidden\s*=\s*true",
+            handle_state_body,
+        ), "must hide alerts-banner when no non-credential alerts are present"
+
+    def test_renders_alert_items_into_alerts_list(self, handle_state_body: str):
+        assert "renderAlertItem" in handle_state_body
+        assert "alertsList.innerHTML" in handle_state_body
+
+    def test_agent_bar_uses_explanatory_alert_summary(
+        self, handle_state_body: str
+    ):
+        assert "renderAlertSummary" in handle_state_body
+
+
+class TestGenericAlertRenderingHelpers:
+    """Alert rendering helpers must use every explanatory field safely."""
+
+    def test_summary_uses_title_detail_and_action(
+        self, render_alert_summary_body: str
+    ):
+        assert "alertPrimaryText(alert)" in render_alert_summary_body
+        assert "alertDetailText(alert)" in render_alert_summary_body
+        assert "alertActionText(alert)" in render_alert_summary_body
+        assert "tooltip" in render_alert_summary_body
+
+    def test_item_renders_title_detail_action_and_source(
+        self, render_alert_item_body: str
+    ):
+        assert "alertPrimaryText(alert)" in render_alert_item_body
+        assert "alertDetailText(alert)" in render_alert_item_body
+        assert "alertActionText(alert)" in render_alert_item_body
+        assert "alert.source" in render_alert_item_body
+        assert "alert-title" in render_alert_item_body
+        assert "alert-detail" in render_alert_item_body
+        assert "alert-action" in render_alert_item_body
+        assert "alert-source" in render_alert_item_body
+
+    def test_item_escapes_all_rendered_alert_fields(
+        self, render_alert_item_body: str
+    ):
+        assert "esc(title)" in render_alert_item_body
+        assert "esc(detail)" in render_alert_item_body
+        assert "esc(action)" in render_alert_item_body
+        assert "esc(source)" in render_alert_item_body

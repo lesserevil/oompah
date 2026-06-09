@@ -3101,9 +3101,8 @@ class Orchestrator:
 
         The alert is keyed on ``source='epic_stale:<epic_identifier>'``.
         """
-        from oompah.epic_staleness import StalenessResult
-
         source = f"epic_stale:{epic.identifier}"
+        target_branch = project.default_branch or "main"
 
         # Drop existing alert for this epic (if any)
         self._alerts = [
@@ -3117,21 +3116,50 @@ class Orchestrator:
                 files += f" (+{len(result.shared_files) - 10} more)"
             shared_files_hint = f"\n\nOverlapping files: {files}"
 
+        title = (
+            f"Epic {epic.identifier} on {project.name} "
+            f"is {result.commits_behind} commits behind "
+            f"{target_branch}"
+        )
+        detail = (
+            f"The epic branch for {epic.identifier} is "
+            f"{result.commits_behind} commits behind "
+            f"the target branch (threshold: "
+            f"{result.threshold}).{shared_files_hint}"
+        )
+        rebase_state = self._get_epic_rebase_state(epic.identifier)
+        if rebase_state == EpicRebaseState.FAILED:
+            action = (
+                "Oompah already filed a rebase task for this epic, but the "
+                "last rebase run failed. Open the epic's rebase child task "
+                "and finish or retry the rebase; this alert clears after "
+                "the epic branch catches up."
+            )
+        elif rebase_state == EpicRebaseState.REBASING:
+            action = (
+                "Oompah has a rebase task in flight or queued for this epic. "
+                "This alert clears after the epic branch catches up."
+            )
+        else:
+            action = (
+                "Oompah will file a high-priority rebase task for this epic "
+                "and reuse any open rebase child task. This alert clears "
+                "after the epic branch catches up."
+            )
+
         self._alerts.append(
             {
                 "source": source,
                 "level": "warning",
-                "title": (
-                    f"Epic {epic.identifier} on {project.name} "
-                    f"is {result.commits_behind} commits behind "
-                    f"{project.default_branch or 'main'}"
-                ),
-                "detail": (
-                    f"The epic branch for {epic.identifier} is "
-                    f"{result.commits_behind} commits behind "
-                    f"the target branch (threshold: "
-                    f"{result.threshold}).{shared_files_hint}"
-                ),
+                "title": title,
+                "message": f"{title}. {action}",
+                "detail": detail,
+                "action": action,
+                "epic_identifier": epic.identifier,
+                "project_id": epic.project_id,
+                "project_name": project.name,
+                "target_branch": target_branch,
+                "commits_behind": result.commits_behind,
             }
         )
         logger.info(

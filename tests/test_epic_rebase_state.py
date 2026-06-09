@@ -23,6 +23,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from oompah.config import ServiceConfig
+from oompah.epic_staleness import StalenessResult
 from oompah.models import EpicRebaseState, EpicRebaseStateEntry, Issue
 from oompah.orchestrator import Orchestrator
 
@@ -60,6 +61,17 @@ def _make_orchestrator(tmp_path, **kwargs):
         **kwargs,
     )
     return orch
+
+
+def _make_project():
+    return type(
+        "ProjectStub",
+        (),
+        {
+            "name": "oompah",
+            "default_branch": "main",
+        },
+    )()
 
 
 # ---------------------------------------------------------------------------
@@ -391,3 +403,64 @@ class TestSnapshot:
         assert "epic_rebase_states" in snapshot
         assert snapshot["epic_rebase_states"]["epic-1"]["state"] == "rebasing"
         assert snapshot["epic_rebase_states"]["epic-1"]["updated_at"] == 1234.0
+
+
+# ---------------------------------------------------------------------------
+# Epic stale alert explanation
+# ---------------------------------------------------------------------------
+
+
+class TestEpicStaleAlert:
+    def test_includes_detail_action_and_message(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        issue = _make_issue("TASK-465")
+        result = StalenessResult(
+            stale=True,
+            commits_behind=6,
+            shared_files=("oompah/orchestrator.py",),
+            threshold=5,
+        )
+
+        orch._arm_epic_stale_alert(issue, _make_project(), result)
+
+        alerts = [
+            a for a in orch._alerts
+            if a.get("source") == "epic_stale:TASK-465"
+        ]
+        assert len(alerts) == 1
+        alert = alerts[0]
+        assert alert["title"] == "Epic TASK-465 on oompah is 6 commits behind main"
+        assert "threshold: 5" in alert["detail"]
+        assert "Overlapping files: oompah/orchestrator.py" in alert["detail"]
+        assert "Oompah will file a high-priority rebase task" in alert["action"]
+        assert alert["message"] == f"{alert['title']}. {alert['action']}"
+        assert alert["epic_identifier"] == "TASK-465"
+        assert alert["project_id"] == "proj-1"
+        assert alert["project_name"] == "oompah"
+        assert alert["target_branch"] == "main"
+        assert alert["commits_behind"] == 6
+
+    def test_failed_rebase_state_explains_failed_run(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch._epic_rebase_states["TASK-465"] = EpicRebaseStateEntry(
+            state="failed",
+            updated_at=time.time(),
+            project_id="proj-1",
+        )
+        issue = _make_issue("TASK-465")
+        result = StalenessResult(
+            stale=True,
+            commits_behind=6,
+            shared_files=(),
+            threshold=5,
+        )
+
+        orch._arm_epic_stale_alert(issue, _make_project(), result)
+
+        alert = next(
+            a for a in orch._alerts
+            if a.get("source") == "epic_stale:TASK-465"
+        )
+        assert "last rebase run failed" in alert["action"]
+        assert "finish or retry the rebase" in alert["action"]
+        assert alert["message"] == f"{alert['title']}. {alert['action']}"
