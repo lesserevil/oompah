@@ -89,8 +89,8 @@ because the app holds shared in-process state (`_orchestrator`, `_ws_clients`).
    harness).
 6. `granian` is not in `pyproject.toml`/lockfile; no `make` target; docs not
    updated.
-7. Go/no-go: benchmark in a representative environment before flipping the
-   default.
+7. ✅ Go/no-go: representative benchmark complete (TASK-472.8). Decision:
+   NO-GO — granian stays opt-in. See `plans/granian-benchmark-results.md`.
 
 ## Complementary track: event-loop contention (Epic B)
 
@@ -107,6 +107,30 @@ Independent of server choice and the bigger lever:
 
 ## Decision gate
 
-Adopt Granian as the default only after Epic A hardening + a representative
-benchmark. Until then it ships behind `--server granian` (opt-in) with uvicorn
-as the default.
+**Status (TASK-472.8, 2026-06-09): NO-GO. Benchmark complete; granian remains opt-in.**
+
+Benchmark numbers (representative mixed workload — 60% /api/v1/state, 30% /,
+10% /favicon.ico; uvicorn 0.41.0 vs granian 2.7.5; AMD Ryzen Threadripper
+3970X; Python 3.12.12):
+
+| concurrency | granian rps delta | granian p99 delta |
+|-------------|-------------------|-------------------|
+| 10 clients  | -1.1% (noise)     | -1.0% (noise)     |
+| 20 clients  | +2.1%             | -11.8%            |
+
+The isolated micro-benchmark (route `/`, in-memory HTML) in §Background showed
++22–25%; under a realistic mixed workload the gain collapses to noise at low
+concurrency and +2% at higher concurrency. The p99 tail improves by ~12% at 20
+concurrent clients — the only meaningful win. Full analysis in
+`plans/granian-benchmark-results.md`.
+
+**Go/no-go decision: NO-GO.** Reasons:
+1. HTTP is not oompah's bottleneck (LLM/orchestrator dominates latency).
+2. Granian multi-worker cannot be used while shared in-process state exists.
+3. TASK-472.1–472.7 hardening prerequisites remain open.
+4. Risk/reward ratio unfavourable for a default change at this time.
+
+Adopt Granian as the default only after Epic TASK-472 hardening AND Epic
+TASK-473 event-loop contention work are complete. Re-run this benchmark against
+the real production app (not the synthetic test app) at that point. Until then
+it ships behind `--server granian` (opt-in) with uvicorn as the default.
