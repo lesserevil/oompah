@@ -1,10 +1,10 @@
 ---
 id: TASK-454.4
 title: Define release-pick metadata schema and status lifecycle
-status: In Progress
+status: Open
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 18:22'
+updated_date: '2026-06-08 22:50'
 labels:
   - task
 dependencies:
