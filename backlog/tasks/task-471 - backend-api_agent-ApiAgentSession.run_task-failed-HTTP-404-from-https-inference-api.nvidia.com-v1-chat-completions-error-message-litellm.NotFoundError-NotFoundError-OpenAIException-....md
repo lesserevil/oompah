@@ -131,3 +131,9 @@ created: 2026-06-09 20:01
 Duplicate investigation (run #3): Confirmed no duplicate exists. TASK-471 is the only task with HTTP 404 litellm.NotFoundError from inference-api.nvidia.com (other similar tasks are HTTP 400 BadRequestError, a different error path). The fix from run #1 (commit 1da9020) is valid — treating litellm 404 NotFoundError as transient integrates with the retry loop so model-routing blips no longer create spurious error_watcher tasks. Task remains Done.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+duplicate-investigator-run-3: Not a duplicate. Fix already applied in commit 1da9020 — litellm HTTP 404 NotFoundError is now treated as transient, integrating with the retry loop to prevent spurious error_watcher tasks.
+<!-- SECTION:FINAL_SUMMARY:END -->
