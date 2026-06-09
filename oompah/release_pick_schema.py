@@ -259,6 +259,10 @@ class BackportEntry:
     status: ReleasePick = ReleasePick.WAITING
     task_id: str | None = None
     pr_url: str | None = None
+    #: Resolved commit SHAs to cherry-pick (set by release_pick_commit_resolver).
+    #: When populated, the cherry-pick step uses these directly; when empty the
+    #: resolver must derive them from the source PR or branch.
+    commits: list[str] = field(default_factory=list)
 
     def to_raw(self) -> str | dict[str, Any]:
         """Serialise to the canonical Backlog.md frontmatter form.
@@ -271,6 +275,7 @@ class BackportEntry:
             self.status == ReleasePick.WAITING
             and self.task_id is None
             and self.pr_url is None
+            and not self.commits
         ):
             return self.branch
         out: dict[str, Any] = {"branch": self.branch, "status": self.status.value}
@@ -278,6 +283,8 @@ class BackportEntry:
             out["task_id"] = self.task_id
         if self.pr_url is not None:
             out["pr_url"] = self.pr_url
+        if self.commits:
+            out["commits"] = list(self.commits)
         return out
 
     @classmethod
@@ -287,7 +294,7 @@ class BackportEntry:
         Accepts:
         * A plain string (branch name, status defaults to ``waiting``).
         * A mapping with ``branch`` key and optional ``status``, ``task_id``,
-          ``pr_url`` fields.
+          ``pr_url``, ``commits`` fields.
 
         Args:
             raw: Raw value from Backlog frontmatter.
@@ -312,11 +319,16 @@ class BackportEntry:
                 raise ValueError(
                     f"BackportEntry dict missing required 'branch' key: {raw!r}"
                 )
+            raw_commits = raw.get("commits") or []
+            if isinstance(raw_commits, str):
+                raw_commits = [raw_commits]
+            commits = [str(c).strip() for c in raw_commits if str(c).strip()]
             return cls(
                 branch=branch,
                 status=ReleasePick.from_raw(raw.get("status")),
                 task_id=str(raw["task_id"]) if raw.get("task_id") else None,
                 pr_url=str(raw["pr_url"]) if raw.get("pr_url") else None,
+                commits=commits,
             )
 
         raise ValueError(

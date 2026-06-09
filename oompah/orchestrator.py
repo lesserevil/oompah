@@ -1980,6 +1980,7 @@ class Orchestrator:
             self._label_merged_issues()
             self._label_merged_epics()
             self._reconcile_stale_in_review_tasks()
+            self._reconcile_release_picks_pass()
             return (time.monotonic() - t) * 1000
 
         yolo_ms, archive_ms, merged_ms = await asyncio.gather(
@@ -5182,6 +5183,73 @@ class Orchestrator:
                 issue.identifier,
                 exc,
             )
+
+    def _reconcile_release_picks_pass(self) -> None:
+        """Run the release-pick reconciliation pass across all projects.
+
+        Calls :func:`~oompah.release_pick_reconciler.reconcile_release_picks`
+        for every configured project, passing the project store so that
+        target-branch worktrees are created alongside child backport tasks,
+        and passing the SCM provider and repo slug so that cherry-pick
+        commits can be applied, pushed, and turned into PRs.
+
+        Results are logged at INFO when any entries were advanced or child
+        tasks created.
+
+        This method is intentionally best-effort: exceptions from individual
+        projects are caught and logged at DEBUG level so a single broken
+        project never prevents reconciliation for the others.  When no
+        projects are configured (legacy single-tracker mode), the pass is
+        skipped — the release-pick feature requires per-project configuration.
+        """
+        from oompah.release_pick_reconciler import reconcile_release_picks
+        from oompah.scm import detect_provider, extract_repo_slug
+
+        for project in self.project_store.list_all():
+            try:
+                tracker = self._tracker_for_project(str(project.id))
+                # Resolve SCM provider and repo slug for cherry-pick+PR step.
+                # Best-effort: if detection fails we still run the earlier
+                # reconcile steps (task creation, worktree creation).
+                scm = None
+                repo = None
+                try:
+                    if project.repo_url:
+                        scm = detect_provider(
+                            project.repo_url,
+                            access_token=getattr(project, "access_token", None),
+                        )
+                        repo = extract_repo_slug(project.repo_url)
+                except Exception as scm_exc:  # noqa: BLE001
+                    logger.debug(
+                        "release_pick reconciliation: SCM provider detection"
+                        " failed for project %s: %s",
+                        getattr(project, "name", project),
+                        scm_exc,
+                    )
+                result = reconcile_release_picks(
+                    tracker,
+                    project_store=self.project_store,
+                    project_id=str(project.id),
+                    scm=scm,
+                    repo=repo,
+                )
+                if result.changed:
+                    logger.info(
+                        "release_pick reconciliation [%s]: scanned=%d advanced=%d"
+                        " created=%d errors=%d",
+                        project.name,
+                        result.scanned,
+                        result.advanced,
+                        result.created,
+                        result.errors,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "release_pick reconciliation failed for project %s: %s",
+                    getattr(project, "name", project),
+                    exc,
+                )
 
     def _label_merged_epics(self) -> None:
         """When an epic→main PR has merged, mark the epic AND all its
