@@ -1,10 +1,10 @@
 ---
 id: TASK-495
 title: Manual dispatch endpoint fails inside running event loop
-status: In Progress
+status: Merged
 assignee: []
 created_date: '2026-06-09 19:42'
-updated_date: '2026-06-09 22:29'
+updated_date: '2026-06-09 23:00'
 labels:
   - bug
 dependencies: []
@@ -43,5 +43,11 @@ author: oompah
 created: 2026-06-09 22:29
 ---
 Verification: All 4 new regression tests pass. All 56 pre-existing tests in test_ipc.py and test_server_blocking_off_loop.py also pass (60 total). The regression tests use a mock _fetch_all_candidates that calls asyncio.run() internally — reverting the fix causes them to fail with the original error.
+---
+
+author: oompah
+created: 2026-06-09 23:00
+---
+PR #259 merged into main at 2026-06-09T22:58:57Z.
 ---
 <!-- COMMENTS:END -->
