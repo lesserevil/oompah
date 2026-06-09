@@ -218,7 +218,7 @@ def _run_granian(
     # Pass configuration to the ASGI lifespan via environment variables so
     # the Granian worker process (which re-imports the app) can read them.
     os.environ["OOMPAH_EMBED_ORCHESTRATOR"] = "1"
-    os.environ["OOMPAH_GRANIAN_WORKFLOW"] = workflow_path
+    os.environ["OOMPAH_WORKFLOW_PATH"] = workflow_path
     if start_paused:
         os.environ["OOMPAH_START_PAUSED"] = "1"
     elif "OOMPAH_START_PAUSED" in os.environ:
@@ -251,6 +251,7 @@ def _run_granian(
         interface=Interfaces.ASGI,
         workers=1,
         loop=Loops.uvloop,
+        respawn_failed_workers=False,
     )
     logger.info("Starting Granian ASGI server on http://0.0.0.0:%d", port)
     server.serve()  # blocks until the supervisor exits
@@ -278,11 +279,14 @@ async def _run(
     Uses :func:`oompah.bootstrap.setup_services` for service wiring so both
     the uvicorn and Granian paths share identical startup logic.
     """
-    from oompah.bootstrap import setup_services
+    from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.server import app, set_orchestrator
 
-    services = setup_services(workflow_path, cli_port, start_paused)
+    try:
+        services = await setup_services(workflow_path, cli_port, start_paused)
+    except StartupError:
+        sys.exit(1)
     port = services.port
     orchestrator = services.orchestrator
     webhook_forwarder = services.webhook_forwarder
