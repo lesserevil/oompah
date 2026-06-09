@@ -2123,6 +2123,20 @@ async def api_create_issue(request: Request):
 
         issue_type = body.get("type", "task")
         parent_id = body.get("parent_id") or None
+        # Optional focus/routing labels for GitHub-backed projects (e.g.
+        # "needs:frontend", "area:api").  Accepted as a JSON list of strings or
+        # as a single comma-separated string for convenience.
+        raw_labels = body.get("labels")
+        if isinstance(raw_labels, list):
+            initial_labels: list[str] | None = [
+                l.strip() for l in raw_labels if isinstance(l, str) and l.strip()
+            ] or None
+        elif isinstance(raw_labels, str) and raw_labels.strip():
+            initial_labels = [
+                l.strip() for l in raw_labels.split(",") if l.strip()
+            ] or None
+        else:
+            initial_labels = None
 
         issue = tracker.create_issue(
             title=title,
@@ -2130,6 +2144,7 @@ async def api_create_issue(request: Request):
             description=description,
             priority=body.get("priority"),
             initial_status=body.get("status"),
+            labels=initial_labels,
             parent=parent_id,
         )
         issue.project_id = project_id
