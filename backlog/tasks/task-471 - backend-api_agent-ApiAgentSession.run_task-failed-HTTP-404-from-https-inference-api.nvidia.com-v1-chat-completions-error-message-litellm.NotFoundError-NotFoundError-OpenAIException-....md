@@ -184,3 +184,9 @@ created: 2026-06-09 20:11
 Duplicate investigator run #4: Task is already Done. Fix was applied in commit 1da9020 (treat litellm HTTP 404 NotFoundError as transient). No duplicate exists — this is a unique issue. No further action needed; re-dispatching is due to deferred PR review (open review limit). Task remains Done.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+duplicate-investigator-run-4: Not a duplicate. Fix already applied in commit 1da9020 — litellm HTTP 404 NotFoundError is now treated as transient, integrating with the retry loop to prevent spurious error_watcher tasks. Task has been Done since run #1.
+<!-- SECTION:FINAL_SUMMARY:END -->
