@@ -2,9 +2,10 @@
 id: TASK-459.1
 title: Extend issue API schema for tracker identity
 status: Open
-assignee: []
+assignee:
+  - oompah
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 22:13'
+updated_date: '2026-06-09 22:33'
 labels:
   - task
   - github-issues
@@ -34,3 +35,31 @@ Update issue serialization and request validation to include tracker_kind, track
 - [ ] #1 GET /api/v1/issues and detail responses expose tracker metadata.
 - [ ] #2 Backlog-backed responses remain backward-compatible.
 <!-- AC:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-09 22:15
+---
+Agent dispatched (profile: default)
+---
+
+author: oompah
+created: 2026-06-09 22:15
+---
+Understanding: This task requires extending the issue API schema to include tracker identity fields: tracker_kind, tracker_owner, tracker_repo, issue_number, display_identifier, GitHub URL, project_id, managed_repo, target_branch, work_branch, and legacy marker fields. I need to update issue serialization in server.py and request validation. Starting codebase exploration.
+---
+
+author: oompah
+created: 2026-06-09 22:18
+---
+Discovery: Found the key files. Issue model (oompah/models.py) already has tracker_kind, owner, repo, issue_number, display_identifier, provider_url fields (added by TASK-457.2), but field names 'owner'/'repo' need to be standardized to 'tracker_owner'/'tracker_repo'. Missing: managed_repo, work_branch, is_legacy. Server serialization in _fetch_and_serialize_issues and api_issue_full_detail needs all tracker identity fields. _issue_display_fields should prefer model's display_identifier when set (GitHub issues). api_create_issue needs to accept managed_repo, work_branch, target_branch in request body.
+---
+
+author: oompah
+created: 2026-06-09 22:33
+---
+Implementation: Updated oompah/models.py Issue dataclass - renamed owner/repo to tracker_owner/tracker_repo, added managed_repo, work_branch, is_legacy fields. Updated server.py: _issue_display_fields now prefers model display_identifier (GitHub short form), _fetch_and_serialize_issues and api_issue_full_detail now include all tracker identity fields (tracker_kind, tracker_owner, tracker_repo, issue_number, url, managed_repo, target_branch, work_branch, is_legacy). api_create_issue accepts and validates managed_repo/target_branch/work_branch in request body, validates managed_repo format (owner/repo). api_update_issue accepts same tracker fields and passes them to tracker adapter. Added 25 tests in tests/test_server_tracker_identity_schema.py.
+---
+<!-- COMMENTS:END -->

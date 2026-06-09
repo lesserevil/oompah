@@ -126,11 +126,21 @@ class Issue:
     # the metadata structure.
     attachments: list[str] = field(default_factory=list)
     tracker_kind: str | None = None
-    owner: str | None = None
-    repo: str | None = None
+    tracker_owner: str | None = None
+    tracker_repo: str | None = None
     issue_number: str | None = None
     display_identifier: str | None = None
     provider_url: str | None = None
+    # Managed code repository for this issue (e.g. "lesserevil/trickle").
+    # Set by the tracker adapter for GitHub-backed issues.
+    managed_repo: str | None = None
+    # Branch created for the agent to work on this issue.
+    # Stored in GitHub issue metadata so review reconciliation can resolve
+    # the task from the PR without guessing by task ID.
+    work_branch: str | None = None
+    # True for issues that originate from the legacy Backlog.md tracker.
+    # Used by the dashboard to show a visual legacy marker during transition.
+    is_legacy: bool = False
 
 
 @dataclass

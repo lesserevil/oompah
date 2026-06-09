@@ -397,9 +397,16 @@ def _issue_display_fields(
     project_names: dict[str, str],
 ) -> dict[str, str | None]:
     project_name = project_names.get(issue.project_id or "")
+    # Prefer the tracker's own display_identifier when set (e.g. GitHub issues
+    # use a short form like "tasks#1234"). Fall back to the Backlog-specific
+    # formatter so existing TASK-NNN identifiers still appear as
+    # "ProjectName-NNN" in the dashboard.
+    di = getattr(issue, "display_identifier", None) or _display_identifier(
+        issue.identifier, project_name
+    )
     return {
         "project_name": project_name,
-        "display_identifier": _display_identifier(issue.identifier, project_name),
+        "display_identifier": di,
     }
 
 
@@ -1168,6 +1175,17 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "branch_name": issue.branch_name,
             "has_open_review": has_open_review,
             "attachments": list(getattr(issue, "attachments", []) or []),
+            # Tracker identity fields — populated for GitHub-backed issues;
+            # None/False for legacy Backlog-backed issues (backward compat).
+            "tracker_kind": getattr(issue, "tracker_kind", None),
+            "tracker_owner": getattr(issue, "tracker_owner", None),
+            "tracker_repo": getattr(issue, "tracker_repo", None),
+            "issue_number": getattr(issue, "issue_number", None),
+            "url": getattr(issue, "url", None) or getattr(issue, "provider_url", None),
+            "managed_repo": getattr(issue, "managed_repo", None),
+            "target_branch": getattr(issue, "target_branch", None),
+            "work_branch": getattr(issue, "work_branch", None),
+            "is_legacy": bool(getattr(issue, "is_legacy", False)),
             **_issue_display_fields(issue, project_names),
         }
         if issue.id in parents:
@@ -1979,6 +1997,28 @@ async def api_create_issue(request: Request):
 
         issue_type = body.get("type", "task")
         parent_id = body.get("parent_id") or None
+
+        # Optional tracker-identity / branch metadata.  Validated here so
+        # clients get a clear 400 for unknown values; passed through to the
+        # tracker when the adapter supports them.
+        managed_repo = (body.get("managed_repo") or "").strip() or None
+        target_branch = (body.get("target_branch") or "").strip() or None
+        work_branch = (body.get("work_branch") or "").strip() or None
+
+        # Basic format validation: managed_repo must be "owner/repo" when given.
+        if managed_repo and "/" not in managed_repo:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": (
+                            "managed_repo must be in 'owner/repo' format"
+                        ),
+                    }
+                },
+                status_code=400,
+            )
+
         issue = tracker.create_issue(
             title=title,
             issue_type=issue_type,
@@ -1988,6 +2028,15 @@ async def api_create_issue(request: Request):
             parent=parent_id,
         )
         issue.project_id = project_id
+        # Persist tracker-identity fields onto the returned issue so the
+        # response carries the full schema even when the tracker adapter
+        # doesn't set them during creation.
+        if managed_repo:
+            issue.managed_repo = managed_repo
+        if target_branch:
+            issue.target_branch = target_branch
+        if work_branch:
+            issue.work_branch = work_branch
 
         # Auto-add 'draft' label to new epics so they appear in the kanban
         if issue_type == "epic":
@@ -2003,6 +2052,18 @@ async def api_create_issue(request: Request):
                     "identifier": issue.identifier,
                     "title": issue.title,
                     "state": issue.state,
+                    "tracker_kind": getattr(issue, "tracker_kind", None),
+                    "tracker_owner": getattr(issue, "tracker_owner", None),
+                    "tracker_repo": getattr(issue, "tracker_repo", None),
+                    "issue_number": getattr(issue, "issue_number", None),
+                    "url": (
+                        getattr(issue, "url", None)
+                        or getattr(issue, "provider_url", None)
+                    ),
+                    "managed_repo": getattr(issue, "managed_repo", None),
+                    "target_branch": getattr(issue, "target_branch", None),
+                    "work_branch": getattr(issue, "work_branch", None),
+                    "is_legacy": bool(getattr(issue, "is_legacy", False)),
                 },
             },
             status_code=201,
@@ -2153,6 +2214,23 @@ async def api_update_issue(identifier: str, request: Request):
         new_description = body.get("description")
         needs_human_comment = body.get("needs_human_comment", body.get("comment"))
 
+        # Optional tracker-identity / branch fields accepted for update.
+        # These are persisted to the tracker adapter when supported; validated
+        # here so clients get a clear 400 for bad values regardless of backend.
+        new_managed_repo = (body.get("managed_repo") or "").strip() or None
+        new_target_branch = (body.get("target_branch") or "").strip() or None
+        new_work_branch = (body.get("work_branch") or "").strip() or None
+        if new_managed_repo and "/" not in new_managed_repo:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "managed_repo must be in 'owner/repo' format",
+                    }
+                },
+                status_code=400,
+            )
+
         # Determine issue type for Epic-specific state handling.
         # We need this before the update so we know whether to apply
         # post-update verification.
@@ -2188,6 +2266,13 @@ async def api_update_issue(identifier: str, request: Request):
                 update_fields["title"] = new_title
             if new_description is not None:
                 update_fields["description"] = new_description
+            # Tracker-identity metadata updates passed through when given.
+            if new_managed_repo is not None:
+                update_fields["managed_repo"] = new_managed_repo
+            if new_target_branch is not None:
+                update_fields["target_branch"] = new_target_branch
+            if new_work_branch is not None:
+                update_fields["work_branch"] = new_work_branch
             if update_fields:
                 tracker.update_issue(identifier, **update_fields)
             if needs_human_status is not None:
@@ -2534,10 +2619,15 @@ async def api_issue_full_detail(identifier: str, request: Request):
         project_id = resolved_project_id
         project_names = _project_names_by_id(orch)
         project_name = project_names.get(project_id or "")
+        # Prefer the tracker's own display_identifier when set (GitHub issues);
+        # fall back to the Backlog-specific formatter for legacy issues.
+        display_id = getattr(issue, "display_identifier", None) or _display_identifier(
+            issue.identifier, project_name
+        )
         result = {
             "id": issue.id,
             "identifier": issue.identifier,
-            "display_identifier": _display_identifier(issue.identifier, project_name),
+            "display_identifier": display_id,
             "project_name": project_name,
             "title": issue.title,
             "description": issue.description,
@@ -2549,6 +2639,17 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "labels": issue.labels,
             "created_at": issue.created_at.isoformat() if issue.created_at else None,
             "updated_at": issue.updated_at.isoformat() if issue.updated_at else None,
+            # Tracker identity fields — present for GitHub-backed issues;
+            # null/false for legacy Backlog-backed issues (backward compat).
+            "tracker_kind": getattr(issue, "tracker_kind", None),
+            "tracker_owner": getattr(issue, "tracker_owner", None),
+            "tracker_repo": getattr(issue, "tracker_repo", None),
+            "issue_number": getattr(issue, "issue_number", None),
+            "url": getattr(issue, "url", None) or getattr(issue, "provider_url", None),
+            "managed_repo": getattr(issue, "managed_repo", None),
+            "target_branch": getattr(issue, "target_branch", None),
+            "work_branch": getattr(issue, "work_branch", None),
+            "is_legacy": bool(getattr(issue, "is_legacy", False)),
         }
         if issue.issue_type in ("epic", "feature"):
             children = tracker.fetch_children(issue.id)
@@ -2556,9 +2657,12 @@ async def api_issue_full_detail(identifier: str, request: Request):
                 {
                     "id": c.id,
                     "identifier": c.identifier,
-                    "display_identifier": _display_identifier(
-                        c.identifier,
-                        project_names.get(c.project_id or "") or project_name,
+                    "display_identifier": (
+                        getattr(c, "display_identifier", None)
+                        or _display_identifier(
+                            c.identifier,
+                            project_names.get(c.project_id or "") or project_name,
+                        )
                     ),
                     "project_name": (
                         project_names.get(c.project_id or "") or project_name

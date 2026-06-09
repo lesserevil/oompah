@@ -1,10 +1,10 @@
 ---
 id: TASK-459.4
 title: Add project management cutover controls
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 05:35'
+updated_date: '2026-06-09 05:40'
 labels:
   - task
   - github-issues
@@ -134,4 +134,22 @@ created: 2026-06-09 05:35
 ---
 Discovery: TASK-459.3 (Done) already added all 7 tracker fields to the Project model and API. projects.html needs: (1) display rows in project cards for tracker_kind, tracker_owner/repo (task hub), github_project_node_id, legacy_backlog_enabled/dispatch flags; (2) edit form inputs for these fields; (3) saveProject() to include them in PATCH body; (4) a cutover modal with warning that Backlog.md tasks won't be migrated; (5) tests in tests/test_projects_tracker_ui.py.
 ---
+
+author: oompah
+created: 2026-06-09 05:40
+---
+Implementation: Updated oompah/templates/projects.html with: (1) CSS for .btn-cutover, .tracker-section, .section-label, and modal overlay styles; (2) Cutover warning modal HTML with explicit copy 'Existing Backlog.md tasks will not be migrated'; (3) Tracker section in project cards showing tracker_kind, task hub (owner/repo), github_project_node_id, and legacy Backlog flags; (4) 'Cutover to GitHub Issues' btn-cutover button hidden for github_issues projects; (5) Edit form Tracker Settings section with all 6 fields; (6) saveProject() updated to include all tracker fields in PATCH body; (7) showCutoverModal/closeCutoverModal/confirmCutover JS functions. 51 new tests in tests/test_projects_tracker_ui.py cover all changes.
+---
+
+author: oompah
+created: 2026-06-09 05:40
+---
+Verification: All 51 new tests in test_projects_tracker_ui.py pass. All 270 pre-existing tests in test_projects_tracker_ui.py, test_projects_whitelist_ui.py, test_projects_template_fetch_errors.py, test_projects_crud.py, test_projects.py, test_project_pause.py, test_project_provider_whitelist.py pass. No regressions. Both acceptance criteria satisfied: (1) operators can see and edit all 6 tracker fields per project; (2) cutover modal copy explicitly states existing Backlog.md tasks are not migrated.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added project management cutover controls to oompah/templates/projects.html: tracker section in project cards (tracker_kind, task hub, github_project_node_id, legacy Backlog flags), Cutover to GitHub Issues guarded button with warning modal explicitly stating Backlog.md tasks will not be migrated, Tracker Settings edit form section with all 6 fields, saveProject() updated to include tracker fields in PATCH. 51 new tests in tests/test_projects_tracker_ui.py. All tests pass, branch pushed to origin/epic-TASK-459.
+<!-- SECTION:FINAL_SUMMARY:END -->
