@@ -4,7 +4,7 @@ title: Rebase epic-TASK-465 onto main
 status: In Progress
 assignee: []
 created_date: '2026-06-08 22:26'
-updated_date: '2026-06-09 01:56'
+updated_date: '2026-06-09 02:16'
 labels: []
 dependencies: []
 parent_task_id: TASK-465
@@ -73,5 +73,11 @@ author: oompah
 created: 2026-06-09 01:56
 ---
 Understanding: This task requires rebasing epic-TASK-465 onto origin/main. Confirmed no duplicate exists. Current state: epic-TASK-465 is 10 commits ahead and 10 commits behind origin/main. Plan: (1) fetch latest, (2) rebase onto origin/main, (3) resolve conflicts if any, (4) force-push with --force-with-lease.
+---
+
+author: oompah
+created: 2026-06-09 02:16
+---
+Implementation: Completed rebase of epic-TASK-465 onto origin/main. Resolved conflicts in oompah/orchestrator.py (merged _handle_dispatch_needed() implementations, keeping main's _timed() helper while adding TASK-465.1's timings dict and return value), tests/test_event_driven_loop.py (merged renamed test + new burst-coalescing test), and 7 backlog task files (kept HEAD/final state for all task files). Branch is now 0 commits behind origin/main.
 ---
 <!-- COMMENTS:END -->
