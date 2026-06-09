@@ -438,6 +438,12 @@ class ServiceConfig:
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_batch_size: int = 25
     maintenance_startup_delay_seconds: int = 60
+    # Multi-process service split (TASK-469.5.1).
+    # When set, the scheduler process publishes state/issues snapshots to this
+    # SQLite database and the API process reads from it.  An empty string means
+    # single-process combined mode (default, backward-compatible).
+    # Overridden by the OOMPAH_IPC_DB_PATH environment variable.
+    ipc_db_path: str = ""
 
     def __post_init__(self):
         self.tracker_kind = _parse_tracker_kind(self.tracker_kind)
@@ -735,6 +741,7 @@ class ServiceConfig:
             maintenance_startup_delay_seconds=_env_int(
                 "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60
             ),
+            ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
         )
 
 

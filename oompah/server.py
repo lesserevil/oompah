@@ -49,6 +49,7 @@ from oompah.agent_profile_store import (
 )
 from oompah.cache import TTLCache
 from oompah.error_watcher import ErrorWatcher, ProjectLogWatcherManager
+from oompah.ipc import OrchestratorIPC, get_ipc
 from oompah.issue_enhancer import (
     EnhancementResult,
     IssueEnhancerError,
@@ -162,6 +163,13 @@ _agent_profile_store = AgentProfileStore()
 
 # Global reference to orchestrator, set during startup
 _orchestrator: Orchestrator | None = None
+
+# IPC layer for multi-process mode (TASK-469.5.1).
+# Populated from OOMPAH_IPC_DB_PATH if set; None in single-process mode.
+# In API-only mode (no orchestrator), this is used to read state/issues
+# from the SQLite cache written by the scheduler process and to enqueue
+# commands for the scheduler.
+_ipc: OrchestratorIPC | None = get_ipc()
 
 # Error watcher — created when orchestrator is set
 _error_watcher: ErrorWatcher | None = None
@@ -1430,9 +1438,32 @@ async def api_console_delete(project_id: str):
 
 @app.get("/api/v1/state")
 async def api_state():
-    """Return current system state snapshot."""
+    """Return current system state snapshot.
+
+    In multi-process / API-only mode (OOMPAH_IPC_DB_PATH set, no local
+    orchestrator) reads the pre-computed snapshot from the SQLite IPC cache
+    written by the scheduler process.  This path never touches the tracker,
+    YAML parsing, or any GIL-heavy scheduler code.
+
+    In combined / single-process mode falls back to the direct
+    ``orch.get_snapshot()`` call.
+    """
     t_start = time.monotonic()
     try:
+        # API-only mode: read state from the IPC SQLite cache.
+        if _orchestrator is None and _ipc is not None:
+            snapshot, _ = _ipc.read_state()
+            if snapshot is None:
+                return JSONResponse(
+                    {"error": {"code": "unavailable", "message": "State snapshot not yet available from scheduler"}},
+                    status_code=503,
+                )
+            duration_ms = (time.monotonic() - t_start) * 1000
+            _record_api_latency("/api/v1/state", duration_ms)
+            snapshot["api_metrics"] = _api_metrics_snapshot()
+            return JSONResponse(snapshot)
+
+        # Combined mode: call orchestrator directly.
         orch = _get_orchestrator()
         snapshot = orch.get_snapshot()
         duration_ms = (time.monotonic() - t_start) * 1000
@@ -2731,8 +2762,15 @@ async def api_agent_activity(identifier: str):
 
 @app.post("/api/v1/orchestrator/pause")
 async def api_orchestrator_pause():
-    """Pause the orchestrator (stop dispatching new agents)."""
+    """Pause the orchestrator (stop dispatching new agents).
+
+    In multi-process / API-only mode enqueues a 'pause' command in the
+    IPC SQLite queue so the scheduler process picks it up on the next tick.
+    """
     try:
+        if _orchestrator is None and _ipc is not None:
+            cmd_id = _ipc.enqueue_command("pause")
+            return JSONResponse({"ok": True, "paused": True, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
         orch.pause()
         return JSONResponse({"ok": True, "paused": True})
@@ -2742,8 +2780,15 @@ async def api_orchestrator_pause():
 
 @app.post("/api/v1/orchestrator/resume")
 async def api_orchestrator_resume():
-    """Resume the orchestrator."""
+    """Resume the orchestrator.
+
+    In multi-process / API-only mode enqueues an 'unpause' command in
+    the IPC SQLite queue.
+    """
     try:
+        if _orchestrator is None and _ipc is not None:
+            cmd_id = _ipc.enqueue_command("unpause")
+            return JSONResponse({"ok": True, "paused": False, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
         orch.unpause()
         return JSONResponse({"ok": True, "paused": False})
@@ -2777,8 +2822,15 @@ async def api_orchestrator_restart(request: Request):
 
 @app.post("/api/v1/orchestrator/dispatch/{identifier}")
 async def api_orchestrator_dispatch(identifier: str):
-    """Manually dispatch a specific issue to an agent."""
+    """Manually dispatch a specific issue to an agent.
+
+    In multi-process / API-only mode enqueues a 'dispatch_issue' command in
+    the IPC SQLite queue so the scheduler process picks it up on the next tick.
+    """
     try:
+        if _orchestrator is None and _ipc is not None:
+            cmd_id = _ipc.enqueue_command("dispatch_issue", {"identifier": identifier})
+            return JSONResponse({"ok": True, "dispatched": identifier, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
         candidates = orch._fetch_all_candidates()
         issue = next((i for i in candidates if i.identifier == identifier), None)
