@@ -3066,7 +3066,11 @@ async def api_orchestrator_dispatch(identifier: str):
             cmd_id = _ipc.enqueue_command("dispatch_issue", {"identifier": identifier})
             return JSONResponse({"ok": True, "dispatched": identifier, "ipc_command_id": cmd_id})
         orch = _get_orchestrator()
-        candidates = orch._fetch_all_candidates()
+        # _fetch_all_candidates() uses asyncio.run() internally; calling it
+        # directly from an async route raises "asyncio.run() cannot be called
+        # from a running event loop".  Run it in a thread pool so it gets its
+        # own event loop, matching how the tick loop handles it (TASK-495).
+        candidates = await asyncio.to_thread(orch._fetch_all_candidates)
         issue = next((i for i in candidates if i.identifier == identifier), None)
         if not issue:
             return JSONResponse(
