@@ -6287,6 +6287,29 @@ class Orchestrator:
                 # by the external-rebase stale-label check (oompah-zlz_2-683l)
                 tracker = self._tracker_for_project(project.id)
 
+                epic_block_reason = self._yolo_epic_strategy_block_reason(
+                    project,
+                    tracker,
+                    review,
+                )
+                if epic_block_reason:
+                    logger.warning(
+                        "YOLO GATE: skipping %s MR #%s — %s",
+                        project.name,
+                        review_id,
+                        epic_block_reason,
+                    )
+                    self._record_yolo_action(
+                        project.id,
+                        str(review_id),
+                        "gate_blocked",
+                        "success",
+                        epic_block_reason,
+                        tick=tick,
+                    )
+                    actions_fired += 1
+                    continue
+
                 # Churn-magnet check (oompah-zlz_2-rxwe.2): if this PR
                 # touches a file in the project's top-N churn-magnet list,
                 # flag it on the review and add a label to the PR.
@@ -7341,6 +7364,73 @@ class Orchestrator:
         if issue is None and source_branch.startswith("epic-"):
             issue = tracker.fetch_issue_detail(source_branch[len("epic-"):])
         return issue
+
+    def _yolo_epic_strategy_block_reason(
+        self,
+        project: Project,
+        tracker: TrackerProtocol,
+        review: ReviewRequest,
+    ) -> str | None:
+        """Return a reason when YOLO must not act on this review.
+
+        ``_ensure_review_exists`` honors ``epic_strategy`` when creating
+        reviews, but operators or older oompah versions can leave behind
+        child PRs that violate the current strategy. YOLO is the last gate
+        before a merge, so it must fail closed for those reviews.
+        """
+        strategy = self._project_epic_strategy(project.id)
+        if strategy not in ("stacked", "shared"):
+            return None
+
+        source_branch = (getattr(review, "source_branch", "") or "").strip()
+        if not source_branch:
+            return None
+
+        try:
+            issue = self._resolve_task_for_branch(tracker, source_branch)
+        except Exception as exc:  # noqa: BLE001 - do not break unrelated PRs
+            logger.debug(
+                "YOLO epic-strategy gate could not resolve branch %s on %s: %s",
+                source_branch,
+                project.name,
+                exc,
+            )
+            return None
+        if issue is None or not (issue.parent_id or "").strip():
+            return None
+
+        try:
+            issue_epic_branch = self.project_store.epic_branch_name(issue.identifier)
+        except Exception:  # noqa: BLE001
+            issue_epic_branch = ""
+        if source_branch == issue_epic_branch:
+            # This is an epic rollup PR (including nested epics), not a
+            # per-child task PR. The epic landing gate owns its creation.
+            return None
+
+        parent_epic = self._resolve_parent_epic(issue)
+        if parent_epic is None:
+            return None
+
+        target_branch = self._review_target_branch(project, review)
+        parent_epic_branch = self.project_store.epic_branch_name(
+            parent_epic.identifier
+        )
+
+        if strategy == "shared":
+            return (
+                f"epic_strategy=shared: child task {issue.identifier} must land "
+                f"via {parent_epic_branch}, not per-child PR "
+                f"{source_branch}->{target_branch}"
+            )
+
+        if strategy == "stacked" and target_branch != parent_epic_branch:
+            return (
+                f"epic_strategy=stacked: child task {issue.identifier} PR must "
+                f"target {parent_epic_branch}, not {target_branch}"
+            )
+
+        return None
 
     def _yolo_notify_conflict(
         self, project, provider, slug: str, review_id: str

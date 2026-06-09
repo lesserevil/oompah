@@ -42,6 +42,7 @@ from oompah.yolo_watchdog import (
 def _make_review(
     review_id: str,
     source_branch: str = "feat-branch",
+    target_branch: str = "main",
     ci_status: str = "passed",
     has_conflicts: bool = False,
     needs_rebase: bool = False,
@@ -55,7 +56,7 @@ def _make_review(
         author="alice",
         state="open",
         source_branch=source_branch,
-        target_branch="main",
+        target_branch=target_branch,
         created_at="2025-01-01",
         updated_at="2025-01-02",
         ci_status=ci_status,
@@ -75,6 +76,8 @@ def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.co
     p.paused = False
     p.yolo = True
     p.access_token = None
+    p.default_branch = "main"
+    p.epic_strategy = "flat"
     return p
 
 
@@ -84,6 +87,7 @@ def _make_orchestrator(tmp_path, projects=None):
     project_store.get.side_effect = lambda pid: next(
         (p for p in (projects or []) if p.id == pid), None
     )
+    project_store.epic_branch_name.side_effect = lambda epic_id: f"epic-{epic_id}"
     orch = Orchestrator(
         config=ServiceConfig(),
         workflow_path="WORKFLOW.md",
@@ -91,6 +95,24 @@ def _make_orchestrator(tmp_path, projects=None):
         state_path=str(tmp_path / "state.json"),
     )
     return orch
+
+
+def _make_issue(
+    identifier: str,
+    issue_type: str = "task",
+    parent_id: str | None = None,
+    project_id: str = "proj-1",
+) -> Issue:
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title=identifier,
+        description="body",
+        state="open",
+        issue_type=issue_type,
+        parent_id=parent_id,
+        project_id=project_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +498,190 @@ class TestOrchestratorActionHistoryRecording:
 
         records = list(orch._yolo_action_history)
         assert any(r.action_type == "notify_conflict" for r in records)
+
+
+class TestYoloEpicStrategyGate:
+    """YOLO must honor per-project epic merge strategy before acting."""
+
+    def _install_tracker(self, orch, project, child=None, parent=None):
+        tracker = MagicMock()
+
+        def fetch_detail(identifier):
+            if child is not None and identifier == child.identifier:
+                return child
+            if parent is not None and identifier == parent.identifier:
+                return parent
+            return None
+
+        tracker.fetch_issue_detail.side_effect = fetch_detail
+        orch._project_trackers[project.id] = tracker
+        return tracker
+
+    @pytest.mark.parametrize(
+        "review_kwargs",
+        [
+            {"ci_status": "passed"},
+            {"has_conflicts": True},
+            {"ci_status": "failed"},
+        ],
+    )
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_shared_child_pr_is_gate_blocked_before_any_yolo_action(
+        self, mock_slug, mock_detect, tmp_path, review_kwargs,
+    ):
+        project = _make_project()
+        project.epic_strategy = "shared"
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        orch._yolo_notify_conflict = MagicMock()
+        orch._yolo_retry_ci = MagicMock()
+        self._install_tracker(
+            orch,
+            project,
+            child=_make_issue("TASK-472.4", parent_id="TASK-472"),
+            parent=_make_issue("TASK-472", issue_type="epic"),
+        )
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "249",
+                    source_branch="TASK-472.4",
+                    target_branch="main",
+                    **review_kwargs,
+                )
+            ],
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_not_called()
+        provider.enable_auto_merge.assert_not_called()
+        orch._yolo_notify_conflict.assert_not_called()
+        orch._yolo_retry_ci.assert_not_called()
+        records = list(orch._yolo_action_history)
+        assert len(records) == 1
+        assert records[0].action_type == "gate_blocked"
+        assert "epic_strategy=shared" in records[0].error_msg
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_stacked_child_pr_targeting_main_is_gate_blocked(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        project = _make_project()
+        project.epic_strategy = "stacked"
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        self._install_tracker(
+            orch,
+            project,
+            child=_make_issue("TASK-472.4", parent_id="TASK-472"),
+            parent=_make_issue("TASK-472", issue_type="epic"),
+        )
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "249",
+                    source_branch="TASK-472.4",
+                    target_branch="main",
+                    ci_status="passed",
+                )
+            ],
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_not_called()
+        records = list(orch._yolo_action_history)
+        assert len(records) == 1
+        assert records[0].action_type == "gate_blocked"
+        assert "epic_strategy=stacked" in records[0].error_msg
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_stacked_child_pr_targeting_epic_branch_can_merge(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        project = _make_project()
+        project.epic_strategy = "stacked"
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        self._install_tracker(
+            orch,
+            project,
+            child=_make_issue("TASK-472.4", parent_id="TASK-472"),
+            parent=_make_issue("TASK-472", issue_type="epic"),
+        )
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "249",
+                    source_branch="TASK-472.4",
+                    target_branch="epic-TASK-472",
+                    ci_status="passed",
+                )
+            ],
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_called_once_with("org/repo", "249")
+        records = list(orch._yolo_action_history)
+        assert len(records) == 1
+        assert records[0].action_type == "merge"
+        assert records[0].outcome == "success"
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_shared_nested_epic_branch_can_merge(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        project = _make_project()
+        project.epic_strategy = "shared"
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        self._install_tracker(
+            orch,
+            project,
+            child=_make_issue("TASK-472.9", issue_type="epic", parent_id="TASK-472"),
+            parent=_make_issue("TASK-472", issue_type="epic"),
+        )
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "260",
+                    source_branch="epic-TASK-472.9",
+                    target_branch="epic-TASK-472",
+                    ci_status="passed",
+                )
+            ],
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_called_once_with("org/repo", "260")
+        records = list(orch._yolo_action_history)
+        assert len(records) == 1
+        assert records[0].action_type == "merge"
+        assert records[0].outcome == "success"
 
 
 class TestOrchestratorD1Watchdog:
