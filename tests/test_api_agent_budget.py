@@ -734,6 +734,149 @@ class TestHttpPost401AuthErrorClassifiedAsTransient:
         )
 
 
+class TestHttpPost404LitellmNotFoundClassifiedAsTransient:
+    """TASK-471: HTTP 404 from litellm's model router (``litellm.NotFoundError``
+    with ``Received Model Group=``) must be classified as TransientServerError
+    so the in-session retry loop can recover and run_task logs at WARNING rather
+    than ERROR (which would trigger error_watcher to create a new bug task)."""
+
+    _NVIDIA_NOT_FOUND_BODY = (
+        '{"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException'
+        ' - . Received Model Group=nvidia/nvidia/nemotron-3-ultra\\n'
+        'Available Model Group Fallbacks=None","type":null,"param":null,"code":"404"}}'
+    )
+
+    def test_litellm_not_found_404_raises_transient_server_error(self, monkeypatch):
+        """A 404 whose body contains litellm.NotFoundError + Received Model Group=
+        must be wrapped as TransientServerError so normal retry logic fires."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        class FakeReader:
+            def read(self):
+                return TestHttpPost404LitellmNotFoundClassifiedAsTransient._NVIDIA_NOT_FOUND_BODY.encode()
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=404, msg="Not Found",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code == 404
+        assert "404" in str(excinfo.value)
+        assert "litellm.NotFoundError" in str(excinfo.value)
+
+    def test_litellm_not_found_404_status_code_is_preserved(self, monkeypatch):
+        """status_code must be 404 so callers can distinguish it from 5xx."""
+        from oompah.api_agent import _http_post, TransientServerError
+
+        class FakeReader:
+            def read(self):
+                return TestHttpPost404LitellmNotFoundClassifiedAsTransient._NVIDIA_NOT_FOUND_BODY.encode()
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=404, msg="Not Found",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(TransientServerError) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert excinfo.value.status_code == 404
+
+    def test_plain_404_without_litellm_signature_is_permanent(self, monkeypatch):
+        """A plain 404 (e.g. wrong URL, missing resource) must still be a
+        permanent RuntimeError — only the litellm model-router pattern is
+        treated as transient."""
+        from oompah.api_agent import _http_post, RetryableError
+
+        class FakeReader:
+            def read(self):
+                return b'{"error":"Not Found"}'
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=404, msg="Not Found",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(Exception) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        # Plain 404 must NOT be retryable.
+        assert not isinstance(excinfo.value, RetryableError), (
+            f"plain 404 must not be retryable: {excinfo.type}"
+        )
+
+    def test_404_with_only_one_indicator_is_permanent(self, monkeypatch):
+        """Both indicators must be present to trigger the transient path.
+        A body with only 'litellm.NotFoundError' but no 'Received Model Group='
+        is still a permanent error."""
+        from oompah.api_agent import _http_post, RetryableError
+
+        class FakeReader:
+            def read(self):
+                return b'{"error":{"message":"litellm.NotFoundError: something else"}}'
+
+        def fake_urlopen(*a, **kw):
+            err = _ue.HTTPError(
+                url="http://x", code=404, msg="Not Found",
+                hdrs={}, fp=FakeReader(),
+            )
+            raise err
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        with pytest.raises(Exception) as excinfo:
+            _http_post("http://x", {}, b"{}", None)
+        assert not isinstance(excinfo.value, RetryableError), (
+            f"partial-match 404 must not be retryable: {excinfo.type}"
+        )
+
+    def test_is_litellm_not_found_error_true_for_nvidia_pattern(self):
+        """_is_litellm_not_found_error must return True for the exact NVIDIA
+        litellm error body seen in TASK-471."""
+        from oompah.api_agent import _is_litellm_not_found_error
+
+        body = TestHttpPost404LitellmNotFoundClassifiedAsTransient._NVIDIA_NOT_FOUND_BODY
+        assert _is_litellm_not_found_error(body) is True
+
+    def test_is_litellm_not_found_error_false_for_plain_404(self):
+        """Plain 404 bodies without litellm signature must return False."""
+        from oompah.api_agent import _is_litellm_not_found_error
+
+        assert _is_litellm_not_found_error('{"error":"Not Found"}') is False
+        assert _is_litellm_not_found_error("") is False
+
+    def test_is_litellm_not_found_error_false_for_context_window_error(self):
+        """Context-window error body must NOT be mistaken for a not-found error."""
+        from oompah.api_agent import _is_litellm_not_found_error
+
+        body = (
+            '{"error":{"message":"litellm.BadRequestError: OpenAIException - '
+            '{\\"error\\":{\\"message\\":\\"You passed 98305 input tokens and '
+            'requested 32768 output tokens. However, the model\'s context length '
+            'is only 131072 tokens\\",\\"code\\":400}}}.'
+            ' Received Model Group=nvidia/nvidia/nemotron-3-super-v3\\n'
+            'Available Model Group Fallbacks=None"}}'
+        )
+        assert _is_litellm_not_found_error(body) is False
+
+    def test_is_litellm_not_found_error_false_for_500_with_model_group(self):
+        """A 500 InternalServerError body that mentions Received Model Group=
+        but no litellm.NotFoundError must return False."""
+        from oompah.api_agent import _is_litellm_not_found_error
+
+        body = (
+            '{"error":{"message":"litellm.InternalServerError: InternalServerError:'
+            ' OpenAIException - Cannot connect to host. Received Model Group='
+            'nvidia/nvidia/nemotron-3-ultra\\nAvailable Model Group Fallbacks=None",'
+            '"code":"500"}}'
+        )
+        assert _is_litellm_not_found_error(body) is False
+
+
 class TestCallApiRetriesTransientErrors:
     def test_succeeds_after_one_5xx(self, tmp_path, monkeypatch):
         from oompah.api_agent import ApiAgentSession, TransientServerError
