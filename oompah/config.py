@@ -438,6 +438,7 @@ class ServiceConfig:
     auto_archive_interval_seconds: int = 300
     worktree_cleanup_batch_size: int = 25
     maintenance_startup_delay_seconds: int = 60
+    release_pick_max_runtime_seconds: int = 15
     # Multi-process service split (TASK-469.5.1).
     # When set, the scheduler process publishes state/issues snapshots to this
     # SQLite database and the API process reads from it.  An empty string means
@@ -485,6 +486,9 @@ class ServiceConfig:
         )
         self.maintenance_startup_delay_seconds = max(
             int(self.maintenance_startup_delay_seconds), 0
+        )
+        self.release_pick_max_runtime_seconds = max(
+            int(self.release_pick_max_runtime_seconds), 0
         )
         if not self.workspace_root:
             self.workspace_root = os.path.join(
@@ -764,6 +768,9 @@ class ServiceConfig:
             ),
             maintenance_startup_delay_seconds=_env_int(
                 "OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", None, 60
+            ),
+            release_pick_max_runtime_seconds=_env_int(
+                "OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", None, 15
             ),
             ipc_db_path=_env_str("OOMPAH_IPC_DB_PATH", None, ""),
             project_refresh_timeout_ms=_env_int(

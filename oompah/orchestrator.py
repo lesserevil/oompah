@@ -5825,6 +5825,7 @@ class Orchestrator:
             "release_picks",
             self._reconcile_release_picks_pass,
             min_interval_s=self._RELEASE_PICKS_INTERVAL_S,
+            max_runtime_s=self.config.release_pick_max_runtime_seconds or None,
         )
 
     def _label_merged_issues(self) -> None:
@@ -6210,6 +6211,9 @@ class Orchestrator:
         from oompah.scm import detect_provider, extract_repo_slug
 
         for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("release_picks"):
+                logger.debug("release_pick reconciliation stopped at runtime budget")
+                break
             try:
                 tracker = self._tracker_for_project(str(project.id))
                 # Resolve SCM provider and repo slug for cherry-pick+PR step.
@@ -6237,6 +6241,7 @@ class Orchestrator:
                     project_id=str(project.id),
                     scm=scm,
                     repo=repo,
+                    should_stop=lambda: self._job_deadline_exceeded("release_picks"),
                 )
                 if result.changed:
                     logger.info(

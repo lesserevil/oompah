@@ -104,6 +104,11 @@ class Issue:
     # This allows issues to target branches other than the project default (e.g.,
     # release/*, hotfix/*, or epic branches in stacked mode).
     target_branch: str | None = None
+    # Raw release-pick metadata mirrored from tracker storage. These keep
+    # maintenance passes from rereading every task after fetch_all_issues().
+    backports: Any | None = None
+    backport_of: Any | None = None
+    release_pick_metadata_loaded: bool = False
     url: str | None = None
     issue_type: str = "task"
     parent_id: str | None = None

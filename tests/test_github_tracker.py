@@ -1419,6 +1419,17 @@ class TestGhIssueToIssue:
         issue = self._convert(body=body)
         assert issue.target_branch == "release/1.2"
 
+    def test_release_pick_metadata_from_metadata(self):
+        body = (
+            '<!-- oompah:metadata\n'
+            '{"backports":[{"branch":"release/1.0","status":"waiting"}],'
+            '"backport_of":{"source":"TASK-1","status":"task_created"}}\n-->'
+        )
+        issue = self._convert(body=body)
+        assert issue.backports == [{"branch": "release/1.0", "status": "waiting"}]
+        assert issue.backport_of == {"source": "TASK-1", "status": "task_created"}
+        assert issue.release_pick_metadata_loaded is True
+
     def test_project_id_from_metadata(self):
         body = '<!-- oompah:metadata\n{"project_id": "myproject"}\n-->'
         issue = self._convert(body=body)
@@ -1877,7 +1888,11 @@ class TestGitHubIssueTrackerFetch:
     def test_fetch_all_issues_normalizes_fields(self):
         """Normalized Issue records carry all expected fields."""
         tracker = self._make_tracker()
-        body = '<!-- oompah:metadata\n{"project_id": "proj-1", "target_branch": "main"}\n-->'
+        body = (
+            '<!-- oompah:metadata\n'
+            '{"project_id":"proj-1","target_branch":"main",'
+            '"backports":["release/1.0"],"backport_of":"TASK-1"}\n-->'
+        )
         gh_issue = _make_gh_issue(
             number=7,
             title="Normalize me",
@@ -1894,6 +1909,9 @@ class TestGitHubIssueTrackerFetch:
         assert "needs:backend" in iss.labels
         assert iss.project_id == "proj-1"
         assert iss.target_branch == "main"
+        assert iss.backports == ["release/1.0"]
+        assert iss.backport_of == "TASK-1"
+        assert iss.release_pick_metadata_loaded is True
         assert iss.tracker_kind == "github_issues"
 
 

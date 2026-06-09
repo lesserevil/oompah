@@ -50,6 +50,9 @@ def _issue(
     parent_id: str | None = None,
     labels: list[str] | None = None,
     project_id: str | None = None,
+    backports=None,
+    backport_of=None,
+    release_pick_metadata_loaded: bool = False,
 ) -> Issue:
     return Issue(
         id=identifier,
@@ -61,6 +64,9 @@ def _issue(
         parent_id=parent_id,
         labels=labels or [],
         project_id=project_id,
+        backports=backports,
+        backport_of=backport_of,
+        release_pick_metadata_loaded=release_pick_metadata_loaded,
     )
 
 
@@ -216,6 +222,21 @@ class TestBuildChildIndex:
         assert ("TASK-1", "release/1.0") in index
         assert child in index[("TASK-1", "release/1.0")]
 
+    def test_uses_loaded_issue_metadata_without_lookup(self):
+        child = _issue(
+            identifier="TASK-2",
+            target_branch="release/1.0",
+            backport_of={"source": "TASK-1", "status": "task_created"},
+            release_pick_metadata_loaded=True,
+        )
+        tracker = _make_tracker(all_issues=[child])
+        tracker.get_metadata.side_effect = AssertionError("unexpected metadata read")
+
+        index = _build_child_index(tracker, [child])
+
+        assert ("TASK-1", "release/1.0") in index
+        tracker.get_metadata.assert_not_called()
+
     def test_lookup_key_is_uppercase_source_id(self):
         child = _issue(identifier="TASK-2", target_branch="release/2.0")
         tracker = _make_tracker(
@@ -258,6 +279,17 @@ class TestBuildChildIndex:
         # Should not raise; just skip the issue
         index = _build_child_index(tracker, [issue])
         assert index == {}
+
+    def test_stops_before_returning_partial_index(self):
+        child = _issue(identifier="TASK-2", target_branch="release/1.0")
+        tracker = _make_tracker(
+            all_issues=[child],
+            metadata_map={"TASK-2": {"oompah.backport_of": "TASK-1"}},
+        )
+
+        index = _build_child_index(tracker, [child], should_stop=lambda: True)
+
+        assert index is None
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +417,27 @@ class TestReconcileNoBackports:
         result = reconcile_release_picks(tracker)
         assert result.scanned == 0
 
+    def test_uses_loaded_backports_without_metadata_lookup(self):
+        source = _issue(
+            "TASK-1",
+            backports=[{"branch": "release/1.0", "status": "merged"}],
+            release_pick_metadata_loaded=True,
+        )
+        child = _issue(
+            "TASK-1.1",
+            target_branch="release/1.0",
+            backport_of={"source": "TASK-1", "status": "merged"},
+            release_pick_metadata_loaded=True,
+        )
+        tracker = _make_tracker(all_issues=[source, child])
+        tracker.get_metadata.side_effect = AssertionError("unexpected metadata read")
+
+        result = reconcile_release_picks(tracker)
+
+        assert result.scanned == 1
+        assert result.advanced == 0
+        tracker.get_metadata.assert_not_called()
+
     def test_skips_issues_with_empty_backports(self):
         source = _issue("TASK-1")
         tracker = _make_tracker(
@@ -400,6 +453,14 @@ class TestReconcileNoBackports:
         result = reconcile_release_picks(tracker)
         assert result.errors == 1
         assert result.scanned == 0
+
+    def test_honors_stop_before_fetching_issues(self):
+        tracker = _make_tracker(all_issues=[_issue("TASK-1")])
+
+        result = reconcile_release_picks(tracker, should_stop=lambda: True)
+
+        assert result.scanned == 0
+        tracker.fetch_all_issues.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -868,6 +929,17 @@ class TestOrchestratorReconcileReleasePicksPass:
 
         orch._reconcile_release_picks_pass.assert_called_once()
 
+    def test_release_pick_maintenance_job_uses_runtime_budget(self, tmp_path):
+        """The release-pick maintenance job is run with a max runtime budget."""
+        orch = self._make_orch(tmp_path)
+        orch.config.release_pick_max_runtime_seconds = 4
+        orch._run_maintenance_job = MagicMock()
+
+        orch._maybe_run_release_pick_reconciliation()
+
+        orch._run_maintenance_job.assert_called_once()
+        assert orch._run_maintenance_job.call_args.kwargs["max_runtime_s"] == 4
+
     def test_do_merged_labels_does_not_run_release_picks(self, tmp_path):
         """Merged-label maintenance no longer hides release-pick reconciliation."""
         orch = self._make_orch(tmp_path)
@@ -958,6 +1030,7 @@ class TestOrchestratorReconcileReleasePicksPass:
         assert "project_store" in captured_kwargs[0]
         assert "project_id" in captured_kwargs[0]
         assert captured_kwargs[0]["project_id"] == "proj-1"
+        assert callable(captured_kwargs[0]["should_stop"])
 
     def test_continues_on_project_failure(self, tmp_path):
         """A failure for one project does not prevent processing others."""

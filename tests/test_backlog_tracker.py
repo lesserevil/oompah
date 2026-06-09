@@ -1174,6 +1174,29 @@ def test_normalize_task_oompah_target_branch_takes_precedence(tmp_path):
     assert issue.target_branch == "release/2.0"
 
 
+def test_normalize_task_loads_release_pick_metadata(tmp_path):
+    """Issue carries release-pick metadata from frontmatter after normalization."""
+    backlog_dir = _write_config(tmp_path)
+    backports = [{"branch": "release/1.0", "status": "waiting"}]
+    backport_of = {"source": "TASK-100", "status": "task_created"}
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Release metadata",
+        extra_meta={
+            "oompah.backports": backports,
+            "oompah.backport_of": backport_of,
+        },
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.backports == backports
+    assert issue.backport_of == backport_of
+    assert issue.release_pick_metadata_loaded is True
+
+
 def test_get_metadata_returns_scalar_backport_of(tmp_path):
     """get_metadata exposes oompah.backport_of as a scalar string."""
     backlog_dir = _write_config(tmp_path)

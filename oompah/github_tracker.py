@@ -1188,7 +1188,9 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
 
     body: str = gh_issue.get("body") or ""
     meta = _parse_body_metadata(body)
-    target_branch: str | None = meta.get("target_branch") or None
+    target_branch: str | None = (
+        meta.get("target_branch") or meta.get("oompah.target_branch") or None
+    )
     project_id: str | None = meta.get("project_id") or None
 
     # Description: issue body with metadata block stripped.
@@ -1208,6 +1210,9 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         issue_type=issue_type,
         project_id=project_id,
         target_branch=target_branch,
+        backports=meta.get("backports", meta.get("oompah.backports")),
+        backport_of=meta.get("backport_of", meta.get("oompah.backport_of")),
+        release_pick_metadata_loaded=True,
         labels=user_labels,
         created_at=_gh_timestamp(gh_issue.get("created_at")),
         updated_at=_gh_timestamp(gh_issue.get("updated_at")),

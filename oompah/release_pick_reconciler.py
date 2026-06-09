@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 from oompah.release_pick_schema import (
     BackportEntry,
@@ -106,6 +106,7 @@ def reconcile_release_picks(
     project_id: "str | None" = None,
     scm: "SCMProvider | None" = None,
     repo: "str | None" = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> ReconcileResult:
     """Run one idempotent release-pick reconciliation pass.
 
@@ -145,11 +146,16 @@ def reconcile_release_picks(
             is skipped even if commits are resolved.
         repo: Repository slug (e.g. ``"org/repo"``) passed to *scm*.
             Required when *scm* is supplied.
+        should_stop: Optional cooperative stop callback. When it returns
+            ``True``, the pass exits at a safe boundary and resumes next run.
 
     Returns:
         :class:`ReconcileResult` summarising changes made during this pass.
     """
     result = ReconcileResult()
+
+    if should_stop is not None and should_stop():
+        return result
 
     # --- Load all issues once -------------------------------------------
     try:
@@ -162,14 +168,25 @@ def reconcile_release_picks(
     # --- Build a lookup of existing child tasks --------------------------
     # Maps (source_id_upper, target_branch) → list[Issue]
     # so we can detect and avoid duplicates without additional queries.
-    child_index: dict[tuple[str, str], list[Issue]] = _build_child_index(
-        tracker, all_issues
+    child_index = _build_child_index(
+        tracker,
+        all_issues,
+        should_stop=should_stop,
     )
+    if child_index is None:
+        return result
 
     # --- Process each source task with oompah.backports ------------------
     for source in all_issues:
+        if should_stop is not None and should_stop():
+            break
         try:
-            meta = tracker.get_metadata(source.identifier)
+            raw_backports = _release_pick_metadata_value(
+                tracker,
+                source,
+                attr="backports",
+                key="oompah.backports",
+            )
         except Exception as exc:  # noqa: BLE001
             logger.debug(
                 "release_pick_reconciler: get_metadata failed for %s: %s",
@@ -178,7 +195,6 @@ def reconcile_release_picks(
             )
             continue
 
-        raw_backports = meta.get("oompah.backports")
         if not raw_backports:
             continue
 
@@ -234,7 +250,9 @@ def reconcile_release_picks(
 def _build_child_index(
     tracker: "BacklogMdTracker",
     all_issues: "list[Issue]",
-) -> "dict[tuple[str, str], list[Issue]]":
+    *,
+    should_stop: Callable[[], bool] | None = None,
+) -> "dict[tuple[str, str], list[Issue]] | None":
     """Build a lookup of child backport tasks.
 
     Returns a dict mapping ``(source_identifier_upper, target_branch)`` →
@@ -246,11 +264,17 @@ def _build_child_index(
     """
     index: dict[tuple[str, str], list[Issue]] = {}
     for issue in all_issues:
+        if should_stop is not None and should_stop():
+            return None
         try:
-            meta = tracker.get_metadata(issue.identifier)
+            raw_bof = _release_pick_metadata_value(
+                tracker,
+                issue,
+                attr="backport_of",
+                key="oompah.backport_of",
+            )
         except Exception:  # noqa: BLE001
             continue
-        raw_bof = meta.get("oompah.backport_of")
         if not raw_bof:
             continue
         try:
@@ -263,6 +287,19 @@ def _build_child_index(
         key = (bof.source.upper(), branch)
         index.setdefault(key, []).append(issue)
     return index
+
+
+def _release_pick_metadata_value(
+    tracker: "BacklogMdTracker",
+    issue: "Issue",
+    *,
+    attr: str,
+    key: str,
+) -> Any:
+    """Return release-pick metadata, preferring values loaded with the issue."""
+    if getattr(issue, "release_pick_metadata_loaded", False):
+        return getattr(issue, attr, None)
+    return tracker.get_metadata(issue.identifier).get(key)
 
 
 def _reconcile_entries(

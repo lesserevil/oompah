@@ -88,6 +88,7 @@ class TestServiceConfig:
         assert cfg.duplicate_detection_candidate_limit == 64
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_batch_size == 25
+        assert cfg.release_pick_max_runtime_seconds == 15
         assert cfg.workspace_root  # should have a default
 
     def test_responsiveness_tuning_from_env(self, monkeypatch):
@@ -98,6 +99,7 @@ class TestServiceConfig:
         monkeypatch.setenv("OOMPAH_AUTO_ARCHIVE_INTERVAL_SECONDS", "30")
         monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "5")
         monkeypatch.setenv("OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", "9")
+        monkeypatch.setenv("OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", "4")
         wf = WorkflowDefinition(config={}, prompt_template="test")
 
         cfg = ServiceConfig.from_workflow(wf)
@@ -109,6 +111,7 @@ class TestServiceConfig:
         assert cfg.auto_archive_interval_seconds == 30
         assert cfg.worktree_cleanup_batch_size == 5
         assert cfg.maintenance_startup_delay_seconds == 9
+        assert cfg.release_pick_max_runtime_seconds == 4
 
     def test_server_port_env_overrides_default(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_SERVER_PORT", "8090")
