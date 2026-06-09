@@ -128,6 +128,8 @@ You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
 | `agent` | `budget_limit` | Max spend in dollars (0 = unlimited) | `0` |
 | `agent` | `profiles` | List of agent tier definitions | `[]` |
 | `server` | `port` | Dashboard HTTP port; `OOMPAH_SERVER_PORT` takes precedence | `8080` |
+| `server` | `backend` | HTTP server backend (`uvicorn` or `granian`); `OOMPAH_SERVER_BACKEND` or `--server` take precedence | `uvicorn` |
+| `server` | `workers` | Worker process count; `OOMPAH_SERVER_WORKERS` or `--workers` take precedence; must be 1 for granian | `1` |
 
 ### Agent profiles
 
@@ -201,6 +203,40 @@ Manage foci at `http://localhost:8080/foci`.
 The dashboard starts on port 8080 by default. Override it with
 `OOMPAH_SERVER_PORT` in `.env`; set it to an empty value to disable the
 dashboard.
+
+### HTTP server backend
+
+oompah supports two ASGI server backends:
+
+| Backend | How to enable | Notes |
+|---------|--------------|-------|
+| `uvicorn` | Default | Stable, battle-tested. Default until Granian integration is fully hardened. |
+| `granian` | `--server granian` or `OOMPAH_SERVER_BACKEND=granian` | Rust/Tokio ASGI server; ~23% higher HTTP throughput in single-worker benchmarks (see `backlog/docs/doc-1`). Opt-in via TASK-472. |
+
+```bash
+# Start with the Granian backend (opt-in)
+oompah --server granian WORKFLOW.md
+
+# Or set in .env for persistent use
+echo "OOMPAH_SERVER_BACKEND=granian" >> .env
+```
+
+**Important — Granian requires `workers=1`:** oompah stores shared in-process
+state — the orchestrator singleton and the `_ws_clients` WebSocket set in
+`oompah/server.py` — that is not replicated across OS-level worker processes.
+Granian with `workers > 1` would cause each worker to run an independent
+orchestrator instance and break WebSocket broadcast to connected browsers.
+oompah **rejects** a `workers > 1` configuration at startup when the Granian
+backend is selected:
+
+```bash
+# This is rejected at startup with a clear error:
+oompah --server granian --workers 2
+
+# Correct usage:
+oompah --server granian              # workers defaults to 1
+oompah --server granian --workers 1  # explicit 1 is also fine
+```
 
 - **`/`** — Kanban board with drag-and-drop, agent status, cost tracking
 - **`/reviews`** — Open PRs/MRs across all projects with rebase controls

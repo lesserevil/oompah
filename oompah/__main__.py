@@ -20,6 +20,54 @@ def _load_startup_env(env_file: str) -> int:
     return load_dotenv(os.path.abspath(env_file), override=True)
 
 
+_VALID_SERVER_BACKENDS = ("uvicorn", "granian")
+
+
+def _resolve_server_backend(cli_value: str | None) -> str:
+    """Return the effective server backend, respecting CLI > env > default."""
+    if cli_value is not None:
+        return cli_value
+    env_val = os.environ.get("OOMPAH_SERVER_BACKEND", "").strip().lower()
+    return env_val if env_val in _VALID_SERVER_BACKENDS else "uvicorn"
+
+
+def _resolve_workers(cli_value: int | None) -> int:
+    """Return the effective worker count, respecting CLI > env > default."""
+    if cli_value is not None:
+        return cli_value
+    env_val = os.environ.get("OOMPAH_SERVER_WORKERS", "").strip()
+    try:
+        return int(env_val) if env_val else 1
+    except ValueError:
+        return 1
+
+
+def _check_granian_workers_constraint(server: str, workers: int) -> None:
+    """Exit with an error if granian is asked to run with workers > 1.
+
+    Granian spawns a separate OS process per worker.  Each worker
+    re-imports the FastAPI ``app``, so the in-process state that oompah
+    relies on — the orchestrator singleton and the ``_ws_clients`` WebSocket
+    set in ``oompah.server`` — is **not shared** between workers.  Running
+    more than one worker would therefore break WebSocket broadcast and cause
+    the orchestrator to run as multiple independent, competing instances.
+
+    The constraint is enforced here (at startup, before any async work) so
+    the operator gets a clear, actionable error message rather than silent
+    misbehaviour at runtime.
+    """
+    if server == "granian" and workers > 1:
+        logger.error(
+            "granian workers must be 1, got %d. "
+            "oompah uses shared in-process state (orchestrator singleton and "
+            "_ws_clients WebSocket set) that is not safe to share across "
+            "multiple Granian worker processes. "
+            "Remove --workers / unset OOMPAH_SERVER_WORKERS, or set it to 1.",
+            workers,
+        )
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="oompah",
@@ -51,6 +99,30 @@ def main() -> None:
              "persisted, so subsequent restarts (without the flag) stay "
              "paused until you call /api/v1/orchestrator/resume.",
     )
+    parser.add_argument(
+        "--server",
+        choices=list(_VALID_SERVER_BACKENDS),
+        default=None,
+        metavar="BACKEND",
+        help=(
+            "HTTP server backend to use: 'uvicorn' (default) or 'granian'. "
+            "Can also be set via OOMPAH_SERVER_BACKEND in .env. "
+            "NOTE: granian requires --workers 1 (the default) because oompah "
+            "uses shared in-process state (orchestrator singleton and WebSocket "
+            "_ws_clients) that is not safe across multiple worker processes."
+        ),
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Number of server worker processes (default: 1). "
+            "Can also be set via OOMPAH_SERVER_WORKERS in .env. "
+            "Must be 1 when --server granian is used."
+        ),
+    )
     args = parser.parse_args()
 
     # Load .env file before anything else so $VAR references in WORKFLOW.md resolve.
@@ -68,6 +140,15 @@ def main() -> None:
         stream=sys.stderr,
     )
 
+    # Resolve effective server backend and worker count (CLI > env > default).
+    # The .env file was loaded above, so OOMPAH_SERVER_BACKEND / OOMPAH_SERVER_WORKERS
+    # are now available in os.environ.
+    server_backend = _resolve_server_backend(args.server)
+    workers = _resolve_workers(args.workers)
+
+    # Hard constraint: granian does not support workers > 1 for this app.
+    _check_granian_workers_constraint(server_backend, workers)
+
     workflow_path = os.path.abspath(args.workflow)
 
     # Validate workflow file exists
@@ -78,7 +159,10 @@ def main() -> None:
     while True:
         restart = False
         try:
-            restart = asyncio.run(_run(workflow_path, args.port, start_paused=args.paused))
+            restart = asyncio.run(
+                _run(workflow_path, args.port, start_paused=args.paused,
+                     server_backend=server_backend, workers=workers)
+            )
         except KeyboardInterrupt:
             logger.info("Shutting down")
         except Exception as exc:
@@ -95,7 +179,11 @@ def main() -> None:
 
 
 async def _run(
-    workflow_path: str, cli_port: int | None, start_paused: bool = False,
+    workflow_path: str,
+    cli_port: int | None,
+    start_paused: bool = False,
+    server_backend: str = "uvicorn",
+    workers: int = 1,
 ) -> bool:
     from oompah.backlog_compat import BacklogCompatibilityError, ensure_backlog_compatible
     from oompah.agent_profile_store import AgentProfileStore
@@ -305,18 +393,44 @@ async def _run(
     server = None
     server_task = None
     if port is not None:
-        import uvicorn
-
-        uvi_config = uvicorn.Config(
-            app,
-            host="0.0.0.0",
-            port=port,
-            log_level="info",
-            access_log=False,
+        logger.info(
+            "HTTP server starting on http://0.0.0.0:%d (backend=%s, workers=%d)",
+            port, server_backend, workers,
         )
-        server = uvicorn.Server(uvi_config)
-        server_task = asyncio.create_task(server.serve())
-        logger.info("HTTP server starting on http://0.0.0.0:%d", port)
+        if server_backend == "granian":
+            # Granian path: run as an asyncio task using the ASGI interface.
+            # workers is always 1 here (enforced by _check_granian_workers_constraint).
+            # NOTE: Full granian integration (bootstrap.py, lifespan orchestrator
+            # embedding) is implemented in TASK-472.1–472.6. This branch logs
+            # the intent and falls back to uvicorn until that work lands.
+            logger.warning(
+                "granian backend selected but full integration is not yet "
+                "enabled; falling back to uvicorn for this run. "
+                "See TASK-472 for the granian integration roadmap."
+            )
+            import uvicorn as _uvicorn
+
+            uvi_config = _uvicorn.Config(
+                app,
+                host="0.0.0.0",
+                port=port,
+                log_level="info",
+                access_log=False,
+            )
+            server = _uvicorn.Server(uvi_config)
+            server_task = asyncio.create_task(server.serve())
+        else:
+            import uvicorn
+
+            uvi_config = uvicorn.Config(
+                app,
+                host="0.0.0.0",
+                port=port,
+                log_level="info",
+                access_log=False,
+            )
+            server = uvicorn.Server(uvi_config)
+            server_task = asyncio.create_task(server.serve())
 
     try:
         # Wait for orchestrator to finish (normal stop or restart)
