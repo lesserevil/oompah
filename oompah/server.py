@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
 import re
+import signal
 import threading
 import time
 from datetime import datetime, timezone
@@ -115,7 +117,151 @@ def _html_response(name: str) -> HTMLResponse:
     return HTMLResponse(content=_load_template(name), headers=_NO_CACHE_HEADERS)
 
 
-app = FastAPI(title="oompah", version="0.1.0")
+# ---------------------------------------------------------------------------
+# ASGI lifespan — Granian path
+# ---------------------------------------------------------------------------
+# When Granian is the HTTP server it owns the process; the orchestrator and
+# all long-lived services are started *inside* the ASGI lifespan so they
+# share the worker's event loop (required for the WebSocket _broadcast path).
+#
+# Guard: the lifespan only activates when ``OOMPAH_EMBED_ORCHESTRATOR=1`` is
+# set by ``__main__._run_granian()``.  For the uvicorn path and tests the
+# lifespan is a no-op (just ``yield``).
+#
+# Error handling: ``setup_services()`` raises ``StartupError`` instead of
+# calling ``sys.exit(1)``.  If we let any exception (including SystemExit)
+# escape the lifespan coroutine, Python's asyncio machinery stores it in the
+# task and later emits "Task exception was never retrieved", and Granian may
+# respawn the worker.  Instead we catch ``StartupError`` here, log it, and
+# call ``os._exit(1)`` which terminates the process immediately without
+# unwinding the Python stack — the exception never escapes the task.
+
+@contextlib.asynccontextmanager
+async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
+    """ASGI lifespan context manager.
+
+    No-op (uvicorn / tests): ``OOMPAH_EMBED_ORCHESTRATOR`` not set → yield.
+
+    Granian path: ``OOMPAH_EMBED_ORCHESTRATOR=1`` → run ``setup_services()``,
+    start the orchestrator and supporting tasks, ``yield``, then tear down on
+    shutdown.
+
+    On :class:`~oompah.bootstrap.StartupError` (validation failure): log the
+    error and call ``os._exit(1)`` so the exception never escapes the
+    coroutine (avoids "Task exception was never retrieved" and Granian worker
+    respawn loops).
+    """
+    embed = os.environ.get("OOMPAH_EMBED_ORCHESTRATOR")
+    if not embed:
+        # No-op path: uvicorn runs the orchestrator outside the lifespan.
+        yield
+        return
+
+    # -----------------------------------------------------------------
+    # Granian path: set up and run all services inside the worker loop.
+    # -----------------------------------------------------------------
+    import asyncio as _asyncio
+
+    from oompah.bootstrap import Services, StartupError, setup_services
+    from oompah.config import ServiceConfig, WorkflowError, load_workflow
+    from watchfiles import awatch
+
+    workflow_path = os.environ.get("OOMPAH_WORKFLOW_PATH", "./WORKFLOW.md")
+    cli_port_s = os.environ.get("OOMPAH_SERVER_PORT_OVERRIDE")
+    cli_port: int | None = int(cli_port_s) if cli_port_s else None
+    start_paused = os.environ.get("OOMPAH_START_PAUSED") == "1"
+
+    try:
+        services: Services = await setup_services(
+            workflow_path, cli_port=cli_port, start_paused=start_paused,
+        )
+    except StartupError as exc:
+        # Clean abort: log, then terminate the process without letting the
+        # exception escape this coroutine (avoids asyncio task-exception
+        # noise and Granian worker respawn).
+        logger.critical(
+            "Startup validation failed — aborting (no worker respawn): %s",
+            exc,
+        )
+        # Signal the Granian supervisor to stop before we exit the worker.
+        try:
+            os.kill(os.getppid(), signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        os._exit(1)  # noqa: SLF001 — intentional hard exit
+
+    # Wire the orchestrator into the server's global so request handlers
+    # can reach it.
+    set_orchestrator(services.orchestrator)
+
+    # Wire forwarder health alerts into the orchestrator.
+    def _on_forwarder_status(status: dict) -> None:
+        orch = services.orchestrator
+        orch._alerts = [
+            a for a in orch._alerts if a.get("source") != "webhook_forwarder"
+        ]
+        if not status.get("available"):
+            detail = status.get("detail") or "gh-webhook extension unavailable"
+            orch._alerts.append({
+                "level": "warning",
+                "source": "webhook_forwarder",
+                "message": (
+                    f"Webhooks degraded: {detail}. "
+                    "Install with `make install-gh-extensions`. "
+                    "Falling back to periodic full-sync (slower)."
+                ),
+            })
+
+    services.webhook_forwarder._status_callback = _on_forwarder_status
+    await services.webhook_forwarder.start()
+
+    # Workflow file watcher task.
+    async def _watch_workflow() -> None:
+        try:
+            async for _changes in awatch(workflow_path):
+                logger.info("Workflow file changed, reloading")
+                try:
+                    from oompah.config import (
+                        ServiceConfig,
+                        WorkflowError,
+                        load_workflow,
+                        validate_dispatch_config,
+                    )
+
+                    new_wf = load_workflow(workflow_path)
+                    new_config = ServiceConfig.from_workflow(new_wf)
+                    errs = validate_dispatch_config(new_config)
+                    if errs:
+                        logger.error(
+                            "Invalid workflow reload: %s", "; ".join(errs),
+                        )
+                        continue
+                    services.orchestrator.reload_config(
+                        new_config, new_wf.prompt_template,
+                    )
+                except WorkflowError as exc:
+                    logger.error("Workflow reload failed: %s", exc)
+        except _asyncio.CancelledError:
+            pass
+
+    watch_task = _asyncio.create_task(_watch_workflow())
+    orch_task = _asyncio.create_task(services.orchestrator.run())
+
+    try:
+        yield  # --- app is running ---
+    finally:
+        # Shutdown: stop all background tasks.
+        await services.orchestrator.stop()
+        await services.webhook_forwarder.stop()
+        watch_task.cancel()
+        orch_task.cancel()
+        try:
+            await _asyncio.wait_for(orch_task, timeout=5.0)
+        except (_asyncio.CancelledError, _asyncio.TimeoutError):
+            pass
+
+
+app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
 
 # Serve static assets (favicon, etc.) from oompah/static/
 from fastapi.staticfiles import StaticFiles

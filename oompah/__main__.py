@@ -51,6 +51,18 @@ def main() -> None:
              "persisted, so subsequent restarts (without the flag) stay "
              "paused until you call /api/v1/orchestrator/resume.",
     )
+    parser.add_argument(
+        "--server",
+        choices=["uvicorn", "granian"],
+        default="uvicorn",
+        help=(
+            "HTTP server backend (default: uvicorn). "
+            "Use --server granian to opt into the Granian ASGI server "
+            "(requires the granian package: pip install granian). "
+            "Granian runs workers=1 with the orchestrator inside the "
+            "ASGI lifespan so the WebSocket broadcast path keeps working."
+        ),
+    )
     args = parser.parse_args()
 
     # Load .env file before anything else so $VAR references in WORKFLOW.md resolve.
@@ -70,15 +82,22 @@ def main() -> None:
 
     workflow_path = os.path.abspath(args.workflow)
 
-    # Validate workflow file exists
+    # Validate workflow file exists (early exit before async setup)
     if not os.path.isfile(workflow_path):
         logger.error("Workflow file not found: %s", workflow_path)
         sys.exit(1)
 
+    if args.server == "granian":
+        _run_granian(workflow_path, args.port, start_paused=args.paused)
+        return
+
+    # --- uvicorn path ---
     while True:
         restart = False
         try:
-            restart = asyncio.run(_run(workflow_path, args.port, start_paused=args.paused))
+            restart = asyncio.run(
+                _run(workflow_path, args.port, start_paused=args.paused),
+            )
         except KeyboardInterrupt:
             logger.info("Shutting down")
         except Exception as exc:
@@ -89,172 +108,144 @@ def main() -> None:
             # Drop --paused from the re-exec argv so an in-process restart
             # doesn't keep forcing pause when the user had already resumed.
             execv_args = [a for a in sys.argv[1:] if a != "--paused"]
-            logger.info("Restarting via os.execv: %s %s", sys.executable, execv_args)
-            os.execv(sys.executable, [sys.executable, "-m", "oompah"] + execv_args)
+            logger.info(
+                "Restarting via os.execv: %s %s", sys.executable, execv_args,
+            )
+            os.execv(
+                sys.executable,
+                [sys.executable, "-m", "oompah"] + execv_args,
+            )
+        break
+
+
+def _run_granian(
+    workflow_path: str,
+    cli_port: int | None,
+    start_paused: bool = False,
+) -> None:
+    """Launch oompah under the Granian ASGI server.
+
+    Granian owns the process (``Granian.serve()`` blocks).  The orchestrator
+    and all services run inside the ASGI lifespan on the single worker loop
+    (``OOMPAH_EMBED_ORCHESTRATOR=1``), which keeps the WebSocket
+    ``_broadcast`` path working.
+
+    On restart (orchestrator sets ``wants_restart``), the lifespan writes a
+    sentinel file and sends SIGTERM to the Granian supervisor (PPID).  This
+    function detects the sentinel after Granian exits and re-execs.
+
+    Startup validation failures are handled by the lifespan: it calls
+    ``os._exit(1)`` so the exception never escapes the asyncio task (avoids
+    "Task exception was never retrieved" and worker respawn loops).
+    """
+    try:
+        from granian import Granian  # type: ignore[import-untyped]
+    except ImportError:
+        logger.error(
+            "granian is not installed. Install it with: pip install granian "
+            "(or add it to your dependencies and run: uv sync)",
+        )
+        sys.exit(1)
+
+    from oompah.config import ServiceConfig, load_workflow
+    from oompah.server import app
+
+    # Determine port: prefer CLI flag, then env, then workflow default.
+    port = cli_port
+    if port is None:
+        try:
+            wf = load_workflow(workflow_path)
+            cfg = ServiceConfig.from_workflow(wf)
+            port = cfg.server_port
+        except Exception:
+            port = 7777  # last-resort default
+
+    # Pass startup parameters to the lifespan via env vars (the lifespan
+    # runs in the worker process, which inherits the environment).
+    os.environ["OOMPAH_EMBED_ORCHESTRATOR"] = "1"
+    os.environ["OOMPAH_WORKFLOW_PATH"] = workflow_path
+    if cli_port is not None:
+        os.environ["OOMPAH_SERVER_PORT_OVERRIDE"] = str(cli_port)
+    if start_paused:
+        os.environ["OOMPAH_START_PAUSED"] = "1"
+
+    _RESTART_SENTINEL = os.path.join(
+        os.path.dirname(workflow_path), ".oompah", "granian_restart",
+    )
+
+    while True:
+        # Remove any stale sentinel before starting.
+        try:
+            os.remove(_RESTART_SENTINEL)
+        except FileNotFoundError:
+            pass
+
+        logger.info(
+            "Starting Granian ASGI server on http://0.0.0.0:%d", port,
+        )
+        granian = Granian(
+            "oompah.server:app",
+            address="0.0.0.0",
+            port=port,
+            workers=1,  # required: shared in-process state (orchestrator, WS)
+            respawn_failed_workers=False,  # don't respawn on startup failure
+        )
+        granian.serve()
+
+        # Granian.serve() returned — check whether the lifespan requested
+        # a restart via the sentinel file.
+        if os.path.exists(_RESTART_SENTINEL):
+            try:
+                os.remove(_RESTART_SENTINEL)
+            except FileNotFoundError:
+                pass
+            execv_args = [a for a in sys.argv[1:] if a != "--paused"]
+            logger.info(
+                "Restarting via os.execv: %s %s", sys.executable, execv_args,
+            )
+            os.execv(
+                sys.executable,
+                [sys.executable, "-m", "oompah"] + execv_args,
+            )
         break
 
 
 async def _run(
     workflow_path: str, cli_port: int | None, start_paused: bool = False,
 ) -> bool:
-    from oompah.backlog_compat import BacklogCompatibilityError, ensure_backlog_compatible
-    from oompah.agent_profile_store import AgentProfileStore
+    """Uvicorn path: validate config, set up services, run until stopped.
+
+    Uses :func:`oompah.bootstrap.setup_services` for all validation and
+    service creation.  :class:`~oompah.bootstrap.StartupError` is caught
+    here and converted to ``sys.exit(1)`` so the uvicorn path behaviour is
+    unchanged.
+    """
+    from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
-    from oompah.orchestrator import Orchestrator
-    from oompah.projects import ProjectStore
-    from oompah.providers import ProviderStore
-    from oompah.roles import RoleStore, migrate_agent_profiles_to_roles
     from oompah.server import app, set_orchestrator
-    from oompah.webhooks import WebhookForwarder
 
-    # Load initial workflow
+    # ------------------------------------------------------------------
+    # Validate config and create all service objects.
+    # StartupError → sys.exit(1) (uvicorn path: SystemExit propagates
+    # cleanly through asyncio.run → main()).
+    # ------------------------------------------------------------------
     try:
-        workflow = load_workflow(workflow_path)
-    except WorkflowError as exc:
-        logger.error("Failed to load workflow: %s", exc)
+        services = await setup_services(
+            workflow_path, cli_port=cli_port, start_paused=start_paused,
+        )
+    except StartupError:
+        # Error already logged by setup_services(); exit without traceback.
         sys.exit(1)
 
-    config = ServiceConfig.from_workflow(workflow)
-
-    # Validate config
-    errors = validate_dispatch_config(config)
-    if errors:
-        for err in errors:
-            logger.error("Config validation error: %s", err)
-        sys.exit(1)
-
-    try:
-        compat = ensure_backlog_compatible(os.path.dirname(workflow_path))
-        if compat.changed:
-            logger.info(
-                "Updated Backlog.md config at %s (%s)",
-                compat.config_path,
-                ", ".join(compat.migrations),
-            )
-    except BacklogCompatibilityError as exc:
-        logger.error("Backlog.md compatibility error: %s", exc)
-        sys.exit(1)
-
-    # Strict-mode profile source check (oompah-zlz_2-hye). When the
-    # operator has set strict mode, refuse to start if WORKFLOW.md
-    # still has an agent.profiles block at all — the dashboard /
-    # AgentProfileStore is the only authoritative source. Default
-    # mode is "warn", which lets startup proceed and surfaces the
-    # drift through the orchestrator alert mechanism below.
-    if (
-        config.strict_profile_source == "strict"
-        and config.workflow_has_profiles_block
-    ):
-        logger.error(
-            "Strict profile-source mode is enabled and WORKFLOW.md still "
-            "contains an agent.profiles block. This section is no longer "
-            "authoritative; profiles are managed via the dashboard "
-            "(/api/v1/agent-profiles) and stored in "
-            ".oompah/agent_profiles.json. Delete the agent.profiles "
-            "block from %s to start. To disable this strict check, set "
-            "OOMPAH_STRICT_PROFILE_SOURCE=warn (the default).",
-            workflow_path,
-        )
-        sys.exit(1)
-
-    # Drift warning (oompah-zlz_2-hye). When the persisted JSON store
-    # disagrees with WORKFLOW.md's profile block, log a warning here
-    # so the operator sees it during startup. The orchestrator below
-    # also raises a dashboard alert (same source) so the operator
-    # sees it without scrolling logs.
-    if config.agent_profiles_drift:
-        logger.warning(
-            "WORKFLOW.md agent.profiles block detected and differs from "
-            "persisted profile store — using the persisted store. Delete "
-            "the agent.profiles section from %s to clear this warning.",
-            workflow_path,
-        )
-
-    # Determine port
-    port = cli_port or config.server_port
-
-    # Create orchestrator with shared stores
-    provider_store = ProviderStore()
-    project_store = ProjectStore()
-    # Agent profile store: ServiceConfig.from_workflow already created
-    # the JSON file (or migrated WORKFLOW.md profiles into it) when it
-    # parsed the workflow above. Re-open the same path here so the
-    # orchestrator and the HTTP API share a single in-memory store.
-    agent_profile_store = AgentProfileStore()
-    # Role store (epic oompah-zlz_2-xau7): maps role_name → (provider, model).
-    # First-run migration copies existing AgentProfile.provider_id/model into
-    # RoleStore[profile.model_role] for empty slots — idempotent, so
-    # subsequent boots are no-ops.
-    role_store = RoleStore(provider_store=provider_store)
-    if role_store.is_empty:
-        migrate_agent_profiles_to_roles(
-            role_store, agent_profile_store.list_all(),
-            provider_store=provider_store,
-        )
-
-    # Start gh webhook forwarder for each project (subprocess lifecycle
-    # managed by WebhookForwarder; independent of orchestrator).
-    # The status_callback is wired below once the orchestrator exists so
-    # forwarder-down state surfaces as a dashboard banner.
-    webhook_forwarder = WebhookForwarder(project_store=project_store)
-
-    # Pull latest code and ensure Backlog.md config compatibility
-    # for every configured project BEFORE the orchestrator starts dispatching.
-    # Without this, agents work against stale local state.
-    # Best-effort, parallel, with per-call timeouts; failures are logged but
-    # never block boot.
-    projects = project_store.list_all()
-    if projects:
-        logger.info("Syncing sources for %d project(s) before dispatch...", len(projects))
-        sync_results = project_store.sync_all_sources()
-        for pid, st in sync_results.items():
-            name = next((p.name for p in projects if p.id == pid), pid)
-            logger.info(
-                "Startup sync %s: git=%s backlog=%s",
-                name, st.get("git", "?"), st.get("backlog", "?"),
-            )
-
-    # Ensure every managed project has a Backlog task-change webhook hook
-    # installed so oompah is notified promptly when task files change.
-    # Best-effort: failures are logged but never block boot.
-    if projects:
-        from oompah.backlog_webhooks import ensure_backlog_webhooks
-
-        server_base_url = (
-            os.environ.get("OOMPAH_SERVER_URL")
-            or f"http://localhost:{port}"
-        )
-        webhook_results = ensure_backlog_webhooks(project_store, server_base_url)
-        for pid, status in webhook_results.items():
-            name = next((p.name for p in projects if p.id == pid), pid)
-            if status.startswith("ok") or status.startswith("skipped"):
-                logger.info("Backlog webhook hook %s: %s", name, status)
-            else:
-                logger.warning("Backlog webhook hook %s: %s", name, status)
-
-    orchestrator = Orchestrator(config, workflow_path,
-                                provider_store=provider_store,
-                                project_store=project_store,
-                                agent_profile_store=agent_profile_store,
-                                role_store=role_store)
-    orchestrator.set_prompt_template(workflow.prompt_template)
-
-    # --paused CLI flag forces the orchestrator to boot paused regardless
-    # of what's in the persisted state file. Persist it so subsequent
-    # restarts stay paused until /resume is called.
-    if start_paused and not orchestrator.is_paused:
-        orchestrator._paused = True
-        orchestrator._save_paused_state()
-        logger.info("Booting paused (--paused flag)")
-    elif orchestrator.is_paused:
-        logger.info("Booting paused (persisted state)")
+    orchestrator = services.orchestrator
+    webhook_forwarder = services.webhook_forwarder
+    port = services.port
 
     set_orchestrator(orchestrator)
 
     # Wire forwarder health into the orchestrator's alerts list so the
     # dashboard surfaces a degraded-mode banner whenever the gh-webhook
-    # extension is missing. Without this, an operator would only notice
-    # webhooks were silently failing after agents started missing work.
+    # extension is missing.
     def _on_forwarder_status(status: dict) -> None:
         # Drop any prior webhook_forwarder alert (idempotent re-arming)
         orchestrator._alerts = [
@@ -288,7 +279,9 @@ async def _run(
                     new_config = ServiceConfig.from_workflow(new_wf)
                     errs = validate_dispatch_config(new_config)
                     if errs:
-                        logger.error("Invalid workflow reload: %s", "; ".join(errs))
+                        logger.error(
+                            "Invalid workflow reload: %s", "; ".join(errs),
+                        )
                         continue
                     orchestrator.reload_config(new_config, new_wf.prompt_template)
                 except WorkflowError as exc:
