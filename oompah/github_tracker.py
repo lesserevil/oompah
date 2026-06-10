@@ -55,7 +55,12 @@ from urllib.parse import quote
 import httpx
 
 from oompah.models import BlockerRef, Issue
-from oompah.statuses import CANONICAL_STATUSES, NEEDS_HUMAN
+from oompah.statuses import (
+    ARCHIVED,
+    BACKLOG,
+    CANONICAL_STATUSES,
+    NEEDS_HUMAN,
+)
 from oompah.tracker import (
     TrackerError,
     TrackerTimeoutError,
@@ -973,8 +978,8 @@ def _parse_next_link(link_header: str) -> str | None:
 # GitHub Projects V2 custom field configured.
 #
 # When no status label is present on an issue, the adapter falls back to
-# the GitHub built-in ``state`` field: ``open`` → "Open", ``closed`` →
-# "Done".
+# the GitHub built-in ``state`` field: ``open`` → "Backlog", ``closed`` →
+# "Archived", then backfills the corresponding ``oompah:status:*`` label.
 #
 # Priority is encoded as ``priority:N`` (e.g. ``priority:1``).
 # Issue type is encoded as ``type:<kind>`` (e.g. ``type:bug``).
@@ -1043,20 +1048,28 @@ def _label_to_status(label_name: str) -> str | None:
     return _LABEL_SLUG_TO_STATUS.get(slug)
 
 
-def _extract_oompah_status(labels: list[dict[str, Any]], gh_state: str) -> str:
+def _github_fallback_status(gh_state: str) -> str:
+    """Return the oompah status for a GitHub issue with no status label."""
+    return ARCHIVED if gh_state == "closed" else BACKLOG
+
+
+def _extract_oompah_status(
+    labels: list[dict[str, Any]], gh_state: str
+) -> str:
     """Derive the oompah status for a GitHub issue.
 
     Priority:
 
     1. ``oompah:status:*`` label — explicit oompah status.
-    2. GitHub ``state`` field — ``open`` → ``"Open"``, ``closed`` → ``"Done"``.
+    2. GitHub ``state`` field — unlabeled ``open`` issues are treated as
+       ``"Backlog"``; unlabeled ``closed`` issues become ``"Archived"``.
     """
     for lbl in labels:
         name = lbl.get("name", "")
         status = _label_to_status(name)
         if status is not None:
             return status
-    return "Open" if gh_state == "open" else "Done"
+    return _github_fallback_status(gh_state)
 
 
 def _extract_priority(labels: list[dict[str, Any]]) -> int | None:
@@ -1294,6 +1307,74 @@ class GitHubIssueTracker:
     def _issues_path(self, suffix: str = "") -> str:
         return self._repo_path(f"/issues{suffix}")
 
+    def _normalize_issue_payload(self, gh_issue: dict[str, Any]) -> Issue:
+        """Normalize a GitHub issue payload and backfill missing status labels.
+
+        GitHub's issues list endpoint can return issues created outside
+        oompah.  If one has no recognized ``oompah:status:*`` label, record
+        the safe fallback status on GitHub before returning the normalized
+        Issue.  The local normalization still uses the fallback when the
+        best-effort label write fails.
+        """
+        return _gh_issue_to_issue(
+            self._ensure_status_label(gh_issue),
+            self.owner,
+            self.repo,
+        )
+
+    def _normalize_issue_payloads(self, raw: list[Any]) -> list[Issue]:
+        return [
+            self._normalize_issue_payload(gh)
+            for gh in raw
+            if isinstance(gh, dict)
+        ]
+
+    def _ensure_status_label(self, gh_issue: dict[str, Any]) -> dict[str, Any]:
+        labels_raw: list[dict[str, Any]] = gh_issue.get("labels") or []
+        for label in labels_raw:
+            name = label.get("name", "")
+            if _label_to_status(name) is not None:
+                return gh_issue
+
+        # GitHub exposes PRs through the issues API. PR lifecycle is handled
+        # by the SCM/review path, so do not stamp task labels onto PR entries.
+        if gh_issue.get("pull_request"):
+            return gh_issue
+
+        number = gh_issue.get("number")
+        if number is None:
+            return gh_issue
+
+        gh_state: str = gh_issue.get("state", "open")
+        status = _github_fallback_status(gh_state)
+        label_names = [
+            str(label.get("name"))
+            for label in labels_raw
+            if isinstance(label, dict) and label.get("name")
+        ]
+        labels = self._labels_with_status(label_names, status)
+
+        try:
+            self._client.patch(
+                self._issues_path(f"/{int(number)}"),
+                json={"labels": labels},
+            )
+        except (TypeError, ValueError):
+            return gh_issue
+        except TrackerError as exc:
+            logger.debug(
+                "Failed to backfill GitHub issue status label for %s/%s#%s: %s",
+                self.owner,
+                self.repo,
+                number,
+                exc,
+            )
+            return gh_issue
+
+        updated = dict(gh_issue)
+        updated["labels"] = [{"name": label} for label in labels]
+        return updated
+
     def parse_identifier(self, s: str) -> GitHubIdentifier:
         """Parse *s* as a fully-qualified GitHub issue identifier.
 
@@ -1335,7 +1416,7 @@ class GitHubIssueTracker:
             self._issues_path(),
             params={"state": "open", "per_page": 100},
         )
-        issues = [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        issues = self._normalize_issue_payloads(raw)
         active_set = set(self.active_states)
         candidates = [iss for iss in issues if iss.state in active_set]
         candidates.sort(
@@ -1352,7 +1433,7 @@ class GitHubIssueTracker:
             self._issues_path(),
             params={"state": "all", "per_page": 100},
         )
-        return [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        return self._normalize_issue_payloads(raw)
 
     def fetch_all_issues_enriched(self) -> list[Issue]:
         """Return all issues with full detail (may make extra API calls).
@@ -1393,7 +1474,7 @@ class GitHubIssueTracker:
             )
             if raw is None:
                 return None
-            return _gh_issue_to_issue(raw, self.owner, self.repo)
+            return self._normalize_issue_payload(raw)
         except TrackerError as exc:
             if "404" in str(exc):
                 return None
@@ -1418,7 +1499,7 @@ class GitHubIssueTracker:
                 self._issues_path(f"/{gh_id.number}/sub_issues"),
                 params={"per_page": 100},
             )
-            return [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+            return self._normalize_issue_payloads(raw)
         except TrackerError as exc:
             if "404" not in str(exc):
                 raise
@@ -1430,7 +1511,7 @@ class GitHubIssueTracker:
                 self._issues_path(),
                 params={"state": "all", "labels": parent_label, "per_page": 100},
             )
-            return [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+            return self._normalize_issue_payloads(raw)
         except TrackerError:
             return []
 
@@ -1494,7 +1575,7 @@ class GitHubIssueTracker:
             self._issues_path(),
             params={"state": gh_state, "per_page": 100},
         )
-        issues = [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        issues = self._normalize_issue_payloads(raw)
         return [iss for iss in issues if iss.state in state_set]
 
     def fetch_issues_by_labels(
@@ -1533,7 +1614,7 @@ class GitHubIssueTracker:
                 "per_page": 100,
             },
         )
-        issues = [_gh_issue_to_issue(gh, self.owner, self.repo) for gh in raw]
+        issues = self._normalize_issue_payloads(raw)
         if states is not None:
             state_set = set(states)
             issues = [iss for iss in issues if iss.state in state_set]
@@ -1566,7 +1647,7 @@ class GitHubIssueTracker:
                     "GET", self._issues_path(f"/{gh_id.number}")
                 )
                 if raw is not None:
-                    results.append(_gh_issue_to_issue(raw, self.owner, self.repo))
+                    results.append(self._normalize_issue_payload(raw))
             except TrackerError:
                 continue
 

@@ -1238,11 +1238,11 @@ class TestStatusLabelHelpers:
 
     def test_extract_oompah_status_fallback_open(self):
         labels: list = []
-        assert _extract_oompah_status(labels, "open") == "Open"
+        assert _extract_oompah_status(labels, "open") == "Backlog"
 
     def test_extract_oompah_status_fallback_closed(self):
         labels: list = []
-        assert _extract_oompah_status(labels, "closed") == "Done"
+        assert _extract_oompah_status(labels, "closed") == "Archived"
 
     def test_extract_oompah_status_label_beats_gh_state(self):
         """Status label overrides GitHub built-in state."""
@@ -1354,13 +1354,13 @@ class TestGhIssueToIssue:
         assert issue.display_identifier == "oompah-tasks#42"
         assert issue.tracker_kind == "github_issues"
 
-    def test_state_open_defaults_to_Open(self):
+    def test_state_open_defaults_to_Backlog(self):
         issue = self._convert(state="open", labels=[])
-        assert issue.state == "Open"
+        assert issue.state == "Backlog"
 
-    def test_state_closed_defaults_to_Done(self):
+    def test_state_closed_defaults_to_Archived(self):
         issue = self._convert(state="closed", labels=[])
-        assert issue.state == "Done"
+        assert issue.state == "Archived"
 
     def test_status_label_overrides_state(self):
         issue = self._convert(
@@ -1494,8 +1494,8 @@ class TestGitHubIssueTrackerFetch:
     def test_fetch_all_issues_returns_issues(self):
         tracker = self._make_tracker()
         gh_issues = [
-            _make_gh_issue(number=1, title="First"),
-            _make_gh_issue(number=2, title="Second"),
+            _make_gh_issue(number=1, title="First", labels=["oompah:status:open"]),
+            _make_gh_issue(number=2, title="Second", labels=["oompah:status:open"]),
         ]
         resp = _mock_response(200, json_data=gh_issues)
         with patch.object(tracker._client._http, "request", return_value=resp):
@@ -1504,17 +1504,44 @@ class TestGitHubIssueTrackerFetch:
         assert result[0].title == "First"
         assert result[1].title == "Second"
 
+    def test_fetch_all_issues_backfills_missing_status_labels(self):
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, state="open", labels=[]),
+            _make_gh_issue(number=2, state="closed", labels=[]),
+        ]
+        list_resp = _mock_response(200, json_data=gh_issues)
+        patch_resp_1 = _mock_response(200, json_data={"ok": True})
+        patch_resp_2 = _mock_response(200, json_data={"ok": True})
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[list_resp, patch_resp_1, patch_resp_2],
+        ) as mock_req:
+            result = tracker.fetch_all_issues()
+
+        assert [issue.state for issue in result] == ["Backlog", "Archived"]
+        first_patch = mock_req.call_args_list[1]
+        second_patch = mock_req.call_args_list[2]
+        assert first_patch[0][0] == "PATCH"
+        assert first_patch[1]["json"]["labels"] == ["oompah:status:backlog"]
+        assert second_patch[0][0] == "PATCH"
+        assert second_patch[1]["json"]["labels"] == ["oompah:status:archived"]
+
     def test_fetch_all_issues_pagination(self):
         """fetch_all_issues follows pagination links (acceptance criterion #6)."""
         tracker = self._make_tracker()
         page1 = _mock_response(
             200,
-            json_data=[_make_gh_issue(number=1)],
+            json_data=[_make_gh_issue(number=1, labels=["oompah:status:open"])],
             headers={
                 "link": '<https://api.github.com/repos/lesserevil/oompah-tasks/issues?page=2>; rel="next"'
             },
         )
-        page2 = _mock_response(200, json_data=[_make_gh_issue(number=2)])
+        page2 = _mock_response(
+            200,
+            json_data=[_make_gh_issue(number=2, labels=["oompah:status:open"])],
+        )
         with patch.object(
             tracker._client._http, "request", side_effect=[page1, page2]
         ):
@@ -1594,16 +1621,20 @@ class TestGitHubIssueTrackerFetch:
         assert "10" not in returned_numbers
         assert "11" not in returned_numbers
 
-    def test_fetch_candidate_issues_open_github_state_defaults_to_Open(self):
-        """GitHub open issues with no status label default to state 'Open'."""
+    def test_fetch_candidate_issues_open_github_state_defaults_to_backlog(self):
+        """GitHub open issues with no status label default to non-dispatchable Backlog."""
         tracker = self._make_tracker()
         gh_issues = [_make_gh_issue(number=7, state="open", labels=[])]
-        resp = _mock_response(200, json_data=gh_issues)
-        with patch.object(tracker._client._http, "request", return_value=resp):
+        list_resp = _mock_response(200, json_data=gh_issues)
+        patch_resp = _mock_response(200, json_data={"ok": True})
+        with patch.object(
+            tracker._client._http, "request", side_effect=[list_resp, patch_resp]
+        ) as mock_req:
             result = tracker.fetch_candidate_issues()
-        # "Open" is in active_states, so the issue should be returned
-        assert len(result) == 1
-        assert result[0].state == "Open"
+        assert result == []
+        patch_call = mock_req.call_args_list[1]
+        assert patch_call[0][0] == "PATCH"
+        assert patch_call[1]["json"]["labels"] == ["oompah:status:backlog"]
 
     def test_fetch_candidate_issues_sorted_by_priority(self):
         """Candidates are sorted by priority ascending (lower = higher priority)."""
@@ -1784,7 +1815,10 @@ class TestGitHubIssueTrackerFetch:
     def test_fetch_issue_states_by_ids_skips_invalid(self):
         """Invalid or missing identifiers are silently skipped."""
         tracker = self._make_tracker()
-        resp_valid = _mock_response(200, json_data=_make_gh_issue(number=1))
+        resp_valid = _mock_response(
+            200,
+            json_data=_make_gh_issue(number=1, labels=["oompah:status:open"]),
+        )
         resp_404 = _mock_response(404, text="Not Found")
         resp_404.is_success = False
         with patch.object(
@@ -1886,7 +1920,12 @@ class TestGitHubIssueTrackerFetch:
         tracker = self._make_tracker()
         resp_404 = _mock_response(404, text="Not Found")
         resp_404.is_success = False
-        children = [_make_gh_issue(number=20, labels=["parent:5"])]
+        children = [
+            _make_gh_issue(
+                number=20,
+                labels=["parent:5", "oompah:status:open"],
+            )
+        ]
         resp_200 = _mock_response(200, json_data=children)
         with patch.object(
             tracker._client._http, "request", side_effect=[resp_404, resp_200]
@@ -3316,8 +3355,8 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         resp_404 = _mock_response(404, text="Not Found")
         resp_404.is_success = False
         children = [
-            _make_gh_issue(number=10, labels=["parent:5"]),
-            _make_gh_issue(number=11, labels=["parent:5"]),
+            _make_gh_issue(number=10, labels=["parent:5", "oompah:status:open"]),
+            _make_gh_issue(number=11, labels=["parent:5", "oompah:status:open"]),
         ]
         resp_200 = _mock_response(200, json_data=children)
         with patch.object(
