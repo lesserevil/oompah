@@ -118,6 +118,23 @@ _DISPATCH_DUPLICATE_SUPPRESSION_SCORE = 0.75
 logger = logging.getLogger(__name__)
 
 
+_AGENT_LOG_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _agent_log_issue_stem(issue_identifier: str) -> str:
+    """Return a filesystem-safe stem for per-dispatch agent log filenames."""
+    stem = _AGENT_LOG_STEM_RE.sub("_", str(issue_identifier or "").strip())
+    stem = stem.strip("._-")
+    return stem or "issue"
+
+
+def _agent_log_path(log_dir: str, issue_identifier: str, ts: str | None = None) -> str:
+    """Return a per-dispatch agent log path with a safe basename."""
+    os.makedirs(log_dir, exist_ok=True)
+    stamp = ts or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return os.path.join(log_dir, f"{_agent_log_issue_stem(issue_identifier)}__{stamp}.jsonl")
+
+
 def _error_class_for_tracker_exc(exc: BaseException) -> str:
     """Classify a tracker/project exception for error_watcher dedup.
 
@@ -12621,11 +12638,7 @@ class Orchestrator:
                 ".oompah",
                 "agent-logs",
             )
-            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            agent_log_path = os.path.join(
-                log_dir,
-                f"{issue.identifier}__{ts}.jsonl",
-            )
+            agent_log_path = _agent_log_path(log_dir, issue.identifier)
 
             session = ApiAgentSession(
                 base_url=provider.base_url,
@@ -12944,12 +12957,7 @@ class Orchestrator:
                 ".oompah",
                 "agent-logs",
             )
-            os.makedirs(log_dir, exist_ok=True)
-            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            agent_log_path = os.path.join(
-                log_dir,
-                f"{issue.identifier}__{ts}.jsonl",
-            )
+            agent_log_path = _agent_log_path(log_dir, issue.identifier)
             log_fp = open(agent_log_path, "a", encoding="utf-8")
             logger.info(
                 "ACP agent log for %s -> %s (mode=acp model=%s)",
