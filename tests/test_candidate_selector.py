@@ -779,6 +779,81 @@ class TestSelectorAPIContract:
 
 
 # ---------------------------------------------------------------------------
+# TASK-449 — Disk-full (ENOSPC) must not crash record_used
+# ---------------------------------------------------------------------------
+
+
+class TestRecordUsedDiskFull:
+    """record_used must swallow OSError from _save so a full disk is non-fatal.
+
+    Regression tests for TASK-449: OSError [Errno 28] No space left on device
+    was propagating out of CandidateSelector._save() and crashing the worker.
+    """
+
+    def test_record_used_survives_oserror_on_open(self, tmp_path):
+        """record_used does not raise when open() fails with OSError."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        with patch("builtins.open", side_effect=OSError(28, "No space left on device")):
+            # Must not raise
+            sel.record_used("deep", _c("prov-651d553c", "claude-3-opus"))
+
+    def test_record_used_logs_warning_on_oserror(self, tmp_path, caplog):
+        """record_used emits a warning log when _save fails with OSError."""
+        import logging
+
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        with patch("builtins.open", side_effect=OSError(28, "No space left on device")):
+            with caplog.at_level(logging.WARNING, logger="oompah.roles"):
+                sel.record_used("deep", _c("prov-651d553c", "claude-3-opus"))
+
+        assert any(
+            "Failed to persist candidate usage state" in record.message
+            for record in caplog.records
+        ), f"Expected warning not found in: {[r.message for r in caplog.records]}"
+
+    def test_record_used_updates_in_memory_state_even_if_save_fails(self, tmp_path):
+        """In-memory usage state is updated even when disk persistence fails."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        c1 = _c("prov-651d553c", "claude-3-opus")
+
+        with patch("builtins.open", side_effect=OSError(28, "No space left on device")):
+            sel.record_used("deep", c1)
+
+        # In-memory state should reflect the usage even though the file write failed
+        assert "deep" in sel._usage
+        assert c1.provider_id in sel._usage["deep"]
+        assert c1.model in sel._usage["deep"][c1.provider_id]
+
+    def test_record_used_returns_none_even_when_save_fails(self, tmp_path):
+        """record_used returns None (not raises) when the disk write fails."""
+        sel = CandidateSelector(path=str(tmp_path / "usage.json"))
+        with patch("builtins.open", side_effect=OSError(28, "No space left on device")):
+            result = sel.record_used("deep", _c("prov-651d553c", "claude-3-opus"))
+        assert result is None
+
+    def test_record_used_subsequent_calls_work_after_failed_save(self, tmp_path):
+        """After a failed save, subsequent record_used calls with working disk succeed."""
+        path = str(tmp_path / "usage.json")
+        sel = CandidateSelector(path=path)
+        c1 = _c("prov-651d553c", "claude-3-opus")
+        c2 = _c("prov-2", "gpt-4o")
+
+        # First call: disk is full
+        with patch("builtins.open", side_effect=OSError(28, "No space left on device")):
+            sel.record_used("deep", c1)
+
+        # Second call: disk is available again
+        sel.record_used("deep", c2)
+
+        # The second call should have persisted successfully
+        import json as _json
+        with open(path) as f:
+            data = _json.load(f)
+        assert "deep" in data
+        assert c2.provider_id in data["deep"]
+
+
+# ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
 
