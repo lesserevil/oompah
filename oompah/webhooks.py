@@ -1258,9 +1258,20 @@ class WebhookForwarder:
             raise
         except Exception:  # pragma: no cover — defensive
             pass
+        # If stderr reached EOF, the process is normally done. Wait briefly
+        # so ``returncode`` is populated, then detach this completed process
+        # so the polling loop can launch a replacement on its next pass.
+        rc = proc.returncode
+        if rc is None:
+            try:
+                rc = await asyncio.wait_for(proc.wait(), timeout=1.0)
+            except (asyncio.TimeoutError, TypeError):
+                rc = proc.returncode
+        if rc is not None and fp.process is proc:
+            fp.process = None
+
         # If the process exited badly, log the captured tail so the
         # operator can see auth/install errors in oompah.log.
-        rc = proc.returncode
         if rc not in (None, 0) and fp.last_stderr:
             logger.warning(
                 "WebhookForwarder: gh webhook forward stderr for project %s "

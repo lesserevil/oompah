@@ -1986,6 +1986,41 @@ class TestWebhookForwarderStderrCapture:
         assert "auth required" in fp.last_stderr
 
     @pytest.mark.asyncio
+    async def test_completed_process_is_detached_after_stderr_eof(self, git_repo):
+        fwd = WebhookForwarder()
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
+
+        class _FakeStderr:
+            def __init__(self):
+                self._chunks = [b"websocket closed\n", b""]
+
+            async def read(self, _n):
+                return self._chunks.pop(0) if self._chunks else b""
+
+        class _FakeProc:
+            pid = 1
+            returncode = 1
+            stderr = _FakeStderr()
+
+            async def wait(self):
+                return self.returncode
+
+        async def fake_exec(*args, **kwargs):
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        proc = fp.process
+        assert proc is not None
+        assert fp.stderr_task is not None
+        await fp.stderr_task
+
+        assert fp.last_stderr == "websocket closed\n"
+        assert fp.process is None
+
+    @pytest.mark.asyncio
     async def test_terminate_cancels_stderr_task(self, git_repo):
         fwd = WebhookForwarder()
         fwd._extension_available = True
