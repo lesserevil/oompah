@@ -73,6 +73,13 @@ def _check_granian_workers_constraint(server: str, workers: int) -> None:
 
 
 def main() -> None:
+    # Dispatch 'oompah task ...' to the task CLI module before touching the
+    # server argparse so help text and error messages are clean.
+    if len(sys.argv) > 1 and sys.argv[1] == "task":
+        from oompah.task_cli import main as _task_main
+        _task_main(sys.argv[2:])
+        return
+
     parser = argparse.ArgumentParser(
         prog="oompah",
         description="Orchestrate coding agents to execute project work",
