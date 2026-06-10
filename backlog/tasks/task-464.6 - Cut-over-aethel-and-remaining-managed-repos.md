@@ -1,10 +1,10 @@
 ---
 id: TASK-464.6
 title: Cut over aethel and remaining managed repos
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 16:23'
+updated_date: '2026-06-10 16:25'
 labels:
   - task
   - github-issues
@@ -126,4 +126,16 @@ created: 2026-06-10 16:23
 ---
 IMPLEMENTATION: Cut over oompah project (proj-14849f1b) to GitHub Issues via mcp__oompah__update_project. Final state: tracker_kind=github_issues, tracker_owner=lesserevil, tracker_repo=oompah, tracker_cutover_at=2026-06-10T16:23:00+00:00, legacy_backlog_enabled=true (existing Backlog tasks remain visible), legacy_backlog_dispatch=true (TASK-464.7 and other active Backlog tasks can still run to completion). 'aethel' is not a managed project — only a planning example in the migration plan. Trickle was already cut over by TASK-464.5. All guardrails verified: (1) completion_verifier.py rejects GitHub-backed tasks that add backlog/ files, (2) orchestrator.py dispatch gate blocks Backlog tasks for github-backed projects without legacy_backlog_dispatch, (3) projects.py source sync skips Backlog compat checks for github-backed projects, (4) PR reconciliation via _is_github_backed() paths. No code changes needed — this was a pure ProjectStore configuration update.
 ---
+
+author: oompah
+created: 2026-06-10 16:25
+---
+VERIFICATION: All tests pass. 279 tests across test_managed_repo_cutover_smoke.py, test_completion_verifier.py, test_projects_crud.py, test_acp_project_tools.py. 614 tests across test_github_tracker.py, test_shared_tracker_contract.py, test_backlog_tracker_guards.py. No regressions.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Cut over oompah project (proj-14849f1b) to GitHub Issues on 2026-06-10T16:23:00+00:00 with tracker_kind=github_issues, tracker_owner=lesserevil, tracker_repo=oompah. legacy_backlog_enabled=true keeps existing Backlog tasks visible; legacy_backlog_dispatch=true allows active tasks (TASK-464.7 etc.) to run to completion. trickle was already cut over by TASK-464.5. 'aethel' is not a managed project. Both managed repos now have tracker_kind=github_issues — AC#1 and AC#2 satisfied. All guardrails (Backlog file guard, dispatch gate, source sync skip, PR reconciliation) verified in code. 893 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
