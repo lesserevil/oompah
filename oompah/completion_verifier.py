@@ -122,6 +122,15 @@ _LLM_TIMEOUT_S = 20.0
 # correctness).
 _BYPASS_LABELS = {"ci-fix", "merge-conflict"}
 
+# Path prefixes that are forbidden in GitHub-backed task diffs.
+# Agents running against a GitHub-backed project must not create
+# Backlog.md task files — those operations must go through the
+# oompah task command wrapper instead.
+_BACKLOG_GUARD_PREFIXES: tuple[str, ...] = (
+    "backlog/tasks/",
+    "backlog/completed/",
+)
+
 
 @dataclass
 class ExtractedReferences:
@@ -177,10 +186,28 @@ class VerifierResult:
     skip_reason: str = ""
     stage1: Stage1Result | None = None
     stage2: Stage2Result | None = None
+    # Newly-added Backlog task/completed files detected in a
+    # GitHub-backed task's diff. Non-empty iff the backlog-file
+    # guard fired (see :func:`detect_new_backlog_files`).
+    new_backlog_files: list[str] = field(default_factory=list)
 
     def render_rejection_comment(self) -> str:
         """Build the synthetic comment posted to the reopened bead."""
         parts = ["**Completion verifier rejected close.**", ""]
+        if self.new_backlog_files:
+            parts.append(
+                "This task is GitHub-backed. New Backlog.md task files must "
+                "not be created — use `oompah task create` (or child-create) "
+                "instead. The following file(s) were added:"
+            )
+            for f in self.new_backlog_files:
+                parts.append(f"- `{f}`")
+            parts.append("")
+            parts.append(
+                "Remove the new Backlog file(s) and re-route any follow-up "
+                "tasks through the oompah task command wrapper."
+            )
+            parts.append("")
         if self.stage1 and self.stage1.missing_files:
             parts.append("Files mentioned in acceptance criteria but missing from diff:")
             for f in self.stage1.missing_files:
@@ -327,6 +354,55 @@ def compute_diff(workspace_path: str, base_branch: str) -> tuple[list[str], str]
     diff_body = "\n".join(pieces).strip()
 
     return files, diff_body
+
+
+def compute_added_files(workspace_path: str, base_branch: str) -> list[str]:
+    """Return only newly-added (not modified or deleted) files in the diff.
+
+    Uses ``--diff-filter=A`` so we only flag files the agent actually
+    *created*. Returns ``[]`` on any subprocess failure (fail-open).
+    """
+    git = shutil.which("git")
+    if not git:
+        logger.warning("git not on PATH; cannot check for new backlog files")
+        return []
+
+    bases = []
+    if base_branch:
+        bases.extend([f"origin/{base_branch}", base_branch])
+    bases.append("HEAD~1")
+
+    for base in bases:
+        try:
+            r = subprocess.run(
+                [git, "diff", "--name-only", "--diff-filter=A", f"{base}...HEAD"],
+                cwd=workspace_path,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning(
+                "git diff --diff-filter=A failed against %s: %s", base, exc
+            )
+            continue
+        if r.returncode != 0:
+            continue
+        return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+    return []
+
+
+def detect_new_backlog_files(added_files: list[str]) -> list[str]:
+    """Return paths from *added_files* that are new Backlog task/completed files.
+
+    Matches any file whose repo-relative path starts with
+    ``backlog/tasks/`` or ``backlog/completed/``.  Only newly-added
+    files should be passed in (see :func:`compute_added_files`).
+    """
+    return [
+        f for f in added_files
+        if any(f.startswith(prefix) for prefix in _BACKLOG_GUARD_PREFIXES)
+    ]
 
 
 def _file_present(target: str, diff_files: list[str]) -> bool:
@@ -584,10 +660,47 @@ def verify_completion(
 ) -> VerifierResult:
     """Top-level verification routine.
 
-    Runs the skip-rules first, then Stage 1 (regex check), then
-    Stage 2 (LLM check) if Stage 1 found gaps. Fail-open at every
-    boundary.
+    Runs the backlog-file guard (for GitHub-backed tasks) first, then
+    the skip-rules, then Stage 1 (regex check), then Stage 2 (LLM
+    check) if Stage 1 found gaps. Fail-open at every boundary.
+
+    Backlog-file guard
+    ------------------
+    GitHub-backed tasks (``issue.tracker_kind == "github_issues"``)
+    must not add files under ``backlog/tasks/`` or
+    ``backlog/completed/``. If the agent created such files the
+    verifier immediately rejects with a clear diagnostic and a
+    pointer to ``oompah task create``. The guard fires *before* the
+    standard skip rules so that epic/ci-fix labels cannot accidentally
+    bypass the policy check.
     """
+    # ----------------------------------------------------------------
+    # 0. Backlog-file guard (GitHub-backed tasks only).
+    # ----------------------------------------------------------------
+    if (issue.tracker_kind or "").strip().lower() == "github_issues":
+        try:
+            added = compute_added_files(workspace_path, base_branch)
+            new_backlog = detect_new_backlog_files(added)
+            if new_backlog:
+                logger.warning(
+                    "completion verifier: GitHub-backed task %s added "
+                    "Backlog task file(s) — rejecting close: %s",
+                    issue.identifier,
+                    new_backlog,
+                )
+                return VerifierResult(passed=False, new_backlog_files=new_backlog)
+        except Exception as exc:
+            # Fail open — a git error must not permanently block the close.
+            logger.warning(
+                "completion verifier: backlog-file guard error for %s; "
+                "failing open: %s",
+                issue.identifier,
+                exc,
+            )
+
+    # ----------------------------------------------------------------
+    # 1. Standard skip rules.
+    # ----------------------------------------------------------------
     skip, reason = should_skip_verification(
         issue,
         attempt=attempt,

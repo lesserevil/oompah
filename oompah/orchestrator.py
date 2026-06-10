@@ -12355,12 +12355,34 @@ class Orchestrator:
             )
         else:
             logger.warning(
-                "completion verifier REJECTED close for %s: missing_files=%s missing_symbols=%s llm_verdict=%s",
+                "completion verifier REJECTED close for %s: "
+                "new_backlog_files=%s missing_files=%s missing_symbols=%s llm_verdict=%s",
                 entry.identifier,
+                result.new_backlog_files,
                 (result.stage1.missing_files if result.stage1 else []),
                 (result.stage1.missing_symbols if result.stage1 else []),
                 (result.stage2.verdict if result.stage2 else None),
             )
+            # Surface a dashboard alert when the backlog-file guard fires so
+            # operators can see GitHub-backed tasks that attempted to create
+            # Backlog.md task files.  The alert is keyed per-issue so
+            # re-dispatch replaces it rather than stacking.
+            if result.new_backlog_files:
+                source = f"backlog_file_guard:{entry.identifier}"
+                self._alerts = [
+                    a for a in self._alerts if a.get("source") != source
+                ]
+                self._alerts.append(
+                    {
+                        "level": "warning",
+                        "source": source,
+                        "message": (
+                            f"GitHub-backed task {entry.identifier} added "
+                            f"Backlog task file(s): "
+                            + ", ".join(result.new_backlog_files)
+                        ),
+                    }
+                )
         return result
 
     def _fetch_terminal_issue_from_worker_workspace(
