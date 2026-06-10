@@ -1,10 +1,10 @@
 ---
 id: TASK-461.3
 title: Persist target and work branch metadata before worktree creation
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-10 01:20'
+updated_date: '2026-06-10 01:21'
 labels:
   - task
   - github-issues
@@ -67,4 +67,16 @@ created: 2026-06-10 01:20
 ---
 Verification: tests/test_projects.py: 47/47 passed (9 new: TestGithubWorkBranchName + TestCreateWorktreeWithExplicitBranchName). tests/test_github_workspace_branch.py: 9/9 passed (new). tests/test_dispatch_close_race.py: 13/13. tests/test_orchestrator_merged.py: 129/129. tests/test_github_tracker.py: 321/321. tests/test_epic_strategy.py: 78/78. tests/test_release_pick_validation.py: 44/44. tests/test_backlog_tracker.py: subset passing. Total: 520 tests passing across key suites, no regressions. Both ACs satisfied: AC#1 — github_work_branch_name() generates 'oompah/<slug>/gh-<n>' branch names that never rely on bare task numbers; AC#2 — oompah.work_branch metadata persisted before worktree creation so review reconciliation can find task from PR source branch.
 ---
+
+author: oompah
+created: 2026-06-10 01:21
+---
+Completion: Confirmed NOT a duplicate. Implemented GitHub-safe work branch names and metadata persistence before worktree creation. (1) oompah/projects.py: Added github_work_branch_name(project_name, issue_number) -> 'oompah/<slug>/gh-<n>'. Added optional branch_name param to create_worktree() / _create_worktree_locked() — used verbatim when provided; falls back to sanitized identifier for Backlog tasks. (2) oompah/orchestrator.py: _create_workspace_for_issue() now generates GitHub-safe branch name for github_issues tasks, persists oompah.work_branch (and oompah.target_branch when set) via set_metadata_field() BEFORE calling create_worktree(), passes branch_name to create_worktree(). (3) 18 new tests added: 9 in test_projects.py, 9 in test_github_workspace_branch.py. Both ACs met. 520 tests pass, no regressions. Pushed to epic-TASK-461.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented GitHub-safe work branch generation and metadata persistence before worktree creation. Added github_work_branch_name() in oompah/projects.py generating 'oompah/<slug>/gh-<n>' branch names (AC#1: never bare task numbers). Added optional branch_name param to create_worktree(). Updated _create_workspace_for_issue() in oompah/orchestrator.py to generate the safe branch name, persist oompah.work_branch + oompah.target_branch to the GitHub issue BEFORE create_worktree() (AC#2: review reconciliation can find task from Work Branch metadata). 18 new tests; 520 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
