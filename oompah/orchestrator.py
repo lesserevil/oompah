@@ -71,7 +71,12 @@ from oompah.focus import (
     select_focus_async,
 )
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
-from oompah.projects import ProjectError, ProjectStore, github_work_branch_name
+from oompah.projects import (
+    ProjectError,
+    ProjectStore,
+    _is_github_backed,
+    github_work_branch_name,
+)
 from oompah.providers import ProviderStore
 from oompah.roles import CandidateSelector, RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
@@ -2772,6 +2777,40 @@ class Orchestrator:
                         )
                         return []
 
+                # Legacy Backlog dual-read (TASK-464.2):
+                # For GitHub-backed projects the primary tracker returns GitHub
+                # issues (tracker_kind='github_issues').  When
+                # legacy_backlog_enabled=True we additionally read the
+                # BacklogMdTracker and merge its issues — tagging them as
+                # 'backlog_md' so the dispatch gate can distinguish them.
+                # When legacy_backlog_enabled=False we must *not* expose
+                # Backlog issues at all: filter them from the primary fetch
+                # result (handles the transition period where TASK-461.1 has
+                # not yet switched _tracker_for_project to GitHubIssueTracker).
+                github_backed = _is_github_backed(project)
+                if github_backed:
+                    raw_issues, _ = await self._run_bounded_refresh(
+                        project_id, "candidates", _coro
+                    )
+                    # Separate GitHub-native issues from legacy Backlog issues.
+                    gh_issues = []
+                    backlog_issues = []
+                    for issue in raw_issues:
+                        kind = (issue.tracker_kind or "").strip().lower()
+                        if kind in ("github_issues", "github-issues"):
+                            gh_issues.append(issue)
+                        else:
+                            backlog_issues.append(issue)
+                    if project.legacy_backlog_enabled:
+                        # Tag legacy issues so the dispatch gate can apply the
+                        # legacy_backlog_dispatch check.
+                        for issue in backlog_issues:
+                            issue.tracker_kind = "backlog_md"
+                        return gh_issues + backlog_issues
+                    else:
+                        # Backlog issues are not visible for this project.
+                        return gh_issues
+                # Non-GitHub-backed project: standard path, no filtering.
                 data, _ = await self._run_bounded_refresh(
                     project_id, "candidates", _coro
                 )
@@ -5288,6 +5327,20 @@ class Orchestrator:
         # state snapshot. See task oompah-zlz_2-u7c.
         if self._is_project_paused(issue.project_id):
             return _reject("project_paused")
+        # Legacy Backlog dispatch gate (TASK-464.2): when a project has been
+        # cut over to GitHub Issues (tracker_kind='github_issues'), existing
+        # Backlog.md tasks may be readable (legacy_backlog_enabled=True) but
+        # are not dispatchable unless legacy_backlog_dispatch is also set.
+        # A "Backlog" issue is identified by its tracker_kind being absent or
+        # any value other than "github_issues" / "github-issues".
+        project_store = getattr(self, "project_store", None)
+        if issue.project_id and project_store is not None:
+            _lb_proj = project_store.get(issue.project_id)
+            if _lb_proj is not None and _is_github_backed(_lb_proj):
+                issue_kind = (getattr(issue, "tracker_kind", None) or "").strip().lower()
+                _issue_is_github = issue_kind in ("github_issues", "github-issues")
+                if not _issue_is_github and not _lb_proj.legacy_backlog_dispatch:
+                    return _reject("legacy_backlog_not_dispatchable")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
         if (

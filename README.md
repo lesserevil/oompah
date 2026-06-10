@@ -70,7 +70,7 @@ Oompah is configured through a single `WORKFLOW.md` file that combines YAML fron
 ```markdown
 ---
 tracker:
-  kind: backlog
+  kind: github_issues
   active_states: ["To Do", "In Progress"]
   terminal_states: [Done]
 
@@ -113,6 +113,10 @@ You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
 4. Run tests
 5. Commit, push, and create a PR
 ```
+
+When using `tracker.kind: github_issues`, set `OOMPAH_GITHUB_TRACKER_OWNER`
+and `OOMPAH_GITHUB_TRACKER_REPO` in `.env` for the default task hub. Managed
+projects can override those values with per-project tracker settings.
 
 ### Configuration reference
 

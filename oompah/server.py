@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import signal
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -1960,10 +1961,33 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
 
     def _fetch_for_project(project):
         try:
+            from oompah.projects import _is_github_backed
             tracker = orch._tracker_for_project(project.id)
             issues = tracker.fetch_all_issues()
+            # Legacy Backlog visibility filter (TASK-464.2):
+            # For GitHub-backed projects, Backlog.md issues (those with
+            # tracker_kind other than 'github_issues') are only shown when
+            # legacy_backlog_enabled is True.  Tag them as 'backlog_md' so
+            # callers can apply a "legacy" marker in the UI.
+            if _is_github_backed(project):
+                visible_issues = []
+                for issue in issues:
+                    issue.project_id = project.id
+                    kind = (issue.tracker_kind or "").strip().lower()
+                    is_github_issue = kind in ("github_issues", "github-issues")
+                    if is_github_issue:
+                        visible_issues.append(issue)
+                    elif project.legacy_backlog_enabled:
+                        # Tag legacy Backlog tasks so the dashboard can mark
+                        # them as legacy.
+                        issue.tracker_kind = "backlog_md"
+                        visible_issues.append(issue)
+                    # else: Backlog issues are not visible for this project.
+                issues = visible_issues
+            else:
+                for issue in issues:
+                    issue.project_id = project.id
             for issue in issues:
-                issue.project_id = project.id
                 # Display-only: reflect the epic-branch status for shared-
                 # epic children (their default-branch copy lags until the
                 # epic lands), so the board shows Done/Merged in the right
@@ -5501,6 +5525,114 @@ async def api_list_worktrees(project_id: str):
             {"error": {"code": "not_found", "message": str(exc)}},
             status_code=404,
         )
+
+
+def _is_github_tracker_kind(kind: str | None) -> bool:
+    return (kind or "").strip().lower() in {"github_issues", "github-issues"}
+
+
+def _as_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _git_file_added_at(repo_path: str, rel_path: str) -> datetime | None:
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "log",
+                "--diff-filter=A",
+                "--format=%cI",
+                "-1",
+                "--",
+                rel_path,
+            ],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    raw = result.stdout.strip().splitlines()
+    if not raw:
+        return None
+    try:
+        return _as_aware_utc(datetime.fromisoformat(raw[0]))
+    except ValueError:
+        return None
+
+
+def _backlog_task_file_report(project: Any) -> dict[str, Any]:
+    cutover = _as_aware_utc(project.tracker_cutover_at)
+    repo_path = project.repo_path
+    entry: dict[str, Any] = {
+        "project_id": project.id,
+        "project_name": project.name,
+        "tracker_owner": getattr(project, "tracker_owner", None),
+        "tracker_repo": getattr(project, "tracker_repo", None),
+        "tracker_cutover_at": cutover.isoformat(),
+        "files": [],
+    }
+    if not repo_path or not os.path.isdir(repo_path):
+        entry["error"] = "repo_path_missing"
+        return entry
+
+    for rel_dir in ("backlog/tasks", "backlog/completed"):
+        abs_dir = os.path.join(repo_path, rel_dir)
+        if not os.path.isdir(abs_dir):
+            continue
+        for root, _dirs, files in os.walk(abs_dir):
+            for filename in sorted(files):
+                if not filename.endswith(".md"):
+                    continue
+                abs_path = os.path.join(root, filename)
+                rel_path = os.path.relpath(abs_path, repo_path).replace(os.sep, "/")
+                added_at = _git_file_added_at(repo_path, rel_path)
+                source = "git"
+                if added_at is None:
+                    try:
+                        added_at = datetime.fromtimestamp(
+                            os.path.getmtime(abs_path), tz=timezone.utc
+                        )
+                        source = "mtime"
+                    except OSError:
+                        continue
+                if added_at > cutover:
+                    entry["files"].append(
+                        {
+                            "path": rel_path,
+                            "added_at": added_at.isoformat(),
+                            "source": source,
+                        }
+                    )
+    return entry
+
+
+@app.get("/api/v1/reports/backlog-files-post-cutover")
+async def api_report_backlog_files_post_cutover():
+    """Report Backlog task files added after GitHub Issues cutover."""
+    orch = _get_orchestrator()
+    projects = [
+        project
+        for project in orch.project_store.list_all()
+        if _is_github_tracker_kind(getattr(project, "tracker_kind", None))
+        and getattr(project, "tracker_cutover_at", None) is not None
+    ]
+    report = await asyncio.to_thread(
+        lambda: [_backlog_task_file_report(project) for project in projects]
+    )
+    return JSONResponse(
+        {
+            "projects": report,
+            "total_projects": len(report),
+            "total_files": sum(len(item["files"]) for item in report),
+        }
+    )
 
 
 @app.get("/api/v1/foci")

@@ -16,6 +16,7 @@ from oompah.projects import (
     _bootstrap_lfs,
     _branch_name_from_worktree_cmd,
     _git_worktree_add_with_recovery,
+    _is_github_backed,
     _is_ref_namespace_conflict_error,
     _is_transient_git_config_lock_error,
     _is_worktree_branch_already_used_error,
@@ -171,6 +172,30 @@ class TestCreateProjectBacklogRequirement:
                     git_user_email="t@example.com",
                 )
 
+    def test_github_backed_create_skips_backlog_compat_check(self, tmp_path):
+        store = _store(tmp_path)
+        repo_path = tmp_path / "repos" / "repo"
+        repo_path.mkdir(parents=True)
+        (repo_path / ".git").mkdir()
+
+        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
+            with patch("oompah.projects.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                project = store.create(
+                    str(repo_path),
+                    name="repo",
+                    git_user_name="Test",
+                    git_user_email="t@example.com",
+                    tracker_kind="github_issues",
+                    tracker_owner="lesserevil",
+                    tracker_repo="oompah",
+                )
+
+        mock_compat.assert_not_called()
+        assert project.tracker_kind == "github_issues"
+        assert project.tracker_owner == "lesserevil"
+        assert project.tracker_repo == "oompah"
+
 
 class TestSyncProjectSources:
     # The git-health portion of sync_project_sources is now delegated to
@@ -242,6 +267,157 @@ class TestSyncProjectSources:
 
         assert status["git"].startswith("skipped")
         assert status["backlog"].startswith("skipped")
+
+
+def _store_with_github_project(tmp_path):
+    """Return (store, repo_path) for a GitHub-backed project (no Backlog config)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    store = _store(tmp_path)
+    project = Project(
+        id="proj-gh1",
+        name="ghrepo",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(repo),
+        branch="main",
+        default_branch="main",
+        tracker_kind="github_issues",
+    )
+    store._projects[project.id] = project
+    return store, repo
+
+
+class TestIsGithubBacked:
+    def test_github_issues_kind_is_github_backed(self):
+        p = Project(
+            id="x", name="x", repo_url="x", repo_path="/x",
+            branch="main", default_branch="main", tracker_kind="github_issues",
+        )
+        assert _is_github_backed(p) is True
+
+    def test_github_issues_with_hyphen_is_github_backed(self):
+        p = Project(
+            id="x", name="x", repo_url="x", repo_path="/x",
+            branch="main", default_branch="main", tracker_kind="github-issues",
+        )
+        assert _is_github_backed(p) is True
+
+    def test_uppercase_is_normalised(self):
+        p = Project(
+            id="x", name="x", repo_url="x", repo_path="/x",
+            branch="main", default_branch="main", tracker_kind="GITHUB_ISSUES",
+        )
+        assert _is_github_backed(p) is True
+
+    def test_none_tracker_kind_is_not_github_backed(self):
+        p = Project(
+            id="x", name="x", repo_url="x", repo_path="/x",
+            branch="main", default_branch="main", tracker_kind=None,
+        )
+        assert _is_github_backed(p) is False
+
+    def test_backlog_tracker_kind_is_not_github_backed(self):
+        p = Project(
+            id="x", name="x", repo_url="x", repo_path="/x",
+            branch="main", default_branch="main", tracker_kind="backlog",
+        )
+        assert _is_github_backed(p) is False
+
+
+class TestSyncProjectSourcesGitHubBacked:
+    """sync_project_sources for GitHub-backed projects skips Backlog-specific steps."""
+
+    _SOUND = {"sound": True, "actions": [], "unrecoverable": [], "reset": False}
+
+    def test_github_backed_reports_tracker_key(self, tmp_path):
+        store, _repo = _store_with_github_project(tmp_path)
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ):
+            status = store.sync_project_sources("proj-gh1")
+
+        assert status["tracker"] == "github_issues"
+
+    def test_github_backed_git_self_heal_runs(self, tmp_path):
+        store, _repo = _store_with_github_project(tmp_path)
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ) as heal:
+            status = store.sync_project_sources("proj-gh1")
+
+        heal.assert_called_once()
+        assert status["git"] == "ok"
+
+    def test_github_backed_skips_backlog_compat_check(self, tmp_path):
+        store, _repo = _store_with_github_project(tmp_path)
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ):
+            with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
+                status = store.sync_project_sources("proj-gh1")
+
+        mock_compat.assert_not_called()
+        assert status["backlog"] == "skipped: github_issues"
+
+    def test_github_backed_skips_conflict_repair(self, tmp_path):
+        store, _repo = _store_with_github_project(tmp_path)
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ):
+            with patch(
+                "oompah.backlog_conflict.repair_repo_backlog_conflicts"
+            ) as mock_repair:
+                status = store.sync_project_sources("proj-gh1")
+
+        mock_repair.assert_not_called()
+        assert status["conflicts"] == "skipped: github_issues"
+
+    def test_github_backed_does_not_quarantine_on_unmerged_files(self, tmp_path):
+        """Unmerged files in a GitHub-backed project must NOT trigger quarantine."""
+        store, _repo = _store_with_github_project(tmp_path)
+        unsound = {
+            "sound": False,
+            "actions": [],
+            "unrecoverable": ["backlog/tasks/task-1.md"],
+            "reset": False,
+        }
+        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=unsound):
+            status = store.sync_project_sources("proj-gh1")
+
+        # Git healing may fail, but no quarantine should happen
+        assert status["git"].startswith("failed")
+        # Backlog/conflicts are still skipped, not quarantined
+        assert status["backlog"] == "skipped: github_issues"
+        assert status["conflicts"] == "skipped: github_issues"
+        # Project must NOT be paused
+        project = store._projects["proj-gh1"]
+        assert not project.paused
+
+    def test_github_backed_reset_recovery_reported(self, tmp_path):
+        store, _repo = _store_with_github_project(tmp_path)
+        healed = {"sound": True, "actions": ["hard-reset"], "unrecoverable": [], "reset": True}
+        with patch("oompah.backlog_conflict.ensure_repo_sound", return_value=healed):
+            status = store.sync_project_sources("proj-gh1")
+
+        assert status["git"] == "reset:ok"
+        assert status.get("heal") == "hard-reset"
+        assert status["tracker"] == "github_issues"
+
+    def test_github_backed_no_git_dir_skips_heal(self, tmp_path):
+        store, repo = _store_with_github_project(tmp_path)
+        # Remove the .git dir to simulate a missing checkout
+        (repo / ".git").rmdir()
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound"
+        ) as mock_heal:
+            status = store.sync_project_sources("proj-gh1")
+
+        mock_heal.assert_not_called()
+        assert status["git"] == "skipped: no .git"
+        assert status["backlog"] == "skipped: github_issues"
+        assert status["conflicts"] == "skipped: github_issues"
+        assert status["tracker"] == "github_issues"
 
 
 class TestSyncAllSources:
