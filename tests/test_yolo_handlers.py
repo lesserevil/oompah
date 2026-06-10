@@ -345,6 +345,133 @@ class TestResolveBeadForBranch:
         tracker.fetch_issue_detail.return_value = None
         assert orch._resolve_task_for_branch(tracker, "epic-TASK-999") is None
 
+    # -----------------------------------------------------------------------
+    # Branch-index path (TASK-462.1) — GitHub-backed tasks
+    # -----------------------------------------------------------------------
+
+    def test_github_branch_resolved_via_index(self, tmp_path):
+        """AC#1: GitHub-style branch resolved through work_branch index."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+
+        # The tracker has one issue whose work_branch is the GitHub slug.
+        gh_issue = MagicMock()
+        gh_issue.work_branch = "oompah/trickle/gh-42"
+        gh_issue.identifier = "lesserevil/oompah-tasks#42"
+        tracker.fetch_issues_by_states.return_value = [gh_issue]
+
+        resolved = MagicMock(identifier="lesserevil/oompah-tasks#42")
+        tracker.fetch_issue_detail.return_value = resolved
+
+        result = orch._resolve_task_for_branch(
+            tracker, "oompah/trickle/gh-42", project_id="proj-1"
+        )
+        assert result is resolved
+        tracker.fetch_issue_detail.assert_called_once_with("lesserevil/oompah-tasks#42")
+
+    def test_github_epic_branch_resolved_via_index(self, tmp_path):
+        """epic- prefix is stripped when looking up the index."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+
+        gh_epic = MagicMock()
+        gh_epic.work_branch = "oompah/trickle/epic-gh-7"
+        gh_epic.identifier = "lesserevil/oompah-tasks#7"
+        tracker.fetch_issues_by_states.return_value = [gh_epic]
+
+        resolved = MagicMock(identifier="lesserevil/oompah-tasks#7")
+        tracker.fetch_issue_detail.return_value = resolved
+
+        result = orch._resolve_task_for_branch(
+            tracker, "epic-oompah/trickle/epic-gh-7", project_id="proj-2"
+        )
+        assert result is resolved
+
+    def test_no_project_id_skips_index(self, tmp_path):
+        """Legacy path: no project_id → direct fetch_issue_detail, no index built."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        bead = MagicMock(identifier="TASK-9")
+        tracker.fetch_issue_detail.return_value = bead
+
+        result = orch._resolve_task_for_branch(tracker, "TASK-9")
+        assert result is bead
+        # No call to fetch_issues_by_states (index not built)
+        tracker.fetch_issues_by_states.assert_not_called()
+
+    def test_index_miss_falls_back_to_legacy_lookup(self, tmp_path):
+        """AC#2: When branch isn't in the index, fall back to fetch_issue_detail."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        # Index has no entries matching the branch.
+        tracker.fetch_issues_by_states.return_value = []
+        bead = MagicMock(identifier="TASK-50")
+        tracker.fetch_issue_detail.return_value = bead
+
+        result = orch._resolve_task_for_branch(
+            tracker, "TASK-50", project_id="proj-3"
+        )
+        assert result is bead
+        tracker.fetch_issue_detail.assert_called_with("TASK-50")
+
+    def test_index_is_cached_across_calls(self, tmp_path):
+        """Branch index is built once per project per cache window."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+
+        gh_issue = MagicMock()
+        gh_issue.work_branch = "oompah/proj/gh-5"
+        gh_issue.identifier = "owner/repo#5"
+        tracker.fetch_issues_by_states.return_value = [gh_issue]
+
+        resolved = MagicMock(identifier="owner/repo#5")
+        tracker.fetch_issue_detail.return_value = resolved
+
+        # First call builds the index.
+        orch._resolve_task_for_branch(tracker, "oompah/proj/gh-5", project_id="p1")
+        # Second call for same project should NOT rebuild the index.
+        orch._resolve_task_for_branch(tracker, "oompah/proj/gh-5", project_id="p1")
+
+        # fetch_issues_by_states called exactly once (index was cached).
+        tracker.fetch_issues_by_states.assert_called_once()
+
+    def test_invalidate_clears_branch_index(self, tmp_path):
+        """_invalidate_tracker_read_caches() clears the branch index."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+
+        gh_issue = MagicMock()
+        gh_issue.work_branch = "oompah/proj/gh-6"
+        gh_issue.identifier = "owner/repo#6"
+        tracker.fetch_issues_by_states.return_value = [gh_issue]
+        tracker.fetch_issue_detail.return_value = MagicMock(identifier="owner/repo#6")
+
+        # Populate the cache.
+        orch._resolve_task_for_branch(tracker, "oompah/proj/gh-6", project_id="p2")
+        assert "p2" in orch._branch_indexes
+
+        # Invalidate: the tracker is registered so _invalidate can call its method.
+        orch._project_trackers["p2"] = tracker
+        orch._invalidate_tracker_read_caches()
+
+        # Index should be cleared.
+        assert orch._branch_indexes == {}
+
+    def test_index_build_error_falls_back_to_legacy(self, tmp_path):
+        """If index build raises, legacy lookup is still attempted."""
+        orch = _make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.side_effect = RuntimeError("API offline")
+        bead = MagicMock(identifier="TASK-10")
+        tracker.fetch_issue_detail.return_value = bead
+
+        result = orch._resolve_task_for_branch(
+            tracker, "TASK-10", project_id="proj-err"
+        )
+        assert result is bead
+        # Legacy path ran.
+        tracker.fetch_issue_detail.assert_called_with("TASK-10")
+
 
 class TestEpicBranchCiFailUsesEpicNotOrphan:
     """An epic->main PR's CI failure must resolve to the epic (and route

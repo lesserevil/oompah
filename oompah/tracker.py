@@ -83,6 +83,9 @@ _KNOWN_BACKLOG_FIELDS: frozenset[str] = frozenset({
     "oompah.target_branch",
     "oompah.backports",
     "oompah.backport_of",
+    # work-branch metadata — written when creating the agent worktree (TASK-461.3),
+    # used for branch-to-issue resolution (TASK-462.1).
+    "oompah.work_branch",
 })
 
 

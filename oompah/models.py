@@ -125,6 +125,11 @@ class Issue:
     # here carries just paths so prompt rendering and dispatch can ignore
     # the metadata structure.
     attachments: list[str] = field(default_factory=list)
+    # Explicit work branch stored in tracker metadata (oompah.work_branch).
+    # Populated for GitHub-backed tasks from the hidden body metadata block.
+    # When set, branch-to-issue resolution uses this value instead of
+    # deriving the branch from the identifier.
+    work_branch: str | None = None
     tracker_kind: str | None = None
     tracker_owner: str | None = None
     tracker_repo: str | None = None

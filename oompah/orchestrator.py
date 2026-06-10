@@ -554,6 +554,12 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
+        # Per-project branch-to-issue index: maps work_branch → identifier.
+        # Built lazily the first time _resolve_task_for_branch needs it for
+        # a project and cleared with tracker read caches each tick so the
+        # index stays consistent with the tracker's view of open issues.
+        # (TASK-462.1)
+        self._branch_indexes: dict[str, dict[str, str]] = {}
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -1392,6 +1398,9 @@ class Orchestrator:
         Called at tick start so each tick reads fresh state, then reuses
         that parse across its phases. Best-effort: a tracker without the
         method (e.g. a test double) is skipped.
+
+        Also clears the per-project branch-to-issue index so that the next
+        ``_resolve_task_for_branch`` call rebuilds it from fresh issue data.
         """
         trackers = [self.tracker, *self._project_trackers.values()]
         for tracker in trackers:
@@ -1401,6 +1410,10 @@ class Orchestrator:
                     inval()
                 except Exception:  # noqa: BLE001 — never let cache reset break a tick
                     pass
+        # Clear the branch index cache so it is rebuilt next time a branch
+        # lookup is needed.  Stale entries would cause lookups to resolve
+        # to closed/stale issues after a tick boundary.
+        self._branch_indexes.clear()
 
     # ------------------------------------------------------------------
     # Error watcher integration (oompah-zlz_2-0nc)
@@ -8048,17 +8061,75 @@ class Orchestrator:
             source_branch,
         )
 
-    def _resolve_task_for_branch(self, tracker, source_branch: str):
+    def _build_branch_index(
+        self, project_id: str, tracker
+    ) -> dict[str, str]:
+        """Build a ``{work_branch: identifier}`` index for *project_id*.
+
+        Fetches all open/in-review issues from *tracker* and collects those
+        that carry a ``work_branch`` value in their metadata.  The resulting
+        dict is cached in ``self._branch_indexes[project_id]`` and is
+        invalidated by ``_invalidate_tracker_read_caches()`` at each tick.
+
+        Returns an empty dict if the tracker call fails or no issues have
+        ``work_branch`` set.
+        """
+        try:
+            states = list(self.config.tracker_active_states) + [IN_REVIEW]
+            issues = tracker.fetch_issues_by_states(states)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "Branch index build failed for project %s: %s", project_id, exc
+            )
+            return {}
+        index: dict[str, str] = {}
+        for issue in issues:
+            branch = getattr(issue, "work_branch", None)
+            if branch:
+                index[str(branch)] = issue.identifier
+        return index
+
+    def _resolve_task_for_branch(
+        self, tracker, source_branch: str, *, project_id: str | None = None
+    ):
         """Resolve a PR's source branch back to its tracker task.
 
-        Per-task branches are named after the task identifier, so a direct
-        ``fetch_issue_detail`` resolves them. Epic→main PRs use an
-        ``epic-<identifier>`` branch (see ``ProjectStore.epic_branch_name``);
-        strip that prefix so an epic PR's CI failure / merge conflict
-        reopens the EPIC task (relabel Needs CI Fix / Needs Rebase) instead
-        of being misread as an orphan PR — which would file a redundant
-        "fix CI on PR #N" task rather than reusing the original epic.
+        For **GitHub-backed tasks** the branch name is a generated slug like
+        ``oompah/<project>/<gh-N>`` that does not equal the task identifier.
+        When *project_id* is supplied this method first consults the per-project
+        branch-to-issue index — a ``{work_branch: identifier}`` mapping built
+        from open/in-review issues — before falling back to the legacy path.
+
+        For **Backlog-backed tasks** branches are named after the task
+        identifier, so the direct ``fetch_issue_detail`` lookup still works
+        (legacy fallback).
+
+        Epic→main PRs use an ``epic-<identifier>`` branch (see
+        ``ProjectStore.epic_branch_name``); the ``epic-`` prefix is stripped in
+        both the index lookup and the legacy path so an epic PR's CI failure or
+        merge conflict reopens the EPIC task rather than being treated as an
+        orphan PR.
         """
+        # --- GitHub-backed path: consult the per-project branch index first ---
+        if project_id is not None:
+            if project_id not in self._branch_indexes:
+                self._branch_indexes[project_id] = self._build_branch_index(
+                    project_id, tracker
+                )
+            branch_index = self._branch_indexes[project_id]
+
+            # Try verbatim, then with epic- prefix stripped.
+            lookup_key = source_branch
+            if lookup_key not in branch_index and source_branch.startswith("epic-"):
+                lookup_key = source_branch[len("epic-"):]
+
+            if lookup_key in branch_index:
+                identifier = branch_index[lookup_key]
+                issue = tracker.fetch_issue_detail(identifier)
+                if issue is not None:
+                    return issue
+
+        # --- Legacy Backlog path: branch name == identifier ---
         issue = tracker.fetch_issue_detail(source_branch)
         if issue is None and source_branch.startswith("epic-"):
             issue = tracker.fetch_issue_detail(source_branch[len("epic-"):])
@@ -8086,7 +8157,9 @@ class Orchestrator:
             return None
 
         try:
-            issue = self._resolve_task_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
         except Exception as exc:  # noqa: BLE001 - do not break unrelated PRs
             logger.debug(
                 "YOLO epic-strategy gate could not resolve branch %s on %s: %s",
@@ -8227,7 +8300,9 @@ class Orchestrator:
                 )
 
             tracker = self._tracker_for_project(project.id)
-            issue = self._resolve_task_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
             if not issue:
                 # Orphan branch: no task matches (not even the epic the
                 # branch belongs to). File a recovery task so the YOLO
@@ -8381,8 +8456,11 @@ class Orchestrator:
         """
         if not source_branch:
             return
+        project_id: str | None = getattr(project, "id", None)
         try:
-            issue = tracker.fetch_issue_detail(source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project_id
+            )
             if not issue:
                 return
             labels = {l.lower() for l in (issue.labels or [])}
@@ -8413,7 +8491,9 @@ class Orchestrator:
             if not source_branch:
                 return
             tracker = self._tracker_for_project(project.id)
-            issue = self._resolve_task_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
             if not issue:
                 # Orphan branch: no task matches (not even the epic the
                 # branch belongs to). File a recovery task so the YOLO

@@ -1761,6 +1761,194 @@ class TestLabelBeadMergedFromMergeGroup:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# TASK-462.1 — Branch-to-issue index
+# ---------------------------------------------------------------------------
+
+
+class TestBuildBranchIndex:
+    """_build_branch_index builds a {work_branch: identifier} dict from open
+    issues that carry work_branch metadata."""
+
+    def _make_orchestrator(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def _make_issue_with_branch(self, identifier: str, branch: str):
+        from oompah.models import Issue
+
+        return Issue(
+            id=identifier,
+            identifier=identifier,
+            title="Test Issue",
+            state="Open",
+            work_branch=branch,
+        )
+
+    def test_builds_index_from_issues_with_work_branch(self, tmp_path):
+        """Issues with work_branch set appear in the returned index."""
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            self._make_issue_with_branch("lesserevil/tasks#1", "oompah/proj/gh-1"),
+            self._make_issue_with_branch("lesserevil/tasks#2", "oompah/proj/gh-2"),
+        ]
+
+        idx = orch._build_branch_index("proj-1", tracker)
+
+        assert idx == {
+            "oompah/proj/gh-1": "lesserevil/tasks#1",
+            "oompah/proj/gh-2": "lesserevil/tasks#2",
+        }
+
+    def test_issues_without_work_branch_excluded(self, tmp_path):
+        """Issues with work_branch=None are omitted from the index."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        issue_with = self._make_issue_with_branch("tasks#10", "oompah/proj/gh-10")
+        issue_without = Issue(
+            id="tasks#11", identifier="tasks#11", title="No branch", state="Open"
+        )
+        tracker.fetch_issues_by_states.return_value = [issue_with, issue_without]
+
+        idx = orch._build_branch_index("proj-2", tracker)
+
+        assert "oompah/proj/gh-10" in idx
+        assert "tasks#11" not in idx.values()
+
+    def test_returns_empty_dict_on_tracker_error(self, tmp_path):
+        """When fetch_issues_by_states raises, an empty dict is returned."""
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.side_effect = Exception("API error")
+
+        idx = orch._build_branch_index("proj-err", tracker)
+
+        assert idx == {}
+
+    def test_returns_empty_dict_when_no_issues(self, tmp_path):
+        """Empty tracker → empty index."""
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+
+        idx = orch._build_branch_index("proj-empty", tracker)
+
+        assert idx == {}
+
+
+class TestClearMergeConflictLabelViaIndex:
+    """_clear_merge_conflict_label_for_branch uses the branch index to
+    resolve GitHub-backed branches (TASK-462.1, AC#1)."""
+
+    def _make_orchestrator(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_clears_label_via_branch_index(self, tmp_path):
+        """merge-conflict label is cleared when the task is found via index."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        project = _make_project(project_id="proj-gh")
+
+        # The task has work_branch set and carries the merge-conflict label.
+        task = Issue(
+            id="tasks#20",
+            identifier="owner/tasks#20",
+            title="Some task",
+            state="Needs Rebase",
+            labels=["merge-conflict"],
+            work_branch="oompah/repo/gh-20",
+        )
+        tracker = MagicMock()
+        # Index lookup: fetch_issues_by_states returns the task.
+        tracker.fetch_issues_by_states.return_value = [task]
+        # Detail lookup by identifier returns the task.
+        tracker.fetch_issue_detail.return_value = task
+
+        orch._clear_merge_conflict_label_for_branch(
+            project, tracker, "oompah/repo/gh-20"
+        )
+
+        tracker.update_issue.assert_called_once_with(
+            "owner/tasks#20", **{"remove-label": "merge-conflict"}
+        )
+
+    def test_noop_when_label_absent(self, tmp_path):
+        """No update_issue call when the task has no merge-conflict label."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        project = _make_project(project_id="proj-no-label")
+
+        task = Issue(
+            id="tasks#21",
+            identifier="owner/tasks#21",
+            title="Clean task",
+            state="In Review",
+            labels=[],
+            work_branch="oompah/repo/gh-21",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [task]
+        tracker.fetch_issue_detail.return_value = task
+
+        orch._clear_merge_conflict_label_for_branch(
+            project, tracker, "oompah/repo/gh-21"
+        )
+
+        tracker.update_issue.assert_not_called()
+
+    def test_legacy_backlog_branch_still_works(self, tmp_path):
+        """AC#2: legacy Backlog branches (branch==identifier) continue to work."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        project = _make_project(project_id="proj-legacy")
+
+        task = Issue(
+            id="TASK-5",
+            identifier="TASK-5",
+            title="Legacy task",
+            state="Needs Rebase",
+            labels=["merge-conflict"],
+        )
+        tracker = MagicMock()
+        # Index build returns empty (Backlog issues have no work_branch).
+        tracker.fetch_issues_by_states.return_value = [
+            Issue(id="TASK-5", identifier="TASK-5", title="t", state="Open")
+        ]
+        # Legacy fetch_issue_detail path.
+        tracker.fetch_issue_detail.return_value = task
+
+        orch._clear_merge_conflict_label_for_branch(project, tracker, "TASK-5")
+
+        tracker.update_issue.assert_called_once_with(
+            "TASK-5", **{"remove-label": "merge-conflict"}
+        )
+
+
 class TestProjectStoreUpdatableFields:
     """merge_queue_enabled is accepted by ProjectStore.update."""
 
