@@ -826,7 +826,7 @@ class TestResetOrphanedInProgress:
 
         mock_tracker.update_issue.assert_not_called()
 
-    def test_resets_completed_marker_orphaned_in_progress_to_open(self, tmp_path):
+    def test_preserves_completed_marker_orphaned_in_progress_as_done(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])
         mock_tracker = MagicMock()
@@ -838,8 +838,8 @@ class TestResetOrphanedInProgress:
 
         orch._reset_orphaned_in_progress([issue])
 
-        mock_tracker.update_issue.assert_called_once_with("feat-1", status="Open")
-        assert issue.id not in orch.state.completed
+        mock_tracker.update_issue.assert_called_once_with("feat-1", status=DONE)
+        assert issue.id in orch.state.completed
 
     def test_completed_branch_ahead_orphan_is_marked_done_not_open(self, tmp_path):
         project = _make_project()
@@ -2805,6 +2805,26 @@ class TestResetOrphanedInProgressSweep:
         orch._reset_orphaned_in_progress([])
 
         mock_tracker.update_issue.assert_called_once_with("feat-orphan", status="Open")
+
+    def test_preserves_completed_in_progress_issue_as_done(self, tmp_path):
+        """A completed task must not be reopened by the orphan sweep."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        ip_issue = _make_issue("feat-done", state="In Progress")
+        ip_issue.project_id = project.id
+        orch.state.completed.add(ip_issue.id)
+        orch._fetch_all_in_progress_issues = MagicMock(return_value=[ip_issue])
+        orch._done_issue_has_unmerged_review_work = MagicMock(return_value=False)
+
+        orch._reset_orphaned_in_progress([])
+
+        mock_tracker.update_issue.assert_called_once_with("feat-done", status=DONE)
+        orch._done_issue_has_unmerged_review_work.assert_not_called()
+        assert ip_issue.id in orch.state.completed
+        assert ip_issue.id not in orch._orphan_reset_counts
 
     def test_skips_in_progress_issue_with_running_agent(self, tmp_path):
         """A running agent protects an In Progress task from orphan reset."""
