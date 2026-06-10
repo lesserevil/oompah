@@ -654,6 +654,8 @@ class TestOpencodeToolBridging:
         for expected in (
             "read_file", "write_file", "edit_file",
             "list_files", "search_files", "run_command",
+            "list_projects", "get_project", "get_project_by_id",
+            "update_project", "update_project_by_id",
         ):
             assert expected in names, f"missing {expected!r}"
 

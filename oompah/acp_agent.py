@@ -119,8 +119,8 @@ class AcpAgentSession:
         self.backend_name = backend_name
         self.billing_model = billing_model
         # Non-HTTP project management (TASK-464.8): passed through to
-        # AcpBackendOptions so Codex/OpenCode backends can include
-        # get_project / update_project in their tool catalog.
+        # AcpBackendOptions so Codex/OpenCode backends can include the
+        # non-HTTP project-management tools in their tool catalog.
         self.project_store = project_store
         self.project_id = project_id
 

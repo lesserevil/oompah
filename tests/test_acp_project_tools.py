@@ -1,11 +1,12 @@
 """Tests for the non-HTTP project management MCP tools (TASK-464.8).
 
 Covers:
+- _exec_list_projects: returns JSON snapshots for all managed projects
 - _exec_get_project: returns JSON project tracker fields
 - _exec_update_project: delegates to ProjectStore.update() with allowed fields
-- build_tool_catalog: includes get_project / update_project when store is given
+- build_tool_catalog: includes list/current/by-id project tools
 - AcpAgentSession: project_store / project_id flow through to AcpBackendOptions
-- get_project / update_project degrade gracefully without a project_store
+- project tools degrade gracefully without a project_store
 
 These tests verify that agents running inside oompah MCP have a non-HTTP
 path to read and mutate ProjectStore tracker fields for managed-project
@@ -28,6 +29,7 @@ import pytest
 def _make_project(
     project_id: str = "proj-test",
     name: str = "test-project",
+    repo_url: str = "https://github.com/acme/test-project",
     tracker_kind: str | None = None,
     tracker_owner: str | None = None,
     tracker_repo: str | None = None,
@@ -41,6 +43,7 @@ def _make_project(
     p = MagicMock()
     p.id = project_id
     p.name = name
+    p.repo_url = repo_url
     p.tracker_kind = tracker_kind
     p.tracker_owner = tracker_owner
     p.tracker_repo = tracker_repo
@@ -56,7 +59,53 @@ def _make_store(project: MagicMock | None = None) -> MagicMock:
     store = MagicMock()
     store.get.return_value = project
     store.update.return_value = project
+    store.list_all.return_value = [] if project is None else [project]
     return store
+
+
+# ---------------------------------------------------------------------------
+# Tests for _exec_list_projects
+# ---------------------------------------------------------------------------
+
+class TestExecListProjects:
+    """Unit tests for the _exec_list_projects helper."""
+
+    def test_returns_json_with_all_managed_projects(self):
+        from oompah.acp_tools import _exec_list_projects
+
+        trickle = _make_project(
+            project_id="proj-trickle",
+            name="trickle",
+            repo_url="https://github.com/NVIDIA-Omniverse/trickle",
+            tracker_kind="github_issues",
+            tracker_owner="NVIDIA-Omniverse",
+            tracker_repo="trickle",
+        )
+        aethel = _make_project(
+            project_id="proj-aethel",
+            name="aethel",
+            repo_url="https://github.com/lesserevil/aethel",
+        )
+        store = _make_store()
+        store.list_all.return_value = [trickle, aethel]
+
+        result = _exec_list_projects(store)
+        data = json.loads(result)
+
+        assert [p["id"] for p in data["projects"]] == ["proj-trickle", "proj-aethel"]
+        assert data["projects"][0]["repo_url"] == (
+            "https://github.com/NVIDIA-Omniverse/trickle"
+        )
+        assert data["projects"][0]["tracker_kind"] == "github_issues"
+        store.list_all.assert_called_once_with()
+
+    def test_returns_error_when_project_store_is_none(self):
+        from oompah.acp_tools import _exec_list_projects
+
+        result = _exec_list_projects(None)
+        data = json.loads(result)
+        assert "error" in data
+        assert "project_store" in data["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +132,7 @@ class TestExecGetProject:
 
         assert data["id"] == "proj-abc"
         assert data["name"] == "my-repo"
+        assert data["repo_url"] == "https://github.com/acme/test-project"
         assert data["tracker_kind"] == "github_issues"
         assert data["tracker_owner"] == "my-org"
         assert data["tracker_repo"] == "my-repo"
@@ -143,6 +193,18 @@ class TestExecGetProject:
         store = _make_store(project)
         _exec_get_project(store, "proj-xyz")
         store.get.assert_called_once_with("proj-xyz")
+
+    def test_target_project_id_overrides_current_project_id(self):
+        from oompah.acp_tools import _exec_get_project
+
+        project = _make_project(project_id="proj-target")
+        store = _make_store(project)
+
+        result = _exec_get_project(store, "proj-current", "proj-target")
+        data = json.loads(result)
+
+        assert data["id"] == "proj-target"
+        store.get.assert_called_once_with("proj-target")
 
     def test_returns_all_readable_fields(self):
         from oompah.acp_tools import _exec_get_project, _PROJECT_READABLE_FIELDS
@@ -215,6 +277,27 @@ class TestExecUpdateProject:
             tracker_kind="github_issues",
             tracker_owner="my-org",
             tracker_repo="my-tasks",
+        )
+
+    def test_target_project_id_overrides_current_project_id(self):
+        from oompah.acp_tools import _exec_update_project
+
+        updated = _make_project(project_id="proj-aethel", tracker_kind="github_issues")
+        store = _make_store(updated)
+        fields_json = json.dumps({"tracker_kind": "github_issues"})
+
+        result = _exec_update_project(
+            store,
+            "proj-current",
+            fields_json,
+            "proj-aethel",
+        )
+        data = json.loads(result)
+
+        assert data["id"] == "proj-aethel"
+        store.update.assert_called_once_with(
+            "proj-aethel",
+            tracker_kind="github_issues",
         )
 
     def test_rejects_unknown_fields(self):
@@ -358,9 +441,9 @@ _skip_no_sdk = pytest.mark.skipif(
 
 @_skip_no_sdk
 class TestBuildToolCatalogProjectTools:
-    """The Claude catalog must include get_project and update_project."""
+    """The Claude catalog must include current and targeted project tools."""
 
-    def test_includes_get_project_and_update_project(self, tmp_path):
+    def test_includes_project_tools(self, tmp_path):
         from oompah.acp_tools import build_tool_catalog
 
         store = _make_store(_make_project())
@@ -368,28 +451,60 @@ class TestBuildToolCatalogProjectTools:
             str(tmp_path), project_store=store, project_id="proj-test"
         )
         names = [t.name for t in cat]
+        assert "list_projects" in names
         assert "get_project" in names
+        assert "get_project_by_id" in names
         assert "update_project" in names
+        assert "update_project_by_id" in names
 
-    def test_catalog_has_8_tools_with_project_store(self, tmp_path):
+    def test_catalog_has_11_tools_with_project_store(self, tmp_path):
         from oompah.acp_tools import build_tool_catalog
 
         store = _make_store(_make_project())
         cat = build_tool_catalog(
             str(tmp_path), project_store=store, project_id="proj-test"
         )
-        assert len(cat) == 8
+        assert len(cat) == 11
 
-    def test_catalog_has_8_tools_without_project_store(self, tmp_path):
-        """get_project/update_project are always included; they degrade
-        gracefully when project_store is absent."""
+    def test_catalog_has_11_tools_without_project_store(self, tmp_path):
+        """Project tools are always included and degrade gracefully."""
         from oompah.acp_tools import build_tool_catalog
 
         cat = build_tool_catalog(str(tmp_path))
         names = [t.name for t in cat]
+        assert "list_projects" in names
         assert "get_project" in names
+        assert "get_project_by_id" in names
         assert "update_project" in names
-        assert len(cat) == 8
+        assert "update_project_by_id" in names
+        assert len(cat) == 11
+
+    def test_list_projects_tool_returns_data_with_store(self, tmp_path):
+        """list_projects returns managed project snapshots when wired up."""
+        import asyncio
+        from oompah.acp_tools import build_tool_catalog
+
+        trickle = _make_project(
+            project_id="proj-trickle",
+            name="trickle",
+            repo_url="https://github.com/NVIDIA-Omniverse/trickle",
+        )
+        store = _make_store()
+        store.list_all.return_value = [trickle]
+        cat = build_tool_catalog(
+            str(tmp_path), project_store=store, project_id="proj-current"
+        )
+        tool = next(t for t in cat if t.name == "list_projects")
+
+        result = asyncio.run(tool.handler({}))
+        text = result["content"][0]["text"]
+        data = json.loads(text)
+
+        assert data["projects"][0]["id"] == "proj-trickle"
+        assert data["projects"][0]["repo_url"] == (
+            "https://github.com/NVIDIA-Omniverse/trickle"
+        )
+        store.list_all.assert_called_once_with()
 
     def test_get_project_tool_returns_error_without_store(self, tmp_path):
         """When project_store is None the get_project tool returns an
@@ -442,6 +557,25 @@ class TestBuildToolCatalogProjectTools:
         assert data["tracker_kind"] == "github_issues"
         assert data["tracker_owner"] == "test-org"
 
+    def test_get_project_by_id_tool_targets_requested_project(self, tmp_path):
+        """get_project_by_id reads the explicit target project."""
+        import asyncio
+        from oompah.acp_tools import build_tool_catalog
+
+        target = _make_project(project_id="proj-target")
+        store = _make_store(target)
+        cat = build_tool_catalog(
+            str(tmp_path), project_store=store, project_id="proj-current"
+        )
+        tool = next(t for t in cat if t.name == "get_project_by_id")
+
+        result = asyncio.run(tool.handler({"project_id": "proj-target"}))
+        text = result["content"][0]["text"]
+        data = json.loads(text)
+
+        assert data["id"] == "proj-target"
+        store.get.assert_called_once_with("proj-target")
+
     def test_update_project_tool_delegates_to_store(self, tmp_path):
         """update_project tool calls project_store.update() with the
         parsed fields dict."""
@@ -461,6 +595,32 @@ class TestBuildToolCatalogProjectTools:
         asyncio.run(tool.handler({"fields_json": json.dumps(fields)}))
 
         store.update.assert_called_once_with("proj-upd", tracker_kind="github_issues")
+
+    def test_update_project_by_id_tool_targets_requested_project(self, tmp_path):
+        """update_project_by_id updates the explicit target project."""
+        import asyncio
+        from oompah.acp_tools import build_tool_catalog
+
+        updated = _make_project(project_id="proj-target", tracker_kind="github_issues")
+        store = _make_store(updated)
+        store.update.return_value = updated
+
+        cat = build_tool_catalog(
+            str(tmp_path), project_store=store, project_id="proj-current"
+        )
+        tool = next(t for t in cat if t.name == "update_project_by_id")
+
+        fields = {"tracker_kind": "github_issues"}
+        asyncio.run(
+            tool.handler(
+                {"project_id": "proj-target", "fields_json": json.dumps(fields)}
+            )
+        )
+
+        store.update.assert_called_once_with(
+            "proj-target",
+            tracker_kind="github_issues",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -560,9 +720,9 @@ _skip_no_codex = pytest.mark.skipif(
 
 @_skip_no_codex
 class TestBuildCodexToolCatalogProjectTools:
-    """The Codex catalog must include get_project and update_project."""
+    """The Codex catalog must include current and targeted project tools."""
 
-    def test_includes_get_project_and_update_project(self, tmp_path):
+    def test_includes_project_tools(self, tmp_path):
         from oompah.acp_tools import build_codex_tool_catalog
 
         store = _make_store(_make_project())
@@ -574,18 +734,22 @@ class TestBuildCodexToolCatalogProjectTools:
             getattr(t, "name", None) or getattr(t, "__name__", None) or str(t)
             for t in cat
         ]
-        assert any("get_project" in str(n) for n in names), (
-            f"get_project not found in Codex catalog names: {names}"
-        )
-        assert any("update_project" in str(n) for n in names), (
-            f"update_project not found in Codex catalog names: {names}"
-        )
+        for expected in (
+            "list_projects",
+            "get_project",
+            "get_project_by_id",
+            "update_project",
+            "update_project_by_id",
+        ):
+            assert any(expected in str(n) for n in names), (
+                f"{expected} not found in Codex catalog names: {names}"
+            )
 
-    def test_catalog_has_8_tools(self, tmp_path):
+    def test_catalog_has_11_tools(self, tmp_path):
         from oompah.acp_tools import build_codex_tool_catalog
 
         store = _make_store(_make_project())
         cat = build_codex_tool_catalog(
             str(tmp_path), project_store=store, project_id="proj-test"
         )
-        assert len(cat) == 8
+        assert len(cat) == 11

@@ -833,7 +833,7 @@ class TestCodexCliPath:
 class TestCodexToolBridging:
     """A focus's MCP catalog round-trips through to Codex's tool
     format. We feed the SDK a no-op ``function_tool`` decorator and
-    verify all six oompah tools come out the other side with their
+    verify oompah's canonical tools come out the other side with their
     canonical names — the orchestrator's `_run_acp_worker` builds the
     catalog from oompah/acp_tools.py and this test pins that contract.
     """
@@ -851,12 +851,14 @@ class TestCodexToolBridging:
 
         cat = build_codex_tool_catalog(str(tmp_path))
         names = [getattr(t, "name", getattr(t, "__name__", str(t))) for t in cat]
-        # The Q2 acceptance set — same six tools as the Claude
-        # catalog, routed through the same _exec_* helpers so cd-guard
-        # and shell routing apply identically.
+        # Same canonical tools as the Claude catalog, routed through
+        # the same _exec_* helpers so cd-guard and shell routing apply
+        # identically.
         for expected in (
             "read_file", "write_file", "edit_file",
             "list_files", "search_files", "run_command",
+            "list_projects", "get_project", "get_project_by_id",
+            "update_project", "update_project_by_id",
         ):
             assert expected in names, f"missing {expected!r} in codex catalog"
 

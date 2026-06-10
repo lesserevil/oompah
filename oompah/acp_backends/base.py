@@ -105,8 +105,9 @@ class AcpBackendOptions:
     billing_model: str = "per_token"
     # Non-HTTP project management (TASK-464.8): the ProjectStore instance
     # and the project_id for the task this session is executing.  Backends
-    # pass these into the tool catalog so agents can call get_project /
-    # update_project without making deadlock-inducing HTTP self-calls to
+    # pass these into the tool catalog so agents can call list_projects,
+    # get_project/get_project_by_id, and update_project/update_project_by_id
+    # without making deadlock-inducing HTTP self-calls to
     # the local oompah server.  Both default to None; tools degrade
     # gracefully (return an error string) when not supplied.
     project_store: Any = None

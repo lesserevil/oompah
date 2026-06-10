@@ -3,7 +3,8 @@
 The Claude Agent SDK takes an in-process MCP server with @tool-decorated
 functions in ``ClaudeAgentOptions.mcp_servers``. We declare oompah's
 existing tool catalog (read_file / write_file / edit_file / list_files /
-search_files / run_command / get_project / update_project) here, routing
+search_files / run_command / list_projects / get_project /
+get_project_by_id / update_project / update_project_by_id) here, routing
 each one through the same ``_exec_*`` implementations the api_agent path
 already uses.
 
@@ -30,13 +31,17 @@ parallel ``build_<backend>_tool_catalog`` here so the shared
 oompah's tool semantics. The backend's :meth:`start_session` picks
 which builder to call.
 
-The ``get_project`` / ``update_project`` tools (TASK-464.8) provide a
+The project management tools (TASK-464.8) provide a
 non-HTTP path for agents running inside oompah MCP to read and update
 ProjectStore tracker fields without calling back into
 ``http://127.0.0.1:8090``, which deadlocks the same-process server.
-Both tools require ``project_store`` and ``project_id`` to be passed to
-the catalog builder; if either is missing the tools return an
-``error:`` message rather than raising.
+``get_project`` / ``update_project`` operate on the current project for
+the task worktree. ``list_projects`` / ``get_project_by_id`` /
+``update_project_by_id`` let operator-directed migration tasks work on
+other managed projects without reading ``.oompah/projects.json``.
+All tools require ``project_store`` to be passed to the catalog builder;
+if it is missing the tools return an ``error:`` message rather than
+raising.
 """
 
 from __future__ import annotations
@@ -62,6 +67,7 @@ _PROJECT_READABLE_FIELDS = frozenset(
     {
         "id",
         "name",
+        "repo_url",
         "tracker_kind",
         "tracker_owner",
         "tracker_repo",
@@ -87,28 +93,8 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
 )
 
 
-def _exec_get_project(project_store: Any, project_id: str | None) -> str:
-    """Return a JSON snapshot of the project's tracker configuration.
-
-    This is the non-HTTP path for agents to read ProjectStore state
-    without calling back into ``http://127.0.0.1:8090`` (which deadlocks
-    the same-process oompah server).
-
-    Returns a JSON object with the fields in ``_PROJECT_READABLE_FIELDS``,
-    or a JSON ``{"error": "..."}`` dict on failure.
-    """
-    if project_store is None or not project_id:
-        return json.dumps(
-            {"error": "project_store or project_id not available for this worktree"}
-        )
-    try:
-        project = project_store.get(project_id)
-    except Exception as exc:  # pragma: no cover — defensive
-        return json.dumps({"error": f"ProjectStore.get failed: {exc}"})
-
-    if project is None:
-        return json.dumps({"error": f"Project {project_id!r} not found"})
-
+def _project_snapshot(project: Any) -> dict[str, Any]:
+    """Return the public tracker/cutover fields for a Project-like object."""
     cutover_at = None
     raw = getattr(project, "tracker_cutover_at", None)
     if raw is not None:
@@ -117,9 +103,10 @@ def _exec_get_project(project_store: Any, project_id: str | None) -> str:
         except AttributeError:
             cutover_at = str(raw)
 
-    result: dict[str, Any] = {
+    return {
         "id": project.id,
         "name": getattr(project, "name", None),
+        "repo_url": getattr(project, "repo_url", None),
         "tracker_kind": getattr(project, "tracker_kind", None),
         "tracker_owner": getattr(project, "tracker_owner", None),
         "tracker_repo": getattr(project, "tracker_repo", None),
@@ -129,13 +116,56 @@ def _exec_get_project(project_store: Any, project_id: str | None) -> str:
         "tracker_cutover_at": cutover_at,
         "paused": getattr(project, "paused", False),
     }
-    return json.dumps(result, indent=2)
+
+
+def _exec_list_projects(project_store: Any) -> str:
+    """Return tracker snapshots for all configured managed projects."""
+    if project_store is None:
+        return json.dumps({"error": "project_store not available for this worktree"})
+    try:
+        projects = project_store.list_all()
+    except Exception as exc:  # pragma: no cover — defensive
+        return json.dumps({"error": f"ProjectStore.list_all failed: {exc}"})
+
+    return json.dumps(
+        {"projects": [_project_snapshot(project) for project in projects]},
+        indent=2,
+    )
+
+
+def _exec_get_project(
+    project_store: Any,
+    project_id: str | None,
+    target_project_id: str | None = None,
+) -> str:
+    """Return a JSON snapshot of the project's tracker configuration.
+
+    This is the non-HTTP path for agents to read ProjectStore state
+    without calling back into ``http://127.0.0.1:8090`` (which deadlocks
+    the same-process oompah server).
+
+    Returns a JSON object with the fields in ``_PROJECT_READABLE_FIELDS``,
+    or a JSON ``{"error": "..."}`` dict on failure.
+    """
+    resolved_project_id = target_project_id or project_id
+    if project_store is None or not resolved_project_id:
+        return json.dumps({"error": "project_store or project_id not available"})
+    try:
+        project = project_store.get(resolved_project_id)
+    except Exception as exc:  # pragma: no cover — defensive
+        return json.dumps({"error": f"ProjectStore.get failed: {exc}"})
+
+    if project is None:
+        return json.dumps({"error": f"Project {resolved_project_id!r} not found"})
+
+    return json.dumps(_project_snapshot(project), indent=2)
 
 
 def _exec_update_project(
     project_store: Any,
     project_id: str | None,
     fields_json: str,
+    target_project_id: str | None = None,
 ) -> str:
     """Update tracker configuration fields for the managed project.
 
@@ -148,8 +178,9 @@ def _exec_update_project(
     of ``_PROJECT_UPDATABLE_FIELDS``.  Returns a JSON object with the
     updated tracker fields, or a plain ``error: ...`` string on failure.
     """
-    if project_store is None or not project_id:
-        return "error: project_store or project_id not available for this worktree"
+    resolved_project_id = target_project_id or project_id
+    if project_store is None or not resolved_project_id:
+        return "error: project_store or project_id not available"
 
     try:
         fields = json.loads(fields_json)
@@ -168,33 +199,14 @@ def _exec_update_project(
         )
 
     try:
-        updated = project_store.update(project_id, **fields)
+        updated = project_store.update(resolved_project_id, **fields)
     except Exception as exc:
         return f"error: ProjectStore.update failed: {exc}"
 
     if updated is None:
-        return f"error: Project {project_id!r} not found"
+        return f"error: Project {resolved_project_id!r} not found"
 
-    cutover_at = None
-    raw = getattr(updated, "tracker_cutover_at", None)
-    if raw is not None:
-        try:
-            cutover_at = raw.isoformat()
-        except AttributeError:
-            cutover_at = str(raw)
-
-    result: dict[str, Any] = {
-        "updated": True,
-        "id": updated.id,
-        "tracker_kind": getattr(updated, "tracker_kind", None),
-        "tracker_owner": getattr(updated, "tracker_owner", None),
-        "tracker_repo": getattr(updated, "tracker_repo", None),
-        "github_project_node_id": getattr(updated, "github_project_node_id", None),
-        "legacy_backlog_enabled": getattr(updated, "legacy_backlog_enabled", False),
-        "legacy_backlog_dispatch": getattr(updated, "legacy_backlog_dispatch", False),
-        "tracker_cutover_at": cutover_at,
-        "paused": getattr(updated, "paused", False),
-    }
+    result: dict[str, Any] = {"updated": True, **_project_snapshot(updated)}
     return json.dumps(result, indent=2)
 
 
@@ -219,9 +231,11 @@ def build_tool_catalog(
     Backlog.md commands resolve from the workspace, so no tracker-specific
     environment override is needed. Mirrors the api_agent path.
 
-    When ``project_store`` and ``project_id`` are supplied, two additional
-    tools are included: ``get_project`` (read tracker fields) and
-    ``update_project`` (write tracker fields).  These give agents a
+    When ``project_store`` is supplied, project management tools are included:
+    ``list_projects`` (read all managed project tracker fields),
+    ``get_project`` / ``update_project`` (current project), and
+    ``get_project_by_id`` / ``update_project_by_id`` (explicit target
+    project).  These give agents a
     non-HTTP path to manage ProjectStore state without calling back into
     the local oompah server (which would deadlock the same-process
     request handler).
@@ -248,6 +262,7 @@ def build_tool_catalog(
     )
 
     workspace = Path(workspace_path)
+    current_project_id = project_id
 
     def _wrap_text(content: str) -> dict[str, Any]:
         """Package a plain-string tool result in the MCP content shape
@@ -321,6 +336,20 @@ def build_tool_catalog(
         )
 
     @tool(
+        "list_projects",
+        "List managed projects and their tracker/cutover configuration. "
+        "Returns JSON containing id, name, repo_url, tracker_kind, "
+        "tracker_owner, tracker_repo, tracker_cutover_at, "
+        "legacy_backlog_enabled, legacy_backlog_dispatch, "
+        "github_project_node_id, and paused for each project. "
+        "Use this to discover target project ids instead of reading "
+        ".oompah/projects.json.",
+        {},
+    )
+    async def list_projects(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_list_projects(project_store))
+
+    @tool(
         "get_project",
         "Read the tracker configuration for the managed project this "
         "worktree belongs to. Returns JSON with id, name, tracker_kind, "
@@ -333,7 +362,23 @@ def build_tool_catalog(
         {},
     )
     async def get_project(args: dict[str, Any]) -> dict[str, Any]:
-        return _wrap_text(_exec_get_project(project_store, project_id))
+        return _wrap_text(_exec_get_project(project_store, current_project_id))
+
+    @tool(
+        "get_project_by_id",
+        "Read tracker configuration for a specific managed project id. "
+        "Call list_projects first to find the project id. Use this instead "
+        "of local HTTP calls or .oompah/projects.json reads.",
+        {"project_id": str},
+    )
+    async def get_project_by_id(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(
+            _exec_get_project(
+                project_store,
+                current_project_id,
+                args.get("project_id"),
+            )
+        )
 
     @tool(
         "update_project",
@@ -353,8 +398,30 @@ def build_tool_catalog(
         return _wrap_text(
             _exec_update_project(
                 project_store,
-                project_id,
+                current_project_id,
                 args.get("fields_json", "{}"),
+            )
+        )
+
+    @tool(
+        "update_project_by_id",
+        "Update tracker configuration fields for a specific managed "
+        "project id. Call list_projects first to find the project id. "
+        "Pass 'fields_json' as a JSON-encoded object whose keys are a "
+        "subset of: tracker_kind, tracker_owner, tracker_repo, "
+        "github_project_node_id, legacy_backlog_enabled, "
+        "legacy_backlog_dispatch, tracker_cutover_at, paused. "
+        "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
+        "or editing .oompah/projects.json directly.",
+        {"project_id": str, "fields_json": str},
+    )
+    async def update_project_by_id(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(
+            _exec_update_project(
+                project_store,
+                current_project_id,
+                args.get("fields_json", "{}"),
+                args.get("project_id"),
             )
         )
 
@@ -365,8 +432,11 @@ def build_tool_catalog(
         list_files,
         search_files,
         run_command,
+        list_projects,
         get_project,
+        get_project_by_id,
         update_project,
+        update_project_by_id,
     ]
 
 
@@ -400,9 +470,8 @@ def build_codex_tool_catalog(
     Mirrors :func:`build_tool_catalog` (the Claude-flavored builder)
     1:1 in name + behavior; only the surrounding decorator differs.
 
-    When ``project_store`` and ``project_id`` are supplied, ``get_project``
-    and ``update_project`` tools are added for non-HTTP ProjectStore access
-    (see TASK-464.8).
+    When ``project_store`` is supplied, project management tools are added
+    for non-HTTP ProjectStore access (see TASK-464.8).
     """
     # Lazy import: keeps the SDK out of import paths that don't need it.
     # The openai-agents PyPI package imports as ``agents``; we accept
@@ -438,6 +507,7 @@ def build_codex_tool_catalog(
     )
 
     workspace = Path(workspace_path)
+    current_project_id = project_id
 
     # Each @function_tool target is introspected by the SDK to build
     # a JSON Schema for the model — keep the signatures simple
@@ -493,6 +563,13 @@ def build_codex_tool_catalog(
         )
 
     @function_tool
+    def list_projects() -> str:
+        """List managed projects and their tracker/cutover configuration.
+        Use this to discover target project ids instead of reading
+        .oompah/projects.json."""
+        return _exec_list_projects(project_store)
+
+    @function_tool
     def get_project() -> str:
         """Read the tracker configuration for the managed project this
         worktree belongs to. Returns JSON with id, name, tracker_kind,
@@ -501,7 +578,13 @@ def build_codex_tool_catalog(
         github_project_node_id, and paused fields.
         Use this instead of calling http://127.0.0.1:8090 — HTTP
         self-calls from inside an oompah MCP tool deadlock the server."""
-        return _exec_get_project(project_store, project_id)
+        return _exec_get_project(project_store, current_project_id)
+
+    @function_tool
+    def get_project_by_id(project_id: str) -> str:
+        """Read tracker configuration for a specific managed project id.
+        Call list_projects first to find the project id."""
+        return _exec_get_project(project_store, current_project_id, project_id)
 
     @function_tool
     def update_project(fields_json: str) -> str:
@@ -513,7 +596,18 @@ def build_codex_tool_catalog(
         Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id>
         or editing .oompah/projects.json directly — both can deadlock or
         corrupt the running service."""
-        return _exec_update_project(project_store, project_id, fields_json)
+        return _exec_update_project(project_store, current_project_id, fields_json)
+
+    @function_tool
+    def update_project_by_id(project_id: str, fields_json: str) -> str:
+        """Update tracker configuration fields for a specific managed project
+        id. Call list_projects first to find the project id."""
+        return _exec_update_project(
+            project_store,
+            current_project_id,
+            fields_json,
+            project_id,
+        )
 
     return [
         read_file,
@@ -522,8 +616,11 @@ def build_codex_tool_catalog(
         list_files,
         search_files,
         run_command,
+        list_projects,
         get_project,
+        get_project_by_id,
         update_project,
+        update_project_by_id,
     ]
 
 
@@ -552,9 +649,11 @@ def build_opencode_tool_catalog(
     ``ImportError`` with a clear install hint (NOT silently empty) —
     a missing SDK is an operator config error.
 
-    When ``project_store`` and ``project_id`` are supplied, ``get_project``
-    and ``update_project`` tools are added for non-HTTP ProjectStore access
-    (see TASK-464.8).
+    When ``project_store`` is supplied, project management tools are added
+    for non-HTTP ProjectStore access: ``list_projects``,
+    ``get_project`` / ``update_project`` for the current project, and
+    ``get_project_by_id`` / ``update_project_by_id`` for an explicit target
+    project (see TASK-464.8).
     """
     # Lazy import to keep the SDK out of import paths that don't need it.
     try:
@@ -656,6 +755,20 @@ def build_opencode_tool_catalog(
         )
 
     @tool(
+        "list_projects",
+        "List managed projects and their tracker/cutover configuration. "
+        "Returns JSON containing id, name, repo_url, tracker_kind, "
+        "tracker_owner, tracker_repo, tracker_cutover_at, "
+        "legacy_backlog_enabled, legacy_backlog_dispatch, "
+        "github_project_node_id, and paused for each project. "
+        "Use this to discover target project ids instead of reading "
+        ".oompah/projects.json.",
+        {},
+    )
+    async def list_projects(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(_exec_list_projects(project_store))
+
+    @tool(
         "get_project",
         "Read the tracker configuration for the managed project this "
         "worktree belongs to. Returns JSON with id, name, tracker_kind, "
@@ -669,6 +782,22 @@ def build_opencode_tool_catalog(
     )
     async def get_project(args: dict[str, Any]) -> dict[str, Any]:
         return _wrap_text(_exec_get_project(project_store, project_id))
+
+    @tool(
+        "get_project_by_id",
+        "Read tracker configuration for a specific managed project id. "
+        "Call list_projects first to find the project id. Use this instead "
+        "of local HTTP calls or .oompah/projects.json reads.",
+        {"project_id": str},
+    )
+    async def get_project_by_id(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(
+            _exec_get_project(
+                project_store,
+                project_id,
+                args.get("project_id"),
+            )
+        )
 
     @tool(
         "update_project",
@@ -693,6 +822,28 @@ def build_opencode_tool_catalog(
             )
         )
 
+    @tool(
+        "update_project_by_id",
+        "Update tracker configuration fields for a specific managed "
+        "project id. Call list_projects first to find the project id. "
+        "Pass 'fields_json' as a JSON-encoded object whose keys are a "
+        "subset of: tracker_kind, tracker_owner, tracker_repo, "
+        "github_project_node_id, legacy_backlog_enabled, "
+        "legacy_backlog_dispatch, tracker_cutover_at, paused. "
+        "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
+        "or editing .oompah/projects.json directly.",
+        {"project_id": str, "fields_json": str},
+    )
+    async def update_project_by_id(args: dict[str, Any]) -> dict[str, Any]:
+        return _wrap_text(
+            _exec_update_project(
+                project_store,
+                project_id,
+                args.get("fields_json", "{}"),
+                args.get("project_id"),
+            )
+        )
+
     return [
         read_file,
         write_file,
@@ -700,6 +851,9 @@ def build_opencode_tool_catalog(
         list_files,
         search_files,
         run_command,
+        list_projects,
         get_project,
+        get_project_by_id,
         update_project,
+        update_project_by_id,
     ]
