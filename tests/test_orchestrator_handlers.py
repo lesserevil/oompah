@@ -14,6 +14,7 @@ order.
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1766,11 +1767,9 @@ class TestMaintenanceLaneNonBlocking:
         """_tick() must complete even if _run_step5b_maintenance is slow.
 
         This verifies AC#1: the maintenance job is fire-and-forget, not awaited
-        inline.  We set _maybe_heal_repos to a function that blocks for 100ms
-        and measure that the tick itself finishes well before that delay.
+        inline.  The maintenance job blocks on an event so the test does not
+        rely on CI wall-clock timing thresholds.
         """
-        import time as _time
-
         orch = _make_orchestrator(tmp_path)
         orch._handle_reconcile = AsyncMock()
         orch._handle_review_check = AsyncMock()
@@ -1782,26 +1781,39 @@ class TestMaintenanceLaneNonBlocking:
         orch._maybe_run_watchdog = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
 
-        heal_started = []
-        heal_finished = []
+        maintenance_started = threading.Event()
+        maintenance_unblock = threading.Event()
+        maintenance_finished = []
 
-        def _slow_heal():
-            heal_started.append(_time.monotonic())
-            _time.sleep(0.1)  # 100 ms blocking
-            heal_finished.append(_time.monotonic())
+        def _blocked_maintenance():
+            maintenance_started.set()
+            maintenance_unblock.wait(timeout=5)
+            maintenance_finished.append(True)
 
-        orch._maybe_heal_repos = _slow_heal
+        orch._run_step5b_maintenance = _blocked_maintenance
 
-        tick_start = _time.monotonic()
-        with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
-            asyncio.run(orch._tick())
-        tick_end = _time.monotonic()
+        async def _run_tick_with_blocked_maintenance():
+            with patch("oompah.orchestrator.validate_dispatch_config", return_value=[]):
+                tick_task = asyncio.create_task(orch._tick())
+                try:
+                    await asyncio.wait_for(asyncio.shield(tick_task), timeout=1.0)
+                except asyncio.TimeoutError as exc:
+                    maintenance_unblock.set()
+                    await tick_task
+                    raise AssertionError(
+                        "_tick() waited for step-5b maintenance to finish"
+                    ) from exc
 
-        tick_ms = (tick_end - tick_start) * 1000
-        # Tick must complete in well under 100 ms (< 80 ms to allow CI headroom)
-        assert tick_ms < 80, (
-            f"Tick took {tick_ms:.0f}ms — maintenance job should not block the tick"
-        )
+            assert orch._maintenance_future is not None
+            assert maintenance_started.wait(timeout=1.0)
+            assert not orch._maintenance_future.done()
+            assert maintenance_finished == []
+
+            maintenance_unblock.set()
+            await asyncio.wait_for(orch._maintenance_future, timeout=1.0)
+            assert maintenance_finished == [True]
+
+        asyncio.run(_run_tick_with_blocked_maintenance())
 
     def test_tick_starts_maintenance_future(self, tmp_path):
         """_tick() must set _maintenance_future so status is trackable."""
