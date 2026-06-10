@@ -4,7 +4,7 @@ title: Cut over aethel and remaining managed repos
 status: Open
 assignee: []
 created_date: 2026-06-08 17:58
-updated_date: 2026-06-10 16:04
+updated_date: 2026-06-10 16:17
 labels:
 - task
 - github-issues
@@ -17,13 +17,13 @@ parent_task_id: TASK-464
 priority: high
 ordinal: 163000
 oompah.task_costs:
-  total_input_tokens: 25
-  total_output_tokens: 382
+  total_input_tokens: 60
+  total_output_tokens: 1195
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 25
-      output_tokens: 382
+      input_tokens: 60
+      output_tokens: 1195
       cost_usd: 0.0
   runs:
   - profile: default
@@ -32,6 +32,12 @@ oompah.task_costs:
     output_tokens: 382
     cost_usd: 0.0
     recorded_at: '2026-06-10T15:59:05.977303+00:00'
+  - profile: default
+    model: unknown
+    input_tokens: 35
+    output_tokens: 813
+    cost_usd: 0.0
+    recorded_at: '2026-06-10T16:07:12.220182+00:00'
 ---
 
 ## Description
@@ -77,5 +83,35 @@ author: oompah
 created: 2026-06-10 16:04
 ---
 Unblocked after 70b1f39 landed on main and the service was restarted on 2026-06-10 16:04 UTC. The ACP tool catalog now exposes non-HTTP get_project/update_project tools, and TASK-464.5/TASK-464.6 were refreshed in the epic worktree so agents see TASK-464.5 as Done. Safe to redispatch; use the project tools instead of local HTTP calls or direct .oompah/projects.json edits.
+---
+author: oompah
+created: 2026-06-10 16:05
+---
+Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-06-10 16:05
+---
+Focus: Duplicate Investigator
+---
+author: oompah
+created: 2026-06-10 16:07
+---
+Stopped the 2026-06-10 16:05 UTC run because the new project tools are still too narrow for TASK-464.6: get_project/update_project only operate on the current oompah project, while this task needs to inspect and update other managed projects such as aethel. Do not redispatch until the ACP project tools support listing managed projects and selecting a target project_id without HTTP self-calls or direct .oompah/projects.json access.
+---
+author: oompah
+created: 2026-06-10 16:07
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 17
+- Tokens: 35 in / 813 out [848 total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 1m 51s
+- Log: TASK-464.6__20260610T160534Z.jsonl
+---
+author: oompah
+created: 2026-06-10 16:16
+---
+Unblocked after 824104a landed on main and the service was restarted on 2026-06-10 16:18 UTC. ACP agents now have mcp__oompah__list_projects plus mcp__oompah__get_project_by_id/mcp__oompah__update_project_by_id, so this task can discover and update aethel/remaining managed projects through ProjectStore without HTTP self-calls or direct .oompah/projects.json access.
 ---
 <!-- COMMENTS:END -->
