@@ -170,6 +170,13 @@ class TestDispatchOptimisticStructure:
         assert "{key: 'in_progress'" not in config
         assert "{key: 'backlog'" not in config
 
+    def test_in_review_column_is_between_done_and_merged(self, script: str):
+        """In Review should render after completed work but before landed work."""
+        match = re.search(r"const COLUMN_CONFIG = \[(.*?)\];", script, re.DOTALL)
+        assert match, "could not extract COLUMN_CONFIG"
+        keys = re.findall(r"\{key:\s*'([^']+)'", match.group(1))
+        assert keys.index("Done") < keys.index("In Review") < keys.index("Merged")
+
     def test_move_issue_canonicalizes_target_state(self, script: str):
         """Local board moves must canonicalize aliases before touching boardData."""
         match = re.search(
