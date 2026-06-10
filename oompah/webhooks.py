@@ -54,6 +54,20 @@ class WebhookEvent:
         title: The PR/MR title.
         merged: Whether the PR/MR was merged.
         raw: The full raw payload dict for downstream consumers.
+        issue_number: The GitHub issue number as a string.  Set for
+                      ``issues`` and ``issue_comment`` events so
+                      downstream consumers can key cache invalidations
+                      without inspecting ``raw``.
+        comment_id: The comment node id or numeric id as a string.  Set
+                    for ``issue_comment`` events.
+        label_name: The label name.  Set for ``label`` events.
+        project_item_id: The ``projects_v2_item`` node id.  Set for
+                         ``projects_v2_item`` events.
+        project_field_name: The name of the changed field.  Set for
+                            ``projects_v2_item`` ``edited`` events when
+                            the ``changes.field_value`` key is present.
+        project_field_value: The new field value as a string.  Set for
+                             ``projects_v2_item`` ``edited`` events.
     """
 
     provider: str
@@ -67,6 +81,15 @@ class WebhookEvent:
     title: str = ""
     merged: bool = False
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
+    # Issue-specific fields
+    issue_number: str = ""
+    comment_id: str = ""
+    # Label-specific fields
+    label_name: str = ""
+    # GitHub Projects v2 fields
+    project_item_id: str = ""
+    project_field_name: str = ""
+    project_field_value: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +161,14 @@ def parse_github_webhook(
         return _parse_github_push(event_type, payload)
     if event_type == "merge_group":
         return _parse_github_merge_group(event_type, payload)
+    if event_type == "issues":
+        return _parse_github_issues(event_type, payload)
+    if event_type == "issue_comment":
+        return _parse_github_issue_comment(event_type, payload)
+    if event_type == "label":
+        return _parse_github_label(event_type, payload)
+    if event_type == "projects_v2_item":
+        return _parse_github_projects_v2_item(event_type, payload)
     logger.debug("Ignoring GitHub event: %s", event_type)
     return None
 
@@ -270,6 +301,221 @@ def _parse_github_merge_group(
     )
 
 
+def _parse_github_issues(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitHub ``issues`` event into a WebhookEvent.
+
+    GitHub fires ``issues`` events when an issue is opened, edited,
+    deleted, closed, reopened, labeled, unlabeled, assigned, etc.
+
+    Pull-request-backed issues (i.e. payloads whose ``issue`` object
+    contains a ``pull_request`` key) are skipped — those are tracked
+    through the ``pull_request`` event instead.
+
+    Args:
+        event_type: Always ``"issues"``.
+        payload: Parsed JSON body from GitHub.
+
+    Returns:
+        A ``WebhookEvent`` for issue events, or ``None`` for malformed
+        or PR-backed payloads.
+    """
+    action = payload.get("action", "")
+    issue = payload.get("issue") or {}
+    if not issue:
+        return None
+
+    # Skip PR-backed issues — they are handled by the pull_request event.
+    if issue.get("pull_request"):
+        logger.debug("Skipping issues event for PR-backed issue #%s", issue.get("number"))
+        return None
+
+    repo = payload.get("repository") or {}
+    repo_slug = repo.get("full_name", "")
+
+    user = issue.get("user") or {}
+    sender = payload.get("sender") or {}
+    author = user.get("login") or sender.get("login", "")
+
+    issue_number = str(issue.get("number", "") or "")
+    title = issue.get("title", "") or ""
+
+    return WebhookEvent(
+        provider="github",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        review_id=issue_number,
+        author=author,
+        title=title,
+        merged=False,
+        raw=payload,
+        issue_number=issue_number,
+    )
+
+
+def _parse_github_issue_comment(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitHub ``issue_comment`` event into a WebhookEvent.
+
+    GitHub fires ``issue_comment`` events when a comment on an issue (or
+    PR) is created, edited, or deleted.
+
+    Args:
+        event_type: Always ``"issue_comment"``.
+        payload: Parsed JSON body from GitHub.
+
+    Returns:
+        A ``WebhookEvent``, or ``None`` for malformed payloads.
+    """
+    action = payload.get("action", "")
+    issue = payload.get("issue") or {}
+    comment = payload.get("comment") or {}
+    if not issue or not comment:
+        return None
+
+    repo = payload.get("repository") or {}
+    repo_slug = repo.get("full_name", "")
+
+    comment_user = comment.get("user") or {}
+    author = comment_user.get("login", "")
+
+    issue_number = str(issue.get("number", "") or "")
+    title = issue.get("title", "") or ""
+    comment_id = str(comment.get("id", "") or "")
+
+    return WebhookEvent(
+        provider="github",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        review_id=issue_number,
+        author=author,
+        title=title,
+        merged=False,
+        raw=payload,
+        issue_number=issue_number,
+        comment_id=comment_id,
+    )
+
+
+def _parse_github_label(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitHub ``label`` event into a WebhookEvent.
+
+    GitHub fires ``label`` events when a label is created, edited, or
+    deleted in a repository.  These events carry the label metadata but
+    are not tied to a specific issue or PR.
+
+    Args:
+        event_type: Always ``"label"``.
+        payload: Parsed JSON body from GitHub.
+
+    Returns:
+        A ``WebhookEvent``, or ``None`` for malformed payloads.
+    """
+    action = payload.get("action", "")
+    label = payload.get("label") or {}
+    if not label:
+        return None
+
+    repo = payload.get("repository") or {}
+    repo_slug = repo.get("full_name", "")
+
+    sender = payload.get("sender") or {}
+    author = sender.get("login", "")
+
+    label_name = label.get("name", "") or ""
+
+    return WebhookEvent(
+        provider="github",
+        event_type=event_type,
+        action=action,
+        repo_slug=repo_slug,
+        author=author,
+        title=label_name,
+        merged=False,
+        raw=payload,
+        label_name=label_name,
+    )
+
+
+def _parse_github_projects_v2_item(
+    event_type: str, payload: dict[str, Any]
+) -> WebhookEvent | None:
+    """Parse a GitHub ``projects_v2_item`` event into a WebhookEvent.
+
+    GitHub fires ``projects_v2_item`` events when a project item is
+    created, edited, deleted, archived, or reordered on a GitHub
+    Projects v2 board.
+
+    For ``edited`` actions the ``changes.field_value`` key (when present)
+    carries the name of the changed field and its new value.  We surface
+    these in ``project_field_name`` and ``project_field_value`` so cache
+    invalidation can react to status-field changes without reading
+    ``raw``.
+
+    ``projects_v2_item`` events are organisation- or user-level events
+    and do not include a ``repository`` object, so ``repo_slug`` is left
+    empty.
+
+    Args:
+        event_type: Always ``"projects_v2_item"``.
+        payload: Parsed JSON body from GitHub.
+
+    Returns:
+        A ``WebhookEvent``, or ``None`` for malformed payloads.
+    """
+    action = payload.get("action", "")
+    item = payload.get("projects_v2_item") or {}
+    if not item:
+        return None
+
+    sender = payload.get("sender") or {}
+    author = sender.get("login", "")
+
+    project_item_id = str(item.get("node_id") or item.get("id") or "")
+
+    # Extract field name and new value from ``changes.field_value`` (only
+    # present on ``edited`` events).
+    field_name = ""
+    field_value = ""
+    changes = payload.get("changes") or {}
+    field_value_change = changes.get("field_value") or {}
+    if field_value_change:
+        field_name = str(field_value_change.get("field_name") or "")
+        to = field_value_change.get("to") or {}
+        # GitHub Projects v2 encodes the new value in a type-specific key.
+        # Walk through common keys to find the human-readable value.
+        for value_key in ("name", "title", "status_value", "number", "date", "text"):
+            candidate = to.get(value_key)
+            if candidate is not None:
+                field_value = str(candidate)
+                break
+        if not field_value and to:
+            # Fallback: use the first scalar value present.
+            for v in to.values():
+                if isinstance(v, (str, int, float, bool)) and v is not None:
+                    field_value = str(v)
+                    break
+
+    return WebhookEvent(
+        provider="github",
+        event_type=event_type,
+        action=action,
+        repo_slug="",
+        author=author,
+        merged=False,
+        raw=payload,
+        project_item_id=project_item_id,
+        project_field_name=field_name,
+        project_field_value=field_value,
+    )
+
+
 # ---------------------------------------------------------------------------
 # GitLab
 # ---------------------------------------------------------------------------
@@ -388,12 +634,23 @@ _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
 _WEBHOOK_BASE_DELAY_S = 1.0  # initial restart backoff
 _WEBHOOK_MAX_DELAY_S = 60.0  # cap on restart backoff
 
-# Default events the forwarder subscribes to. ``push`` drives source-sync
-# after operators commit directly to a tracked branch; ``pull_request``
-# drives auto-merge label updates and PR-closed handling. Without
-# ``--events``, the gh-webhook extension subscribes to nothing and
+# Default events the forwarder subscribes to.
+#
+# Core SCM events (always required):
+#   ``push``           — source-sync after operators commit to a tracked branch.
+#   ``pull_request``   — auto-merge label updates and PR-closed handling.
+#
+# GitHub Issues / GitHub-backed task events (required for task tracking):
+#   ``issues``             — task open/edit/close in the task hub.
+#   ``issue_comment``      — new comments on tasks (agent handoff, ACs).
+#   ``label``              — label create/edit/delete (agent routing hints).
+#   ``projects_v2_item``   — project-board item changes (Oompah Status field).
+#
+# Without ``--events``, the gh-webhook extension subscribes to nothing and
 # the subprocess produces no traffic.
-_WEBHOOK_DEFAULT_EVENTS = "push,pull_request"
+_WEBHOOK_DEFAULT_EVENTS = (
+    "push,pull_request,issues,issue_comment,label,projects_v2_item"
+)
 
 # Stderr tail size kept in memory per project (for surfacing the most
 # recent error to the dashboard / logs without unbounded growth).
@@ -502,9 +759,10 @@ class WebhookForwarder:
                          Defaults to 5 seconds.
         events: Comma-separated list of forge event names to forward
                 (passed verbatim to ``gh webhook forward --events``).
-                Defaults to ``"push,pull_request"`` — the minimum set
-                required for source-sync after direct pushes and for
-                PR-closed / auto-merge label updates. Override via the
+                Defaults to ``_WEBHOOK_DEFAULT_EVENTS`` — SCM events
+                (``push``, ``pull_request``) plus GitHub-backed task
+                tracking events (``issues``, ``issue_comment``, ``label``,
+                ``projects_v2_item``). Override via the
                 ``OOMPAH_WEBHOOK_EVENTS`` environment variable.
         status_callback: Optional callable invoked when the forwarder's
                          availability state changes. Called with a dict:

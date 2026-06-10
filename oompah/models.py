@@ -320,6 +320,19 @@ class Project:
     # Cleared when the project is successfully synced without conflicts.
     backlog_conflict_paths: list[str] = field(default_factory=list)
 
+    # ---------------------------------------------------------------------------
+    # Per-project tracker configuration (GitHub Issues migration — TASK-459.3)
+    # ---------------------------------------------------------------------------
+    # Which tracker backend this project uses. When None, falls back to the
+    # global ServiceConfig.tracker_kind. Recognised values are the keys in
+    # oompah.tracker.ADAPTER_REGISTRY plus aliases like "backlog", "backlog.md".
+    # Use "github_issues" for GitHub-backed projects.
+    # NOTE: Additional tracker fields (tracker_owner, tracker_repo,
+    # legacy_backlog_enabled, legacy_backlog_dispatch, tracker_cutover_at) will
+    # be added by TASK-459.3.  This single field is the minimum needed by
+    # TASK-463.4 to guard Backlog hook installation.
+    tracker_kind: str | None = None
+
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
         if not self.branches:
@@ -395,6 +408,10 @@ class Project:
         # normal project records with an empty list.
         if self.backlog_conflict_paths:
             d["backlog_conflict_paths"] = list(self.backlog_conflict_paths)
+        # Per-project tracker configuration: only emit when set so that
+        # existing project records stay compact until explicitly configured.
+        if self.tracker_kind is not None:
+            d["tracker_kind"] = self.tracker_kind
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -479,6 +496,11 @@ class Project:
             ]
         else:
             provider_whitelist = []
+        # Per-project tracker configuration (TASK-459.3 / TASK-463.4).
+        raw_tracker_kind = d.get("tracker_kind")
+        tracker_kind_proj: str | None = (
+            str(raw_tracker_kind).strip() if raw_tracker_kind else None
+        ) or None
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -509,6 +531,7 @@ class Project:
                 str(p) for p in (d.get("backlog_conflict_paths") or [])
                 if str(p).strip()
             ],
+            tracker_kind=tracker_kind_proj,
         )
 
 

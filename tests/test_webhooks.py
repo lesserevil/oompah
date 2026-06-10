@@ -4,6 +4,7 @@ Covers:
 - GitHub HMAC-SHA256 signature validation
 - GitLab secret token validation
 - GitHub pull_request payload parsing
+- GitHub issues / issue_comment / label / projects_v2_item payload parsing
 - GitLab Merge Request Hook payload parsing
 - Non-PR/MR event rejection
 - Project matching by repo slug
@@ -250,7 +251,8 @@ class TestParseGitHubWebhook:
     def test_ping_event_returns_none(self):
         assert parse_github_webhook("ping", {"zen": "test"}) is None
 
-    def test_issues_event_returns_none(self):
+    def test_issues_event_missing_issue_key_returns_none(self):
+        """Malformed issues payload (no ``issue`` key) must return None."""
         assert parse_github_webhook("issues", {"action": "opened"}) is None
 
     def test_missing_pull_request_key_returns_none(self):
@@ -337,6 +339,394 @@ class TestParseGitHubPushWebhook:
         event = parse_github_webhook("push", payload)
         assert event is not None
         assert event.author == "octocat"
+
+
+# ---------------------------------------------------------------------------
+# GitHub issues / issue_comment / label / projects_v2_item parsing
+# ---------------------------------------------------------------------------
+
+
+class TestParseGitHubIssuesWebhook:
+    """Tests for parse_github_webhook() handling of ``issues`` events."""
+
+    def _issues_payload(
+        self,
+        action: str = "opened",
+        number: int = 7,
+        title: str = "Fix the bug",
+        author: str = "contributor",
+        repo_full_name: str = "org/repo",
+        is_pr: bool = False,
+    ) -> dict:
+        issue: dict = {
+            "number": number,
+            "title": title,
+            "user": {"login": author},
+        }
+        if is_pr:
+            issue["pull_request"] = {"url": "https://api.github.com/repos/org/repo/pulls/7"}
+        return {
+            "action": action,
+            "issue": issue,
+            "repository": {"full_name": repo_full_name},
+            "sender": {"login": author},
+        }
+
+    def test_issue_opened(self):
+        payload = self._issues_payload(action="opened")
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.provider == "github"
+        assert event.event_type == "issues"
+        assert event.action == "opened"
+        assert event.repo_slug == "org/repo"
+        assert event.review_id == "7"
+        assert event.issue_number == "7"
+        assert event.author == "contributor"
+        assert event.title == "Fix the bug"
+        assert event.merged is False
+
+    def test_issue_closed(self):
+        event = parse_github_webhook("issues", self._issues_payload(action="closed"))
+        assert event is not None
+        assert event.action == "closed"
+
+    def test_issue_reopened(self):
+        event = parse_github_webhook("issues", self._issues_payload(action="reopened"))
+        assert event is not None
+        assert event.action == "reopened"
+
+    def test_issue_labeled(self):
+        event = parse_github_webhook("issues", self._issues_payload(action="labeled"))
+        assert event is not None
+        assert event.action == "labeled"
+
+    def test_issue_edited(self):
+        event = parse_github_webhook("issues", self._issues_payload(action="edited"))
+        assert event is not None
+        assert event.action == "edited"
+
+    def test_pr_backed_issue_returns_none(self):
+        """Issues with a ``pull_request`` key are skipped."""
+        payload = self._issues_payload(is_pr=True)
+        assert parse_github_webhook("issues", payload) is None
+
+    def test_missing_issue_key_returns_none(self):
+        assert parse_github_webhook("issues", {"action": "opened"}) is None
+
+    def test_raw_payload_preserved(self):
+        payload = self._issues_payload()
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.raw is payload
+
+    def test_issue_number_as_string(self):
+        payload = self._issues_payload(number=99)
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.issue_number == "99"
+        assert event.review_id == "99"
+
+    def test_empty_comment_id_and_label_name(self):
+        """issues events carry no comment_id or label_name."""
+        event = parse_github_webhook("issues", self._issues_payload())
+        assert event is not None
+        assert event.comment_id == ""
+        assert event.label_name == ""
+
+    def test_different_repo(self):
+        payload = self._issues_payload(repo_full_name="other/project")
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.repo_slug == "other/project"
+
+
+class TestParseGitHubIssueCommentWebhook:
+    """Tests for parse_github_webhook() handling of ``issue_comment`` events."""
+
+    def _comment_payload(
+        self,
+        action: str = "created",
+        issue_number: int = 5,
+        comment_id: int = 987654,
+        comment_author: str = "reviewer",
+        issue_title: str = "Some issue",
+        repo_full_name: str = "org/repo",
+    ) -> dict:
+        return {
+            "action": action,
+            "issue": {
+                "number": issue_number,
+                "title": issue_title,
+                "user": {"login": "author"},
+            },
+            "comment": {
+                "id": comment_id,
+                "user": {"login": comment_author},
+                "body": "LGTM",
+            },
+            "repository": {"full_name": repo_full_name},
+        }
+
+    def test_comment_created(self):
+        payload = self._comment_payload(action="created")
+        event = parse_github_webhook("issue_comment", payload)
+        assert event is not None
+        assert event.provider == "github"
+        assert event.event_type == "issue_comment"
+        assert event.action == "created"
+        assert event.repo_slug == "org/repo"
+        assert event.review_id == "5"
+        assert event.issue_number == "5"
+        assert event.comment_id == "987654"
+        assert event.author == "reviewer"
+        assert event.title == "Some issue"
+        assert event.merged is False
+
+    def test_comment_edited(self):
+        event = parse_github_webhook("issue_comment", self._comment_payload(action="edited"))
+        assert event is not None
+        assert event.action == "edited"
+
+    def test_comment_deleted(self):
+        event = parse_github_webhook("issue_comment", self._comment_payload(action="deleted"))
+        assert event is not None
+        assert event.action == "deleted"
+
+    def test_missing_issue_returns_none(self):
+        payload = {"action": "created", "comment": {"id": 1, "user": {"login": "x"}}}
+        assert parse_github_webhook("issue_comment", payload) is None
+
+    def test_missing_comment_returns_none(self):
+        payload = {"action": "created", "issue": {"number": 1, "title": "t", "user": {"login": "a"}}}
+        assert parse_github_webhook("issue_comment", payload) is None
+
+    def test_comment_id_as_string(self):
+        event = parse_github_webhook("issue_comment", self._comment_payload(comment_id=111))
+        assert event is not None
+        assert event.comment_id == "111"
+
+    def test_raw_payload_preserved(self):
+        payload = self._comment_payload()
+        event = parse_github_webhook("issue_comment", payload)
+        assert event is not None
+        assert event.raw is payload
+
+    def test_empty_label_name(self):
+        """issue_comment events carry no label_name."""
+        event = parse_github_webhook("issue_comment", self._comment_payload())
+        assert event is not None
+        assert event.label_name == ""
+
+
+class TestParseGitHubLabelWebhook:
+    """Tests for parse_github_webhook() handling of ``label`` events."""
+
+    def _label_payload(
+        self,
+        action: str = "created",
+        label_name: str = "bug",
+        label_id: int = 1234,
+        repo_full_name: str = "org/repo",
+        sender: str = "maintainer",
+    ) -> dict:
+        return {
+            "action": action,
+            "label": {
+                "id": label_id,
+                "name": label_name,
+                "color": "d73a4a",
+                "description": "Something isn't working",
+            },
+            "repository": {"full_name": repo_full_name},
+            "sender": {"login": sender},
+        }
+
+    def test_label_created(self):
+        payload = self._label_payload(action="created", label_name="enhancement")
+        event = parse_github_webhook("label", payload)
+        assert event is not None
+        assert event.provider == "github"
+        assert event.event_type == "label"
+        assert event.action == "created"
+        assert event.repo_slug == "org/repo"
+        assert event.label_name == "enhancement"
+        assert event.title == "enhancement"
+        assert event.author == "maintainer"
+        assert event.merged is False
+
+    def test_label_edited(self):
+        event = parse_github_webhook("label", self._label_payload(action="edited"))
+        assert event is not None
+        assert event.action == "edited"
+
+    def test_label_deleted(self):
+        event = parse_github_webhook("label", self._label_payload(action="deleted"))
+        assert event is not None
+        assert event.action == "deleted"
+
+    def test_missing_label_returns_none(self):
+        assert parse_github_webhook("label", {"action": "created"}) is None
+
+    def test_label_name_in_both_fields(self):
+        event = parse_github_webhook("label", self._label_payload(label_name="oompah:status:done"))
+        assert event is not None
+        assert event.label_name == "oompah:status:done"
+        assert event.title == "oompah:status:done"
+
+    def test_raw_payload_preserved(self):
+        payload = self._label_payload()
+        event = parse_github_webhook("label", payload)
+        assert event is not None
+        assert event.raw is payload
+
+    def test_empty_issue_number_and_comment_id(self):
+        """label events carry no issue_number or comment_id."""
+        event = parse_github_webhook("label", self._label_payload())
+        assert event is not None
+        assert event.issue_number == ""
+        assert event.comment_id == ""
+
+
+class TestParseGitHubProjectsV2ItemWebhook:
+    """Tests for parse_github_webhook() handling of ``projects_v2_item`` events."""
+
+    def _projects_v2_item_payload(
+        self,
+        action: str = "edited",
+        item_node_id: str = "PVTI_lADOBqkPss4ADYBdzgK1234",
+        field_name: str = "Status",
+        field_to_name: str = "In Progress",
+        sender: str = "oompah",
+    ) -> dict:
+        return {
+            "action": action,
+            "projects_v2_item": {
+                "id": 42,
+                "node_id": item_node_id,
+                "project_node_id": "PVT_kwDOBqkPss4ADYBd",
+                "content_type": "Issue",
+                "content_node_id": "I_kgDOKABC",
+            },
+            "changes": {
+                "field_value": {
+                    "field_name": field_name,
+                    "field_type": "single_select",
+                    "to": {"name": field_to_name},
+                    "from": {"name": "To Do"},
+                }
+            },
+            "sender": {"login": sender},
+            # Note: no "repository" key — this is an org-level event
+        }
+
+    def test_item_edited(self):
+        payload = self._projects_v2_item_payload(action="edited")
+        event = parse_github_webhook("projects_v2_item", payload)
+        assert event is not None
+        assert event.provider == "github"
+        assert event.event_type == "projects_v2_item"
+        assert event.action == "edited"
+        assert event.repo_slug == ""  # org-level event — no repo
+        assert event.project_item_id == "PVTI_lADOBqkPss4ADYBdzgK1234"
+        assert event.project_field_name == "Status"
+        assert event.project_field_value == "In Progress"
+        assert event.author == "oompah"
+        assert event.merged is False
+
+    def test_item_created(self):
+        payload = {
+            "action": "created",
+            "projects_v2_item": {"id": 1, "node_id": "PVTI_abc", "project_node_id": "PVT_x"},
+            "sender": {"login": "oompah"},
+        }
+        event = parse_github_webhook("projects_v2_item", payload)
+        assert event is not None
+        assert event.action == "created"
+        assert event.project_field_name == ""
+        assert event.project_field_value == ""
+
+    def test_item_deleted(self):
+        payload = {
+            "action": "deleted",
+            "projects_v2_item": {"id": 2, "node_id": "PVTI_del"},
+            "sender": {"login": "oompah"},
+        }
+        event = parse_github_webhook("projects_v2_item", payload)
+        assert event is not None
+        assert event.action == "deleted"
+
+    def test_missing_item_returns_none(self):
+        assert parse_github_webhook("projects_v2_item", {"action": "edited"}) is None
+
+    def test_field_value_change_extracted(self):
+        event = parse_github_webhook(
+            "projects_v2_item",
+            self._projects_v2_item_payload(field_name="Priority", field_to_name="High"),
+        )
+        assert event is not None
+        assert event.project_field_name == "Priority"
+        assert event.project_field_value == "High"
+
+    def test_no_changes_field(self):
+        payload = {
+            "action": "reordered",
+            "projects_v2_item": {"id": 3, "node_id": "PVTI_x"},
+            "sender": {"login": "user"},
+        }
+        event = parse_github_webhook("projects_v2_item", payload)
+        assert event is not None
+        assert event.project_field_name == ""
+        assert event.project_field_value == ""
+
+    def test_item_node_id_preferred_over_numeric_id(self):
+        event = parse_github_webhook(
+            "projects_v2_item",
+            self._projects_v2_item_payload(item_node_id="PVTI_node_xyz"),
+        )
+        assert event is not None
+        assert event.project_item_id == "PVTI_node_xyz"
+
+    def test_numeric_id_used_when_no_node_id(self):
+        payload = {
+            "action": "edited",
+            "projects_v2_item": {"id": 99},
+            "sender": {"login": "user"},
+        }
+        event = parse_github_webhook("projects_v2_item", payload)
+        assert event is not None
+        assert event.project_item_id == "99"
+
+    def test_raw_payload_preserved(self):
+        payload = self._projects_v2_item_payload()
+        event = parse_github_webhook("projects_v2_item", payload)
+        assert event is not None
+        assert event.raw is payload
+
+    def test_unsupported_event_still_returns_none(self):
+        """Unknown event types continue to return None."""
+        assert parse_github_webhook("ping", {"zen": "test"}) is None
+        assert parse_github_webhook("check_run", {}) is None
+        assert parse_github_webhook("workflow_run", {}) is None
+
+    def test_title_field_fallback_for_field_value(self):
+        """title field in the to object is used as the field value."""
+        payload = {
+            "action": "edited",
+            "projects_v2_item": {"id": 1, "node_id": "PVTI_a"},
+            "changes": {
+                "field_value": {
+                    "field_name": "Sprint",
+                    "field_type": "iteration",
+                    "to": {"title": "Sprint 3"},
+                }
+            },
+            "sender": {"login": "user"},
+        }
+        event = parse_github_webhook("projects_v2_item", payload)
+        assert event is not None
+        assert event.project_field_name == "Sprint"
+        assert event.project_field_value == "Sprint 3"
 
 
 # ---------------------------------------------------------------------------
@@ -463,6 +853,13 @@ class TestWebhookEvent:
         assert event.title == ""
         assert event.merged is False
         assert event.raw == {}
+        # New fields default to empty string
+        assert event.issue_number == ""
+        assert event.comment_id == ""
+        assert event.label_name == ""
+        assert event.project_item_id == ""
+        assert event.project_field_name == ""
+        assert event.project_field_value == ""
 
     def test_all_fields(self):
         raw = {"key": "value"}
@@ -482,6 +879,26 @@ class TestWebhookEvent:
         assert event.provider == "gitlab"
         assert event.merged is True
         assert event.raw is raw
+
+    def test_extended_fields(self):
+        """New issue/project fields can be populated."""
+        event = WebhookEvent(
+            provider="github",
+            event_type="projects_v2_item",
+            action="edited",
+            issue_number="42",
+            comment_id="123",
+            label_name="bug",
+            project_item_id="PVTI_abc",
+            project_field_name="Status",
+            project_field_value="Done",
+        )
+        assert event.issue_number == "42"
+        assert event.comment_id == "123"
+        assert event.label_name == "bug"
+        assert event.project_item_id == "PVTI_abc"
+        assert event.project_field_name == "Status"
+        assert event.project_field_value == "Done"
 
 
 # ---------------------------------------------------------------------------
@@ -1217,7 +1634,7 @@ class TestWebhookForwarderEventsFlag:
         # --events must be present and followed by the default set
         assert "--events" in argv
         i = argv.index("--events")
-        assert argv[i + 1] == "push,pull_request"
+        assert argv[i + 1] == "push,pull_request,issues,issue_comment,label,projects_v2_item"
         # --url must still be passed
         assert "--url" in argv
 
@@ -1426,7 +1843,7 @@ class TestWebhookForwarderExtensionMissing:
                 status = fwd.status
                 assert status["extension_available"] is False
                 assert status["extension_detail"] == "boom"
-                assert status["events"] == "push,pull_request"
+                assert status["events"] == "push,pull_request,issues,issue_comment,label,projects_v2_item"
                 assert "projects" in status
             finally:
                 await fwd.stop()
