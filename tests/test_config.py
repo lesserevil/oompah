@@ -89,6 +89,7 @@ class TestServiceConfig:
         assert cfg.auto_archive_batch_size == 25
         assert cfg.worktree_cleanup_batch_size == 25
         assert cfg.release_pick_max_runtime_seconds == 15
+        assert cfg.merged_labels_max_runtime_seconds == 15
         assert cfg.workspace_root  # should have a default
 
     def test_responsiveness_tuning_from_env(self, monkeypatch):
@@ -100,6 +101,7 @@ class TestServiceConfig:
         monkeypatch.setenv("OOMPAH_WORKTREE_CLEANUP_BATCH_SIZE", "5")
         monkeypatch.setenv("OOMPAH_MAINTENANCE_STARTUP_DELAY_SECONDS", "9")
         monkeypatch.setenv("OOMPAH_RELEASE_PICK_MAX_RUNTIME_SECONDS", "4")
+        monkeypatch.setenv("OOMPAH_MERGED_LABELS_MAX_RUNTIME_SECONDS", "6")
         wf = WorkflowDefinition(config={}, prompt_template="test")
 
         cfg = ServiceConfig.from_workflow(wf)
@@ -112,6 +114,7 @@ class TestServiceConfig:
         assert cfg.worktree_cleanup_batch_size == 5
         assert cfg.maintenance_startup_delay_seconds == 9
         assert cfg.release_pick_max_runtime_seconds == 4
+        assert cfg.merged_labels_max_runtime_seconds == 6
 
     def test_server_port_env_overrides_default(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_SERVER_PORT", "8090")

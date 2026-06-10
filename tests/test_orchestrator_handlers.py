@@ -684,17 +684,47 @@ class TestMaybeRunMergedLabels:
         orch = _make_orchestrator(tmp_path)
         orch._label_merged_issues = MagicMock()
         orch._label_merged_epics = MagicMock()
+        orch._reconcile_in_review_pr_outcomes = MagicMock()
+        orch._reconcile_terminal_open_reviews = MagicMock()
         orch._reconcile_stale_in_review_tasks = MagicMock()
+        orch._open_deferred_done_reviews = MagicMock()
         return orch
 
-    def test_calls_all_three_sweeps(self, tmp_path):
-        """_maybe_run_merged_labels calls label_merged_issues, label_merged_epics,
-        and reconcile_stale_in_review_tasks on first run."""
+    def test_calls_all_sweeps(self, tmp_path):
+        """_maybe_run_merged_labels calls every merged-label sweep on first run."""
         orch = self._orch(tmp_path)
         orch._maybe_run_merged_labels()
         orch._label_merged_issues.assert_called_once()
         orch._label_merged_epics.assert_called_once()
+        orch._reconcile_in_review_pr_outcomes.assert_called_once()
+        orch._reconcile_terminal_open_reviews.assert_called_once()
         orch._reconcile_stale_in_review_tasks.assert_called_once()
+        orch._open_deferred_done_reviews.assert_called_once()
+
+    def test_uses_configured_runtime_budget(self, tmp_path):
+        """merged_labels uses its env-backed runtime budget."""
+        orch = self._orch(tmp_path)
+        orch.config.merged_labels_max_runtime_seconds = 4
+        orch._run_maintenance_job = MagicMock()
+
+        orch._maybe_run_merged_labels()
+
+        orch._run_maintenance_job.assert_called_once()
+        assert orch._run_maintenance_job.call_args.kwargs["max_runtime_s"] == 4
+
+    def test_do_merged_labels_stops_after_budget(self, tmp_path):
+        """Sweep sequence stops cooperatively when the job budget is exhausted."""
+        orch = self._orch(tmp_path)
+        orch._job_deadline_exceeded = MagicMock(side_effect=[False, True])
+
+        orch._do_merged_labels()
+
+        orch._label_merged_issues.assert_called_once()
+        orch._label_merged_epics.assert_not_called()
+        orch._reconcile_in_review_pr_outcomes.assert_not_called()
+        orch._reconcile_terminal_open_reviews.assert_not_called()
+        orch._reconcile_stale_in_review_tasks.assert_not_called()
+        orch._open_deferred_done_reviews.assert_not_called()
 
     def test_throttled_on_second_call(self, tmp_path):
         """Second call within interval is coalesced (not executed)."""

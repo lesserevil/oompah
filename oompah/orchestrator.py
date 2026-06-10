@@ -6550,17 +6550,30 @@ class Orchestrator:
         Labels merged issues and epics and reconciles stale In Review tasks
         using the forge state cached by :meth:`_handle_review_check`.
         """
-        self._label_merged_issues()
-        self._label_merged_epics()
-        self._reconcile_in_review_pr_outcomes()
-        self._reconcile_terminal_open_reviews()
-        self._reconcile_stale_in_review_tasks()
-        self._open_deferred_done_reviews()
+        sweeps = [
+            ("label_merged_issues", self._label_merged_issues),
+            ("label_merged_epics", self._label_merged_epics),
+            ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
+            ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
+            ("reconcile_stale_in_review_tasks", self._reconcile_stale_in_review_tasks),
+            ("open_deferred_done_reviews", self._open_deferred_done_reviews),
+        ]
+        for name, sweep in sweeps:
+            if self._job_deadline_exceeded("merged_labels"):
+                logger.info(
+                    "merged_labels runtime budget exhausted before %s; "
+                    "remaining sweep work will resume later",
+                    name,
+                )
+                return
+            sweep()
 
     def _open_deferred_done_reviews(self) -> None:
         """Retry review handoff for Done tasks when project capacity frees."""
         merged_branches = getattr(self, "_merged_branches", set()) or set()
         for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
             project_id = str(project.id)
             if self._project_review_capacity(project_id)[2]:
                 continue
@@ -6576,6 +6589,8 @@ class Orchestrator:
                 continue
 
             for issue in issues:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
                 if self._project_review_capacity(project_id)[2]:
                     break
                 if not issue.project_id:
@@ -6690,6 +6705,7 @@ class Orchestrator:
             "merged_labels",
             self._do_merged_labels,
             min_interval_s=self._MERGED_LABELS_INTERVAL_S,
+            max_runtime_s=self.config.merged_labels_max_runtime_seconds or None,
         )
 
     def _maybe_run_release_pick_reconciliation(self) -> None:
@@ -6713,6 +6729,8 @@ class Orchestrator:
             return
 
         for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
             project_id = str(project.id)
             tracker = self._tracker_for_project(project.id)
             try:
@@ -6724,6 +6742,8 @@ class Orchestrator:
             except TrackerError:
                 continue
             for issue in closed_issues:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
                 if not issue.project_id:
                     issue.project_id = project_id
                 issue_status = canonicalize_status(issue.state)
@@ -6808,6 +6828,8 @@ class Orchestrator:
             return
 
         for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
             project_id = str(project.id)
             project_reviews = reviews_cache.get(project.id) or reviews_cache.get(
                 project_id, []
@@ -6837,6 +6859,8 @@ class Orchestrator:
                 continue
 
             for issue in issues:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
                 if not issue.project_id:
                     issue.project_id = project_id
                 if canonicalize_status(issue.state) != IN_REVIEW:
@@ -6894,6 +6918,8 @@ class Orchestrator:
             return
 
         for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
             project_id = str(project.id)
             project_reviews = reviews_cache.get(project.id) or reviews_cache.get(
                 project_id, []
@@ -6919,6 +6945,8 @@ class Orchestrator:
                 continue
 
             for issue in issues:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
                 if not issue.project_id:
                     issue.project_id = project_id
                 if canonicalize_status(issue.state) != MERGED:
@@ -7032,6 +7060,8 @@ class Orchestrator:
         merged_branches = getattr(self, "_merged_branches", set()) or set()
 
         for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
             project_id = str(project.id)
             open_branches = {
                 str(r.source_branch)
@@ -7059,6 +7089,8 @@ class Orchestrator:
                     slug = extract_repo_slug(project.repo_url)
 
             for issue in issues:
+                if self._job_deadline_exceeded("merged_labels"):
+                    return
                 if not issue.project_id:
                     issue.project_id = project_id
                 if canonicalize_status(issue.state) != IN_REVIEW:
@@ -7531,6 +7563,8 @@ class Orchestrator:
         if not merged:
             return
         for epic in self._all_non_terminal_epics():
+            if self._job_deadline_exceeded("merged_labels"):
+                return
             project_id = epic.project_id
             if not project_id:
                 continue
@@ -7576,6 +7610,8 @@ class Orchestrator:
         except Exception:  # noqa: BLE001
             children = []
         for child in children:
+            if self._job_deadline_exceeded("merged_labels"):
+                return
             if canonicalize_status(child.state) in (MERGED, ARCHIVED):
                 continue
             try:
