@@ -1,10 +1,10 @@
 ---
 id: TASK-454.4
 title: Define release-pick metadata schema and status lifecycle
-status: Open
+status: In Progress
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 22:50'
+updated_date: '2026-06-10 05:59'
 labels:
   - task
 dependencies:
@@ -24,32 +24,26 @@ Document and test the oompah.backports and oompah.backport_of schema, including 
 
 <!-- COMMENTS:BEGIN -->
 author: oompah
-created: 2026-06-08 18:11
+created: 2026-06-10 05:51
 ---
 Agent dispatched (profile: default)
 ---
 
 author: oompah
-created: 2026-06-08 18:16
+created: 2026-06-10 05:54
 ---
-Understanding: This is NOT a duplicate. TASK-454.1 (done) covers reading raw oompah.backports/backport_of metadata from Backlog frontmatter. TASK-454.4 is about defining the formal schema with typed Python models and a status lifecycle (waiting, task_created, cherry_picking, pr_open, conflict, merged, archived, needs_human). Plan: (1) Create oompah/release_pick_schema.py with ReleasePick status enum, BackportEntry and BackportOf dataclasses, and parsing helpers; (2) Write tests in tests/test_release_pick_schema.py covering all statuses, schema round-trips, and parsing edge cases; (3) Write plans/release-pick-schema.md documenting the schema and lifecycle FSM.
----
-
-author: oompah
-created: 2026-06-08 18:22
----
-Discovery: No duplicate found. TASK-454.1 reads raw metadata; no existing task defines the typed schema. Key finding: release_pick_schema.py did not yet exist. The oompah.backports/backport_of fields had tests for basic roundtrips but no formal ReleasePick enum, BackportEntry/BackportOf dataclasses, or FSM (VALID_TRANSITIONS). Created oompah/release_pick_schema.py with full typed schema and tests/test_release_pick_schema.py with 97 tests.
+Understanding: TASK-454.4 is NOT a duplicate — it covers a unique deliverable (the typed schema/FSM module for release-pick status lifecycle). Investigation shows that oompah/release_pick_schema.py and tests/test_release_pick_schema.py already exist and were merged as part of PR #238 (commit fec85c1). A prior agent on this epic already implemented the work. The task remains 'In Progress' because it was never formally closed. Plan: (1) Confirm implementation matches the spec (all 8 status values present, schema docs, FSM transitions); (2) Run tests to verify pass; (3) Close the task.
 ---
 
 author: oompah
-created: 2026-06-08 18:22
+created: 2026-06-10 05:59
 ---
-Implementation: Created 3 artifacts: (1) oompah/release_pick_schema.py — ReleasePick(str, Enum) with 8 status values, BackportEntry/BackportOf dataclasses with from_raw/to_raw methods, VALID_TRANSITIONS FSM, is_valid_transition helper, parse_backports/parse_backport_of/backports_to_raw top-level helpers; (2) tests/test_release_pick_schema.py — 97 tests covering all enum values, from_raw normalisation (case, hyphens, None, unknown), is_terminal/is_blocked properties, FSM invariants, valid/invalid/self-transitions, BackportEntry/BackportOf parsing and round-trips, all parse/serialise helpers; (3) plans/release-pick-schema.md — schema reference with Mermaid FSM diagram, YAML examples, Python API docs, and cross-references to related modules.
+Discovery: oompah/release_pick_schema.py and tests/test_release_pick_schema.py already exist and were merged via PR #238 (commit fec85c1). The module defines: ReleasePick enum (9 values: all 8 required + skipped), BackportEntry dataclass, BackportOf dataclass, parse_backports/parse_backport_of helpers, VALID_TRANSITIONS FSM, is_valid_transition, and backports_to_raw. All 8 spec-required status values (waiting, task_created, cherry_picking, pr_open, conflict, merged, archived, needs_human) are present. 97 tests covering all schema paths, FSM invariants, and round-trip serialisation.
 ---
 
 author: oompah
-created: 2026-06-08 18:22
+created: 2026-06-10 05:59
 ---
-Verification: 97/97 tests pass in tests/test_release_pick_schema.py; 198/198 tests pass across test_release_pick_schema, test_release_pick_validation, test_backlog_tracker, test_backlog_compat — no regressions. All 8 documented status values present in enum; FSM invariants verified (terminal states have no forward transitions; all non-terminal states can archive or escalate).
+Verification: 97/97 tests pass in tests/test_release_pick_schema.py. All 8 spec-required status values confirmed present. FSM structural invariants verified (all statuses have entries, terminal statuses have no forward transitions, all non-terminal statuses can transition to ARCHIVED and NEEDS_HUMAN). Schema covers all three input forms for oompah.backports (scalar, list-of-strings, list-of-dicts) and both forms for oompah.backport_of (plain string, mapping). No regressions.
 ---
 <!-- COMMENTS:END -->
