@@ -1,7 +1,7 @@
 ---
 id: TASK-461.1
 title: Resolve trackers per project through the adapter registry
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
 updated_date: '2026-06-10 00:39'
@@ -72,4 +72,16 @@ created: 2026-06-10 00:39
 ---
 Implementation: (1) oompah/orchestrator.py - Added _new_tracker_for_project(project) method that resolves tracker_kind from project.tracker_kind (falling back to global config for unconfigured projects), looks up the factory in ADAPTER_REGISTRY, and passes owner/repo kwargs for github_issues projects. Updated _tracker_for_project() to use this new method. Made the tracker_kind resolution defensive: only uses project_kind if it's a non-empty string (handles MagicMock in tests and None correctly). (2) oompah/github_tracker.py - Fixed _github_issues_factory to accept owner/repo as named kwargs with env var fallback, so per-project tracker_owner/tracker_repo from Project model are actually used. (3) tests/test_backlog_tracker.py - Added 15 tests in 3 test classes: TestNewTrackerForProject (6 tests), TestTrackerForProject (5 tests), TestGitHubIssuesFactoryOwnerRepoKwargs (4 tests).
 ---
+
+author: oompah
+created: 2026-06-10 00:39
+---
+Verification: All tests pass. 72 tests in tests/test_backlog_tracker.py (15 new). Key test runs: test_tracker_protocol.py + test_github_tracker.py + test_mixed_tracker_regression.py + test_projects_crud.py = 589 passed; test_orchestrator_merged.py = 129 passed (including the regression from MagicMock tracker_kind); test_epic_planning.py + test_epic_auto_close.py + test_yolo_handlers.py + test_project_locks.py + test_close_gate.py + test_merge_queue.py = 221 passed; test_release_pick_reconciler.py + test_long_tick_regression.py = 149 passed. AC #1 satisfied: _tracker_for_project returns BacklogMdTracker or GitHubIssueTracker based on project config. AC #2 satisfied: _project_trackers dict is keyed by project_id (project-scoped cache). Branch epic-TASK-461 pushed to origin.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added _new_tracker_for_project(project) to Orchestrator that resolves each project's tracker backend via ADAPTER_REGISTRY using the project's tracker_kind (falling back to global config for legacy projects). Updated _tracker_for_project() to use the new method. Fixed _github_issues_factory to accept owner/repo kwargs over env vars so per-project Project.tracker_owner/tracker_repo are honoured. Added 15 tests covering both ACs: AC#1 (BacklogMdTracker or GitHubIssueTracker returned based on project config) and AC#2 (project-scoped cache keyed by project_id). All existing tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

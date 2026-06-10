@@ -10,6 +10,7 @@ import re
 import subprocess
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -11835,6 +11836,50 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             return
 
+        # GitHub claim-and-verify protocol (TASK-461.2).
+        # For GitHub-backed issues, stamp a unique run ID onto the issue
+        # metadata and re-read it immediately.  The last writer wins: if
+        # another oompah instance claimed the issue after us, our run ID
+        # will have been overwritten and we abort rather than starting a
+        # duplicate agent.  BacklogMd projects rely on the in-process
+        # dispatch lock and skip this protocol entirely.
+        if issue.tracker_kind == "github_issues":
+            _claim_run_id = str(uuid.uuid4())
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda rid=_claim_run_id: tracker.set_metadata_field(
+                        issue.identifier, "oompah.agent_run_id", rid
+                    ),
+                )
+                _claim_meta = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.get_metadata(issue.identifier),
+                )
+                _confirmed_run_id = _claim_meta.get("oompah.agent_run_id")
+                if _confirmed_run_id != _claim_run_id:
+                    logger.info(
+                        "GitHub claim race on %s: our run_id=%s observed=%s"
+                        " — aborting dispatch, another instance owns this task",
+                        issue.identifier,
+                        _claim_run_id,
+                        _confirmed_run_id,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    return
+                logger.debug(
+                    "GitHub claim confirmed for %s run_id=%s",
+                    issue.identifier,
+                    _claim_run_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "GitHub run-id claim protocol failed for %s: %s"
+                    " — proceeding without claim verification",
+                    issue.identifier,
+                    exc,
+                )
+
         running_issue = replace(
             issue,
             state=_configured_in_progress_state(self.config.tracker_active_states),
@@ -15415,6 +15460,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "issue_identifier": entry.identifier,
                 "project_id": entry.issue.project_id if entry.issue else None,
                 "state": entry.issue.state,
+                # AC #2 (TASK-461.2): include tracker identity so operators
+                # can see which backend owns each running task.
+                "tracker_kind": entry.issue.tracker_kind if entry.issue else None,
                 "started_at": entry.started_at.isoformat(),
                 "agent_profile": entry.agent_profile_name,
                 "focus_name": entry.focus_name,
