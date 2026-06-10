@@ -172,6 +172,30 @@ class TestCreateProjectBacklogRequirement:
                     git_user_email="t@example.com",
                 )
 
+    def test_github_backed_create_skips_backlog_compat_check(self, tmp_path):
+        store = _store(tmp_path)
+        repo_path = tmp_path / "repos" / "repo"
+        repo_path.mkdir(parents=True)
+        (repo_path / ".git").mkdir()
+
+        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
+            with patch("oompah.projects.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                project = store.create(
+                    str(repo_path),
+                    name="repo",
+                    git_user_name="Test",
+                    git_user_email="t@example.com",
+                    tracker_kind="github_issues",
+                    tracker_owner="lesserevil",
+                    tracker_repo="oompah",
+                )
+
+        mock_compat.assert_not_called()
+        assert project.tracker_kind == "github_issues"
+        assert project.tracker_owner == "lesserevil"
+        assert project.tracker_repo == "oompah"
+
 
 class TestSyncProjectSources:
     # The git-health portion of sync_project_sources is now delegated to

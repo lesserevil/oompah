@@ -1,6 +1,6 @@
 ---
 tracker:
-  kind: backlog
+  kind: github_issues
   active_states:
     - Open
     - Needs CI Fix
@@ -70,7 +70,7 @@ You manage this issue via the `oompah task` CLI. **The entries below are shell c
 |---------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | Re-read this task's full state                    | `oompah task view {{ issue.identifier }}`                                                                         |
 | Post progress (REQUIRED at the milestones below)  | `oompah task comment {{ issue.identifier }} --message "your message" --author oompah`                             |
-| Search project tasks/docs/decisions               | `backlog search "<keyword>" --plain`                                                                              |
+| Search project docs/decisions                     | `rg -n "<keyword>" docs plans README.md WORKFLOW.md`                                                              |
 | Create a follow-up task                           | `oompah task create --project {{ issue.project_id }} --title "..." --source {{ issue.identifier }}`               |
 | Create a child task under this task               | `oompah task child-create {{ issue.identifier }} --title "..."`                                                   |
 | Set dependencies for this task                    | `oompah task set-dependency {{ issue.identifier }} --depends-on <other-id>`                                       |
@@ -182,6 +182,17 @@ Keep each comment concise but informative — write what a project manager needs
 
 Use project documentation to save insights future agents will wish they had at the start. Good entries are **stable truths**: architecture, build/test commands, non-obvious gotchas, key file locations.
 
+{% if issue.tracker_kind == "github_issues" %}
+For GitHub-backed work, use repository docs directly instead of creating Backlog.md documents:
+
+```
+rg -n "<keyword>" docs plans README.md WORKFLOW.md
+```
+
+- Add user-facing docs under `docs/`.
+- Add design, architecture, or implementation notes under `plans/`.
+- Keep entries short and factual.
+{% else %}
 ```
 backlog search "entry-points" --type document --plain
 backlog doc create "entry-points" --type guide --path entry-points.md
@@ -191,6 +202,7 @@ backlog doc update <doc-id> --content "The HTTP server entry point is cmd/server
 - Search first so you update existing docs instead of creating duplicates.
 - 1–2 sentences each — facts, not commentary.
 - Don't remember issue-specific details or anything already in AGENTS.md / README.
+{% endif %}
 
 ## Documentation Rules
 

@@ -608,6 +608,11 @@ def _git_worktree_add_with_recovery(
 
 
 
+def _is_github_backed_kind(kind: str) -> bool:
+    """Return True when *kind* (already lower-stripped) is a GitHub Issues tracker."""
+    return kind in ("github_issues", "github-issues")
+
+
 def _is_github_backed(project: "Project") -> bool:
     """Return True when *project* uses the GitHub Issues tracker backend.
 
@@ -616,7 +621,7 @@ def _is_github_backed(project: "Project") -> bool:
     ``None``, which means legacy Backlog.md) return False.
     """
     kind = (project.tracker_kind or "").strip().lower()
-    return kind in ("github_issues", "github-issues")
+    return _is_github_backed_kind(kind)
 
 
 class ProjectStore:
@@ -776,10 +781,15 @@ class ProjectStore:
         # Validate clone
         if not os.path.isdir(os.path.join(repo_path, ".git")):
             raise ProjectError(f"Clone succeeded but no .git/ found in: {repo_path}")
-        try:
-            ensure_backlog_compatible(repo_path)
-        except BacklogCompatibilityError as exc:
-            raise ProjectError(str(exc)) from exc
+        # Backlog.md compatibility is only relevant for legacy Backlog projects.
+        # GitHub-backed projects (tracker_kind == "github_issues") do not use
+        # Backlog.md files at all, so skip the check for them (TASK-464.7).
+        _resolved_kind = (tracker_kind or "").strip().lower()
+        if not _is_github_backed_kind(_resolved_kind):
+            try:
+                ensure_backlog_compatible(repo_path)
+            except BacklogCompatibilityError as exc:
+                raise ProjectError(str(exc)) from exc
 
         # If git_user_name / git_user_email not provided, read global git config
         if not git_user_name:

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - oompah
 created_date: '2026-06-01 19:17'
-updated_date: '2026-06-01 22:40'
+updated_date: '2026-06-10 16:36'
 labels:
   - epic
 dependencies: []
@@ -62,3 +62,13 @@ Completed the Backlog-only tracker migration. Backlog.md is now the required tra
 - [ ] #1 All child tasks are Done or otherwise explicitly closed with rationale.
 - [ ] #2 make test passes.
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-10 16:36
+---
+Superseded by the GitHub Issues migration workstream. TASK-402 made Backlog.md the sole tracker after Beads removal; TASK-464 reverses the default for new managed work by cutting projects over to GitHub Issues while keeping Backlog.md only as an explicit legacy bridge for remaining historical tasks.
+---
+<!-- COMMENTS:END -->
