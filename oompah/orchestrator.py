@@ -5361,22 +5361,19 @@ class Orchestrator:
                     if project_id
                     else self.tracker
                 )
-                if issue.id in self.state.completed and project_id:
-                    project = self.project_store.get(project_id)
-                    if project and self._done_issue_has_unmerged_review_work(
-                        issue,
-                        project,
-                        project_id,
-                    ):
-                        _lock_ctx = self.project_store.project_write_lock(project_id)
-                        with _lock_ctx:
-                            tracker.update_issue(issue.identifier, status=DONE)
-                        logger.info(
-                            "Preserved completed issue %s as Done while review "
-                            "handoff waits for capacity",
-                            issue.identifier,
-                        )
-                        continue
+                if issue.id in self.state.completed:
+                    _lock_ctx = (
+                        self.project_store.project_write_lock(project_id)
+                        if project_id
+                        else contextlib.nullcontext()
+                    )
+                    with _lock_ctx:
+                        tracker.update_issue(issue.identifier, status=DONE)
+                    logger.info(
+                        "Preserved completed issue %s as Done during orphan reset",
+                        issue.identifier,
+                    )
+                    continue
                 labels = {str(label).lower() for label in (issue.labels or [])}
                 status = OPEN
                 updates: dict[str, str] = {}
