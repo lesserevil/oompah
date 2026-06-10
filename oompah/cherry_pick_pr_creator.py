@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     from oompah.models import Issue
     from oompah.projects import ProjectStore
     from oompah.scm import SCMProvider
-    from oompah.tracker import BacklogMdTracker
+    from oompah.tracker import TrackerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +426,7 @@ def open_backport_pr(
 
 
 def _write_child_backport_of(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     child_identifier: str,
     source_identifier: str,
     status: ReleasePick,
@@ -470,7 +470,7 @@ def _write_child_backport_of(
 
 
 def cherry_pick_push_and_open_pr(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     source: "Issue",
     entry: BackportEntry,
     child_issue: "Issue",
