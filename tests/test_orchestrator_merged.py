@@ -97,6 +97,31 @@ class TestLabelMergedIssues:
             "feat-branch", status="Merged"
         )
 
+    def test_skips_matching_merged_branch_when_current_tip_is_ahead(self, tmp_path):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._merged_branches = {"TASK-737"}
+        orch._managed_branch_ref_exists = MagicMock(return_value=True)
+        orch._count_review_branch_ahead = MagicMock(
+            return_value=(3, ["0e6fd90 TASK-737: Close task as Done"], "")
+        )
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-737", state=DONE, project_id=project.id),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._label_merged_issues()
+
+        mock_tracker.update_issue.assert_not_called()
+        orch._count_review_branch_ahead.assert_called_once_with(
+            project,
+            "main",
+            "TASK-737",
+        )
+
     def test_labels_in_review_issue_with_matching_branch(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])
@@ -328,6 +353,36 @@ class TestReconcileStaleInReviewTasks:
 
         mock_tracker.update_issue.assert_called_once_with("TASK-1", status="Merged")
         mock_tracker.add_comment.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider", return_value=None)
+    def test_reopens_when_merged_branch_name_is_stale(
+        self,
+        _mock_detect,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = {"TASK-737"}
+        orch._managed_branch_ref_exists = MagicMock(return_value=True)
+        orch._count_review_branch_ahead = MagicMock(
+            return_value=(3, ["0e6fd90 TASK-737: Close task as Done"], "")
+        )
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-737", state="In Review", project_id=project.id),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        mock_tracker.update_issue.assert_called_once_with("TASK-737", status="Open")
+        comment = mock_tracker.add_comment.call_args.args[1]
+        assert "Unmerged commits: 3 commits" in comment
+        assert "0e6fd90 TASK-737: Close task as Done" in comment
+        assert orch._count_review_branch_ahead.call_count == 2
 
     def test_shared_epic_child_without_child_pr_waits_for_epic_review(self, tmp_path):
         project = _make_project(epic_strategy="shared")

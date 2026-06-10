@@ -1869,6 +1869,37 @@ class TestDeferredDoneReviews:
         assert entry.issue.project_id == "proj-1"
         assert entry.agent_profile_name == "maintenance"
 
+    def test_done_task_review_handoff_not_skipped_by_stale_merged_branch(
+        self,
+        tmp_path,
+    ):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+        orch._merged_branches = {"task-1"}
+        issue = _make_issue(identifier="task-1", state=DONE, project_id="proj-1")
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [issue]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._merged_branch_tip_landed = MagicMock(return_value=False)
+        orch._done_issue_has_unmerged_review_work = MagicMock(return_value=True)
+        orch._ensure_review_exists = MagicMock(return_value=True)
+
+        orch._open_deferred_done_reviews()
+
+        orch._merged_branch_tip_landed.assert_called_once_with(
+            proj,
+            issue,
+            "proj-1",
+            "task-1",
+        )
+        orch._done_issue_has_unmerged_review_work.assert_called_once_with(
+            issue,
+            proj,
+            "proj-1",
+        )
+        orch._ensure_review_exists.assert_called_once()
+
     def test_done_task_review_handoff_skips_project_at_capacity(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
         proj.max_in_flight_prs = 1

@@ -6521,7 +6521,16 @@ class Orchestrator:
                 ):
                     continue
                 branch = issue.branch_name or issue.identifier
-                if branch and branch in merged_branches:
+                if (
+                    branch
+                    and branch in merged_branches
+                    and self._merged_branch_tip_landed(
+                        project,
+                        issue,
+                        project_id,
+                        branch,
+                    )
+                ):
                     continue
                 if (
                     issue.parent_id
@@ -6663,6 +6672,14 @@ class Orchestrator:
                         issue,
                         project_id,
                     )
+                    if not self._merged_branch_tip_landed(
+                        project,
+                        issue,
+                        project_id,
+                        branch,
+                        rollup_strategy=rollup_strategy,
+                    ):
+                        continue
                     if rollup_strategy == "shared":
                         logger.info(
                             "Skipped marking %s Merged from child branch %s: "
@@ -6863,7 +6880,13 @@ class Orchestrator:
                     )
                     continue
 
-                if branch in merged_branches:
+                if branch in merged_branches and self._merged_branch_tip_landed(
+                    project,
+                    issue,
+                    project_id,
+                    branch,
+                    rollup_strategy=rollup_strategy,
+                ):
                     if rollup_strategy == "stacked":
                         self._mark_stale_in_review_done(tracker, issue, branch)
                         continue
@@ -6935,6 +6958,120 @@ class Orchestrator:
         if not isinstance(target, str) or not target:
             target = "main"
         return target
+
+    def _target_branch_for_merged_signal(
+        self,
+        project: Project,
+        issue: Issue,
+        project_id: str | None,
+        rollup_strategy: str | None = None,
+    ) -> str:
+        """Return the branch that should contain a merged task branch tip."""
+        if rollup_strategy == "stacked":
+            parent_epic = self._resolve_parent_epic(issue)
+            if parent_epic is not None:
+                try:
+                    return self.project_store.epic_branch_name(parent_epic.identifier)
+                except Exception:  # noqa: BLE001 - fall through to the default target
+                    pass
+        target = getattr(issue, "target_branch", None)
+        if isinstance(target, str) and target.strip():
+            return target.strip()
+        project_target = getattr(project, "default_branch", None)
+        if isinstance(project_target, str) and project_target.strip():
+            return project_target.strip()
+        return "main"
+
+    def _managed_branch_ref_exists(self, repo_path: str, branch: str) -> bool:
+        """Return True when the managed repo currently has a local/remote ref."""
+        candidates = [branch]
+        if not branch.startswith("origin/"):
+            candidates.append(f"origin/{branch}")
+        for candidate in candidates:
+            try:
+                result = subprocess.run(
+                    [
+                        "git",
+                        "rev-parse",
+                        "--verify",
+                        "--quiet",
+                        f"{candidate}^{{commit}}",
+                    ],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+            except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
+                continue
+            if result.returncode == 0:
+                return True
+        return False
+
+    def _merged_branch_tip_landed(
+        self,
+        project: Project,
+        issue: Issue,
+        project_id: str | None,
+        branch: str,
+        rollup_strategy: str | None = None,
+    ) -> bool:
+        """Return True when a merged-branch signal still matches the branch tip.
+
+        Forge merged-branch lists are keyed by branch name. If a branch name is
+        reused after an earlier PR merged, the old forge signal is stale. In
+        that case the current remote branch tip must not be promoted to
+        ``Merged`` or skipped by deferred review handoff until git shows it is
+        contained in the target branch.
+        """
+        repo_path = getattr(project, "repo_path", "") or ""
+        if (
+            not isinstance(repo_path, str)
+            or not repo_path
+            or not os.path.isdir(repo_path)
+        ):
+            return True
+
+        branch = (branch or "").strip()
+        if not branch:
+            return True
+        if not self._managed_branch_ref_exists(repo_path, branch):
+            # Branch deleted after merge: the forge merged-PR signal is the
+            # strongest remaining evidence.
+            return True
+
+        target_branch = self._target_branch_for_merged_signal(
+            project,
+            issue,
+            project_id,
+            rollup_strategy=rollup_strategy,
+        )
+        ahead, _commit_lines, commit_error = self._count_review_branch_ahead(
+            project,
+            target_branch,
+            branch,
+        )
+        if commit_error:
+            logger.warning(
+                "Skipping merged-branch promotion for %s branch=%s: could not "
+                "verify current branch tip against %s: %s",
+                issue.identifier,
+                branch,
+                target_branch,
+                commit_error,
+            )
+            return False
+        if ahead > 0:
+            logger.info(
+                "Skipping merged-branch promotion for %s branch=%s: current "
+                "tip is %d commit(s) ahead of %s despite stale merged history",
+                issue.identifier,
+                branch,
+                ahead,
+                target_branch,
+            )
+            return False
+        return True
 
     def _stale_in_review_effective_branch(
         self,
