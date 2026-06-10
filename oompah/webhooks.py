@@ -634,12 +634,23 @@ _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
 _WEBHOOK_BASE_DELAY_S = 1.0  # initial restart backoff
 _WEBHOOK_MAX_DELAY_S = 60.0  # cap on restart backoff
 
-# Default events the forwarder subscribes to. ``push`` drives source-sync
-# after operators commit directly to a tracked branch; ``pull_request``
-# drives auto-merge label updates and PR-closed handling. Without
-# ``--events``, the gh-webhook extension subscribes to nothing and
+# Default events the forwarder subscribes to.
+#
+# Core SCM events (always required):
+#   ``push``           — source-sync after operators commit to a tracked branch.
+#   ``pull_request``   — auto-merge label updates and PR-closed handling.
+#
+# GitHub Issues / GitHub-backed task events (required for task tracking):
+#   ``issues``             — task open/edit/close in the task hub.
+#   ``issue_comment``      — new comments on tasks (agent handoff, ACs).
+#   ``label``              — label create/edit/delete (agent routing hints).
+#   ``projects_v2_item``   — project-board item changes (Oompah Status field).
+#
+# Without ``--events``, the gh-webhook extension subscribes to nothing and
 # the subprocess produces no traffic.
-_WEBHOOK_DEFAULT_EVENTS = "push,pull_request"
+_WEBHOOK_DEFAULT_EVENTS = (
+    "push,pull_request,issues,issue_comment,label,projects_v2_item"
+)
 
 # Stderr tail size kept in memory per project (for surfacing the most
 # recent error to the dashboard / logs without unbounded growth).
@@ -748,9 +759,10 @@ class WebhookForwarder:
                          Defaults to 5 seconds.
         events: Comma-separated list of forge event names to forward
                 (passed verbatim to ``gh webhook forward --events``).
-                Defaults to ``"push,pull_request"`` — the minimum set
-                required for source-sync after direct pushes and for
-                PR-closed / auto-merge label updates. Override via the
+                Defaults to ``_WEBHOOK_DEFAULT_EVENTS`` — SCM events
+                (``push``, ``pull_request``) plus GitHub-backed task
+                tracking events (``issues``, ``issue_comment``, ``label``,
+                ``projects_v2_item``). Override via the
                 ``OOMPAH_WEBHOOK_EVENTS`` environment variable.
         status_callback: Optional callable invoked when the forwarder's
                          availability state changes. Called with a dict:

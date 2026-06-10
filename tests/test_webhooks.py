@@ -1634,7 +1634,7 @@ class TestWebhookForwarderEventsFlag:
         # --events must be present and followed by the default set
         assert "--events" in argv
         i = argv.index("--events")
-        assert argv[i + 1] == "push,pull_request"
+        assert argv[i + 1] == "push,pull_request,issues,issue_comment,label,projects_v2_item"
         # --url must still be passed
         assert "--url" in argv
 
@@ -1843,7 +1843,7 @@ class TestWebhookForwarderExtensionMissing:
                 status = fwd.status
                 assert status["extension_available"] is False
                 assert status["extension_detail"] == "boom"
-                assert status["events"] == "push,pull_request"
+                assert status["events"] == "push,pull_request,issues,issue_comment,label,projects_v2_item"
                 assert "projects" in status
             finally:
                 await fwd.stop()

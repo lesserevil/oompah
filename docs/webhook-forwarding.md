@@ -1,19 +1,37 @@
 # Webhook forwarding
 
 Oompah listens for forge events (PR opened, PR merged, push to a tracked
-branch) so it can react in seconds instead of waiting for the next
-periodic full-sync. This page explains how that works, how to set it up,
-and how to verify it's actually working.
+branch, task created/updated in GitHub Issues) so it can react in seconds
+instead of waiting for the next periodic full-sync. This page explains how
+that works, how to set it up, and how to verify it is actually working.
 
 ## Why webhooks matter
 
-Without webhooks, oompah only learns about new PRs and merges every
-~2 minutes when its periodic safety-net sync runs. With webhooks, the
-following flows are near-realtime instead:
+Without webhooks, oompah only learns about changes every ~2 minutes when its
+periodic safety-net sync runs. With webhooks, the following flows are
+near-realtime instead:
 
 - **Auto-merge label updates** when a PR's CI finishes.
 - **Source sync** after an operator pushes directly to a tracked branch.
 - **PR-closed handling** that frees an agent's worktree.
+- **Task state updates** when issues are opened, edited, commented on, or
+  field-changed in GitHub Issues.
+
+## Two webhook channels
+
+Oompah uses **two distinct webhook mechanisms** with different scopes.
+It is important not to confuse them:
+
+| Channel | Endpoint | Transport | Purpose |
+|---|---|---|---|
+| **GitHub forge events** | `POST /api/v1/webhooks/github` | `gh webhook forward` CLI → localhost | Receive GitHub events for SCM (push, PR) and GitHub-backed task tracking (issues, comments, labels, project items). |
+| **Backlog task-change hooks** | `POST /api/v1/webhooks/backlog` | `post-commit` git hook in managed repo | Notify oompah when a Backlog.md task file changes in a managed repo (legacy Backlog-backed projects only). |
+
+**GitHub-backed projects** use the first channel exclusively. The
+`post-commit` Backlog hook is a legacy mechanism for Backlog.md-backed
+projects and does not apply once a project is migrated to GitHub Issues.
+See [`plans/backlog-task-change-webhooks.md`](../plans/backlog-task-change-webhooks.md)
+for details on the Backlog hook.
 
 ## Architecture
 
@@ -33,6 +51,24 @@ WebSocket to GitHub, receives the project's webhook events, and POSTs
 them to oompah's local `/api/v1/webhooks/github` endpoint. The
 forwarder polls each subprocess every 5 seconds and restarts dead ones
 with exponential backoff capped at 60 seconds.
+
+## Required GitHub events
+
+The following events must be forwarded to oompah. This is the full default
+event list set by `_WEBHOOK_DEFAULT_EVENTS` in `oompah/webhooks.py`:
+
+| Event | Purpose |
+|---|---|
+| `push` | Source-sync after operators commit directly to a tracked branch. |
+| `pull_request` | Auto-merge label updates and PR-closed handling (frees worktrees). |
+| `issues` | Task open/edit/close/assign when using GitHub-backed task tracking. |
+| `issue_comment` | New comments on tasks (agent handoffs, acceptance-criteria responses). |
+| `label` | Label create/edit/delete (agent routing hints such as `needs:frontend`). |
+| `projects_v2_item` | Project-board item changes, including `Oompah Status` field updates. |
+
+The `push` and `pull_request` events are sufficient for pure SCM projects
+(no GitHub Issues task tracking). All six are required for GitHub-backed
+task tracking.
 
 ## Prerequisites
 
@@ -77,8 +113,8 @@ After restart, three things should be true.
 **1. The startup log shows the extension was found.**
 
 ```text
-WebhookForwarder: gh-webhook extension OK; forwarding events=push,pull_request
-WebhookForwarder: started gh webhook forward for project <name> (pid=<N>, events=push,pull_request)
+WebhookForwarder: gh-webhook extension OK; forwarding events=push,pull_request,issues,issue_comment,label,projects_v2_item
+WebhookForwarder: started gh webhook forward for project <name> (pid=<N>, events=push,pull_request,issues,issue_comment,label,projects_v2_item)
 ```
 
 If instead you see this ERROR line, the extension is missing or `gh` is
@@ -106,21 +142,46 @@ When the banner is gone, webhooks are running normally.
 ps -ef | grep "gh webhook" | grep -v grep
 ```
 
-You should see one `gh webhook forward --events push,pull_request --url ...`
+You should see one `gh webhook forward --events push,pull_request,... --url ...`
 line per registered project. An empty result while oompah claims it is
 running is the original bug from issue `oompah-zlz_2-2g1`.
+
+**4. Verify individual events are reaching oompah.**
+
+For GitHub-backed task tracking, confirm issue events arrive by triggering
+one manually (e.g. editing an issue title) and checking the log:
+
+```bash
+grep "WebhookEvent.*issues\|WebhookEvent.*issue_comment" oompah.log | tail -5
+```
+
+Or check the server access log for 200 responses to the webhook endpoint:
+
+```bash
+grep "POST /api/v1/webhooks/github" oompah.log | tail -10
+```
+
+**5. Confirm the `projects_v2_item` event is forwarded.**
+
+The `gh webhook forward` tool uses the GitHub webhook API to register event
+subscriptions. The `projects_v2_item` event is an **organization- or
+user-level** webhook event, not a repository-level event. GitHub may or may
+not deliver it depending on whether the project is owned by an organization
+or a user account. If `Oompah Status` field updates are not arriving in real
+time, check `projects_v2_item` delivery in the GitHub webhook settings for
+the repository or organization.
 
 ## Configuration
 
 | Setting | Env var | Default | Description |
 |---|---|---|---|
 | Forward URL | `OOMPAH_WEBHOOK_FORWARD_URL` | `http://localhost:8080/api/v1/webhooks/github` | Where the forwarder POSTs received events. |
-| Subscribed events | `OOMPAH_WEBHOOK_EVENTS` | `push,pull_request` | Comma-separated event list passed to `gh webhook forward --events`. |
+| Subscribed events | `OOMPAH_WEBHOOK_EVENTS` | `push,pull_request,issues,issue_comment,label,projects_v2_item` | Comma-separated event list passed to `gh webhook forward --events`. |
 
-The default event set is the minimum required for source-sync after
-direct pushes (`push`) and for PR-closed / auto-merge label updates
-(`pull_request`). If you add features that depend on other events
-(e.g. `issues`, `release`), extend this list.
+The default event set covers both SCM events and GitHub Issues task tracking.
+To subscribe to additional GitHub events (e.g. `release`, `milestone`), extend
+`OOMPAH_WEBHOOK_EVENTS` in your `.env` file. See `.env.example` for the full
+list and descriptions.
 
 ## Troubleshooting
 
@@ -140,6 +201,25 @@ WARNING when the subprocess exits non-zero. Common causes:
   the repo. Check `gh auth status` and the repo's settings.
 - **Rate-limited** — GitHub limits webhook forwarders; wait and retry.
 
+**I see `push` and `pull_request` events but no `issues` or `issue_comment` events.**
+
+The `issues`, `issue_comment`, and `label` events require the GitHub
+repository to have Issues enabled. Confirm that the task hub repository
+has GitHub Issues turned on in its settings, and that the `gh` CLI user
+has at least read access to that repository.
+
+Also confirm that `OOMPAH_WEBHOOK_EVENTS` is not overriding the default to
+an older value (e.g. `push,pull_request` only).
+
+**No `projects_v2_item` events are arriving.**
+
+`projects_v2_item` is an organization- or user-level event. GitHub delivers
+it at the organization webhook level, not the repository webhook level. The
+`gh webhook forward` tool may not forward it if the project item belongs to
+an organization project. For local development, you can simulate project
+field changes by editing issue fields directly in GitHub; oompah's periodic
+poll will catch them within 2 minutes as a fallback.
+
 **The forwarder is restarting in a tight loop.**
 
 Restart backoff doubles on each failure (1s, 2s, 4s, …, capped at 60s).
@@ -154,3 +234,31 @@ uninstall the extension (`gh extension remove cli/gh-webhook`) and
 restart; the forwarder will detect this at startup, log a single ERROR,
 show the degraded banner, and skip launching subprocesses. Oompah will
 fall back to its periodic safety-net sync.
+
+**I only need SCM events (no GitHub Issues task tracking).**
+
+Set `OOMPAH_WEBHOOK_EVENTS=push,pull_request` in your `.env` file and
+restart. The forwarder will only subscribe to those two events. Note that
+issue, comment, label, and project-field changes will not arrive in
+real-time — oompah will rely on its 2-minute periodic sync for task state.
+
+## Relation to Backlog task-change webhooks
+
+The `gh webhook forward` mechanism is **separate** from the legacy Backlog.md
+`post-commit` hook. They serve different purposes:
+
+- `gh webhook forward` → receives GitHub-level events (issues, PRs, pushes,
+  label changes) from GitHub's WebSocket API and forwards them to oompah's
+  `/api/v1/webhooks/github` endpoint.
+- `post-commit` hook → fires a local HTTP POST to `/api/v1/webhooks/backlog`
+  when a git commit in a managed repo touches `backlog/tasks/*.md` or
+  `backlog/completed/*.md` files.
+
+For **GitHub-backed projects** (tracker kind `github_issues`), task state
+lives in GitHub Issues and the Backlog `post-commit` hook is not installed
+or consulted. For **Backlog.md-backed projects** (legacy), the reverse is
+true — the `gh webhook forward` event list still handles SCM events but
+task-state changes arrive via the `post-commit` hook.
+
+See [`plans/backlog-task-change-webhooks.md`](../plans/backlog-task-change-webhooks.md)
+for the full design of the Backlog hook mechanism.

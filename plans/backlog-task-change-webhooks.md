@@ -84,3 +84,23 @@ The hook never fails a git commit:
 - Network errors, server-down states, and all exceptions are silently swallowed.
 - A 3-second timeout on the HTTP request prevents blocking commits.
 - The full-sync safety net (`full_sync_interval_ms`) continues running as a fallback.
+
+## Scope: Backlog.md-backed projects only
+
+The `post-commit` Backlog hook is a **legacy mechanism** that applies only to
+projects where `tracker_kind` is `backlog_md` (or unset, defaulting to legacy
+mode).
+
+For **GitHub-backed projects** (`tracker_kind: github_issues`), task state
+lives in GitHub Issues. Those projects do not install or consult the Backlog
+`post-commit` hook. Task-state changes reach oompah via the GitHub webhook
+channel (`gh webhook forward`) instead — specifically the `issues`,
+`issue_comment`, `label`, and `projects_v2_item` events. See
+[`docs/webhook-forwarding.md`](../docs/webhook-forwarding.md) for the full
+GitHub event set and setup instructions.
+
+When a project is migrated to `github_issues`, `ensure_backlog_webhooks()`
+skips that project and `sync_project_sources()` skips Backlog compatibility
+checks and hook installation. Existing `post-commit` hook files in that
+project's clone are left in place but become no-ops because no new
+`backlog/tasks/*.md` files are created.
