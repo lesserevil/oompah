@@ -620,7 +620,7 @@ def _is_github_backed(project: "Project") -> bool:
     tolerate minor spelling variations.  All other tracker kinds (including
     ``None``, which means legacy Backlog.md) return False.
     """
-    kind = (project.tracker_kind or "").strip().lower()
+    kind = (getattr(project, "tracker_kind", None) or "").strip().lower()
     return _is_github_backed_kind(kind)
 
 

@@ -5333,10 +5333,11 @@ class Orchestrator:
         # are not dispatchable unless legacy_backlog_dispatch is also set.
         # A "Backlog" issue is identified by its tracker_kind being absent or
         # any value other than "github_issues" / "github-issues".
-        if issue.project_id:
-            _lb_proj = self.project_store.get(issue.project_id)
+        project_store = getattr(self, "project_store", None)
+        if issue.project_id and project_store is not None:
+            _lb_proj = project_store.get(issue.project_id)
             if _lb_proj is not None and _is_github_backed(_lb_proj):
-                issue_kind = (issue.tracker_kind or "").strip().lower()
+                issue_kind = (getattr(issue, "tracker_kind", None) or "").strip().lower()
                 _issue_is_github = issue_kind in ("github_issues", "github-issues")
                 if not _issue_is_github and not _lb_proj.legacy_backlog_dispatch:
                     return _reject("legacy_backlog_not_dispatchable")
