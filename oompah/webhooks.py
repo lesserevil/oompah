@@ -633,6 +633,8 @@ _WEBHOOK_FORWARD_URL_DEFAULT = "http://localhost:8080/api/v1/webhooks/github"
 _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
 _WEBHOOK_BASE_DELAY_S = 1.0  # initial restart backoff
 _WEBHOOK_MAX_DELAY_S = 60.0  # cap on restart backoff
+_WEBHOOK_GH_API_TIMEOUT_S = 15.0
+_GH_WEBHOOK_FORWARDER_HOOK_URL = "https://webhook-forwarder.github.com/hook"
 
 # Default events the forwarder subscribes to.
 #
@@ -657,6 +659,16 @@ _WEBHOOK_DEFAULT_EVENTS = "push,pull_request,issues,issue_comment,label"
 # Stderr tail size kept in memory per project (for surfacing the most
 # recent error to the dashboard / logs without unbounded growth).
 _WEBHOOK_STDERR_TAIL_BYTES = 4096
+
+
+def _short_process_error(stdout: str, stderr: str) -> str:
+    """Return the first useful subprocess error line for logs."""
+    for text in (stderr, stdout):
+        for line in text.splitlines():
+            line = line.strip()
+            if line:
+                return line
+    return "no output"
 
 
 async def check_gh_webhook_available() -> tuple[bool, str]:
@@ -1054,6 +1066,9 @@ class WebhookForwarder:
         if fp.access_token:
             env["GH_TOKEN"] = fp.access_token
 
+        if fp.restart_attempts > 0:
+            await self._cleanup_existing_forwarder_hooks(fp, env)
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "gh",
@@ -1097,6 +1112,105 @@ class WebhookForwarder:
                 exc,
             )
             fp.process = None
+
+    async def _cleanup_existing_forwarder_hooks(
+        self,
+        fp: _ForwarderProcess,
+        env: dict[str, str],
+    ) -> None:
+        """Remove stale gh-webhook relay hooks before launching.
+
+        The ``cli/gh-webhook`` extension creates a repository hook named
+        ``cli`` that points at GitHub's webhook-forwarder relay. If the
+        local process exits abruptly, that remote hook can remain in place;
+        the next launch then fails with ``Hook already exists``. Removing
+        matching hooks here makes the forwarder restartable without manual
+        GitHub cleanup.
+        """
+        if not fp.repo_slug:
+            return
+
+        rc, stdout, stderr = await self._run_gh_api(
+            fp,
+            env,
+            f"repos/{fp.repo_slug}/hooks",
+            "--jq",
+            (
+                ".[] | select(.name == \"cli\" "
+                f"and .config.url == \"{_GH_WEBHOOK_FORWARDER_HOOK_URL}\") | .id"
+            ),
+        )
+        if rc != 0:
+            logger.warning(
+                "WebhookForwarder: could not inspect existing gh-webhook hooks "
+                "for project %s: %s",
+                fp.project_name,
+                _short_process_error(stdout, stderr),
+            )
+            return
+
+        hook_ids = [line.strip() for line in stdout.splitlines() if line.strip()]
+        for hook_id in hook_ids:
+            rc, delete_stdout, delete_stderr = await self._run_gh_api(
+                fp,
+                env,
+                "-X",
+                "DELETE",
+                f"repos/{fp.repo_slug}/hooks/{hook_id}",
+            )
+            if rc == 0:
+                logger.info(
+                    "WebhookForwarder: removed stale gh-webhook hook %s for project %s",
+                    hook_id,
+                    fp.project_name,
+                )
+            else:
+                logger.warning(
+                    "WebhookForwarder: failed to remove stale gh-webhook hook %s "
+                    "for project %s: %s",
+                    hook_id,
+                    fp.project_name,
+                    _short_process_error(delete_stdout, delete_stderr),
+                )
+
+    async def _run_gh_api(
+        self,
+        fp: _ForwarderProcess,
+        env: dict[str, str],
+        *args: str,
+    ) -> tuple[int, str, str]:
+        """Run ``gh api`` with captured output for forwarder maintenance."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "gh",
+                "api",
+                *args,
+                cwd=fp.repo_path,
+                env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=_WEBHOOK_GH_API_TIMEOUT_S,
+            )
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
+            return 124, "", "gh api timed out"
+        except FileNotFoundError:
+            return 127, "", "'gh' CLI not found on PATH"
+        except Exception as exc:  # pragma: no cover - defensive
+            return 1, "", str(exc)
+
+        return (
+            proc.returncode or 0,
+            stdout.decode("utf-8", errors="replace"),
+            stderr.decode("utf-8", errors="replace"),
+        )
 
     async def _drain_stderr(self, fp: _ForwarderProcess) -> None:
         """Read the subprocess's stderr into ``fp.last_stderr``.

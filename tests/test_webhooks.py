@@ -1733,6 +1733,87 @@ class TestWebhookForwarderEventsFlag:
         assert captured["argv"][i + 1] == "push,issues"
 
 
+class TestWebhookForwarderHookCleanup:
+    """Stale GitHub hooks left by gh-webhook must not block restarts."""
+
+    @pytest.fixture
+    def git_repo(self, tmp_path):
+        import subprocess
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
+        return tmp_path
+
+    @pytest.mark.asyncio
+    async def test_cleanup_deletes_stale_cli_forwarder_hooks(self, git_repo):
+        fwd = WebhookForwarder()
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
+        calls: list[list[str]] = []
+
+        class _FakeProc:
+            def __init__(self, stdout=b"", stderr=b"", returncode=0):
+                self._stdout = stdout
+                self._stderr = stderr
+                self.returncode = returncode
+
+            async def communicate(self):
+                return self._stdout, self._stderr
+
+        async def fake_exec(*args, **kwargs):
+            calls.append(list(args))
+            if args[-2:] == (
+                "--jq",
+                (
+                    ".[] | select(.name == \"cli\" "
+                    "and .config.url == \"https://webhook-forwarder.github.com/hook\") | .id"
+                ),
+            ):
+                return _FakeProc(stdout=b"123\n456\n")
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._cleanup_existing_forwarder_hooks(fp, os.environ.copy())
+
+        assert ["gh", "api", "-X", "DELETE", "repos/org/repo/hooks/123"] in calls
+        assert ["gh", "api", "-X", "DELETE", "repos/org/repo/hooks/456"] in calls
+
+    @pytest.mark.asyncio
+    async def test_cleanup_inspection_failure_does_not_block_launch(self, git_repo):
+        fwd = WebhookForwarder()
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
+        fp.restart_attempts = 1
+        calls: list[list[str]] = []
+
+        class _FakeProc:
+            pid = 123
+            stderr = None
+
+            def __init__(self, stdout=b"", stderr=b"", returncode=0):
+                self._stdout = stdout
+                self._stderr = stderr
+                self.returncode = returncode
+
+            async def communicate(self):
+                return self._stdout, self._stderr
+
+        class _ForwardProc:
+            pid = 456
+            returncode = None
+            stderr = None
+
+        async def fake_exec(*args, **kwargs):
+            calls.append(list(args))
+            if args[:2] == ("gh", "api"):
+                return _FakeProc(stderr=b"hook permission denied\n", returncode=1)
+            return _ForwardProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        assert any(call[:3] == ["gh", "api", "repos/org/repo/hooks"] for call in calls)
+        assert any(call[:3] == ["gh", "webhook", "forward"] for call in calls)
+        assert fp.process is not None
+
+
 class TestWebhookForwarderExtensionMissing:
     """Behavior when the gh-webhook extension is not installed.
 
