@@ -307,6 +307,55 @@ def test_fetch_issue_detail_and_comments(tmp_path):
     }]
 
 
+def test_fetch_comments_parses_native_backlog_cli_comment_blocks(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    task_path = _write_task(backlog_dir, "TASK-1", "Native comments")
+    text = task_path.read_text(encoding="utf-8")
+    task_path.write_text(
+        text
+        + """\
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: oompah
+created: 2026-06-10 10:36
+---
+Completion correction mirrored from epic-TASK-464.
+---
+
+author: oompah
+created: 2026-06-10 13:59
+---
+Human needed: choose/approve the canary repo.
+Confirm the GitHub task hub owner/repo before cutover.
+---
+<!-- COMMENTS:END -->
+""",
+        encoding="utf-8",
+    )
+
+    comments = _tracker(tmp_path).fetch_comments("TASK-1")
+
+    assert comments == [
+        {
+            "id": "1",
+            "author": "oompah",
+            "created_at": "2026-06-10 10:36",
+            "text": "Completion correction mirrored from epic-TASK-464.",
+        },
+        {
+            "id": "2",
+            "author": "oompah",
+            "created_at": "2026-06-10 13:59",
+            "text": (
+                "Human needed: choose/approve the canary repo.\n"
+                "Confirm the GitHub task hub owner/repo before cutover."
+            ),
+        },
+    ]
+
+
 def test_add_comment_appends_backlog_comment_without_cli(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(backlog_dir, "TASK-1", "Comment target")

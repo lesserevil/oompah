@@ -1351,25 +1351,123 @@ def _looks_like_epic_task(title: str, description: str | None) -> bool:
 
 def _parse_backlog_comments(body: str) -> list[dict]:
     comments: list[dict] = []
-    pattern = re.compile(
+
+    section_pattern = re.compile(
+        r"<!-- COMMENTS:BEGIN -->\n?(.*?)\n?<!-- COMMENTS:END -->",
+        re.DOTALL,
+    )
+    sections = [match.group(1) for match in section_pattern.finditer(body)]
+    if sections:
+        for section in sections:
+            comments.extend(_parse_backlog_comments_section(section, len(comments)))
+        return comments
+
+    # Backward-compatible fallback for older files that contain only individual
+    # COMMENT blocks without the surrounding COMMENTS section.
+    legacy_pattern = re.compile(
         r"<!-- COMMENT:BEGIN -->\n(.*?)\n<!-- COMMENT:END -->",
         re.DOTALL,
     )
-    for match in pattern.finditer(body):
-        block = match.group(1)
-        header, _, text = block.partition("\n\n")
-        fields: dict[str, str] = {}
-        for line in header.splitlines():
-            key, sep, value = line.partition(":")
-            if sep:
-                fields[key.strip()] = value.strip()
-        comments.append({
-            "id": fields.get("index"),
-            "author": fields.get("author"),
-            "created_at": fields.get("created"),
-            "text": text.strip(),
-        })
+    for match in legacy_pattern.finditer(body):
+        parsed = _parse_legacy_backlog_comment(match.group(1), len(comments))
+        if parsed:
+            comments.append(parsed)
     return comments
+
+
+def _parse_backlog_comments_section(section: str, existing_count: int = 0) -> list[dict]:
+    comments: list[dict] = []
+    lines = section.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+
+        if line == "<!-- COMMENT:BEGIN -->":
+            block_lines: list[str] = []
+            i += 1
+            while i < len(lines) and lines[i].strip() != "<!-- COMMENT:END -->":
+                block_lines.append(lines[i])
+                i += 1
+            if i < len(lines):
+                i += 1
+            parsed = _parse_legacy_backlog_comment(
+                "\n".join(block_lines),
+                existing_count + len(comments),
+            )
+            if parsed:
+                comments.append(parsed)
+            continue
+
+        parsed, next_index = _parse_native_backlog_comment(
+            lines,
+            i,
+            existing_count + len(comments),
+        )
+        if parsed:
+            comments.append(parsed)
+            i = next_index
+            continue
+        i += 1
+
+    return comments
+
+
+def _parse_legacy_backlog_comment(block: str, existing_count: int = 0) -> dict | None:
+    header, _, text = block.partition("\n\n")
+    fields: dict[str, str] = {}
+    for line in header.splitlines():
+        key, sep, value = line.partition(":")
+        if sep:
+            fields[key.strip().lower()] = value.strip()
+    comment_text = text.strip()
+    if not fields and not comment_text:
+        return None
+    return {
+        "id": fields.get("index") or str(existing_count + 1),
+        "author": fields.get("author"),
+        "created_at": fields.get("created"),
+        "text": comment_text,
+    }
+
+
+def _parse_native_backlog_comment(
+    lines: list[str],
+    start: int,
+    existing_count: int = 0,
+) -> tuple[dict | None, int]:
+    fields: dict[str, str] = {}
+    i = start
+    while i < len(lines):
+        line = lines[i]
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if not sep or not key.strip():
+            return None, start + 1
+        fields[key.strip().lower()] = value.strip()
+        i += 1
+
+    if i >= len(lines) or lines[i].strip() != "---" or not fields:
+        return None, start + 1
+
+    i += 1
+    text_lines: list[str] = []
+    while i < len(lines) and lines[i].strip() != "---":
+        text_lines.append(lines[i])
+        i += 1
+    if i >= len(lines):
+        return None, start + 1
+
+    i += 1
+    return {
+        "id": fields.get("index") or str(existing_count + 1),
+        "author": fields.get("author"),
+        "created_at": fields.get("created"),
+        "text": "\n".join(text_lines).strip(),
+    }, i
 
 
 def _append_backlog_comment(
@@ -1412,14 +1510,7 @@ def _format_backlog_comment(
     created: str,
     text: str,
 ) -> str:
-    return (
-        "<!-- COMMENT:BEGIN -->\n"
-        f"index: {index}\n"
-        f"author: {author}\n"
-        f"created: {created}\n\n"
-        f"{text}\n"
-        "<!-- COMMENT:END -->\n"
-    )
+    return f"author: {author}\ncreated: {created}\n---\n{text}\n---\n"
 
 
 def _next_backlog_comment_index(body: str) -> int:
