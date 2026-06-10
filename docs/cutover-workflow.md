@@ -50,18 +50,26 @@ can either:
 
 No new agents will start because the project is paused.
 
-### Step 3 — Initiate the cutover
+### Step 3 — Configure tracker settings and record the cutover
 
-Click **Cut over to GitHub Issues** in the project card, or call the API:
+In the Projects page, open the project edit form, set the tracker hub fields
+and legacy Backlog flags, then save the project. After that, click **Cut over
+to GitHub Issues** in the project card; the button sets
+`tracker_kind=github_issues` and records `tracker_cutover_at`.
+
+To do the same operation in one API call:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/projects/<project-id>/cutover \
+curl -X PATCH http://localhost:8000/api/v1/projects/<project-id> \
   -H 'Content-Type: application/json' \
   -d '{
+    "tracker_kind": "github_issues",
     "tracker_owner": "lesserevil",
     "tracker_repo": "oompah-tasks",
+    "tracker_cutover_at": "2026-06-10T00:00:00Z",
     "legacy_backlog_enabled": false,
-    "legacy_backlog_dispatch": false
+    "legacy_backlog_dispatch": false,
+    "paused": true
   }'
 ```
 
@@ -69,19 +77,22 @@ curl -X POST http://localhost:8000/api/v1/projects/<project-id>/cutover \
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `tracker_kind` | string | `null` | Set to `github_issues` to route new tasks to GitHub Issues |
 | `tracker_owner` | string | (global env) | GitHub owner/org of the central task hub |
 | `tracker_repo` | string | (global env) | Repository name of the central task hub |
+| `tracker_cutover_at` | ISO datetime string | omitted | Timestamp used as the cutover marker |
 | `legacy_backlog_enabled` | bool | `false` | Keep existing Backlog.md tasks **visible** in the dashboard |
 | `legacy_backlog_dispatch` | bool | `false` | Keep existing Backlog.md tasks **dispatchable** (requires `legacy_backlog_enabled=true`) |
+| `paused` | bool | unchanged | Set `true` during verification to prevent dispatch |
 
 The call:
-1. **Pauses** the project (if not already paused).
-2. Sets `tracker_kind = github_issues`.
-3. Records `cutover_at` (UTC ISO-8601 timestamp).
-4. Optionally sets `tracker_owner` / `tracker_repo`.
-5. Sets the legacy Backlog flags as specified.
+1. Sets `tracker_kind = github_issues`.
+2. Records `tracker_cutover_at` when supplied.
+3. Optionally sets `tracker_owner` / `tracker_repo`.
+4. Sets the legacy Backlog flags as specified.
+5. Pauses the project when `paused=true` is supplied.
 
-The project remains **paused** after this call.
+Keep the project **paused** until the verification steps pass.
 
 ### Step 4 — Verify GitHub tracker connectivity
 
@@ -150,9 +161,17 @@ curl -X PATCH http://localhost:8000/api/v1/projects/<project-id> \
 If the cutover fails or you need to revert for any reason:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/projects/<project-id>/rollback \
+curl -X PATCH http://localhost:8000/api/v1/projects/<project-id> \
   -H 'Content-Type: application/json' \
-  -d '{}'
+  -d '{
+    "tracker_kind": null,
+    "tracker_cutover_at": null,
+    "tracker_owner": null,
+    "tracker_repo": null,
+    "legacy_backlog_enabled": true,
+    "legacy_backlog_dispatch": true,
+    "paused": false
+  }'
 ```
 
 **What rollback does:**
@@ -161,28 +180,15 @@ curl -X POST http://localhost:8000/api/v1/projects/<project-id>/rollback \
    defaults to Backlog.md).
 2. Sets `legacy_backlog_enabled=true` and `legacy_backlog_dispatch=true` so
    existing Backlog.md tasks are both visible and dispatchable.
-3. Clears `cutover_at`.
-4. Unpauses the project (pass `"keep_paused": true` to skip this).
-5. Optionally clears `tracker_owner` and `tracker_repo` (default: yes; pass
-   `"clear_tracker_owner": false` to retain them).
+3. Clears `tracker_cutover_at`.
+4. Unpauses the project when `"paused": false` is supplied.
+5. Clears `tracker_owner` and `tracker_repo` when they are set to `null`.
 
 **What rollback does NOT do:**
 
 - GitHub Issues created after the cutover are **not** deleted. They remain in
   GitHub and can be managed there directly.
 - Existing Backlog.md task files are never touched by the rollback.
-
-### Rollback parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `keep_paused` | bool | `false` | Leave the project paused after rollback |
-| `clear_tracker_owner` | bool | `true` | Clear `tracker_owner` and `tracker_repo` |
-
-### UI rollback
-
-In the Projects page, click **Rollback to Backlog** next to the project. A
-confirmation dialog explains what will happen before proceeding.
 
 ---
 
@@ -210,7 +216,7 @@ Archived):
 **New Backlog.md task files appear after cutover**
 
 The completion verifier and source sync will warn if new `backlog/tasks/*.md`
-files are committed after the `cutover_at` timestamp. This indicates an agent
+files are committed after the `tracker_cutover_at` timestamp. This indicates an agent
 ran with an old prompt that still references `backlog task create`. Check the
 agent prompt and ensure the tracker-neutral task tools are in scope for
 GitHub-backed tasks.

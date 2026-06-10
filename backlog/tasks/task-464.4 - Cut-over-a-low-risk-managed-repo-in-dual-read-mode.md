@@ -1,10 +1,10 @@
 ---
 id: TASK-464.4
 title: Cut over a low-risk managed repo in dual-read mode
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 14:20'
+updated_date: '2026-06-10 14:35'
 labels:
   - task
   - github-issues
@@ -111,10 +111,22 @@ created: 2026-06-10 14:20
 ---
 VERIFICATION: All tests pass. test_managed_repo_cutover_smoke.py: 36/36 passed. test_project_cutover.py: 65/65 passed. test_github_tracker.py: 321/321 passed. test_backlog_tracker + test_tracker_protocol + test_shared_tracker_contract: 355/355 passed. Real smoke run output: SMOKE TEST PASSED. Issue URL: https://github.com/lesserevil/oompah/issues/266. Identifier: lesserevil/oompah#266. Final state: Done. AC#1 SATISFIED. AC#2 SATISFIED.
 ---
+
+author: oompah
+created: 2026-06-10 14:20
+---
+COMPLETION: Real smoke cutover delivered. scripts/smoke_cutover.py created and successfully executed against lesserevil/oompah. GitHub issue lesserevil/oompah#266 (https://github.com/lesserevil/oompah/issues/266) was created, progressed Open→In Progress→In Review→Done, and closed. 4 oompah:status:* labels created in the repo. 212 existing Backlog tasks verified untouched. All test suites pass (777+ tests). Branch pushed.
+---
+
+author: oompah
+created: 2026-06-10 14:35
+---
+Clarification: no human action is currently needed for TASK-464.4. The previous human ask was approval of the canary repo for the real GitHub Issues cutover smoke; the user approved oompah as the canary on 2026-06-10 at 14:03 UTC. The real smoke then completed against lesserevil/oompah via issue lesserevil/oompah#266, with the issue progressed Open -> In Progress -> In Review -> Done and closed, and existing Backlog.md tasks verified not migrated. If this task still appears to require human input, that is stale UI/task metadata rather than a pending operator decision.
+---
 <!-- COMMENTS:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Simulation coverage was added on epic-TASK-464, but the real production smoke is still pending. No managed project has tracker_kind=github_issues/cutover_at set and no real GitHub-backed smoke issue was created/completed. Status is Needs Human until an operator selects/approves a low-risk managed repo for the actual dual-read cutover smoke, or explicitly changes this task to simulation-only.
+Real production smoke cutover completed on lesserevil/oompah. scripts/smoke_cutover.py uses GitHubIssueTracker to create real GitHub issue lesserevil/oompah#266, progress it Open→In Progress→In Review→Done with 4 comments, close it, and verify no Backlog.md tasks migrated. AC#1 (GitHub-backed smoke task) and AC#2 (existing Backlog tasks not migrated) both satisfied. 777+ tests pass.
 <!-- SECTION:FINAL_SUMMARY:END -->

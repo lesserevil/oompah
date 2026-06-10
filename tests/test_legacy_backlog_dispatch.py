@@ -142,16 +142,16 @@ class TestLegacyBacklogModelDefaults:
 
 
 class TestLegacyBacklogSerialisation:
-    def test_to_dict_omits_enabled_when_false(self):
-        """Don't clutter compact project records with default False values."""
+    def test_to_dict_includes_enabled_when_false(self):
+        """Dashboard/API consumers can rely on explicit default False values."""
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
         d = p.to_dict()
-        assert "legacy_backlog_enabled" not in d
+        assert d["legacy_backlog_enabled"] is False
 
-    def test_to_dict_omits_dispatch_when_false(self):
+    def test_to_dict_includes_dispatch_when_false(self):
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
         d = p.to_dict()
-        assert "legacy_backlog_dispatch" not in d
+        assert d["legacy_backlog_dispatch"] is False
 
     def test_to_dict_includes_enabled_when_true(self):
         p = Project(

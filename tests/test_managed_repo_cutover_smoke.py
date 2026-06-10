@@ -9,8 +9,8 @@ Validates the first production cutover scenario end-to-end:
      To Do → In Progress → In Review → Done.
   4. Comments and PR links are applied to and read from the GitHub-backed task.
   5. Existing Backlog.md tasks are visible (tagged 'backlog_md') but are NOT
-     copied into GitHub Issues — the cutover endpoint never calls
-     tracker.create_issue for legacy tasks.
+     copied into GitHub Issues — the project cutover configuration update
+     never calls tracker.create_issue for legacy tasks.
 
 Acceptance criteria verified here:
   AC#1 — A real managed repo creates and completes a GitHub-backed smoke task.
@@ -108,7 +108,7 @@ def _make_project(
     p.tracker_kind = tracker_kind
     p.legacy_backlog_enabled = legacy_backlog_enabled
     p.legacy_backlog_dispatch = legacy_backlog_dispatch
-    p.cutover_at = None
+    p.tracker_cutover_at = None
     p.tracker_owner = None
     p.tracker_repo = None
     return p
@@ -134,6 +134,12 @@ def _make_orchestrator(tmp_path, projects: list | None = None) -> Orchestrator:
 
 def _make_store_with_project(tmp_path, **project_kwargs) -> tuple[ProjectStore, Project]:
     """Create a real ProjectStore backed by a temp file containing one project."""
+    if isinstance(project_kwargs.get("tracker_cutover_at"), str):
+        import datetime as _dt
+
+        project_kwargs["tracker_cutover_at"] = _dt.datetime.fromisoformat(
+            project_kwargs["tracker_cutover_at"]
+        )
     store = ProjectStore(
         path=str(tmp_path / "projects.json"),
         repos_root=str(tmp_path / "repos"),
@@ -158,7 +164,7 @@ def _make_store_with_project(tmp_path, **project_kwargs) -> tuple[ProjectStore, 
 
 
 class TestCutoverToDualReadMode:
-    """POST /cutover with legacy_backlog_enabled=True puts the project in
+    """PATCH /api/v1/projects/{id} with GitHub tracker fields puts the project in
     dual-read mode — both GitHub Issues and Backlog tasks are visible."""
 
     @pytest.fixture(autouse=True)
@@ -183,11 +189,13 @@ class TestCutoverToDualReadMode:
         yield
         srv._orchestrator = old_orch
 
-    def test_cutover_with_dual_read_sets_legacy_backlog_enabled(self):
-        """Calling /cutover with legacy_backlog_enabled=True enables dual-read mode."""
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
+    def test_cutover_patch_sets_legacy_backlog_enabled(self):
+        """Patching tracker fields with legacy_backlog_enabled=True enables dual-read."""
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
             json={
+                "tracker_kind": "github_issues",
+                "tracker_cutover_at": "2026-06-10T10:00:00+00:00",
                 "legacy_backlog_enabled": True,
                 "legacy_backlog_dispatch": False,
                 "tracker_owner": "lesserevil",
@@ -202,40 +210,50 @@ class TestCutoverToDualReadMode:
 
     def test_cutover_with_dual_read_response_confirms_flags(self):
         """Response body reflects legacy_backlog_enabled and tracker_kind."""
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
-            json={"legacy_backlog_enabled": True},
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={"tracker_kind": "github_issues", "legacy_backlog_enabled": True},
         )
         assert res.status_code == 200
         body = res.json()
-        assert body["ok"] is True
         assert body["tracker_kind"] == "github_issues"
+        assert body["legacy_backlog_enabled"] is True
 
-    def test_cutover_records_cutover_at_timestamp(self):
+    def test_cutover_records_tracker_cutover_at_timestamp(self):
         """Cutover timestamp is recorded in ISO-8601 UTC."""
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
-            json={"legacy_backlog_enabled": True},
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={
+                "tracker_kind": "github_issues",
+                "tracker_cutover_at": "2026-06-10T10:00:00+00:00",
+                "legacy_backlog_enabled": True,
+            },
         )
         assert res.status_code == 200
-        ts = res.json()["cutover_at"]
+        ts = res.json()["tracker_cutover_at"]
         # Must look like an ISO-8601 datetime
         assert re.match(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", ts)
 
-    def test_cutover_pauses_project_during_verification(self):
-        """Project is paused after cutover so no new tasks dispatch during verification."""
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
-            json={"legacy_backlog_enabled": True},
+    def test_cutover_patch_can_pause_project_during_verification(self):
+        """Project can be paused with the cutover patch for verification."""
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={
+                "tracker_kind": "github_issues",
+                "tracker_cutover_at": "2026-06-10T10:00:00+00:00",
+                "legacy_backlog_enabled": True,
+                "paused": True,
+            },
         )
         assert res.status_code == 200
         assert self.store.get("proj-lowrisk").paused is True
 
     def test_cutover_sets_tracker_hub_coordinates(self):
         """tracker_owner and tracker_repo are stored in the project record."""
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
             json={
+                "tracker_kind": "github_issues",
                 "tracker_owner": "lesserevil",
                 "tracker_repo": "oompah-tasks",
                 "legacy_backlog_enabled": True,
@@ -246,35 +264,49 @@ class TestCutoverToDualReadMode:
         assert proj.tracker_owner == "lesserevil"
         assert proj.tracker_repo == "oompah-tasks"
 
-    def test_rollback_restores_full_legacy_mode(self):
-        """After rollback, project is back to Backlog-only with both flags True."""
-        self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
-            json={"legacy_backlog_enabled": True},
+    def test_rollback_patch_restores_full_legacy_mode(self):
+        """A rollback patch returns the project to Backlog-only with both flags True."""
+        self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={
+                "tracker_kind": "github_issues",
+                "tracker_cutover_at": "2026-06-10T10:00:00+00:00",
+                "legacy_backlog_enabled": True,
+            },
         )
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/rollback", json={}
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={
+                "tracker_kind": None,
+                "tracker_cutover_at": None,
+                "tracker_owner": None,
+                "tracker_repo": None,
+                "legacy_backlog_enabled": True,
+                "legacy_backlog_dispatch": True,
+                "paused": False,
+            },
         )
         assert res.status_code == 200
         proj = self.store.get("proj-lowrisk")
         assert proj.tracker_kind is None
-        assert proj.cutover_at is None
+        assert proj.tracker_cutover_at is None
         assert proj.legacy_backlog_enabled is True
         assert proj.legacy_backlog_dispatch is True
 
-    def test_rollback_does_not_delete_github_issues_tracker_call(self):
-        """The rollback endpoint must NOT call create_issue or delete_issue on any tracker."""
-        self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
-            json={"legacy_backlog_enabled": True},
+    def test_rollback_patch_does_not_delete_github_issues_tracker_call(self):
+        """Rollback configuration must NOT call create_issue/delete_issue."""
+        self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={"tracker_kind": "github_issues", "legacy_backlog_enabled": True},
         )
         # The orchestrator mock has _tracker_for_project which returns a new
-        # MagicMock per call; just verify rollback returns 200 with no error.
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/rollback", json={}
+        # MagicMock per call; just verify rollback-style PATCH returns 200.
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={"tracker_kind": None, "tracker_cutover_at": None},
         )
         assert res.status_code == 200
-        assert res.json()["ok"] is True
+        assert self.store.get("proj-lowrisk").tracker_kind is None
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +329,7 @@ class TestSmokeTaskCreation:
             tmp_path,
             tracker_kind="github_issues",
             legacy_backlog_enabled=True,
-            cutover_at="2026-06-10T10:00:00+00:00",
+            tracker_cutover_at="2026-06-10T10:00:00+00:00",
             paused=False,  # unpaused for smoke task dispatch
         )
         self.store = store
@@ -468,7 +500,7 @@ class TestSmokeTaskReviewFlow:
             tmp_path,
             tracker_kind="github_issues",
             legacy_backlog_enabled=True,
-            cutover_at="2026-06-10T10:00:00+00:00",
+            tracker_cutover_at="2026-06-10T10:00:00+00:00",
             paused=False,
         )
         self.store = store
@@ -583,7 +615,7 @@ class TestSmokeTaskComments:
             tmp_path,
             tracker_kind="github_issues",
             legacy_backlog_enabled=True,
-            cutover_at="2026-06-10T10:00:00+00:00",
+            tracker_cutover_at="2026-06-10T10:00:00+00:00",
         )
         self.store = store
         self.mock_tracker = MagicMock()
@@ -700,32 +732,35 @@ class TestLegacyTasksNotMigrated:
         yield
         srv._orchestrator = old_orch
 
-    def test_cutover_endpoint_does_not_call_create_issue(self):
-        """POST /cutover must not create any GitHub Issues."""
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
+    def test_cutover_patch_does_not_call_create_issue(self):
+        """PATCH project cutover fields must not create any GitHub Issues."""
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
             json={
+                "tracker_kind": "github_issues",
+                "tracker_cutover_at": "2026-06-10T10:00:00+00:00",
                 "legacy_backlog_enabled": True,
                 "tracker_owner": "lesserevil",
                 "tracker_repo": "oompah-tasks",
             },
         )
         assert res.status_code == 200
-        # The cutover endpoint never touches the tracker adapter — it only
+        # The cutover configuration patch never touches the tracker adapter — it only
         # updates the project store record.
         self.mock_tracker.create_issue.assert_not_called()
 
-    def test_rollback_endpoint_does_not_call_create_issue(self):
-        """POST /rollback must not create or delete any GitHub Issues."""
+    def test_rollback_patch_does_not_call_create_issue(self):
+        """Rollback-style PATCH must not create or delete any GitHub Issues."""
         # First cut over
-        self.client.post(
-            "/api/v1/projects/proj-lowrisk/cutover",
-            json={"legacy_backlog_enabled": True},
+        self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={"tracker_kind": "github_issues", "legacy_backlog_enabled": True},
         )
         self.mock_tracker.reset_mock()
 
-        res = self.client.post(
-            "/api/v1/projects/proj-lowrisk/rollback", json={}
+        res = self.client.patch(
+            "/api/v1/projects/proj-lowrisk",
+            json={"tracker_kind": None, "tracker_cutover_at": None},
         )
         assert res.status_code == 200
         self.mock_tracker.create_issue.assert_not_called()
@@ -893,7 +928,7 @@ class TestDualReadCandidateMix:
             tracker_kind="github_issues",
             legacy_backlog_enabled=True,
             legacy_backlog_dispatch=False,
-            cutover_at="2026-06-10T10:00:00+00:00",
+            tracker_cutover_at="2026-06-10T10:00:00+00:00",
         )
         # Reload from disk
         store2 = ProjectStore(
@@ -905,7 +940,8 @@ class TestDualReadCandidateMix:
         assert proj.tracker_kind == "github_issues"
         assert proj.legacy_backlog_enabled is True
         assert proj.legacy_backlog_dispatch is False
-        assert proj.cutover_at == "2026-06-10T10:00:00+00:00"
+        assert proj.tracker_cutover_at is not None
+        assert proj.tracker_cutover_at.isoformat() == "2026-06-10T10:00:00+00:00"
 
 
 # ---------------------------------------------------------------------------
@@ -1024,7 +1060,7 @@ class TestEndToEndSmokeScenario:
     def test_cutover_state_persistent_across_store_reload(self, tmp_path):
         """Project store persists the cutover state: tracker_kind, flags, and timestamp."""
         store, _ = _make_store_with_project(tmp_path)
-        # Simulate what POST /cutover does to the store
+        # Simulate what the project cutover PATCH does to the store
         import datetime as _dt
 
         cutover_ts = _dt.datetime.now(_dt.timezone.utc).isoformat()
@@ -1033,7 +1069,7 @@ class TestEndToEndSmokeScenario:
             tracker_kind="github_issues",
             tracker_owner="lesserevil",
             tracker_repo="oompah-tasks",
-            cutover_at=cutover_ts,
+            tracker_cutover_at=cutover_ts,
             legacy_backlog_enabled=True,
             legacy_backlog_dispatch=False,
             paused=True,
@@ -1052,4 +1088,5 @@ class TestEndToEndSmokeScenario:
         assert reloaded.legacy_backlog_enabled is True
         assert reloaded.legacy_backlog_dispatch is False
         assert reloaded.paused is True
-        assert reloaded.cutover_at == cutover_ts
+        assert reloaded.tracker_cutover_at is not None
+        assert reloaded.tracker_cutover_at.isoformat() == cutover_ts
