@@ -159,7 +159,9 @@ class TestConcurrentWorktreeOperationsAreSerialized:
         call_order: list[str] = []
         barrier = threading.Barrier(2)
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             """Simulate slow git work inside the locked region."""
             call_order.append(f"start:{issue_id}")
             time.sleep(0.05)  # simulate git I/O
@@ -229,7 +231,9 @@ class TestConcurrentWorktreeOperationsAreSerialized:
 
         call_order: list[str] = []
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             call_order.append("start:create")
             time.sleep(0.05)
             call_order.append("end:create")
@@ -270,7 +274,9 @@ class TestDifferentProjectsAreIndependent:
         started_at: dict[str, float] = {}
         finished_at: dict[str, float] = {}
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             started_at[project_id] = time.monotonic()
             time.sleep(0.1)  # simulate slow git I/O
             finished_at[project_id] = time.monotonic()
@@ -453,7 +459,9 @@ class TestEpicWorktreeLocking:
 
         call_order: list[str] = []
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             call_order.append("start:regular")
             time.sleep(0.05)
             call_order.append("end:regular")
@@ -702,7 +710,9 @@ class TestConcurrentMaintenanceAndDispatch:
 
         call_order: list[str] = []
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             call_order.append("create:start")
             time.sleep(0.08)
             call_order.append("create:end")
@@ -750,7 +760,9 @@ class TestConcurrentMaintenanceAndDispatch:
             time.sleep(0.1)
             finished_at["remove"] = time.monotonic()
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             started_at["create"] = time.monotonic()
             time.sleep(0.1)
             finished_at["create"] = time.monotonic()
@@ -792,7 +804,9 @@ class TestConcurrentMaintenanceAndDispatch:
         current_concurrent = [0]
         counter_lock = threading.Lock()
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             with counter_lock:
                 current_concurrent[0] += 1
                 if current_concurrent[0] > MAX_CONCURRENT[0]:
@@ -833,7 +847,9 @@ class TestLockReleasedOnError:
 
         call_count = [0]
 
-        def mock_create_locked(project_id, issue_id, base_branch=None):
+        def mock_create_locked(
+            project_id, issue_id, base_branch=None, branch_name=None
+        ):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise ProjectError("git clone failed: test")

@@ -247,6 +247,33 @@ class ErrorWatcher:
             logging.getLogger(logger_name).removeHandler(self._handler)
             self._handler = None
 
+    def _tracker_identity(self) -> tuple[str, str | None, str | None]:
+        """Return ``(kind, owner, repo)`` for the underlying tracker backend."""
+        if isinstance(self._tracker, BacklogMdTracker):
+            return ("backlog", None, None)
+        owner = getattr(self._tracker, "owner", None)
+        repo = getattr(self._tracker, "repo", None)
+        if owner and repo:
+            return ("github_issues", str(owner), str(repo))
+        return (type(self._tracker).__name__.lower(), None, None)
+
+    def _tracker_label(self) -> str:
+        """Return a human-readable identifier for the underlying tracker backend.
+
+        Uses duck-typing to detect GitHub Issues (owner/repo attributes
+        present) or Backlog.md (``BacklogMdTracker`` instance); falls back
+        to the class name for unrecognised adapters.
+
+        Avoids importing ``github_tracker`` directly to prevent circular
+        dependencies; the duck-type check is sufficient and forward-
+        compatible with future third-party adapters that expose the same
+        ``owner``/``repo`` interface.
+        """
+        kind, owner, repo = self._tracker_identity()
+        if kind == "github_issues" and owner and repo:
+            return f"github_issues:{owner}/{repo}"
+        return kind
+
     def report_error(
         self,
         source: str,
@@ -313,6 +340,31 @@ class ErrorWatcher:
                 f"Triggering message: {message}\n\n"
                 f"{description}"
             )
+
+        # Append structured metadata so operators (and future automation)
+        # can identify the origin, tracker backend, and dedup key without
+        # opening the source project.  This satisfies TASK-461.6 AC #1:
+        # auto-filed tasks include tracker identity, source project, and
+        # dedup metadata.
+        tracker_kind, tracker_owner, tracker_repo = self._tracker_identity()
+        meta_parts = [
+            "\n\n---",
+            "*Auto-filed by oompah error_watcher*",
+            f"- source_project: {self._project_id or 'global'}",
+            f"- tracker: {self._tracker_label()}",
+            f"- tracker_kind: {tracker_kind}",
+            f"- fingerprint: {fp}",
+            f"- dedup_fingerprint: {fp}",
+        ]
+        if tracker_owner:
+            meta_parts.append(f"- tracker_owner: {tracker_owner}")
+        if tracker_repo:
+            meta_parts.append(f"- tracker_repo: {tracker_repo}")
+        if issue_id:
+            meta_parts.append(f"- source_issue: {issue_id}")
+        if error_class:
+            meta_parts.append(f"- error_class: {error_class}")
+        description = description + "\n".join(meta_parts)
 
         try:
             issue = self._tracker.create_issue(
@@ -423,6 +475,13 @@ class ErrorWatcher:
                 comment_body += f" Resolution: {resolution_link}"
             try:
                 # Post a comment first so the audit trail survives close.
+                # TASK-461.6 AC #2: the comment is posted to the bead's
+                # own tracker (self._tracker), which is the same backend
+                # that created the bead.  This guarantees that auto-close
+                # comments on error beads always route to the source-task
+                # backend, even when the triggering issue lives in a
+                # different tracker (e.g. a Backlog-backed source project
+                # whose error bead was filed in GitHub Issues).
                 try:
                     self._tracker.add_comment(bead_id, comment_body)
                 except Exception as exc:  # pragma: no cover - best effort

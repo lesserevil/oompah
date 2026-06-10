@@ -25,6 +25,7 @@ from oompah.focus import Focus
 from oompah.models import AgentProfile, Issue, ModelProvider, RetryEntry, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
+from oompah.tracker import BacklogMdTracker
 
 
 def _make_config() -> ServiceConfig:
@@ -3971,7 +3972,7 @@ Test issue body.
         orch.state.reopen_counts[issue.id] = 2
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
-        tracker = MagicMock()
+        tracker = MagicMock(spec=BacklogMdTracker)
         tracker.fetch_issue_detail.return_value = issue
         tracker.mark_needs_human = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
@@ -4008,7 +4009,7 @@ Test issue body.
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
         orch._post_comment = MagicMock()
-        tracker = MagicMock()
+        tracker = MagicMock(spec=BacklogMdTracker)
         tracker.fetch_issue_detail.return_value = issue
         tracker.mark_needs_human = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
@@ -4064,7 +4065,7 @@ Test issue body.
         orch.state.reopen_counts[issue.id] = 2
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
-        tracker = MagicMock()
+        tracker = MagicMock(spec=BacklogMdTracker)
         tracker.fetch_issue_detail.return_value = issue
         tracker.mark_needs_human = MagicMock()
         orch._tracker_for_project = MagicMock(return_value=tracker)
@@ -4113,7 +4114,7 @@ Test issue body.
         orch.state.reopen_counts[issue.id] = 2
         orch._fire_task_cost_record = MagicMock()
         orch._fire_telemetry_comment = MagicMock()
-        tracker = MagicMock()
+        tracker = MagicMock(spec=BacklogMdTracker)
         tracker.fetch_issue_detail.return_value = issue
         orch._tracker_for_project = MagicMock(return_value=tracker)
         orch._run_close_gate = MagicMock(return_value=True)

@@ -22,6 +22,7 @@ from oompah.projects import (
     _repo_name_from_url,
     _resolve_ref_namespace_conflict,
     _sanitize_identifier,
+    github_work_branch_name,
 )
 
 
@@ -582,3 +583,121 @@ class TestReadTaskStatusInEpicWorktree:
         assert store.read_task_status_in_epic_worktree(
             "proj-sync1", "TASK-706", "TASK-999"
         ) is None
+
+
+class TestGithubWorkBranchName:
+    """Tests for :func:`github_work_branch_name` (TASK-461.3 AC#1)."""
+
+    def test_simple_project_and_number(self):
+        assert github_work_branch_name("trickle", 1234) == "oompah/trickle/gh-1234"
+
+    def test_number_as_string(self):
+        assert github_work_branch_name("trickle", "42") == "oompah/trickle/gh-42"
+
+    def test_project_name_is_sanitized(self):
+        # Slashes and spaces in the project name are replaced with underscores
+        assert github_work_branch_name("my project", 7) == "oompah/my_project/gh-7"
+
+    def test_project_name_with_hyphens_preserved(self):
+        assert github_work_branch_name("oompah-tasks", 99) == "oompah/oompah-tasks/gh-99"
+
+    def test_result_has_gh_prefix(self):
+        name = github_work_branch_name("myproject", 5)
+        assert name.startswith("oompah/myproject/gh-")
+
+    def test_does_not_use_bare_number(self):
+        # AC#1: branch names must never rely on bare task numbers
+        name = github_work_branch_name("myproject", 1234)
+        assert name != "1234"
+        assert name != "gh-1234"
+        assert "oompah/" in name
+
+
+class TestCreateWorktreeWithExplicitBranchName:
+    """create_worktree() must accept and use a caller-supplied branch_name
+    (TASK-461.3: GitHub-safe branch names instead of sanitized identifiers)."""
+
+    def _store_and_project(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        store = _store(tmp_path)
+        project = Project(
+            id="proj-ghwt",
+            name="ghproj",
+            repo_url="https://example.com/ghproj.git",
+            repo_path=str(repo),
+            branch="main",
+            default_branch="main",
+        )
+        store._projects[project.id] = project
+        return store, project
+
+    def test_explicit_branch_name_passed_to_git(self, tmp_path):
+        """When branch_name is supplied, git worktree add should use it."""
+        store, project = self._store_and_project(tmp_path)
+        wt_path = store.worktree_path_for(project.id, "owner/repo#1234")
+        branch_used = {}
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "add"]:
+                # Record the -b <name> argument
+                try:
+                    b_idx = args.index("-b")
+                    branch_used["name"] = args[b_idx + 1]
+                except ValueError:
+                    pass
+                os.makedirs(wt_path, exist_ok=True)
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        work_branch = github_work_branch_name("ghproj", 1234)
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            store.create_worktree(
+                project.id,
+                "owner/repo#1234",
+                branch_name=work_branch,
+            )
+
+        assert branch_used.get("name") == work_branch
+
+    def test_default_falls_back_to_sanitized_identifier(self, tmp_path):
+        """When branch_name is omitted, the sanitized identifier is used."""
+        store, project = self._store_and_project(tmp_path)
+        identifier = "TASK-789"
+        wt_path = store.worktree_path_for(project.id, identifier)
+        branch_used = {}
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "worktree", "add"]:
+                try:
+                    b_idx = args.index("-b")
+                    branch_used["name"] = args[b_idx + 1]
+                except ValueError:
+                    pass
+                os.makedirs(wt_path, exist_ok=True)
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            store.create_worktree(project.id, identifier)
+
+        assert branch_used.get("name") == "TASK-789"
+
+    def test_worktree_path_uses_sanitized_identifier_not_branch_name(self, tmp_path):
+        """The worktree directory path is always derived from issue_identifier,
+        not from the optional branch_name — so the path stays stable regardless
+        of what branch name the caller supplies."""
+        store, project = self._store_and_project(tmp_path)
+        wt_path = store.worktree_path_for(project.id, "owner/repo#1234")
+
+        def fake_run(args, **kwargs):
+            os.makedirs(wt_path, exist_ok=True)
+            return MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch("oompah.projects.subprocess.run", side_effect=fake_run):
+            result = store.create_worktree(
+                project.id,
+                "owner/repo#1234",
+                branch_name="oompah/ghproj/gh-1234",
+            )
+
+        assert result == wt_path

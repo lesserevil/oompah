@@ -1201,6 +1201,194 @@ class TestProjectLogWatcherManager:
 
 
 # ---------------------------------------------------------------------------
+# Tests for tracker identity and auto-filed task metadata (TASK-461.6)
+# ---------------------------------------------------------------------------
+
+
+class TestTrackerLabel:
+    """Tests for ErrorWatcher._tracker_label() tracker identity extraction."""
+
+    def _make_watcher(self, tracker, project_id=None):
+        return ErrorWatcher(tracker, project_id=project_id)
+
+    def test_backlog_tracker_label(self):
+        """BacklogMdTracker is identified as 'backlog'."""
+        tracker = MagicMock(spec=BacklogMdTracker)
+        # spec=BacklogMdTracker makes isinstance(..., BacklogMdTracker) return True
+        watcher = self._make_watcher(tracker)
+        assert watcher._tracker_label() == "backlog"
+
+    def test_github_tracker_label(self):
+        """Trackers with owner/repo attributes are labelled as github_issues."""
+        tracker = MagicMock()
+        tracker.owner = "acme-org"
+        tracker.repo = "task-hub"
+        watcher = self._make_watcher(tracker)
+        assert watcher._tracker_label() == "github_issues:acme-org/task-hub"
+
+    def test_unknown_tracker_falls_back_to_class_name(self):
+        """Unrecognised trackers fall back to the lower-cased class name."""
+        class MyCustomTracker:
+            pass
+        tracker = MyCustomTracker()
+        watcher = self._make_watcher(tracker)
+        assert watcher._tracker_label() == "mycustomtracker"
+
+    def test_tracker_with_only_owner_no_repo_falls_back(self):
+        """A tracker with only owner (no repo) is not identified as GitHub."""
+        tracker = MagicMock()
+        tracker.owner = "acme-org"
+        del tracker.repo  # ensure getattr returns None-like absence
+        tracker.configure_mock(**{"repo": None})
+        watcher = self._make_watcher(tracker)
+        # Should NOT return github_issues:... because repo is None
+        label = watcher._tracker_label()
+        assert not label.startswith("github_issues:")
+
+
+class TestAutoFiledTaskMetadata:
+    """Auto-filed error beads include tracker identity, source project, fingerprint."""
+
+    def _make_watcher(self, project_id=None, owner=None, repo=None):
+        tracker = MagicMock()
+        issue = MagicMock()
+        issue.identifier = "bead-001"
+        tracker.create_issue.return_value = issue
+        if owner and repo:
+            tracker.owner = owner
+            tracker.repo = repo
+        else:
+            # Make it look like BacklogMdTracker for the label check
+            tracker.__class__ = BacklogMdTracker
+        watcher = ErrorWatcher(tracker, project_id=project_id)
+        return watcher, tracker
+
+    def _get_description(self, tracker):
+        """Extract the description kwarg from the last create_issue call."""
+        call_kwargs = tracker.create_issue.call_args
+        return call_kwargs.kwargs.get("description", "") or str(call_kwargs)
+
+    def test_description_includes_source_project(self):
+        """Error bead description includes source_project from watcher's project_id."""
+        watcher, tracker = self._make_watcher(project_id="proj-abc")
+        watcher.report_error("test", "something broke")
+        desc = self._get_description(tracker)
+        assert "source_project: proj-abc" in desc
+
+    def test_description_global_when_no_project_id(self):
+        """When project_id is None, description shows 'global'."""
+        watcher, tracker = self._make_watcher(project_id=None)
+        watcher.report_error("test", "something broke")
+        desc = self._get_description(tracker)
+        assert "source_project: global" in desc
+
+    def test_description_includes_tracker_label_backlog(self):
+        """Error bead description includes backlog tracker label."""
+        watcher, tracker = self._make_watcher()
+        watcher.report_error("test", "something broke")
+        desc = self._get_description(tracker)
+        assert "tracker: backlog" in desc
+        assert "tracker_kind: backlog" in desc
+
+    def test_description_includes_tracker_label_github(self):
+        """Error bead description includes github_issues tracker label with hub."""
+        watcher, tracker = self._make_watcher(
+            project_id="proj-gh", owner="my-org", repo="tasks"
+        )
+        watcher.report_error("test", "something broke")
+        desc = self._get_description(tracker)
+        assert "tracker: github_issues:my-org/tasks" in desc
+        assert "tracker_kind: github_issues" in desc
+        assert "tracker_owner: my-org" in desc
+        assert "tracker_repo: tasks" in desc
+
+    def test_description_includes_fingerprint(self):
+        """Error bead description includes the dedup fingerprint."""
+        watcher, tracker = self._make_watcher(project_id="proj-fp")
+        watcher.report_error("test", "fingerprint test error")
+        desc = self._get_description(tracker)
+        assert "fingerprint: " in desc
+        assert "dedup_fingerprint: " in desc
+        # Fingerprint is a 16-char hex string
+        import re
+        assert re.search(r"fingerprint: [0-9a-f]{16}", desc)
+        assert re.search(r"dedup_fingerprint: [0-9a-f]{16}", desc)
+
+    def test_description_includes_source_issue_when_given(self):
+        """Error bead description includes source_issue when available."""
+        watcher, tracker = self._make_watcher(project_id="proj-src")
+        watcher.report_error("test", "issue scoped error", issue_id="repo#123")
+        desc = self._get_description(tracker)
+        assert "source_issue: repo#123" in desc
+
+    def test_description_omits_source_issue_when_not_given(self):
+        """Error bead description omits source_issue when no issue id exists."""
+        watcher, tracker = self._make_watcher(project_id="proj-src")
+        watcher.report_error("test", "global error")
+        desc = self._get_description(tracker)
+        assert "source_issue:" not in desc
+
+    def test_description_includes_error_class_when_given(self):
+        """Error bead description includes error_class when one is supplied."""
+        watcher, tracker = self._make_watcher(project_id="proj-ec")
+        watcher.report_error("test", "db timeout", error_class="bd_timeout")
+        desc = self._get_description(tracker)
+        assert "error_class: bd_timeout" in desc
+
+    def test_description_omits_error_class_when_not_given(self):
+        """Error bead description omits error_class line when not supplied."""
+        watcher, tracker = self._make_watcher(project_id="proj-ec")
+        watcher.report_error("test", "no class error")
+        desc = self._get_description(tracker)
+        assert "error_class:" not in desc
+
+    def test_metadata_footer_present(self):
+        """Error bead description ends with the standard oompah footer."""
+        watcher, tracker = self._make_watcher(project_id="proj-meta")
+        watcher.report_error("test", "meta test")
+        desc = self._get_description(tracker)
+        assert "*Auto-filed by oompah error_watcher*" in desc
+
+
+class TestAutoCloseUsesBeadTracker:
+    """AC #2: auto_close_for_issue routes comments to the bead's own tracker backend.
+
+    The error bead and the source task may live in different tracker backends
+    (e.g. a Backlog-backed source project whose error bead was filed in GitHub
+    Issues).  ``auto_close_for_issue`` must always add comments / close
+    issues via ``self._tracker`` - the tracker that CREATED the bead - not
+    via any external tracker reference.
+    """
+
+    def test_auto_close_comment_uses_bead_tracker(self):
+        """add_comment is called on the bead's own tracker, not another one."""
+        bead_tracker = MagicMock()
+        bead_issue = MagicMock()
+        bead_issue.identifier = "bead-auto-001"
+        bead_tracker.create_issue.return_value = bead_issue
+
+        source_tracker = MagicMock()  # a *different* tracker for the source task
+
+        watcher = ErrorWatcher(bead_tracker, project_id="proj-x")
+        with patch("oompah.error_watcher.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            watcher.report_error("test", "auto-close test", issue_id="src-issue-1")
+
+            # Advance time past the quiet window so auto-close is allowed.
+            mock_time.return_value = 120.0
+            closed = watcher.auto_close_for_issue(
+                "src-issue-1", issue_identifier="src-001"
+            )
+
+        assert closed == ["bead-auto-001"]
+        # Comments must go to the bead tracker, NOT to source_tracker.
+        bead_tracker.add_comment.assert_called_once()
+        source_tracker.add_comment.assert_not_called()
+        bead_tracker.close_issue.assert_called_once()
+        source_tracker.close_issue.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Tests for Project model log_path field
 # ---------------------------------------------------------------------------
 

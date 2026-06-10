@@ -2315,28 +2315,35 @@ def _github_issues_factory(
     active_states: list[str],
     terminal_states: list[str],
     cwd: str | None = None,
+    owner: str | None = None,
+    repo: str | None = None,
     **kwargs: Any,
 ) -> GitHubIssueTracker:
     """Factory function registered in :data:`~oompah.tracker.ADAPTER_REGISTRY`.
 
-    Reads configuration from environment variables:
+    Resolves the task hub owner and repository from (in order of precedence):
 
-    - ``OOMPAH_GITHUB_TRACKER_OWNER`` — repository owner (required).
-    - ``OOMPAH_GITHUB_TRACKER_REPO`` — repository name (required).
+    1. The ``owner`` / ``repo`` keyword arguments — supplied when the
+       orchestrator constructs a per-project tracker from
+       :attr:`~oompah.models.Project.tracker_owner` and
+       :attr:`~oompah.models.Project.tracker_repo`.
+    2. The ``OOMPAH_GITHUB_TRACKER_OWNER`` / ``OOMPAH_GITHUB_TRACKER_REPO``
+       environment variables — used for the global default tracker and for
+       projects that have not been given explicit per-project fields.
 
-    Raises :class:`~oompah.tracker.TrackerError` when the required env
-    vars are missing.
+    Raises :class:`~oompah.tracker.TrackerError` when neither source
+    provides the required owner and repository values.
     """
-    owner = os.environ.get("OOMPAH_GITHUB_TRACKER_OWNER", "")
-    repo = os.environ.get("OOMPAH_GITHUB_TRACKER_REPO", "")
-    if not owner or not repo:
+    resolved_owner: str = owner or os.environ.get("OOMPAH_GITHUB_TRACKER_OWNER", "")
+    resolved_repo: str = repo or os.environ.get("OOMPAH_GITHUB_TRACKER_REPO", "")
+    if not resolved_owner or not resolved_repo:
         raise TrackerError(
             "GitHub Issues tracker requires OOMPAH_GITHUB_TRACKER_OWNER and "
             "OOMPAH_GITHUB_TRACKER_REPO environment variables."
         )
     return GitHubIssueTracker(
-        owner=owner,
-        repo=repo,
+        owner=resolved_owner,
+        repo=resolved_repo,
         active_states=active_states,
         terminal_states=terminal_states,
         cwd=cwd,

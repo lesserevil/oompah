@@ -10,6 +10,7 @@ import re
 import subprocess
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -70,7 +71,7 @@ from oompah.focus import (
     select_focus_async,
 )
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
-from oompah.projects import ProjectError, ProjectStore
+from oompah.projects import ProjectError, ProjectStore, github_work_branch_name
 from oompah.providers import ProviderStore
 from oompah.roles import CandidateSelector, RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
@@ -1375,14 +1376,74 @@ class Orchestrator:
             cwd=cwd,
         )
 
+    def _new_tracker_for_project(self, project: "Project") -> TrackerProtocol:
+        """Construct a tracker adapter scoped to a specific project.
+
+        Resolves the tracker backend using the project's own ``tracker_kind``
+        field when set, falling back to the global service ``tracker_kind``
+        when the project has no explicit configuration (preserves legacy
+        Backlog.md behaviour for existing projects).
+
+        For ``github_issues`` projects the factory receives the project's
+        ``tracker_owner`` and ``tracker_repo`` so each project targets its
+        own GitHub task hub rather than reading env vars.
+
+        Raises :class:`TrackerError` when the resolved kind is not registered.
+        """
+        # Prefer the project-level kind when it is an explicit non-empty string;
+        # fall back to the global service kind for projects that have not been
+        # configured (tracker_kind is None or has not been set at all).
+        _project_kind = project.tracker_kind
+        kind: str = (
+            _project_kind
+            if isinstance(_project_kind, str) and _project_kind
+            else self.config.tracker_kind
+        )
+        factory = ADAPTER_REGISTRY.get(kind)
+        if factory is None:
+            registered = sorted(ADAPTER_REGISTRY)
+            raise TrackerError(
+                f"Unsupported tracker.kind {kind!r} for project {project.id!r}."
+                f" Registered adapters: {registered}"
+            )
+        # For GitHub-backed projects pass the project-specific owner/repo so
+        # the adapter targets the correct task hub.  The factory accepts (and
+        # ignores) unknown kwargs for forward compatibility.
+        extra: dict[str, object] = {}
+        if kind == "github_issues":
+            if project.tracker_owner:
+                extra["owner"] = project.tracker_owner
+            if project.tracker_repo:
+                extra["repo"] = project.tracker_repo
+        return factory(
+            active_states=self.config.tracker_active_states,
+            terminal_states=self.config.tracker_terminal_states,
+            cwd=project.repo_path,
+            **extra,
+        )
+
     def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
-        """Get or create a tracker for a project."""
+        """Get or create the tracker for a project.
+
+        Returns the cached instance when available.  On first access the
+        project's ``tracker_kind`` is resolved: projects with an explicit
+        ``tracker_kind`` get the corresponding adapter (e.g.
+        ``GitHubIssueTracker`` for ``"github_issues"``); projects without
+        an explicit kind fall back to the global service ``tracker_kind``
+        (preserving legacy Backlog.md behaviour).
+
+        Acceptance criteria (TASK-461.1):
+        - AC #1: Returns ``BacklogMdTracker`` or ``GitHubIssueTracker``
+          depending on the project's configured backend.
+        - AC #2: Cache is project-scoped; ``_project_trackers`` is keyed
+          by ``project_id`` so each project has its own instance.
+        """
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
         project = self.project_store.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
-        tracker = self._new_tracker(cwd=project.repo_path)
+        tracker = self._new_tracker_for_project(project)
         self._project_trackers[project_id] = tracker
         return tracker
 
@@ -3755,10 +3816,39 @@ class Orchestrator:
                 self._sync_issue_task_file_to_workspace(issue, wp)
                 return wp, parent_epic
 
+        # For GitHub-backed tasks, generate a GitHub-safe branch name
+        # (oompah/<project-slug>/gh-<number>) and persist Work Branch +
+        # Target Branch metadata to the issue before creating the worktree
+        # so review reconciliation can resolve the task from a PR source
+        # branch without guessing by task ID (TASK-461.3, AC#1 and AC#2).
+        work_branch: str | None = None
+        if issue.tracker_kind == "github_issues" and issue.issue_number and issue.project_id:
+            project_obj = self.project_store.get(issue.project_id)
+            if project_obj is not None:
+                work_branch = github_work_branch_name(project_obj.name, issue.issue_number)
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    tracker.set_metadata_field(
+                        issue.identifier, "oompah.work_branch", work_branch
+                    )
+                    if issue.target_branch:
+                        tracker.set_metadata_field(
+                            issue.identifier,
+                            "oompah.target_branch",
+                            issue.target_branch,
+                        )
+                except Exception as _exc:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to persist branch metadata for %s: %s",
+                        issue.identifier,
+                        _exc,
+                    )
+
         wp = self.project_store.create_worktree(
             issue.project_id,
             issue.identifier,
             base_branch=issue.target_branch,
+            branch_name=work_branch,
         )
         self._sync_issue_task_file_to_workspace(issue, wp)
         return wp, None
@@ -11136,7 +11226,9 @@ class Orchestrator:
     def _write_task_cost_record(self, entry: RunningEntry) -> None:
         """Persist cost telemetry for a completed run into the issue's metadata.
 
-        Storage key: ``oompah.task_costs`` in Backlog task front matter.
+        Storage key: ``oompah.task_costs``, written via the tracker protocol
+        (``set_metadata_field``).  Works for both BacklogMd (front matter) and
+        GitHub-backed tasks (body metadata block).
         Multiple runs accumulate cumulatively — per-model entries are summed.
 
         This method is designed to be called from a background thread
@@ -11784,6 +11876,50 @@ class Orchestrator:
             )
             self.state.claimed.discard(issue.id)
             return
+
+        # GitHub claim-and-verify protocol (TASK-461.2).
+        # For GitHub-backed issues, stamp a unique run ID onto the issue
+        # metadata and re-read it immediately.  The last writer wins: if
+        # another oompah instance claimed the issue after us, our run ID
+        # will have been overwritten and we abort rather than starting a
+        # duplicate agent.  BacklogMd projects rely on the in-process
+        # dispatch lock and skip this protocol entirely.
+        if issue.tracker_kind == "github_issues":
+            _claim_run_id = str(uuid.uuid4())
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda rid=_claim_run_id: tracker.set_metadata_field(
+                        issue.identifier, "oompah.agent_run_id", rid
+                    ),
+                )
+                _claim_meta = await asyncio.get_event_loop().run_in_executor(
+                    self._tick_pool,
+                    lambda: tracker.get_metadata(issue.identifier),
+                )
+                _confirmed_run_id = _claim_meta.get("oompah.agent_run_id")
+                if _confirmed_run_id != _claim_run_id:
+                    logger.info(
+                        "GitHub claim race on %s: our run_id=%s observed=%s"
+                        " — aborting dispatch, another instance owns this task",
+                        issue.identifier,
+                        _claim_run_id,
+                        _confirmed_run_id,
+                    )
+                    self.state.claimed.discard(issue.id)
+                    return
+                logger.debug(
+                    "GitHub claim confirmed for %s run_id=%s",
+                    issue.identifier,
+                    _claim_run_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "GitHub run-id claim protocol failed for %s: %s"
+                    " — proceeding without claim verification",
+                    issue.identifier,
+                    exc,
+                )
 
         running_issue = replace(
             issue,
@@ -13620,22 +13756,22 @@ class Orchestrator:
         For API-backed trackers (e.g. GitHub Issues), task state is always
         centralised in the remote service and this function is a no-op.  Pass
         the active project tracker via ``tracker`` so the guard can fire early
-        without constructing a new adapter.
+        without constructing a new adapter.  For GitHub-backed tasks the caller
+        already has an authoritative state from ``fetch_issue_detail()`` on the
+        remote service — no workspace file read is needed or correct.
         """
         # Guard: only BacklogMdTracker stores task state as files in the worker
-        # worktree.  API-backed trackers update the central service directly, so
-        # their state is already fresh via the standard fetch_issue_detail call.
+        # worktree.  API-backed trackers (e.g. GitHub Issues) update the central
+        # service directly, so their state is already fresh via the standard
+        # fetch_issue_detail call.
         #
-        # Use the passed project tracker when it is a concrete BacklogMdTracker
-        # instance.  If it is a test double or a non-Backlog adapter, fall back
-        # to checking self.tracker (the global default) — all projects currently
-        # share the same tracker_kind since per-project tracker_kinds are not
-        # yet supported.  Revisit when TASK-461.1 adds per-project tracker
-        # resolution.
+        # Use the passed project tracker to determine the kind.  When no tracker
+        # is supplied fall back to self.tracker (legacy global path).  Per-project
+        # tracker resolution (TASK-461.1) is now in place, so the passed tracker
+        # is authoritative for this decision — no secondary fallback to self.tracker
+        # is needed or correct.
         check_tracker = tracker if tracker is not None else self.tracker
-        if not isinstance(check_tracker, BacklogMdTracker) and not isinstance(
-            self.tracker, BacklogMdTracker
-        ):
+        if not isinstance(check_tracker, BacklogMdTracker):
             return None
 
         workspace_path = (entry.workspace_path or "").strip()
@@ -15365,6 +15501,9 @@ Return ONLY a JSON object (no markdown fences, no commentary):
                 "issue_identifier": entry.identifier,
                 "project_id": entry.issue.project_id if entry.issue else None,
                 "state": entry.issue.state,
+                # AC #2 (TASK-461.2): include tracker identity so operators
+                # can see which backend owns each running task.
+                "tracker_kind": entry.issue.tracker_kind if entry.issue else None,
                 "started_at": entry.started_at.isoformat(),
                 "agent_profile": entry.agent_profile_name,
                 "focus_name": entry.focus_name,
