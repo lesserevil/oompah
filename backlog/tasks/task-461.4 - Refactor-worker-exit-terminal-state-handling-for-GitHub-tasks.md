@@ -1,10 +1,10 @@
 ---
 id: TASK-461.4
 title: Refactor worker-exit terminal state handling for GitHub tasks
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-10 01:48'
+updated_date: '2026-06-10 01:50'
 labels:
   - task
   - github-issues
@@ -77,4 +77,16 @@ created: 2026-06-10 01:48
 ---
 Verification: All 9 tests in TestGitHubBackedWorkerExit + TestVerifierDisabled + TestVerifierEnabled pass. Broader test suite: 623 tests passed (test_orchestrator_completion_verifier, test_orchestrator_merged, test_dispatch_close_race, test_github_tracker, test_backlog_tracker, test_tracker_protocol, test_mixed_tracker_regression, test_orchestrator_duplicate_detection). No regressions.
 ---
+
+author: oompah
+created: 2026-06-10 01:50
+---
+Completion: TASK-461.4 is NOT a duplicate. Landed a real bugfix: the double-condition guard in _fetch_terminal_issue_from_worker_workspace used 'and not isinstance(self.tracker, BacklogMdTracker)' which silently passed through for GitHub project tasks when the global tracker was still Backlog. Fixed to single-condition 'if not isinstance(check_tracker, BacklogMdTracker): return None'. AC #1 satisfied: GitHub-backed tasks never read workspace Backlog files. AC #2 satisfied: Backlog path unchanged. Fixed test_github_close_honored_using_fetch_issue_detail spy assertion bug (wraps= return_value vs actual return). 171 tests pass. Branch epic-TASK-461 pushed.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed double-condition guard bug in _fetch_terminal_issue_from_worker_workspace: changed 'not isinstance(check_tracker, BacklogMdTracker) AND not isinstance(self.tracker, BacklogMdTracker)' to single-condition 'not isinstance(check_tracker, BacklogMdTracker)'. The old guard silently allowed workspace Backlog file reads for GitHub project tasks when global self.tracker was still BacklogMdTracker. The new guard uses only the authoritative per-project tracker (TASK-461.1 is in place). AC #1 (GitHub tasks don't inspect Backlog worktree files) and AC #2 (Backlog terminal-state recognition intact) both satisfied. Also fixed a test assertion bug using wraps= spy. 171 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->

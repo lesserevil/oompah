@@ -12,6 +12,8 @@ Covers:
 * GitHub-backed tasks: terminal state is re-read from GitHub via
   fetch_issue_detail; no Backlog workspace files are consulted
   (TASK-461.4).
+* GitHub-backed tasks: verifier pass/fail flows update GitHub issue
+  comments and status via the tracker protocol (TASK-461.5).
 """
 
 from __future__ import annotations
@@ -421,3 +423,285 @@ class TestGitHubBackedWorkerExit:
 
         # Guard must fire; no Backlog workspace read should occur.
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# TASK-461.5: GitHub verifier pass/fail flows
+#
+# The completion verifier must route all writes (reopen, comment) through the
+# tracker protocol so GitHub-backed tasks receive GitHub API calls rather than
+# Backlog file mutations.  This class tests AC #1:
+#   "Verifier pass/fail flows update GitHub issue comments and status."
+# ---------------------------------------------------------------------------
+
+def _make_github_issue(
+    issue_id: str = "gh-100",
+    identifier: str = "owner/repo#100",
+    description: str = "",
+    project_id: str = "proj-gh",
+    tracker_kind: str = "github_issues",
+) -> Issue:
+    """Return a minimal GitHub-backed Issue."""
+    return Issue(
+        id=issue_id,
+        identifier=identifier,
+        title="GitHub issue",
+        description=description,
+        state="in_progress",
+        labels=[],
+        priority=2,
+        issue_type="task",
+        project_id=project_id,
+        tracker_kind=tracker_kind,
+    )
+
+
+def _closed_github_issue(identifier: str = "owner/repo#100", description: str = "") -> Issue:
+    """Return a closed GitHub-backed Issue — simulates fetch_issue_detail."""
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title="GitHub issue",
+        description=description,
+        state="closed",
+        labels=[],
+        priority=2,
+        issue_type="task",
+        tracker_kind="github_issues",
+    )
+
+
+class TestGitHubVerifierFlow:
+    """TASK-461.5: Verifier pass/fail flows must update GitHub issue comments
+    and status via the tracker protocol.
+
+    For GitHub-backed tasks the orchestrator uses _tracker_for_project() to
+    resolve the per-project GitHubIssueTracker.  All writes (reopen, comment)
+    must go through that tracker, not through the global self.tracker.
+
+    Acceptance criterion: AC #1 — "Verifier pass/fail flows update GitHub
+    issue comments and status."
+    """
+
+    def test_github_verifier_rejection_calls_reopen_via_tracker(
+        self, tmp_path, event_loop
+    ):
+        """When the verifier rejects a GitHub-backed close, the tracker
+        adapter's reopen_issue() is invoked — not a Backlog file write.
+
+        This exercises the path:
+          tracker.reopen_issue(entry.identifier)
+          self._post_comment(entry.identifier, ..., project_id=project_id)
+        where `tracker` is the project's GitHub tracker, not self.tracker.
+        """
+        orch = _make_orch(tmp_path, verify_completion=True)
+        issue = _make_github_issue(description=(
+            "# Acceptance criteria\n"
+            "- `oompah/new_feature.py` must exist.\n"
+        ))
+        entry = _make_running_entry(issue)
+        orch.state.running[issue.id] = entry
+
+        # GitHub-like mock tracker for the project
+        gh_tracker = MagicMock()
+        assert not isinstance(gh_tracker, BacklogMdTracker)
+        closed = _closed_github_issue(description=issue.description)
+        gh_tracker.fetch_issue_detail.return_value = closed
+
+        rejected = VerifierResult(
+            passed=False,
+            stage1=Stage1Result(
+                references=ExtractedReferences(),
+                missing_files=["oompah/new_feature.py"],
+            ),
+        )
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=gh_tracker),
+            patch.object(orch, "_run_completion_verifier", return_value=rejected),
+        ):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue.id, "normal", None)
+            )
+
+        # The GitHub tracker must be used to reopen the issue (not a Backlog write).
+        gh_tracker.reopen_issue.assert_called_once_with(issue.identifier)
+        # Reject count incremented.
+        assert orch._verifier_reject_counts[issue.id] == 1
+        # Not yet completed — retry is pending.
+        assert issue.id not in orch.state.completed
+        # A retry is scheduled for the next attempt.
+        assert issue.id in orch.state.retry_attempts
+
+    def test_github_verifier_rejection_posts_comment_via_tracker(
+        self, tmp_path, event_loop
+    ):
+        """After reopen, a diagnostic comment is posted via the GitHub tracker
+        (tracker.add_comment), not written to a Backlog file.
+        """
+        orch = _make_orch(tmp_path, verify_completion=True)
+        issue = _make_github_issue(description=(
+            "# Acceptance criteria\n"
+            "- `oompah/missing.py` must exist.\n"
+        ))
+        entry = _make_running_entry(issue)
+        orch.state.running[issue.id] = entry
+
+        gh_tracker = MagicMock()
+        assert not isinstance(gh_tracker, BacklogMdTracker)
+        closed = _closed_github_issue(description=issue.description)
+        gh_tracker.fetch_issue_detail.return_value = closed
+
+        rejected = VerifierResult(
+            passed=False,
+            stage1=Stage1Result(
+                references=ExtractedReferences(),
+                missing_files=["oompah/missing.py"],
+            ),
+        )
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=gh_tracker),
+            patch.object(orch, "_run_completion_verifier", return_value=rejected),
+        ):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue.id, "normal", None)
+            )
+
+        # reopen_issue called first, then add_comment with diagnostic.
+        gh_tracker.reopen_issue.assert_called_once_with(issue.identifier)
+        # add_comment must be called at least once (telemetry + diagnostic).
+        # The diagnostic comment about missing files should appear.
+        comment_texts = [
+            call.args[1] if call.args else call.kwargs.get("text", "")
+            for call in gh_tracker.add_comment.call_args_list
+        ]
+        assert any(
+            "oompah/missing.py" in text or "missing" in text.lower()
+            for text in comment_texts
+        ), (
+            f"No diagnostic comment about missing files posted; "
+            f"add_comment calls: {gh_tracker.add_comment.call_args_list!r}"
+        )
+
+    def test_github_verifier_pass_honors_close(self, tmp_path, event_loop):
+        """When the verifier passes for a GitHub-backed issue, the close is
+        honored — no reopen, task added to completed.
+        """
+        orch = _make_orch(tmp_path, verify_completion=True)
+        issue = _make_github_issue(description=(
+            "# Acceptance criteria\n"
+            "- `oompah/done.py` updated.\n"
+        ))
+        entry = _make_running_entry(issue)
+        orch.state.running[issue.id] = entry
+
+        gh_tracker = MagicMock()
+        assert not isinstance(gh_tracker, BacklogMdTracker)
+        closed = _closed_github_issue(description=issue.description)
+        gh_tracker.fetch_issue_detail.return_value = closed
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=gh_tracker),
+            patch.object(
+                orch, "_run_completion_verifier",
+                return_value=VerifierResult(passed=True),
+            ),
+        ):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue.id, "normal", None)
+            )
+
+        # Close is honored.
+        assert issue.id in orch.state.completed
+        gh_tracker.reopen_issue.assert_not_called()
+
+    def test_github_verifier_max_rejections_fails_open(self, tmp_path, event_loop):
+        """After the max rejection threshold, the close sticks even for a
+        GitHub-backed issue — fail-open so a buggy verifier can't lock the
+        task forever.
+        """
+        orch = _make_orch(tmp_path, verify_completion=True)
+        issue = _make_github_issue(description=(
+            "# Acceptance criteria\n"
+            "- `oompah/missing.py` must exist.\n"
+        ))
+        # Pre-seed: already at the ceiling (3 rejections).
+        orch._verifier_reject_counts[issue.id] = 3
+        entry = _make_running_entry(issue, retry_attempt=3)
+        orch.state.running[issue.id] = entry
+
+        gh_tracker = MagicMock()
+        assert not isinstance(gh_tracker, BacklogMdTracker)
+        closed = _closed_github_issue(description=issue.description)
+        gh_tracker.fetch_issue_detail.return_value = closed
+
+        rejected = VerifierResult(
+            passed=False,
+            stage1=Stage1Result(
+                references=ExtractedReferences(),
+                missing_files=["oompah/missing.py"],
+            ),
+        )
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=gh_tracker),
+            patch.object(orch, "_run_completion_verifier", return_value=rejected),
+        ):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue.id, "normal", None)
+            )
+
+        # Close stands (fail-open) — issue is completed.
+        assert issue.id in orch.state.completed
+        # No reopen on fail-open path.
+        gh_tracker.reopen_issue.assert_not_called()
+        # Reject count cleared after fail-open.
+        assert issue.id not in orch._verifier_reject_counts
+
+    def test_github_verifier_retry_uses_github_identifier(
+        self, tmp_path, event_loop
+    ):
+        """The retry scheduled after a GitHub verifier rejection must carry
+        the GitHub identifier (e.g. ``owner/repo#100``) so that a subsequent
+        manual close via the UI can find and cancel it.
+
+        This exercises the intersection of AC #1 (verifier) and AC #2 (races).
+        """
+        orch = _make_orch(tmp_path, verify_completion=True)
+        issue = _make_github_issue(
+            issue_id="gh-100",
+            identifier="owner/repo#100",
+            description=(
+                "# Acceptance criteria\n"
+                "- `oompah/widget.py` updated.\n"
+            ),
+        )
+        entry = _make_running_entry(issue)
+        orch.state.running[issue.id] = entry
+
+        gh_tracker = MagicMock()
+        assert not isinstance(gh_tracker, BacklogMdTracker)
+        closed = _closed_github_issue(description=issue.description)
+        gh_tracker.fetch_issue_detail.return_value = closed
+
+        rejected = VerifierResult(
+            passed=False,
+            stage1=Stage1Result(
+                references=ExtractedReferences(),
+                missing_files=["oompah/widget.py"],
+            ),
+        )
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=gh_tracker),
+            patch.object(orch, "_run_completion_verifier", return_value=rejected),
+        ):
+            event_loop.run_until_complete(
+                orch._on_worker_exit(issue.id, "normal", None)
+            )
+
+        # A retry must have been scheduled.
+        assert issue.id in orch.state.retry_attempts
+        retry_entry = orch.state.retry_attempts[issue.id]
+        # The retry identifier must be the GitHub identifier, not a numeric stub.
+        assert retry_entry.identifier == "owner/repo#100", (
+            f"Expected retry identifier 'owner/repo#100', "
+            f"got {retry_entry.identifier!r}"
+        )

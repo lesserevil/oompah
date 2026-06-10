@@ -8,6 +8,12 @@ Two bugs covered:
 2. The UI close handler terminated the running worker but didn't touch
    ``state.retry_attempts``. A retry timer scheduled before the close
    would fire later, fetch candidates, and re-dispatch.
+
+TASK-461.5 adds coverage for GitHub-backed tasks (AC #2):
+3. A GitHub issue with a pending retry (e.g. from a verifier rejection)
+   must have that retry cancelled when the issue is manually closed via UI.
+4. Dispatch for a GitHub issue that was closed between candidate fetch
+   and the dispatch write must abort.
 """
 
 from __future__ import annotations
@@ -497,3 +503,241 @@ class TestSnapshotIncludesTrackerKind:
         rows = {r["issue_id"]: r for r in snap["running"]}
         assert "i-abc" in rows
         assert rows["i-abc"]["tracker_kind"] is None
+
+
+# ---------------------------------------------------------------------------
+# TASK-461.5: GitHub retry and manual close race coverage (AC #2)
+#
+# "Retry and manual close races are covered for GitHub-backed tasks."
+#
+# Two scenarios tested:
+# 1. A GitHub-backed issue has a pending retry (e.g. verifier rejection).
+#    When the user manually closes via the UI, the retry timer must be
+#    cancelled so the issue cannot be re-dispatched.
+# 2. _dispatch for a GitHub-backed issue aborts when the issue was closed
+#    between the candidate fetch and the dispatch write (same as Backlog
+#    but must also work with GitHub identifiers like ``owner/repo#123``).
+# ---------------------------------------------------------------------------
+
+class TestGitHubManualCloseRace:
+    """GitHub-backed retry cancellation and dispatch abort on manual close.
+
+    AC #2: "Retry and manual close races are covered for GitHub-backed tasks."
+    """
+
+    def test_github_pending_retry_cancelled_on_manual_close(self, tmp_path):
+        """A GitHub-backed issue with a pending verifier-rejection retry has
+        that retry cancelled when the user manually closes the issue via UI.
+
+        The critical detail: the identifier stored in the RetryEntry is a
+        GitHub fully-qualified identifier (``owner/repo#42``).  The cancel
+        path uses ``retry.identifier == identifier`` to match — this test
+        verifies the string comparison works for GitHub identifiers.
+        """
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+        import oompah.server as srv
+
+        orch = _make_orchestrator(tmp_path)
+        gh_id = "owner/repo#42"
+        issue_id = "gh-789"
+
+        cancel_called = {"flag": False}
+
+        class FakeTimer:
+            def __init__(self):
+                self._cancelled = False
+            def cancelled(self):
+                return self._cancelled
+            def cancel(self):
+                self._cancelled = True
+                cancel_called["flag"] = True
+
+        # Seed a pending retry — as if verifier rejected the close and
+        # scheduled a re-attempt via _schedule_retry.
+        orch.state.retry_attempts[issue_id] = RetryEntry(
+            issue_id=issue_id,
+            identifier=gh_id,
+            attempt=1,
+            due_at_ms=0.0,
+            timer_handle=FakeTimer(),
+            error="completion_verifier_rejected",
+            project_id="proj-gh",
+        )
+        orch.state.claimed.add(issue_id)
+
+        mock_tracker = MagicMock()
+        with (
+            patch("oompah.server._get_tracker", return_value=mock_tracker),
+            patch.object(srv, "_orchestrator", orch),
+        ):
+            client = TestClient(app)
+            res = client.patch(
+                "/api/v1/issues/dummy",
+                json={
+                    "issue_key": gh_id,  # GitHub identifier via body field
+                    "status": "closed",
+                    "project_id": "proj-gh",
+                },
+            )
+        assert res.status_code == 200, res.text
+
+        # Retry must be cancelled.
+        assert cancel_called["flag"] is True, (
+            "Retry timer for GitHub-backed task was not cancelled on manual close"
+        )
+        assert issue_id not in orch.state.retry_attempts
+        assert issue_id not in orch.state.claimed
+        assert issue_id in orch.state.completed
+        # The GitHub tracker should have received close_issue.
+        mock_tracker.close_issue.assert_called_once_with(gh_id)
+
+    def test_github_pending_retry_cancelled_on_status_update_to_done(self, tmp_path):
+        """A non-close terminal status update (e.g. 'Done') on a GitHub task
+        must also cancel any pending retry — same as the close case.
+        """
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+        import oompah.server as srv
+
+        orch = _make_orchestrator(tmp_path)
+        gh_id = "owner/repo#55"
+        issue_id = "gh-055"
+
+        cancel_called = {"flag": False}
+
+        class FakeTimer:
+            def __init__(self):
+                self._cancelled = False
+            def cancelled(self):
+                return self._cancelled
+            def cancel(self):
+                self._cancelled = True
+                cancel_called["flag"] = True
+
+        orch.state.retry_attempts[issue_id] = RetryEntry(
+            issue_id=issue_id,
+            identifier=gh_id,
+            attempt=1,
+            due_at_ms=0.0,
+            timer_handle=FakeTimer(),
+            error="stalled",
+            project_id="proj-gh",
+        )
+        orch.state.claimed.add(issue_id)
+
+        mock_tracker = MagicMock()
+        with (
+            patch("oompah.server._get_tracker", return_value=mock_tracker),
+            patch.object(srv, "_orchestrator", orch),
+        ):
+            client = TestClient(app)
+            res = client.patch(
+                "/api/v1/issues/dummy",
+                json={
+                    "issue_key": gh_id,
+                    "status": "Done",  # terminal — not "closed" alias
+                    "project_id": "proj-gh",
+                },
+            )
+        assert res.status_code == 200, res.text
+
+        # Retry must be cancelled.
+        assert cancel_called["flag"] is True, (
+            "Retry timer was not cancelled when GitHub task moved to Done"
+        )
+        assert issue_id not in orch.state.retry_attempts
+        assert issue_id not in orch.state.claimed
+        # Done is terminal → completed set.
+        assert issue_id in orch.state.completed
+
+    def test_github_dispatch_aborts_when_state_closed_since_fetch(
+        self, tmp_path, event_loop
+    ):
+        """_dispatch aborts for a GitHub-backed issue that moved to closed
+        between the candidate fetch and the dispatch write.
+
+        This is the same race as TestDispatchRecheckSkipsClosedIssue but
+        confirmed to work with GitHub-style identifiers (``owner/repo#42``).
+        """
+        orch = _make_orchestrator(tmp_path)
+        stale = _github_issue(state="open")
+        fresh = _github_issue(state="closed")
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_states_by_ids.return_value = [fresh]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=mock_tracker):
+            event_loop.run_until_complete(orch._dispatch(stale, attempt=None))
+
+        # No in-progress write.
+        for call in mock_tracker.update_issue.call_args_list:
+            assert call.kwargs.get("status") != "in_progress", (
+                f"Dispatch re-opened a closed GitHub issue: {call!r}"
+            )
+        # Issue marked completed, not claimed.
+        assert stale.id not in orch.state.claimed
+        assert stale.id in orch.state.completed
+        assert stale.id not in orch.state.running
+
+    def test_github_pending_retry_cancelled_on_any_non_inprogress_move(self, tmp_path):
+        """Any status change away from in-progress (including 'Open') must
+        cancel a pending retry for a GitHub-backed task.  This prevents a
+        stale retry timer from re-dispatching a task that a human has
+        explicitly taken control of.
+        """
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+        import oompah.server as srv
+
+        orch = _make_orchestrator(tmp_path)
+        gh_id = "owner/repo#77"
+        issue_id = "gh-077"
+
+        cancel_called = {"flag": False}
+
+        class FakeTimer:
+            def __init__(self):
+                self._cancelled = False
+            def cancelled(self):
+                return self._cancelled
+            def cancel(self):
+                self._cancelled = True
+                cancel_called["flag"] = True
+
+        orch.state.retry_attempts[issue_id] = RetryEntry(
+            issue_id=issue_id,
+            identifier=gh_id,
+            attempt=1,
+            due_at_ms=0.0,
+            timer_handle=FakeTimer(),
+            error="stalled",
+            project_id="proj-gh",
+        )
+        orch.state.claimed.add(issue_id)
+
+        mock_tracker = MagicMock()
+        with (
+            patch("oompah.server._get_tracker", return_value=mock_tracker),
+            patch.object(srv, "_orchestrator", orch),
+        ):
+            client = TestClient(app)
+            res = client.patch(
+                "/api/v1/issues/dummy",
+                json={
+                    "issue_key": gh_id,
+                    "status": "Open",   # non-terminal but not in-progress
+                    "project_id": "proj-gh",
+                },
+            )
+        assert res.status_code == 200, res.text
+
+        # Any non-in_progress status change cancels the retry so a stale
+        # timer can't re-dispatch a task a human has manually moved.
+        assert cancel_called["flag"] is True, (
+            "Retry timer was not cancelled when GitHub task moved away from In Progress"
+        )
+        assert issue_id not in orch.state.retry_attempts
+        assert issue_id not in orch.state.claimed
+        # Non-terminal move → NOT added to completed.
+        assert issue_id not in orch.state.completed

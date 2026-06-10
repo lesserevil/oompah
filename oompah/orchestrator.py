@@ -11216,7 +11216,9 @@ class Orchestrator:
     def _write_task_cost_record(self, entry: RunningEntry) -> None:
         """Persist cost telemetry for a completed run into the issue's metadata.
 
-        Storage key: ``oompah.task_costs`` in Backlog task front matter.
+        Storage key: ``oompah.task_costs``, written via the tracker protocol
+        (``set_metadata_field``).  Works for both BacklogMd (front matter) and
+        GitHub-backed tasks (body metadata block).
         Multiple runs accumulate cumulatively — per-model entries are summed.
 
         This method is designed to be called from a background thread
