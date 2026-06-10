@@ -3,10 +3,10 @@ id: TASK-449
 title: >-
   [backend:orchestrator] Failed to record candidate usage for role=deep
   candidate=prov-651d553c/
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-06 22:54'
-updated_date: '2026-06-10 00:23'
+updated_date: '2026-06-10 00:25'
 labels:
   - bug
 dependencies: []
@@ -66,4 +66,16 @@ created: 2026-06-10 00:23
 ---
 IMPLEMENTATION: Fixed CandidateSelector._save() in oompah/roles.py to catch OSError (e.g. ENOSPC) and log a warning instead of propagating. Usage tracking is best-effort - a disk-full condition should never crash a worker. Also added 5 regression tests in tests/test_candidate_selector.py (TestRecordUsedDiskFull) covering: no raise on OSError, warning log emitted, in-memory state still updated, returns None, and subsequent calls succeed after disk recovers.
 ---
+
+author: oompah
+created: 2026-06-10 00:24
+---
+VERIFICATION: All 61 tests in tests/test_candidate_selector.py pass, including 5 new TestRecordUsedDiskFull regression tests. Branch pushed to origin/TASK-449.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Fixed CandidateSelector._save() in oompah/roles.py to catch OSError (ENOSPC/disk-full) and log a warning instead of propagating. Usage tracking is best-effort and must never crash a worker. Added 5 regression tests in TestRecordUsedDiskFull. Not a duplicate — no prior task covered this path.
+<!-- SECTION:FINAL_SUMMARY:END -->
