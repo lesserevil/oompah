@@ -423,22 +423,49 @@ class TestFetchTerminalIssueFromWorkerWorkspaceGuard:
         ws_tracker.fetch_issue_detail.assert_called_once_with("task-1")
 
     def test_passed_tracker_takes_priority_over_self_tracker(self, tmp_path):
-        """Passing a non-Backlog tracker explicitly guards even if self.tracker
-        is a BacklogMdTracker."""
+        """Passing a non-Backlog tracker explicitly guards even when self.tracker
+        is a BacklogMdTracker.
+
+        TASK-461.4: Per-project tracker resolution (TASK-461.1) is now in place.
+        The passed ``tracker`` is authoritative — if it is a GitHub Issues adapter
+        the function must return None immediately without reading any workspace
+        files, regardless of the global self.tracker.
+        """
         orch = _make_orch(tmp_path)
-        # self.tracker is BacklogMdTracker but we pass a FakeTracker
+        # self.tracker is BacklogMdTracker (default), but we pass a FakeTracker
+        # representing a GitHub-backed project.  The guard must fire on the
+        # passed tracker alone — no fallback to self.tracker.
         fake_tracker = _FakeTracker()
+        assert isinstance(orch.tracker, BacklogMdTracker), "precondition: global is Backlog"
         entry = self._make_running_entry("task-1")
-        # The guard checks check_tracker=fake_tracker first; since it's not
-        # BacklogMdTracker and self.tracker IS BacklogMdTracker, it must
-        # still fall back to reading.  But our test confirms the guard only
-        # short-circuits when BOTH are non-Backlog.
-        # Patch self.tracker too so both are non-Backlog:
-        orch.tracker = fake_tracker
         with patch("os.path.isdir", return_value=True):
             result = orch._fetch_terminal_issue_from_worker_workspace(
                 entry, tracker=fake_tracker
             )
+        # Must return None because the passed tracker is not BacklogMdTracker,
+        # even though self.tracker IS BacklogMdTracker.
+        assert result is None
+
+    def test_github_tracker_returns_none_when_global_is_backlog(self, tmp_path):
+        """GitHub-backed tasks (tracker=FakeTracker) return None even when the
+        global self.tracker is BacklogMdTracker.
+
+        This is the key regression test for TASK-461.4: before the fix the
+        double-condition guard only fired when BOTH trackers were non-Backlog,
+        so passing a GitHub tracker with a Backlog global would incorrectly
+        proceed to read workspace files.
+        """
+        orch = _make_orch(tmp_path)
+        # Confirm the global tracker is Backlog (this is the default).
+        assert isinstance(orch.tracker, BacklogMdTracker)
+        # The project-specific tracker is GitHub-like.
+        github_like_tracker = _FakeTracker()
+        entry = self._make_running_entry("owner/repo#42", workspace_path="/workspace/42")
+        with patch("os.path.isdir", return_value=True):
+            result = orch._fetch_terminal_issue_from_worker_workspace(
+                entry, tracker=github_like_tracker
+            )
+        # The guard must fire on the per-project tracker alone.
         assert result is None
 
     def test_empty_workspace_path_returns_none(self, tmp_path):

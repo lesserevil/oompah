@@ -13744,22 +13744,22 @@ class Orchestrator:
         For API-backed trackers (e.g. GitHub Issues), task state is always
         centralised in the remote service and this function is a no-op.  Pass
         the active project tracker via ``tracker`` so the guard can fire early
-        without constructing a new adapter.
+        without constructing a new adapter.  For GitHub-backed tasks the caller
+        already has an authoritative state from ``fetch_issue_detail()`` on the
+        remote service — no workspace file read is needed or correct.
         """
         # Guard: only BacklogMdTracker stores task state as files in the worker
-        # worktree.  API-backed trackers update the central service directly, so
-        # their state is already fresh via the standard fetch_issue_detail call.
+        # worktree.  API-backed trackers (e.g. GitHub Issues) update the central
+        # service directly, so their state is already fresh via the standard
+        # fetch_issue_detail call.
         #
-        # Use the passed project tracker when it is a concrete BacklogMdTracker
-        # instance.  If it is a test double or a non-Backlog adapter, fall back
-        # to checking self.tracker (the global default) — all projects currently
-        # share the same tracker_kind since per-project tracker_kinds are not
-        # yet supported.  Revisit when TASK-461.1 adds per-project tracker
-        # resolution.
+        # Use the passed project tracker to determine the kind.  When no tracker
+        # is supplied fall back to self.tracker (legacy global path).  Per-project
+        # tracker resolution (TASK-461.1) is now in place, so the passed tracker
+        # is authoritative for this decision — no secondary fallback to self.tracker
+        # is needed or correct.
         check_tracker = tracker if tracker is not None else self.tracker
-        if not isinstance(check_tracker, BacklogMdTracker) and not isinstance(
-            self.tracker, BacklogMdTracker
-        ):
+        if not isinstance(check_tracker, BacklogMdTracker):
             return None
 
         workspace_path = (entry.workspace_path or "").strip()
