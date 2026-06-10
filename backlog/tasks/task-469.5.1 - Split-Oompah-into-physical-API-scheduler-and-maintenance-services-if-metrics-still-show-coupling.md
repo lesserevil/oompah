@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-06-08 23:02'
-updated_date: '2026-06-10 00:08'
+updated_date: '2026-06-10 00:09'
 labels:
   - ci-fix
 dependencies: []
@@ -61,5 +61,11 @@ author: oompah
 created: 2026-06-10 00:08
 ---
 Discovery: CI failure (run 27177010998) was test_ipc.py::test_process_ipc_commands_pause asserting 'failed' == 'processed'. Root cause: Orchestrator.pause() called asyncio.ensure_future() which requires a running event loop. In sync test context (Python 3.11), this raised RuntimeError, causing _process_ipc_commands to ack the command as 'failed'. The fix (commit dc27dac) replaced asyncio.ensure_future() with a try/except RuntimeError pattern. CI run 27178409641 confirms all 3 Python version jobs now pass.
+---
+
+author: oompah
+created: 2026-06-10 00:09
+---
+Verification: CI run 27178409641 (latest, for commit dc27dac) shows SUCCESS on Python 3.11, 3.12, 3.13. The failing test test_ipc.py::test_process_ipc_commands_pause now passes. Branch has been pushed back to origin/TASK-469.5.1 (was previously gone). New push (28a8973) only updates the task file — no code changes needed.
 ---
 <!-- COMMENTS:END -->
