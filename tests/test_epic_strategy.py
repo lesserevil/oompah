@@ -415,13 +415,30 @@ class TestSharedModeDispatchGating:
         proj.require_epic_for_tasks = True
         orch = _make_orch(tmp_path, projects=[proj])
         child = _make_issue(identifier="task-only", parent_id="epic-1", state="open")
+        epic = _make_issue(identifier="epic-1", issue_type="epic")
         orch._reviews_cache = {}
-        with patch.object(
-            orch.project_store,
-            "read_task_status_in_epic_worktree",
-            return_value=None,
+        with (
+            patch.object(orch, "_resolve_parent_epic", return_value=epic),
+            patch.object(
+                orch.project_store,
+                "read_task_status_in_epic_worktree",
+                return_value=None,
+            ),
         ):
             assert orch._should_dispatch(child) is True
+
+    def test_rejects_child_task_when_required_parent_is_not_epic_rollup(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        child = _make_issue(identifier="task-only", parent_id="task-parent", state="open")
+        orch._reviews_cache = {}
+        with patch.object(orch, "_resolve_parent_epic", return_value=None):
+            assert orch._should_dispatch(child) is False
+        reason, _count = orch.state.reject_streak[child.id]
+        assert reason == "missing_parent_epic"
 
     def test_rejects_when_child_done_on_epic_branch(self, tmp_path):
         """A shared-epic child already terminal on its epic branch must not
@@ -878,6 +895,36 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         )
 
         result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is False
+        tracker.update_issue.assert_called_once_with("task-1", status=NEEDS_HUMAN)
+        tracker.add_comment.assert_called_once()
+
+    def test_require_epic_parent_blocks_unresolved_parent_review(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        issue = _make_issue(
+            identifier="task-1",
+            parent_id="task-parent",
+            project_id="proj-1",
+        )
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        with patch.object(orch, "_resolve_parent_epic", return_value=None):
+            result = orch._ensure_review_exists(entry, "proj-1")
 
         assert result is False
         tracker.update_issue.assert_called_once_with("task-1", status=NEEDS_HUMAN)

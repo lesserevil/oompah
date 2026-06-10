@@ -3560,15 +3560,25 @@ class Orchestrator:
         issue: Issue | None,
         project_id: str | None = None,
     ) -> bool:
-        """True when *issue* is implementation work that needs a parent epic."""
+        """True when implementation work lacks a required parent epic.
+
+        ``require_epic_for_tasks`` means a task must land through an epic
+        rollup. A non-empty ``parent_id`` is not enough: the parent must
+        resolve to an epic, or to an inferred rollup parent in stacked/shared
+        projects.
+        """
         if issue is None:
-            return False
-        if (issue.parent_id or "").strip():
             return False
         if (issue.issue_type or "").strip().lower() == "epic":
             return False
         effective_project_id = project_id or issue.project_id
-        return self._project_requires_epic_for_tasks(effective_project_id)
+        if not self._project_requires_epic_for_tasks(effective_project_id):
+            return False
+        if not (issue.parent_id or "").strip():
+            return True
+        if effective_project_id and not issue.project_id:
+            issue.project_id = effective_project_id
+        return self._resolve_parent_epic(issue) is None
 
     def _mark_issue_needs_epic_parent(
         self,
