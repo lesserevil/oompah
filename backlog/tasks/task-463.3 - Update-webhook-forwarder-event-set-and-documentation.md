@@ -1,10 +1,10 @@
 ---
 id: TASK-463.3
 title: Update webhook forwarder event set and documentation
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 01:25'
+updated_date: '2026-06-10 01:26'
 labels:
   - task
   - github-issues
@@ -59,4 +59,16 @@ created: 2026-06-10 01:25
 ---
 IMPLEMENTATION: Changes made across 5 files. (1) oompah/webhooks.py: Updated _WEBHOOK_DEFAULT_EVENTS from 'push,pull_request' to 'push,pull_request,issues,issue_comment,label,projects_v2_item'; updated module docstring; updated WebhookForwarder events docstring. (2) docs/webhook-forwarding.md: Full rewrite — added 'Two webhook channels' table (AC#2 GitHub vs Backlog hook distinction), 'Required GitHub events' table (AC#1), updated all event references, added verification steps for expanded set including projects_v2_item caveat, added 'Relation to Backlog task-change webhooks' section. (3) plans/backlog-task-change-webhooks.md: Added 'Scope: Backlog.md-backed projects only' section explaining GitHub-backed projects skip the Backlog hook. (4) tests/test_webhooks.py: Updated 2 hardcoded 'push,pull_request' assertions to the new full default. (5) .env.example: Added OOMPAH_WEBHOOK_EVENTS entry with inline documentation.
 ---
+
+author: oompah
+created: 2026-06-10 01:26
+---
+VERIFICATION: 193 tests pass (test_webhooks.py: 129 + test_server_webhooks.py: 64). TestWebhookForwarderEventsFlag all 5 tests pass with new default event list. Both ACs met: AC#1 — docs/webhook-forwarding.md has a 'Required GitHub events' table listing all 6 events and their purposes; AC#2 — 'Two webhook channels' table and 'Relation to Backlog task-change webhooks' section clearly distinguish gh webhook forward (GitHub forge/issue events) from legacy Backlog post-commit hook.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Expanded default GitHub webhook event set from push,pull_request to push,pull_request,issues,issue_comment,label,projects_v2_item. Updated docs/webhook-forwarding.md with required-events table (AC#1), two-channel distinction + Backlog hook separation section (AC#2), full verification steps, and troubleshooting entries for the new events. Updated plans/backlog-task-change-webhooks.md with GitHub-backed projects scope note. Added OOMPAH_WEBHOOK_EVENTS to .env.example. Updated 2 test assertions and both docstrings. 193 tests pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
