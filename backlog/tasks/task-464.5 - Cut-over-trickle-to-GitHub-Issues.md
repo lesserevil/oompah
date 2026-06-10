@@ -1,38 +1,22 @@
 ---
 id: TASK-464.5
 title: Cut over trickle to GitHub Issues
-status: Needs Human
+status: Done
 assignee: []
-created_date: 2026-06-08 17:58
-updated_date: 2026-06-10 15:26
+created_date: '2026-06-08 17:58'
+updated_date: '2026-06-10 15:57'
 labels:
-- task
-- github-issues
-- tracker-migration
+  - task
+  - github-issues
+  - tracker-migration
 dependencies:
-- TASK-464.4
-- TASK-464.8
+  - TASK-464.4
+  - TASK-464.8
 references:
-- plans/github-issues-tracker-migration.md
+  - plans/github-issues-tracker-migration.md
 parent_task_id: TASK-464
 priority: high
 ordinal: 162000
-oompah.task_costs:
-  total_input_tokens: 10
-  total_output_tokens: 48
-  total_cost_usd: 0.0
-  by_model:
-    unknown:
-      input_tokens: 10
-      output_tokens: 48
-      cost_usd: 0.0
-  runs:
-  - profile: default
-    model: unknown
-    input_tokens: 10
-    output_tokens: 48
-    cost_usd: 0.0
-    recorded_at: '2026-06-10T15:25:49.791467+00:00'
 ---
 
 ## Description
@@ -173,3 +157,9 @@ created: 2026-06-10 15:26
 Operator intervention: stopped the 2026-06-10 15:24 UTC run even though the cutover is approved, because the live ACP/MCP tool catalog for the run still only exposed generic read/write/search/run tools and did not include mcp__oompah__get_project or mcp__oompah__update_project. Re-dispatching before the running service is restarted onto the TASK-464.8 code risks repeating the local HTTP self-call/direct projects.json fallback failure. Keep this in Needs Human until either the service is restarted on code with those tools or an operator performs the ProjectStore cutover externally and records the result.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Cut over trickle project proj-3e4e9214 to GitHub Issues on 2026-06-10T15:46:07+00:00 with tracker_kind=github_issues, tracker_owner=NVIDIA-Omniverse, tracker_repo=trickle. legacy_backlog_enabled=true keeps existing Backlog tasks visible; legacy_backlog_dispatch=false prevents legacy task dispatch. Verified through oompah with smoke issue NVIDIA-Omniverse/trickle#225: created through the GitHub tracker, comment retry succeeded, Open and Done status mutations succeeded after TASK-513, and raw GitHub ended closed with oompah:status:done. Unpaused trickle after the smoke passed.
+<!-- SECTION:FINAL_SUMMARY:END -->
