@@ -184,7 +184,7 @@ class TestSetupServicesSuccess:
             patch(
                 self._PATCHES["WebhookForwarder"],
                 return_value=mocks["forwarder"],
-            ),
+            ) as mock_forwarder_cls,
             patch(
                 self._PATCHES["Orchestrator"],
                 return_value=mocks["orchestrator"],
@@ -199,6 +199,10 @@ class TestSetupServicesSuccess:
         assert services.port == 9090
         assert services.orchestrator is mocks["orchestrator"]
         assert services.webhook_forwarder is mocks["forwarder"]
+        mock_forwarder_cls.assert_called_once_with(
+            project_store=mocks["projects"],
+            server_port=9090,
+        )
 
     @pytest.mark.asyncio
     async def test_start_paused_flag_sets_paused(self, tmp_path):

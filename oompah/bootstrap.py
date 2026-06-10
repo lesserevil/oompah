@@ -227,7 +227,10 @@ async def setup_services(
             provider_store=provider_store,
         )
 
-    webhook_forwarder = WebhookForwarder(project_store=project_store)
+    webhook_forwarder = WebhookForwarder(
+        project_store=project_store,
+        server_port=port,
+    )
 
     # ------------------------------------------------------------------
     # 8. Sync managed-project sources before dispatch

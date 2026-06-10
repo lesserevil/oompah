@@ -954,6 +954,15 @@ class TestWebhookForwarderInit:
         fwd = WebhookForwarder()
         assert fwd._webhook_url == "http://localhost:8080/api/v1/webhooks/github"
 
+    def test_default_webhook_url_uses_server_port_arg(self):
+        fwd = WebhookForwarder(server_port=8090)
+        assert fwd._webhook_url == "http://localhost:8090/api/v1/webhooks/github"
+
+    def test_default_webhook_url_uses_server_port_env(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_SERVER_PORT", "8090")
+        fwd = WebhookForwarder()
+        assert fwd._webhook_url == "http://localhost:8090/api/v1/webhooks/github"
+
     def test_explicit_webhook_url(self):
         fwd = WebhookForwarder(webhook_url="http://example.com/hooks")
         assert fwd._webhook_url == "http://example.com/hooks"
@@ -967,6 +976,11 @@ class TestWebhookForwarderInit:
         monkeypatch.setenv("OOMPAH_WEBHOOK_FORWARD_URL", "http://env-url.test/hooks")
         fwd = WebhookForwarder(webhook_url="http://explicit.test/hooks")
         assert fwd._webhook_url == "http://explicit.test/hooks"
+
+    def test_forward_url_env_overrides_server_port(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_WEBHOOK_FORWARD_URL", "http://env-url.test/hooks")
+        fwd = WebhookForwarder(server_port=8090)
+        assert fwd._webhook_url == "http://env-url.test/hooks"
 
     def test_custom_poll_interval(self):
         fwd = WebhookForwarder(poll_interval_s=10.0)

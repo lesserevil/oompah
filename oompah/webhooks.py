@@ -629,7 +629,7 @@ import shutil
 from oompah.scm import extract_repo_slug
 
 
-_WEBHOOK_FORWARD_URL_DEFAULT = "http://localhost:8080/api/v1/webhooks/github"
+_WEBHOOK_FORWARD_DEFAULT_PORT = 8080
 _WEBHOOK_POLL_INTERVAL_S = 5.0  # how often to check process health
 _WEBHOOK_BASE_DELAY_S = 1.0  # initial restart backoff
 _WEBHOOK_MAX_DELAY_S = 60.0  # cap on restart backoff
@@ -659,6 +659,20 @@ _WEBHOOK_DEFAULT_EVENTS = "push,pull_request,issues,issue_comment,label"
 # Stderr tail size kept in memory per project (for surfacing the most
 # recent error to the dashboard / logs without unbounded growth).
 _WEBHOOK_STDERR_TAIL_BYTES = 4096
+
+
+def _default_webhook_forward_url(server_port: int | str | None = None) -> str:
+    """Return the local GitHub webhook receiver URL for the active server port."""
+    raw_port = server_port
+    if raw_port is None:
+        raw_port = os.environ.get("OOMPAH_SERVER_PORT")
+    try:
+        port = int(str(raw_port).strip()) if raw_port is not None else None
+    except (TypeError, ValueError):
+        port = None
+    if port is None:
+        port = _WEBHOOK_FORWARD_DEFAULT_PORT
+    return f"http://localhost:{port}/api/v1/webhooks/github"
 
 
 def _short_process_error(stdout: str, stderr: str) -> str:
@@ -768,7 +782,11 @@ class WebhookForwarder:
                        their ``repo_path`` values.
         webhook_url: The URL to pass to ``gh webhook forward --url``. When
                      ``None``, defaults to the ``OOMPAH_WEBHOOK_FORWARD_URL``
-                     environment variable or ``http://localhost:8080/api/v1/webhooks/github``.
+                     environment variable or the local receiver URL derived
+                     from ``server_port``/``OOMPAH_SERVER_PORT``.
+        server_port: Local oompah server port used to derive the default
+                     webhook receiver URL when ``webhook_url`` and
+                     ``OOMPAH_WEBHOOK_FORWARD_URL`` are unset.
         poll_interval_s: How often (in seconds) to poll process health.
                          Defaults to 5 seconds.
         events: Comma-separated list of forge event names to forward
@@ -790,6 +808,7 @@ class WebhookForwarder:
         self,
         project_store: Any = None,
         webhook_url: str | None = None,
+        server_port: int | str | None = None,
         poll_interval_s: float = _WEBHOOK_POLL_INTERVAL_S,
         events: str | None = None,
         status_callback: Any = None,
@@ -798,7 +817,7 @@ class WebhookForwarder:
         self._webhook_url = (
             webhook_url
             or os.environ.get("OOMPAH_WEBHOOK_FORWARD_URL")
-            or _WEBHOOK_FORWARD_URL_DEFAULT
+            or _default_webhook_forward_url(server_port)
         )
         self._events = (
             events
