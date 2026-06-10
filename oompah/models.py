@@ -341,12 +341,13 @@ class Project:
     backlog_conflict_paths: list[str] = field(default_factory=list)
 
     # ---------------------------------------------------------------------------
-    # Per-project tracker configuration (GitHub Issues migration — TASK-459.3)
+    # Per-project tracker configuration (GitHub Issues migration — TASK-459.3 /
+    # TASK-464.2)
     # ---------------------------------------------------------------------------
     # Which tracker backend this project uses. When None, falls back to the
     # global ServiceConfig.tracker_kind. Recognized values are the keys in
     # oompah.tracker.ADAPTER_REGISTRY plus aliases like "backlog", "backlog.md".
-    # "github_issues" will be registered once the GitHub adapter is built.
+    # Use "github_issues" for GitHub-backed projects.
     tracker_kind: str | None = None
     # GitHub Issues task hub owner/repo for this project. When set, new tasks
     # are created under <tracker_owner>/<tracker_repo> on GitHub.  Falls back

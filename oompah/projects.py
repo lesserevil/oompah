@@ -888,7 +888,7 @@ class ProjectStore:
             "require_epic_for_tasks",
             "provider_whitelist",
             "backlog_conflict_paths",
-            # Per-project tracker configuration (TASK-459.3)
+            # Per-project tracker configuration (TASK-459.3 / TASK-464.2)
             "tracker_kind",
             "tracker_owner",
             "tracker_repo",

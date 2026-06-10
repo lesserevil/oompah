@@ -1960,10 +1960,33 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
 
     def _fetch_for_project(project):
         try:
+            from oompah.projects import _is_github_backed
             tracker = orch._tracker_for_project(project.id)
             issues = tracker.fetch_all_issues()
+            # Legacy Backlog visibility filter (TASK-464.2):
+            # For GitHub-backed projects, Backlog.md issues (those with
+            # tracker_kind other than 'github_issues') are only shown when
+            # legacy_backlog_enabled is True.  Tag them as 'backlog_md' so
+            # callers can apply a "legacy" marker in the UI.
+            if _is_github_backed(project):
+                visible_issues = []
+                for issue in issues:
+                    issue.project_id = project.id
+                    kind = (issue.tracker_kind or "").strip().lower()
+                    is_github_issue = kind in ("github_issues", "github-issues")
+                    if is_github_issue:
+                        visible_issues.append(issue)
+                    elif project.legacy_backlog_enabled:
+                        # Tag legacy Backlog tasks so the dashboard can mark
+                        # them as legacy.
+                        issue.tracker_kind = "backlog_md"
+                        visible_issues.append(issue)
+                    # else: Backlog issues are not visible for this project.
+                issues = visible_issues
+            else:
+                for issue in issues:
+                    issue.project_id = project.id
             for issue in issues:
-                issue.project_id = project.id
                 # Display-only: reflect the epic-branch status for shared-
                 # epic children (their default-branch copy lags until the
                 # epic lands), so the board shows Done/Merged in the right
