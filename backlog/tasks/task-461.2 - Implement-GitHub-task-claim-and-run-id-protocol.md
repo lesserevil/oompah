@@ -1,10 +1,10 @@
 ---
 id: TASK-461.2
 title: Implement GitHub task claim and run-id protocol
-status: Open
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-10 01:03'
+updated_date: '2026-06-10 01:04'
 labels:
   - task
   - github-issues
@@ -83,4 +83,16 @@ created: 2026-06-10 01:03
 ---
 Verification: All tests pass. test_dispatch_close_race.py: 13/13 passed (5 new for TASK-461.2 + 8 pre-existing). test_orchestrator_merged.py: 129/129. test_github_tracker.py: 321/321. test_backlog_tracker.py + test_tracker_protocol.py + test_mixed_tracker_regression.py: included in 601 total. No regressions.
 ---
+
+author: oompah
+created: 2026-06-10 01:04
+---
+Completion: Confirmed NOT a duplicate. Implemented and landed GitHub task claim-and-verify run-ID protocol. (1) _dispatch() in oompah/orchestrator.py: for github_issues tasks, writes a uuid4 run ID to oompah.agent_run_id metadata, re-reads it, and aborts without starting a worker if another instance owns the claim. Failures fall through gracefully. BacklogMd issues skip the protocol. (2) Running snapshot includes tracker_kind (AC #2). (3) 5 new tests in test_dispatch_close_race.py cover both ACs. 601 tests pass total. Branch epic-TASK-461 pushed to origin.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented GitHub task claim-and-verify run-ID protocol in _dispatch(). For github_issues tasks: writes a uuid4 run ID to oompah.agent_run_id metadata, re-reads it, aborts if another instance owns the claim (AC#1). Failures fall through gracefully. BacklogMd issues skip the protocol. Running snapshot now includes tracker_kind (AC#2). 5 new tests in test_dispatch_close_race.py; 601 tests pass total.
+<!-- SECTION:FINAL_SUMMARY:END -->
