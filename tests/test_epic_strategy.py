@@ -285,6 +285,19 @@ class TestResolveParentEpic:
             child = _make_issue(parent_id="parent-task")
             assert orch._resolve_parent_epic(child) is None
 
+    def test_returns_parent_with_children_in_rollup_project(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        parent = _make_issue(identifier="TASK-738", issue_type="task")
+        child = _make_issue(identifier="TASK-738.1", parent_id="TASK-738")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        tracker.fetch_children.return_value = [child]
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            result = orch._resolve_parent_epic(child)
+        assert result is not None
+        assert result.identifier == "TASK-738"
+
     def test_returns_epic_when_parent_is_epic(self, tmp_path):
         proj = _make_project_record()
         orch = _make_orch(tmp_path, projects=[proj])
@@ -325,6 +338,22 @@ class TestSharedModeDispatchGating:
             agent_profile_name="default",
         )
         orch.state.running[sibling.id] = entry
+
+    def test_rejects_rollup_parent_missing_epic_label(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        parent = _make_issue(
+            identifier="TASK-738",
+            issue_type="task",
+            parent_id=None,
+            state="open",
+            project_id="proj-1",
+        )
+        child = _make_issue(identifier="TASK-738.1", parent_id="TASK-738")
+        with patch.object(orch, "_fetch_epic_children", return_value=[child]):
+            assert orch._should_dispatch(parent) is False
+        reason, _count = orch.state.reject_streak[parent.id]
+        assert reason == "epic_rollup_parent"
 
     def test_rejects_when_sibling_running_in_shared_mode(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
@@ -669,6 +698,34 @@ class TestWorkspaceAllocation:
         )
         orch.project_store.create_worktree.assert_not_called()
 
+    def test_shared_mode_uses_shared_worktree_for_parent_with_missing_epic_label(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.create_epic_worktree.return_value = "/wt/epic-TASK-738"
+        parent = _make_issue(identifier="TASK-738", issue_type="task")
+        child = _make_issue(
+            identifier="TASK-738.1",
+            parent_id="TASK-738",
+            project_id="proj-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        tracker.fetch_children.return_value = [child]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            wp, epic_ret = orch._create_workspace_for_issue(child)
+
+        assert wp == "/wt/epic-TASK-738"
+        assert epic_ret is not None
+        assert epic_ret.identifier == "TASK-738"
+        orch.project_store.create_epic_worktree.assert_called_once_with(
+            "proj-1",
+            "TASK-738",
+        )
+        orch.project_store.create_worktree.assert_not_called()
+
     def test_shared_epic_worktree_syncs_child_task_file(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
@@ -917,8 +974,40 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         # No per-child PR is created — the epic→main PR is the only one
         provider.create_review.assert_not_called()
 
+    def test_shared_parent_with_children_skips_per_child_pr(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        parent = _make_issue(identifier="TASK-738", issue_type="task")
+        child = _make_issue(
+            identifier="TASK-738.1",
+            parent_id="TASK-738",
+            project_id="proj-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = parent
+        tracker.fetch_children.return_value = [child]
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="TASK-738.1",
+            issue=child,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+        with (
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+        ):
+            orch._ensure_review_exists(entry, "proj-1")
+        provider.create_review.assert_not_called()
+
     def test_shared_non_epic_parent_creates_per_task_pr(self, tmp_path):
-        """Shared mode only skips child PRs when the parent is an actual epic."""
+        """Shared mode creates child PRs only when the parent cannot be resolved."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
@@ -1390,6 +1479,62 @@ class TestOpenEpicMainPrs:
         idents = {e.identifier for e in epics}
         # Backlog + Open epics included; terminal (Done) epic and non-epic excluded.
         assert idents == {"e1", "e2"}
+
+    def test_all_non_terminal_epics_includes_parent_with_missing_epic_label(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        parent = _make_issue(
+            identifier="TASK-738",
+            issue_type="task",
+            state="Backlog",
+            project_id="proj-1",
+        )
+        child = _make_issue(
+            identifier="TASK-738.1",
+            parent_id="TASK-738",
+            state="Done",
+            project_id="proj-1",
+        )
+        unrelated = _make_issue(
+            identifier="TASK-999",
+            issue_type="task",
+            state="Backlog",
+            project_id="proj-1",
+        )
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [parent, child, unrelated]
+        with patch.object(orch, "_tracker_for_project", return_value=tracker):
+            epics = orch._all_non_terminal_epics()
+        assert [issue.identifier for issue in epics] == ["TASK-738"]
+
+    def test_opens_pr_for_parent_with_missing_epic_label(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = "Done"
+        parent = _make_issue(
+            identifier="TASK-738",
+            issue_type="task",
+            project_id="proj-1",
+            state="Backlog",
+            title="Ubuntu package support",
+            description="Body",
+        )
+        child = _make_issue(identifier="TASK-738.1", parent_id="TASK-738", state="Open")
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="215")
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([parent])
+        assert opened == 1
+        push.assert_called_once_with(proj, "TASK-738")
+        args = provider.create_review.call_args.args
+        assert args[2] == "epic-TASK-738"
 
     def test_shared_all_children_already_merged_opens_no_pr(self, tmp_path):
         """If every child is already Merged (whole epic landed), the rollup is

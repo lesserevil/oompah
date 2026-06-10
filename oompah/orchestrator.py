@@ -3136,14 +3136,37 @@ class Orchestrator:
             trackers.append((None, self.tracker))
         for pid, tracker in trackers:
             try:
-                for issue in tracker.fetch_all_issues():
+                issues = list(tracker.fetch_all_issues())
+                parent_ids = {
+                    str(issue.parent_id).strip()
+                    for issue in issues
+                    if (issue.parent_id or "").strip()
+                }
+                for issue in issues:
                     if pid:
                         issue.project_id = pid
-                    if (issue.issue_type or "").strip().lower() == "epic" and (
-                        not _is_terminal_state(
-                            issue.state, self.config.tracker_terminal_states
-                        )
+                    if _is_terminal_state(
+                        issue.state, self.config.tracker_terminal_states
                     ):
+                        continue
+                    is_declared_epic = (
+                        (issue.issue_type or "").strip().lower() == "epic"
+                    )
+                    issue_ids = {
+                        str(value).strip()
+                        for value in (issue.id, issue.identifier)
+                        if value
+                    }
+                    has_children = bool(issue_ids & parent_ids)
+                    project_strategy = self._project_epic_strategy(issue.project_id)
+                    is_rollup_parent = (
+                        is_declared_epic
+                        or (
+                            has_children
+                            and project_strategy in ("stacked", "shared")
+                        )
+                    )
+                    if is_rollup_parent:
                         out.append(issue)
             except (TrackerError, ProjectError) as exc:
                 logger.debug("non-terminal epic fetch failed for %s: %s", pid, exc)
@@ -3322,12 +3345,29 @@ class Orchestrator:
         """
         try:
             tracker = self._tracker_for_issue(epic)
-            return tracker.fetch_children(epic.id)
+            children = tracker.fetch_children(epic.id)
         except Exception as exc:
             logger.debug(
                 "Failed to fetch children for epic %s: %s", epic.identifier, exc
             )
             return []
+        if children is None:
+            return []
+        if isinstance(children, list):
+            return children
+        try:
+            return list(children)
+        except TypeError:
+            logger.debug(
+                "Tracker returned non-iterable children for epic %s: %r",
+                epic.identifier,
+                children,
+            )
+            return []
+
+    def _issue_has_children(self, issue: Issue) -> bool:
+        """Return True when tracker state shows this issue has children."""
+        return bool(self._fetch_epic_children(issue))
 
     def _project_epic_strategy(self, project_id: str | None) -> str:
         """Return the project's epic_strategy ('flat'/'stacked'/'shared').
@@ -3338,7 +3378,10 @@ class Orchestrator:
         """
         if not project_id:
             return "flat"
-        project = self.project_store.get(project_id)
+        project_store = getattr(self, "project_store", None)
+        if project_store is None:
+            return "flat"
+        project = project_store.get(project_id)
         if not project:
             return "flat"
         strategy = (getattr(project, "epic_strategy", None) or "flat").strip().lower()
@@ -3347,13 +3390,16 @@ class Orchestrator:
         return strategy
 
     def _resolve_parent_epic(self, issue: Issue) -> Issue | None:
-        """Resolve a child issue's parent epic, or None when this issue has
-        no parent or the parent is not an epic.
+        """Resolve a child issue's parent rollup, or None when this issue has
+        no parent or the parent should not be handled as an epic rollup.
 
         Used by the stacked/shared epic_strategy paths to pick the epic
-        branch name (stacked) or shared worktree (shared). Returns None
-        for top-level issues (parent_id is None) and for issues whose
-        parent is not type=epic (we only special-case epic→child).
+        branch name (stacked) or shared worktree (shared).
+
+        A parent explicitly typed as ``epic`` always counts. In stacked/shared
+        projects, a parent with children also counts even if its ``epic`` label
+        was accidentally omitted; otherwise one bad metadata sync can bypass
+        the per-project rollup policy and create child PRs.
         """
         parent_id = (issue.parent_id or "").strip()
         if not parent_id:
@@ -3371,14 +3417,24 @@ class Orchestrator:
             return None
         if not parent:
             return None
-        if (parent.issue_type or "").strip().lower() != "epic":
-            return None
         # Carry the project_id over from the child for downstream
         # consumers that rely on it (the parent record may have it set
         # already, but be defensive).
         if not parent.project_id and issue.project_id:
             parent.project_id = issue.project_id
-        return parent
+        if (parent.issue_type or "").strip().lower() == "epic":
+            return parent
+        strategy = self._project_epic_strategy(issue.project_id or parent.project_id)
+        if strategy in ("stacked", "shared") and self._issue_has_children(parent):
+            logger.debug(
+                "Treating parent %s as epic rollup for %s because project "
+                "epic_strategy=%s and the parent has children",
+                parent.identifier,
+                issue.identifier,
+                strategy,
+            )
+            return parent
+        return None
 
     def _epic_rollup_child_strategy(
         self,
@@ -3499,7 +3555,16 @@ class Orchestrator:
         not-already-closed). See oompah-zlz_2-lvcd.
         """
         for issue in candidates:
-            if issue.issue_type != "epic":
+            if (
+                (issue.issue_type or "").strip().lower() != "epic"
+                and self._project_epic_strategy(issue.project_id)
+                not in ("stacked", "shared")
+            ):
+                continue
+            if (
+                (issue.issue_type or "").strip().lower() != "epic"
+                and not self._issue_has_children(issue)
+            ):
                 continue
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue  # already closed
@@ -3851,8 +3916,6 @@ class Orchestrator:
         rebase_timeout_s = 1800.0  # 30 min timeout for a rebase agent
 
         for issue in candidates:
-            if issue.issue_type != "epic":
-                continue
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue
 
@@ -3862,6 +3925,11 @@ class Orchestrator:
 
             strategy = self._project_epic_strategy(project_id)
             if strategy not in ("stacked", "shared"):
+                continue
+            if (
+                (issue.issue_type or "").strip().lower() != "epic"
+                and not self._issue_has_children(issue)
+            ):
                 continue
 
             project = self.project_store.get(project_id)
@@ -4037,28 +4105,15 @@ class Orchestrator:
         parent_id = (child.parent_id or "").strip()
         if not parent_id:
             return
-        try:
-            tracker = self._tracker_for_issue(child)
-            parent = tracker.fetch_issue_detail(parent_id)
-        except Exception as exc:
-            logger.debug(
-                "Failed to fetch parent epic %s for %s: %s",
-                parent_id,
-                child.identifier,
-                exc,
-            )
-            return
-        if parent is None:
-            return
-        if parent.issue_type != "epic":
-            # The parent could be a non-epic — only roll up to epics.
+        parent_epic = self._resolve_parent_epic(child)
+        if parent_epic is None:
             return
         try:
-            self._epic_auto_close_check(parent)
+            self._epic_auto_close_check(parent_epic)
         except Exception as exc:
             logger.warning(
                 "Epic auto-close check failed for %s: %s",
-                parent.identifier,
+                parent_epic.identifier,
                 exc,
             )
 
@@ -4104,8 +4159,6 @@ class Orchestrator:
         """
         opened = 0
         for issue in candidates:
-            if issue.issue_type != "epic":
-                continue
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
                 continue  # epic itself is closed; closing logic owns this
             project_id = issue.project_id
@@ -4117,7 +4170,7 @@ class Orchestrator:
 
             children = self._fetch_epic_children(issue)
             if not children:
-                continue  # nothing to roll up yet
+                continue  # not a rollup parent / nothing to roll up yet
 
             # All children must be in a terminal state. open / in_progress /
             # deferred / blocked all DELAY the push (per the acceptance
@@ -4663,9 +4716,14 @@ class Orchestrator:
 
         filed = 0
         for issue in candidates:
-            if issue.issue_type != "epic":
-                continue
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
+                continue
+            strategy = self._project_epic_strategy(issue.project_id)
+            is_declared_epic = (issue.issue_type or "").strip().lower() == "epic"
+            if not is_declared_epic and (
+                strategy not in ("stacked", "shared")
+                or not self._issue_has_children(issue)
+            ):
                 continue
 
             state = self._get_epic_rebase_state(issue.identifier)
@@ -4806,6 +4864,12 @@ class Orchestrator:
             return _reject("project_paused")
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return _reject("missing_fields")
+        if (
+            (issue.issue_type or "").strip().lower() != "epic"
+            and self._project_epic_strategy(issue.project_id) in ("stacked", "shared")
+            and self._issue_has_children(issue)
+        ):
+            return _reject("epic_rollup_parent")
         # Refuse to dispatch tasks with no body. A title alone is not enough
         # context for an agent to do anything sensible — and we've watched
         # agents burn dozens of turns spinning on placeholder tasks created
@@ -6086,6 +6150,11 @@ class Orchestrator:
                 if canonicalize_status(issue.state) != DONE:
                     continue
                 if (issue.issue_type or "").strip().lower() == "epic":
+                    continue
+                if (
+                    self._project_epic_strategy(project_id) in ("stacked", "shared")
+                    and self._issue_has_children(issue)
+                ):
                     continue
                 branch = issue.branch_name or issue.identifier
                 if branch and branch in merged_branches:
