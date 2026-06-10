@@ -509,6 +509,28 @@ class TestCommentsMixedTrackers:
         assert resp.status_code == 200
         assert resp.json() == [{"id": "gc1", "text": "github comment"}]
 
+    def test_get_comments_for_github_issue_uses_issue_key_query(self, client):
+        gh = _github_issue("acme/tasks#20", "20", "proj-github")
+        tracker = _make_tracker([gh])
+        tracker.fetch_comments.return_value = [{"id": "gc1", "text": "github comment"}]
+        orch = MagicMock()
+        orch.project_store.list_all.return_value = [_project("proj-github", "mygh", "github_issues")]
+        orch._tracker_for_project.return_value = tracker
+        orch.tracker = tracker
+
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get(
+                "/api/v1/issues/20/comments",
+                params={
+                    "project_id": "proj-github",
+                    "issue_key": "acme/tasks#20",
+                },
+            )
+
+        assert resp.status_code == 200
+        assert resp.json() == [{"id": "gc1", "text": "github comment"}]
+        tracker.fetch_comments.assert_called_with("acme/tasks#20")
+
     def test_post_comment_to_backlog_issue(self, client):
         bl = _backlog_issue("TASK-30", "proj-backlog")
         tracker = _make_tracker([bl])

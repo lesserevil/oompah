@@ -406,7 +406,23 @@ class TestSharedModeDispatchGating:
         orch = _make_orch(tmp_path, projects=[proj])
         task = _make_issue(identifier="task-only", parent_id=None, state="open")
         orch._reviews_cache = {}
-        assert orch._should_dispatch(task) is False
+        with patch.object(orch, "_mark_issue_needs_epic_parent") as mark_needs_human:
+            assert orch._should_dispatch(task) is False
+        mark_needs_human.assert_called_once_with(task, task.project_id)
+        reason, _count = orch.state.reject_streak[task.id]
+        assert reason == "missing_parent_epic"
+
+    def test_does_not_recomment_when_required_parent_task_already_needs_human(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        task = _make_issue(identifier="task-only", parent_id=None, state=NEEDS_HUMAN)
+        orch._reviews_cache = {}
+        with patch.object(orch, "_mark_issue_needs_epic_parent") as mark_needs_human:
+            assert orch._should_dispatch(task) is False
+        mark_needs_human.assert_not_called()
         reason, _count = orch.state.reject_streak[task.id]
         assert reason == "missing_parent_epic"
 
@@ -435,8 +451,12 @@ class TestSharedModeDispatchGating:
         orch = _make_orch(tmp_path, projects=[proj])
         child = _make_issue(identifier="task-only", parent_id="task-parent", state="open")
         orch._reviews_cache = {}
-        with patch.object(orch, "_resolve_parent_epic", return_value=None):
+        with (
+            patch.object(orch, "_resolve_parent_epic", return_value=None),
+            patch.object(orch, "_mark_issue_needs_epic_parent") as mark_needs_human,
+        ):
             assert orch._should_dispatch(child) is False
+        mark_needs_human.assert_called_once_with(child, child.project_id)
         reason, _count = orch.state.reject_streak[child.id]
         assert reason == "missing_parent_epic"
 

@@ -5422,6 +5422,8 @@ class Orchestrator:
         if issue.issue_type == "epic":
             return _reject("epic")
         if self._issue_requires_parent_epic(issue):
+            if canonicalize_status(issue.state) != NEEDS_HUMAN:
+                self._mark_issue_needs_epic_parent(issue, issue.project_id)
             return _reject("missing_parent_epic")
         # Never dispatch issues that are waiting for a human answer
         if canonicalize_status(issue.state) == NEEDS_ANSWER or "asking_question" in issue.labels:

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import urllib.parse
 from typing import Any
@@ -137,6 +138,23 @@ def _http(
 # ---------------------------------------------------------------------------
 
 
+_GITHUB_IDENTIFIER_RE = re.compile(r"^[^/\s]+/[^#\s]+#(\d+)$")
+
+
+def _path_identifier(identifier: str) -> str:
+    """Return a route-safe placeholder for *identifier*.
+
+    FastAPI/Starlette decodes ``%2F`` before route matching, so a GitHub issue
+    identifier like ``owner/repo#42`` cannot be placed in a single path
+    segment even when URL-encoded.  Use the issue number as the path segment
+    and carry the full identifier in ``issue_key`` instead.
+    """
+    match = _GITHUB_IDENTIFIER_RE.match(identifier.strip())
+    if match:
+        return match.group(1)
+    return identifier
+
+
 def _encode_id(identifier: str) -> str:
     """URL-encode an identifier for use in a URL path segment.
 
@@ -144,6 +162,11 @@ def _encode_id(identifier: str) -> str:
     (``/``, ``#``) that cannot appear unencoded in URL path segments.
     """
     return urllib.parse.quote(identifier, safe="")
+
+
+def _encode_path_id(identifier: str) -> str:
+    """URL-encode the route-safe path identifier for API calls."""
+    return _encode_id(_path_identifier(identifier))
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +238,7 @@ def _cmd_view(base_url: str, args: argparse.Namespace) -> None:
     params: dict[str, str] = {"issue_key": identifier}
     if getattr(args, "project", None):
         params["project_id"] = args.project
-    path = f"/api/v1/issues/{_encode_id(identifier)}/detail"
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/detail"
     result = _http("GET", f"{base_url}{path}", params=params)
     _print_issue_detail(result)
 
@@ -230,7 +253,7 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
     }
     if getattr(args, "project", None):
         data["project_id"] = args.project
-    path = f"/api/v1/issues/{_encode_id(identifier)}/comments"
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/comments"
     _http("POST", f"{base_url}{path}", data=data)
     print("Comment posted.")
 
@@ -298,7 +321,7 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
     }
     if getattr(args, "project", None):
         data["project_id"] = args.project
-    path = f"/api/v1/issues/{_encode_id(identifier)}"
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}"
     _http("PATCH", f"{base_url}{path}", data=data)
 
     # Post the summary as a comment when provided (tracker-neutral approach).
@@ -311,7 +334,7 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         }
         if getattr(args, "project", None):
             comment_data["project_id"] = args.project
-        comment_path = f"/api/v1/issues/{_encode_id(identifier)}/comments"
+        comment_path = f"/api/v1/issues/{_encode_path_id(identifier)}/comments"
         _http("POST", f"{base_url}{comment_path}", data=comment_data)
 
     print(f"Status set to: {args.status}")
@@ -326,7 +349,7 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
     }
     if getattr(args, "project", None):
         data["project_id"] = args.project
-    path = f"/api/v1/issues/{_encode_id(identifier)}/labels"
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/labels"
     _http("POST", f"{base_url}{path}", data=data)
     print(f"Label added: {args.label}")
 
@@ -337,7 +360,7 @@ def _cmd_remove_label(base_url: str, args: argparse.Namespace) -> None:
     # URL-encode the label and pass issue_key as a query param since DELETE
     # bodies are not reliably forwarded by all HTTP intermediaries.
     encoded_label = urllib.parse.quote(args.label, safe="")
-    path = f"/api/v1/issues/{_encode_id(identifier)}/labels/{encoded_label}"
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/labels/{encoded_label}"
     params: dict[str, str] = {"issue_key": identifier}
     if getattr(args, "project", None):
         params["project_id"] = args.project
@@ -354,7 +377,7 @@ def _cmd_set_dependency(base_url: str, args: argparse.Namespace) -> None:
     }
     if getattr(args, "project", None):
         data["project_id"] = args.project
-    path = f"/api/v1/issues/{_encode_id(identifier)}/dependencies"
+    path = f"/api/v1/issues/{_encode_path_id(identifier)}/dependencies"
     _http("POST", f"{base_url}{path}", data=data)
     print(f"Dependency set: {identifier} depends on {args.depends_on}")
 

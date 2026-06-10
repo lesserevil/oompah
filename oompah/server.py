@@ -2998,24 +2998,25 @@ async def api_get_comments(identifier: str, request: Request):
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
-        cache_key = f"comments:{project_id}:{identifier}"
+        resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
+        cache_key = f"comments:{project_id}:{resolved_identifier}"
         cached = _api_cache.get(cache_key)
         if cached is not None:
             return JSONResponse(cached)
         tracker, resolved_project_id, issue = _find_tracker_for_issue(
-            orch, identifier, project_id
+            orch, resolved_identifier, project_id
         )
         if tracker is None or issue is None:
             return JSONResponse(
                 {
                     "error": {
                         "code": "issue_not_found",
-                        "message": f"Issue {identifier} not found",
+                        "message": f"Issue {resolved_identifier} not found",
                     }
                 },
                 status_code=404,
             )
-        comments = tracker.fetch_comments(identifier)
+        comments = tracker.fetch_comments(resolved_identifier)
         _api_cache.set(cache_key, comments, ttl_ms=3000)
         return JSONResponse(comments)
     except Exception as exc:
@@ -3271,15 +3272,16 @@ async def api_get_release_picks(identifier: str, request: Request):
 
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
+        resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
         tracker, resolved_project_id, issue = _find_tracker_for_issue(
-            orch, identifier, project_id
+            orch, resolved_identifier, project_id
         )
         if tracker is None or issue is None:
             return JSONResponse(
                 {
                     "error": {
                         "code": "issue_not_found",
-                        "message": f"Issue {identifier} not found",
+                        "message": f"Issue {resolved_identifier} not found",
                     }
                 },
                 status_code=404,
@@ -3370,6 +3372,7 @@ async def api_update_release_picks(identifier: str, request: Request):
                 status_code=400,
             )
 
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         orch = _get_orchestrator()
         try:
             tracker = _get_tracker(orch, project_id)
@@ -3402,7 +3405,7 @@ async def api_update_release_picks(identifier: str, request: Request):
             try:
                 result = update_release_picks_bulk(
                     tracker,
-                    identifier,
+                    resolved_identifier,
                     backports=backports_list,
                     project=project,
                 )
@@ -3430,7 +3433,7 @@ async def api_update_release_picks(identifier: str, request: Request):
             try:
                 result = update_release_pick_entry(
                     tracker,
-                    identifier,
+                    resolved_identifier,
                     branch=branch,
                     status=body.get("status"),
                     task_id=body.get("task_id"),
@@ -6505,7 +6508,7 @@ def _resolve_attachment_path(orch, rel: str) -> tuple[str | None, str | None]:
 
 
 @app.get("/api/v1/issues/{identifier}/attachments")
-async def api_list_attachments(identifier: str):
+async def api_list_attachments(identifier: str, request: Request):
     """List the attachments recorded on an issue (rich records from tasks
     metadata; the on-disk sidecar is not consulted here)."""
     try:
@@ -6514,19 +6517,23 @@ async def api_list_attachments(identifier: str):
         return JSONResponse(
             {"error": {"code": "unavailable", "message": str(exc)}}, status_code=503
         )
-    tracker, _project_id, _issue = _find_tracker_for_issue(orch, identifier)
+    project_id = request.query_params.get("project_id")
+    resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
+    tracker, _project_id, _issue = _find_tracker_for_issue(
+        orch, resolved_identifier, project_id
+    )
     if tracker is None:
         return JSONResponse(
             {
                 "error": {
                     "code": "not_found",
-                    "message": f"Issue {identifier} not found",
+                    "message": f"Issue {resolved_identifier} not found",
                 }
             },
             status_code=404,
         )
     try:
-        records = tracker.fetch_attachments(identifier)
+        records = tracker.fetch_attachments(resolved_identifier)
     except Exception as exc:
         return JSONResponse(
             {"error": {"code": "tracker_error", "message": str(exc)}}, status_code=500
@@ -6535,7 +6542,11 @@ async def api_list_attachments(identifier: str):
 
 
 @app.post("/api/v1/issues/{identifier}/attachments")
-async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
+async def api_upload_attachment(
+    identifier: str,
+    request: Request,
+    file: UploadFile = File(...),
+):
     """Upload an attachment to an issue. Multipart form: ``file=<binary>``."""
     try:
         orch = _get_orchestrator()
@@ -6544,13 +6555,17 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
             {"error": {"code": "unavailable", "message": str(exc)}}, status_code=503
         )
 
-    tracker, project_id, _issue = _find_tracker_for_issue(orch, identifier)
+    requested_project_id = request.query_params.get("project_id")
+    resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
+    tracker, project_id, _issue = _find_tracker_for_issue(
+        orch, resolved_identifier, requested_project_id
+    )
     if tracker is None:
         return JSONResponse(
             {
                 "error": {
                     "code": "not_found",
-                    "message": f"Issue {identifier} not found",
+                    "message": f"Issue {resolved_identifier} not found",
                 }
             },
             status_code=404,
@@ -6616,7 +6631,12 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
         try:
             _store = AttachmentStore(project.repo_path)
             try:
-                _rec = _store.add(identifier, tmp_path, mime_type=mime, added_by="user")
+                _rec = _store.add(
+                    resolved_identifier,
+                    tmp_path,
+                    mime_type=mime,
+                    added_by="user",
+                )
             except AttachmentTooLarge as _exc:
                 return None, ("payload_too_large", str(_exc), 413)
             except AttachmentMimeRejected as _exc:
@@ -6625,23 +6645,23 @@ async def api_upload_attachment(identifier: str, file: UploadFile = File(...)):
             # Update task metadata: append the new record to the existing list.
             _existing: list = []
             try:
-                _existing = list(tracker.fetch_attachments(identifier) or [])
+                _existing = list(tracker.fetch_attachments(resolved_identifier) or [])
             except Exception:
                 pass
             _merged = _existing + [_rec.to_dict()]
             tracker.set_attachments(
-                identifier, _merged, project_root=project.repo_path
+                resolved_identifier, _merged, project_root=project.repo_path
             )
 
             # Commit the file so it travels with the repo.
             try:
                 _store.commit(
                     [_rec.path],
-                    f"Add attachment {os.path.basename(_rec.path)} for {identifier}",
+                    f"Add attachment {os.path.basename(_rec.path)} for {resolved_identifier}",
                 )
             except Exception as _exc:
                 logger.warning(
-                    "attachment commit failed for %s: %s", identifier, _exc
+                    "attachment commit failed for %s: %s", resolved_identifier, _exc
                 )
 
             return _rec.to_dict(), None

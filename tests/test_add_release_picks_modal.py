@@ -208,7 +208,7 @@ class TestOpenFunctionBody:
         assert "/api/v1/projects/" in open_body
 
     def test_fetches_existing_picks(self, open_body):
-        assert "/api/v1/issues/" in open_body
+        assert "issueApiUrl(" in open_body
         assert "release-picks" in open_body
 
     def test_filters_default_branch(self, open_body):

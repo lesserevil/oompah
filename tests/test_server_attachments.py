@@ -75,6 +75,35 @@ class TestListAttachments:
         assert r.status_code == 200
         assert r.json()[0]["path"].endswith("x.png")
 
+    def test_issue_key_query_overrides_path_identifier(self, tmp_path, client):
+        orch, _ = _make_orch(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_attachments.return_value = []
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(
+                server_module,
+                "_find_tracker_for_issue",
+                return_value=(tracker, "proj-1", MagicMock()),
+            ) as find_tracker,
+        ):
+            r = client.get(
+                "/api/v1/issues/227/attachments",
+                params={
+                    "project_id": "proj-1",
+                    "issue_key": "NVIDIA-Omniverse/trickle#227",
+                },
+            )
+        assert r.status_code == 200
+        find_tracker.assert_called_once_with(
+            orch,
+            "NVIDIA-Omniverse/trickle#227",
+            "proj-1",
+        )
+        tracker.fetch_attachments.assert_called_once_with(
+            "NVIDIA-Omniverse/trickle#227"
+        )
+
     def test_unknown_issue_returns_404(self, tmp_path, client):
         orch, _ = _make_orch(tmp_path)
         with patch.object(server_module, "_get_orchestrator", return_value=orch), \

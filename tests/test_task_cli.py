@@ -118,6 +118,19 @@ class TestEncodeId:
         assert "%23" in task_cli._encode_id("owner/repo#42")
 
 
+class TestPathIdentifier:
+    def test_plain_identifier_is_path_identifier(self):
+        assert task_cli._path_identifier("TASK-123") == "TASK-123"
+
+    def test_github_identifier_uses_issue_number_for_path(self):
+        assert task_cli._path_identifier("owner/repo#42") == "42"
+
+    def test_github_identifier_path_id_has_no_encoded_slash(self):
+        encoded = task_cli._encode_path_id("owner/repo#42")
+        assert encoded == "42"
+        assert "%2F" not in encoded
+
+
 # ---------------------------------------------------------------------------
 # _http — error handling
 # ---------------------------------------------------------------------------
@@ -291,6 +304,13 @@ class TestCmdView:
         call_kwargs = m.call_args.kwargs or {}
         params = call_kwargs.get("params", {})
         assert params.get("issue_key") == "owner/repo#42"
+
+    def test_github_identifier_uses_route_safe_path_segment(self):
+        args = _make_args(subcommand="view", identifier="owner/repo#42", project=None)
+        with _make_http_mock({"identifier": "owner/repo#42", "title": "t"}) as m:
+            task_cli._cmd_view("http://localhost:8080", args)
+        url = m.call_args.args[1]
+        assert url == "http://localhost:8080/api/v1/issues/42/detail"
 
     def test_passes_project_id_when_given(self):
         args = _make_args(subcommand="view", identifier="TASK-1", project="proj-99")

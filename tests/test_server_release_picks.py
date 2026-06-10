@@ -195,6 +195,22 @@ class TestGetReleasePicksEndpoint:
         data = resp.json()
         assert data["identifier"] == "TASK-2"
 
+    def test_issue_key_query_overrides_path_identifier(self, client):
+        issue = _make_issue("acme/tasks#227")
+        orch, tracker, project = _make_orchestrator(issue=issue)
+
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get(
+                "/api/v1/issues/227/release-picks",
+                params={
+                    "project_id": "proj-1",
+                    "issue_key": "acme/tasks#227",
+                },
+            )
+
+        assert resp.status_code == 200
+        tracker.get_metadata.assert_called_with("acme/tasks#227")
+
     def test_validation_marks_invalid_branch(self, client):
         meta = {"oompah.backports": ["bad-branch"]}
         issue = _make_issue("TASK-3")
@@ -387,6 +403,24 @@ class TestPatchReleasePicksEndpoint:
         tracker.set_metadata_field.assert_called_once()
         call_args = tracker.set_metadata_field.call_args
         assert call_args[0][1] == "oompah.backports"
+
+    def test_issue_key_body_overrides_path_identifier_on_write(self, client):
+        issue = _make_issue("acme/tasks#227")
+        orch, tracker, project = _make_orchestrator(issue=issue)
+
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.patch(
+                "/api/v1/issues/227/release-picks",
+                json={
+                    "project_id": "proj-1",
+                    "issue_key": "acme/tasks#227",
+                    "branch": "release/3.0",
+                },
+            )
+
+        assert resp.status_code == 200
+        tracker.set_metadata_field.assert_called_once()
+        assert tracker.set_metadata_field.call_args[0][0] == "acme/tasks#227"
 
 
 # ---------------------------------------------------------------------------

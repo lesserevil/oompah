@@ -1822,6 +1822,35 @@ function optimisticIssueKey(identifier, projectId) {
   return pid ? pid + '::' + id : id;
 }
 
+function issuePathIdentifier(identifier) {
+  const raw = String(identifier || '');
+  const match = raw.match(/^[^/\s]+\/[^#\s]+#(\d+)$/);
+  return match ? match[1] : raw;
+}
+
+function issueApiUrl(identifier, suffix = '', params = {}) {
+  const pathId = encodeURIComponent(issuePathIdentifier(identifier));
+  const query = new URLSearchParams();
+  if (identifier && issuePathIdentifier(identifier) !== identifier) {
+    query.set('issue_key', identifier);
+  }
+  for (const [key, value] of Object.entries(params || {})) {
+    if (value !== undefined && value !== null && String(value) !== '') {
+      query.set(key, value);
+    }
+  }
+  const qs = query.toString();
+  return `/api/v1/issues/${pathId}${suffix}${qs ? '?' + qs : ''}`;
+}
+
+function issueRequestBody(identifier, fields = {}) {
+  const body = {...fields};
+  if (identifier && issuePathIdentifier(identifier) !== identifier) {
+    body.issue_key = identifier;
+  }
+  return body;
+}
+
 function runningAgentIssueKey(agent) {
   return optimisticIssueKey(agent && agent.issue_identifier, agent && agent.project_id);
 }
@@ -2459,10 +2488,10 @@ async function updateIssue(identifier, fields) {
   }
   let res;
   try {
-    res = await fetch(`/api/v1/issues/${identifier}`, {
+    res = await fetch(issueApiUrl(identifier), {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(outgoing),
+      body: JSON.stringify(issueRequestBody(identifier, outgoing)),
     });
   } catch (err) {
     if (hasBoardOptimistic) delete optimisticUpdates[optimisticKey];
@@ -2490,22 +2519,20 @@ async function toggleEpicDraft(epicIdentifier, isDraft, projectId) {
   try {
     if (isDraft) {
     // Remove 'draft' label then set status to Backlog
-      const delUrl = `/api/v1/issues/${encodeURIComponent(epicIdentifier)}/labels/draft` +
-        (projectId ? `?project_id=${encodeURIComponent(projectId)}` : '');
-      await fetch(delUrl, {method: 'DELETE'});
+      await fetch(issueApiUrl(epicIdentifier, '/labels/draft', {project_id: projectId}), {method: 'DELETE'});
     } else {
       // Add 'draft' label then set status to Backlog
-      await fetch(`/api/v1/issues/${encodeURIComponent(epicIdentifier)}/labels`, {
+      await fetch(issueApiUrl(epicIdentifier, '/labels'), {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({label: 'draft', project_id: projectId}),
+        body: JSON.stringify(issueRequestBody(epicIdentifier, {label: 'draft', project_id: projectId})),
       });
     }
     // In both cases, set status to Backlog
-    await fetch(`/api/v1/issues/${encodeURIComponent(epicIdentifier)}`, {
+    await fetch(issueApiUrl(epicIdentifier), {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({status: 'Backlog', project_id: projectId}),
+      body: JSON.stringify(issueRequestBody(epicIdentifier, {status: 'Backlog', project_id: projectId})),
     });
     await refreshBoard();
   } catch (err) {
@@ -3728,12 +3755,12 @@ async function openDetailPanel(identifier) {
   panel.classList.add('open');
 
   const issue = allIssuesFlat.find(i => i.identifier === identifier);
-  const pidParam = issue && issue.project_id ? `?project_id=${encodeURIComponent(issue.project_id)}` : '';
+  const projectId = issue && issue.project_id ? issue.project_id : '';
   // Start release-picks fetch in parallel; failures are caught and handled below.
-  const _rpFetch = fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/release-picks${pidParam}`).catch(() => null);
+  const _rpFetch = fetch(issueApiUrl(identifier, '/release-picks', {project_id: projectId})).catch(() => null);
   let res;
   try {
-    res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/detail${pidParam}`);
+    res = await fetch(issueApiUrl(identifier, '/detail', {project_id: projectId}));
   } catch (err) {
     body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load: network error</div>';
     return;
@@ -3944,10 +3971,11 @@ async function submitComment(identifier) {
   if (!text) return;
   let res;
   try {
-    res = await fetch(`/api/v1/issues/${encodeURIComponent(identifier)}/comments`, {
+    const projectId = document.getElementById('detail-panel-body').dataset.projectId;
+    res = await fetch(issueApiUrl(identifier, '/comments'), {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text, author: 'user', project_id: document.getElementById('detail-panel-body').dataset.projectId}),
+      body: JSON.stringify(issueRequestBody(identifier, {text, author: 'user', project_id: projectId})),
     });
   } catch (err) {
     input.value = text;
@@ -4388,7 +4416,8 @@ async function loadIssueAttachments(identifier) {
   }
 
   try {
-    const res = await fetch('/api/v1/issues/' + encodeURIComponent(identifier) + '/attachments');
+    const projectId = issue && issue.project_id ? issue.project_id : '';
+    const res = await fetch(issueApiUrl(identifier, '/attachments', {project_id: projectId}));
     if (!res.ok) {
       body.textContent = res.status === 503 ? 'Attachments are disabled for this server.' : '(none)';
       return;
@@ -4443,6 +4472,7 @@ function _renderAttachmentRow(rec) {
 function _wireAttachmentDropZone(root, identifier) {
   const drop = root.querySelector('.detail-attachments-drop');
   if (!drop) return;
+  const issue = allIssuesFlat.find(i => i.identifier === identifier);
   drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
   drop.addEventListener('drop', async e => {
@@ -4453,7 +4483,8 @@ function _wireAttachmentDropZone(root, identifier) {
       const fd = new FormData();
       fd.append('file', file);
       try {
-        const r = await fetch('/api/v1/issues/' + encodeURIComponent(identifier) + '/attachments', {
+        const projectId = issue && issue.project_id ? issue.project_id : '';
+        const r = await fetch(issueApiUrl(identifier, '/attachments', {project_id: projectId}), {
           method: 'POST', body: fd,
         });
         if (!r.ok) {
@@ -5303,9 +5334,7 @@ async function openAddReleasePicksDialog(identifier, projectId) {
 
   // Fetch existing release picks to avoid double-adding
   try {
-    const picksResp = await fetch(
-      `/api/v1/issues/${encodeURIComponent(identifier)}/release-picks?project_id=${encodeURIComponent(projectId)}`
-    );
+    const picksResp = await fetch(issueApiUrl(identifier, '/release-picks', {project_id: projectId}));
     if (picksResp.ok) {
       const picks = await picksResp.json();
       _rpExistingBranches = new Set((picks.backports || []).map(b => b.branch));
@@ -5408,14 +5437,11 @@ async function submitAddReleasePicksDialog() {
   submitBtn.textContent = 'Adding…';
 
   try {
-    const resp = await fetch(
-      `/api/v1/issues/${encodeURIComponent(identifier)}/release-picks`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: projectId, backports }),
-      }
-    );
+    const resp = await fetch(issueApiUrl(identifier, '/release-picks'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(issueRequestBody(identifier, { project_id: projectId, backports })),
+    });
 
     if (!resp.ok) {
       let message = 'Failed to add release picks.';
