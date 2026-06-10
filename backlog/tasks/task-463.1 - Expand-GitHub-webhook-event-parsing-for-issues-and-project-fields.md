@@ -1,7 +1,7 @@
 ---
 id: TASK-463.1
 title: Expand GitHub webhook event parsing for issues and project fields
-status: Open
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
 updated_date: '2026-06-10 00:21'
@@ -60,4 +60,22 @@ created: 2026-06-10 00:20
 ---
 UNDERSTANDING: This issue asks to add parsing for issues, issue_comment, label, pull_request, push, and project-field events. Investigation confirmed NO duplicate exists — TASK-463.3 depends on this work (it handles docs after parsing is done). The implementation is already present as unstaged changes in the worktree: webhooks.py has all 4 new parser functions + WebhookEvent extended fields; server.py propagates the new fields in _handle_webhook_event; tests/test_webhooks.py has comprehensive coverage. Running tests confirms 129 pass. Now staging and committing.
 ---
+
+author: oompah
+created: 2026-06-10 00:21
+---
+DISCOVERY + IMPLEMENTATION: All code was already present as unstaged changes in the worktree. oompah/webhooks.py: WebhookEvent extended with issue_number, comment_id, label_name, project_item_id, project_field_name, project_field_value; parse_github_webhook() routes issues/issue_comment/label/projects_v2_item; 4 new private parser functions. oompah/server.py: _handle_webhook_event() propagates all new extended fields. tests/test_webhooks.py: 4 new test classes (TestParseGitHubIssuesWebhook, TestParseGitHubIssueCommentWebhook, TestParseGitHubLabelWebhook, TestParseGitHubProjectsV2ItemWebhook). Invalid signatures handled by existing validate_github_signature(); unsupported events return None.
+---
+
+author: oompah
+created: 2026-06-10 00:21
+---
+VERIFICATION: 153 tests pass (129 in test_webhooks.py + 24 in test_server_webhooks.py). AC#1 verified: issues, issue_comment, label, PR, push, projects_v2_item events all parsed into normalized WebhookEvent objects. AC#2 verified: validate_github_signature() returns False for invalid/missing signatures; parse_github_webhook() returns None for unsupported event types. Branch epic-TASK-463 pushed to origin.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added parsing and validation for issues, issue_comment, label, pull_request, push, and projects_v2_item events. WebhookEvent dataclass extended with issue_number, comment_id, label_name, project_item_id, project_field_name, project_field_value fields. parse_github_webhook() routes all 6 event types; 4 new private parsers (_parse_github_issues, _parse_github_issue_comment, _parse_github_label, _parse_github_projects_v2_item). server.py _handle_webhook_event propagates new fields. 153 tests pass (129 + 24). Both ACs met: normalized event parsing + safe signature validation and unsupported-event handling.
+<!-- SECTION:FINAL_SUMMARY:END -->
