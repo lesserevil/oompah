@@ -644,13 +644,15 @@ _WEBHOOK_MAX_DELAY_S = 60.0  # cap on restart backoff
 #   ``issues``             — task open/edit/close in the task hub.
 #   ``issue_comment``      — new comments on tasks (agent handoff, ACs).
 #   ``label``              — label create/edit/delete (agent routing hints).
-#   ``projects_v2_item``   — project-board item changes (Oompah Status field).
+#
+# ``projects_v2_item`` is intentionally omitted from this repo-scoped default:
+# GitHub rejects it for repository webhooks created by ``gh webhook forward``.
+# Oompah can still parse it when delivered through a separately configured
+# organization/user-level webhook.
 #
 # Without ``--events``, the gh-webhook extension subscribes to nothing and
 # the subprocess produces no traffic.
-_WEBHOOK_DEFAULT_EVENTS = (
-    "push,pull_request,issues,issue_comment,label,projects_v2_item"
-)
+_WEBHOOK_DEFAULT_EVENTS = "push,pull_request,issues,issue_comment,label"
 
 # Stderr tail size kept in memory per project (for surfacing the most
 # recent error to the dashboard / logs without unbounded growth).
@@ -762,8 +764,8 @@ class WebhookForwarder:
                 Defaults to ``_WEBHOOK_DEFAULT_EVENTS`` — SCM events
                 (``push``, ``pull_request``) plus GitHub-backed task
                 tracking events (``issues``, ``issue_comment``, ``label``,
-                ``projects_v2_item``). Override via the
-                ``OOMPAH_WEBHOOK_EVENTS`` environment variable.
+                all supported by repo-scoped GitHub webhooks). Override via
+                the ``OOMPAH_WEBHOOK_EVENTS`` environment variable.
         status_callback: Optional callable invoked when the forwarder's
                          availability state changes. Called with a dict:
                          ``{"available": bool, "detail": str}`` so an

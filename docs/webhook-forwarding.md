@@ -64,11 +64,15 @@ event list set by `_WEBHOOK_DEFAULT_EVENTS` in `oompah/webhooks.py`:
 | `issues` | Task open/edit/close/assign when using GitHub-backed task tracking. |
 | `issue_comment` | New comments on tasks (agent handoffs, acceptance-criteria responses). |
 | `label` | Label create/edit/delete (agent routing hints such as `needs:frontend`). |
-| `projects_v2_item` | Project-board item changes, including `Oompah Status` field updates. |
 
 The `push` and `pull_request` events are sufficient for pure SCM projects
-(no GitHub Issues task tracking). All six are required for GitHub-backed
-task tracking.
+(no GitHub Issues task tracking). The full default set above is required for
+repo-scoped GitHub-backed task tracking.
+
+Oompah can parse `projects_v2_item` payloads when they are delivered by a
+separately configured organization- or user-level webhook. Do not add
+`projects_v2_item` to `OOMPAH_WEBHOOK_EVENTS` for repo-scoped
+`gh webhook forward` processes; GitHub rejects that event on repository hooks.
 
 ## Prerequisites
 
@@ -113,8 +117,8 @@ After restart, three things should be true.
 **1. The startup log shows the extension was found.**
 
 ```text
-WebhookForwarder: gh-webhook extension OK; forwarding events=push,pull_request,issues,issue_comment,label,projects_v2_item
-WebhookForwarder: started gh webhook forward for project <name> (pid=<N>, events=push,pull_request,issues,issue_comment,label,projects_v2_item)
+WebhookForwarder: gh-webhook extension OK; forwarding events=push,pull_request,issues,issue_comment,label
+WebhookForwarder: started gh webhook forward for project <name> (pid=<N>, events=push,pull_request,issues,issue_comment,label)
 ```
 
 If instead you see this ERROR line, the extension is missing or `gh` is
@@ -161,22 +165,22 @@ Or check the server access log for 200 responses to the webhook endpoint:
 grep "POST /api/v1/webhooks/github" oompah.log | tail -10
 ```
 
-**5. Confirm the `projects_v2_item` event is forwarded.**
+**5. Confirm project-field updates are covered.**
 
-The `gh webhook forward` tool uses the GitHub webhook API to register event
-subscriptions. The `projects_v2_item` event is an **organization- or
-user-level** webhook event, not a repository-level event. GitHub may or may
-not deliver it depending on whether the project is owned by an organization
-or a user account. If `Oompah Status` field updates are not arriving in real
-time, check `projects_v2_item` delivery in the GitHub webhook settings for
-the repository or organization.
+The `gh webhook forward --repo` tool creates repository webhooks. GitHub does
+not allow the `projects_v2_item` event on repository hooks, so it is not part
+of the default forwarder event list. If you need real-time project-field
+updates such as `Oompah Status`, configure a separate organization- or
+user-level webhook that sends `projects_v2_item` payloads to
+`/api/v1/webhooks/github`. Oompah's parser and server path can handle those
+payloads when delivered that way.
 
 ## Configuration
 
 | Setting | Env var | Default | Description |
 |---|---|---|---|
 | Forward URL | `OOMPAH_WEBHOOK_FORWARD_URL` | `http://localhost:8080/api/v1/webhooks/github` | Where the forwarder POSTs received events. |
-| Subscribed events | `OOMPAH_WEBHOOK_EVENTS` | `push,pull_request,issues,issue_comment,label,projects_v2_item` | Comma-separated event list passed to `gh webhook forward --events`. |
+| Subscribed events | `OOMPAH_WEBHOOK_EVENTS` | `push,pull_request,issues,issue_comment,label` | Comma-separated event list passed to `gh webhook forward --events`. |
 
 The default event set covers both SCM events and GitHub Issues task tracking.
 To subscribe to additional GitHub events (e.g. `release`, `milestone`), extend
@@ -214,9 +218,9 @@ an older value (e.g. `push,pull_request` only).
 **No `projects_v2_item` events are arriving.**
 
 `projects_v2_item` is an organization- or user-level event. GitHub delivers
-it at the organization webhook level, not the repository webhook level. The
-`gh webhook forward` tool may not forward it if the project item belongs to
-an organization project. For local development, you can simulate project
+it at the organization/user webhook level, not through repository hooks. Do
+not add it to `OOMPAH_WEBHOOK_EVENTS`; repo-scoped `gh webhook forward` will
+exit with a GitHub validation error. For local development, simulate project
 field changes by editing issue fields directly in GitHub; oompah's periodic
 poll will catch them within 2 minutes as a fallback.
 
@@ -239,8 +243,8 @@ fall back to its periodic safety-net sync.
 
 Set `OOMPAH_WEBHOOK_EVENTS=push,pull_request` in your `.env` file and
 restart. The forwarder will only subscribe to those two events. Note that
-issue, comment, label, and project-field changes will not arrive in
-real-time — oompah will rely on its 2-minute periodic sync for task state.
+issue, comment, and label changes will not arrive in real time — oompah will
+rely on its 2-minute periodic sync for task state.
 
 ## Relation to Backlog task-change webhooks
 
