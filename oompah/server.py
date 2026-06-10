@@ -2138,6 +2138,18 @@ async def api_create_issue(request: Request):
         else:
             initial_labels = None
 
+        # Preserve source-task identity across tracker backends (TASK-460.3 AC#2).
+        # When source_task_id is provided (e.g. via `oompah task create --source`),
+        # prepend a "Triggered by: <id>" header to the description so the follow-up
+        # is traceable back to its origin in every tracker backend.
+        source_task_id = (body.get("source_task_id") or "").strip() or None
+        if source_task_id:
+            source_header = f"Triggered by: {source_task_id}"
+            if description:
+                description = f"{source_header}\n\n{description}"
+            else:
+                description = source_header
+
         issue = tracker.create_issue(
             title=title,
             issue_type=issue_type,

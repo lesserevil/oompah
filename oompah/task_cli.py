@@ -11,7 +11,7 @@ Usage::
 
     oompah task view <identifier> [--project <project-id>]
     oompah task comment <identifier> --message "..." [--author oompah]
-    oompah task create --project <project-id> --title "..."
+    oompah task create --project <project-id> --title "..." [--source <source-id>]
     oompah task child-create <parent-id> --title "..." [--project <id>]
     oompah task set-status <identifier> <status> [--summary "..."]
     oompah task add-label <identifier> <label>
@@ -248,6 +248,12 @@ def _cmd_create(base_url: str, args: argparse.Namespace) -> None:
         data["priority"] = args.priority
     if getattr(args, "labels", None):
         data["labels"] = args.labels
+    # Preserve source task identity across tracker backends (AC#2).
+    # When --source is given, the server prepends "Triggered by: <id>" to the
+    # description so the follow-up is always traceable back to its origin.
+    source_task_id = getattr(args, "source", None)
+    if source_task_id:
+        data["source_task_id"] = source_task_id
     result = _http("POST", f"{base_url}/api/v1/issues", data=data)
     issue = result.get("issue") or {}
     identifier = issue.get("identifier", "?")
@@ -445,6 +451,16 @@ def build_parser() -> argparse.ArgumentParser:
         dest="labels",
         metavar="LABEL",
         help="Add a label (can be repeated)",
+    )
+    p_create.add_argument(
+        "--source",
+        default=None,
+        metavar="SOURCE_ID",
+        help=(
+            "Identifier of the task that triggered this follow-up "
+            "(e.g. TASK-123 or owner/repo#42). "
+            "Preserved in the description across all tracker backends."
+        ),
     )
 
     # --- child-create ---

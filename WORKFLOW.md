@@ -71,7 +71,7 @@ You manage this issue via the `oompah task` CLI. **The entries below are shell c
 | Re-read this task's full state                    | `oompah task view {{ issue.identifier }}`                                                                         |
 | Post progress (REQUIRED at the milestones below)  | `oompah task comment {{ issue.identifier }} --message "your message" --author oompah`                             |
 | Search project tasks/docs/decisions               | `backlog search "<keyword>" --plain`                                                                              |
-| Create a follow-up task                           | `oompah task create --project {{ issue.project_id }} --title "..."`                                               |
+| Create a follow-up task                           | `oompah task create --project {{ issue.project_id }} --title "..." --source {{ issue.identifier }}`               |
 | Create a child task under this task               | `oompah task child-create {{ issue.identifier }} --title "..."`                                                   |
 | Set dependencies for this task                    | `oompah task set-dependency {{ issue.identifier }} --depends-on <other-id>`                                       |
 | Hand off to a different focus                     | `oompah task add-label {{ issue.identifier }} needs:frontend` and `oompah task set-status {{ issue.identifier }} Open` |
@@ -92,7 +92,7 @@ You manage this issue via the `backlog` CLI. **The entries below are shell comma
 | Re-read this task's full state                    | `backlog task view {{ issue.identifier }} --plain`                                                  |
 | Post progress (REQUIRED at the milestones below)  | `backlog task edit {{ issue.identifier }} --comment "your message" --comment-author oompah --plain` |
 | Search project tasks/docs/decisions               | `backlog search "<keyword>" --plain`                                                                |
-| Create a follow-up task                           | `backlog task create "..." --description "..." --priority medium --plain`                           |
+| Create a follow-up task                           | `backlog task create "..." --description "Follow-up from {{ issue.identifier }}: ..." --priority medium --plain`   |
 | Create a child task under this task               | `backlog task create "..." --description "..." --parent {{ issue.identifier }} --plain`             |
 | Set dependencies for this task                    | `backlog task edit {{ issue.identifier }} --depends-on <other-id> --plain`                          |
 | Hand off to a different focus                     | `backlog task edit {{ issue.identifier }} --status Open --add-label needs:frontend --plain`         |
@@ -133,7 +133,7 @@ The following insights were collected by previous agents working on this project
 **Missing capabilities:** If completing the task requires a capability this system lacks (a tool, API access, a vision model, a new integration), file a follow-up task in `Needs Human` and continue with what you *can* do. Do not block on it. Example:
 {% if issue.tracker_kind == "github_issues" %}
 ```
-oompah task create --project {{ issue.project_id }} --title "Add vision model support for image analysis tasks" --description "Agent on {{ issue.identifier }} needed to analyze a screenshot but no vision-capable model is configured."
+oompah task create --project {{ issue.project_id }} --title "Add vision model support for image analysis tasks" --description "Agent on {{ issue.identifier }} needed to analyze a screenshot but no vision-capable model is configured." --source {{ issue.identifier }}
 ```
 {% else %}
 ```

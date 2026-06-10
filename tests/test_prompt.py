@@ -542,3 +542,60 @@ close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "
         assert "backlog task edit TASK-999 --status Done" in out
         # Must NOT include oompah task commands (except search which is backlog)
         assert "oompah task set-status" not in out
+
+
+class TestSourceMetadataInFollowUpCommands:
+    """Verify that WORKFLOW.md follow-up task examples include source metadata
+    for both GitHub-backed and legacy Backlog tracker kinds (TASK-460.3 AC#2)."""
+
+    def _load_workflow_template(self) -> str:
+        import os
+        workflow_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "WORKFLOW.md"
+        )
+        if not os.path.isfile(workflow_path):
+            pytest.skip("WORKFLOW.md not found")
+        with open(workflow_path) as f:
+            raw = f.read()
+        parts = raw.split("---", 2)
+        return parts[2].strip() if len(parts) == 3 else raw
+
+    def test_github_follow_up_includes_source_flag(self):
+        """GitHub-backed: 'oompah task create' follow-up includes --source flag."""
+        template_source = self._load_workflow_template()
+        issue = _make_issue(
+            identifier="owner/repo#123",
+            tracker_kind="github_issues",
+            project_id="proj-src",
+            branch_name="gh-123",
+        )
+        out = render_prompt(template_source, issue)
+        # The follow-up task line should include --source with the issue identifier
+        assert "--source owner/repo#123" in out
+
+    def test_legacy_follow_up_includes_source_in_description(self):
+        """Legacy Backlog: 'backlog task create' follow-up embeds source identifier in description."""
+        template_source = self._load_workflow_template()
+        issue = _make_issue(
+            identifier="TASK-456",
+            tracker_kind=None,
+            branch_name="TASK-456",
+        )
+        out = render_prompt(template_source, issue)
+        # The follow-up description should reference the source task
+        assert "Follow-up from TASK-456" in out
+
+    def test_github_follow_up_does_not_include_backlog_source(self):
+        """GitHub-backed: rendered follow-up does NOT mention 'Follow-up from ...' (legacy pattern)."""
+        template_source = self._load_workflow_template()
+        issue = _make_issue(
+            identifier="owner/repo#99",
+            tracker_kind="github_issues",
+            project_id="proj-gh",
+            branch_name="gh-99",
+        )
+        out = render_prompt(template_source, issue)
+        # The legacy pattern should not appear in GitHub-backed prompts
+        assert "Follow-up from owner/repo#99" not in out
+        # But the oompah --source pattern should appear
+        assert "--source owner/repo#99" in out

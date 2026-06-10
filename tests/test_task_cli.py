@@ -7,7 +7,7 @@ Covers:
   - _print_issue_detail: formatting
   - _cmd_view: correct URL, params, output
   - _cmd_comment: correct method, body
-  - _cmd_create: correct body including labels
+  - _cmd_create: correct body including labels, --source flag sends source_task_id
   - _cmd_child_create: parent_id in body
   - _cmd_set_status: status + summary comment
   - _cmd_add_label: correct endpoint, body
@@ -420,6 +420,40 @@ class TestCmdCreate:
         assert "T-77" in out
         assert "http://x" in out
 
+    def test_source_task_id_included_when_given(self):
+        """--source sends source_task_id so server can prepend 'Triggered by:' to description."""
+        args = _make_args(
+            subcommand="create",
+            title="Follow-up task",
+            project="proj-1",
+            issue_type="task",
+            description="Some detail",
+            priority=None,
+            labels=None,
+            source="TASK-99",
+        )
+        with _make_http_mock({"ok": True, "issue": {"identifier": "T-100", "title": "Follow-up task"}}) as m:
+            task_cli._cmd_create("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data.get("source_task_id") == "TASK-99"
+
+    def test_source_task_id_omitted_when_not_given(self):
+        """Without --source, source_task_id is absent from the request body."""
+        args = _make_args(
+            subcommand="create",
+            title="Plain task",
+            project="proj-1",
+            issue_type="task",
+            description=None,
+            priority=None,
+            labels=None,
+            source=None,
+        )
+        with _make_http_mock({"ok": True, "issue": {"identifier": "T-101", "title": "Plain task"}}) as m:
+            task_cli._cmd_create("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert "source_task_id" not in data
+
 
 class TestCmdChildCreate:
     def test_body_contains_parent_id(self):
@@ -698,6 +732,20 @@ class TestBuildParser:
             ]
         )
         assert args.labels == ["bug", "p0"]
+
+    def test_create_with_source_flag(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["create", "--title", "Follow-up", "--project", "p", "--source", "TASK-42"]
+        )
+        assert args.source == "TASK-42"
+
+    def test_create_source_defaults_to_none(self):
+        parser = task_cli.build_parser()
+        args = parser.parse_args(
+            ["create", "--title", "No source", "--project", "p"]
+        )
+        assert args.source is None
 
     def test_child_create_subcommand_parses(self):
         parser = task_cli.build_parser()
