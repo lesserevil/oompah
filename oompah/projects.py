@@ -54,6 +54,34 @@ def _sanitize_identifier(value: str) -> str:
     return cleaned.strip("._-") or "unnamed"
 
 
+def github_work_branch_name(project_name: str, issue_number: int | str) -> str:
+    """Generate a GitHub-safe git branch name for a GitHub-backed task.
+
+    Branch names follow the format ``oompah/<project-slug>/gh-<number>``
+    so they are filesystem-safe, globally unique within the project, and
+    do not rely on bare task numbers (AC#1 in TASK-461.3).
+
+    Storing the result in GitHub issue metadata before creating the worktree
+    lets review reconciliation resolve the task from a PR source branch
+    without guessing by task ID (AC#2 in TASK-461.3).
+
+    Parameters
+    ----------
+    project_name:
+        Human-readable project name (e.g. ``"trickle"``). Sanitized to
+        ``[A-Za-z0-9._-]+`` and used as the middle path component.
+    issue_number:
+        GitHub issue number (positive integer or numeric string).
+
+    Returns
+    -------
+    str
+        Branch name of the form ``oompah/<project-slug>/gh-<number>``.
+    """
+    slug = _sanitize_identifier(str(project_name))
+    return f"oompah/{slug}/gh-{issue_number}"
+
+
 def _task_id_key(value: str | None) -> str:
     return str(value or "").strip().lower()
 
@@ -1521,26 +1549,54 @@ class ProjectStore:
         logger.info("Epic worktree removed path=%s", wt_path)
 
     def create_worktree(
-        self, project_id: str, issue_identifier: str, base_branch: str | None = None
+        self,
+        project_id: str,
+        issue_identifier: str,
+        base_branch: str | None = None,
+        branch_name: str | None = None,
     ) -> str:
+        """Create (or reuse) a git worktree for ``issue_identifier``.
+
+        Parameters
+        ----------
+        project_id:
+            Registered project ID.
+        issue_identifier:
+            Stable issue identifier used to derive the worktree path.
+        base_branch:
+            Remote branch to base the new local branch on.  Defaults to the
+            project's ``default_branch``.
+        branch_name:
+            Explicit git branch name for the worktree.  When provided (e.g.
+            a GitHub-safe name like ``oompah/myproject/gh-1234``), it is used
+            verbatim instead of the sanitized ``issue_identifier``.  Defaults
+            to ``_sanitize_identifier(issue_identifier)`` when ``None``.
+        """
         # Acquire the per-project lock so concurrent dispatch and maintenance
         # operations for the same project are serialized through git.  The lock
         # is reentrant so callers that already hold it (e.g. dispatch holding
         # the lock across a tracker write + worktree create) do not deadlock.
         with self.project_write_lock(project_id):
             return self._create_worktree_locked(
-                project_id, issue_identifier, base_branch
+                project_id, issue_identifier, base_branch, branch_name
             )
 
     def _create_worktree_locked(
-        self, project_id: str, issue_identifier: str, base_branch: str | None = None
+        self,
+        project_id: str,
+        issue_identifier: str,
+        base_branch: str | None = None,
+        branch_name: str | None = None,
     ) -> str:
         project = self._projects.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
 
         wt_path = self.worktree_path_for(project_id, issue_identifier)
-        branch_name = _sanitize_identifier(issue_identifier)
+        # Use the caller-supplied branch name (e.g. GitHub-safe
+        # ``oompah/<slug>/gh-<n>``) when provided; fall back to the
+        # sanitized identifier for legacy Backlog-backed tasks.
+        branch_name = branch_name or _sanitize_identifier(issue_identifier)
 
         if os.path.isdir(wt_path):
             logger.info("Worktree already exists path=%s", wt_path)

@@ -71,7 +71,7 @@ from oompah.focus import (
     select_focus_async,
 )
 from oompah.prompt import PromptError, build_continuation_prompt, render_prompt
-from oompah.projects import ProjectError, ProjectStore
+from oompah.projects import ProjectError, ProjectStore, github_work_branch_name
 from oompah.providers import ProviderStore
 from oompah.roles import CandidateSelector, RoleStore
 from oompah.scm import ReviewRequest, detect_provider, extract_repo_slug
@@ -3806,10 +3806,39 @@ class Orchestrator:
                 self._sync_issue_task_file_to_workspace(issue, wp)
                 return wp, parent_epic
 
+        # For GitHub-backed tasks, generate a GitHub-safe branch name
+        # (oompah/<project-slug>/gh-<number>) and persist Work Branch +
+        # Target Branch metadata to the issue before creating the worktree
+        # so review reconciliation can resolve the task from a PR source
+        # branch without guessing by task ID (TASK-461.3, AC#1 and AC#2).
+        work_branch: str | None = None
+        if issue.tracker_kind == "github_issues" and issue.issue_number and issue.project_id:
+            project_obj = self.project_store.get(issue.project_id)
+            if project_obj is not None:
+                work_branch = github_work_branch_name(project_obj.name, issue.issue_number)
+                try:
+                    tracker = self._tracker_for_issue(issue)
+                    tracker.set_metadata_field(
+                        issue.identifier, "oompah.work_branch", work_branch
+                    )
+                    if issue.target_branch:
+                        tracker.set_metadata_field(
+                            issue.identifier,
+                            "oompah.target_branch",
+                            issue.target_branch,
+                        )
+                except Exception as _exc:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to persist branch metadata for %s: %s",
+                        issue.identifier,
+                        _exc,
+                    )
+
         wp = self.project_store.create_worktree(
             issue.project_id,
             issue.identifier,
             base_branch=issue.target_branch,
+            branch_name=work_branch,
         )
         self._sync_issue_task_file_to_workspace(issue, wp)
         return wp, None
