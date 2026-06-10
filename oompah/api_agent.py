@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import signal
 import ssl
 import subprocess
 import time
@@ -524,24 +525,50 @@ def _exec_run_command(
     env = None
     if env_overrides:
         env = {**os.environ, **env_overrides}
+
+    def _terminate_process_tree(process: subprocess.Popen[str]) -> tuple[str, str]:
+        if os.name == "posix":
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                return process.communicate()
+        else:
+            process.terminate()
+        try:
+            return process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            if os.name == "posix":
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            else:
+                process.kill()
+            return process.communicate()
+
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             ["bash", "-lc", command],
             cwd=str(workspace),
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
             env=env,
+            start_new_session=(os.name == "posix"),
         )
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _terminate_process_tree(process)
+            return f"Error: command timed out after {timeout}s"
+
         parts: list[str] = []
-        if result.stdout:
-            parts.append(f"stdout:\n{result.stdout}")
-        if result.stderr:
-            parts.append(f"stderr:\n{result.stderr}")
-        parts.append(f"exit_code: {result.returncode}")
+        if stdout:
+            parts.append(f"stdout:\n{stdout}")
+        if stderr:
+            parts.append(f"stderr:\n{stderr}")
+        parts.append(f"exit_code: {process.returncode}")
         return "\n".join(parts)
-    except subprocess.TimeoutExpired:
-        return f"Error: command timed out after {timeout}s"
     except Exception as exc:
         return f"Error running command: {exc}"
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import time
 
 import pytest
 
@@ -1138,6 +1140,42 @@ class TestRunCommandRefusesCdOutsideWorkspace:
         result = _exec_run_command(tmp_path, {"command": "echo hello"})
         assert "Error: refusing" not in result
         assert "hello" in result
+
+
+class TestRunCommandTimeoutCleanup:
+    @pytest.mark.skipif(os.name != "posix", reason="requires POSIX process groups")
+    def test_timeout_kills_child_process_tree(self, tmp_path):
+        from oompah.api_agent import _exec_run_command
+
+        pid_file = tmp_path / "child.pid"
+        result = _exec_run_command(
+            tmp_path,
+            {"command": "sleep 60 & echo $! > child.pid; wait"},
+            timeout=1,
+        )
+
+        assert "Error: command timed out after 1s" in result
+        child_pid = int(pid_file.read_text().strip())
+        try:
+            for _ in range(30):
+                if not self._pid_exists(child_pid):
+                    break
+                time.sleep(0.05)
+            assert not self._pid_exists(child_pid)
+        finally:
+            if self._pid_exists(child_pid):
+                try:
+                    os.kill(child_pid, 9)
+                except ProcessLookupError:
+                    pass
+
+    @staticmethod
+    def _pid_exists(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
 
 
 class TestUnknownToolHelpfulErrorWhenLooksShellish:

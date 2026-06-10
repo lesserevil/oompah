@@ -13696,7 +13696,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
         )
 
         try:
-            issue = self._fetch_retry_issue(retry)
+            issue = await asyncio.to_thread(self._fetch_retry_issue, retry)
         except (TrackerError, ProjectError):
             # Requeue
             self._schedule_retry(

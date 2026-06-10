@@ -362,6 +362,48 @@ class TestRetryTimerPostsEvent:
         assert len(retry_events) == 1
         assert retry_events[0].issue_id == issue_id
 
+    def test_retry_issue_fetch_runs_off_event_loop(self, tmp_path, event_loop):
+        """Retry lookup may call asyncio.run internally and must run in a thread."""
+        import threading
+        import time
+
+        from oompah.models import Issue, RetryEntry
+
+        orch = _make_orchestrator(tmp_path)
+        issue_id = "retry-issue-thread"
+        event_loop_thread = threading.current_thread()
+        fetch_threads: list[threading.Thread] = []
+
+        def _fetch_retry_issue(_retry):
+            fetch_threads.append(threading.current_thread())
+
+            async def _inner():
+                return Issue(
+                    id=issue_id,
+                    identifier=issue_id,
+                    title="Retry issue",
+                    state="Open",
+                )
+
+            return asyncio.run(_inner())
+
+        orch._fetch_retry_issue = _fetch_retry_issue
+        orch._dispatch = AsyncMock()
+        orch.state.retry_attempts[issue_id] = RetryEntry(
+            issue_id=issue_id,
+            identifier=issue_id,
+            attempt=1,
+            due_at_ms=time.monotonic() * 1000,
+            timer_handle=None,
+            error=None,
+        )
+
+        event_loop.run_until_complete(orch._on_retry_timer(issue_id))
+
+        assert fetch_threads, "_fetch_retry_issue was never called"
+        assert fetch_threads[0] is not event_loop_thread
+        orch._dispatch.assert_awaited_once()
+
     def test_no_retry_entry_does_not_post(self, tmp_path, event_loop):
         """If there's no pending retry for the issue, no event is posted."""
         orch = _make_orchestrator(tmp_path)
