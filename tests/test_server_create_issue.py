@@ -307,3 +307,132 @@ class TestCreateIssueEpicDraftLabel:
 
         # Should use issue.identifier, not issue.id
         mock_tracker.add_label.assert_called_once_with("oompah-xyz", "draft")
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/issues — source_task_id metadata (TASK-460.3 AC#2)
+# ---------------------------------------------------------------------------
+
+class TestCreateIssueSourceTaskId:
+    """Tests that source_task_id is prepended to description across tracker backends."""
+
+    def test_source_task_id_prepended_to_description(self, client):
+        """When source_task_id is given, 'Triggered by: X' is prepended to description."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.create_issue.return_value = _make_mock_issue("T-99")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Follow-up",
+                    "project_id": "proj-1",
+                    "source_task_id": "TASK-42",
+                    "description": "More context here.",
+                },
+            )
+
+        assert resp.status_code == 201
+        call_kwargs = mock_tracker.create_issue.call_args.kwargs
+        description = call_kwargs.get("description", "")
+        assert description.startswith("Triggered by: TASK-42")
+        assert "More context here." in description
+
+    def test_source_task_id_used_as_description_when_no_description_given(self, client):
+        """When source_task_id is given but no description, description is just the header."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.create_issue.return_value = _make_mock_issue("T-100")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Follow-up no desc",
+                    "project_id": "proj-1",
+                    "source_task_id": "TASK-55",
+                },
+            )
+
+        assert resp.status_code == 201
+        call_kwargs = mock_tracker.create_issue.call_args.kwargs
+        description = call_kwargs.get("description", "")
+        assert description == "Triggered by: TASK-55"
+
+    def test_no_source_task_id_does_not_alter_description(self, client):
+        """Without source_task_id, description is passed through unchanged."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.create_issue.return_value = _make_mock_issue("T-101")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Plain task",
+                    "project_id": "proj-1",
+                    "description": "Original description.",
+                },
+            )
+
+        assert resp.status_code == 201
+        call_kwargs = mock_tracker.create_issue.call_args.kwargs
+        description = call_kwargs.get("description", "")
+        assert description == "Original description."
+        assert "Triggered by" not in description
+
+    def test_empty_source_task_id_does_not_alter_description(self, client):
+        """An empty string source_task_id is treated as absent."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.create_issue.return_value = _make_mock_issue("T-102")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Empty source",
+                    "project_id": "proj-1",
+                    "source_task_id": "",
+                    "description": "My description.",
+                },
+            )
+
+        assert resp.status_code == 201
+        call_kwargs = mock_tracker.create_issue.call_args.kwargs
+        description = call_kwargs.get("description", "")
+        assert "Triggered by" not in description
+        assert description == "My description."
+
+    def test_source_task_id_works_with_github_style_identifier(self, client):
+        """GitHub-style identifiers (owner/repo#123) are preserved as-is in description."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.create_issue.return_value = _make_mock_issue("T-103")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "GH follow-up",
+                    "project_id": "proj-1",
+                    "source_task_id": "lesserevil/oompah-tasks#99",
+                    "description": "Detail.",
+                },
+            )
+
+        assert resp.status_code == 201
+        call_kwargs = mock_tracker.create_issue.call_args.kwargs
+        description = call_kwargs.get("description", "")
+        assert "Triggered by: lesserevil/oompah-tasks#99" in description

@@ -362,3 +362,240 @@ class TestRenderPromptProjectArg:
         template = "skip:{% for p in project.test_skip_paths %}[{{ p }}]{% endfor %}"
         out = render_prompt(template, issue, project=project)
         assert "skip:[tests/hw/*][tests/integration/*]" in out
+
+
+# ---------------------------------------------------------------------------
+# Tracker identity template vars (TASK-460.2)
+# ---------------------------------------------------------------------------
+
+
+class TestTrackerIdentityTemplateVars:
+    """Tests for tracker_kind / provider_url / display_identifier / project_id
+    being exposed to Liquid templates."""
+
+    def test_tracker_kind_empty_for_legacy_issue(self):
+        issue = _make_issue()  # no tracker_kind set
+        template = "kind=[{{ issue.tracker_kind }}]"
+        out = render_prompt(template, issue)
+        assert "kind=[]" in out
+
+    def test_tracker_kind_github_issues(self):
+        issue = _make_issue(tracker_kind="github_issues")
+        template = "kind=[{{ issue.tracker_kind }}]"
+        out = render_prompt(template, issue)
+        assert "kind=[github_issues]" in out
+
+    def test_provider_url_exposed(self):
+        issue = _make_issue(provider_url="https://github.com/owner/repo/issues/42")
+        template = "url=[{{ issue.provider_url }}]"
+        out = render_prompt(template, issue)
+        assert "url=[https://github.com/owner/repo/issues/42]" in out
+
+    def test_provider_url_empty_when_none(self):
+        issue = _make_issue()  # no provider_url
+        template = "url=[{{ issue.provider_url }}]"
+        out = render_prompt(template, issue)
+        assert "url=[]" in out
+
+    def test_display_identifier_exposed(self):
+        issue = _make_issue(display_identifier="#42")
+        template = "disp=[{{ issue.display_identifier }}]"
+        out = render_prompt(template, issue)
+        assert "disp=[#42]" in out
+
+    def test_project_id_exposed(self):
+        issue = _make_issue(project_id="proj-abc")
+        template = "proj=[{{ issue.project_id }}]"
+        out = render_prompt(template, issue)
+        assert "proj=[proj-abc]" in out
+
+    def test_project_id_empty_when_none(self):
+        issue = _make_issue()  # no project_id
+        template = "proj=[{{ issue.project_id }}]"
+        out = render_prompt(template, issue)
+        assert "proj=[]" in out
+
+
+class TestTrackerSpecificConditionalRendering:
+    """Verify WORKFLOW.md-style conditional blocks render correctly for
+    each tracker kind (TASK-460.2 acceptance criteria)."""
+
+    # Minimal mock of the WORKFLOW.md conditional quick-reference section.
+    _TRACKER_SECTION_TEMPLATE = """\
+{% if issue.tracker_kind == "github_issues" %}
+## oompah Task Reference
+view: `oompah task view {{ issue.identifier }}`
+comment: `oompah task comment {{ issue.identifier }} --message "..." --author oompah`
+create: `oompah task create --project {{ issue.project_id }} --title "..."`
+close: `oompah task set-status {{ issue.identifier }} Done --summary "..."`
+{% if issue.provider_url != "" %}GitHub Issue: {{ issue.provider_url }}{% endif %}
+{% else %}
+## Backlog.md Quick Reference
+view: `backlog task view {{ issue.identifier }} --plain`
+comment: `backlog task edit {{ issue.identifier }} --comment "..." --comment-author oompah --plain`
+create: `backlog task create "..." --priority medium --plain`
+close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "..." --plain`
+{% endif %}"""
+
+    def test_github_backed_shows_oompah_commands(self):
+        issue = _make_issue(
+            identifier="owner/repo#42",
+            tracker_kind="github_issues",
+            project_id="proj-gh",
+            provider_url="https://github.com/owner/repo/issues/42",
+        )
+        out = render_prompt(self._TRACKER_SECTION_TEMPLATE, issue)
+        # oompah commands present
+        assert "oompah task view" in out
+        assert "oompah task comment" in out
+        assert "oompah task create --project proj-gh" in out
+        assert "oompah task set-status" in out
+        assert "GitHub Issue: https://github.com/owner/repo/issues/42" in out
+        # No backlog commands
+        assert "backlog task view" not in out
+        assert "backlog task edit" not in out
+        assert "backlog task create" not in out
+
+    def test_legacy_backlog_shows_backlog_commands(self):
+        issue = _make_issue(
+            identifier="TASK-123",
+            tracker_kind=None,  # legacy — no tracker_kind set
+        )
+        out = render_prompt(self._TRACKER_SECTION_TEMPLATE, issue)
+        # backlog commands present
+        assert "backlog task view TASK-123 --plain" in out
+        assert "backlog task edit TASK-123 --comment" in out
+        assert "backlog task create" in out
+        assert "backlog task edit TASK-123 --status Done" in out
+        # No oompah commands
+        assert "oompah task view" not in out
+        assert "oompah task comment" not in out
+
+    def test_github_backed_omits_provider_url_when_empty(self):
+        issue = _make_issue(
+            identifier="owner/repo#5",
+            tracker_kind="github_issues",
+            project_id="p",
+            provider_url=None,  # no URL available
+        )
+        out = render_prompt(self._TRACKER_SECTION_TEMPLATE, issue)
+        assert "oompah task view" in out
+        assert "GitHub Issue:" not in out
+
+    def test_workflow_md_renders_for_github_issue(self):
+        """End-to-end: the actual WORKFLOW.md template renders without error
+        for a GitHub-backed issue and includes oompah commands."""
+        import os
+        workflow_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "WORKFLOW.md"
+        )
+        if not os.path.isfile(workflow_path):
+            pytest.skip("WORKFLOW.md not found")
+        with open(workflow_path) as f:
+            raw = f.read()
+        # Strip YAML front-matter (--- ... ---) to get the Liquid template body.
+        parts = raw.split("---", 2)
+        template_source = parts[2].strip() if len(parts) == 3 else raw
+
+        issue = _make_issue(
+            identifier="owner/repo#99",
+            title="My GitHub issue",
+            tracker_kind="github_issues",
+            project_id="proj-x",
+            provider_url="https://github.com/owner/repo/issues/99",
+            branch_name="TASK-99",
+        )
+        out = render_prompt(template_source, issue)
+        assert isinstance(out, str)
+        # Should include GitHub section headers and oompah commands
+        assert "oompah Task Reference" in out
+        assert "oompah task view" in out
+        assert "oompah task set-status" in out
+        # Must NOT include backlog task create/edit for GitHub tasks
+        assert "backlog task edit owner/repo#99" not in out
+        assert "backlog task create" not in out
+
+    def test_workflow_md_renders_for_legacy_issue(self):
+        """End-to-end: the actual WORKFLOW.md renders for a legacy Backlog issue
+        and includes backlog commands."""
+        import os
+        workflow_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "WORKFLOW.md"
+        )
+        if not os.path.isfile(workflow_path):
+            pytest.skip("WORKFLOW.md not found")
+        with open(workflow_path) as f:
+            raw = f.read()
+        parts = raw.split("---", 2)
+        template_source = parts[2].strip() if len(parts) == 3 else raw
+
+        issue = _make_issue(
+            identifier="TASK-999",
+            title="Legacy backlog task",
+            tracker_kind=None,
+            branch_name="TASK-999",
+        )
+        out = render_prompt(template_source, issue)
+        assert isinstance(out, str)
+        assert "Backlog.md Quick Reference" in out
+        assert "backlog task view TASK-999 --plain" in out
+        assert "backlog task edit TASK-999 --status Done" in out
+        # Must NOT include oompah task commands (except search which is backlog)
+        assert "oompah task set-status" not in out
+
+
+class TestSourceMetadataInFollowUpCommands:
+    """Verify that WORKFLOW.md follow-up task examples include source metadata
+    for both GitHub-backed and legacy Backlog tracker kinds (TASK-460.3 AC#2)."""
+
+    def _load_workflow_template(self) -> str:
+        import os
+        workflow_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "WORKFLOW.md"
+        )
+        if not os.path.isfile(workflow_path):
+            pytest.skip("WORKFLOW.md not found")
+        with open(workflow_path) as f:
+            raw = f.read()
+        parts = raw.split("---", 2)
+        return parts[2].strip() if len(parts) == 3 else raw
+
+    def test_github_follow_up_includes_source_flag(self):
+        """GitHub-backed: 'oompah task create' follow-up includes --source flag."""
+        template_source = self._load_workflow_template()
+        issue = _make_issue(
+            identifier="owner/repo#123",
+            tracker_kind="github_issues",
+            project_id="proj-src",
+            branch_name="gh-123",
+        )
+        out = render_prompt(template_source, issue)
+        # The follow-up task line should include --source with the issue identifier
+        assert "--source owner/repo#123" in out
+
+    def test_legacy_follow_up_includes_source_in_description(self):
+        """Legacy Backlog: 'backlog task create' follow-up embeds source identifier in description."""
+        template_source = self._load_workflow_template()
+        issue = _make_issue(
+            identifier="TASK-456",
+            tracker_kind=None,
+            branch_name="TASK-456",
+        )
+        out = render_prompt(template_source, issue)
+        # The follow-up description should reference the source task
+        assert "Follow-up from TASK-456" in out
+
+    def test_github_follow_up_does_not_include_backlog_source(self):
+        """GitHub-backed: rendered follow-up does NOT mention 'Follow-up from ...' (legacy pattern)."""
+        template_source = self._load_workflow_template()
+        issue = _make_issue(
+            identifier="owner/repo#99",
+            tracker_kind="github_issues",
+            project_id="proj-gh",
+            branch_name="gh-99",
+        )
+        out = render_prompt(template_source, issue)
+        # The legacy pattern should not appear in GitHub-backed prompts
+        assert "Follow-up from owner/repo#99" not in out
+        # But the oompah --source pattern should appear
+        assert "--source owner/repo#99" in out
