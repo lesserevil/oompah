@@ -1,10 +1,10 @@
 ---
 id: TASK-464.2
 title: Implement legacy Backlog dual-read and dispatch flags
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 03:38'
+updated_date: '2026-06-10 03:39'
 labels:
   - task
   - github-issues
@@ -68,3 +68,9 @@ created: 2026-06-10 03:38
 VERIFICATION: 32 new tests all pass. Full sweep of related tests: 251 tests pass (test_models, test_projects, test_projects_crud, test_backlog_hook_tracker_guards, test_project_pause, test_legacy_backlog_dispatch). Additional dispatch gate tests: 183 pass (test_backlog_conflict, test_dispatch_event_loop, test_dispatch_close_race, test_default_first_dispatch). 49 budget/dispatch tests pass. No regressions detected.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Implemented legacy_backlog_enabled and legacy_backlog_dispatch fields on Project model with full serialization, UPDATABLE_FIELDS entries, _should_dispatch() gate (rejects legacy Backlog tasks in GitHub-backed projects with reason 'legacy_backlog_not_dispatchable' unless legacy_backlog_dispatch=True), and dual-read filter in _fetch_all_candidates()/_fetch_all_issues() that excludes Backlog issues when legacy_backlog_enabled=False and tags them as tracker_kind='backlog_md' when enabled=True. 32 new tests, all 251 swept tests pass. Changes in: oompah/models.py, oompah/projects.py, oompah/orchestrator.py, oompah/server.py, tests/test_legacy_backlog_dispatch.py (new), tests/test_projects_crud.py (updated).
+<!-- SECTION:FINAL_SUMMARY:END -->
