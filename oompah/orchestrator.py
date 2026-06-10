@@ -6485,6 +6485,7 @@ class Orchestrator:
         self._label_merged_issues()
         self._label_merged_epics()
         self._reconcile_in_review_pr_outcomes()
+        self._reconcile_terminal_open_reviews()
         self._reconcile_stale_in_review_tasks()
         self._open_deferred_done_reviews()
 
@@ -6817,6 +6818,136 @@ class Orchestrator:
                             issue.identifier,
                             exc,
                         )
+
+    def _reconcile_terminal_open_reviews(self) -> None:
+        """Demote false terminal ``Merged`` state when an open PR still exists."""
+        reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+        if not reviews_cache:
+            return
+
+        for project in self.project_store.list_all():
+            project_id = str(project.id)
+            project_reviews = reviews_cache.get(project.id) or reviews_cache.get(
+                project_id, []
+            )
+            branch_to_review = {
+                str(review.source_branch): review
+                for review in project_reviews
+                if getattr(review, "source_branch", None)
+                and str(getattr(review, "state", "") or "").lower() == "open"
+            }
+            if not branch_to_review:
+                continue
+
+            try:
+                tracker = self._tracker_for_project(project_id)
+                issues = tracker.fetch_issues_by_states([MERGED])
+            except (ProjectError, TrackerError) as exc:
+                logger.debug(
+                    "Terminal/open-review reconciliation fetch failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            for issue in issues:
+                if not issue.project_id:
+                    issue.project_id = project_id
+                if canonicalize_status(issue.state) != MERGED:
+                    continue
+
+                branch = self._open_review_branch_for_issue(
+                    issue,
+                    project_id,
+                    branch_to_review,
+                )
+                if not branch:
+                    continue
+                review = branch_to_review[branch]
+                target_branch = self._review_target_branch(project, review)
+                commits_ahead, _commit_lines, commit_error = (
+                    self._count_review_branch_ahead(
+                        project,
+                        target_branch,
+                        branch,
+                    )
+                )
+                if commit_error:
+                    logger.warning(
+                        "Skipping false-Merged repair for %s branch=%s: could not "
+                        "verify current branch tip against %s: %s",
+                        issue.identifier,
+                        branch,
+                        target_branch,
+                        commit_error,
+                    )
+                    continue
+                if commits_ahead <= 0:
+                    logger.debug(
+                        "Skipping false-Merged repair for %s branch=%s: open "
+                        "review branch is not ahead of %s",
+                        issue.identifier,
+                        branch,
+                        target_branch,
+                    )
+                    continue
+
+                new_status = IN_REVIEW
+                if (getattr(review, "ci_status", "") or "") == "failed":
+                    new_status = NEEDS_CI_FIX
+                elif bool(getattr(review, "has_conflicts", False)):
+                    new_status = NEEDS_REBASE
+
+                try:
+                    tracker.update_issue(issue.identifier, status=new_status)
+                    logger.warning(
+                        "Repaired false Merged state for %s: open review #%s "
+                        "branch=%s is %d commit(s) ahead of %s; set status=%s",
+                        issue.identifier,
+                        getattr(review, "id", "?"),
+                        branch,
+                        commits_ahead,
+                        target_branch,
+                        new_status,
+                    )
+                except TrackerError as exc:
+                    logger.debug(
+                        "Failed to repair false Merged state for %s: %s",
+                        issue.identifier,
+                        exc,
+                    )
+
+    def _open_review_branch_for_issue(
+        self,
+        issue: Issue,
+        project_id: str | None,
+        branch_to_review: dict[str, ReviewRequest],
+    ) -> str:
+        """Return the open review branch matching ``issue``, if any."""
+        candidates: list[str] = []
+        for value in (
+            getattr(issue, "work_branch", None),
+            getattr(issue, "branch_name", None),
+        ):
+            if isinstance(value, str) and value.strip():
+                candidates.append(value.strip())
+
+        if (
+            self._project_epic_strategy(project_id) in ("stacked", "shared")
+            and (issue.issue_type or "").strip().lower() == "epic"
+        ):
+            try:
+                candidates.append(
+                    self.project_store.epic_branch_name(issue.identifier)
+                )
+            except Exception:  # noqa: BLE001 - fall back to the task identifier
+                pass
+
+        candidates.append(issue.identifier)
+        for candidate in dict.fromkeys(candidates):
+            if candidate in branch_to_review:
+                return candidate
+        return ""
 
     def _reconcile_stale_in_review_tasks(self) -> None:
         """Move ``In Review`` tasks out of review when no live PR/MR exists.
