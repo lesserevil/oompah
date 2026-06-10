@@ -1,10 +1,10 @@
 ---
 id: TASK-462.1
 title: Build branch-to-issue index from tracker metadata
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 01:57'
+updated_date: '2026-06-10 01:59'
 labels:
   - task
   - github-issues
@@ -59,4 +59,16 @@ created: 2026-06-10 01:57
 ---
 Implementation complete: (1) Added work_branch:str|None field to Issue model in models.py; (2) Updated _gh_issue_to_issue in github_tracker.py to read work_branch from body metadata; (3) Added oompah.work_branch to known metadata fields in tracker.py; (4) Added _branch_indexes per-project dict and _build_branch_index() method to Orchestrator; (5) Updated _resolve_task_for_branch to accept project_id and check branch index before legacy fallback; (6) Updated _clear_merge_conflict_label_for_branch to use _resolve_task_for_branch; (7) Updated _invalidate_tracker_read_caches to clear branch indexes; (8) Updated all 3 callers to pass project_id. 17 new tests added (10 in test_yolo_handlers.py, 7 in test_merge_queue.py).
 ---
+
+author: oompah
+created: 2026-06-10 01:59
+---
+Verification: all 522 tests pass (test_yolo_handlers.py, test_merge_queue.py, test_github_tracker.py, test_models.py, test_backlog_tracker.py). Branch pushed to origin/epic-TASK-462. Both acceptance criteria satisfied: AC#1 via branch index + _resolve_task_for_branch, AC#2 via legacy fallback preserved.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built per-project branch-to-issue index from GitHub Work Branch metadata. Added work_branch field to Issue model, populated from body metadata in github_tracker.py. Added _build_branch_index() and _branch_indexes cache to Orchestrator. Updated _resolve_task_for_branch to check the work_branch index (GitHub path) then fall back to direct fetch_issue_detail (Backlog legacy path). Updated _clear_merge_conflict_label_for_branch and all 3 resolve callers. Index cache is cleared on each tick via _invalidate_tracker_read_caches. 17 new tests, 522 total passing.
+<!-- SECTION:FINAL_SUMMARY:END -->
