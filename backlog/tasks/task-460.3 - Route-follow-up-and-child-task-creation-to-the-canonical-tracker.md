@@ -1,7 +1,7 @@
 ---
 id: TASK-460.3
 title: Route follow-up and child task creation to the canonical tracker
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
 updated_date: '2026-06-10 05:24'
@@ -124,4 +124,16 @@ created: 2026-06-10 05:24
 ---
 Discovery: Confirmed not a duplicate. Found that prior partial runs had already implemented all required changes in the working tree: (1) WORKFLOW.md: github_issues template now passes --source {{issue.identifier}} for follow-up task creation; legacy Backlog template embeds 'Follow-up from {{issue.identifier}}' in description. (2) oompah/task_cli.py: added --source flag, sends source_task_id to server. (3) oompah/server.py: handles source_task_id by prepending 'Triggered by: <id>' to description across all tracker backends. (4) Tests in test_server_create_issue.py (5 tests), test_task_cli.py (4 tests), test_prompt.py (3 tests). The orchestrator.py and error_watcher.py already use tracker.create_issue() (tracker-neutral), no changes needed there.
 ---
+
+author: oompah
+created: 2026-06-10 05:24
+---
+Implementation: Committed and pushed to epic-TASK-460. Changes: (1) WORKFLOW.md adds --source to github_issues follow-up template and embeds 'Follow-up from' in legacy Backlog description. (2) oompah/task_cli.py adds --source flag for source_task_id. (3) oompah/server.py prepends 'Triggered by: <id>' in description when source_task_id given. (4) 12 new tests across 3 test files. All 149 tests pass. Acceptance criteria met: AC#1 - GitHub-backed workflow uses oompah task create (not backlog task create); AC#2 - source metadata preserved via 'Triggered by:' in description across tracker backends.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Routed follow-up and child task creation to canonical tracker. (1) WORKFLOW.md: github_issues branch now uses 'oompah task create --source {{issue.identifier}}' for follow-ups (no backlog commands); legacy Backlog branch embeds 'Follow-up from {{issue.identifier}}' in description for traceability. (2) oompah/task_cli.py: --source flag added to oompah task create. (3) oompah/server.py: source_task_id prepends 'Triggered by: <id>' to description across all tracker backends. (4) orchestrator.py and error_watcher.py already use tracker.create_issue() (tracker-neutral). 12 new tests, 149 pass. Both ACs satisfied.
+<!-- SECTION:FINAL_SUMMARY:END -->
