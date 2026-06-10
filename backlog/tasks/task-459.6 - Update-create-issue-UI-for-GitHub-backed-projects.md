@@ -1,25 +1,41 @@
 ---
 id: TASK-459.6
 title: Update create issue UI for GitHub-backed projects
-status: Done
+status: Merged
 assignee: []
-created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 23:28'
+created_date: 2026-06-08 17:57
+updated_date: 2026-06-10 03:12
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-459.2
-  - TASK-459.5
+- TASK-459.2
+- TASK-459.5
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/templates/dashboard.html
-  - tests/test_server_issue_enhance.py
+- oompah/templates/dashboard.html
+- tests/test_server_issue_enhance.py
 parent_task_id: TASK-459
 priority: high
 ordinal: 128000
+oompah.task_costs:
+  total_input_tokens: 87
+  total_output_tokens: 25379
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 87
+      output_tokens: 25379
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 87
+    output_tokens: 25379
+    cost_usd: 0.0
+    recorded_at: '2026-06-09T23:29:05.987840+00:00'
 ---
 
 ## Description
@@ -66,6 +82,39 @@ created: 2026-06-09 23:28
 ---
 Verification: 45/45 new tests pass (10 server create labels tests + 35 dashboard create GitHub tests). 392/392 dashboard+server-issue tests pass. 373/373 tracker/config/projects/models tests pass. 266/266 server tests pass. No regressions found. AC #1 (GitHub-backed project never writes Backlog task): verified by server_create_labels tests showing labels/target_branch forwarded through tracker.create_issue() protocol (the same API endpoint that TASK-459.2 made backend-neutral). AC #2 (legacy Backlog projects still work): GitHub fields are hidden when isGitHubBacked() returns false, so legacy projects see no new UI changes.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-09 23:17
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-09 23:17
+
+Focus: Queue Api Oompah Specialist
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-09 23:29
+
+Agent completed successfully in 713s (25466 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-09 23:29
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 138, Tool calls: 89
+- Tokens: 87 in / 25.4K out [25.5K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 11m 53s
+- Log: TASK-459.6__20260609T231733Z.jsonl
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary

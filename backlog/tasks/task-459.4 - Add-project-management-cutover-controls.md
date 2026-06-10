@@ -1,21 +1,21 @@
 ---
 id: TASK-459.4
 title: Add project management cutover controls
-status: Done
+status: Merged
 assignee: []
-created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 05:40'
+created_date: 2026-06-08 17:57
+updated_date: 2026-06-10 03:12
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-459.3
+- TASK-459.3
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/templates/projects.html
-  - tests
+- oompah/templates/projects.html
+- tests
 parent_task_id: TASK-459
 priority: medium
 ordinal: 126000

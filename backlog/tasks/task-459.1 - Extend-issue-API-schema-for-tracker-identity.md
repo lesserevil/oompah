@@ -1,27 +1,42 @@
 ---
 id: TASK-459.1
 title: Extend issue API schema for tracker identity
-status: Done
-assignee:
-  - oompah
-created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 22:34'
+status: Merged
+assignee: []
+created_date: 2026-06-08 17:57
+updated_date: 2026-06-10 03:12
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-457.2
-  - TASK-458.3
+- TASK-457.2
+- TASK-458.3
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/server.py
-  - tests/test_server_issue_detail.py
-  - tests/test_dashboard_draft_epics.py
+- oompah/server.py
+- tests/test_server_issue_detail.py
+- tests/test_dashboard_draft_epics.py
 parent_task_id: TASK-459
 priority: high
 ordinal: 123000
+oompah.task_costs:
+  total_input_tokens: 77
+  total_output_tokens: 29508
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 77
+      output_tokens: 29508
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 77
+    output_tokens: 29508
+    cost_usd: 0.0
+    recorded_at: '2026-06-09T22:34:23.275285+00:00'
 ---
 
 ## Description
@@ -68,6 +83,39 @@ created: 2026-06-09 22:34
 ---
 Verification: All 25 new tests pass. Also confirmed 389 tests across the broader test suite pass (server, models, backlog tracker, tracker protocol, dashboard, project CRUD). No regressions. Tests cover: board entry serialization with tracker fields for Backlog/GitHub/legacy issues, detail endpoint with all tracker fields, display_identifier preference (model vs computed fallback), url vs provider_url fallback, create endpoint validation (managed_repo format, field passthrough), update endpoint validation and field forwarding, and Issue model dataclass defaults.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-09 22:15
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-09 22:15
+
+Focus: Queue Api Oompah Specialist
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-09 22:34
+
+Agent completed successfully in 1172s (29585 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-09 22:34
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 128, Tool calls: 96
+- Tokens: 77 in / 29.5K out [29.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 19m 32s
+- Log: TASK-459.1__20260609T221519Z.jsonl
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary

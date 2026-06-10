@@ -1,23 +1,23 @@
 ---
 id: TASK-459.3
 title: Add project tracker configuration API and model fields
-status: Done
+status: Merged
 assignee: []
-created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 04:49'
+created_date: 2026-06-08 17:57
+updated_date: 2026-06-10 03:12
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-457.1
+- TASK-457.1
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/models.py
-  - oompah/projects.py
-  - oompah/server.py
-  - tests/test_projects_crud.py
+- oompah/models.py
+- oompah/projects.py
+- oompah/server.py
+- tests/test_projects_crud.py
 parent_task_id: TASK-459
 priority: high
 ordinal: 125000

@@ -1,26 +1,42 @@
 ---
 id: TASK-459.2
 title: Make issue mutation endpoints backend-neutral
-status: Done
+status: Merged
 assignee: []
-created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 23:00'
+created_date: 2026-06-08 17:57
+updated_date: 2026-06-10 03:12
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-459.1
-  - TASK-458.4
+- TASK-459.1
+- TASK-458.4
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/server.py
-  - tests/test_server_issue_enhance.py
-  - tests/test_server_label_api.py
+- oompah/server.py
+- tests/test_server_issue_enhance.py
+- tests/test_server_label_api.py
 parent_task_id: TASK-459
 priority: high
 ordinal: 124000
+oompah.task_costs:
+  total_input_tokens: 113
+  total_output_tokens: 49612
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 113
+      output_tokens: 49612
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 113
+    output_tokens: 49612
+    cost_usd: 0.0
+    recorded_at: '2026-06-09T23:00:26.515299+00:00'
 ---
 
 ## Description
@@ -67,6 +83,53 @@ created: 2026-06-09 23:00
 ---
 Verification: All 84 targeted tests pass. Broader suite (479 tests) passes. Key acceptance criteria verified: (1) Tests confirm create/patch/comment/label endpoints dispatch exclusively through tracker.create_issue(), tracker.update_issue(), tracker.add_comment(), tracker.add_label(), tracker.remove_label() - backend agnostic; mock-based tests work with any tracker adapter. (2) _resolve_identifier() is tested to prefer issue_key body/query over path param (GitHub slash identifiers), and to URL-decode percent-encoded chars. TestAddLabelGitHubIdentifier.test_issue_key_body_overrides_path_identifier shows lesserevil/oompah-tasks#1234 is passed correctly to tracker without being confused by route parser.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-09 22:42
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-09 22:42
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-09 23:00
+
+Agent completed successfully in 1095s (49725 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-09 23:00
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 171, Tool calls: 115
+- Tokens: 113 in / 49.6K out [49.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 15s
+- Log: TASK-459.2__20260609T224232Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-10 02:46
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-10 02:46
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary

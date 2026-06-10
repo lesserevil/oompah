@@ -1,25 +1,41 @@
 ---
 id: TASK-459.5
 title: Update dashboard board and detail views for GitHub issues
-status: Done
+status: Merged
 assignee: []
-created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 23:14'
+created_date: 2026-06-08 17:57
+updated_date: 2026-06-10 03:12
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-459.1
-  - TASK-459.2
+- TASK-459.1
+- TASK-459.2
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/templates/dashboard.html
-  - tests/test_dashboard_draft_epics.py
+- oompah/templates/dashboard.html
+- tests/test_dashboard_draft_epics.py
 parent_task_id: TASK-459
 priority: high
 ordinal: 127000
+oompah.task_costs:
+  total_input_tokens: 57
+  total_output_tokens: 19514
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 57
+      output_tokens: 19514
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 57
+    output_tokens: 19514
+    cost_usd: 0.0
+    recorded_at: '2026-06-09T23:14:34.635547+00:00'
 ---
 
 ## Description
@@ -66,6 +82,39 @@ created: 2026-06-09 23:14
 ---
 Verification: 19 new tests in test_dashboard_github_issues.py — all pass. 525 dashboard+server tests pass (no regressions). 664 additional project/tracker/epic tests pass. AC #1 covered: createCard renders tracker-link anchor with issue.url, opens in new tab, stops card click propagation. AC #2 covered: createCard renders legacy-badge when is_legacy=true; badge is visually distinct (amber/yellow color scheme). Detail panel shows GitHub Issue URL as clickable link, Tracker kind with owner/repo, and Legacy Note badge.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-09 23:04
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-09 23:04
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-09 23:14
+
+Agent completed successfully in 592s (19571 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-09 23:14
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 119, Tool calls: 68
+- Tokens: 57 in / 19.5K out [19.6K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 9m 52s
+- Log: TASK-459.5__20260609T230503Z.jsonl
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary

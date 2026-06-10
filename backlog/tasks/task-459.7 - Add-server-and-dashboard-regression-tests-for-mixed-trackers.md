@@ -1,23 +1,39 @@
 ---
 id: TASK-459.7
 title: Add server and dashboard regression tests for mixed trackers
-status: Done
+status: Merged
 assignee: []
-created_date: '2026-06-08 17:57'
-updated_date: '2026-06-09 23:38'
+created_date: 2026-06-08 17:57
+updated_date: 2026-06-10 03:12
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-459.6
+- TASK-459.6
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - tests
+- tests
 parent_task_id: TASK-459
 priority: medium
 ordinal: 129000
+oompah.task_costs:
+  total_input_tokens: 37
+  total_output_tokens: 23627
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 37
+      output_tokens: 23627
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 37
+    output_tokens: 23627
+    cost_usd: 0.0
+    recorded_at: '2026-06-09T23:38:49.489495+00:00'
 ---
 
 ## Description
@@ -64,6 +80,39 @@ created: 2026-06-09 23:38
 ---
 Verification: 46/46 new tests in test_mixed_tracker_regression.py pass. 313/313 tests in related test files (server_create_issue, server_issue_detail, server_issue_detail_api, server_label_api, backlog_tracker, tracker_protocol, shared_tracker_contract) pass. 135/135 tests in previously-added 459-series files (test_server_tracker_identity_schema, test_dashboard_github_issues, test_server_create_labels, test_dashboard_create_github) pass. No regressions found.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-09 23:30
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-09 23:30
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-09 23:38
+
+Agent completed successfully in 493s (23664 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-09 23:39
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 83, Tool calls: 51
+- Tokens: 37 in / 23.6K out [23.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 8m 13s
+- Log: TASK-459.7__20260609T233058Z.jsonl
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary
