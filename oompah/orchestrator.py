@@ -5966,8 +5966,8 @@ class Orchestrator:
 
         # GitHub issue: check whether we can safely use a closing keyword.
         issue_slug = ""
-        if issue.owner and issue.repo:
-            issue_slug = f"{issue.owner}/{issue.repo}"
+        if issue.tracker_owner and issue.tracker_repo:
+            issue_slug = f"{issue.tracker_owner}/{issue.tracker_repo}"
 
         use_closing_keyword = (
             bool(issue_slug)

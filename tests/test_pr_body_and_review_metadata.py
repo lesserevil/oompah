@@ -68,8 +68,8 @@ def _make_github_issue(
     title: str = "Test issue",
     description: str = "body",
     url: str = "https://github.com/org/repo/issues/42",
-    owner: str = "org",
-    repo: str = "repo",
+    tracker_owner: str = "org",
+    tracker_repo: str = "repo",
     issue_number: str = "42",
     display_identifier: str = "org/repo#42",
     target_branch: str | None = None,
@@ -82,8 +82,8 @@ def _make_github_issue(
         description=description,
         state="open",
         url=url,
-        owner=owner,
-        repo=repo,
+        tracker_owner=tracker_owner,
+        tracker_repo=tracker_repo,
         issue_number=issue_number,
         display_identifier=display_identifier,
         tracker_kind="github_issues",
@@ -139,7 +139,7 @@ class TestBuildPrBody:
         """Same repo + default branch target → Fixes #N closing keyword."""
         orch = _make_orchestrator(tmp_path)
         issue = _make_github_issue(
-            owner="org", repo="repo", issue_number="42",
+            tracker_owner="org", tracker_repo="repo", issue_number="42",
             url="https://github.com/org/repo/issues/42",
         )
         result = orch._build_pr_body(issue, "main", "org/repo", "main")
@@ -151,7 +151,7 @@ class TestBuildPrBody:
         """Same repo + non-default branch → plain link, no closing keyword."""
         orch = _make_orchestrator(tmp_path)
         issue = _make_github_issue(
-            owner="org", repo="repo", issue_number="42",
+            tracker_owner="org", tracker_repo="repo", issue_number="42",
             url="https://github.com/org/repo/issues/42",
         )
         result = orch._build_pr_body(issue, "release/1.2", "org/repo", "main")
@@ -165,8 +165,8 @@ class TestBuildPrBody:
         # Issue is in org/oompah-tasks, PR is in org/repo
         issue = _make_github_issue(
             identifier="org/oompah-tasks#42",
-            owner="org",
-            repo="oompah-tasks",
+            tracker_owner="org",
+            tracker_repo="oompah-tasks",
             issue_number="42",
             url="https://github.com/org/oompah-tasks/issues/42",
         )
@@ -179,7 +179,7 @@ class TestBuildPrBody:
         """Slug comparison is case-insensitive."""
         orch = _make_orchestrator(tmp_path)
         issue = _make_github_issue(
-            owner="Org", repo="Repo", issue_number="7",
+            tracker_owner="Org", tracker_repo="Repo", issue_number="7",
             url="https://github.com/Org/Repo/issues/7",
         )
         result = orch._build_pr_body(issue, "main", "org/repo", "main")
@@ -193,8 +193,8 @@ class TestBuildPrBody:
             identifier="org/repo#42",
             title="T",
             url="https://github.com/org/repo/issues/42",
-            owner="org",
-            repo="repo",
+            tracker_owner="org",
+            tracker_repo="repo",
             issue_number=None,
             tracker_kind="github_issues",
         )
@@ -366,8 +366,8 @@ class TestEnsureReviewExistsPassesDescription:
         # Issue is in a different repo (hub)
         issue = _make_github_issue(
             identifier="org/oompah-tasks#42",
-            owner="org",
-            repo="oompah-tasks",
+            tracker_owner="org",
+            tracker_repo="oompah-tasks",
             issue_number="42",
             url="https://github.com/org/oompah-tasks/issues/42",
         )
@@ -428,7 +428,7 @@ class TestEnsureReviewExistsPassesDescription:
 
         # Issue is in the same repo as the PR and targets main
         issue = _make_github_issue(
-            owner="org", repo="repo", issue_number="42",
+            tracker_owner="org", tracker_repo="repo", issue_number="42",
             url="https://github.com/org/repo/issues/42",
         )
         entry = _make_entry(issue)
