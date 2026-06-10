@@ -105,6 +105,8 @@ def _sanitize_identifier(identifier: str) -> str:
 
 logger = logging.getLogger(__name__)
 
+_YAML_SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
 # Default status for newly created tasks. Oompah-created tasks start in
 # Backlog unless the caller explicitly asks for a dispatchable status.
 DEFAULT_INITIAL_STATUS = BACKLOG
@@ -1278,7 +1280,7 @@ class BacklogMdTracker(TrackerProtocol):
 
 def _read_yaml_file(path: Path) -> dict:
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = yaml.load(path.read_text(encoding="utf-8"), Loader=_YAML_SAFE_LOADER)
     except OSError as exc:
         raise TrackerError(f"Cannot read {path}: {exc}")
     except yaml.YAMLError as exc:
@@ -1301,7 +1303,7 @@ def _read_markdown_frontmatter(path: Path) -> tuple[dict, str]:
     if content[body_start:body_start + 1] == "\n":
         body_start += 1
     try:
-        meta = yaml.safe_load(frontmatter) or {}
+        meta = yaml.load(frontmatter, Loader=_YAML_SAFE_LOADER) or {}
     except yaml.YAMLError as exc:
         raise TrackerError(f"Cannot parse task metadata {path}: {exc}")
     if not isinstance(meta, dict):

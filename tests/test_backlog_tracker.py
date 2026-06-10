@@ -14,6 +14,7 @@ from oompah.roles import RoleStore
 from oompah.tracker import (
     BacklogMdTracker,
     TrackerError,
+    _YAML_SAFE_LOADER,
     _read_markdown_frontmatter,
     _write_markdown_frontmatter,
 )
@@ -102,6 +103,18 @@ def _tracker(root):
         terminal_states=["Done"],
         cwd=str(root),
     )
+
+
+def test_frontmatter_parser_uses_accelerated_safe_loader_when_available(tmp_path):
+    assert _YAML_SAFE_LOADER is getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+    path = _write_task(_write_config(tmp_path), "TASK-1", "Fast parser")
+
+    meta, body = _read_markdown_frontmatter(path)
+
+    assert meta["id"] == "TASK-1"
+    assert "Fast parser" == meta["title"]
+    assert "## Description" in body
 
 
 def test_fetch_candidate_issues_parses_and_filters(tmp_path):
