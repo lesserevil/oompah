@@ -3,23 +3,39 @@ id: TASK-463.2
 title: Invalidate caches and request refresh from GitHub task webhooks
 status: Done
 assignee: []
-created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 00:53'
+created_date: 2026-06-08 17:58
+updated_date: 2026-06-10 00:55
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-463.1
+- TASK-463.1
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/server.py
-  - oompah/orchestrator.py
-  - tests/test_webhooks.py
+- oompah/server.py
+- oompah/orchestrator.py
+- tests/test_webhooks.py
 parent_task_id: TASK-463
 priority: high
 ordinal: 153000
+oompah.task_costs:
+  total_input_tokens: 100
+  total_output_tokens: 37131
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 100
+      output_tokens: 37131
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 100
+    output_tokens: 37131
+    cost_usd: 0.0
+    recorded_at: '2026-06-10T00:55:04.810698+00:00'
 ---
 
 ## Description
@@ -66,6 +82,39 @@ created: 2026-06-10 00:53
 ---
 VERIFICATION: 64 tests pass in tests/test_server_webhooks.py (48 new, 16 pre-existing). AC#1 met: dashboard updates promptly — issue_comment events now invalidate comments:{project_id}:{issue_number} and detail:{project_id}:{issue_number} caches immediately on receipt. AC#2 met: webhook storms (e.g. label created bursts) no longer trigger unnecessary orchestrator wakeups; push to non-tracked branches, issues locked/pinned, and projects_v2_item reordered are all filtered by _webhook_should_request_refresh. Branch pushed to origin/epic-TASK-463.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-10 00:24
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-10 00:24
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-10 00:55
+
+Agent completed successfully in 1872s (37231 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-10 00:55
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 153, Tool calls: 107
+- Tokens: 100 in / 37.1K out [37.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 31m 12s
+- Log: TASK-463.2__20260610T002428Z.jsonl
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary

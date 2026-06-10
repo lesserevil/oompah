@@ -3,23 +3,39 @@ id: TASK-463.4
 title: Disable Backlog post-commit hooks for GitHub-backed projects
 status: Done
 assignee: []
-created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 01:14'
+created_date: 2026-06-08 17:58
+updated_date: 2026-06-10 01:17
 labels:
-  - task
-  - github-issues
-  - tracker-migration
+- task
+- github-issues
+- tracker-migration
 dependencies:
-  - TASK-459.3
+- TASK-459.3
 references:
-  - plans/github-issues-tracker-migration.md
+- plans/github-issues-tracker-migration.md
 modified_files:
-  - oompah/backlog_webhooks.py
-  - oompah/server.py
-  - oompah/__main__.py
+- oompah/backlog_webhooks.py
+- oompah/server.py
+- oompah/__main__.py
 parent_task_id: TASK-463
 priority: high
 ordinal: 155000
+oompah.task_costs:
+  total_input_tokens: 82
+  total_output_tokens: 31131
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 82
+      output_tokens: 31131
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 82
+    output_tokens: 31131
+    cost_usd: 0.0
+    recorded_at: '2026-06-10T01:14:59.320167+00:00'
 ---
 
 ## Description
@@ -66,6 +82,39 @@ created: 2026-06-10 01:14
 ---
 Verification: All tests pass. 25 new tests in tests/test_backlog_hook_tracker_guards.py. 55 existing backlog webhook tests and 137 project/CRUD tests unchanged. Branch pushed to origin/epic-TASK-463 (commit 814e92f). Both acceptance criteria verified: (1) GitHub-backed projects (tracker_kind='github_issues') do not get Backlog hooks installed at startup, project create, or project update; webhook receipts are acknowledged with action='ignored' but no cache invalidation or sync. (2) Legacy Backlog projects (tracker_kind=None) continue to install hooks idempotently and process webhooks normally.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-10 00:56
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-10 00:56
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-10 01:15
+
+Agent completed successfully in 1110s (31213 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-10 01:15
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 185, Tool calls: 109
+- Tokens: 82 in / 31.1K out [31.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 18m 30s
+- Log: TASK-463.4__20260610T005735Z.jsonl
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary

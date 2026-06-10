@@ -4,7 +4,7 @@ title: Update webhook forwarder event set and documentation
 status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 01:26'
+updated_date: 2026-06-10 01:32
 labels:
   - task
   - github-issues
@@ -65,6 +65,44 @@ created: 2026-06-10 01:26
 ---
 VERIFICATION: 193 tests pass (test_webhooks.py: 129 + test_server_webhooks.py: 64). TestWebhookForwarderEventsFlag all 5 tests pass with new default event list. Both ACs met: AC#1 — docs/webhook-forwarding.md has a 'Required GitHub events' table listing all 6 events and their purposes; AC#2 — 'Two webhook channels' table and 'Relation to Backlog task-change webhooks' section clearly distinguish gh webhook forward (GitHub forge/issue events) from legacy Backlog post-commit hook.
 ---
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-10 01:16
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-10 01:16
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-10 01:26
+
+Agent completed successfully in 626s (13198 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-10 01:26
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 81, Tool calls: 51
+- Tokens: 45 in / 13.2K out [13.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 10m 26s
+- Log: TASK-463.3__20260610T011637Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
+
 <!-- COMMENTS:END -->
 
 ## Final Summary

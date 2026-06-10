@@ -4,7 +4,7 @@ title: Add webhook integration tests for GitHub-backed tasks
 status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 01:32'
+updated_date: 2026-06-10 01:34
 labels:
   - task
   - github-issues
@@ -59,6 +59,44 @@ created: 2026-06-10 01:32
 ---
 VERIFICATION: 218 tests pass across the three webhook test files. AC#1 met: all tests use unittest.mock exclusively — no live GitHub network access required. AC#2 met: GitHub path covered by test_webhooks.py (parsing), test_server_webhooks.py (endpoint + cache/refresh); Backlog path covered by test_backlog_hook_tracker_guards.py (legacy hooks still installed for non-GitHub projects, ignored for GitHub-backed projects). No new code changes needed — all tests were added as part of the implementation tasks.
 ---
+
+## Comments
+<!-- COMMENTS:BEGIN -->
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-10 01:27
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-10 01:27
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-10 01:32
+
+Agent completed successfully in 304s (7379 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-10 01:32
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 41, Tool calls: 26
+- Tokens: 19 in / 7.4K out [7.4K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 5m 4s
+- Log: TASK-463.5__20260610T012828Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENTS:END -->
+
 <!-- COMMENTS:END -->
 
 ## Final Summary
