@@ -1,10 +1,10 @@
 ---
 id: TASK-462.6
 title: Add PR and release reconciliation tests
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 05:36'
+updated_date: '2026-06-10 05:37'
 labels:
   - task
   - github-issues
@@ -89,3 +89,9 @@ created: 2026-06-10 05:36
 Verification: All 34 new tests pass. Running full affected test suite: 384 tests pass (350 pre-existing + 34 new). No regressions. Pre-existing flaky test in test_github_tracker.py (asyncio OSError in unrelated test) is unrelated to changes and passes when run in isolation.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Added tests/test_pr_reconciliation_github_vs_backlog.py with 34 regression tests covering all 8 areas: (1) branch-to-issue indexing via work_branch index for GitHub vs legacy fetch_issue_detail for Backlog, (2) PR metadata writes with oompah.work_branch only for GitHub tasks, (3) stale In Review recovery using branch_name for GitHub vs identifier for Backlog, (4) CI-fix sibling creation via branch index, (5) merge-conflict label clearing via branch index for GitHub, (6) YOLO direct merge: _yolo_mark_task_merged explicitly marks GitHub tasks Merged while Backlog relies on webhook sweep, (7) merge queue enqueue clears stale labels via resolver, (8) release-pick backport PR descriptions never use Fixes/Closes keywords (AC#2). All 34 new tests pass; 384 total tests pass with no regressions.
+<!-- SECTION:FINAL_SUMMARY:END -->

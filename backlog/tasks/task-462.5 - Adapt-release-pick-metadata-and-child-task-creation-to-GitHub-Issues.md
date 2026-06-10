@@ -1,10 +1,10 @@
 ---
 id: TASK-462.5
 title: Adapt release-pick metadata and child task creation to GitHub Issues
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
-updated_date: '2026-06-10 04:30'
+updated_date: '2026-06-10 04:31'
 labels:
   - task
   - github-issues
@@ -103,4 +103,22 @@ created: 2026-06-10 04:30
 ---
 Discovery: Not a duplicate. The previous agent runs produced the necessary code changes in the working tree but did not commit or close the task. Key changes found: (1) oompah/release_pick_reconciler.py — type hints changed from BacklogMdTracker to TrackerProtocol making the reconciler backend-agnostic; _post_conflict_source_comment() helper added to surface actionable conflict notices on source GitHub Issues; call to _post_conflict_source_comment added in _reconcile_entries when CONFLICT status is detected; (2) oompah/cherry_pick_pr_creator.py — same BacklogMdTracker→TrackerProtocol type annotation change; (3) tests/test_release_pick_github.py — 32 comprehensive tests covering GitHub Issue child creation, metadata round-trips, conflict comment surfacing, and full reconcile pass end-to-end. All 289 release-pick tests pass. AC#1 satisfied: _create_backport_child uses tracker.create_issue() polymorphically — GitHub tracker creates GitHub Issues; AC#2 satisfied: _post_conflict_source_comment posts actionable worktree-preservation message on source task. Need to commit and push.
 ---
+
+author: oompah
+created: 2026-06-10 04:30
+---
+Implementation: Committed and pushed to epic-TASK-462 (80b1bb8). Three files changed: (1) oompah/release_pick_reconciler.py — updated 4 type annotations from BacklogMdTracker to TrackerProtocol; added _post_conflict_source_comment() helper that posts a detailed worktree-preservation notice on the source task (Markdown-formatted, mentions branch, child identifier, and resolution steps); wired it into _reconcile_entries() immediately after CONFLICT status detected in _cherry_pick_and_open_pr path. (2) oompah/cherry_pick_pr_creator.py — updated 3 type annotations from BacklogMdTracker to TrackerProtocol. (3) tests/test_release_pick_github.py (new, 709 lines) — 32 tests across 5 classes. AC#1 works via polymorphism: tracker.create_issue() on GitHubIssueTracker creates a GitHub Issue with parent:<N> label, body metadata JSON block, and all tracker.set_metadata_field() calls update the body metadata. AC#2 works via _post_conflict_source_comment() called from _reconcile_entries().
+---
+
+author: oompah
+created: 2026-06-10 04:31
+---
+Verification: Ran tests/test_release_pick_github.py (32 tests), tests/test_release_pick_reconciler.py (103 tests), tests/test_release_pick_schema.py (97 tests), tests/test_release_pick_commit_resolver.py (57 tests) — 289 total, 289 pass, 0 failures. All acceptance criteria confirmed: AC#1 verified by TestCreateBackportChildGitHub and TestReconcileGitHubIntegration — GitHub tracker mock receives create_issue() calls with GitHub-format parent IDs and set_metadata_field() calls with oompah.backport_of/target_branch; AC#2 verified by TestConflictCommentGitHub — conflict comment posted on source GitHub Issue with worktree preservation message, branch name, and child identifier; failure safety (add_comment exception does not propagate). Branch pushed to origin/epic-TASK-462 as commit 80b1bb8.
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Adapted release-pick reconciler to work with GitHub Issues. Key changes: (1) Changed BacklogMdTracker type hints to TrackerProtocol in release_pick_reconciler.py and cherry_pick_pr_creator.py — enables GitHub-backed projects to use the release-pick workflow via polymorphism, since GitHubIssueTracker.create_issue() creates GitHub Issues and set_metadata_field() writes to body JSON metadata. (2) Added _post_conflict_source_comment() helper that posts a Markdown-formatted, actionable conflict notice on source tasks (preserves worktree message, branch name, child identifier, resolution steps). (3) Wired conflict comment into _reconcile_entries() when CONFLICT status detected. (4) Added tests/test_release_pick_github.py with 32 new tests (32 pass). All 289 release-pick tests pass. AC#1: Release-pick children are GitHub Issues for GitHub-backed projects — satisfied via TrackerProtocol polymorphism. AC#2: Conflict states preserve worktrees and surface actionable comments — satisfied via _post_conflict_source_comment(). Committed 80b1bb8 and pushed to origin/epic-TASK-462.
+<!-- SECTION:FINAL_SUMMARY:END -->
