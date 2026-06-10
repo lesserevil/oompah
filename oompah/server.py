@@ -67,6 +67,7 @@ from oompah.statuses import (
     ARCHIVED,
     CANONICAL_STATUSES,
     IN_PROGRESS,
+    IN_REVIEW,
     MERGED,
     NEEDS_ANSWER,
     NEEDS_CI_FIX,
@@ -6634,6 +6635,35 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
             daemon=True,
         ).start()
 
+    # When a PR/MR is opened or reopened, mark the task In Review immediately
+    # rather than waiting for the next polling cycle.
+    if (
+        event.event_type in ("pull_request", "Merge Request Hook")
+        and event.action in ("opened", "reopened")
+        and project
+    ):
+        threading.Thread(
+            target=_mark_task_in_review_from_webhook,
+            args=(orch, event, project),
+            name=f"webhook-in-review-{project.name}",
+            daemon=True,
+        ).start()
+
+    # When a PR/MR is closed with merge (direct merge, not merge_group),
+    # mark the task Merged immediately without waiting for the sweep.
+    if (
+        event.event_type in ("pull_request", "Merge Request Hook")
+        and event.action == "closed"
+        and event.merged
+        and project
+    ):
+        threading.Thread(
+            target=_label_task_merged_from_pr,
+            args=(orch, event, project),
+            name=f"webhook-merged-{project.name}",
+            daemon=True,
+        ).start()
+
 
 def _webhook_advanced_tracked_branch(event, project) -> bool:
     """True when the webhook indicates any of the project's tracked branches advanced on origin.
@@ -6764,7 +6794,13 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
 
     try:
         tracker = orch._tracker_for_project(project.id)
-        issue = tracker.fetch_issue_detail(branch_name)
+        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
+        # branch names are generated slugs) are found via the per-project
+        # branch index, and legacy Backlog tasks (branch==identifier) are
+        # found via the direct fetch_issue_detail fallback.
+        issue = orch._resolve_task_for_branch(
+            tracker, branch_name, project_id=project.id
+        )
         if issue is None:
             logger.debug(
                 "merge_group: no task found for branch %r (head_ref=%r)",
@@ -6783,6 +6819,150 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
         logger.warning(
             "merge_group: failed to label task for head_ref %r: %s",
             head_ref,
+            exc,
+        )
+
+
+def _mark_task_in_review_from_webhook(orch, event, project) -> None:
+    """Mark a task ``In Review`` when a PR/MR is opened or reopened.
+
+    Looks up the task whose branch matches the PR's source branch and
+    advances it to ``In Review``.  Also writes review metadata
+    (review URL, review number, work branch) so the task record carries
+    a stable PR link.
+
+    Runs in a background thread (called from :func:`_handle_webhook_event`).
+    """
+    if not project:
+        return
+    source_branch = (event.source_branch or "").strip()
+    if not source_branch:
+        return
+    try:
+        tracker = orch._tracker_for_project(project.id)
+        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
+        # branch names are generated slugs) are found via the per-project
+        # branch index, and legacy Backlog tasks (branch==identifier) are
+        # found via the direct fetch_issue_detail fallback.
+        issue = orch._resolve_task_for_branch(
+            tracker, source_branch, project_id=project.id
+        )
+        if issue is None:
+            logger.debug(
+                "webhook In Review: no task found for branch %r (project=%s)",
+                source_branch,
+                project.name,
+            )
+            return
+        current_status = canonicalize_status(issue.state)
+        if current_status == IN_REVIEW:
+            # Already In Review; still refresh metadata in case this is a
+            # reopened PR that now carries different review metadata.
+            pass
+        elif current_status in (MERGED, "Archived"):
+            logger.debug(
+                "webhook In Review: skipping %s (already %s)",
+                issue.identifier,
+                current_status,
+            )
+            return
+        else:
+            tracker.update_issue(issue.identifier, status=IN_REVIEW)
+            logger.info(
+                "webhook: marked %s as In Review (PR #%s opened/reopened, branch=%s)",
+                issue.identifier,
+                event.review_id,
+                source_branch,
+            )
+        # Write review metadata so the task record has a stable PR link
+        review_url = None
+        # GitHub PR URL can be reconstructed from repo slug + PR number
+        if event.review_id and event.repo_slug:
+            provider_base = (
+                "https://gitlab.com"
+                if event.provider == "gitlab"
+                else "https://github.com"
+            )
+            pr_path = (
+                "merge_requests" if event.provider == "gitlab" else "pull"
+            )
+            review_url = (
+                f"{provider_base}/{event.repo_slug}/{pr_path}/{event.review_id}"
+            )
+        for key, value in [
+            ("oompah.review_url", review_url),
+            ("oompah.review_number", event.review_id or None),
+            ("oompah.work_branch", source_branch),
+            ("oompah.target_branch", event.target_branch or None),
+        ]:
+            if not value:
+                continue
+            try:
+                tracker.set_metadata_field(issue.identifier, key, value)
+            except Exception as exc:  # noqa: BLE001 - best effort
+                logger.debug(
+                    "webhook In Review: failed to write metadata %s for %s: %s",
+                    key,
+                    issue.identifier,
+                    exc,
+                )
+    except Exception as exc:
+        logger.warning(
+            "webhook: failed to mark In Review for branch %r (project=%s): %s",
+            source_branch,
+            project.name if project else "?",
+            exc,
+        )
+
+
+def _label_task_merged_from_pr(orch, event, project) -> None:
+    """Mark a task ``Merged`` when a pull request is closed with merge.
+
+    This handles direct PR merges (``pull_request`` closed + merged=True).
+    The merge_group path (queue-mode merges) is handled separately by
+    :func:`_label_task_merged_from_merge_group`.
+
+    Runs in a background thread (called from :func:`_handle_webhook_event`).
+    """
+    if not project:
+        return
+    source_branch = (event.source_branch or "").strip()
+    if not source_branch:
+        return
+    try:
+        tracker = orch._tracker_for_project(project.id)
+        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
+        # branch names are generated slugs) are found via the per-project
+        # branch index, and legacy Backlog tasks (branch==identifier) are
+        # found via the direct fetch_issue_detail fallback.
+        issue = orch._resolve_task_for_branch(
+            tracker, source_branch, project_id=project.id
+        )
+        if issue is None:
+            logger.debug(
+                "webhook Merged: no task found for branch %r (project=%s)",
+                source_branch,
+                project.name,
+            )
+            return
+        if canonicalize_status(issue.state) != MERGED:
+            tracker.update_issue(issue.identifier, status=MERGED)
+            logger.info(
+                "webhook: marked %s as Merged (PR #%s closed+merged, branch=%s)",
+                issue.identifier,
+                event.review_id,
+                source_branch,
+            )
+        else:
+            logger.debug(
+                "webhook Merged: %s already Merged; skipping",
+                issue.identifier,
+            )
+    except Exception as exc:
+        logger.warning(
+            "webhook: failed to mark Merged for branch %r (project=%s): %s",
+            source_branch,
+            project.name if project else "?",
             exc,
         )
 

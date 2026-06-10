@@ -60,7 +60,7 @@ if TYPE_CHECKING:
     from oompah.models import Issue
     from oompah.projects import ProjectStore
     from oompah.scm import ReviewRequest, SCMProvider
-    from oompah.tracker import BacklogMdTracker
+    from oompah.tracker import TrackerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class ReconcileResult:
 
 
 def reconcile_release_picks(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     *,
     project_store: "ProjectStore | None" = None,
     project_id: "str | None" = None,
@@ -132,7 +132,7 @@ def reconcile_release_picks(
     never modifies existing task status.
 
     Args:
-        tracker: The :class:`~oompah.tracker.BacklogMdTracker` for the project
+        tracker: The :class:`~oompah.tracker.TrackerProtocol` implementation for the project
             to reconcile.
         project_store: Optional :class:`~oompah.projects.ProjectStore` used to
             create target-branch worktrees alongside child tasks and to resolve
@@ -248,7 +248,7 @@ def reconcile_release_picks(
 
 
 def _build_child_index(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     all_issues: "list[Issue]",
     *,
     should_stop: Callable[[], bool] | None = None,
@@ -290,7 +290,7 @@ def _build_child_index(
 
 
 def _release_pick_metadata_value(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     issue: "Issue",
     *,
     attr: str,
@@ -303,7 +303,7 @@ def _release_pick_metadata_value(
 
 
 def _reconcile_entries(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     source: "Issue",
     entries: "list[BackportEntry]",
     child_index: "dict[tuple[str, str], list[Issue]]",
@@ -422,6 +422,16 @@ def _reconcile_entries(
                         entry.branch,
                         updated.status.value,
                     )
+                    # AC#2: When a conflict is detected, surface an
+                    # actionable comment on the SOURCE task so operators
+                    # watching the source GitHub Issue are alerted.
+                    if updated.status == ReleasePick.CONFLICT:
+                        _post_conflict_source_comment(
+                            tracker,
+                            source,
+                            entry,
+                            live_child,
+                        )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "release_pick_reconciler: cherry-pick+PR failed for"
@@ -501,8 +511,64 @@ def _reconcile_entries(
     return entries, n_advanced, n_created, n_errors
 
 
+def _post_conflict_source_comment(
+    tracker: "TrackerProtocol",
+    source: "Issue",
+    entry: "BackportEntry",
+    child: "Issue",
+) -> None:
+    """Post an actionable conflict comment on the *source* task.
+
+    Called when a cherry-pick conflict is detected so that operators watching
+    the source GitHub Issue (or Backlog task) are alerted and can take action.
+    The child task already gets a diagnostic comment (from
+    :func:`~oompah.cherry_pick_pr_creator.cherry_pick_push_and_open_pr`);
+    this adds a parallel, human-readable notice to the source.
+
+    Failures are caught and logged — the parent reconcile pass must not fail
+    because a comment could not be posted.
+
+    Args:
+        tracker: Tracker to post the comment on.
+        source: Source task whose backport entry has a conflict.
+        entry: The ``BackportEntry`` with ``status=CONFLICT``.
+        child: The child backport task with the conflicted worktree.
+    """
+    comment = (
+        f"⚠️ **Backport conflict** for branch `{entry.branch}`.\n\n"
+        f"The cherry-pick of {source.identifier} ({source.title}) onto "
+        f"`{entry.branch}` produced merge conflicts in child task "
+        f"{child.identifier}.\n\n"
+        f"**Action required**:\n"
+        f"1. Switch to the child task {child.identifier} to see the "
+        f"conflict details.\n"
+        f"2. Resolve the conflicts in the worktree and run "
+        f"`git cherry-pick --continue && git push`.\n"
+        f"3. Once the PR is open, the backport status will automatically "
+        f"advance from `conflict` to `pr_open`.\n\n"
+        f"The worktree has been preserved with conflict markers in place "
+        f"so no work is lost."
+    )
+    try:
+        tracker.add_comment(source.identifier, comment, author="oompah")
+        logger.info(
+            "release_pick_reconciler: posted conflict comment on source %s"
+            " (branch=%r child=%s)",
+            source.identifier,
+            entry.branch,
+            child.identifier,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "release_pick_reconciler: failed to post conflict comment on"
+            " source %s: %s",
+            source.identifier,
+            exc,
+        )
+
+
 def _check_pr_outcome(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     source: "Issue",
     entry: "BackportEntry",
     children: "list[Issue]",
@@ -728,7 +794,7 @@ def _best_live_child(children: "list[Issue]") -> "Issue | None":
 
 
 def _create_backport_child(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     source: "Issue",
     entry: "BackportEntry",
 ) -> "Issue":
@@ -785,7 +851,7 @@ def _create_backport_child(
 
 
 def _cherry_pick_and_open_pr(
-    tracker: "BacklogMdTracker",
+    tracker: "TrackerProtocol",
     source: "Issue",
     entry: "BackportEntry",
     child_issue: "Issue",

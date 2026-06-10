@@ -554,6 +554,12 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
+        # Per-project branch-to-issue index: maps work_branch → identifier.
+        # Built lazily the first time _resolve_task_for_branch needs it for
+        # a project and cleared with tracker read caches each tick so the
+        # index stays consistent with the tracker's view of open issues.
+        # (TASK-462.1)
+        self._branch_indexes: dict[str, dict[str, str]] = {}
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -1392,6 +1398,9 @@ class Orchestrator:
         Called at tick start so each tick reads fresh state, then reuses
         that parse across its phases. Best-effort: a tracker without the
         method (e.g. a test double) is skipped.
+
+        Also clears the per-project branch-to-issue index so that the next
+        ``_resolve_task_for_branch`` call rebuilds it from fresh issue data.
         """
         trackers = [self.tracker, *self._project_trackers.values()]
         for tracker in trackers:
@@ -1401,6 +1410,10 @@ class Orchestrator:
                     inval()
                 except Exception:  # noqa: BLE001 — never let cache reset break a tick
                     pass
+        # Clear the branch index cache so it is rebuilt next time a branch
+        # lookup is needed.  Stale entries would cause lookups to resolve
+        # to closed/stale issues after a tick boundary.
+        self._branch_indexes.clear()
 
     # ------------------------------------------------------------------
     # Error watcher integration (oompah-zlz_2-0nc)
@@ -4443,6 +4456,14 @@ class Orchestrator:
                 else f"Epic {issue.identifier}"
             )
             description = issue.description or ""
+            hub_link = self._build_pr_body(
+                issue,
+                target_branch,
+                slug,
+                project.default_branch,
+            )
+            if hub_link:
+                description = f"{hub_link}\n\n{description}".strip() if description else hub_link
             try:
                 result = provider.create_review(
                     slug,
@@ -4479,6 +4500,23 @@ class Orchestrator:
                 epic_branch,
                 target_branch,
             )
+            # Persist review metadata on the epic task record (TASK-462.2).
+            try:
+                tracker = self._tracker_for_project(project_id)
+                self._write_review_metadata(
+                    tracker,
+                    issue.identifier,
+                    review_id=getattr(result, "id", None),
+                    review_url=getattr(result, "url", None),
+                    source_branch=epic_branch,
+                    target_branch=target_branch,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to write review metadata for epic %s: %s",
+                    issue.identifier,
+                    exc,
+                )
             opened += 1
         return opened
 
@@ -5986,6 +6024,56 @@ class Orchestrator:
                 del self._yolo_limbo_ticks[key]
         return fixed
 
+    def _build_pr_body(
+        self,
+        issue: "Issue | None",
+        target_branch: str,
+        pr_repo_slug: str,
+        default_branch: str,
+    ) -> str:
+        """Build the PR body linking to the central task hub issue.
+
+        For GitHub-backed tasks that carry a ``url`` (the hub issue's HTML URL),
+        the body includes a stable link so reviewers can navigate from the PR to
+        the task context.
+
+        A GitHub closing keyword (``Fixes #N``) is only emitted when ALL of
+        the following hold — this is the only case GitHub honours it:
+
+        1. The issue is GitHub-backed (``tracker_kind == "github_issues"``).
+        2. The issue's ``owner/repo`` matches the PR's repo slug
+           (cross-repository auto-close is not supported by GitHub).
+        3. The PR targets the repository's default branch (GitHub only
+           auto-closes on merges to the default branch).
+
+        In every other case a plain markdown link is used so the PR is
+        visible from the issue without relying on auto-close behaviour.
+        """
+        if not issue or not issue.url:
+            return ""
+
+        if issue.tracker_kind != "github_issues":
+            # Non-GitHub tracker: include a plain text reference.
+            label = issue.display_identifier or issue.identifier
+            return f"Relates to: [{label}]({issue.url})"
+
+        # GitHub issue: check whether we can safely use a closing keyword.
+        issue_slug = ""
+        if issue.tracker_owner and issue.tracker_repo:
+            issue_slug = f"{issue.tracker_owner}/{issue.tracker_repo}"
+
+        use_closing_keyword = (
+            bool(issue_slug)
+            and issue_slug.lower() == pr_repo_slug.lower()
+            and target_branch == default_branch
+        )
+
+        label = issue.display_identifier or issue.identifier
+        if use_closing_keyword and issue.issue_number:
+            return f"Fixes #{issue.issue_number}\n\n[{label}]({issue.url})"
+        else:
+            return f"Relates to: [{label}]({issue.url})"
+
     def _ensure_review_exists(
         self, entry: RunningEntry, project_id: str | None
     ) -> bool:
@@ -6133,11 +6221,18 @@ class Orchestrator:
                 if entry.issue
                 else entry.identifier
             )
+            pr_body = self._build_pr_body(
+                entry.issue,
+                target_branch,
+                slug,
+                project.default_branch,
+            )
             result = provider.create_review(
                 slug,
                 title,
                 branch,
                 target_branch=target_branch,
+                description=pr_body,
             )
             if result:
                 logger.info(
@@ -6187,13 +6282,21 @@ class Orchestrator:
         project_id: str | None,
         review: ReviewRequest | Any,
     ) -> None:
-        """Mark the task ``In Review`` once a review artifact exists."""
+        """Mark the task ``In Review`` once a review artifact exists.
+
+        Also persists ``oompah.review_url`` and ``oompah.review_number``
+        metadata fields (TASK-462.2) so the task record carries the PR link
+        without relying on GitHub's PR-to-issue auto-close semantics.
+        """
         if not project_id:
             return
         try:
             tracker = self._tracker_for_project(project_id)
             tracker.update_issue(entry.identifier, status=IN_REVIEW)
             review_id = getattr(review, "id", None)
+            review_url = getattr(review, "url", None)
+            review_source = getattr(review, "source_branch", None)
+            review_target = getattr(review, "target_branch", None)
             if review_id:
                 logger.info(
                     "Marked %s as In Review (review #%s)",
@@ -6202,12 +6305,64 @@ class Orchestrator:
                 )
             else:
                 logger.info("Marked %s as In Review", entry.identifier)
+            # Write review metadata so the task record carries the PR link
+            # (Review URL / Review Number) without relying on GitHub
+            # auto-close semantics.
+            self._write_review_metadata(
+                tracker,
+                entry.identifier,
+                review_id=review_id,
+                review_url=review_url,
+                source_branch=review_source,
+                target_branch=review_target,
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to mark %s as In Review after review handoff: %s",
                 entry.identifier,
                 exc,
             )
+
+    def _write_review_metadata(
+        self,
+        tracker: "TrackerProtocol",
+        identifier: str,
+        *,
+        review_id: str | None,
+        review_url: str | None,
+        source_branch: str | None = None,
+        target_branch: str | None = None,
+    ) -> None:
+        """Persist review metadata fields on a task (best-effort).
+
+        Writes ``oompah.review_url`` and ``oompah.review_number`` to the
+        task's metadata block.  Also writes ``oompah.work_branch`` (source)
+        and ``oompah.target_branch`` when supplied and not already set.
+
+        All writes are best-effort: failures are logged as warnings but do
+        not propagate so the caller's control flow is unaffected.
+        """
+        fields: dict[str, object] = {}
+        if review_url:
+            fields["oompah.review_url"] = review_url
+        if review_id:
+            fields["oompah.review_number"] = review_id
+        if source_branch:
+            fields["oompah.work_branch"] = source_branch
+        if target_branch:
+            fields["oompah.target_branch"] = target_branch
+        for key, value in fields.items():
+            try:
+                tracker.set_metadata_field(identifier, key, value)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to write %s metadata %s=%r for %s: %s",
+                    identifier,
+                    key,
+                    value,
+                    identifier,
+                    exc,
+                )
 
     def _defer_review_handoff(
         self,
@@ -6329,6 +6484,7 @@ class Orchestrator:
         """
         self._label_merged_issues()
         self._label_merged_epics()
+        self._reconcile_in_review_pr_outcomes()
         self._reconcile_stale_in_review_tasks()
         self._open_deferred_done_reviews()
 
@@ -6544,6 +6700,105 @@ class Orchestrator:
                     except TrackerError as exc:
                         logger.debug(
                             "Failed to label %s as merged: %s", issue.identifier, exc
+                        )
+
+    def _reconcile_in_review_pr_outcomes(self) -> None:
+        """Mark In Review tasks Needs CI Fix or Needs Rebase based on PR state.
+
+        Uses the ``_reviews_cache`` populated by :meth:`_handle_review_check`
+        to classify open PRs:
+
+        * ``ci_status == "failed"`` → ``Needs CI Fix``
+        * ``has_conflicts == True`` (and CI not already failed) → ``Needs Rebase``
+
+        Tasks with healthy open PRs (CI passing, no conflicts) are left in
+        ``In Review``.  Tasks with no PR in the cache are left to the
+        :meth:`_reconcile_stale_in_review_tasks` sweep.
+
+        Called from :meth:`_do_merged_labels` (maintenance lane).
+        """
+        reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+        if not reviews_cache:
+            return
+
+        for project in self.project_store.list_all():
+            project_id = str(project.id)
+            project_reviews = reviews_cache.get(project.id) or reviews_cache.get(
+                project_id, []
+            )
+            if not project_reviews:
+                continue
+
+            # Build a branch → ReviewRequest index for fast lookups
+            branch_to_review: dict[str, Any] = {}
+            for review in project_reviews:
+                branch = getattr(review, "source_branch", None)
+                if branch:
+                    branch_to_review[branch] = review
+
+            if not branch_to_review:
+                continue
+
+            try:
+                tracker = self._tracker_for_project(project_id)
+                issues = tracker.fetch_issues_by_states([IN_REVIEW])
+            except (ProjectError, TrackerError) as exc:
+                logger.debug(
+                    "PR outcome reconciliation fetch failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            for issue in issues:
+                if not issue.project_id:
+                    issue.project_id = project_id
+                if canonicalize_status(issue.state) != IN_REVIEW:
+                    continue
+
+                # Use branch_name if set, otherwise fall back to identifier
+                branch = (
+                    (issue.branch_name or "").strip() or issue.identifier
+                )
+                review = branch_to_review.get(branch)
+                if review is None:
+                    # No open PR in cache — stale reconciliation handles this
+                    continue
+
+                ci_status = getattr(review, "ci_status", "") or ""
+                has_conflicts = bool(getattr(review, "has_conflicts", False))
+
+                if ci_status == "failed":
+                    try:
+                        tracker.update_issue(
+                            issue.identifier, status=NEEDS_CI_FIX
+                        )
+                        logger.info(
+                            "Marked %s as Needs CI Fix (PR #%s ci_status=failed)",
+                            issue.identifier,
+                            getattr(review, "id", "?"),
+                        )
+                    except TrackerError as exc:
+                        logger.debug(
+                            "Failed to mark %s Needs CI Fix: %s",
+                            issue.identifier,
+                            exc,
+                        )
+                elif has_conflicts:
+                    try:
+                        tracker.update_issue(
+                            issue.identifier, status=NEEDS_REBASE
+                        )
+                        logger.info(
+                            "Marked %s as Needs Rebase (PR #%s has_conflicts=True)",
+                            issue.identifier,
+                            getattr(review, "id", "?"),
+                        )
+                    except TrackerError as exc:
+                        logger.debug(
+                            "Failed to mark %s Needs Rebase: %s",
+                            issue.identifier,
+                            exc,
                         )
 
     def _reconcile_stale_in_review_tasks(self) -> None:
@@ -7319,6 +7574,14 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
+                            # GitHub-backed tasks: post a comment so the
+                            # issue record reflects that the PR entered
+                            # the merge queue. Backlog tasks rely on the
+                            # webhook sweep and need no extra comment.
+                            if self.config.tracker_kind == "github_issues":
+                                self._yolo_comment_enqueued(
+                                    tracker, project, review, str(review_id)
+                                )
                             actions_fired += 1
                             # Merge-queue mode: GitHub's queue handles
                             # serialization, so a successful enqueue does
@@ -7387,6 +7650,12 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
+                            # GitHub-backed tasks: mark Merged + comment.
+                            # Backlog tasks are updated by the webhook sweep.
+                            if self.config.tracker_kind == "github_issues":
+                                self._yolo_mark_task_merged(
+                                    tracker, project, review, str(review_id)
+                                )
                             actions_fired += 1
                             # Direct merge (fallback path): each merge
                             # changes the target branch, so subsequent
@@ -7444,6 +7713,12 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
+                            # GitHub-backed tasks: mark Merged + comment.
+                            # Backlog tasks are updated by the webhook sweep.
+                            if self.config.tracker_kind == "github_issues":
+                                self._yolo_mark_task_merged(
+                                    tracker, project, review, str(review_id)
+                                )
                             actions_fired += 1
                             # Direct-merge mode: each merge changes the
                             # target branch, so subsequent PRs would
@@ -8141,17 +8416,75 @@ class Orchestrator:
             source_branch,
         )
 
-    def _resolve_task_for_branch(self, tracker, source_branch: str):
+    def _build_branch_index(
+        self, project_id: str, tracker
+    ) -> dict[str, str]:
+        """Build a ``{work_branch: identifier}`` index for *project_id*.
+
+        Fetches all open/in-review issues from *tracker* and collects those
+        that carry a ``work_branch`` value in their metadata.  The resulting
+        dict is cached in ``self._branch_indexes[project_id]`` and is
+        invalidated by ``_invalidate_tracker_read_caches()`` at each tick.
+
+        Returns an empty dict if the tracker call fails or no issues have
+        ``work_branch`` set.
+        """
+        try:
+            states = list(self.config.tracker_active_states) + [IN_REVIEW]
+            issues = tracker.fetch_issues_by_states(states)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "Branch index build failed for project %s: %s", project_id, exc
+            )
+            return {}
+        index: dict[str, str] = {}
+        for issue in issues:
+            branch = getattr(issue, "work_branch", None)
+            if branch:
+                index[str(branch)] = issue.identifier
+        return index
+
+    def _resolve_task_for_branch(
+        self, tracker, source_branch: str, *, project_id: str | None = None
+    ):
         """Resolve a PR's source branch back to its tracker task.
 
-        Per-task branches are named after the task identifier, so a direct
-        ``fetch_issue_detail`` resolves them. Epic→main PRs use an
-        ``epic-<identifier>`` branch (see ``ProjectStore.epic_branch_name``);
-        strip that prefix so an epic PR's CI failure / merge conflict
-        reopens the EPIC task (relabel Needs CI Fix / Needs Rebase) instead
-        of being misread as an orphan PR — which would file a redundant
-        "fix CI on PR #N" task rather than reusing the original epic.
+        For **GitHub-backed tasks** the branch name is a generated slug like
+        ``oompah/<project>/<gh-N>`` that does not equal the task identifier.
+        When *project_id* is supplied this method first consults the per-project
+        branch-to-issue index — a ``{work_branch: identifier}`` mapping built
+        from open/in-review issues — before falling back to the legacy path.
+
+        For **Backlog-backed tasks** branches are named after the task
+        identifier, so the direct ``fetch_issue_detail`` lookup still works
+        (legacy fallback).
+
+        Epic→main PRs use an ``epic-<identifier>`` branch (see
+        ``ProjectStore.epic_branch_name``); the ``epic-`` prefix is stripped in
+        both the index lookup and the legacy path so an epic PR's CI failure or
+        merge conflict reopens the EPIC task rather than being treated as an
+        orphan PR.
         """
+        # --- GitHub-backed path: consult the per-project branch index first ---
+        if project_id is not None:
+            if project_id not in self._branch_indexes:
+                self._branch_indexes[project_id] = self._build_branch_index(
+                    project_id, tracker
+                )
+            branch_index = self._branch_indexes[project_id]
+
+            # Try verbatim, then with epic- prefix stripped.
+            lookup_key = source_branch
+            if lookup_key not in branch_index and source_branch.startswith("epic-"):
+                lookup_key = source_branch[len("epic-"):]
+
+            if lookup_key in branch_index:
+                identifier = branch_index[lookup_key]
+                issue = tracker.fetch_issue_detail(identifier)
+                if issue is not None:
+                    return issue
+
+        # --- Legacy Backlog path: branch name == identifier ---
         issue = tracker.fetch_issue_detail(source_branch)
         if issue is None and source_branch.startswith("epic-"):
             issue = tracker.fetch_issue_detail(source_branch[len("epic-"):])
@@ -8179,7 +8512,9 @@ class Orchestrator:
             return None
 
         try:
-            issue = self._resolve_task_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
         except Exception as exc:  # noqa: BLE001 - do not break unrelated PRs
             logger.debug(
                 "YOLO epic-strategy gate could not resolve branch %s on %s: %s",
@@ -8320,7 +8655,9 @@ class Orchestrator:
                 )
 
             tracker = self._tracker_for_project(project.id)
-            issue = self._resolve_task_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
             if not issue:
                 # Orphan branch: no task matches (not even the epic the
                 # branch belongs to). File a recovery task so the YOLO
@@ -8460,8 +8797,11 @@ class Orchestrator:
         """
         if not source_branch:
             return
+        project_id: str | None = getattr(project, "id", None)
         try:
-            issue = tracker.fetch_issue_detail(source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project_id
+            )
             if not issue:
                 return
             labels = {l.lower() for l in (issue.labels or [])}
@@ -8485,6 +8825,76 @@ class Orchestrator:
                 exc,
             )
 
+    def _yolo_comment_enqueued(
+        self, tracker, project, review, review_id: str
+    ) -> None:
+        """Post a comment on a GitHub-backed task when YOLO enqueues its PR.
+
+        Only called for non-Backlog trackers (``isinstance`` guard at call
+        site).  Best-effort: any failure is logged at DEBUG level so it
+        never blocks the main YOLO loop.
+        """
+        try:
+            source_branch = getattr(review, "source_branch", "") or ""
+            if not source_branch:
+                return
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
+            if not issue:
+                return
+            tracker.add_comment(
+                issue.identifier,
+                f"YOLO: PR #{review_id} enqueued for merge.",
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "YOLO: enqueue comment failed for %s MR #%s: %s",
+                project.name,
+                review_id,
+                exc,
+            )
+
+    def _yolo_mark_task_merged(
+        self, tracker, project, review, review_id: str
+    ) -> None:
+        """Mark a GitHub-backed task Merged and comment when YOLO directly merges it.
+
+        Only called for non-Backlog trackers (``isinstance`` guard at call
+        site).  For Backlog tasks the webhook sweep handles the status
+        transition — this explicit update is only needed for GitHub-backed
+        tasks where the branch name does not equal the task identifier and
+        the legacy webhook lookup path would silently miss the task.
+
+        Best-effort: any failure is logged at DEBUG level so it never
+        blocks the main YOLO loop.
+        """
+        try:
+            source_branch = getattr(review, "source_branch", "") or ""
+            if not source_branch:
+                return
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
+            if not issue:
+                return
+            if canonicalize_status(issue.state) != MERGED:
+                tracker.update_issue(issue.identifier, status=MERGED)
+                self.state.completed.discard(issue.id)
+            tracker.add_comment(
+                issue.identifier,
+                f"YOLO: merged PR #{review_id}.",
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "YOLO: merged update failed for %s MR #%s: %s",
+                project.name,
+                review_id,
+                exc,
+            )
+
     def _yolo_retry_ci(self, project, review) -> None:
         """Re-file a ticket to fix failed CI tests (YOLO mode)."""
         try:
@@ -8492,7 +8902,9 @@ class Orchestrator:
             if not source_branch:
                 return
             tracker = self._tracker_for_project(project.id)
-            issue = self._resolve_task_for_branch(tracker, source_branch)
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
             if not issue:
                 # Orphan branch: no task matches (not even the epic the
                 # branch belongs to). File a recovery task so the YOLO

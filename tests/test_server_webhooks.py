@@ -1173,3 +1173,305 @@ class TestWebhookShouldRequestRefresh:
         assert _webhook_should_request_refresh(
             self._event("push", target_branch="main"), project=None
         ) is False
+
+
+# Webhook-driven task state reconciliation
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookInReviewReconciliation:
+    """PR opened/reopened webhook marks task In Review."""
+
+    def _make_orch_with_task(self, source_branch: str, task_state: str = "In Progress"):
+        """Build a mock orchestrator with a tracker that returns one task."""
+        from unittest.mock import MagicMock
+        orch = MagicMock()
+        orch.event_bus = EventBus()
+        orch.request_refresh = MagicMock()
+        orch.invalidate_merged_branches = MagicMock()
+        orch.project_store = MagicMock()
+
+        projects = [
+            Project(
+                id="proj-gh1",
+                name="github-proj",
+                repo_url="https://github.com/org/repo.git",
+                repo_path="/tmp/repos/repo",
+                webhook_secret=None,
+            ),
+        ]
+        orch.project_store.list_all.return_value = projects
+        orch.project_store.update = MagicMock()
+
+        from oompah.models import Issue
+
+        mock_issue = MagicMock(spec=Issue)
+        mock_issue.identifier = source_branch
+        mock_issue.state = task_state
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = mock_issue
+        mock_tracker.update_issue = MagicMock()
+        mock_tracker.set_metadata_field = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        # _resolve_task_for_branch is used by the updated webhook handlers
+        # to support both Backlog and GitHub-backed task lookup.
+        orch._resolve_task_for_branch = MagicMock(return_value=mock_issue)
+
+        return orch, mock_tracker, mock_issue
+
+    def test_pr_opened_marks_task_in_review(self):
+        """A pull_request opened event triggers In Review marking."""
+        import time
+        from oompah.server import app, _api_cache
+
+        orch, mock_tracker, mock_issue = self._make_orch_with_task(
+            "feat-branch", "In Progress"
+        )
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(
+                action="opened", source="feat-branch", number=77
+            )
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        # Give the background thread a moment to run
+        for _ in range(50):
+            if mock_tracker.update_issue.called:
+                break
+            time.sleep(0.02)
+
+        from oompah.statuses import IN_REVIEW
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-branch", status=IN_REVIEW
+        )
+
+    def test_pr_reopened_marks_task_in_review(self):
+        """A pull_request reopened event triggers In Review marking."""
+        import time
+        from oompah.server import app, _api_cache
+
+        orch, mock_tracker, mock_issue = self._make_orch_with_task(
+            "feat-branch", "Open"
+        )
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(action="reopened", source="feat-branch")
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        for _ in range(50):
+            if mock_tracker.update_issue.called:
+                break
+            time.sleep(0.02)
+
+        from oompah.statuses import IN_REVIEW
+        mock_tracker.update_issue.assert_called_once_with(
+            "feat-branch", status=IN_REVIEW
+        )
+
+    def test_pr_closed_unmerged_does_not_mark_in_review(self):
+        """A closed (unmerged) PR does not trigger In Review marking."""
+        import time
+        from oompah.server import app, _api_cache
+
+        orch, mock_tracker, mock_issue = self._make_orch_with_task(
+            "feat-branch", "In Review"
+        )
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(
+                action="closed", source="feat-branch", merged=False
+            )
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        time.sleep(0.1)
+        # No In Review update — closed without merge should not re-open
+        for call in mock_tracker.update_issue.call_args_list:
+            from oompah.statuses import IN_REVIEW
+            assert call.kwargs.get("status") != IN_REVIEW
+
+    def test_pr_opened_already_in_review_skips_status_update_but_writes_metadata(self):
+        """PR opened for a task already In Review skips status update but still writes metadata."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as _patch
+
+        orch, mock_tracker, mock_issue = self._make_orch_with_task(
+            "feat-branch", "In Review"
+        )
+
+        with _patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(action="opened", source="feat-branch", number=99)
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        time.sleep(0.1)
+        # Status update must NOT be called (already In Review)
+        mock_tracker.update_issue.assert_not_called()
+        # Metadata writes ARE still expected
+        assert mock_tracker.set_metadata_field.called
+
+
+class TestWebhookMergedReconciliation:
+    """PR closed+merged webhook marks task Merged."""
+
+    def _make_orch_with_task(self, source_branch: str, task_state: str = "In Review"):
+        from unittest.mock import MagicMock
+        orch = MagicMock()
+        orch.event_bus = EventBus()
+        orch.request_refresh = MagicMock()
+        orch.invalidate_merged_branches = MagicMock()
+        orch.project_store = MagicMock()
+
+        projects = [
+            Project(
+                id="proj-gh1",
+                name="github-proj",
+                repo_url="https://github.com/org/repo.git",
+                repo_path="/tmp/repos/repo",
+                webhook_secret=None,
+            ),
+        ]
+        orch.project_store.list_all.return_value = projects
+        orch.project_store.update = MagicMock()
+
+        from oompah.models import Issue
+
+        mock_issue = MagicMock(spec=Issue)
+        mock_issue.identifier = source_branch
+        mock_issue.state = task_state
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issue_detail.return_value = mock_issue
+        mock_tracker.update_issue = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        # _resolve_task_for_branch is used by the updated webhook handlers
+        # to support both Backlog and GitHub-backed task lookup.
+        orch._resolve_task_for_branch = MagicMock(return_value=mock_issue)
+
+        return orch, mock_tracker
+
+    def test_pr_merged_marks_task_merged(self):
+        """A pull_request closed+merged event marks the task Merged."""
+        import time
+        from oompah.server import app, _api_cache
+
+        orch, mock_tracker = self._make_orch_with_task("feat-branch", "In Review")
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(
+                action="closed", source="feat-branch", merged=True
+            )
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        for _ in range(50):
+            if mock_tracker.update_issue.called:
+                break
+            time.sleep(0.02)
+
+        from oompah.statuses import MERGED
+        mock_tracker.update_issue.assert_called_once_with("feat-branch", status=MERGED)
+
+    def test_pr_already_merged_skips_update(self):
+        """PR merged webhook for an already-Merged task is a no-op."""
+        import time
+        from oompah.server import app, _api_cache
+
+        orch, mock_tracker = self._make_orch_with_task("feat-branch", "Merged")
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(
+                action="closed", source="feat-branch", merged=True
+            )
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        time.sleep(0.1)
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_pr_closed_without_merge_does_not_mark_merged(self):
+        """PR closed without merge does not trigger a Merged update."""
+        import time
+        from oompah.server import app, _api_cache
+
+        orch, mock_tracker = self._make_orch_with_task("feat-branch", "In Review")
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("reviews:all")
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_pr_payload(
+                action="closed", source="feat-branch", merged=False
+            )
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        time.sleep(0.1)
+        from oompah.statuses import MERGED
+        for call in mock_tracker.update_issue.call_args_list:
+            assert call.kwargs.get("status") != MERGED

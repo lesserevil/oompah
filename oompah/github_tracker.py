@@ -1192,6 +1192,11 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         meta.get("target_branch") or meta.get("oompah.target_branch") or None
     )
     project_id: str | None = meta.get("project_id") or None
+    # Work branch stored in issue metadata (oompah.work_branch).  Written by
+    # the orchestrator when creating the agent worktree (TASK-461.3).  Used
+    # for branch-to-issue resolution so callers do not need to guess the task
+    # identifier from the branch name (TASK-462.1).
+    work_branch: str | None = meta.get("work_branch") or None
 
     # Description: issue body with metadata block stripped.
     description_text = _BODY_METADATA_RE.sub("", body).strip()
@@ -1210,6 +1215,7 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         issue_type=issue_type,
         project_id=project_id,
         target_branch=target_branch,
+        work_branch=work_branch,
         backports=meta.get("backports", meta.get("oompah.backports")),
         backport_of=meta.get("backport_of", meta.get("oompah.backport_of")),
         release_pick_metadata_loaded=True,

@@ -1641,6 +1641,9 @@ class TestLabelBeadMergedFromMergeGroup:
 
         orch = MagicMock()
         orch._tracker_for_project.return_value = mock_tracker
+        # _resolve_task_for_branch is used by the updated webhook handlers
+        # to support both Backlog and GitHub-backed task lookup.
+        orch._resolve_task_for_branch.return_value = mock_issue
         return orch, mock_tracker, mock_issue
 
     def _make_project(self, project_id: str = "proj-1") -> MagicMock:
@@ -1743,6 +1746,8 @@ class TestLabelBeadMergedFromMergeGroup:
         mock_tracker.fetch_issue_detail.return_value = None
         orch = MagicMock()
         orch._tracker_for_project.return_value = mock_tracker
+        # Simulate task not found via branch resolution (GitHub-backed path)
+        orch._resolve_task_for_branch.return_value = None
         project = self._make_project()
         event = WebhookEvent(
             provider="github",
@@ -1753,12 +1758,568 @@ class TestLabelBeadMergedFromMergeGroup:
         )
 
         _label_task_merged_from_merge_group(orch, event, project)
-        mock_tracker.add_label.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# TASK-462.4 — YOLO GitHub-backed tracker updates
+# ---------------------------------------------------------------------------
+
+
+class TestYoloGitHubTrackerUpdates:
+    """YOLO paths update GitHub-backed task state and comments through the
+    tracker protocol; legacy Backlog tasks remain unchanged (AC#2).
+
+    (TASK-462.4)
+    """
+
+    def _make_orchestrator(self, tmp_path, projects=None, github_backed: bool = False):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        if github_backed:
+            # Override tracker_kind AFTER construction so the Orchestrator
+            # initialises with the default backlog_md tracker (no GitHub
+            # credentials needed in tests) but the YOLO guard reads
+            # "github_issues" at call time.
+            orch.config.tracker_kind = "github_issues"
+        return orch
+
+    def _make_github_tracker(self, issue_id: str, issue_state: str = "In Review"):
+        """Return a mock tracker that is NOT a BacklogMdTracker."""
+        from oompah.models import Issue
+
+        mock_issue = Issue(
+            id=issue_id,
+            identifier=issue_id,
+            title="GitHub task",
+            state=issue_state,
+            work_branch="oompah/repo/gh-42",
+        )
+        tracker = MagicMock()
+        # Not isinstance BacklogMdTracker — simulated by spec.
+        tracker.__class__ = MagicMock  # ensures isinstance check fails
+        tracker.fetch_issue_detail.return_value = mock_issue
+        tracker.fetch_issues_by_states.return_value = [mock_issue]
+        return tracker, mock_issue
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_enqueue_success_posts_comment_for_github_backed_task(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Successful enqueue adds a tracker comment to GitHub-backed tasks."""
+        project = _make_project(merge_queue_enabled=True)
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project], github_backed=True)
+        tracker, task_issue = self._make_github_tracker("gh#42")
+
+        orch._project_trackers[project.id] = tracker
+        # Seed the branch index so _resolve_task_for_branch finds the task.
+        orch._branch_indexes[project.id] = {
+            "oompah/repo/gh-42": task_issue.identifier
+        }
+
+        orch._reviews_cache = {
+            project.id: [_make_review("42", source_branch="oompah/repo/gh-42")]
+        }
+        orch._yolo_review_actions_sync()
+
+        tracker.add_comment.assert_called_once()
+        comment_text = tracker.add_comment.call_args[0][1]
+        assert "42" in comment_text
+        assert "enqueue" in comment_text.lower() or "queue" in comment_text.lower()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_enqueue_success_no_comment_for_backlog_task(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """AC#2: Successful enqueue does NOT call _yolo_comment_enqueued for
+        Backlog tasks — tracker_kind is backlog_md so the guard is False."""
+        project = _make_project(merge_queue_enabled=True)
+        provider = MagicMock()
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        # Default tracker_kind is backlog_md.
+        assert orch.config.tracker_kind == "backlog_md"
+
+        # Patch the helper to detect whether it's called.
+        orch._yolo_comment_enqueued = MagicMock()
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
+
+        orch._yolo_review_actions_sync()
+
+        # Enqueue happened.
+        provider.enable_auto_merge.assert_called_once_with("org/repo", "42")
+        # Comment helper must NOT be called for Backlog projects.
+        orch._yolo_comment_enqueued.assert_not_called()
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_direct_merge_marks_github_task_merged_and_comments(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """Successful direct merge marks GitHub-backed task Merged and posts a comment."""
+        project = _make_project(merge_queue_enabled=False)
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project], github_backed=True)
+        tracker, task_issue = self._make_github_tracker("gh#42", issue_state="In Review")
+
+        orch._project_trackers[project.id] = tracker
+        orch._branch_indexes[project.id] = {
+            "oompah/repo/gh-42": task_issue.identifier
+        }
+
+        orch._reviews_cache = {
+            project.id: [_make_review("42", source_branch="oompah/repo/gh-42")]
+        }
+        orch._yolo_review_actions_sync()
+
+        # Task must be updated to Merged.
+        tracker.update_issue.assert_called_once_with(
+            task_issue.identifier, status="Merged"
+        )
+        # A comment must be posted.
+        tracker.add_comment.assert_called_once()
+        comment_text = tracker.add_comment.call_args[0][1]
+        assert "42" in comment_text
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_direct_merge_no_tracker_update_for_backlog_task(
+        self, mock_slug, mock_detect, tmp_path
+    ):
+        """AC#2: Successful direct merge does NOT call _yolo_mark_task_merged
+        for Backlog tasks — tracker_kind is backlog_md so the guard is False."""
+        project = _make_project(merge_queue_enabled=False)
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        # Default tracker_kind is backlog_md.
+        assert orch.config.tracker_kind == "backlog_md"
+
+        # Patch the helper to observe whether it gets called.
+        orch._yolo_mark_task_merged = MagicMock()
+        orch._reviews_cache = {project.id: [_make_review("42", ci_status="passed")]}
+
+        orch._yolo_review_actions_sync()
+
+        # _yolo_mark_task_merged must NOT be called for Backlog tasks.
+        orch._yolo_mark_task_merged.assert_not_called()
+        # But the actual merge DID happen.
+        provider.merge_review.assert_called_once_with("org/repo", "42")
+
+
+# ---------------------------------------------------------------------------
+# TASK-462.4 — Webhook handlers use _resolve_task_for_branch
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookGitHubTaskResolution:
+    """Webhook handlers use orch._resolve_task_for_branch so GitHub-backed
+    tasks (branch != identifier) are found correctly.  (TASK-462.4)
+    """
+
+    def _make_github_issue(self, identifier: str, state: str = "In Review"):
+        """Return a mock Issue representing a GitHub-backed task."""
+        from oompah.models import Issue
+
+        return Issue(
+            id=identifier,
+            identifier=identifier,
+            title="GitHub task",
+            state=state,
+            work_branch="oompah/repo/gh-42",
+        )
+
+    def _make_orch(self, issue, *, tracker=None):
+        """Return a mock orchestrator configured to return *issue* from
+        _resolve_task_for_branch and the given *tracker* from
+        _tracker_for_project."""
+        orch = MagicMock()
+        mock_tracker = tracker or MagicMock()
+        orch._tracker_for_project.return_value = mock_tracker
+        orch._resolve_task_for_branch.return_value = issue
+        return orch, mock_tracker
+
+    def _make_project(self, project_id: str = "proj-gh") -> MagicMock:
+        p = MagicMock()
+        p.id = project_id
+        return p
+
+    # --- _label_task_merged_from_merge_group ---
+
+    def test_merge_group_uses_resolve_for_github_branch(self):
+        """merge_group handler calls _resolve_task_for_branch, not fetch_issue_detail."""
+        from oompah.server import _label_task_merged_from_merge_group
+        from oompah.statuses import MERGED
+
+        issue = self._make_github_issue("owner/tasks#99", state="In Review")
+        orch, tracker = self._make_orch(issue)
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="gh-readonly-queue/main/pr-42-oompah-repo-gh-42",
+            merged=True,
+        )
+
+        _label_task_merged_from_merge_group(orch, event, project)
+
+        # Must use _resolve_task_for_branch (not just fetch_issue_detail).
+        orch._resolve_task_for_branch.assert_called_once()
+        tracker.update_issue.assert_called_once_with(issue.identifier, status=MERGED)
+
+    def test_merge_group_resolve_returns_none_is_noop(self):
+        """merge_group handler is a no-op when no task resolves for the branch."""
+        from oompah.server import _label_task_merged_from_merge_group
+
+        orch = MagicMock()
+        orch._resolve_task_for_branch.return_value = None
+        tracker = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="merge_group",
+            action="destroyed",
+            source_branch="gh-readonly-queue/main/pr-42-unknown",
+            merged=True,
+        )
+
+        _label_task_merged_from_merge_group(orch, event, project)
+
+        tracker.update_issue.assert_not_called()
+
+    # --- _label_task_merged_from_pr ---
+
+    def test_pr_merged_webhook_uses_resolve_for_github_branch(self):
+        """Direct-merge PR webhook calls _resolve_task_for_branch."""
+        from oompah.server import _label_task_merged_from_pr
+        from oompah.statuses import MERGED
+
+        issue = self._make_github_issue("owner/tasks#100", state="In Review")
+        orch, tracker = self._make_orch(issue)
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="pull_request",
+            action="closed",
+            source_branch="oompah/repo/gh-42",
+            merged=True,
+        )
+
+        _label_task_merged_from_pr(orch, event, project)
+
+        orch._resolve_task_for_branch.assert_called_once()
+        tracker.update_issue.assert_called_once_with(issue.identifier, status=MERGED)
+
+    def test_pr_merged_webhook_resolve_returns_none_is_noop(self):
+        """Direct-merge PR webhook is a no-op when no task resolves."""
+        from oompah.server import _label_task_merged_from_pr
+
+        orch = MagicMock()
+        orch._resolve_task_for_branch.return_value = None
+        tracker = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="pull_request",
+            action="closed",
+            source_branch="oompah/repo/gh-unknown",
+            merged=True,
+        )
+
+        _label_task_merged_from_pr(orch, event, project)
+
+        tracker.update_issue.assert_not_called()
+
+    # --- _mark_task_in_review_from_webhook ---
+
+    def test_pr_opened_webhook_uses_resolve_for_github_branch(self):
+        """PR opened webhook calls _resolve_task_for_branch."""
+        from oompah.server import _mark_task_in_review_from_webhook
+        from oompah.statuses import IN_REVIEW
+
+        issue = self._make_github_issue("owner/tasks#101", state="Open")
+        orch, tracker = self._make_orch(issue)
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="pull_request",
+            action="opened",
+            source_branch="oompah/repo/gh-42",
+            merged=False,
+        )
+
+        _mark_task_in_review_from_webhook(orch, event, project)
+
+        orch._resolve_task_for_branch.assert_called_once()
+        tracker.update_issue.assert_called_once_with(issue.identifier, status=IN_REVIEW)
+
+    def test_pr_opened_webhook_resolve_returns_none_is_noop(self):
+        """PR opened webhook is a no-op when no task resolves."""
+        from oompah.server import _mark_task_in_review_from_webhook
+
+        orch = MagicMock()
+        orch._resolve_task_for_branch.return_value = None
+        tracker = MagicMock()
+        orch._tracker_for_project.return_value = tracker
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="pull_request",
+            action="opened",
+            source_branch="oompah/repo/gh-unknown",
+            merged=False,
+        )
+
+        _mark_task_in_review_from_webhook(orch, event, project)
+
+        tracker.update_issue.assert_not_called()
+
+    def test_pr_opened_github_task_already_in_review_skips_status(self):
+        """PR opened for a GitHub task already In Review skips status update
+        but may still write metadata."""
+        from oompah.server import _mark_task_in_review_from_webhook
+        from oompah.statuses import IN_REVIEW
+
+        issue = self._make_github_issue("owner/tasks#102", state=IN_REVIEW)
+        orch, tracker = self._make_orch(issue)
+        project = self._make_project()
+        event = WebhookEvent(
+            provider="github",
+            event_type="pull_request",
+            action="opened",
+            source_branch="oompah/repo/gh-42",
+            merged=False,
+        )
+
+        _mark_task_in_review_from_webhook(orch, event, project)
+
+        # Status update skipped because already In Review.
+        tracker.update_issue.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
 # ProjectStore: merge_queue_enabled in UPDATABLE_FIELDS
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# TASK-462.1 — Branch-to-issue index
+# ---------------------------------------------------------------------------
+
+
+class TestBuildBranchIndex:
+    """_build_branch_index builds a {work_branch: identifier} dict from open
+    issues that carry work_branch metadata."""
+
+    def _make_orchestrator(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def _make_issue_with_branch(self, identifier: str, branch: str):
+        from oompah.models import Issue
+
+        return Issue(
+            id=identifier,
+            identifier=identifier,
+            title="Test Issue",
+            state="Open",
+            work_branch=branch,
+        )
+
+    def test_builds_index_from_issues_with_work_branch(self, tmp_path):
+        """Issues with work_branch set appear in the returned index."""
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            self._make_issue_with_branch("lesserevil/tasks#1", "oompah/proj/gh-1"),
+            self._make_issue_with_branch("lesserevil/tasks#2", "oompah/proj/gh-2"),
+        ]
+
+        idx = orch._build_branch_index("proj-1", tracker)
+
+        assert idx == {
+            "oompah/proj/gh-1": "lesserevil/tasks#1",
+            "oompah/proj/gh-2": "lesserevil/tasks#2",
+        }
+
+    def test_issues_without_work_branch_excluded(self, tmp_path):
+        """Issues with work_branch=None are omitted from the index."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        issue_with = self._make_issue_with_branch("tasks#10", "oompah/proj/gh-10")
+        issue_without = Issue(
+            id="tasks#11", identifier="tasks#11", title="No branch", state="Open"
+        )
+        tracker.fetch_issues_by_states.return_value = [issue_with, issue_without]
+
+        idx = orch._build_branch_index("proj-2", tracker)
+
+        assert "oompah/proj/gh-10" in idx
+        assert "tasks#11" not in idx.values()
+
+    def test_returns_empty_dict_on_tracker_error(self, tmp_path):
+        """When fetch_issues_by_states raises, an empty dict is returned."""
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.side_effect = Exception("API error")
+
+        idx = orch._build_branch_index("proj-err", tracker)
+
+        assert idx == {}
+
+    def test_returns_empty_dict_when_no_issues(self, tmp_path):
+        """Empty tracker → empty index."""
+        orch = self._make_orchestrator(tmp_path)
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = []
+
+        idx = orch._build_branch_index("proj-empty", tracker)
+
+        assert idx == {}
+
+
+class TestClearMergeConflictLabelViaIndex:
+    """_clear_merge_conflict_label_for_branch uses the branch index to
+    resolve GitHub-backed branches (TASK-462.1, AC#1)."""
+
+    def _make_orchestrator(self, tmp_path):
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import Orchestrator
+
+        project_store = MagicMock()
+        project_store.list_all.return_value = []
+        return Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+
+    def test_clears_label_via_branch_index(self, tmp_path):
+        """merge-conflict label is cleared when the task is found via index."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        project = _make_project(project_id="proj-gh")
+
+        # The task has work_branch set and carries the merge-conflict label.
+        task = Issue(
+            id="tasks#20",
+            identifier="owner/tasks#20",
+            title="Some task",
+            state="Needs Rebase",
+            labels=["merge-conflict"],
+            work_branch="oompah/repo/gh-20",
+        )
+        tracker = MagicMock()
+        # Index lookup: fetch_issues_by_states returns the task.
+        tracker.fetch_issues_by_states.return_value = [task]
+        # Detail lookup by identifier returns the task.
+        tracker.fetch_issue_detail.return_value = task
+
+        orch._clear_merge_conflict_label_for_branch(
+            project, tracker, "oompah/repo/gh-20"
+        )
+
+        tracker.update_issue.assert_called_once_with(
+            "owner/tasks#20", **{"remove-label": "merge-conflict"}
+        )
+
+    def test_noop_when_label_absent(self, tmp_path):
+        """No update_issue call when the task has no merge-conflict label."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        project = _make_project(project_id="proj-no-label")
+
+        task = Issue(
+            id="tasks#21",
+            identifier="owner/tasks#21",
+            title="Clean task",
+            state="In Review",
+            labels=[],
+            work_branch="oompah/repo/gh-21",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [task]
+        tracker.fetch_issue_detail.return_value = task
+
+        orch._clear_merge_conflict_label_for_branch(
+            project, tracker, "oompah/repo/gh-21"
+        )
+
+        tracker.update_issue.assert_not_called()
+
+    def test_legacy_backlog_branch_still_works(self, tmp_path):
+        """AC#2: legacy Backlog branches (branch==identifier) continue to work."""
+        from oompah.models import Issue
+
+        orch = self._make_orchestrator(tmp_path)
+        project = _make_project(project_id="proj-legacy")
+
+        task = Issue(
+            id="TASK-5",
+            identifier="TASK-5",
+            title="Legacy task",
+            state="Needs Rebase",
+            labels=["merge-conflict"],
+        )
+        tracker = MagicMock()
+        # Index build returns empty (Backlog issues have no work_branch).
+        tracker.fetch_issues_by_states.return_value = [
+            Issue(id="TASK-5", identifier="TASK-5", title="t", state="Open")
+        ]
+        # Legacy fetch_issue_detail path.
+        tracker.fetch_issue_detail.return_value = task
+
+        orch._clear_merge_conflict_label_for_branch(project, tracker, "TASK-5")
+
+        tracker.update_issue.assert_called_once_with(
+            "TASK-5", **{"remove-label": "merge-conflict"}
+        )
 
 
 class TestProjectStoreUpdatableFields:
