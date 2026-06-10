@@ -1,17 +1,17 @@
 ---
 id: TASK-469.5.1
-title: Split Oompah into physical API, scheduler, and maintenance services if metrics
+title: >-
+  Split Oompah into physical API, scheduler, and maintenance services if metrics
   still show coupling
-status: Needs CI Fix
+status: Done
 assignee: []
-created_date: 2026-06-08 23:02
-updated_date: 2026-06-09 02:34
+created_date: '2026-06-08 23:02'
+updated_date: '2026-06-10 06:16'
 labels:
-- ci-fix
+  - ci-fix
 dependencies: []
 parent_task_id: TASK-469.5
 ordinal: 175000
-priority: 0
 ---
 
 ## Description
@@ -24,165 +24,38 @@ Follow-up to TASK-469.5. TASK-469 delivered the immediate responsiveness isolati
 
 <!-- COMMENTS:BEGIN -->
 author: oompah
-created: 2026-06-09 00:05
----
-Agent dispatched (profile: default)
----
-
-author: oompah
-created: 2026-06-09 00:05
----
-Focus: Queue Api Oompah Specialist
----
-
-author: oompah
-created: 2026-06-09 01:00
----
-Agent completed successfully in 3297s (49223 tokens)
----
-
-author: oompah
-created: 2026-06-09 01:00
----
-Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
-- Turns: 219, Tool calls: 145
-- Tokens: 130 in / 49.1K out [49.2K total]
-- Cost: $0.0000
-- Exit: normal, Duration: 54m 57s
-- Log: TASK-469.5.1__20260609T000525Z.jsonl
----
-
-author: oompah
-created: 2026-06-09 01:09
----
-YOLO: CI tests failed on MR #240. Fix the failing tests so this MR can merge. Do NOT rewrite the feature — only fix test failures. IMPORTANT: Paths in CI logs are not trustworthy. Run tests locally to get accurate paths and errors.
----
-
-author: oompah
-created: 2026-06-09 01:14
+created: 2026-06-10 05:50
 ---
 Agent dispatched (profile: standard)
 ---
 
 author: oompah
-created: 2026-06-09 01:14
+created: 2026-06-10 05:55
 ---
-Focus: CI Failure Fixer
----
-
-author: oompah
-created: 2026-06-09 01:14
----
-Agent failed: RuntimeError: Codex exec exited with code 1: . Retrying in 10s (attempt #1)
+Understanding: This task is labeled ci-fix, so my role is to identify and fix CI test failures. Current branch is epic-TASK-469.5. The /tmp filesystem was out of inodes preventing local test execution - cleaned up old pytest dirs. Now running tests to identify actual failures.
 ---
 
 author: oompah
-created: 2026-06-09 01:14
+created: 2026-06-10 06:14
 ---
-Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/default]
-- Turns: 1, Tool calls: 0
-- Tokens: 0 in / 0 out [0 total]
-- Cost: $0.0000
-- Exit: error, Duration: 23s
-- Log: TASK-469.5.1__20260609T011430Z.jsonl
+Discovery: PR #240 (TASK-469.5.1) was already merged to main. The initial CI failure (run 27177010998) was fixed by a subsequent commit (run 27178409641 passed). After the merge, commit 3fd1427 (TASK-466 epic) reset the task status to 'Needs CI Fix' in backlog, causing re-dispatch. Current CI on main is passing for all Python versions. All 59 tests in test_ipc.py and test_state_api_responsiveness.py pass locally.
 ---
 
 author: oompah
-created: 2026-06-09 01:16
+created: 2026-06-10 06:14
 ---
-Agent dispatched (profile: standard)
----
-
-author: oompah
-created: 2026-06-09 01:16
----
-Focus: Refactoring Specialist
+Verification: 59/59 tests pass locally for test_ipc.py and test_state_api_responsiveness.py. GitHub CI run 27178409641 shows all 3 Python version jobs (3.11, 3.12, 3.13) passing. Main branch CI is green. No code changes needed - the fix was already merged.
 ---
 
 author: oompah
-created: 2026-06-09 01:19
+created: 2026-06-10 06:16
 ---
-Agent failed: HTTP 500 from https://inference-api.nvidia.com/v1/chat/completions: {"error":{"message":"litellm.InternalServerError: InternalServerError: OpenAIException - Cannot connect to host nemotron-ultra-rl-052726-vllm-dynamo.prd.astra.nvidia.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1032)')]. Received Model Group=nvidia/nvidia/nemotron-3-ultra\nAvailable Model Group Fallbacks=None","type":null,"param":null,"code":"500"}}. Retrying in 20s (attempt #2)
----
-
-author: oompah
-created: 2026-06-09 01:19
----
-Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
-- Turns: 1, Tool calls: 0
-- Tokens: 0 in / 0 out [0 total]
-- Cost: $0.0000
-- Exit: error, Duration: 2m 40s
-- Log: TASK-469.5.1__20260609T011645Z.jsonl
----
-
-author: oompah
-created: 2026-06-09 01:19
----
-Retrying (attempt #2, agent: standard)
----
-
-author: oompah
-created: 2026-06-09 01:20
----
-Focus: CI Failure Fixer
----
-
-author: oompah
-created: 2026-06-09 01:20
----
-Agent failed: RuntimeError: Codex exec exited with code 1: . Retrying in 40s (attempt #3)
----
-
-author: oompah
-created: 2026-06-09 01:20
----
-Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> Codex/default]
-- Turns: 1, Tool calls: 0
-- Tokens: 0 in / 0 out [0 total]
-- Cost: $0.0000
-- Exit: error, Duration: 36s
-- Log: TASK-469.5.1__20260609T012019Z.jsonl
----
-
-author: oompah
-created: 2026-06-09 01:21
----
-Retrying (attempt #3, agent: standard)
----
-
-author: oompah
-created: 2026-06-09 01:21
----
-Focus: Refactoring Specialist
----
-
-author: oompah
-created: 2026-06-09 01:22
----
-Agent failed: HTTP 500 from https://inference-api.nvidia.com/v1/chat/completions: {"error":{"message":"litellm.InternalServerError: InternalServerError: OpenAIException - Cannot connect to host nemotron-ultra-rl-052726-vllm-dynamo.prd.astra.nvidia.com:443 ssl:True [SSLCertVerificationError: (1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1032)')]. Received Model Group=nvidia/nvidia/nemotron-3-ultra\nAvailable Model Group Fallbacks=None","type":null,"param":null,"code":"500"}}. Retrying in 80s (attempt #4)
----
-
-author: oompah
-created: 2026-06-09 01:22
----
-Run #YOLO-reopen [attempt=YOLO-reopen, profile=standard, role=standard -> InferenceAPI/nvidia/nvidia/nemotron-3-ultra]
-- Turns: 1, Tool calls: 0
-- Tokens: 0 in / 0 out [0 total]
-- Cost: $0.0000
-- Exit: error, Duration: 33s
-- Log: TASK-469.5.1__20260609T012145Z.jsonl
----
-
-author: oompah
-created: 2026-06-09 01:27
----
-Retrying (attempt #4, agent: standard)
----
-
-author: oompah
-created: 2026-06-09 01:40
----
-Understanding: CI test test_process_ipc_commands_pause was failing with 'AssertionError: assert failed == processed'. Root cause: Orchestrator.pause() calls asyncio.ensure_future(self._terminate_all_running()) which requires a running event loop. In Python 3.11, this raises RuntimeError when called from synchronous test context. The exception propagated to _process_ipc_commands which acked the command as 'failed'. Fix: replace asyncio.ensure_future() with asyncio.get_running_loop().create_task() wrapped in try/except RuntimeError. This silently skips agent termination when there's no event loop (safe since tests have no running agents), and works correctly in production where there's always an event loop.
+Completion: CI fix was complete before PR #240 merged to main. The re-dispatch was caused by TASK-466's merge resetting the task status. All 59 IPC/responsiveness tests pass locally; GitHub CI is green. No further action needed - marking Done.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+CI was already fixed before PR #240 merged. TASK-466 commit 3fd1427 reset status to 'Needs CI Fix' causing re-dispatch. Verified: all 59 IPC and state-responsiveness tests pass; main CI green on 3.11/3.12/3.13. SQLite-backed IPC service boundary shipped in PR #240 as designed.
+<!-- SECTION:FINAL_SUMMARY:END -->
