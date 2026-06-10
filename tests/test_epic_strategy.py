@@ -19,7 +19,7 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
-from oompah.statuses import DONE, IN_REVIEW, OPEN
+from oompah.statuses import DONE, IN_REVIEW, NEEDS_HUMAN, OPEN
 
 
 # --------------------------------------------------------------------- helpers
@@ -67,6 +67,7 @@ def _make_project_record(
     p.matches_branch = lambda b: fnmatch.fnmatch(b, "main")
     p.paused = paused
     p.epic_strategy = epic_strategy
+    p.require_epic_for_tasks = False
     p.max_in_flight_prs = 1
     p.access_token = None
     return p
@@ -107,6 +108,7 @@ class TestProjectEpicStrategyField:
         p = Project(id="p", name="n", repo_url="u", repo_path="/tmp/x")
         d = p.to_dict()
         assert d["epic_strategy"] == "stacked"
+        assert d["require_epic_for_tasks"] is False
 
     def test_to_dict_round_trip(self):
         p = Project(
@@ -115,17 +117,21 @@ class TestProjectEpicStrategyField:
             repo_url="u",
             repo_path="/tmp/x",
             epic_strategy="stacked",
+            require_epic_for_tasks=True,
         )
         d = p.to_dict()
         assert d["epic_strategy"] == "stacked"
+        assert d["require_epic_for_tasks"] is True
         p2 = Project.from_dict(d)
         assert p2.epic_strategy == "stacked"
+        assert p2.require_epic_for_tasks is True
 
     def test_from_dict_back_compat_when_missing(self):
         # Existing projects.json without the field → defaults to flat
         d = {"id": "p", "name": "n", "repo_url": "u", "repo_path": "/tmp/x"}
         p = Project.from_dict(d)
         assert p.epic_strategy == "flat"
+        assert p.require_epic_for_tasks is False
 
     def test_from_dict_unknown_value_falls_back_to_flat(self):
         d = {
@@ -212,10 +218,24 @@ class TestProjectStoreUpdateEpicStrategy:
         assert p is not None
         assert p.epic_strategy == "flat"
 
+    def test_update_require_epic_for_tasks(self, tmp_path):
+        store = self._store(tmp_path)
+        self._seed(store)
+        p = store.update("p1", require_epic_for_tasks=True)
+        assert p is not None
+        assert p.require_epic_for_tasks is True
+
+    def test_update_require_epic_for_tasks_rejects_non_bool(self, tmp_path):
+        store = self._store(tmp_path)
+        self._seed(store)
+        with pytest.raises(ProjectError):
+            store.update("p1", require_epic_for_tasks="true")
+
 
 class TestUpdatableFieldsIncludesEpicStrategy:
     def test_field_in_allow_list(self):
         assert "epic_strategy" in ProjectStore.UPDATABLE_FIELDS
+        assert "require_epic_for_tasks" in ProjectStore.UPDATABLE_FIELDS
 
 
 class TestEpicWorktreeHelpers:
@@ -377,6 +397,31 @@ class TestSharedModeDispatchGating:
         child = _make_issue(identifier="task-only", parent_id="epic-1", state="open")
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
+
+    def test_rejects_top_level_task_when_project_requires_epic_parent(
+        self, tmp_path
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        task = _make_issue(identifier="task-only", parent_id=None, state="open")
+        orch._reviews_cache = {}
+        assert orch._should_dispatch(task) is False
+        reason, _count = orch.state.reject_streak[task.id]
+        assert reason == "missing_parent_epic"
+
+    def test_allows_child_task_when_project_requires_epic_parent(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        child = _make_issue(identifier="task-only", parent_id="epic-1", state="open")
+        orch._reviews_cache = {}
+        with patch.object(
+            orch.project_store,
+            "read_task_status_in_epic_worktree",
+            return_value=None,
+        ):
+            assert orch._should_dispatch(child) is True
 
     def test_rejects_when_child_done_on_epic_branch(self, tmp_path):
         """A shared-epic child already terminal on its epic branch must not
@@ -813,6 +858,31 @@ class TestWorkspaceAllocation:
 
 
 class TestEnsureReviewExistsRespectsEpicStrategy:
+    def test_require_epic_parent_blocks_top_level_task_review(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.require_epic_for_tasks = True
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        issue = _make_issue(identifier="task-1", parent_id=None, project_id="proj-1")
+        entry = RunningEntry(
+            worker_task=MagicMock(),
+            identifier="task-1",
+            issue=issue,
+            session=None,
+            retry_attempt=0,
+            started_at=MagicMock(),
+            agent_profile_name="default",
+        )
+
+        result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is False
+        tracker.update_issue.assert_called_once_with("task-1", status=NEEDS_HUMAN)
+        tracker.add_comment.assert_called_once()
+
     def test_flat_creates_pr_targeting_main(self, tmp_path):
         proj = _make_project_record(epic_strategy="flat")
         orch = _make_orch(tmp_path, projects=[proj])

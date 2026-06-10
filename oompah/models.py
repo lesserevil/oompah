@@ -317,6 +317,11 @@ class Project:
     # back-compat is intentional, only newly-constructed Project()
     # instances pick up "stacked".
     epic_strategy: str = "stacked"
+    # When true, ordinary implementation tasks must be attached to an epic
+    # before dispatch/review automation can act on them. This is stricter
+    # than epic_strategy: shared/stacked, which only changes behavior once a
+    # parent epic exists.
+    require_epic_for_tasks: bool = False
 
     churn_magnet_gate_enabled: bool = False
     churn_magnet_top_n: int = 10
@@ -428,6 +433,7 @@ class Project:
         # so an upgraded server writing an existing projects.json file
         # surfaces the field on disk.
         d["epic_strategy"] = self.epic_strategy
+        d["require_epic_for_tasks"] = self.require_epic_for_tasks
         # Always emit churn-magnet gate config so dashboards can render
         # the settings and the orchestrator persists them across restarts.
         d["churn_magnet_gate_enabled"] = self.churn_magnet_gate_enabled
@@ -589,6 +595,7 @@ class Project:
             test_command_full=test_command_full or None,
             test_skip_paths=test_skip_paths,
             epic_strategy=epic_strategy,
+            require_epic_for_tasks=bool(d.get("require_epic_for_tasks", False)),
             churn_magnet_gate_enabled=bool(d.get("churn_magnet_gate_enabled", False)),
             churn_magnet_top_n=max(1, int(d.get("churn_magnet_top_n", 10))),
             provider_whitelist=provider_whitelist,

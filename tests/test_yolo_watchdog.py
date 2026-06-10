@@ -78,6 +78,7 @@ def _make_project(project_id: str = "proj-1", repo_url: str = "https://github.co
     p.access_token = None
     p.default_branch = "main"
     p.epic_strategy = "flat"
+    p.require_epic_for_tasks = False
     return p
 
 
@@ -568,6 +569,47 @@ class TestYoloEpicStrategyGate:
         assert len(records) == 1
         assert records[0].action_type == "gate_blocked"
         assert "epic_strategy=shared" in records[0].error_msg
+
+    @patch("oompah.orchestrator.detect_provider")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    def test_require_epic_parent_blocks_standalone_task_pr(
+        self, mock_slug, mock_detect, tmp_path,
+    ):
+        project = _make_project()
+        project.epic_strategy = "shared"
+        project.require_epic_for_tasks = True
+        provider = MagicMock()
+        provider.merge_review.return_value = (True, "merged")
+        provider.enable_auto_merge.return_value = (True, "enqueued")
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        self._install_tracker(
+            orch,
+            project,
+            child=_make_issue("TASK-733", parent_id=None),
+        )
+        orch._reviews_cache = {
+            project.id: [
+                _make_review(
+                    "224",
+                    source_branch="TASK-733",
+                    target_branch="main",
+                    ci_status="passed",
+                )
+            ],
+        }
+
+        orch._yolo_review_actions_sync()
+
+        provider.merge_review.assert_not_called()
+        provider.enable_auto_merge.assert_not_called()
+        records = list(orch._yolo_action_history)
+        assert len(records) == 1
+        assert records[0].action_type == "gate_blocked"
+        assert "requires epic-owned tasks" in records[0].error_msg
+        assert "TASK-733" in records[0].error_msg
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")

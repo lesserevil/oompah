@@ -3540,6 +3540,62 @@ class Orchestrator:
             return "flat"
         return strategy
 
+    def _project_requires_epic_for_tasks(self, project_id: str | None) -> bool:
+        """Whether a project forbids standalone task implementation work."""
+        if not project_id:
+            return False
+        project_store = getattr(self, "project_store", None)
+        if project_store is None:
+            return False
+        try:
+            project = project_store.get(project_id)
+        except Exception:  # noqa: BLE001 - dispatch gates must fail open here
+            return False
+        if not project:
+            return False
+        return getattr(project, "require_epic_for_tasks", False) is True
+
+    def _issue_requires_parent_epic(
+        self,
+        issue: Issue | None,
+        project_id: str | None = None,
+    ) -> bool:
+        """True when *issue* is implementation work that needs a parent epic."""
+        if issue is None:
+            return False
+        if (issue.parent_id or "").strip():
+            return False
+        if (issue.issue_type or "").strip().lower() == "epic":
+            return False
+        effective_project_id = project_id or issue.project_id
+        return self._project_requires_epic_for_tasks(effective_project_id)
+
+    def _mark_issue_needs_epic_parent(
+        self,
+        issue: Issue,
+        project_id: str | None,
+    ) -> None:
+        """Move a task to Needs Human when policy requires a parent epic."""
+        if not project_id:
+            return
+        try:
+            tracker = self._tracker_for_project(project_id)
+            tracker.update_issue(issue.identifier, status=NEEDS_HUMAN)
+            tracker.add_comment(
+                issue.identifier,
+                "This project requires implementation tasks to be attached to "
+                "an epic before oompah can dispatch, create, or merge task PRs. "
+                "Attach this task to an epic, or disable "
+                "`require_epic_for_tasks` for intentional standalone work.",
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001 - best-effort operator signal
+            logger.debug(
+                "Failed to mark %s Needs Human for missing parent epic: %s",
+                issue.identifier,
+                exc,
+            )
+
     def _resolve_parent_epic(self, issue: Issue) -> Issue | None:
         """Resolve a child issue's parent rollup, or None when this issue has
         no parent or the parent should not be handled as an epic rollup.
@@ -5125,6 +5181,8 @@ class Orchestrator:
         # separately by _plan_open_epics / _should_dispatch_epic
         if issue.issue_type == "epic":
             return _reject("epic")
+        if self._issue_requires_parent_epic(issue):
+            return _reject("missing_parent_epic")
         # Never dispatch issues that are waiting for a human answer
         if canonicalize_status(issue.state) == NEEDS_ANSWER or "asking_question" in issue.labels:
             return _reject("needs_answer")
@@ -6088,7 +6146,8 @@ class Orchestrator:
           combined epic→main PR at the end.
         * ``shared`` — children commit directly to the shared epic branch.
           NO per-child PR is created here (the epic→main PR is the only
-          one). Top-level tasks in shared mode behave like flat.
+          one). Top-level tasks in shared mode behave like flat unless the
+          project has ``require_epic_for_tasks`` enabled.
 
         Returns ``True`` when no review is needed or a review exists/was
         created. Returns ``False`` when the branch has unmerged commits but
@@ -6102,6 +6161,15 @@ class Orchestrator:
             return True
 
         strategy = self._project_epic_strategy(project_id)
+        if self._issue_requires_parent_epic(entry.issue, project_id):
+            if entry.issue is not None:
+                logger.warning(
+                    "Review handoff blocked for %s: project requires a parent epic",
+                    entry.issue.identifier,
+                )
+                self._mark_issue_needs_epic_parent(entry.issue, project_id)
+            return False
+
         # Resolve parent epic only for issues that have one. For top-level
         # tasks (no parent_id), strategy/parent treatment doesn't matter.
         parent_epic: Issue | None = None
@@ -8791,7 +8859,16 @@ class Orchestrator:
                 exc,
             )
             return None
-        if issue is None or not (issue.parent_id or "").strip():
+        if issue is None:
+            return None
+        if self._issue_requires_parent_epic(issue, project.id):
+            target_branch = self._review_target_branch(project, review)
+            return (
+                f"project requires epic-owned tasks: {issue.identifier} has no "
+                f"parent epic, so PR {source_branch}->{target_branch} cannot "
+                "be merged as standalone task work"
+            )
+        if not (issue.parent_id or "").strip():
             return None
 
         try:

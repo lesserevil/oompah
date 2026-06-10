@@ -846,6 +846,7 @@ class ProjectStore:
             "test_command_full",
             "test_skip_paths",
             "epic_strategy",
+            "require_epic_for_tasks",
             "provider_whitelist",
             "backlog_conflict_paths",
             # Per-project tracker configuration (TASK-459.3)
@@ -939,6 +940,11 @@ class ProjectStore:
                         "'epic_strategy' must be one of: flat, stacked, shared"
                     )
                 fields["epic_strategy"] = norm
+
+        if "require_epic_for_tasks" in fields:
+            val = fields["require_epic_for_tasks"]
+            if not isinstance(val, bool):
+                raise ProjectError("'require_epic_for_tasks' must be a boolean")
 
         # Normalize provider_whitelist: must be a list of non-empty strings.
         if "provider_whitelist" in fields:

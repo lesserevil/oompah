@@ -365,6 +365,23 @@ class TestProjectAPI:
         assert res.status_code == 200
         assert res.json()["yolo"] is True
 
+    def test_update_project_require_epic_for_tasks(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"require_epic_for_tasks": True},
+        )
+        assert res.status_code == 200
+        assert res.json()["require_epic_for_tasks"] is True
+
+    def test_update_project_require_epic_for_tasks_rejects_non_bool(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-test1",
+            json={"require_epic_for_tasks": "true"},
+        )
+        assert res.status_code == 400
+        assert res.json()["error"]["code"] == "validation"
+        assert "require_epic_for_tasks" in res.json()["error"]["message"]
+
     def test_update_project_log_path(self):
         res = self.client.patch(
             "/api/v1/projects/proj-test1",
@@ -446,6 +463,7 @@ class TestProjectStoreUpdatableFields:
             "test_command_full",
             "test_skip_paths",
             "epic_strategy",
+            "require_epic_for_tasks",
             "provider_whitelist",
             "backlog_conflict_paths",
             # Per-project tracker configuration

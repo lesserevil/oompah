@@ -5265,6 +5265,20 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
+        if "require_epic_for_tasks" in body:
+            val = body["require_epic_for_tasks"]
+            if isinstance(val, bool):
+                fields["require_epic_for_tasks"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "require_epic_for_tasks must be a boolean",
+                        }
+                    },
+                    status_code=400,
+                )
         if "provider_whitelist" in body:
             val = body["provider_whitelist"]
             if val is None:
