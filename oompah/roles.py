@@ -659,10 +659,24 @@ class CandidateSelector:
             self._usage = {}
 
     def _save(self) -> None:
-        """Persist usage state to disk (must be called while holding self._lock)."""
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-        with open(self.path, "w") as f:
-            json.dump(self._usage, f, indent=2)
+        """Persist usage state to disk (must be called while holding self._lock).
+
+        Disk I/O errors (e.g. ENOSPC) are logged as warnings and swallowed
+        so that a full disk never causes usage-tracking to crash the caller.
+        Usage state is best-effort: losing a write means a round-robin role
+        may repeat a candidate one extra time, which is preferable to
+        crashing a worker.
+        """
+        try:
+            os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+            with open(self.path, "w") as f:
+                json.dump(self._usage, f, indent=2)
+        except OSError as exc:
+            logger.warning(
+                "Failed to persist candidate usage state to %s: %s",
+                self.path,
+                exc,
+            )
 
     # ------------------------------------------------------------------
     # Internal helpers
