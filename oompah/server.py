@@ -5997,6 +5997,19 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         "title": event.title,
         "merged": event.merged,
     }
+    # Include extended fields only when non-empty to keep payloads compact.
+    if event.issue_number:
+        payload["issue_number"] = event.issue_number
+    if event.comment_id:
+        payload["comment_id"] = event.comment_id
+    if event.label_name:
+        payload["label_name"] = event.label_name
+    if event.project_item_id:
+        payload["project_item_id"] = event.project_item_id
+    if event.project_field_name:
+        payload["project_field_name"] = event.project_field_name
+    if event.project_field_value:
+        payload["project_field_value"] = event.project_field_value
     if project:
         payload["project_id"] = project.id
         payload["project_name"] = project.name
