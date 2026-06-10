@@ -6033,12 +6033,62 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         project.name if project else "unmatched",
     )
 
-    # Invalidate caches and trigger a refresh cycle
-    _api_cache.invalidate("reviews:all")
-    _api_cache.invalidate("issues:all")
+    # ---------------------------------------------------------------------------
+    # Cache invalidation — targeted per event type (AC#1 + AC#2)
+    # ---------------------------------------------------------------------------
+    # Invalidate only the caches that the current event can affect, so that
+    # unrelated cached entries are not evicted unnecessarily.
+
+    _project_id = project.id if project else None
+
+    if event.event_type in ("pull_request", "merge_group", "Merge Request Hook"):
+        # PR / MR / merge-queue events affect the review board and may close issues.
+        _api_cache.invalidate("reviews:all")
+        _api_cache.invalidate("issues:all")
+    elif event.event_type == "issues":
+        # Issue state or metadata changed; drop the per-issue detail as well.
+        _api_cache.invalidate("issues:all")
+        if _project_id and event.issue_number:
+            _api_cache.invalidate_prefix(f"detail:{_project_id}:{event.issue_number}")
+    elif event.event_type == "issue_comment":
+        # A comment was created, edited, or deleted on an issue.
+        _api_cache.invalidate("issues:all")
+        if _project_id and event.issue_number:
+            _api_cache.invalidate(f"comments:{_project_id}:{event.issue_number}")
+            _api_cache.invalidate_prefix(f"detail:{_project_id}:{event.issue_number}")
+    elif event.event_type == "projects_v2_item":
+        # A GitHub Projects v2 item field changed (e.g. Oompah Status).
+        # We cannot cheaply map project_item_id → issue_number here, so we
+        # drop the full issue-list cache and let the next fetch rebuild it.
+        _api_cache.invalidate("issues:all")
+    # label events (repository-level label definitions) and push events do
+    # not directly change cached task data; push state is refreshed via the
+    # source-sync thread when the tracked branch advances.
+
     if event.merged:
         orch.invalidate_merged_branches()
-    orch.request_refresh()
+
+    # Invalidate the tracker's in-memory read cache (ETag-based) for events
+    # that may update the branch-to-issue mapping.  For GitHubIssueTracker
+    # this clears the ETag store so the next fetch re-validates against the
+    # live API, rebuilding the branch-to-issue index.  Best-effort: any
+    # failure is swallowed so it never blocks the webhook response path.
+    if project and event.event_type in ("issues", "pull_request", "Merge Request Hook", "push"):
+        try:
+            tracker = orch._tracker_for_project(project.id)
+            inval = getattr(tracker, "invalidate_read_cache", None)
+            if callable(inval):
+                inval()
+        except Exception:  # pragma: no cover — defensive, never block webhook
+            pass
+
+    # Request an orchestrator refresh cycle only for events that can affect
+    # dispatch, status, comments, or review reconciliation.  This prevents
+    # webhook storms (e.g. many repository-level label-created events or
+    # pushes to non-tracked branches) from triggering unnecessary
+    # orchestrator wakeups.
+    if _webhook_should_request_refresh(event, project):
+        orch.request_refresh()
 
     # If the webhook signals that the project's tracked branch advanced
     # (push to that branch, or PR merged into it), pull the latest source
@@ -6083,6 +6133,74 @@ def _webhook_advanced_tracked_branch(event, project) -> bool:
         return project.matches_branch(event.target_branch)
     if event.event_type == "merge_group" and event.merged:
         return project.matches_branch(event.target_branch)
+    return False
+
+
+# Actions on ``issues`` events that change a task's dispatch eligibility or
+# lifecycle state.
+_DISPATCH_AFFECTING_ISSUE_ACTIONS: frozenset[str] = frozenset(
+    {
+        "opened",
+        "closed",
+        "reopened",
+        "labeled",
+        "unlabeled",
+        "assigned",
+        "unassigned",
+        "transferred",
+        "deleted",
+    }
+)
+
+# ``projects_v2_item`` actions that may update Oompah Status or dispatch fields.
+_DISPATCH_AFFECTING_PROJECTS_ACTIONS: frozenset[str] = frozenset(
+    {"created", "edited", "deleted"}
+)
+
+
+def _webhook_should_request_refresh(event: "WebhookEvent", project) -> bool:
+    """Return ``True`` when the event can affect dispatch, status, comments, or review reconciliation.
+
+    Events that cannot change any task-relevant state — for example
+    repository-level label definitions being created or edited, or push
+    events to branches that are not tracked by any project — do not
+    warrant waking the orchestrator dispatch loop.
+
+    Args:
+        event: The parsed webhook event.
+        project: The matched :class:`~oompah.models.Project` (may be ``None``
+            for unmatched repos).
+
+    Returns:
+        ``True`` if the event warrants an orchestrator refresh; ``False``
+        otherwise.
+    """
+    # Review- and merge-queue events always warrant a refresh (GitHub and GitLab).
+    if event.event_type in ("pull_request", "merge_group", "Merge Request Hook"):
+        return True
+    # Comment events may contain orchestrator directives or status updates
+    # that agents post as structured comments.
+    if event.event_type == "issue_comment":
+        return True
+    # Issue events warrant a refresh only for actions that change dispatch
+    # eligibility: opened/closed/reopened change the task life-cycle;
+    # labeled/unlabeled and assigned/unassigned may gate routing;
+    # transferred/deleted remove the task from consideration.
+    if event.event_type == "issues" and event.action in _DISPATCH_AFFECTING_ISSUE_ACTIONS:
+        return True
+    # Project-field events may update the Oompah Status field which drives
+    # task dispatch.  Restrict to the actions that actually change item state.
+    if event.event_type == "projects_v2_item" and event.action in _DISPATCH_AFFECTING_PROJECTS_ACTIONS:
+        return True
+    # A push to one of the project's tracked branches means new commits landed
+    # and the orchestrator should scan for newly-deferred or un-deferred tasks.
+    if event.event_type == "push" and project and _webhook_advanced_tracked_branch(event, project):
+        return True
+    # All other events are not dispatch-relevant:
+    # - repository-level label changes (label created/edited/deleted)
+    # - push to non-tracked branches
+    # - unrecognised projects_v2_item actions (e.g. reordered, archived)
+    # - issues with non-status actions (e.g. locked, unlocked, pinned)
     return False
 
 

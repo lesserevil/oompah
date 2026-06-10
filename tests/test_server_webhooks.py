@@ -4,7 +4,9 @@ Covers:
 - POST /api/v1/webhooks/github — PR events, signature validation, non-PR events
 - POST /api/v1/webhooks/gitlab — MR events, token validation, non-MR events
 - EventBus emission on webhook receipt
-- Cache invalidation and refresh triggering
+- Cache invalidation and refresh triggering (targeted per event type)
+- Selective orchestrator refresh (_webhook_should_request_refresh)
+- Branch-to-issue tracker cache invalidation
 - Missing headers, invalid payloads
 - last_webhook_received_at timestamp tracking per project
 """
@@ -566,3 +568,608 @@ class TestForgeWebhookEventType:
 
     def test_event_type_is_string(self):
         assert isinstance(EventType.FORGE_WEBHOOK_RECEIVED, str)
+
+
+# ---------------------------------------------------------------------------
+# Payload helpers for new event types
+# ---------------------------------------------------------------------------
+
+
+def _github_issues_payload(
+    action="opened",
+    number=101,
+    repo="org/repo",
+    title="Fix the bug",
+    author="octocat",
+):
+    """Build a minimal GitHub ``issues`` webhook payload."""
+    return {
+        "action": action,
+        "issue": {
+            "number": number,
+            "title": title,
+            "user": {"login": author},
+            "pull_request": None,  # not a PR
+        },
+        "repository": {"full_name": repo},
+        "sender": {"login": author},
+    }
+
+
+def _github_issue_comment_payload(
+    action="created",
+    issue_number=101,
+    comment_id=9001,
+    repo="org/repo",
+    author="octocat",
+):
+    """Build a minimal GitHub ``issue_comment`` webhook payload."""
+    return {
+        "action": action,
+        "issue": {
+            "number": issue_number,
+            "pull_request": None,
+        },
+        "comment": {
+            "id": comment_id,
+            "body": "LGTM",
+            "user": {"login": author},
+        },
+        "repository": {"full_name": repo},
+        "sender": {"login": author},
+    }
+
+
+def _github_label_payload(
+    action="created",
+    label_name="priority:high",
+    repo="org/repo",
+    author="octocat",
+):
+    """Build a minimal GitHub ``label`` webhook payload."""
+    return {
+        "action": action,
+        "label": {
+            "name": label_name,
+            "color": "ff0000",
+        },
+        "repository": {"full_name": repo},
+        "sender": {"login": author},
+    }
+
+
+def _github_projects_v2_item_payload(
+    action="edited",
+    item_node_id="PVI_kwDOA123",
+    field_name="Status",
+    field_value="In Progress",
+    author="octocat",
+):
+    """Build a minimal GitHub ``projects_v2_item`` webhook payload."""
+    payload = {
+        "action": action,
+        "projects_v2_item": {
+            "node_id": item_node_id,
+            "content_type": "Issue",
+        },
+        "sender": {"login": author},
+    }
+    if field_name:
+        payload["changes"] = {
+            "field_value": {
+                "field_name": field_name,
+                "to": {"name": field_value},
+            }
+        }
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# Targeted cache invalidation tests
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookCacheInvalidation:
+    """Cache invalidation is targeted per event type (AC#1).
+
+    PR / merge_group → reviews:all + issues:all
+    issues          → issues:all + detail:{project_id}:{issue_number}
+    issue_comment   → issues:all + comments:… + detail:…
+    projects_v2_item → issues:all
+    label           → nothing (repository-level label, not task data)
+    push            → nothing in _api_cache (handled by source-sync thread)
+    """
+
+    def test_pr_invalidates_reviews_and_issues(self, client_no_secret):
+        """PR events invalidate both reviews:all and issues:all."""
+        from oompah.server import _api_cache
+
+        # Pre-populate both caches.
+        _api_cache.set("reviews:all", {"data": "stale"}, ttl_ms=60_000)
+        _api_cache.set("issues:all", {"data": "stale"}, ttl_ms=60_000)
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_pr_payload(action="opened")),
+            headers={"X-GitHub-Event": "pull_request", "Content-Type": "application/json"},
+        )
+        assert _api_cache.get("reviews:all") is None
+        assert _api_cache.get("issues:all") is None
+
+    def test_issues_event_invalidates_issues_and_detail(self, client_no_secret):
+        """``issues`` events drop the list cache and the per-issue detail cache."""
+        from oompah.server import _api_cache
+
+        _api_cache.set("issues:all", {"data": "stale"}, ttl_ms=60_000)
+        _api_cache.set("detail:proj-gh1:101:v1", {"data": "stale"}, ttl_ms=60_000)
+        # reviews:all should NOT be dropped.
+        _api_cache.set("reviews:all", {"data": "fresh"}, ttl_ms=60_000)
+
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(action="opened", number=101)),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        assert _api_cache.get("issues:all") is None
+        assert _api_cache.get("detail:proj-gh1:101:v1") is None
+        # reviews:all stays intact — issues events don't touch it.
+        assert _api_cache.get("reviews:all") is not None
+
+    def test_issue_comment_invalidates_comment_and_detail_caches(self, client_no_secret):
+        """``issue_comment`` events invalidate issues, comments, and detail caches."""
+        from oompah.server import _api_cache
+
+        _api_cache.set("issues:all", {"data": "stale"}, ttl_ms=60_000)
+        _api_cache.set("comments:proj-gh1:101", {"data": "stale"}, ttl_ms=60_000)
+        _api_cache.set("detail:proj-gh1:101:v1", {"data": "stale"}, ttl_ms=60_000)
+        _api_cache.set("reviews:all", {"data": "fresh"}, ttl_ms=60_000)
+
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(
+                _github_issue_comment_payload(action="created", issue_number=101)
+            ),
+            headers={"X-GitHub-Event": "issue_comment", "Content-Type": "application/json"},
+        )
+        assert _api_cache.get("issues:all") is None
+        assert _api_cache.get("comments:proj-gh1:101") is None
+        assert _api_cache.get("detail:proj-gh1:101:v1") is None
+        # reviews:all is not affected by comment events.
+        assert _api_cache.get("reviews:all") is not None
+
+    def test_label_event_does_not_invalidate_any_cache(self, client_no_secret):
+        """Repository-level label events carry no task-relevant state change."""
+        from oompah.server import _api_cache
+
+        _api_cache.set("issues:all", {"data": "fresh"}, ttl_ms=60_000)
+        _api_cache.set("reviews:all", {"data": "fresh"}, ttl_ms=60_000)
+
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_label_payload(action="created")),
+            headers={"X-GitHub-Event": "label", "Content-Type": "application/json"},
+        )
+        # Neither cache should have been touched.
+        assert _api_cache.get("issues:all") is not None
+        assert _api_cache.get("reviews:all") is not None
+
+    def test_projects_v2_item_invalidates_issues_not_reviews(self, client_no_secret):
+        """``projects_v2_item`` events drop the issue list cache only."""
+        from oompah.server import _api_cache
+
+        _api_cache.set("issues:all", {"data": "stale"}, ttl_ms=60_000)
+        _api_cache.set("reviews:all", {"data": "fresh"}, ttl_ms=60_000)
+
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(
+                _github_projects_v2_item_payload(action="edited", field_name="Status")
+            ),
+            headers={"X-GitHub-Event": "projects_v2_item", "Content-Type": "application/json"},
+        )
+        assert _api_cache.get("issues:all") is None
+        # reviews:all is unaffected by project-field events.
+        assert _api_cache.get("reviews:all") is not None
+
+    def test_push_to_non_tracked_branch_does_not_invalidate_caches(self, client_no_secret):
+        """Push events to non-tracked branches leave API caches intact."""
+        from oompah.server import _api_cache
+
+        _api_cache.set("issues:all", {"data": "fresh"}, ttl_ms=60_000)
+        _api_cache.set("reviews:all", {"data": "fresh"}, ttl_ms=60_000)
+
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps({
+                "ref": "refs/heads/feature-xyz",
+                "repository": {"full_name": "org/repo"},
+                "pusher": {"name": "alice"},
+                "head_commit": {"message": "wip"},
+            }),
+            headers={"X-GitHub-Event": "push", "Content-Type": "application/json"},
+        )
+        assert _api_cache.get("issues:all") is not None
+        assert _api_cache.get("reviews:all") is not None
+
+    def test_issue_comment_only_invalidates_matching_issue_caches(self, client_no_secret):
+        """Comment events on issue #101 must not drop caches for issue #202."""
+        from oompah.server import _api_cache
+
+        _api_cache.set("comments:proj-gh1:202", {"data": "fresh"}, ttl_ms=60_000)
+        _api_cache.set("detail:proj-gh1:202:v1", {"data": "fresh"}, ttl_ms=60_000)
+
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(
+                _github_issue_comment_payload(action="created", issue_number=101)
+            ),
+            headers={"X-GitHub-Event": "issue_comment", "Content-Type": "application/json"},
+        )
+        # Other issue's caches must remain intact.
+        assert _api_cache.get("comments:proj-gh1:202") is not None
+        assert _api_cache.get("detail:proj-gh1:202:v1") is not None
+
+
+# ---------------------------------------------------------------------------
+# Selective orchestrator refresh tests
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookSelectiveRefresh:
+    """orchestrator.request_refresh() is called only for dispatch-relevant events (AC#2)."""
+
+    def test_label_event_does_not_trigger_refresh(self, client_no_secret):
+        """Repository-level label events must not wake the dispatch loop."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_label_payload(action="created")),
+            headers={"X-GitHub-Event": "label", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_not_called()
+
+    def test_push_to_non_tracked_branch_does_not_trigger_refresh(self, client_no_secret):
+        """Push to a branch the project doesn't track must not wake the dispatch loop."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps({
+                "ref": "refs/heads/dependabot/npm/lodash",
+                "repository": {"full_name": "org/repo"},
+                "pusher": {"name": "bot"},
+                "head_commit": {"message": "bump lodash"},
+            }),
+            headers={"X-GitHub-Event": "push", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_not_called()
+
+    def test_issues_opened_triggers_refresh(self, client_no_secret):
+        """``issues`` opened → dispatch-relevant → refresh expected."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(action="opened")),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_called_once()
+
+    def test_issues_closed_triggers_refresh(self, client_no_secret):
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(action="closed")),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_called_once()
+
+    def test_issues_labeled_triggers_refresh(self, client_no_secret):
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(action="labeled")),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_called_once()
+
+    def test_issues_locked_does_not_trigger_refresh(self, client_no_secret):
+        """``issues`` locked is not dispatch-relevant — no refresh expected."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(action="locked")),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_not_called()
+
+    def test_issues_pinned_does_not_trigger_refresh(self, client_no_secret):
+        """``issues`` pinned is cosmetic — no refresh expected."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(action="pinned")),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_not_called()
+
+    def test_issue_comment_created_triggers_refresh(self, client_no_secret):
+        """Comments affect agent context and may carry status directives."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issue_comment_payload(action="created")),
+            headers={"X-GitHub-Event": "issue_comment", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_called_once()
+
+    def test_issue_comment_edited_triggers_refresh(self, client_no_secret):
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issue_comment_payload(action="edited")),
+            headers={"X-GitHub-Event": "issue_comment", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_called_once()
+
+    def test_projects_v2_item_edited_with_field_triggers_refresh(self, client_no_secret):
+        """A project field change (e.g. Status → In Progress) must trigger refresh."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(
+                _github_projects_v2_item_payload(action="edited", field_name="Status")
+            ),
+            headers={"X-GitHub-Event": "projects_v2_item", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_called_once()
+
+    def test_projects_v2_item_reordered_does_not_trigger_refresh(self, client_no_secret):
+        """Reordering a project item is cosmetic and must not wake the dispatch loop."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(
+                _github_projects_v2_item_payload(action="reordered", field_name="")
+            ),
+            headers={"X-GitHub-Event": "projects_v2_item", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_not_called()
+
+    def test_push_to_tracked_main_triggers_refresh(self, client_no_secret):
+        """Push to the project's tracked branch must trigger a refresh."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps({
+                "ref": "refs/heads/main",
+                "repository": {"full_name": "org/repo"},
+                "pusher": {"name": "alice"},
+                "head_commit": {"message": "add feature"},
+            }),
+            headers={"X-GitHub-Event": "push", "Content-Type": "application/json"},
+        )
+        orch.request_refresh.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Branch-to-issue tracker cache invalidation tests
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookBranchToIssueCacheInvalidation:
+    """The tracker's read cache (ETag / branch-to-issue index) is invalidated for
+    events that can update branch metadata or PR-to-issue mappings.
+
+    Affected event types: issues, pull_request, push (when project matches).
+    Unaffected: issue_comment, label, projects_v2_item.
+    """
+
+    def _tracker_invalidate_call_count(self, orch) -> int:
+        """Return how many times invalidate_read_cache() was called on any tracker."""
+        mock_tracker = orch._tracker_for_project.return_value
+        return mock_tracker.invalidate_read_cache.call_count
+
+    def test_issues_event_invalidates_tracker_cache(self, client_no_secret):
+        """``issues`` events may change work-branch metadata → invalidate tracker read cache."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(action="opened")),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        orch._tracker_for_project.assert_called_with("proj-gh1")
+        assert self._tracker_invalidate_call_count(orch) >= 1
+
+    def test_pull_request_event_invalidates_tracker_cache(self, client_no_secret):
+        """``pull_request`` events update PR-to-issue mappings → invalidate tracker read cache."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_pr_payload(action="opened")),
+            headers={"X-GitHub-Event": "pull_request", "Content-Type": "application/json"},
+        )
+        orch._tracker_for_project.assert_called_with("proj-gh1")
+        assert self._tracker_invalidate_call_count(orch) >= 1
+
+    def test_push_event_invalidates_tracker_cache(self, client_no_secret):
+        """``push`` events may introduce new branches → invalidate tracker read cache."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps({
+                "ref": "refs/heads/main",
+                "repository": {"full_name": "org/repo"},
+                "pusher": {"name": "alice"},
+                "head_commit": {"message": "chore"},
+            }),
+            headers={"X-GitHub-Event": "push", "Content-Type": "application/json"},
+        )
+        orch._tracker_for_project.assert_called_with("proj-gh1")
+        assert self._tracker_invalidate_call_count(orch) >= 1
+
+    def test_issue_comment_does_not_invalidate_tracker_cache(self, client_no_secret):
+        """Comment events don't change branch metadata → tracker cache stays intact."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issue_comment_payload(action="created")),
+            headers={"X-GitHub-Event": "issue_comment", "Content-Type": "application/json"},
+        )
+        # _tracker_for_project must NOT have been called for branch-to-issue invalidation.
+        # (It may be called for other reasons via MagicMock attribute access, so we check
+        # specifically that invalidate_read_cache was NOT called.)
+        mock_tracker = orch._tracker_for_project.return_value
+        mock_tracker.invalidate_read_cache.assert_not_called()
+
+    def test_label_event_does_not_invalidate_tracker_cache(self, client_no_secret):
+        """Repository-level label events don't touch the tracker read cache."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_label_payload(action="created")),
+            headers={"X-GitHub-Event": "label", "Content-Type": "application/json"},
+        )
+        mock_tracker = orch._tracker_for_project.return_value
+        mock_tracker.invalidate_read_cache.assert_not_called()
+
+    def test_unmatched_repo_does_not_invalidate_tracker_cache(self, client_no_secret):
+        """Unmatched repos have no project → no tracker to invalidate."""
+        client, orch = client_no_secret
+        client.post(
+            "/api/v1/webhooks/github",
+            content=json.dumps(_github_issues_payload(repo="unknown-org/unknown-repo")),
+            headers={"X-GitHub-Event": "issues", "Content-Type": "application/json"},
+        )
+        # _tracker_for_project must NOT be called when project is None.
+        # (project is None for unmatched repos; the branch-to-issue guard checks project)
+        mock_tracker = orch._tracker_for_project.return_value
+        mock_tracker.invalidate_read_cache.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _webhook_should_request_refresh unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookShouldRequestRefresh:
+    """Unit tests for _webhook_should_request_refresh(event, project)."""
+
+    def _event(self, event_type, action="", merged=False, target_branch="main",
+                source_branch="", issue_number="", project_field_name=""):
+        """Build a minimal WebhookEvent-like object for testing."""
+        from oompah.webhooks import WebhookEvent
+        return WebhookEvent(
+            provider="github",
+            event_type=event_type,
+            action=action,
+            repo_slug="org/repo",
+            merged=merged,
+            target_branch=target_branch,
+            source_branch=source_branch,
+            issue_number=issue_number,
+            project_field_name=project_field_name,
+        )
+
+    def _project(self, tracked_branch="main"):
+        """Build a minimal project-like mock."""
+        project = MagicMock()
+        project.matches_branch = lambda branch: branch == tracked_branch
+        return project
+
+    def test_pull_request_always_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("pull_request", action="opened"), project=None
+        ) is True
+
+    def test_merge_group_always_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("merge_group", merged=True), project=None
+        ) is True
+
+    def test_issue_comment_always_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("issue_comment", action="created"), project=None
+        ) is True
+
+    def test_issues_opened_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("issues", action="opened"), project=None
+        ) is True
+
+    def test_issues_closed_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("issues", action="closed"), project=None
+        ) is True
+
+    def test_issues_labeled_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("issues", action="labeled"), project=None
+        ) is True
+
+    def test_issues_locked_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("issues", action="locked"), project=None
+        ) is False
+
+    def test_issues_pinned_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("issues", action="pinned"), project=None
+        ) is False
+
+    def test_label_event_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("label", action="created"), project=None
+        ) is False
+
+    def test_projects_v2_item_edited_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("projects_v2_item", action="edited"), project=None
+        ) is True
+
+    def test_projects_v2_item_created_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("projects_v2_item", action="created"), project=None
+        ) is True
+
+    def test_projects_v2_item_reordered_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("projects_v2_item", action="reordered"), project=None
+        ) is False
+
+    def test_push_to_tracked_branch_refreshes(self):
+        from oompah.server import _webhook_should_request_refresh
+        project = self._project(tracked_branch="main")
+        assert _webhook_should_request_refresh(
+            self._event("push", target_branch="main"), project=project
+        ) is True
+
+    def test_push_to_non_tracked_branch_does_not_refresh(self):
+        from oompah.server import _webhook_should_request_refresh
+        project = self._project(tracked_branch="main")
+        assert _webhook_should_request_refresh(
+            self._event("push", target_branch="feature-x"), project=project
+        ) is False
+
+    def test_push_without_project_does_not_refresh(self):
+        """Push events with no matched project are never dispatch-relevant."""
+        from oompah.server import _webhook_should_request_refresh
+        assert _webhook_should_request_refresh(
+            self._event("push", target_branch="main"), project=None
+        ) is False
