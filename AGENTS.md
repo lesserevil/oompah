@@ -1,16 +1,18 @@
 # Agent Instructions
 
-This project uses **Backlog.md** for issue tracking. Do **not** use `bd`
-(beads) as the task tracker for this project.
+This project is managed by **oompah** using
+**GitHub Issues** as the canonical task tracker. Do **not** use Backlog.md,
+`backlog`, `bd`, beads, markdown TODO lists, or any other tracker for new
+project work.
 
 ## Quick Reference
 
 ```bash
-backlog task list --plain                     # Find available work
-backlog task view TASK-123 --plain            # View task details
-backlog task edit TASK-123 --status "In Progress" --plain
-backlog task edit TASK-123 --status Done --plain
-backlog board --plain                         # Show the task board
+oompah task view <owner/repo#number>
+oompah task comment <owner/repo#number> --message "Progress update" --author oompah
+oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
+oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
+oompah task set-status <owner/repo#number> Done --summary "Completed"
 ```
 
 ## Use Makefile Targets
@@ -92,138 +94,60 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
-<!-- BEGIN BACKLOG INTEGRATION -->
-## Issue Tracking with Backlog.md
+<!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION v:1 -->
+## Issue Tracking with GitHub Issues
 
-**IMPORTANT**: This project uses **Backlog.md** for ALL issue tracking. Do
-NOT use `bd`, beads, markdown TODOs, task lists, or other tracking methods.
+This project is managed by **oompah** using **GitHub Issues** as the
+canonical task tracker. Do **not** create or edit Backlog.md task files, do
+not use the `backlog` CLI for task tracking, and do not use `bd`, beads,
+TodoWrite, markdown TODO lists, or another tracker for project work.
 
-### Why Backlog.md?
+Use the `oompah task` CLI so oompah can apply the correct GitHub labels,
+status mapping, parent/child links, dependencies, and comments.
 
-- Markdown-native: tasks live in `backlog/tasks` and `backlog/completed`
-- Git-friendly: task state is versioned as normal project files
-- Dependency-aware: parent tasks and blockers are stored in task frontmatter
-- Agent-friendly: `--plain` output avoids interactive UI where supported
-- Prevents duplicate tracking systems and confusion
-
-### Quick Start
-
-**Check for ready work:**
+### Quick Reference
 
 ```bash
-backlog task list --status "To Do" --plain
-backlog task list --status "In Progress" --plain
+oompah task view <owner/repo#number>
+oompah task comment <owner/repo#number> --message "Progress update" --author oompah
+oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
+oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
+oompah task set-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
+oompah task add-label <owner/repo#number> needs:frontend
+oompah task set-status <owner/repo#number> Open
+oompah task set-status <owner/repo#number> Done --summary "Completed"
 ```
 
-**Create new issues:**
+### Rules
 
-```bash
-backlog task create "Issue title" --description "Detailed context" --priority medium --plain
-backlog task create "Child task" --description "Details" --parent TASK-123 --plain
-backlog task create "Blocked task" --description "Details" --depends-on TASK-123 --plain
-```
+- Always pass `--author oompah` when posting comments.
+- Use `oompah task create --project <project-id>` for follow-up work so the
+  issue is created in the configured project tracker.
+- Use `oompah task child-create <parent>` for epic children; do not hand-write
+  `parent:*` labels.
+- Do not edit `oompah:status:*`, `type:*`, `priority:*`, `parent:*`, or
+  `depends-on:*` labels directly unless you are fixing the tracker adapter.
+- Epics use `type:epic`; their effective status is derived from child issue
+  status by oompah.
+- Existing `backlog/` files are legacy history. Do not add new files there for
+  task tracking after GitHub Issues cutover.
 
-**Claim and update:**
+## Session Completion
 
-```bash
-backlog task edit TASK-123 --status "In Progress" --assignee oompah --plain
-backlog task edit TASK-123 --priority high --plain
-backlog task edit TASK-123 --comment "Progress update" --comment-author oompah --plain
-```
+When ending a work session, complete all of these steps:
 
-**Complete work:**
-
-```bash
-backlog task edit TASK-123 --status Done --final-summary "Completed" --plain
-```
-
-### Issue Types
-
-Backlog.md tasks use labels for issue type:
-
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
-
-Add or remove labels with:
-
-```bash
-backlog task edit TASK-123 --add-label bug --plain
-backlog task edit TASK-123 --remove-label bug --plain
-```
-
-### Priorities
-
-- `high` - Critical or important work
-- `medium` - Default priority
-- `low` - Polish, optimization, or future ideas
-
-### Workflow for AI Agents
-
-1. **Check ready work**: `backlog task list --status "To Do" --plain`
-   shows available tasks
-2. **Claim your task**: set status to `In Progress` and assign it to `oompah`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create a linked task:
-   - Use `--parent TASK-123` for child work
-   - Use `--depends-on TASK-123` for blocked work
-5. **Complete**: set status to `Done` and add a final summary
-
-### Storage
-
-Backlog.md stores tasks as markdown files:
-
-- Active tasks: `backlog/tasks/*.md`
-- Completed tasks: `backlog/completed/*.md`
-- Project config: `backlog/config.yml`
-
-Prefer the `backlog` CLI for task changes. Direct file edits are acceptable
-only when the CLI cannot represent the needed metadata change.
-
-The project was migrated from beads. Original bead IDs are preserved in task
-frontmatter under `beads.id`; they are historical references only and do not
-make `bd` the active tracker.
-
-### Important Rules
-
-- Use Backlog.md for ALL task tracking
-- Use `--plain` when running Backlog.md commands from automation
-- Always set comment author to `oompah` when posting comments:
-  `backlog task edit TASK-123 --comment "message" --comment-author oompah --plain`
-- Link discovered work with `--parent` or `--depends-on`
-- Check `backlog task list --status "To Do" --plain` before asking
-  "what should I work on?"
-- Do NOT create markdown TODO lists
-- Do NOT use `bd` or beads for new task tracking
-- Do NOT use external issue trackers
-- Do NOT duplicate tracking systems
-- Do NOT post comments without `--comment-author oompah`
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. File follow-up issues with `oompah task create` for remaining work.
+2. Run the relevant quality gates for the code you changed.
+3. Update the current issue status or leave a clear handoff comment.
+4. Push all committed work:
    ```bash
    git pull --rebase
    git push
-   git status  # MUST show "up to date with origin"
+   git status
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+5. Verify `git status` reports the branch is up to date with origin.
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+Work is not complete until the code is pushed and the GitHub issue is updated.
+Never leave finished work only in a local commit.
 
-<!-- END BACKLOG INTEGRATION -->
+<!-- END OOMPAH GITHUB ISSUES INTEGRATION -->

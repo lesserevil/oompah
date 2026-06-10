@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
+from oompah.agent_instructions import ensure_github_issues_agent_instructions
 from oompah.events import EventType
 from oompah.scm import (
     ReviewRequest,
@@ -5301,6 +5302,7 @@ async def api_create_project(request: Request):
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         # Install Backlog webhook hook for the new project (best-effort).
         _install_backlog_hook_for_project(project)
+        _ensure_github_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
         return JSONResponse(
@@ -5541,6 +5543,7 @@ async def api_update_project(project_id: str, request: Request):
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         # Re-install Backlog webhook hook in case webhook_secret or URL changed.
         _install_backlog_hook_for_project(project)
+        _ensure_github_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
         return JSONResponse(
@@ -7355,6 +7358,30 @@ def _install_backlog_hook_for_project(project) -> None:
             "_install_backlog_hook_for_project: failed for %s: %s",
             getattr(project, "id", "?"),
             exc,
+        )
+
+
+def _ensure_github_agent_instructions_for_project(project) -> None:
+    """Install GitHub Issues task instructions into a managed repo's AGENTS.md."""
+
+    if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+        return
+    repo_path = getattr(project, "repo_path", None)
+    if not repo_path:
+        return
+    try:
+        changed = ensure_github_issues_agent_instructions(repo_path)
+    except OSError as exc:
+        logger.warning(
+            "GitHub Issues AGENTS.md update failed for project %s: %s",
+            getattr(project, "id", "?"),
+            exc,
+        )
+        return
+    if changed:
+        logger.info(
+            "Updated AGENTS.md with GitHub Issues task instructions for project %s",
+            getattr(project, "id", "?"),
         )
 
 

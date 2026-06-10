@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -1274,6 +1275,33 @@ class TestProjectAPITrackerFields:
         )
         assert res.status_code == 200
         assert self.store.get("proj-tracker").tracker_kind == "github_issues"
+
+    def test_patch_github_tracker_updates_agents_md(self):
+        project = self.store.get("proj-tracker")
+        repo_path = Path(project.repo_path)
+        repo_path.mkdir(parents=True)
+        (repo_path / "AGENTS.md").write_text(
+            """# Project Rules
+
+<!-- BEGIN BACKLOG INTEGRATION v:1 profile:minimal -->
+## Backlog Task Tracker
+
+Use Backlog.md for ALL task tracking.
+<!-- END BACKLOG INTEGRATION -->
+""",
+            encoding="utf-8",
+        )
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_kind": "github_issues"},
+        )
+
+        assert res.status_code == 200
+        text = (repo_path / "AGENTS.md").read_text(encoding="utf-8")
+        assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in text
+        assert "Use Backlog.md for ALL task tracking" not in text
+        assert "oompah task create --project <project-id>" in text
 
     def test_patch_tracker_kind_invalidates_cached_tracker(self):
         import oompah.server as srv

@@ -91,6 +91,8 @@ The call:
 3. Optionally sets `tracker_owner` / `tracker_repo`.
 4. Sets the legacy Backlog flags as specified.
 5. Pauses the project when `paused=true` is supplied.
+6. Updates the managed repository's `AGENTS.md` oompah task-tracking section
+   so new agents use `oompah task ...` commands instead of Backlog.md.
 
 Keep the project **paused** until the verification steps pass.
 
@@ -218,8 +220,9 @@ Archived):
 The completion verifier and source sync will warn if new `backlog/tasks/*.md`
 files are committed after the `tracker_cutover_at` timestamp. This indicates an agent
 ran with an old prompt that still references `backlog task create`. Check the
-agent prompt and ensure the tracker-neutral task tools are in scope for
-GitHub-backed tasks.
+agent prompt and confirm the managed repository's `AGENTS.md` contains the
+`OOMPAH GITHUB ISSUES INTEGRATION` section. If the cutover log reported an
+`AGENTS.md` update failure, repair that file before unpausing dispatch.
 
 **GitHub Issues tracker returns errors**
 
