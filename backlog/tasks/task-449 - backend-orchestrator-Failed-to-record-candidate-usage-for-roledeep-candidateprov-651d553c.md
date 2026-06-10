@@ -1,17 +1,31 @@
 ---
 id: TASK-449
-title: >-
-  [backend:orchestrator] Failed to record candidate usage for role=deep
-  candidate=prov-651d553c/
+title: '[backend:orchestrator] Failed to record candidate usage for role=deep candidate=prov-651d553c/'
 status: Done
 assignee: []
-created_date: '2026-06-06 22:54'
-updated_date: '2026-06-10 00:25'
+created_date: 2026-06-06 22:54
+updated_date: 2026-06-10 00:58
 labels:
-  - bug
+- bug
 dependencies: []
 priority: medium
 ordinal: 85000
+oompah.task_costs:
+  total_input_tokens: 22
+  total_output_tokens: 9632
+  total_cost_usd: 0.0
+  by_model:
+    unknown:
+      input_tokens: 22
+      output_tokens: 9632
+      cost_usd: 0.0
+  runs:
+  - profile: default
+    model: unknown
+    input_tokens: 22
+    output_tokens: 9632
+    cost_usd: 0.0
+    recorded_at: '2026-06-10T00:24:28.848659+00:00'
 ---
 
 ## Description
@@ -72,6 +86,60 @@ created: 2026-06-10 00:24
 ---
 VERIFICATION: All 61 tests in tests/test_candidate_selector.py pass, including 5 new TestRecordUsedDiskFull regression tests. Branch pushed to origin/TASK-449.
 ---
+<!-- COMMENT:BEGIN -->
+index: 1
+author: oompah
+created: 2026-06-10 00:05
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 2
+author: oompah
+created: 2026-06-10 00:05
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 3
+author: oompah
+created: 2026-06-10 00:18
+
+Agent dispatched (profile: default)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 4
+author: oompah
+created: 2026-06-10 00:18
+
+Focus: Duplicate Investigator
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 5
+author: oompah
+created: 2026-06-10 00:24
+
+Agent completed successfully in 376s (9654 tokens)
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 6
+author: oompah
+created: 2026-06-10 00:24
+
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 40, Tool calls: 23
+- Tokens: 22 in / 9.6K out [9.7K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 6m 16s
+- Log: TASK-449__20260610T001840Z.jsonl
+<!-- COMMENT:END -->
+<!-- COMMENT:BEGIN -->
+index: 7
+author: oompah
+created: 2026-06-10 00:24
+
+Agent completed without closing this issue (376s (9654 tokens)). Escalating from 'default' to 'deep'. Retrying in 10s (1/3).
+<!-- COMMENT:END -->
 <!-- COMMENTS:END -->
 
 ## Final Summary
