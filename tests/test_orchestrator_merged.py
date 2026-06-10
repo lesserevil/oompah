@@ -357,6 +357,114 @@ class TestReconcileStaleInReviewTasks:
         mock_tracker.update_issue.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
 
+    @patch("oompah.close_gate._count_commits_ahead")
+    def test_shared_epic_uses_epic_branch_for_cached_review(
+        self,
+        mock_count,
+        tmp_path,
+    ):
+        project = _make_project(epic_strategy="shared")
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.epic_branch_name.side_effect = (
+            lambda ident: f"epic-{ident}"
+        )
+        orch._reviews_cache = {
+            project.id: [
+                ReviewRequest(
+                    id="260",
+                    title="TASK-459",
+                    url="https://github.com/org/repo/pull/260",
+                    author="alice",
+                    state="open",
+                    source_branch="epic-TASK-459",
+                    target_branch="main",
+                    created_at="2026-01-01",
+                    updated_at="2026-01-02",
+                )
+            ]
+        }
+        orch._merged_branches = set()
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue(
+                "TASK-459",
+                state="In Review",
+                issue_type="epic",
+                project_id=project.id,
+            ),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        mock_count.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+
+    @patch("oompah.close_gate._count_commits_ahead")
+    @patch("oompah.orchestrator.extract_repo_slug")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_shared_epic_uses_epic_branch_for_provider_lookup(
+        self,
+        mock_detect,
+        mock_slug,
+        mock_count,
+        tmp_path,
+    ):
+        project = _make_project(epic_strategy="shared")
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch.project_store.epic_branch_name.side_effect = (
+            lambda ident: f"epic-{ident}"
+        )
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        provider = MagicMock()
+
+        def find_pr_for_branch(_slug, branch):
+            if branch == "epic-TASK-459":
+                return ReviewRequest(
+                    id="260",
+                    title="TASK-459",
+                    url="https://github.com/org/repo/pull/260",
+                    author="alice",
+                    state="open",
+                    source_branch="epic-TASK-459",
+                    target_branch="main",
+                    created_at="2026-01-01",
+                    updated_at="2026-01-02",
+                )
+            return None
+
+        provider.find_pr_for_branch.side_effect = find_pr_for_branch
+        mock_detect.return_value = provider
+        mock_slug.return_value = "org/repo"
+        mock_count.return_value = (0, [], "origin/TASK-459 missing")
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue(
+                "TASK-459",
+                state="In Review",
+                issue_type="epic",
+                project_id=project.id,
+            ),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        provider.find_pr_for_branch.assert_called_once_with(
+            "org/repo",
+            "epic-TASK-459",
+        )
+        mock_count.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+
     def test_stacked_epic_child_merged_branch_becomes_done(self, tmp_path):
         project = _make_project(epic_strategy="stacked")
         project.repo_path = str(tmp_path)

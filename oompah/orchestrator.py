@@ -6323,7 +6323,7 @@ class Orchestrator:
                     issue.project_id = project_id
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
-                branch = issue.branch_name or issue.identifier
+                branch = self._stale_in_review_effective_branch(issue, project_id)
                 if not branch or branch in open_branches:
                     continue
                 rollup_strategy = self._epic_rollup_child_strategy(
@@ -6411,6 +6411,24 @@ class Orchestrator:
         if not isinstance(target, str) or not target:
             target = "main"
         return target
+
+    def _stale_in_review_effective_branch(
+        self,
+        issue: Issue,
+        project_id: str | None,
+    ) -> str:
+        """Return the branch stale-review reconciliation should verify."""
+        strategy = self._project_epic_strategy(project_id)
+        if (
+            strategy in ("stacked", "shared")
+            and (issue.issue_type or "").strip().lower() == "epic"
+        ):
+            try:
+                return self.project_store.epic_branch_name(issue.identifier)
+            except Exception:  # noqa: BLE001 - fall back to the legacy branch rule
+                pass
+        branch = (issue.branch_name or "").strip()
+        return branch or issue.identifier
 
     def _count_review_branch_ahead(
         self,
