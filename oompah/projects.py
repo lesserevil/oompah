@@ -667,6 +667,12 @@ class ProjectStore:
         git_user_name: str | None = None,
         git_user_email: str | None = None,
         access_token: str | None = None,
+        tracker_kind: str | None = None,
+        tracker_owner: str | None = None,
+        tracker_repo: str | None = None,
+        github_project_node_id: str | None = None,
+        legacy_backlog_enabled: bool = False,
+        legacy_backlog_dispatch: bool = False,
     ) -> Project:
         """Register a project by cloning its git repo.
 
@@ -678,6 +684,13 @@ class ProjectStore:
             branches: List of branch patterns to track (e.g., ["main", "release/*", "hotfix/*"]).
                       Supports glob patterns. Defaults to ["main"].
             default_branch: Default branch for new task branches. Defaults to first entry in branches.
+            tracker_kind: Per-project tracker backend (e.g. "backlog_md", "github_issues"). None
+                          means fall back to global ServiceConfig.tracker_kind.
+            tracker_owner: GitHub org/user owning the task hub repository.
+            tracker_repo: GitHub task hub repository name.
+            github_project_node_id: GitHub Projects v2 node ID for board views.
+            legacy_backlog_enabled: When True, existing Backlog.md tasks are still readable.
+            legacy_backlog_dispatch: When True, existing Backlog.md tasks are still dispatchable.
         """
         if not name:
             name = _repo_name_from_url(repo_url)
@@ -793,6 +806,12 @@ class ProjectStore:
             git_user_email=git_user_email,
             access_token=access_token,
             lfs_available=lfs_available,
+            tracker_kind=str(tracker_kind).strip() if tracker_kind else None,
+            tracker_owner=str(tracker_owner).strip() if tracker_owner else None,
+            tracker_repo=str(tracker_repo).strip() if tracker_repo else None,
+            github_project_node_id=str(github_project_node_id).strip() if github_project_node_id else None,
+            legacy_backlog_enabled=bool(legacy_backlog_enabled),
+            legacy_backlog_dispatch=bool(legacy_backlog_dispatch),
         )
         self._projects[project_id] = project
         self._save()
@@ -829,6 +848,14 @@ class ProjectStore:
             "epic_strategy",
             "provider_whitelist",
             "backlog_conflict_paths",
+            # Per-project tracker configuration (TASK-459.3)
+            "tracker_kind",
+            "tracker_owner",
+            "tracker_repo",
+            "github_project_node_id",
+            "legacy_backlog_enabled",
+            "legacy_backlog_dispatch",
+            "tracker_cutover_at",
         }
     )
 
@@ -946,6 +973,65 @@ class ProjectStore:
             if val < 1:
                 raise ProjectError("'max_in_flight_prs' must be >= 1")
             fields["max_in_flight_prs"] = val
+
+        # ---- Per-project tracker configuration (TASK-459.3) ----
+
+        # tracker_kind: optional string; None clears to global default.
+        if "tracker_kind" in fields:
+            val = fields["tracker_kind"]
+            if val is None:
+                fields["tracker_kind"] = None
+            elif isinstance(val, str):
+                s = val.strip()
+                fields["tracker_kind"] = s or None
+            else:
+                raise ProjectError("'tracker_kind' must be a string or null")
+
+        # tracker_owner / tracker_repo / github_project_node_id: optional strings.
+        for key in ("tracker_owner", "tracker_repo", "github_project_node_id"):
+            if key in fields:
+                val = fields[key]
+                if val is None:
+                    fields[key] = None
+                elif isinstance(val, str):
+                    s = val.strip()
+                    fields[key] = s or None
+                else:
+                    raise ProjectError(f"'{key}' must be a string or null")
+
+        # legacy_backlog_enabled / legacy_backlog_dispatch: boolean flags.
+        for key in ("legacy_backlog_enabled", "legacy_backlog_dispatch"):
+            if key in fields:
+                val = fields[key]
+                if val is None:
+                    fields[key] = False
+                else:
+                    fields[key] = bool(val)
+
+        # tracker_cutover_at: datetime or ISO string or null.
+        if "tracker_cutover_at" in fields:
+            from datetime import datetime as _datetime
+
+            val = fields["tracker_cutover_at"]
+            if val is None:
+                fields["tracker_cutover_at"] = None
+            elif isinstance(val, _datetime):
+                fields["tracker_cutover_at"] = val
+            elif isinstance(val, str):
+                s = val.strip()
+                if not s:
+                    fields["tracker_cutover_at"] = None
+                else:
+                    try:
+                        fields["tracker_cutover_at"] = _datetime.fromisoformat(s)
+                    except ValueError as exc:
+                        raise ProjectError(
+                            f"'tracker_cutover_at' must be an ISO 8601 datetime string or null: {exc}"
+                        )
+            else:
+                raise ProjectError(
+                    "'tracker_cutover_at' must be an ISO 8601 datetime string or null"
+                )
 
         for key, value in fields.items():
             setattr(project, key, value)

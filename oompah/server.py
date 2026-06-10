@@ -4608,6 +4608,13 @@ async def api_create_project(request: Request):
         git_user_name = body.get("git_user_name", "").strip() or None
         git_user_email = body.get("git_user_email", "").strip() or None
         access_token = (body.get("access_token") or "").strip() or None
+        # Per-project tracker configuration
+        tracker_kind = (body.get("tracker_kind") or "").strip() or None
+        tracker_owner = (body.get("tracker_owner") or "").strip() or None
+        tracker_repo = (body.get("tracker_repo") or "").strip() or None
+        github_project_node_id = (body.get("github_project_node_id") or "").strip() or None
+        legacy_backlog_enabled = bool(body.get("legacy_backlog_enabled", False))
+        legacy_backlog_dispatch = bool(body.get("legacy_backlog_dispatch", False))
         project = orch.project_store.create(
             repo_url=repo_url,
             name=name,
@@ -4617,6 +4624,12 @@ async def api_create_project(request: Request):
             git_user_name=git_user_name,
             git_user_email=git_user_email,
             access_token=access_token,
+            tracker_kind=tracker_kind,
+            tracker_owner=tracker_owner,
+            tracker_repo=tracker_repo,
+            github_project_node_id=github_project_node_id,
+            legacy_backlog_enabled=legacy_backlog_enabled,
+            legacy_backlog_dispatch=legacy_backlog_dispatch,
         )
         # Sync log watchers in case the new project has a log_path
         if _log_watcher_manager:
@@ -4792,6 +4805,40 @@ async def api_update_project(project_id: str, request: Request):
                         "error": {
                             "code": "validation",
                             "message": "provider_whitelist must be a list of strings or null",
+                        }
+                    },
+                    status_code=400,
+                )
+        # Per-project tracker configuration (TASK-459.3)
+        for key in ("tracker_kind", "tracker_owner", "tracker_repo", "github_project_node_id"):
+            if key in body:
+                val = body[key]
+                if val is not None and not isinstance(val, str):
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": f"{key} must be a string or null",
+                            }
+                        },
+                        status_code=400,
+                    )
+                fields[key] = val
+        for key in ("legacy_backlog_enabled", "legacy_backlog_dispatch"):
+            if key in body:
+                fields[key] = bool(body[key])
+        if "tracker_cutover_at" in body:
+            val = body["tracker_cutover_at"]
+            if val is None:
+                fields["tracker_cutover_at"] = None
+            elif isinstance(val, str):
+                fields["tracker_cutover_at"] = val  # ProjectStore.update() parses it
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "tracker_cutover_at must be an ISO 8601 datetime string or null",
                         }
                     },
                     status_code=400,
