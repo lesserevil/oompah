@@ -3365,6 +3365,103 @@ class Orchestrator:
             )
             return []
 
+    def _is_epic_rebase_task(
+        self,
+        issue: Issue,
+        epic_identifier: str | None = None,
+    ) -> bool:
+        """Return True for auto-filed tasks that rebase a shared epic branch."""
+        raw_parent_id = getattr(issue, "parent_id", None)
+        parent_id = raw_parent_id.strip() if isinstance(raw_parent_id, str) else ""
+        if epic_identifier is not None and parent_id and parent_id != epic_identifier:
+            return False
+        if epic_identifier is None and not parent_id:
+            return False
+        target_epic = epic_identifier or parent_id
+        try:
+            epic_branch = self.project_store.epic_branch_name(target_epic).lower()
+        except Exception:  # noqa: BLE001 - fallback only affects classification
+            epic_branch = f"epic-{target_epic}".lower()
+        title = (issue.title or "").strip().lower()
+        return title.startswith("rebase ") and epic_branch in title
+
+    def _find_active_epic_rebase_sibling(
+        self,
+        tracker,
+        epic: Issue,
+    ) -> Issue | None:
+        """Find an actionable existing rebase task for ``epic``.
+
+        This is intentionally tracker-backed instead of relying only on the
+        shared epic worktree copy. Shared worktrees can have stale task files
+        while the managed repo has already moved duplicates to Archived.
+        """
+        actionable = {
+            _state_key(OPEN),
+            _state_key(IN_PROGRESS),
+            _state_key(NEEDS_REBASE),
+        }
+        try:
+            tracker.invalidate_read_cache()
+        except Exception:  # noqa: BLE001
+            pass
+
+        children = self._fetch_epic_children(epic)
+        child_identifiers = {
+            str(getattr(child, "identifier", None) or getattr(child, "id", ""))
+            for child in children
+            if getattr(child, "identifier", None) or getattr(child, "id", "")
+        }
+        candidates: list[Issue] = list(children)
+        try:
+            states = list(
+                dict.fromkeys(
+                    list(self.config.tracker_active_states) + [NEEDS_REBASE]
+                )
+            )
+            pool = tracker.fetch_issues_by_states(states)
+            if pool is not None:
+                candidates.extend(list(pool))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "Failed to fetch active rebase sibling pool for %s: %s",
+                epic.identifier,
+                exc,
+            )
+
+        seen: set[str] = set()
+        matches: list[Issue] = []
+        for child in candidates:
+            identifier = str(
+                getattr(child, "identifier", None) or getattr(child, "id", "") or ""
+            )
+            if not identifier or identifier in seen or identifier == epic.identifier:
+                continue
+            seen.add(identifier)
+            if _state_key(getattr(child, "state", "")) not in actionable:
+                continue
+            raw_child_parent = getattr(child, "parent_id", None)
+            child_parent = (
+                raw_child_parent.strip() if isinstance(raw_child_parent, str) else ""
+            )
+            from_fetch_children = identifier in child_identifiers
+            if child_parent and child_parent != epic.identifier:
+                continue
+            if not child_parent and not from_fetch_children:
+                continue
+            if self._is_epic_rebase_task(child, epic.identifier):
+                matches.append(child)
+
+        if not matches:
+            return None
+        return min(
+            matches,
+            key=lambda i: (
+                getattr(i, "created_at", None) or "",
+                getattr(i, "identifier", None) or getattr(i, "id", "") or "",
+            ),
+        )
+
     def _issue_has_children(self, issue: Issue) -> bool:
         """Return True when tracker state shows this issue has children."""
         return bool(self._fetch_epic_children(issue))
@@ -4859,17 +4956,11 @@ class Orchestrator:
 
             try:
                 tracker = self._tracker_for_project(issue.project_id)
-                # Idempotency: don't file duplicate if an open rebase
+                # Idempotency: don't file duplicate if an actionable rebase
                 # sibling already exists under this epic.
-                children = self._fetch_epic_children(issue)
-                open_rebase = next(
-                    (
-                        c
-                        for c in children
-                        if _state_key(c.state) in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_REBASE)}
-                        and "rebase" in c.title.lower()
-                    ),
-                    None,
+                open_rebase = self._find_active_epic_rebase_sibling(
+                    tracker,
+                    issue,
                 )
                 if open_rebase is not None:
                     logger.debug(
@@ -4931,10 +5022,9 @@ class Orchestrator:
             issue_type="task",
             description=description,
             # P0: a rebase task resolves a merge conflict on the epic branch and
-            # opens NO new PR, so it must bypass the in-flight-PR cap and the
-            # shared-epic serialization gate — otherwise, when the conflicting
-            # epic→main PR itself fills the single in-flight slot, the rebase
-            # task can never dispatch and the conflict can never clear (deadlock).
+            # opens NO new PR, so it must bypass the in-flight-PR cap. Dispatch
+            # still serializes multiple rebase siblings for the same epic branch;
+            # only one agent may force-push a shared branch at a time.
             priority=0,
             parent=epic.identifier,
             initial_status=NEEDS_REBASE,
@@ -5088,8 +5178,11 @@ class Orchestrator:
                     return _reject(f"epic_branch_done={issue.parent_id}")
                 # Serialize child dispatch within an epic — children share
                 # one worktree/branch and we have no in-worktree
-                # coordination protocol. P0 children bypass this.
-                if not is_p0:
+                # coordination protocol. Ordinary P0 children bypass this,
+                # but epic rebase tasks do not: multiple rebase workers for
+                # the same shared branch can race force-pushes and corrupt
+                # each other's work.
+                if not is_p0 or self._is_epic_rebase_task(issue):
                     in_flight = self._epic_in_flight_count(issue.parent_id)
                     if in_flight >= 1:
                         return _reject(
@@ -8265,23 +8358,9 @@ class Orchestrator:
                     tracker.invalidate_read_cache()
                 except Exception:  # noqa: BLE001
                     pass
-                try:
-                    children = self._fetch_epic_children(issue)
-                except Exception:  # noqa: BLE001
-                    children = []
-                actionable = {
-                    _state_key(OPEN),
-                    _state_key(IN_PROGRESS),
-                    _state_key(NEEDS_REBASE),
-                }
-                existing = next(
-                    (
-                        c
-                        for c in children
-                        if _state_key(c.state) in actionable
-                        and "rebase" in (c.title or "").lower()
-                    ),
-                    None,
+                existing = self._find_active_epic_rebase_sibling(
+                    tracker,
+                    issue,
                 )
                 if existing is not None:
                     # Rebase agent already queued/in flight — let it finish.
@@ -8835,9 +8914,12 @@ class Orchestrator:
                 continue
 
             shared_epic_key: tuple[str, str] | None = None
+            serializes_shared_epic = (
+                issue.priority != 0 or self._is_epic_rebase_task(issue)
+            )
             if (
                 issue.parent_id
-                and issue.priority != 0
+                and serializes_shared_epic
                 and self._project_epic_strategy(issue.project_id) == "shared"
             ):
                 shared_epic_key = (

@@ -438,6 +438,33 @@ class TestYoloNotifyConflictEpicBranch:
         # No duplicate rebase bead while one is already open.
         tracker.create_issue.assert_not_called()
 
+    def test_epic_branch_conflict_idempotent_when_child_read_misses_existing_rebase(
+        self, tmp_path
+    ):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        provider = MagicMock()
+        provider.rebase_review.return_value = (False, "merge conflicts")
+        provider.get_review.return_value = _make_review_request(
+            review_id="42", source_branch="epic-TASK-18", target_branch="dev",
+        )
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = self._epic()
+        existing = MagicMock(
+            id="TASK-18.7",
+            identifier="TASK-18.7",
+            state="Needs Rebase",
+            title="Rebase epic-TASK-18 onto dev",
+            parent_id="TASK-18",
+            created_at="2026-06-10T06:00:00+00:00",
+        )
+        tracker.fetch_issues_by_states.return_value = [existing]
+        with patch.object(orch, "_fetch_epic_children", return_value=[]):
+            orch._project_trackers[project.id] = tracker
+            orch._yolo_notify_conflict(project, provider, "org/repo", "42")
+
+        tracker.create_issue.assert_not_called()
+
 
 class TestFileRebaseBeadPriority:
     def test_rebase_bead_is_p0_to_bypass_in_flight_cap(self, tmp_path):
@@ -448,7 +475,7 @@ class TestFileRebaseBeadPriority:
         tracker = MagicMock()
         orch._file_rebase_task(tracker, epic, "epic-TASK-18", "dev")
         tracker.create_issue.assert_called_once()
-        # P0 so it bypasses the open-PR cap + shared-epic serialization;
+        # P0 so it bypasses the open-PR cap;
         # otherwise the conflicting epic PR (which holds the in-flight slot)
         # would block the very agent that must resolve it.
         assert tracker.create_issue.call_args.kwargs.get("priority") == 0

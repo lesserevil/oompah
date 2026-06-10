@@ -522,6 +522,26 @@ class TestSharedModeDispatchGating:
         orch._reviews_cache = {}
         assert orch._should_dispatch(child) is True
 
+    def test_p0_rebase_task_does_not_bypass_shared_gate(self, tmp_path):
+        """Only one rebase worker may touch a shared epic branch at a time."""
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        self._set_up_running_sibling(
+            orch, parent_id="TASK-462", sibling_id="TASK-462.7"
+        )
+        child = _make_issue(
+            identifier="TASK-462.8",
+            title="Rebase epic-TASK-462 onto main",
+            parent_id="TASK-462",
+            state="Needs Rebase",
+            priority=0,
+        )
+        orch._reviews_cache = {}
+
+        assert orch._should_dispatch(child) is False
+        reason, _count = orch.state.reject_streak[child.id]
+        assert "shared_epic_busy=TASK-462" in reason
+
     def test_select_dispatchable_serializes_shared_siblings_in_same_batch(
         self, tmp_path
     ):
@@ -631,6 +651,32 @@ class TestSharedModeDispatchGating:
         ready = orch._select_dispatchable(children)
 
         assert [issue.identifier for issue in ready] == ["task-a", "task-b"]
+
+    def test_select_dispatchable_serializes_p0_rebase_siblings(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        proj.max_in_flight_prs = 5
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._reviews_cache = {}
+        children = [
+            _make_issue(
+                identifier="TASK-462.7",
+                title="Rebase epic-TASK-462 onto main",
+                parent_id="TASK-462",
+                state="Needs Rebase",
+                priority=0,
+            ),
+            _make_issue(
+                identifier="TASK-462.8",
+                title="Rebase epic-TASK-462 onto main",
+                parent_id="TASK-462",
+                state="Needs Rebase",
+                priority=0,
+            ),
+        ]
+
+        ready = orch._select_dispatchable(children)
+
+        assert [issue.identifier for issue in ready] == ["TASK-462.7"]
 
 
 # ------------------------------------------------------- workspace allocation
