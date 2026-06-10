@@ -3,7 +3,7 @@ id: TASK-469.5.1
 title: >-
   Split Oompah into physical API, scheduler, and maintenance services if metrics
   still show coupling
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 23:02'
 updated_date: '2026-06-10 00:09'
@@ -69,3 +69,9 @@ created: 2026-06-10 00:09
 Verification: CI run 27178409641 (latest, for commit dc27dac) shows SUCCESS on Python 3.11, 3.12, 3.13. The failing test test_ipc.py::test_process_ipc_commands_pause now passes. Branch has been pushed back to origin/TASK-469.5.1 (was previously gone). New push (28a8973) only updates the task file — no code changes needed.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+CI fix verified. The test_ipc.py::test_process_ipc_commands_pause failure (assert 'failed' == 'processed') was caused by Orchestrator.pause() calling asyncio.ensure_future() without a running event loop in sync test context. Fixed in commit dc27dac by replacing ensure_future() with a try/except RuntimeError pattern. CI run 27178409641 confirms SUCCESS on Python 3.11, 3.12, 3.13. Branch re-pushed to origin/TASK-469.5.1 after remote was pruned.
+<!-- SECTION:FINAL_SUMMARY:END -->
