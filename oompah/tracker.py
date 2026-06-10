@@ -990,7 +990,14 @@ class BacklogMdTracker(TrackerProtocol):
                     attachments.append(entry["path"])
                 elif isinstance(entry, str):
                     attachments.append(entry)
-        issue_type = str(meta.get("type") or _issue_type_from_labels(labels))
+        description = _extract_backlog_section(body, "DESCRIPTION")
+        explicit_type = meta.get("type")
+        if explicit_type:
+            issue_type = str(explicit_type)
+        elif _looks_like_epic_task(title, description):
+            issue_type = "epic"
+        else:
+            issue_type = _issue_type_from_labels(labels)
         # Populate target_branch from oompah.target_branch (preferred) or the
         # compatible top-level target_branch frontmatter field (TASK-454.1).
         raw_target = meta.get("oompah.target_branch") or meta.get("target_branch")
@@ -999,7 +1006,7 @@ class BacklogMdTracker(TrackerProtocol):
             id=identifier,
             identifier=identifier,
             title=title,
-            description=_extract_backlog_section(body, "DESCRIPTION"),
+            description=description,
             priority=priority,
             state=state,
             branch_name=_sanitize_identifier(identifier),
@@ -1313,6 +1320,23 @@ def _extract_backlog_section(body: str, section: str) -> str | None:
     if stop == -1:
         return None
     return body[start:stop].strip() or None
+
+
+def _looks_like_epic_task(title: str, description: str | None) -> bool:
+    """Detect Backlog tasks that clearly describe themselves as epics.
+
+    This is a defensive fallback for manually-created Backlog.md tasks that
+    missed the explicit ``epic`` label/type but were written as epic rollups.
+    It intentionally avoids treating every parent-with-children as an epic
+    because oompah also supports decomposed non-epic parent tasks.
+    """
+    title_key = title.strip().lower()
+    if title_key.startswith(("epic:", "epic -", "epic ")):
+        return True
+    text = (description or "").strip()
+    if not text:
+        return False
+    return bool(re.search(r"(?im)^\s*epic\s+(?:for|to|covering)\b", text[:1000]))
 
 
 def _parse_backlog_comments(body: str) -> list[dict]:

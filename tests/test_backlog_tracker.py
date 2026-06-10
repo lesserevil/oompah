@@ -137,6 +137,72 @@ def test_fetch_candidate_issues_parses_and_filters(tmp_path):
     assert issue.blocked_by[0].identifier == "TASK-9"
 
 
+def test_fetch_issue_detail_infers_epic_from_epic_title_without_label(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Epic: Ubuntu 22.04 Debian package support",
+        labels=["feature", "infra"],
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.issue_type == "epic"
+
+
+def test_fetch_issue_detail_infers_epic_from_epic_description_without_label(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Ubuntu 22.04 Debian package support",
+        labels=["feature", "infra", "tooling"],
+        description=(
+            "Plan: plans/ubuntu-2204-support-plan.md.\n\n"
+            "Epic for adding Jammy Debian package support while keeping Noble "
+            "packages, package names, OCI relay compatibility, tests, and docs "
+            "in sync."
+        ),
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.issue_type == "epic"
+
+
+def test_fetch_issue_detail_does_not_infer_epic_from_incidental_word(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Implement child task",
+        description="Do the implementation work after the epic design lands.",
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.issue_type == "task"
+
+
+def test_fetch_issue_detail_explicit_type_beats_epic_heuristic(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(
+        backlog_dir,
+        "TASK-1",
+        "Epic: not actually an epic",
+        extra_meta={"type": "feature"},
+    )
+
+    issue = _tracker(tmp_path).fetch_issue_detail("TASK-1")
+
+    assert issue is not None
+    assert issue.issue_type == "feature"
+
+
 def test_fetch_candidate_issues_falls_back_for_malformed_frontmatter_id(tmp_path):
     backlog_dir = _write_config(tmp_path)
     task_path = _write_task(
