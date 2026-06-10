@@ -4359,6 +4359,14 @@ class Orchestrator:
                 else f"Epic {issue.identifier}"
             )
             description = issue.description or ""
+            hub_link = self._build_pr_body(
+                issue,
+                target_branch,
+                slug,
+                project.default_branch,
+            )
+            if hub_link:
+                description = f"{hub_link}\n\n{description}".strip() if description else hub_link
             try:
                 result = provider.create_review(
                     slug,
@@ -4395,6 +4403,23 @@ class Orchestrator:
                 epic_branch,
                 target_branch,
             )
+            # Persist review metadata on the epic task record (TASK-462.2).
+            try:
+                tracker = self._tracker_for_project(project_id)
+                self._write_review_metadata(
+                    tracker,
+                    issue.identifier,
+                    review_id=getattr(result, "id", None),
+                    review_url=getattr(result, "url", None),
+                    source_branch=epic_branch,
+                    target_branch=target_branch,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to write review metadata for epic %s: %s",
+                    issue.identifier,
+                    exc,
+                )
             opened += 1
         return opened
 
@@ -5906,6 +5931,56 @@ class Orchestrator:
                 del self._yolo_limbo_ticks[key]
         return fixed
 
+    def _build_pr_body(
+        self,
+        issue: "Issue | None",
+        target_branch: str,
+        pr_repo_slug: str,
+        default_branch: str,
+    ) -> str:
+        """Build the PR body linking to the central task hub issue.
+
+        For GitHub-backed tasks that carry a ``url`` (the hub issue's HTML URL),
+        the body includes a stable link so reviewers can navigate from the PR to
+        the task context.
+
+        A GitHub closing keyword (``Fixes #N``) is only emitted when ALL of
+        the following hold — this is the only case GitHub honours it:
+
+        1. The issue is GitHub-backed (``tracker_kind == "github_issues"``).
+        2. The issue's ``owner/repo`` matches the PR's repo slug
+           (cross-repository auto-close is not supported by GitHub).
+        3. The PR targets the repository's default branch (GitHub only
+           auto-closes on merges to the default branch).
+
+        In every other case a plain markdown link is used so the PR is
+        visible from the issue without relying on auto-close behaviour.
+        """
+        if not issue or not issue.url:
+            return ""
+
+        if issue.tracker_kind != "github_issues":
+            # Non-GitHub tracker: include a plain text reference.
+            label = issue.display_identifier or issue.identifier
+            return f"Relates to: [{label}]({issue.url})"
+
+        # GitHub issue: check whether we can safely use a closing keyword.
+        issue_slug = ""
+        if issue.owner and issue.repo:
+            issue_slug = f"{issue.owner}/{issue.repo}"
+
+        use_closing_keyword = (
+            bool(issue_slug)
+            and issue_slug.lower() == pr_repo_slug.lower()
+            and target_branch == default_branch
+        )
+
+        label = issue.display_identifier or issue.identifier
+        if use_closing_keyword and issue.issue_number:
+            return f"Fixes #{issue.issue_number}\n\n[{label}]({issue.url})"
+        else:
+            return f"Relates to: [{label}]({issue.url})"
+
     def _ensure_review_exists(
         self, entry: RunningEntry, project_id: str | None
     ) -> bool:
@@ -6053,11 +6128,18 @@ class Orchestrator:
                 if entry.issue
                 else entry.identifier
             )
+            pr_body = self._build_pr_body(
+                entry.issue,
+                target_branch,
+                slug,
+                project.default_branch,
+            )
             result = provider.create_review(
                 slug,
                 title,
                 branch,
                 target_branch=target_branch,
+                description=pr_body,
             )
             if result:
                 logger.info(
@@ -6107,13 +6189,21 @@ class Orchestrator:
         project_id: str | None,
         review: ReviewRequest | Any,
     ) -> None:
-        """Mark the task ``In Review`` once a review artifact exists."""
+        """Mark the task ``In Review`` once a review artifact exists.
+
+        Also persists ``oompah.review_url`` and ``oompah.review_number``
+        metadata fields (TASK-462.2) so the task record carries the PR link
+        without relying on GitHub's PR-to-issue auto-close semantics.
+        """
         if not project_id:
             return
         try:
             tracker = self._tracker_for_project(project_id)
             tracker.update_issue(entry.identifier, status=IN_REVIEW)
             review_id = getattr(review, "id", None)
+            review_url = getattr(review, "url", None)
+            review_source = getattr(review, "source_branch", None)
+            review_target = getattr(review, "target_branch", None)
             if review_id:
                 logger.info(
                     "Marked %s as In Review (review #%s)",
@@ -6122,12 +6212,64 @@ class Orchestrator:
                 )
             else:
                 logger.info("Marked %s as In Review", entry.identifier)
+            # Write review metadata so the task record carries the PR link
+            # (Review URL / Review Number) without relying on GitHub
+            # auto-close semantics.
+            self._write_review_metadata(
+                tracker,
+                entry.identifier,
+                review_id=review_id,
+                review_url=review_url,
+                source_branch=review_source,
+                target_branch=review_target,
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to mark %s as In Review after review handoff: %s",
                 entry.identifier,
                 exc,
             )
+
+    def _write_review_metadata(
+        self,
+        tracker: "TrackerProtocol",
+        identifier: str,
+        *,
+        review_id: str | None,
+        review_url: str | None,
+        source_branch: str | None = None,
+        target_branch: str | None = None,
+    ) -> None:
+        """Persist review metadata fields on a task (best-effort).
+
+        Writes ``oompah.review_url`` and ``oompah.review_number`` to the
+        task's metadata block.  Also writes ``oompah.work_branch`` (source)
+        and ``oompah.target_branch`` when supplied and not already set.
+
+        All writes are best-effort: failures are logged as warnings but do
+        not propagate so the caller's control flow is unaffected.
+        """
+        fields: dict[str, object] = {}
+        if review_url:
+            fields["oompah.review_url"] = review_url
+        if review_id:
+            fields["oompah.review_number"] = review_id
+        if source_branch:
+            fields["oompah.work_branch"] = source_branch
+        if target_branch:
+            fields["oompah.target_branch"] = target_branch
+        for key, value in fields.items():
+            try:
+                tracker.set_metadata_field(identifier, key, value)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to write %s metadata %s=%r for %s: %s",
+                    identifier,
+                    key,
+                    value,
+                    identifier,
+                    exc,
+                )
 
     def _defer_review_handoff(
         self,

@@ -86,6 +86,11 @@ _KNOWN_BACKLOG_FIELDS: frozenset[str] = frozenset({
     # work-branch metadata — written when creating the agent worktree (TASK-461.3),
     # used for branch-to-issue resolution (TASK-462.1).
     "oompah.work_branch",
+    # review metadata — written after PR/MR creation (TASK-462.2).
+    # review_url and review_number mirror the GitHub "Review URL" and
+    # "Review Number" issue fields defined in plans/github-issues-tracker-migration.md.
+    "oompah.review_url",
+    "oompah.review_number",
 })
 
 
