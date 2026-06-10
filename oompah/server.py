@@ -6299,10 +6299,23 @@ def _sync_project_after_webhook(
 def _install_backlog_hook_for_project(project) -> None:
     """Install or update the Backlog webhook hook for one project.
 
+    GitHub-backed projects (``tracker_kind == "github_issues"``) are skipped
+    — they use GitHub webhooks for task-change notifications and do not need
+    Backlog post-commit hooks.
+
     Best-effort: any failure is logged at DEBUG level so project
     create/update operations are never blocked by hook installation
     errors.
     """
+    # GitHub-backed projects must not install Backlog hooks (TASK-463.4).
+    tracker_kind = getattr(project, "tracker_kind", None)
+    if tracker_kind == "github_issues":
+        logger.debug(
+            "_install_backlog_hook_for_project: skipping GitHub-backed project %s",
+            getattr(project, "id", "?"),
+        )
+        return
+
     try:
         from oompah.backlog_webhooks import install_backlog_webhook_hook
 
@@ -6534,6 +6547,25 @@ async def api_webhook_backlog(request: Request):
         # Look up the project.
         orch = _get_orchestrator()
         project = orch.project_store.get(project_id) if project_id else None
+
+        # GitHub-backed projects must not process Backlog webhook receipts
+        # (TASK-463.4).  If a stale hook fires for a project that has since
+        # been migrated to GitHub Issues, acknowledge the request but take no
+        # action so the transition is safe and idempotent.
+        if project and getattr(project, "tracker_kind", None) == "github_issues":
+            logger.info(
+                "Backlog webhook ignored for GitHub-backed project %s "
+                "(tracker_kind=github_issues); returning ok with no-op action",
+                project_id,
+            )
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "action": "ignored",
+                    "reason": "github_issues tracker",
+                    "project_id": project_id,
+                }
+            )
 
         # Validate HMAC signature if the project has a secret configured.
         signature = request.headers.get("X-Oompah-Signature", "")
