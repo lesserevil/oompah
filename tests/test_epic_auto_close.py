@@ -557,6 +557,31 @@ class TestAutoCloseCompletedEpicsSweep:
         ]
         assert called_with == ["epic-x"]
 
+    def test_sweep_clears_stale_alert_for_terminal_epic(self, tmp_path):
+        """A terminal epic should not leave an obsolete stuck_epic alert visible."""
+        project = _make_project()
+        orch = _make_orch(tmp_path, project=project)
+        orch._epic_auto_close_check = MagicMock(return_value=True)
+        orch._alerts = [
+            {
+                "level": "warning",
+                "source": "stuck_epic:epic-y",
+                "message": "old stale alert",
+            },
+            {
+                "level": "warning",
+                "source": "other",
+                "message": "unrelated alert",
+            },
+        ]
+
+        orch._auto_close_completed_epics(
+            [_make_issue("epic-y", state="Merged", issue_type="epic")]
+        )
+
+        orch._epic_auto_close_check.assert_not_called()
+        assert [a.get("source") for a in orch._alerts] == ["other"]
+
 
 # ----------------------------------- Stuck-epic alert lifecycle (idempotent re-arm)
 
@@ -634,6 +659,32 @@ class TestStuckEpicAlertLifecycle:
         assert not any(
             a.get("source") == f"stuck_epic:{epic.identifier}" for a in orch._alerts
         )
+
+    def test_mark_epic_merged_clears_stale_alert(self, tmp_path):
+        """Landing an epic should clear any earlier stuck_epic warning."""
+        project = _make_project()
+        epic = _make_issue("epic-11", state="Done", issue_type="epic")
+        tracker = MagicMock()
+        tracker.fetch_children.return_value = []
+        orch = _make_orch(tmp_path, project=project, tracker=tracker)
+        orch.project_store.epic_branch_name.return_value = "epic-epic-11"
+        orch._alerts = [
+            {
+                "level": "warning",
+                "source": "stuck_epic:epic-11",
+                "message": "old stale alert",
+            },
+            {
+                "level": "warning",
+                "source": "other",
+                "message": "unrelated alert",
+            },
+        ]
+
+        orch._mark_epic_merged(epic)
+
+        tracker.update_issue.assert_called_once_with("epic-11", status="Merged")
+        assert [a.get("source") for a in orch._alerts] == ["other"]
 
 
 # ----------------------------------------- Reactive hook from _on_worker_exit

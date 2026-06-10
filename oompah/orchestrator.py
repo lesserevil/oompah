@@ -3608,6 +3608,7 @@ class Orchestrator:
             ):
                 continue
             if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
+                self._clear_stuck_epic_alert(issue.identifier)
                 continue  # already closed
             self._epic_auto_close_check(issue)
 
@@ -6877,6 +6878,7 @@ class Orchestrator:
         tracker = self._tracker_for_issue(epic)
         try:
             tracker.update_issue(epic.identifier, status=MERGED)
+            self._clear_stuck_epic_alert(epic.identifier)
             logger.info(
                 "Marked epic %s Merged (branch %s merged to main)",
                 epic.identifier,
