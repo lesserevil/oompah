@@ -4240,13 +4240,12 @@ class Orchestrator:
             project = self.project_store.get(project_id)
             if not project or not project.repo_url:
                 continue
-            is_declared_epic = (issue.issue_type or "").strip().lower() == "epic"
-            if not is_declared_epic and not self._has_epic_landing_ref(
+            if not self._has_epic_landing_ref(
                 project,
                 issue.identifier,
             ):
                 logger.debug(
-                    "Skipping inferred epic rollup %s on %s: no epic branch "
+                    "Skipping epic rollup %s on %s: no epic branch "
                     "or worktree exists",
                     issue.identifier,
                     project.name,

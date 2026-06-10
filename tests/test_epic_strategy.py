@@ -1307,6 +1307,31 @@ class TestOpenEpicMainPrs:
 
         assert orch._has_epic_landing_ref(proj, "TASK-738") is False
 
+    def test_declared_epic_without_landing_ref_opens_no_pr(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="TASK-258",
+            issue_type="epic",
+            project_id="proj-1",
+            state="Backlog",
+            title="Legacy epic",
+        )
+        child = _make_issue(identifier="TASK-258.1", state="Done")
+        provider = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=False),
+            patch("oompah.orchestrator.detect_provider", return_value=provider) as detect,
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 0
+        detect.assert_not_called()
+        push.assert_not_called()
+        provider.create_review.assert_not_called()
+
     def test_flat_mode_is_noop(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="flat")
         epic = _make_issue(
@@ -1386,6 +1411,7 @@ class TestOpenEpicMainPrs:
         provider.create_review.return_value = MagicMock(id="99")
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
@@ -1421,6 +1447,7 @@ class TestOpenEpicMainPrs:
         provider.create_review.return_value = MagicMock(id="100")
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
@@ -1447,6 +1474,7 @@ class TestOpenEpicMainPrs:
         provider.create_review.return_value = MagicMock(id="101")
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
@@ -1504,6 +1532,7 @@ class TestOpenEpicMainPrs:
         provider.create_review.return_value = MagicMock(id="102")
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
@@ -1625,6 +1654,7 @@ class TestOpenEpicMainPrs:
         provider = MagicMock()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[c1, c2]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
@@ -1647,6 +1677,7 @@ class TestOpenEpicMainPrs:
         provider = MagicMock()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
@@ -1671,6 +1702,7 @@ class TestOpenEpicMainPrs:
         provider.list_merged_branches.return_value = set()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
@@ -1688,6 +1720,7 @@ class TestOpenEpicMainPrs:
         child = _make_issue(state="closed")
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=None),
         ):
             opened = orch._open_epic_main_prs([epic])
@@ -1720,6 +1753,7 @@ class TestOpenEpicMainPrs:
         tracker = MagicMock()
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
@@ -1754,6 +1788,7 @@ class TestOpenEpicMainPrs:
         provider.create_review.return_value = MagicMock(id="201")
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
@@ -2194,6 +2229,7 @@ class TestNestedEpicMergeChain:
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[task]),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
@@ -2225,6 +2261,7 @@ class TestNestedEpicMergeChain:
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child_epic_B]),
             patch.object(orch, "_resolve_parent_epic", return_value=None),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
@@ -2262,6 +2299,7 @@ class TestNestedEpicMergeChain:
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[task]),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch"),
