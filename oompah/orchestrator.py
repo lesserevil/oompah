@@ -7676,6 +7676,17 @@ class Orchestrator:
                     review,
                 )
                 if epic_block_reason:
+                    if self._close_standalone_epic_policy_review(
+                        project,
+                        provider,
+                        slug,
+                        tracker,
+                        review,
+                        epic_block_reason,
+                        tick=tick,
+                    ):
+                        actions_fired += 1
+                        continue
                     logger.warning(
                         "YOLO GATE: skipping %s MR #%s — %s",
                         project.name,
@@ -8903,6 +8914,144 @@ class Orchestrator:
             )
 
         return None
+
+    def _close_standalone_epic_policy_review(
+        self,
+        project: Project,
+        provider: Any,
+        slug: str,
+        tracker: TrackerProtocol,
+        review: ReviewRequest,
+        reason: str,
+        *,
+        tick: int,
+    ) -> bool:
+        """Close stale standalone task PRs forbidden by epic-owned policy.
+
+        ``_yolo_epic_strategy_block_reason`` intentionally blocks every
+        epic-strategy violation, including child PRs that may need a rebase
+        or human routing decision. This helper is narrower: it only handles
+        top-level non-epic tasks on projects with ``require_epic_for_tasks``.
+        Those PRs can never be valid under the project policy, so leaving
+        them open just makes YOLO reprocess the same terminal violation.
+        """
+        if not getattr(project, "require_epic_for_tasks", False):
+            return False
+
+        source_branch = (getattr(review, "source_branch", "") or "").strip()
+        if not source_branch:
+            return False
+        try:
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
+        except Exception as exc:  # noqa: BLE001 - fall back to gate-only behavior
+            logger.debug(
+                "YOLO epic-policy close could not resolve branch %s on %s: %s",
+                source_branch,
+                project.name,
+                exc,
+            )
+            return False
+        if not self._issue_requires_parent_epic(issue, project.id):
+            return False
+
+        review_id = str(review.id)
+        comment = (
+            "Closing stale standalone task PR. This project requires "
+            "epic-owned implementation work, so task work must land through "
+            "an epic rollup PR instead of a direct task PR.\n\n"
+            f"{reason}"
+        )
+        try:
+            success, msg = provider.close_review(slug, review_id, comment=comment)
+        except Exception as exc:  # noqa: BLE001 - provider failures are retryable
+            success, msg = False, str(exc)
+
+        if not success:
+            logger.warning(
+                "YOLO GATE: failed to close invalid standalone %s MR #%s — %s",
+                project.name,
+                review_id,
+                msg,
+            )
+            self._record_yolo_action(
+                project.id,
+                review_id,
+                "close_invalid_review",
+                "failure",
+                msg or reason,
+                tick=tick,
+            )
+            return True
+
+        logger.warning(
+            "YOLO GATE: closed invalid standalone %s MR #%s — %s",
+            project.name,
+            review_id,
+            reason,
+        )
+        self._record_yolo_action(
+            project.id,
+            review_id,
+            "close_invalid_review",
+            "success",
+            reason,
+            tick=tick,
+        )
+        self._reconcile_closed_standalone_epic_policy_task(
+            tracker,
+            issue,
+            review_id,
+            reason,
+        )
+        return True
+
+    def _reconcile_closed_standalone_epic_policy_task(
+        self,
+        tracker: TrackerProtocol,
+        issue: Issue | None,
+        review_id: str,
+        reason: str,
+    ) -> None:
+        if issue is None:
+            return
+        current_status = canonicalize_status(issue.state)
+        comment = (
+            f"Closed stale standalone PR #{review_id} because this project "
+            "requires epic-owned implementation work. "
+            f"{reason}"
+        )
+        try:
+            if current_status == IN_REVIEW:
+                tracker.update_issue(issue.identifier, status=NEEDS_HUMAN)
+                tracker.add_comment(
+                    issue.identifier,
+                    comment
+                    + " The task was moved to Needs Human so it can be "
+                    "attached to an epic or intentionally exempted.",
+                    author="oompah",
+                )
+            elif current_status == DONE:
+                tracker.add_comment(
+                    issue.identifier,
+                    comment + " The task remains Done.",
+                    author="oompah",
+                )
+            else:
+                tracker.add_comment(
+                    issue.identifier,
+                    comment
+                    + f" The task remains in {issue.state or current_status}.",
+                    author="oompah",
+                )
+        except Exception as exc:  # noqa: BLE001 - review closure already succeeded
+            logger.debug(
+                "Failed to reconcile task %s after closing invalid PR #%s: %s",
+                issue.identifier,
+                review_id,
+                exc,
+            )
 
     def _yolo_notify_conflict(
         self, project, provider, slug: str, review_id: str

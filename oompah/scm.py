@@ -200,6 +200,26 @@ class SCMProvider(ABC):
         ...
 
     @abstractmethod
+    def close_review(
+        self,
+        repo: str,
+        review_id: str,
+        comment: str = "",
+    ) -> tuple[bool, str]:
+        """Close a pull/merge request without merging it.
+
+        Args:
+            repo: Repository identifier.
+            review_id: PR/MR number.
+            comment: Optional provider-visible audit comment to add before
+                closing. Comment failures should not prevent closure.
+
+        Returns:
+            (success, message) tuple.
+        """
+        ...
+
+    @abstractmethod
     def enable_auto_merge(self, repo: str, review_id: str) -> tuple[bool, str]:
         """Enable auto-merge on a pull/merge request (enqueue mode).
 
@@ -1266,6 +1286,38 @@ class GitHubProvider(SCMProvider):
         except httpx.HTTPError as exc:
             return False, f"Merge failed: {exc}"
 
+    def close_review(
+        self,
+        repo: str,
+        review_id: str,
+        comment: str = "",
+    ) -> tuple[bool, str]:
+        try:
+            if comment:
+                comment_resp = self._api(
+                    "POST",
+                    f"/repos/{repo}/issues/{review_id}/comments",
+                    json={"body": comment},
+                )
+                if comment_resp.status_code not in (200, 201):
+                    logger.debug(
+                        "GitHub close_review comment %s#%s: HTTP %d %s",
+                        repo,
+                        review_id,
+                        comment_resp.status_code,
+                        comment_resp.text[:200],
+                    )
+            r = self._api(
+                "PATCH",
+                f"/repos/{repo}/pulls/{review_id}",
+                json={"state": "closed"},
+            )
+            if r.status_code == 200:
+                return True, "PR closed successfully"
+            return False, f"Close failed: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Close failed: {exc}"
+
     def needs_rebase(self, repo: str, review_id: str) -> bool:
         try:
             r = self._api("GET", f"/repos/{repo}/pulls/{review_id}")
@@ -1736,6 +1788,39 @@ class GitLabProvider(SCMProvider):
             return False, f"Merge failed: HTTP {r.status_code} {r.text[:300]}"
         except httpx.HTTPError as exc:
             return False, f"Merge failed: {exc}"
+
+    def close_review(
+        self,
+        repo: str,
+        review_id: str,
+        comment: str = "",
+    ) -> tuple[bool, str]:
+        encoded = self._project_path(repo)
+        try:
+            if comment:
+                note_resp = self._api(
+                    "POST",
+                    f"/projects/{encoded}/merge_requests/{review_id}/notes",
+                    json={"body": comment},
+                )
+                if note_resp.status_code not in (200, 201):
+                    logger.debug(
+                        "GitLab close_review note %s#%s: HTTP %d %s",
+                        repo,
+                        review_id,
+                        note_resp.status_code,
+                        note_resp.text[:200],
+                    )
+            r = self._api(
+                "PUT",
+                f"/projects/{encoded}/merge_requests/{review_id}",
+                json={"state_event": "close"},
+            )
+            if r.status_code == 200:
+                return True, "MR closed successfully"
+            return False, f"Close failed: HTTP {r.status_code} {r.text[:300]}"
+        except httpx.HTTPError as exc:
+            return False, f"Close failed: {exc}"
 
     def needs_rebase(self, repo: str, review_id: str) -> bool:
         encoded = self._project_path(repo)

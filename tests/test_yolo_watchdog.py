@@ -16,7 +16,7 @@ Covers each detector (D1–D4) and the orchestrator integration:
 from __future__ import annotations
 
 from collections import deque
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -24,6 +24,7 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
+from oompah.statuses import NEEDS_HUMAN
 from oompah.yolo_watchdog import (
     CoverageRecord,
     D1_RECURRENCE_THRESHOLD,
@@ -103,13 +104,14 @@ def _make_issue(
     issue_type: str = "task",
     parent_id: str | None = None,
     project_id: str = "proj-1",
+    state: str = "open",
 ) -> Issue:
     return Issue(
         id=identifier,
         identifier=identifier,
         title=identifier,
         description="body",
-        state="open",
+        state=state,
         issue_type=issue_type,
         parent_id=parent_id,
         project_id=project_id,
@@ -572,7 +574,7 @@ class TestYoloEpicStrategyGate:
 
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_require_epic_parent_blocks_standalone_task_pr(
+    def test_require_epic_parent_closes_standalone_task_pr(
         self, mock_slug, mock_detect, tmp_path,
     ):
         project = _make_project()
@@ -581,14 +583,15 @@ class TestYoloEpicStrategyGate:
         provider = MagicMock()
         provider.merge_review.return_value = (True, "merged")
         provider.enable_auto_merge.return_value = (True, "enqueued")
+        provider.close_review.return_value = (True, "closed")
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
         orch = _make_orchestrator(tmp_path, projects=[project])
-        self._install_tracker(
+        tracker = self._install_tracker(
             orch,
             project,
-            child=_make_issue("TASK-733", parent_id=None),
+            child=_make_issue("TASK-733", parent_id=None, state="In Review"),
         )
         orch._reviews_cache = {
             project.id: [
@@ -605,9 +608,23 @@ class TestYoloEpicStrategyGate:
 
         provider.merge_review.assert_not_called()
         provider.enable_auto_merge.assert_not_called()
+        provider.close_review.assert_called_once_with(
+            "org/repo",
+            "224",
+            comment=ANY,
+        )
+        tracker.update_issue.assert_called_once_with(
+            "TASK-733",
+            status=NEEDS_HUMAN,
+        )
+        tracker.add_comment.assert_called_once()
+        comment_args = tracker.add_comment.call_args.args
+        assert comment_args[0] == "TASK-733"
+        assert "Closed stale standalone PR #224" in comment_args[1]
         records = list(orch._yolo_action_history)
         assert len(records) == 1
-        assert records[0].action_type == "gate_blocked"
+        assert records[0].action_type == "close_invalid_review"
+        assert records[0].outcome == "success"
         assert "requires epic-owned tasks" in records[0].error_msg
         assert "TASK-733" in records[0].error_msg
 

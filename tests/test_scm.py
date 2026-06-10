@@ -125,6 +125,69 @@ class TestMergeReviewBranchCleanupProtection:
         assert merge_kwargs.get("should_remove_source_branch") is False
 
 
+class TestCloseReview:
+    """close_review() closes stale reviews without merging them."""
+
+    class _Resp:
+        def __init__(self, code, payload=None, text=""):
+            self.status_code = code
+            self._payload = payload or {}
+            self.text = text
+
+        def json(self):
+            return self._payload
+
+    def test_github_posts_comment_then_closes_pr(self):
+        provider = GitHubProvider(access_token="t")
+        calls = []
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path, kwargs.get("json")))
+            if path.endswith("/comments"):
+                return self._Resp(201)
+            return self._Resp(200)
+
+        provider._api = fake_api
+
+        ok, msg = provider.close_review("o/r", "5", comment="audit")
+
+        assert ok
+        assert msg == "PR closed successfully"
+        assert calls == [
+            ("POST", "/repos/o/r/issues/5/comments", {"body": "audit"}),
+            ("PATCH", "/repos/o/r/pulls/5", {"state": "closed"}),
+        ]
+
+    def test_gitlab_posts_note_then_closes_mr(self):
+        provider = GitLabProvider(access_token="t")
+        calls = []
+
+        def fake_api(method, path, **kwargs):
+            calls.append((method, path, kwargs.get("json")))
+            if path.endswith("/notes"):
+                return self._Resp(201)
+            return self._Resp(200)
+
+        provider._api = fake_api
+
+        ok, msg = provider.close_review("g/p", "5", comment="audit")
+
+        assert ok
+        assert msg == "MR closed successfully"
+        assert calls == [
+            (
+                "POST",
+                "/projects/g%2Fp/merge_requests/5/notes",
+                {"body": "audit"},
+            ),
+            (
+                "PUT",
+                "/projects/g%2Fp/merge_requests/5",
+                {"state_event": "close"},
+            ),
+        ]
+
+
 class TestReadPrDetailCacheTtl:
     """``_read_pr_detail_cache_ttl()`` reads
     ``OOMPAH_PR_DETAIL_CACHE_TTL_SECONDS`` with a 60-second default and
