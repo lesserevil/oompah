@@ -917,15 +917,17 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
         # No per-child PR is created — the epic→main PR is the only one
         provider.create_review.assert_not_called()
 
-    def test_shared_skips_per_child_pr_when_parent_epic_unresolved(self, tmp_path):
-        """Shared child PR creation is blocked even if parent lookup is stale."""
+    def test_shared_non_epic_parent_creates_per_task_pr(self, tmp_path):
+        """Shared mode only skips child PRs when the parent is an actual epic."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         orch._reviews_cache = {"proj-1": []}
 
         provider = MagicMock()
+        provider.create_review.return_value = MagicMock(id="42")
         tracker = MagicMock()
         tracker.fetch_issue_detail.return_value = None
+        orch._tracker_for_project = MagicMock(return_value=tracker)
         issue = _make_issue(
             identifier="task-1", parent_id="epic-1", project_id="proj-1"
         )
@@ -952,7 +954,10 @@ class TestEnsureReviewExistsRespectsEpicStrategy:
 
         assert result is True
         tracker.fetch_issue_detail.assert_called_once_with("epic-1")
-        provider.create_review.assert_not_called()
+        provider.create_review.assert_called_once()
+        kwargs = provider.create_review.call_args.kwargs
+        assert kwargs.get("target_branch") == "main"
+        tracker.update_issue.assert_called_once_with("task-1", status=IN_REVIEW)
 
     def test_stacked_top_level_targets_main(self, tmp_path):
         """Top-level beads in stacked mode (no parent_id) still target main."""

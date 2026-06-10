@@ -5748,26 +5748,21 @@ class Orchestrator:
         if entry.issue and entry.issue.parent_id and strategy in ("stacked", "shared"):
             parent_epic = self._resolve_parent_epic(entry.issue)
 
-        # Shared mode: child commits live on the shared epic branch and
-        # the only PR is the epic→main PR. Skip per-child review creation
-        # based on the child link itself; if the parent epic cannot be
-        # resolved from the current tracker snapshot, falling through would
-        # incorrectly create a standalone child PR to main.
+        # Shared mode: children of a real epic commit to the shared epic
+        # branch, and the only PR is the epic→main PR.  A task can have a
+        # parent that is not an epic, though; those tasks still use per-task
+        # worktrees and must get their own review instead of being stranded.
         if (
             strategy == "shared"
             and entry.issue is not None
             and (entry.issue.parent_id or "").strip()
+            and parent_epic is not None
         ):
-            parent_label = (
-                parent_epic.identifier
-                if parent_epic is not None
-                else entry.issue.parent_id
-            )
             logger.debug(
                 "Skip per-child review for %s: epic_strategy=shared "
                 "(child shares branch with epic %s)",
                 entry.identifier,
-                parent_label,
+                parent_epic.identifier,
             )
             return True
 
