@@ -1705,20 +1705,29 @@ class TestOpenEpicMainPrs:
 
     def test_all_non_terminal_epics_includes_backlog_epics(self, tmp_path):
         """The landing-gate pool must include epics in non-dispatch states
-        like Backlog (otherwise their completed work never lands)."""
+        like Backlog and Done (otherwise completed work never lands)."""
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         backlog_epic = _make_issue(identifier="e1", issue_type="epic", state="Backlog")
         open_epic = _make_issue(identifier="e2", issue_type="epic", state="Open")
         done_epic = _make_issue(identifier="e3", issue_type="epic", state="Done")
+        merged_epic = _make_issue(identifier="e4", issue_type="epic", state="Merged")
+        archived_epic = _make_issue(identifier="e5", issue_type="epic", state="Archived")
         task = _make_issue(identifier="t1", issue_type="task", state="Backlog")
         tracker = MagicMock()
-        tracker.fetch_all_issues.return_value = [backlog_epic, open_epic, done_epic, task]
+        tracker.fetch_all_issues.return_value = [
+            backlog_epic,
+            open_epic,
+            done_epic,
+            merged_epic,
+            archived_epic,
+            task,
+        ]
         with patch.object(orch, "_tracker_for_project", return_value=tracker):
             epics = orch._all_non_terminal_epics()
         idents = {e.identifier for e in epics}
-        # Backlog + Open epics included; terminal (Done) epic and non-epic excluded.
-        assert idents == {"e1", "e2"}
+        # Done epics are still waiting for rollup/merge reconciliation.
+        assert idents == {"e1", "e2", "e3"}
 
     def test_all_non_terminal_epics_includes_parent_with_missing_epic_label(
         self, tmp_path
@@ -2371,6 +2380,28 @@ class TestLabelMergedEpics:
         ):
             orch._label_merged_epics()
         tracker.update_issue.assert_not_called()
+
+    def test_done_epic_is_marked_merged_after_rollup_pr_lands(self, tmp_path):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state="Done")
+        c1 = _make_issue(identifier="c1", state="Done", parent_id="epic-1")
+        tracker = MagicMock()
+        tracker.fetch_all_issues.return_value = [epic, c1]
+        orch._merged_branches = {"epic-epic-1"}
+
+        with (
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch.object(orch, "_fetch_epic_children", return_value=[c1]),
+        ):
+            orch._label_merged_epics()
+
+        marked = {
+            call.args[0]: call.kwargs.get("status")
+            for call in tracker.update_issue.call_args_list
+        }
+        assert marked == {"epic-1": "Merged", "c1": "Merged"}
 
     def test_noop_when_no_merged_branches(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")

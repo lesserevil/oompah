@@ -3202,14 +3202,18 @@ class Orchestrator:
         return eff
 
     def _all_non_terminal_epics(self) -> list[Issue]:
-        """Every epic in a non-terminal state across all projects, regardless
-        of the dispatch active-state filter.
+        """Every unfinished epic across all projects, regardless of the
+        dispatch active-state filter.
 
         Epics sit in non-dispatch states (commonly ``Backlog``) and so never
         appear in ``fetch_candidate_issues``. The epic→main landing gate must
         still see them — their children may all be done. Reuses the per-tick
         read cache (``fetch_all_issues`` is already warmed by other phases),
         so this adds no extra corpus parse within a tick.
+
+        For epics, ``Done`` is not lifecycle-finished; it means the epic work is
+        ready for or awaiting the rollup merge. Only ``Merged`` and ``Archived``
+        remove an epic from rollup/merged-epic reconciliation.
         """
         out: list[Issue] = []
         projects = self.project_store.list_all()
@@ -3233,8 +3237,12 @@ class Orchestrator:
                 for issue in issues:
                     if pid:
                         issue.project_id = pid
-                    if _is_terminal_state(
-                        issue.state, self.config.tracker_terminal_states
+                    status = canonicalize_status(issue.state)
+                    labels = {str(label).strip().lower() for label in issue.labels or []}
+                    if (
+                        status in {MERGED, ARCHIVED}
+                        or "merged" in labels
+                        or "archive:yes" in labels
                     ):
                         continue
                     is_declared_epic = (
