@@ -155,6 +155,13 @@ def _is_cleanable_worktree_state(state: str | None) -> bool:
     return _state_key(state) in _WORKTREE_CLEANUP_STATE_KEYS
 
 
+def _is_epic_issue(issue: Issue) -> bool:
+    """Return True when *issue* represents an epic rollup task."""
+    if (issue.issue_type or "").strip().lower() == "epic":
+        return True
+    return any(str(label).strip().lower() == "epic" for label in issue.labels or [])
+
+
 def _terminal_state_keys(terminal_states: list[str] | tuple[str, ...]) -> set[str]:
     """Return canonical terminal status keys including legacy aliases."""
     keys = {_state_key(s) for s in terminal_states}
@@ -1612,9 +1619,16 @@ class Orchestrator:
                             }
                             return cleaned
                         try:
-                            self.project_store.remove_worktree(
-                                project.id, issue.identifier
-                            )
+                            if _is_epic_issue(issue) and hasattr(
+                                self.project_store, "remove_epic_worktree"
+                            ):
+                                self.project_store.remove_epic_worktree(
+                                    project.id, issue.identifier
+                                )
+                            else:
+                                self.project_store.remove_worktree(
+                                    project.id, issue.identifier
+                                )
                             cleaned += 1
                             logger.info(
                                 "Cleaned terminal worktree project=%s issue=%s",

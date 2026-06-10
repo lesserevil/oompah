@@ -1350,6 +1350,53 @@ class TestTerminalWorktreeCleanup:
         )
         assert orch._maintenance_status["worktree_cleanup"]["deferred"] is True
 
+    def test_cleanup_terminal_worktrees_removes_epic_worktree_for_merged_epic(
+        self, tmp_path
+    ):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue(
+                "TASK-EPIC",
+                state="Merged",
+                issue_type="epic",
+                project_id=project.id,
+            ),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 1
+        orch.project_store.remove_epic_worktree.assert_called_once_with(
+            project.id, "TASK-EPIC"
+        )
+        orch.project_store.remove_worktree.assert_not_called()
+
+    def test_cleanup_terminal_worktrees_preserves_done_epic_worktree(
+        self, tmp_path
+    ):
+        project = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[project])
+        tracker = MagicMock()
+        tracker.fetch_issues_by_states.return_value = [
+            _make_issue(
+                "TASK-EPIC",
+                state="Done",
+                issue_type="epic",
+                project_id=project.id,
+            ),
+        ]
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        cleaned = orch._cleanup_terminal_worktrees()
+
+        assert cleaned == 0
+        tracker.fetch_issues_by_states.assert_called_once_with(["Merged", "Archived"])
+        orch.project_store.remove_epic_worktree.assert_not_called()
+        orch.project_store.remove_worktree.assert_not_called()
+
     def test_cleanup_terminal_worktrees_preserves_done_legacy_workspace(
         self, tmp_path
     ):
