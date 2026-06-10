@@ -3,10 +3,10 @@ id: TASK-461.5
 title: >-
   Integrate completion verifier, retry, reopen, and Needs Human flows with
   GitHub
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-10 02:12'
+updated_date: '2026-06-10 02:14'
 labels:
   - task
   - github-issues
@@ -64,4 +64,16 @@ created: 2026-06-10 02:12
 ---
 IMPLEMENTATION: Added tests for both ACs. (1) AC #1 — Added TestGitHubVerifierFlow (5 tests) to test_orchestrator_completion_verifier.py: verifier rejection calls tracker.reopen_issue() on the GitHub tracker; diagnostic comment posted via tracker.add_comment(); verifier pass honors close; max-rejections fail-open path; retry scheduled with GitHub identifier (owner/repo#N). (2) AC #2 — Added TestGitHubManualCloseRace (4 tests) to test_dispatch_close_race.py: GitHub pending retry cancelled on manual close (using issue_key body field for slashed identifier); retry cancelled on terminal Done status update; dispatch aborts for closed GitHub issue; any non-in_progress status change cancels the retry. Also updated the _write_task_cost_record docstring to clarify it works via tracker protocol for both Backlog and GitHub backends.
 ---
+
+author: oompah
+created: 2026-06-10 02:14
+---
+VERIFICATION: All 31 tests in the two modified test files pass (14 in test_orchestrator_completion_verifier.py, 17 in test_dispatch_close_race.py). Broader suite: 490 tests pass across test_orchestrator_completion_verifier, test_dispatch_close_race, test_github_tracker, test_backlog_tracker, test_tracker_protocol, test_mixed_tracker_regression — no regressions. Branch epic-TASK-461 pushed (commit e479b04).
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Confirmed TASK-461.5 is NOT a duplicate. Added 9 new tests (5 in TestGitHubVerifierFlow + 4 in TestGitHubManualCloseRace) proving the existing orchestrator/server code already routes all writes through the tracker protocol for GitHub-backed tasks. AC #1 (verifier pass/fail flows update GitHub issue comments and status): TestGitHubVerifierFlow verifies tracker.reopen_issue() and tracker.add_comment() are called on the GitHub adapter for rejections, close is honored for passes, fail-open works at max rejections, and retry carries the GitHub identifier. AC #2 (retry and manual close races for GitHub-backed tasks): TestGitHubManualCloseRace verifies pending retries are cancelled when a GitHub issue is closed/updated via UI using the issue_key body field (for slash-containing identifiers), and _dispatch aborts for GitHub issues closed between fetch and write. Updated _write_task_cost_record docstring to clarify tracker-protocol storage. 490 tests pass with no regressions.
+<!-- SECTION:FINAL_SUMMARY:END -->
