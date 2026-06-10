@@ -331,7 +331,7 @@ class ServiceConfig:
         default_factory=lambda: [DONE, MERGED, ARCHIVED]
     )
     poll_interval_ms: int = 120000
-    full_sync_interval_ms: int = 120000  # 2 minutes — safety-net full sync
+    full_sync_interval_ms: int = 300000  # 5 minutes — safety-net full sync
     workspace_root: str = ""
     hooks_after_create: str | None = None
     hooks_before_run: str | None = None
@@ -694,7 +694,7 @@ class ServiceConfig:
                 tracker.get("terminal_states"), terminal_default
             ),
             poll_interval_ms=_env_int("OOMPAH_POLL_INTERVAL_MS", polling.get("interval_ms"), 120000),
-            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 120000),
+            full_sync_interval_ms=_env_int("OOMPAH_FULL_SYNC_INTERVAL_MS", polling.get("full_sync_interval_ms"), 300000),
             workspace_root=ws_root,
             hooks_after_create=hooks.get("after_create"),
             hooks_before_run=hooks.get("before_run"),

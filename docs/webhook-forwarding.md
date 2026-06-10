@@ -7,7 +7,7 @@ that works, how to set it up, and how to verify it is actually working.
 
 ## Why webhooks matter
 
-Without webhooks, oompah only learns about changes every ~2 minutes when its
+Without webhooks, oompah only learns about changes every ~5 minutes when its
 periodic safety-net sync runs. With webhooks, the following flows are
 near-realtime instead:
 
@@ -222,7 +222,7 @@ it at the organization/user webhook level, not through repository hooks. Do
 not add it to `OOMPAH_WEBHOOK_EVENTS`; repo-scoped `gh webhook forward` will
 exit with a GitHub validation error. For local development, simulate project
 field changes by editing issue fields directly in GitHub; oompah's periodic
-poll will catch them within 2 minutes as a fallback.
+poll will catch them within 5 minutes as a fallback.
 
 **The forwarder is restarting in a tight loop.**
 
@@ -244,7 +244,7 @@ fall back to its periodic safety-net sync.
 Set `OOMPAH_WEBHOOK_EVENTS=push,pull_request` in your `.env` file and
 restart. The forwarder will only subscribe to those two events. Note that
 issue, comment, and label changes will not arrive in real time — oompah will
-rely on its 2-minute periodic sync for task state.
+rely on its 5-minute periodic sync for task state.
 
 ## Relation to Backlog task-change webhooks
 

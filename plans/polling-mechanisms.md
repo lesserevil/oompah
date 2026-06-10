@@ -35,7 +35,7 @@ while not self._stopping:
 ```
 
 **Interval:** Safety-net full sync runs every `full_sync_interval_ms`
-(default 30 000 ms / 30 s). The primary dispatch loop has no interval — it
+(default 300 000 ms / 5 min). The primary dispatch loop has no interval — it
 blocks on the queue.
 
 **What it does:** The orchestrator's main `run()` loop is event-driven. It
@@ -164,8 +164,8 @@ immediately. In practice it is a one-shot wrapper, not ongoing polling.
 
 | Setting | File | Default | Description |
 |---------|------|---------|-------------|
-| `poll_interval_ms` | `oompah/config.py:231` | `30000` | Legacy orchestrator interval; retained for compatibility but no longer the primary scheduling mechanism |
-| `full_sync_interval_ms` | `oompah/config.py:232` | `30000` | Interval for the orchestrator safety-net `_full_sync_loop` |
+| `poll_interval_ms` | `oompah/config.py:333` | `120000` | Legacy orchestrator interval; retained for compatibility but no longer the primary scheduling mechanism |
+| `full_sync_interval_ms` | `oompah/config.py:334` | `300000` | Interval for the orchestrator safety-net `_full_sync_loop` |
 | `polling.interval_ms` (YAML / `OOMPAH_POLL_INTERVAL_MS`) | `oompah/config.py:348` | — | Override for `poll_interval_ms` |
 | `polling.full_sync_interval_ms` (YAML / `OOMPAH_FULL_SYNC_INTERVAL_MS`) | `oompah/config.py:349` | — | Override for `full_sync_interval_ms` |
 
@@ -178,7 +178,7 @@ event-driven via `watchfiles.awatch()`.
 
 | # | Location | Mechanism | Interval | Notes |
 |---|----------|-----------|----------|-------|
-| 1 | `orchestrator.py` `run()` + `_full_sync_loop()` | Event-driven dispatch queue + periodic safety-net FULL_SYNC event | Queue: none; safety-net: `full_sync_interval_ms` (default 30 s) | Replaced the former timed poll as part of oompah-ky3 |
+| 1 | `orchestrator.py` `run()` + `_full_sync_loop()` | Event-driven dispatch queue + periodic safety-net FULL_SYNC event | Queue: none; safety-net: `full_sync_interval_ms` (default 5 min) | Replaced the former timed poll as part of oompah-ky3 |
 | 2 | `orchestrator.py` `graceful_restart()` | `asyncio.sleep` loop | 2 s | Only runs during restart drain |
 | 3 | `error_watcher.py` `LogFileWatcher._watch_loop()` | `watchfiles.awatch()` (OS filesystem notifications) | Event-driven | Replaced the former 2 s sleep loop as part of oompah-ky3 |
 | 4 | `agent.py` `_drain_stderr()` | `readline()` loop | Event-driven | Already pipe-driven |
