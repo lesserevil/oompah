@@ -1143,6 +1143,19 @@ class TestGitHubIssuesFactory:
         assert tracker.owner == "myorg"
         assert tracker.repo == "myrepo"
 
+    def test_access_token_kwarg_overrides_env_pat(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_OWNER", "myorg")
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_REPO", "myrepo")
+        monkeypatch.setenv("OOMPAH_GITHUB_TOKEN", "ghp_env")
+
+        tracker = _github_issues_factory(
+            active_states=["Open"],
+            terminal_states=["Done"],
+            access_token="ghp_project",
+        )
+
+        assert tracker._auth._pat == "ghp_project"
+
 
 # ===========================================================================
 # ADAPTER_REGISTRY integration

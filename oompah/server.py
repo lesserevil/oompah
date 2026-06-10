@@ -655,6 +655,35 @@ def _read_state_snapshot() -> dict[str, Any] | None:
 _api_cache = TTLCache()
 
 
+_PROJECT_TRACKER_CACHE_FIELDS = frozenset(
+    {
+        "access_token",
+        "tracker_kind",
+        "tracker_owner",
+        "tracker_repo",
+        "github_project_node_id",
+        "legacy_backlog_enabled",
+        "legacy_backlog_dispatch",
+        "tracker_cutover_at",
+    }
+)
+
+
+def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
+    """Drop cached tracker state after project tracker config changes."""
+    project_trackers = getattr(orch, "_project_trackers", None)
+    if isinstance(project_trackers, dict):
+        project_trackers.pop(project_id, None)
+
+    branch_indexes = getattr(orch, "_branch_indexes", None)
+    if isinstance(branch_indexes, dict):
+        branch_indexes.pop(project_id, None)
+
+    stale_caches = getattr(orch, "_stale_caches", None)
+    if isinstance(stale_caches, dict):
+        stale_caches.pop(project_id, None)
+
+
 def _state_key(state: str | None) -> str:
     return canonicalize_status(state).strip().lower().replace("-", "_").replace(" ", "_")
 
@@ -5362,6 +5391,9 @@ async def api_update_project(project_id: str, request: Request):
                 },
                 status_code=404,
             )
+        if set(fields) & _PROJECT_TRACKER_CACHE_FIELDS:
+            _invalidate_project_tracker_cache(orch, project_id)
+            _api_cache.invalidate("issues:all")
         # Sync log watchers when project settings change (log_path may have been added/changed/removed)
         if _log_watcher_manager:
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())

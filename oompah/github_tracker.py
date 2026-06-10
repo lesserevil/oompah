@@ -2317,6 +2317,7 @@ def _github_issues_factory(
     cwd: str | None = None,
     owner: str | None = None,
     repo: str | None = None,
+    access_token: str | None = None,
     **kwargs: Any,
 ) -> GitHubIssueTracker:
     """Factory function registered in :data:`~oompah.tracker.ADAPTER_REGISTRY`.
@@ -2341,10 +2342,12 @@ def _github_issues_factory(
             "GitHub Issues tracker requires OOMPAH_GITHUB_TRACKER_OWNER and "
             "OOMPAH_GITHUB_TRACKER_REPO environment variables."
         )
+    auth = GitHubAuth(pat=access_token) if access_token else None
     return GitHubIssueTracker(
         owner=resolved_owner,
         repo=resolved_repo,
         active_states=active_states,
         terminal_states=terminal_states,
+        auth=auth,
         cwd=cwd,
     )

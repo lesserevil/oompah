@@ -1512,6 +1512,7 @@ def _make_project(
     tracker_kind: str | None = None,
     tracker_owner: str | None = None,
     tracker_repo: str | None = None,
+    access_token: str | None = None,
 ):
     """Helper: build a minimal Project with optional tracker fields."""
     from oompah.models import Project
@@ -1524,6 +1525,7 @@ def _make_project(
         tracker_kind=tracker_kind,
         tracker_owner=tracker_owner,
         tracker_repo=tracker_repo,
+        access_token=access_token,
     )
 
 
@@ -1581,6 +1583,38 @@ class TestNewTrackerForProject:
         assert call["owner"] == "myorg"
         assert call["repo"] == "myrepo"
         assert call["cwd"] == str(tmp_path)
+
+    def test_project_with_github_issues_passes_access_token_to_factory(self, tmp_path):
+        """A github_issues project passes its managed access_token to the tracker."""
+        from oompah.tracker import ADAPTER_REGISTRY
+
+        factory_calls: list[dict] = []
+
+        def _fake_gh_factory(**kwargs):
+            factory_calls.append(dict(kwargs))
+            return MagicMock()
+
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(
+            repo_path=str(tmp_path),
+            tracker_kind="github_issues",
+            tracker_owner="myorg",
+            tracker_repo="myrepo",
+            access_token="ghp_project_token",
+        )
+
+        original = ADAPTER_REGISTRY.get("github_issues")
+        ADAPTER_REGISTRY["github_issues"] = _fake_gh_factory
+        try:
+            orch._new_tracker_for_project(project)
+        finally:
+            if original is not None:
+                ADAPTER_REGISTRY["github_issues"] = original
+            else:
+                ADAPTER_REGISTRY.pop("github_issues", None)
+
+        assert len(factory_calls) == 1
+        assert factory_calls[0]["access_token"] == "ghp_project_token"
 
     def test_project_with_github_issues_but_no_owner_repo_omits_kwargs(self, tmp_path):
         """A github_issues project with no owner/repo omits those kwargs."""

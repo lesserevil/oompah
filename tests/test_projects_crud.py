@@ -617,6 +617,9 @@ class TestProjectAccessTokenAPI:
 
         orch = MagicMock()
         orch.project_store = store
+        orch._project_trackers = {}
+        orch._branch_indexes = {}
+        orch._stale_caches = {}
         orch._observers = []
         orch._state_only_observers = []
         orch._activity_observers = []
@@ -628,6 +631,7 @@ class TestProjectAccessTokenAPI:
         srv._orchestrator = orch
         self.client = TestClient(app)
         self.store = store
+        self.orch = orch
         yield self.client
         srv._orchestrator = old_orch
 
@@ -659,6 +663,21 @@ class TestProjectAccessTokenAPI:
         assert self.store.get("proj-tokapi").access_token == "ghp_replaced_token"
         assert "access_token" not in res.json()
         assert res.json()["has_access_token"] is True
+
+    def test_patch_token_invalidates_cached_tracker(self):
+        import oompah.server as srv
+
+        self.orch._project_trackers = {"proj-tokapi": object()}
+        srv._api_cache.set("issues:all", {"stale": True}, ttl_ms=60_000)
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tokapi",
+            json={"access_token": "ghp_replaced_token"},
+        )
+
+        assert res.status_code == 200
+        assert "proj-tokapi" not in self.orch._project_trackers
+        assert srv._api_cache.get("issues:all") is None
 
     def test_patch_clears_token(self):
         res = self.client.patch(
@@ -1230,6 +1249,9 @@ class TestProjectAPITrackerFields:
 
         orch = MagicMock()
         orch.project_store = store
+        orch._project_trackers = {}
+        orch._branch_indexes = {}
+        orch._stale_caches = {}
         orch._observers = []
         orch._state_only_observers = []
         orch._activity_observers = []
@@ -1241,6 +1263,7 @@ class TestProjectAPITrackerFields:
         srv._orchestrator = orch
         self.client = TestClient(app)
         self.store = store
+        self.orch = orch
         yield self.client
         srv._orchestrator = old_orch
 
@@ -1251,6 +1274,51 @@ class TestProjectAPITrackerFields:
         )
         assert res.status_code == 200
         assert self.store.get("proj-tracker").tracker_kind == "github_issues"
+
+    def test_patch_tracker_kind_invalidates_cached_tracker(self):
+        import oompah.server as srv
+
+        self.orch._project_trackers = {
+            "proj-tracker": object(),
+            "other-project": object(),
+        }
+        self.orch._branch_indexes = {
+            "proj-tracker": object(),
+            "other-project": object(),
+        }
+        self.orch._stale_caches = {
+            "proj-tracker": object(),
+            "other-project": object(),
+        }
+        srv._api_cache.set("issues:all", {"stale": True}, ttl_ms=60_000)
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_kind": "github_issues"},
+        )
+
+        assert res.status_code == 200
+        assert "proj-tracker" not in self.orch._project_trackers
+        assert "proj-tracker" not in self.orch._branch_indexes
+        assert "proj-tracker" not in self.orch._stale_caches
+        assert "other-project" in self.orch._project_trackers
+        assert srv._api_cache.get("issues:all") is None
+
+    def test_patch_non_tracker_field_keeps_cached_tracker(self):
+        import oompah.server as srv
+
+        cached = object()
+        self.orch._project_trackers = {"proj-tracker": cached}
+        srv._api_cache.set("issues:all", {"fresh": True}, ttl_ms=60_000)
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"name": "renamed"},
+        )
+
+        assert res.status_code == 200
+        assert self.orch._project_trackers["proj-tracker"] is cached
+        assert srv._api_cache.get("issues:all") is not None
 
     def test_patch_tracker_kind_null_clears(self):
         self.store.update("proj-tracker", tracker_kind="github_issues")

@@ -1422,6 +1422,8 @@ class Orchestrator:
                 extra["owner"] = project.tracker_owner
             if project.tracker_repo:
                 extra["repo"] = project.tracker_repo
+            if getattr(project, "access_token", None):
+                extra["access_token"] = project.access_token
         return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
