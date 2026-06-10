@@ -1835,9 +1835,37 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
     any project, returns (None, None, None).
 
     Used by read-only endpoints (issue detail, comments, attachments) where the
-    UI may not know which project an issue belongs to. Mutating endpoints
-    should still require project_id explicitly via _get_tracker().
+    UI may not know which project an issue belongs to. Mutating endpoints should
+    still require project_id explicitly; with project_id they can use the same
+    lookup to route visible legacy Backlog cards in GitHub dual-read projects.
     """
+    def _legacy_tracker_for_dual_read_project(pid: str):
+        project = None
+        try:
+            project = orch.project_store.get(pid)
+        except Exception:
+            project = None
+        if project is None:
+            return None
+        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+            return None
+        if getattr(project, "legacy_backlog_enabled", False) is not True:
+            return None
+        tracker_for_project = getattr(orch, "_legacy_backlog_tracker_for_project", None)
+        if not callable(tracker_for_project):
+            return None
+        try:
+            return tracker_for_project(pid)
+        except Exception:
+            return None
+
+    def _tag_legacy(issue, pid: str):
+        if issue is not None:
+            issue.project_id = pid
+            issue.tracker_kind = "backlog_md"
+            issue.is_legacy = True
+        return issue
+
     # Fast path: explicit project_id wins
     if project_id:
         try:
@@ -1848,6 +1876,17 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
             issue = tracker.fetch_issue_detail(identifier)
         except Exception:
             issue = None
+        if issue is None:
+            legacy_tracker = _legacy_tracker_for_dual_read_project(project_id)
+            if legacy_tracker is not None:
+                try:
+                    legacy_issue = legacy_tracker.fetch_issue_detail(identifier)
+                except Exception:
+                    legacy_issue = None
+                if legacy_issue is not None:
+                    return legacy_tracker, project_id, _tag_legacy(
+                        legacy_issue, project_id
+                    )
         return tracker, project_id, issue
 
     # Slow path: search all known projects for the issue
@@ -1865,11 +1904,33 @@ def _find_tracker_for_issue(orch, identifier: str, project_id: str | None = None
             tracker = orch._tracker_for_project(project.id)
             issue = tracker.fetch_issue_detail(identifier)
         except Exception:
-            continue
+            issue = None
         if issue is not None:
             return tracker, project.id, issue
+        legacy_tracker = _legacy_tracker_for_dual_read_project(project.id)
+        if legacy_tracker is not None:
+            try:
+                legacy_issue = legacy_tracker.fetch_issue_detail(identifier)
+            except Exception:
+                legacy_issue = None
+            if legacy_issue is not None:
+                return legacy_tracker, project.id, _tag_legacy(
+                    legacy_issue, project.id
+                )
 
     return None, None, None
+
+
+def _get_tracker_for_issue_or_project(
+    orch, identifier: str, project_id: str
+) -> tuple[object, str]:
+    """Resolve a tracker for a known project, honoring legacy dual-read items."""
+    tracker, resolved_project_id, issue = _find_tracker_for_issue(
+        orch, identifier, project_id
+    )
+    if tracker is not None and issue is not None:
+        return tracker, resolved_project_id or project_id
+    return _get_tracker(orch, project_id), project_id
 
 
 def _resolve_identifier(
@@ -2466,7 +2527,9 @@ async def api_update_issue(identifier: str, request: Request):
         # project_id when the identifier is unambiguous.
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
         if project_id:
-            tracker = _get_tracker(orch, project_id)
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, resolved_identifier, project_id
+            )
         elif managed_repo_req:
             if "/" not in managed_repo_req:
                 return JSONResponse(
@@ -2721,7 +2784,9 @@ async def api_add_label(identifier: str, request: Request):
         project_id = body.get("project_id") or request.query_params.get("project_id")
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
         if project_id:
-            tracker = _get_tracker(orch, project_id)
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, resolved_identifier, project_id
+            )
         elif managed_repo_req:
             try:
                 tracker, project_id = _get_tracker_for_managed_repo(
@@ -2779,7 +2844,9 @@ async def api_remove_label(identifier: str, label: str, request: Request):
         project_id = body.get("project_id") or request.query_params.get("project_id")
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
         if project_id:
-            tracker = _get_tracker(orch, project_id)
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, resolved_identifier, project_id
+            )
         elif managed_repo_req:
             try:
                 tracker, project_id = _get_tracker_for_managed_repo(
@@ -2869,7 +2936,9 @@ async def api_add_dependency(identifier: str, request: Request):
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
 
         if project_id:
-            tracker = _get_tracker(orch, project_id)
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, resolved_identifier, project_id
+            )
         elif managed_repo_req:
             if "/" not in managed_repo_req:
                 return JSONResponse(
@@ -3006,7 +3075,9 @@ async def api_add_comment(identifier: str, request: Request):
         project_id = body.get("project_id") or request.query_params.get("project_id")
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
         if project_id:
-            tracker = _get_tracker(orch, project_id)
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, resolved_identifier, project_id
+            )
         elif managed_repo_req:
             try:
                 tracker, project_id = _get_tracker_for_managed_repo(

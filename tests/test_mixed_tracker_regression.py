@@ -95,6 +95,8 @@ def _project(pid: str, name: str, tracker_kind: str = "backlog") -> MagicMock:
     p.tracker_kind = tracker_kind
     p.repo_url = "https://example.invalid/repo.git"
     p.repo_path = "/tmp/fake"
+    p.legacy_backlog_enabled = False
+    p.legacy_backlog_dispatch = False
     return p
 
 
@@ -554,6 +556,106 @@ class TestCommentsMixedTrackers:
 
         assert resp.status_code == 201
         tracker.add_comment.assert_called_once()
+
+
+class TestGitHubDualReadLegacyIssueRoutes:
+    """GitHub-backed projects still serve visible legacy Backlog cards."""
+
+    def _orch_with_dual_read_legacy(self, issue: Issue):
+        project = _project("proj-github", "mygh", "github_issues")
+        project.legacy_backlog_enabled = True
+        github_tracker = _make_tracker([])
+        legacy_tracker = _make_tracker([issue])
+        legacy_tracker.fetch_comments.return_value = [
+            {"id": "c1", "text": "manual smoke required"}
+        ]
+        orch = MagicMock()
+        orch.project_store.list_all.return_value = [project]
+        orch.project_store.get.return_value = project
+        orch._tracker_for_project.return_value = github_tracker
+        orch._legacy_backlog_tracker_for_project.return_value = legacy_tracker
+        orch.tracker = github_tracker
+        orch.request_refresh = MagicMock()
+        orch.state.running = {}
+        orch.state.retry_attempts = {}
+        orch.config.tracker_terminal_states = ["Done", "Merged", "Archived"]
+        return orch, github_tracker, legacy_tracker
+
+    def test_detail_uses_legacy_backlog_tracker_for_github_dual_read_project(
+        self, client
+    ):
+        issue = _backlog_issue("TASK-739", "proj-github")
+        orch, github_tracker, legacy_tracker = self._orch_with_dual_read_legacy(issue)
+
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get(
+                "/api/v1/issues/TASK-739/detail",
+                params={"project_id": "proj-github"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["identifier"] == "TASK-739"
+        assert body["tracker_kind"] == "backlog_md"
+        assert body["is_legacy"] is True
+        github_tracker.fetch_issue_detail.assert_called_with("TASK-739")
+        legacy_tracker.fetch_issue_detail.assert_called_with("TASK-739")
+
+    def test_get_comments_uses_legacy_backlog_tracker_for_github_dual_read_project(
+        self, client
+    ):
+        issue = _backlog_issue("TASK-739", "proj-github")
+        orch, _github_tracker, legacy_tracker = self._orch_with_dual_read_legacy(issue)
+
+        with patch.object(server_module, "_get_orchestrator", return_value=orch):
+            resp = client.get(
+                "/api/v1/issues/TASK-739/comments",
+                params={"project_id": "proj-github"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json() == [{"id": "c1", "text": "manual smoke required"}]
+        legacy_tracker.fetch_comments.assert_called_with("TASK-739")
+
+    def test_post_comment_uses_legacy_backlog_tracker_for_github_dual_read_project(
+        self, client
+    ):
+        issue = _backlog_issue("TASK-739", "proj-github")
+        orch, github_tracker, legacy_tracker = self._orch_with_dual_read_legacy(issue)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues/TASK-739/comments",
+                json={"project_id": "proj-github", "text": "host smoke complete"},
+            )
+
+        assert resp.status_code == 201
+        github_tracker.add_comment.assert_not_called()
+        legacy_tracker.add_comment.assert_called_once_with(
+            "TASK-739", "host smoke complete", author="user"
+        )
+
+    def test_status_update_uses_legacy_backlog_tracker_for_github_dual_read_project(
+        self, client
+    ):
+        issue = _backlog_issue("TASK-739", "proj-github")
+        orch, github_tracker, legacy_tracker = self._orch_with_dual_read_legacy(issue)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/TASK-739",
+                json={"project_id": "proj-github", "status": "Open"},
+            )
+
+        assert resp.status_code == 200
+        github_tracker.update_issue.assert_not_called()
+        legacy_tracker.update_issue.assert_called_once_with("TASK-739", status="Open")
 
     def test_post_comment_backlog_not_github_tracker(self, client):
         """Comment posted to a Backlog project must NOT touch the GitHub tracker."""
