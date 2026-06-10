@@ -126,11 +126,21 @@ class Issue:
     # the metadata structure.
     attachments: list[str] = field(default_factory=list)
     tracker_kind: str | None = None
-    owner: str | None = None
-    repo: str | None = None
+    tracker_owner: str | None = None
+    tracker_repo: str | None = None
     issue_number: str | None = None
     display_identifier: str | None = None
     provider_url: str | None = None
+    # Managed code repository for this issue (e.g. "lesserevil/trickle").
+    # Set by the tracker adapter for GitHub-backed issues.
+    managed_repo: str | None = None
+    # Branch created for the agent to work on this issue.
+    # Stored in GitHub issue metadata so review reconciliation can resolve
+    # the task from the PR without guessing by task ID.
+    work_branch: str | None = None
+    # True for issues that originate from the legacy Backlog.md tracker.
+    # Used by the dashboard to show a visual legacy marker during transition.
+    is_legacy: bool = False
 
 
 @dataclass
@@ -324,14 +334,30 @@ class Project:
     # Per-project tracker configuration (GitHub Issues migration — TASK-459.3)
     # ---------------------------------------------------------------------------
     # Which tracker backend this project uses. When None, falls back to the
-    # global ServiceConfig.tracker_kind. Recognised values are the keys in
+    # global ServiceConfig.tracker_kind. Recognized values are the keys in
     # oompah.tracker.ADAPTER_REGISTRY plus aliases like "backlog", "backlog.md".
-    # Use "github_issues" for GitHub-backed projects.
-    # NOTE: Additional tracker fields (tracker_owner, tracker_repo,
-    # legacy_backlog_enabled, legacy_backlog_dispatch, tracker_cutover_at) will
-    # be added by TASK-459.3.  This single field is the minimum needed by
-    # TASK-463.4 to guard Backlog hook installation.
+    # "github_issues" will be registered once the GitHub adapter is built.
     tracker_kind: str | None = None
+    # GitHub Issues task hub owner/repo for this project. When set, new tasks
+    # are created under <tracker_owner>/<tracker_repo> on GitHub.  Falls back
+    # to global OOMPAH_GITHUB_TRACKER_OWNER / _REPO env vars when None.
+    tracker_owner: str | None = None
+    tracker_repo: str | None = None
+    # GitHub Projects (v2) node ID for board/roadmap views. Optional — oompah
+    # does not require a Project board to manage GitHub Issues.
+    github_project_node_id: str | None = None
+    # When True, oompah may still READ existing Backlog.md tasks (fetch,
+    # display, comments).  When False, the legacy Backlog store is ignored.
+    # Only relevant after tracker_kind has been switched to "github_issues".
+    legacy_backlog_enabled: bool = False
+    # When True, legacy Backlog.md tasks in this project are still ELIGIBLE
+    # for agent dispatch.  Setting this to False stops oompah from dispatching
+    # old Backlog tasks while still allowing reads if legacy_backlog_enabled.
+    legacy_backlog_dispatch: bool = False
+    # UTC timestamp recorded when this project was cut over from Backlog.md to
+    # GitHub Issues.  Used to detect and warn about Backlog task files created
+    # after the cutover, and as a reference for the cutover status UI.
+    tracker_cutover_at: datetime | None = None
 
     def __post_init__(self):
         # Ensure branches is never empty and default_branch is set
@@ -408,10 +434,22 @@ class Project:
         # normal project records with an empty list.
         if self.backlog_conflict_paths:
             d["backlog_conflict_paths"] = list(self.backlog_conflict_paths)
-        # Per-project tracker configuration: only emit when set so that
-        # existing project records stay compact until explicitly configured.
+        # Per-project tracker configuration. Only emit when set to keep the
+        # serialized dict compact for projects that haven't been cut over yet.
         if self.tracker_kind is not None:
             d["tracker_kind"] = self.tracker_kind
+        if self.tracker_owner is not None:
+            d["tracker_owner"] = self.tracker_owner
+        if self.tracker_repo is not None:
+            d["tracker_repo"] = self.tracker_repo
+        if self.github_project_node_id is not None:
+            d["github_project_node_id"] = self.github_project_node_id
+        # Always emit the legacy backlog flags so API consumers can read them
+        # without back-compat guessing; they default to False.
+        d["legacy_backlog_enabled"] = self.legacy_backlog_enabled
+        d["legacy_backlog_dispatch"] = self.legacy_backlog_dispatch
+        if self.tracker_cutover_at is not None:
+            d["tracker_cutover_at"] = self.tracker_cutover_at.isoformat()
         return d
 
     def to_safe_dict(self) -> dict[str, Any]:
@@ -496,11 +534,33 @@ class Project:
             ]
         else:
             provider_whitelist = []
-        # Per-project tracker configuration (TASK-459.3 / TASK-463.4).
+        # Per-project tracker configuration
         raw_tracker_kind = d.get("tracker_kind")
         tracker_kind_proj: str | None = (
             str(raw_tracker_kind).strip() if raw_tracker_kind else None
+        )
+        raw_tracker_owner = d.get("tracker_owner")
+        tracker_owner: str | None = (
+            str(raw_tracker_owner).strip() if raw_tracker_owner else None
         ) or None
+        raw_tracker_repo = d.get("tracker_repo")
+        tracker_repo: str | None = (
+            str(raw_tracker_repo).strip() if raw_tracker_repo else None
+        ) or None
+        raw_github_node = d.get("github_project_node_id")
+        github_project_node_id: str | None = (
+            str(raw_github_node).strip() if raw_github_node else None
+        ) or None
+        tracker_cutover_at: datetime | None = None
+        raw_cutover = d.get("tracker_cutover_at")
+        if raw_cutover:
+            if isinstance(raw_cutover, datetime):
+                tracker_cutover_at = raw_cutover
+            else:
+                try:
+                    tracker_cutover_at = datetime.fromisoformat(str(raw_cutover))
+                except (ValueError, TypeError):
+                    pass
         return cls(
             id=str(d.get("id", "")),
             name=str(d.get("name", "")),
@@ -532,6 +592,12 @@ class Project:
                 if str(p).strip()
             ],
             tracker_kind=tracker_kind_proj,
+            tracker_owner=tracker_owner,
+            tracker_repo=tracker_repo,
+            github_project_node_id=github_project_node_id,
+            legacy_backlog_enabled=bool(d.get("legacy_backlog_enabled", False)),
+            legacy_backlog_dispatch=bool(d.get("legacy_backlog_dispatch", False)),
+            tracker_cutover_at=tracker_cutover_at,
         )
 
 

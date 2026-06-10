@@ -285,8 +285,8 @@ def github_identifier_to_issue_fields(
     """
     return {
         "tracker_kind": "github_issues",
-        "owner": gh_id.owner,
-        "repo": gh_id.repo,
+        "tracker_owner": gh_id.owner,
+        "tracker_repo": gh_id.repo,
         "issue_number": str(gh_id.number),
         "display_identifier": gh_id.display,
     }
@@ -1218,8 +1218,8 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         updated_at=_gh_timestamp(gh_issue.get("updated_at")),
         closed_at=_gh_timestamp(gh_issue.get("closed_at")),
         tracker_kind="github_issues",
-        owner=owner,
-        repo=repo,
+        tracker_owner=owner,
+        tracker_repo=repo,
         issue_number=str(number),
         display_identifier=gh_id.display,
         provider_url=url,

@@ -390,6 +390,36 @@
       vertical-align: middle;
     }
 
+    /* Legacy Backlog task badge */
+    .legacy-badge {
+      font-size: 0.6rem;
+      font-weight: 600;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: rgba(227, 179, 65, 0.15);
+      color: var(--yellow, #e3b341);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* External tracker link (GitHub issue URL) on cards */
+    .tracker-link {
+      font-size: 0.65rem;
+      opacity: 0.65;
+      text-decoration: none;
+      color: inherit;
+      margin-left: 0.1rem;
+      display: inline-flex;
+      align-items: center;
+      vertical-align: middle;
+    }
+    .tracker-link:hover { opacity: 1; }
+
+    /* GitHub issue URL in detail panel */
+    .detail-github-link {
+      color: var(--accent, #58a6ff);
+      word-break: break-all;
+    }
+
     /* Epic badge on child cards */
     .epic-badge {
       font-size: 0.6rem;
@@ -1540,6 +1570,12 @@
     .dialog-actions .btn-primary:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+    /* GitHub-specific create dialog fields */
+    #create-github-fields {
+      border-top: 1px solid var(--border);
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
     }
 
   </style>
@@ -2907,6 +2943,16 @@ function createCard(issue) {
     ? ' <span class="merged-badge">merged</span>'
     : '';
 
+  // Build tracker link (GitHub issue URL) for GitHub-backed issues
+  const trackerLinkHtml = issue.url
+    ? ` <a class="tracker-link" href="${esc(issue.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open in GitHub" aria-label="Open GitHub issue">&#8599;</a>`
+    : '';
+
+  // Build legacy badge for Backlog-backed tasks
+  const legacyBadgeHtml = issue.is_legacy
+    ? ' <span class="legacy-badge" aria-label="Legacy Backlog task">legacy</span>'
+    : '';
+
   const typeIcon = getTypeIcon(issue.issue_type);
   const typeLabel = issue.issue_type || 'task';
   const displayIdentifier = issueDisplayIdentifier(issue);
@@ -2915,10 +2961,11 @@ function createCard(issue) {
     <div class="card-id">
       <span class="card-id-left">
         <span class="type-icon" title="${esc(typeLabel)}" aria-label="${esc(typeLabel)}">${typeIcon}</span>
-        <span class="card-identifier">${esc(displayIdentifier)}</span>
+        <span class="card-identifier">${esc(displayIdentifier)}</span>${trackerLinkHtml}
         ${epicBadgeHtml}
         ${draftEpicBadgeHtml}
         ${mergedBadgeHtml}
+        ${legacyBadgeHtml}
       </span>
       <span class="priority-badge ${pClass}">P${issue.priority ?? 4}</span>
     </div>
@@ -3743,6 +3790,39 @@ async function openDetailPanel(identifier) {
   // Asynchronously fetch + render after the detail HTML is in the DOM.
   setTimeout(() => loadIssueAttachments(detail.identifier), 0);
 
+  // GitHub issue URL — show for GitHub-backed issues
+  if (detail.url) {
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">GitHub Issue</div>
+        <div class="detail-field-value"><a href="${esc(detail.url)}" target="_blank" rel="noopener noreferrer" class="detail-github-link">${esc(detail.url)}</a></div>
+      </div>
+    `;
+  }
+
+  // Tracker identity — show kind and owner/repo for GitHub-backed issues
+  if (detail.tracker_kind) {
+    const trackerLabel = detail.tracker_owner && detail.tracker_repo
+      ? `${esc(detail.tracker_kind)} (${esc(detail.tracker_owner)}/${esc(detail.tracker_repo)})`
+      : esc(detail.tracker_kind);
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">Tracker</div>
+        <div class="detail-field-value tracker-kind-value">${trackerLabel}</div>
+      </div>
+    `;
+  }
+
+  // Legacy marker — show note for legacy Backlog.md tasks
+  if (detail.is_legacy) {
+    html += `
+      <div class="detail-field">
+        <div class="detail-field-label">Note</div>
+        <div class="detail-field-value"><span class="legacy-badge">legacy</span> Legacy Backlog.md task</div>
+      </div>
+    `;
+  }
+
   if (detail.parent_id) {
     const epic = getEpicById(detail.parent_id, detail.project_id);
     if (epic) {
@@ -3911,6 +3991,61 @@ function populateProjectSelect(selectedId) {
   ).join('');
 }
 
+/** Return true when the given project is GitHub-backed (tracker_kind="github_issues"). */
+function isGitHubBacked(projectId) {
+  if (!projectId) return false;
+  const project = currentProjects.find(p => p.id === projectId);
+  return !!(project && project.tracker_kind === 'github_issues');
+}
+
+/**
+ * Show or hide the GitHub-specific create dialog fields based on the currently
+ * selected project.  Also populates the parent-epic select for GitHub projects.
+ */
+function updateGitHubFieldsVisibility() {
+  const ghFields = document.getElementById('create-github-fields');
+  if (!ghFields) return;
+
+  // Resolve the active project id using the same cascade as submitCreateDialog.
+  let projectId = '';
+  const projectSel = document.getElementById('create-project-select');
+  if (projectSel && projectSel.value) {
+    projectId = projectSel.value;
+  } else if (createParentId) {
+    const epic = allIssuesFlat.find(i => i.id === createParentId);
+    if (epic && epic.project_id) projectId = epic.project_id;
+  } else {
+    const sel = document.getElementById('project-filter');
+    if (sel && sel.value) projectId = sel.value;
+  }
+
+  const github = isGitHubBacked(projectId);
+  ghFields.style.display = github ? '' : 'none';
+
+  // Populate/show the parent-epic selector only for GitHub projects when not
+  // already creating a child via openCreateDialogForEpic.
+  const epicRow = document.getElementById('create-parent-epic-row');
+  const epicSel = document.getElementById('create-parent-epic-select');
+  if (epicRow && epicSel) {
+    if (github && !createParentId) {
+      // Collect epics for the selected project from the flat issue list.
+      const epics = allIssuesFlat.filter(
+        i => i.project_id === projectId && (i.issue_type === 'epic' || i.type === 'epic')
+      );
+      epicSel.innerHTML = '<option value="">— none —</option>' +
+        epics.map(e =>
+          '<option value="' + esc(e.id) + '">' +
+          esc(issueDisplayIdentifier(e)) + ' ' + esc(e.title) +
+          '</option>'
+        ).join('');
+      epicRow.style.display = epics.length > 0 ? '' : 'none';
+    } else {
+      epicRow.style.display = 'none';
+      epicSel.innerHTML = '<option value="">— none —</option>';
+    }
+  }
+}
+
 function openCreateDialog() {
   createParentId = null;
   document.getElementById('create-dialog-title').textContent = 'Create Issue';
@@ -3919,6 +4054,10 @@ function openCreateDialog() {
   document.getElementById('create-desc').value = '';
   document.getElementById('create-type').value = 'task';
   document.getElementById('create-priority').value = '2';
+  const tbEl = document.getElementById('create-target-branch');
+  if (tbEl) tbEl.value = '';
+  const flEl = document.getElementById('create-focus-labels');
+  if (flEl) flEl.value = '';
   dismissEnhancePreview();
   // Show all types when creating standalone
   const typeSelect = document.getElementById('create-type');
@@ -3927,6 +4066,7 @@ function openCreateDialog() {
   const filterSel = document.getElementById('project-filter');
   const defaultProjectId = filterSel ? filterSel.value : '';
   populateProjectSelect(defaultProjectId);
+  updateGitHubFieldsVisibility();
   refreshEnhanceButtonVisibility();
   setTimeout(() => document.getElementById('create-title').focus(), 50);
 }
@@ -3941,6 +4081,10 @@ function openCreateDialogForEpic(epicId) {
   document.getElementById('create-desc').value = '';
   document.getElementById('create-type').value = 'task';
   document.getElementById('create-priority').value = '2';
+  const tbEl = document.getElementById('create-target-branch');
+  if (tbEl) tbEl.value = '';
+  const flEl = document.getElementById('create-focus-labels');
+  if (flEl) flEl.value = '';
   dismissEnhancePreview();
   // Hide epic type when creating children
   const typeSelect = document.getElementById('create-type');
@@ -3948,6 +4092,7 @@ function openCreateDialogForEpic(epicId) {
   // Pre-select the epic's project
   const epicProjectId = epic && epic.project_id ? epic.project_id : '';
   populateProjectSelect(epicProjectId);
+  updateGitHubFieldsVisibility();
   refreshEnhanceButtonVisibility();
   setTimeout(() => document.getElementById('create-title').focus(), 50);
 }
@@ -3971,6 +4116,7 @@ let _enhancePending = null;  // {enhanced_title, enhanced_description}
 let _enhanceSourceCache = {};  // project_id -> {has_source, kind} (TTL: per page load)
 
 async function onCreateProjectChange() {
+  updateGitHubFieldsVisibility();
   await refreshEnhanceButtonVisibility();
 }
 
@@ -4036,6 +4182,12 @@ async function enhanceCreateDialog() {
     if (!body.project_id) {
       const sel = document.getElementById('project-filter');
       if (sel && sel.value) body.project_id = sel.value;
+    }
+    // Include target branch for GitHub-backed projects so the enhancer
+    // has full context when scoring against the quality criteria.
+    if (isGitHubBacked(body.project_id)) {
+      const tbEl = document.getElementById('create-target-branch');
+      if (tbEl && tbEl.value.trim()) body.target_branch = tbEl.value.trim();
     }
     const res = await fetch('/api/v1/issues?enhance=true', {
       method: 'POST',
@@ -4125,6 +4277,21 @@ async function submitCreateDialog() {
     if (!body.project_id) {
       const sel = document.getElementById('project-filter');
       if (sel && sel.value) body.project_id = sel.value;
+    }
+    // GitHub-backed project fields: target branch, focus labels, parent epic.
+    if (isGitHubBacked(body.project_id)) {
+      const tbEl = document.getElementById('create-target-branch');
+      if (tbEl && tbEl.value.trim()) body.target_branch = tbEl.value.trim();
+      const flEl = document.getElementById('create-focus-labels');
+      if (flEl && flEl.value.trim()) {
+        const labels = flEl.value.split(',').map(s => s.trim()).filter(Boolean);
+        if (labels.length) body.labels = labels;
+      }
+      // Parent epic from dropdown (only when not already set via openCreateDialogForEpic).
+      if (!body.parent_id) {
+        const epicSel = document.getElementById('create-parent-epic-select');
+        if (epicSel && epicSel.value) body.parent_id = epicSel.value;
+      }
     }
     const res = await fetch('/api/v1/issues', {
       method: 'POST',
@@ -5304,6 +5471,22 @@ async function submitAddReleasePicksDialog() {
     </select>
     <label for="create-desc">Description</label>
     <textarea id="create-desc" placeholder="Optional details..."></textarea>
+    <div id="create-github-fields" style="display:none;">
+      <div id="create-target-branch-row">
+        <label for="create-target-branch">Target Branch</label>
+        <input type="text" id="create-target-branch" placeholder="e.g. main, release/1.2">
+      </div>
+      <div id="create-focus-labels-row">
+        <label for="create-focus-labels">Focus Labels</label>
+        <input type="text" id="create-focus-labels" placeholder="e.g. needs:frontend, area:api">
+      </div>
+      <div id="create-parent-epic-row" style="display:none;">
+        <label for="create-parent-epic-select">Parent Epic</label>
+        <select id="create-parent-epic-select">
+          <option value="">— none —</option>
+        </select>
+      </div>
+    </div>
     <div id="create-enhance-preview" style="display:none;margin-top:0.75rem;border:1px solid var(--border, #444);border-radius:4px;padding:0.75rem;background:var(--bg-elevated, rgba(255,255,255,0.04));">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
         <strong style="font-size:0.95rem;">Suggested enhancement</strong>

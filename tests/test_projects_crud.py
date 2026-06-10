@@ -448,6 +448,14 @@ class TestProjectStoreUpdatableFields:
             "epic_strategy",
             "provider_whitelist",
             "backlog_conflict_paths",
+            # Per-project tracker configuration
+            "tracker_kind",
+            "tracker_owner",
+            "tracker_repo",
+            "github_project_node_id",
+            "legacy_backlog_enabled",
+            "legacy_backlog_dispatch",
+            "tracker_cutover_at",
         }
         assert ProjectStore.UPDATABLE_FIELDS == expected
 
@@ -889,3 +897,473 @@ class TestProjectAPITestCommand:
         assert res.status_code == 200
         body = res.json()
         assert body.get("test_command") == "make test"
+
+
+# ---------------------------------------------------------------------------
+# Tests for per-project tracker configuration fields (TASK-459.3)
+# ---------------------------------------------------------------------------
+
+
+class TestProjectTrackerFields:
+    """Unit tests for per-project tracker_kind, tracker_owner, tracker_repo,
+    github_project_node_id, legacy_backlog_enabled, legacy_backlog_dispatch,
+    and tracker_cutover_at fields on the Project model."""
+
+    def _make_project(self, **kwargs):
+        defaults = dict(id="p", name="n", repo_url="u", repo_path="/tmp/x")
+        defaults.update(kwargs)
+        return Project(**defaults)
+
+    # ---- defaults ----
+
+    def test_defaults_are_none_or_false(self):
+        p = self._make_project()
+        assert p.tracker_kind is None
+        assert p.tracker_owner is None
+        assert p.tracker_repo is None
+        assert p.github_project_node_id is None
+        assert p.legacy_backlog_enabled is False
+        assert p.legacy_backlog_dispatch is False
+        assert p.tracker_cutover_at is None
+
+    # ---- to_dict ----
+
+    def test_to_dict_omits_unset_tracker_fields(self):
+        p = self._make_project()
+        d = p.to_dict()
+        assert "tracker_kind" not in d
+        assert "tracker_owner" not in d
+        assert "tracker_repo" not in d
+        assert "github_project_node_id" not in d
+        assert "tracker_cutover_at" not in d
+
+    def test_to_dict_always_emits_legacy_flags(self):
+        p = self._make_project()
+        d = p.to_dict()
+        assert "legacy_backlog_enabled" in d
+        assert d["legacy_backlog_enabled"] is False
+        assert "legacy_backlog_dispatch" in d
+        assert d["legacy_backlog_dispatch"] is False
+
+    def test_to_dict_emits_tracker_kind_when_set(self):
+        p = self._make_project(tracker_kind="github_issues")
+        d = p.to_dict()
+        assert d["tracker_kind"] == "github_issues"
+
+    def test_to_dict_emits_tracker_owner_repo_when_set(self):
+        p = self._make_project(tracker_owner="acme", tracker_repo="oompah-tasks")
+        d = p.to_dict()
+        assert d["tracker_owner"] == "acme"
+        assert d["tracker_repo"] == "oompah-tasks"
+
+    def test_to_dict_emits_github_project_node_id_when_set(self):
+        p = self._make_project(github_project_node_id="PVT_abc123")
+        d = p.to_dict()
+        assert d["github_project_node_id"] == "PVT_abc123"
+
+    def test_to_dict_emits_cutover_as_isoformat(self):
+        from datetime import datetime, timezone
+
+        ts = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+        p = self._make_project(tracker_cutover_at=ts)
+        d = p.to_dict()
+        assert "tracker_cutover_at" in d
+        assert "2026-06-01" in d["tracker_cutover_at"]
+
+    def test_to_dict_with_legacy_flags_true(self):
+        p = self._make_project(legacy_backlog_enabled=True, legacy_backlog_dispatch=True)
+        d = p.to_dict()
+        assert d["legacy_backlog_enabled"] is True
+        assert d["legacy_backlog_dispatch"] is True
+
+    # ---- from_dict round-trip ----
+
+    def test_from_dict_defaults_when_absent(self):
+        d = {"id": "p", "name": "n", "repo_url": "u", "repo_path": "/x"}
+        p = Project.from_dict(d)
+        assert p.tracker_kind is None
+        assert p.tracker_owner is None
+        assert p.tracker_repo is None
+        assert p.github_project_node_id is None
+        assert p.legacy_backlog_enabled is False
+        assert p.legacy_backlog_dispatch is False
+        assert p.tracker_cutover_at is None
+
+    def test_from_dict_round_trip_tracker_kind(self):
+        p = self._make_project(
+            tracker_kind="github_issues",
+            tracker_owner="acme",
+            tracker_repo="tasks",
+        )
+        d = p.to_dict()
+        p2 = Project.from_dict(d)
+        assert p2.tracker_kind == "github_issues"
+        assert p2.tracker_owner == "acme"
+        assert p2.tracker_repo == "tasks"
+
+    def test_from_dict_round_trip_legacy_flags(self):
+        p = self._make_project(
+            legacy_backlog_enabled=True,
+            legacy_backlog_dispatch=False,
+        )
+        d = p.to_dict()
+        p2 = Project.from_dict(d)
+        assert p2.legacy_backlog_enabled is True
+        assert p2.legacy_backlog_dispatch is False
+
+    def test_from_dict_round_trip_cutover_timestamp(self):
+        from datetime import datetime, timezone
+
+        ts = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+        p = self._make_project(tracker_cutover_at=ts)
+        d = p.to_dict()
+        p2 = Project.from_dict(d)
+        assert p2.tracker_cutover_at is not None
+        assert p2.tracker_cutover_at.year == 2026
+        assert p2.tracker_cutover_at.month == 6
+        assert p2.tracker_cutover_at.day == 1
+
+    def test_from_dict_ignores_bad_cutover_timestamp(self):
+        d = {
+            "id": "p", "name": "n", "repo_url": "u", "repo_path": "/x",
+            "tracker_cutover_at": "not-a-date",
+        }
+        p = Project.from_dict(d)
+        assert p.tracker_cutover_at is None
+
+    def test_from_dict_empty_strings_become_none(self):
+        d = {
+            "id": "p", "name": "n", "repo_url": "u", "repo_path": "/x",
+            "tracker_kind": "",
+            "tracker_owner": "  ",
+            "tracker_repo": "",
+        }
+        p = Project.from_dict(d)
+        # Empty/whitespace values are treated as None
+        assert p.tracker_kind is None or p.tracker_kind == ""
+        assert p.tracker_owner is None or p.tracker_owner.strip() == ""
+        assert p.tracker_repo is None or p.tracker_repo == ""
+
+    def test_from_dict_github_project_node_id_round_trip(self):
+        p = self._make_project(github_project_node_id="PVT_xyz")
+        d = p.to_dict()
+        p2 = Project.from_dict(d)
+        assert p2.github_project_node_id == "PVT_xyz"
+
+
+class TestProjectStoreTrackerFieldUpdate:
+    """Tests for updating tracker fields via ProjectStore.update()."""
+
+    @pytest.fixture(autouse=True)
+    def store(self, tmp_path):
+        path = str(tmp_path / "projects.json")
+        self.store = ProjectStore(
+            path=path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(
+            id="proj-tr",
+            name="tracker-test",
+            repo_url="https://github.com/org/tr.git",
+            repo_path=str(tmp_path / "repos" / "tr"),
+            branch="main",
+        )
+        self.store._projects[p.id] = p
+        self.store._save()
+        return self.store
+
+    def test_update_tracker_kind(self):
+        updated = self.store.update("proj-tr", tracker_kind="github_issues")
+        assert updated.tracker_kind == "github_issues"
+
+    def test_update_tracker_kind_null_clears(self):
+        self.store.update("proj-tr", tracker_kind="github_issues")
+        updated = self.store.update("proj-tr", tracker_kind=None)
+        assert updated.tracker_kind is None
+
+    def test_update_tracker_kind_rejects_non_string(self):
+        with pytest.raises(ProjectError, match="must be a string"):
+            self.store.update("proj-tr", tracker_kind=42)
+
+    def test_update_tracker_owner(self):
+        updated = self.store.update("proj-tr", tracker_owner="myorg")
+        assert updated.tracker_owner == "myorg"
+
+    def test_update_tracker_repo(self):
+        updated = self.store.update("proj-tr", tracker_repo="oompah-tasks")
+        assert updated.tracker_repo == "oompah-tasks"
+
+    def test_update_tracker_owner_null_clears(self):
+        self.store.update("proj-tr", tracker_owner="myorg")
+        updated = self.store.update("proj-tr", tracker_owner=None)
+        assert updated.tracker_owner is None
+
+    def test_update_tracker_repo_rejects_non_string(self):
+        with pytest.raises(ProjectError, match="must be a string"):
+            self.store.update("proj-tr", tracker_repo=123)
+
+    def test_update_github_project_node_id(self):
+        updated = self.store.update("proj-tr", github_project_node_id="PVT_abc")
+        assert updated.github_project_node_id == "PVT_abc"
+
+    def test_update_legacy_backlog_enabled(self):
+        updated = self.store.update("proj-tr", legacy_backlog_enabled=True)
+        assert updated.legacy_backlog_enabled is True
+
+    def test_update_legacy_backlog_dispatch(self):
+        updated = self.store.update("proj-tr", legacy_backlog_dispatch=True)
+        assert updated.legacy_backlog_dispatch is True
+
+    def test_update_legacy_flags_null_becomes_false(self):
+        self.store.update("proj-tr", legacy_backlog_enabled=True)
+        updated = self.store.update("proj-tr", legacy_backlog_enabled=None)
+        assert updated.legacy_backlog_enabled is False
+
+    def test_update_tracker_cutover_at_string(self):
+        updated = self.store.update("proj-tr", tracker_cutover_at="2026-06-01T12:00:00")
+        assert updated.tracker_cutover_at is not None
+        assert updated.tracker_cutover_at.year == 2026
+
+    def test_update_tracker_cutover_at_datetime(self):
+        from datetime import datetime, timezone
+
+        ts = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        updated = self.store.update("proj-tr", tracker_cutover_at=ts)
+        assert updated.tracker_cutover_at == ts
+
+    def test_update_tracker_cutover_at_null_clears(self):
+        self.store.update("proj-tr", tracker_cutover_at="2026-06-01T00:00:00")
+        updated = self.store.update("proj-tr", tracker_cutover_at=None)
+        assert updated.tracker_cutover_at is None
+
+    def test_update_tracker_cutover_at_rejects_bad_string(self):
+        with pytest.raises(ProjectError, match="ISO 8601"):
+            self.store.update("proj-tr", tracker_cutover_at="not-a-date")
+
+    def test_update_tracker_cutover_at_rejects_non_string(self):
+        with pytest.raises(ProjectError, match="ISO 8601"):
+            self.store.update("proj-tr", tracker_cutover_at=12345)
+
+    def test_update_tracker_fields_persist(self, tmp_path):
+        self.store.update(
+            "proj-tr",
+            tracker_kind="github_issues",
+            tracker_owner="myorg",
+            tracker_repo="tasks",
+            legacy_backlog_enabled=True,
+            legacy_backlog_dispatch=False,
+        )
+        store2 = ProjectStore(
+            path=self.store.path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        loaded = store2.get("proj-tr")
+        assert loaded.tracker_kind == "github_issues"
+        assert loaded.tracker_owner == "myorg"
+        assert loaded.tracker_repo == "tasks"
+        assert loaded.legacy_backlog_enabled is True
+        assert loaded.legacy_backlog_dispatch is False
+
+    def test_update_cutover_timestamp_persists(self, tmp_path):
+        self.store.update("proj-tr", tracker_cutover_at="2026-06-01T10:00:00")
+        store2 = ProjectStore(
+            path=self.store.path,
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        loaded = store2.get("proj-tr")
+        assert loaded.tracker_cutover_at is not None
+        assert loaded.tracker_cutover_at.year == 2026
+
+    def test_update_tracker_owner_trims_whitespace(self):
+        updated = self.store.update("proj-tr", tracker_owner="  myorg  ")
+        assert updated.tracker_owner == "myorg"
+
+    def test_update_tracker_kind_empty_string_becomes_none(self):
+        updated = self.store.update("proj-tr", tracker_kind="  ")
+        assert updated.tracker_kind is None
+
+
+class TestProjectAPITrackerFields:
+    """Integration tests for tracker fields via the PATCH and GET endpoints."""
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path):
+        from unittest.mock import MagicMock
+        from fastapi.testclient import TestClient
+        from oompah.server import app
+
+        store = ProjectStore(
+            path=str(tmp_path / "projects.json"),
+            repos_root=str(tmp_path / "repos"),
+            worktree_root=str(tmp_path / "wt"),
+        )
+        p = Project(
+            id="proj-tracker",
+            name="tracker-api-test",
+            repo_url="https://github.com/org/tracker-test.git",
+            repo_path=str(tmp_path / "repos" / "tracker-test"),
+            branch="main",
+        )
+        store._projects[p.id] = p
+        store._save()
+
+        orch = MagicMock()
+        orch.project_store = store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        import oompah.server as srv
+
+        old_orch = srv._orchestrator
+        srv._orchestrator = orch
+        self.client = TestClient(app)
+        self.store = store
+        yield self.client
+        srv._orchestrator = old_orch
+
+    def test_patch_tracker_kind(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_kind": "github_issues"},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").tracker_kind == "github_issues"
+
+    def test_patch_tracker_kind_null_clears(self):
+        self.store.update("proj-tracker", tracker_kind="github_issues")
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_kind": None},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").tracker_kind is None
+
+    def test_patch_tracker_kind_invalid_type(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_kind": 42},
+        )
+        assert res.status_code == 400
+        assert "tracker_kind" in res.json()["error"]["message"]
+
+    def test_patch_tracker_owner_and_repo(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_owner": "myorg", "tracker_repo": "oompah-tasks"},
+        )
+        assert res.status_code == 200
+        p = self.store.get("proj-tracker")
+        assert p.tracker_owner == "myorg"
+        assert p.tracker_repo == "oompah-tasks"
+
+    def test_patch_github_project_node_id(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"github_project_node_id": "PVT_abc"},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").github_project_node_id == "PVT_abc"
+
+    def test_patch_legacy_backlog_enabled(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"legacy_backlog_enabled": True},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").legacy_backlog_enabled is True
+
+    def test_patch_legacy_backlog_dispatch(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"legacy_backlog_dispatch": True},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").legacy_backlog_dispatch is True
+
+    def test_patch_tracker_cutover_at(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_cutover_at": "2026-06-01T12:00:00"},
+        )
+        assert res.status_code == 200
+        p = self.store.get("proj-tracker")
+        assert p.tracker_cutover_at is not None
+        assert p.tracker_cutover_at.year == 2026
+
+    def test_patch_tracker_cutover_at_null_clears(self):
+        self.store.update("proj-tracker", tracker_cutover_at="2026-06-01T00:00:00")
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_cutover_at": None},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").tracker_cutover_at is None
+
+    def test_patch_tracker_cutover_at_invalid(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_cutover_at": 12345},
+        )
+        assert res.status_code == 400
+        assert "tracker_cutover_at" in res.json()["error"]["message"]
+
+    def test_patch_tracker_fields_visible_in_get(self):
+        self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={
+                "tracker_kind": "github_issues",
+                "tracker_owner": "acme",
+                "tracker_repo": "tasks",
+                "legacy_backlog_enabled": True,
+            },
+        )
+        res = self.client.get("/api/v1/projects/proj-tracker")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["tracker_kind"] == "github_issues"
+        assert data["tracker_owner"] == "acme"
+        assert data["tracker_repo"] == "tasks"
+        assert data["legacy_backlog_enabled"] is True
+
+    def test_get_includes_legacy_flags_with_defaults(self):
+        res = self.client.get("/api/v1/projects/proj-tracker")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["legacy_backlog_enabled"] is False
+        assert data["legacy_backlog_dispatch"] is False
+
+    def test_patch_tracker_owner_invalid_type(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_owner": ["not-a-string"]},
+        )
+        assert res.status_code == 400
+        assert "tracker_owner" in res.json()["error"]["message"]
+
+    def test_patch_all_tracker_fields_together(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={
+                "tracker_kind": "github_issues",
+                "tracker_owner": "acme",
+                "tracker_repo": "oompah-tasks",
+                "github_project_node_id": "PVT_xyz",
+                "legacy_backlog_enabled": True,
+                "legacy_backlog_dispatch": False,
+                "tracker_cutover_at": "2026-06-09T00:00:00",
+            },
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["tracker_kind"] == "github_issues"
+        assert data["tracker_owner"] == "acme"
+        assert data["tracker_repo"] == "oompah-tasks"
+        assert data["github_project_node_id"] == "PVT_xyz"
+        assert data["legacy_backlog_enabled"] is True
+        assert data["legacy_backlog_dispatch"] is False
+        assert data["tracker_cutover_at"] is not None

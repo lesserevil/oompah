@@ -272,3 +272,117 @@ class TestRemoveLabelEndpoint:
 
         assert resp.status_code == 200
         mock_tracker.remove_label.assert_called_once_with("my-issue", "ci-fix")
+
+
+# ---------------------------------------------------------------------------
+# GitHub-backed identifiers — issue_key override (TASK-459.2)
+# ---------------------------------------------------------------------------
+
+
+class TestAddLabelGitHubIdentifier:
+    """POST /api/v1/issues/{identifier}/labels with issue_key for GitHub IDs."""
+
+    def test_issue_key_body_overrides_path_identifier(self, client):
+        """issue_key in the body is used as the canonical identifier."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues/placeholder/labels",
+                json={
+                    "label": "draft",
+                    "project_id": "proj-1",
+                    "issue_key": "lesserevil/oompah-tasks#1234",
+                },
+            )
+
+        assert resp.status_code == 201
+        # Tracker receives the GitHub identifier, not the placeholder path param.
+        mock_tracker.add_label.assert_called_once_with(
+            "lesserevil/oompah-tasks#1234", "draft"
+        )
+
+    def test_url_percent_encoded_identifier_is_decoded(self, client):
+        """Path identifier with %23 is decoded to # before calling tracker."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            # %23 is # — the path param is decoded by urllib.parse.unquote.
+            resp = client.post(
+                "/api/v1/issues/tasks%231234/labels",
+                json={"label": "draft", "project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 201
+        mock_tracker.add_label.assert_called_once_with("tasks#1234", "draft")
+
+    def test_add_label_without_project_id_falls_back_to_search(self, client):
+        """When no project_id is given, the endpoint searches all projects."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_issue = MagicMock()
+        mock_issue.identifier = "gh-issue-99"
+        # _find_tracker_for_issue returns (tracker, project_id, issue)
+        mock_orch.project_store.list_all.return_value = []  # triggers legacy path
+        mock_orch.tracker = mock_tracker
+        mock_tracker.fetch_issue_detail = MagicMock(return_value=mock_issue)
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues/gh-issue-99/labels",
+                json={"label": "in-review"},
+                # No project_id — should search all projects
+            )
+
+        assert resp.status_code == 201
+        mock_tracker.add_label.assert_called_once_with("gh-issue-99", "in-review")
+
+
+class TestRemoveLabelGitHubIdentifier:
+    """DELETE /api/v1/issues/{identifier}/labels/{label} with issue_key."""
+
+    def test_issue_key_query_overrides_path_identifier(self, client):
+        """issue_key query param overrides path identifier for DELETE."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.delete(
+                "/api/v1/issues/placeholder/labels/draft",
+                params={
+                    "project_id": "proj-1",
+                    "issue_key": "lesserevil/oompah-tasks#1234",
+                },
+            )
+
+        assert resp.status_code == 200
+        mock_tracker.remove_label.assert_called_once_with(
+            "lesserevil/oompah-tasks#1234", "draft"
+        )
+
+    def test_percent_encoded_label_is_decoded(self, client):
+        """Label name in the path with percent-encoding is decoded."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            # %3A is ':'
+            resp = client.delete(
+                "/api/v1/issues/my-issue/labels/area%3Aapi",
+                params={"project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        mock_tracker.remove_label.assert_called_once_with("my-issue", "area:api")

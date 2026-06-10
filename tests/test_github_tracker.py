@@ -347,15 +347,15 @@ class TestGitHubIdentifierToIssueFields:
         result = github_identifier_to_issue_fields(gh)
         assert result["tracker_kind"] == "github_issues"
 
-    def test_contains_owner(self):
+    def test_contains_tracker_owner(self):
         gh = GitHubIdentifier(owner="myorg", repo="tasks", number=5)
         result = github_identifier_to_issue_fields(gh)
-        assert result["owner"] == "myorg"
+        assert result["tracker_owner"] == "myorg"
 
-    def test_contains_repo(self):
+    def test_contains_tracker_repo(self):
         gh = GitHubIdentifier(owner="o", repo="myrepo", number=5)
         result = github_identifier_to_issue_fields(gh)
-        assert result["repo"] == "myrepo"
+        assert result["tracker_repo"] == "myrepo"
 
     def test_issue_number_is_string(self):
         """issue_number is a string to match the Issue model field type."""
@@ -381,8 +381,8 @@ class TestGitHubIdentifierToIssueFields:
             **fields,
         )
         assert issue.tracker_kind == "github_issues"
-        assert issue.owner == "lesserevil"
-        assert issue.repo == "oompah-tasks"
+        assert issue.tracker_owner == "lesserevil"
+        assert issue.tracker_repo == "oompah-tasks"
         assert issue.issue_number == "7"
         assert issue.display_identifier == "oompah-tasks#7"
 
@@ -1335,8 +1335,8 @@ class TestGhIssueToIssue:
         issue = self._convert(number=42, title="Fix the bug")
         assert issue.identifier == "lesserevil/oompah-tasks#42"
         assert issue.title == "Fix the bug"
-        assert issue.owner == "lesserevil"
-        assert issue.repo == "oompah-tasks"
+        assert issue.tracker_owner == "lesserevil"
+        assert issue.tracker_repo == "oompah-tasks"
         assert issue.issue_number == "42"
         assert issue.display_identifier == "oompah-tasks#42"
         assert issue.tracker_kind == "github_issues"
