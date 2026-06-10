@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import time
 
 import pytest
 
@@ -10,6 +11,24 @@ from oompah import server as server_module
 
 class _Request:
     query_params: dict[str, str] = {}
+
+
+def test_issues_snapshot_stale_threshold_defaults_to_sixty_seconds(monkeypatch):
+    monkeypatch.delenv("OOMPAH_ISSUES_SNAPSHOT_STALE_MS", raising=False)
+
+    assert server_module._env_positive_int_ms(
+        "OOMPAH_ISSUES_SNAPSHOT_STALE_MS",
+        60_000,
+    ) == 60_000
+
+
+def test_issues_snapshot_stale_threshold_reads_env(monkeypatch):
+    monkeypatch.setenv("OOMPAH_ISSUES_SNAPSHOT_STALE_MS", "120000")
+
+    assert server_module._env_positive_int_ms(
+        "OOMPAH_ISSUES_SNAPSHOT_STALE_MS",
+        60_000,
+    ) == 120_000
 
 
 def _clear_issue_snapshot_sync() -> None:
@@ -101,5 +120,29 @@ def test_issue_snapshot_payload_filters_project_without_refetch():
 
         assert [i["identifier"] for i in payload["Open"]] == ["TASK-1"]
         assert payload["_meta"]["issue_count"] == 2
+    finally:
+        _clear_issue_snapshot_sync()
+
+
+def test_issue_snapshot_payload_uses_stale_threshold(monkeypatch):
+    _clear_issue_snapshot_sync()
+    monkeypatch.setattr(server_module, "_ISSUES_SNAPSHOT_STALE_MS", 60_000)
+    try:
+        server_module._set_issues_snapshot(
+            {"Open": [{"identifier": "TASK-1", "project_id": "p1"}]},
+            duration_ms=12.5,
+        )
+        with server_module._issues_snapshot_lock:
+            server_module._issues_snapshot["created_at_monotonic"] = (
+                time.monotonic() - 30
+            )
+
+        payload = server_module._issues_snapshot_payload(
+            allow_empty=False,
+            include_meta=True,
+        )
+
+        assert payload is not None
+        assert payload["_meta"]["stale"] is False
     finally:
         _clear_issue_snapshot_sync()

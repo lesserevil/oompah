@@ -581,7 +581,27 @@ from concurrent.futures import ThreadPoolExecutor
 _api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
-_ISSUES_SNAPSHOT_STALE_MS = 5000
+
+
+def _env_positive_int_ms(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        logger.warning("%s=%r is invalid; using %dms", name, raw, default)
+        return default
+    if value <= 0:
+        logger.warning("%s=%r must be > 0; using %dms", name, raw, default)
+        return default
+    return value
+
+
+_ISSUES_SNAPSHOT_STALE_MS = _env_positive_int_ms(
+    "OOMPAH_ISSUES_SNAPSHOT_STALE_MS",
+    60_000,
+)
 _issues_snapshot_lock = threading.Lock()
 _issues_snapshot: dict[str, Any] = {
     "data": None,
