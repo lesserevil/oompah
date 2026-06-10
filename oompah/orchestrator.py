@@ -7481,6 +7481,14 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
+                            # GitHub-backed tasks: post a comment so the
+                            # issue record reflects that the PR entered
+                            # the merge queue. Backlog tasks rely on the
+                            # webhook sweep and need no extra comment.
+                            if self.config.tracker_kind == "github_issues":
+                                self._yolo_comment_enqueued(
+                                    tracker, project, review, str(review_id)
+                                )
                             actions_fired += 1
                             # Merge-queue mode: GitHub's queue handles
                             # serialization, so a successful enqueue does
@@ -7549,6 +7557,12 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
+                            # GitHub-backed tasks: mark Merged + comment.
+                            # Backlog tasks are updated by the webhook sweep.
+                            if self.config.tracker_kind == "github_issues":
+                                self._yolo_mark_task_merged(
+                                    tracker, project, review, str(review_id)
+                                )
                             actions_fired += 1
                             # Direct merge (fallback path): each merge
                             # changes the target branch, so subsequent
@@ -7606,6 +7620,12 @@ class Orchestrator:
                                 tracker,
                                 review.source_branch,
                             )
+                            # GitHub-backed tasks: mark Merged + comment.
+                            # Backlog tasks are updated by the webhook sweep.
+                            if self.config.tracker_kind == "github_issues":
+                                self._yolo_mark_task_merged(
+                                    tracker, project, review, str(review_id)
+                                )
                             actions_fired += 1
                             # Direct-merge mode: each merge changes the
                             # target branch, so subsequent PRs would
@@ -8723,6 +8743,76 @@ class Orchestrator:
             logger.debug(
                 "_clear_merge_conflict_label_for_branch failed for %s: %s",
                 source_branch,
+                exc,
+            )
+
+    def _yolo_comment_enqueued(
+        self, tracker, project, review, review_id: str
+    ) -> None:
+        """Post a comment on a GitHub-backed task when YOLO enqueues its PR.
+
+        Only called for non-Backlog trackers (``isinstance`` guard at call
+        site).  Best-effort: any failure is logged at DEBUG level so it
+        never blocks the main YOLO loop.
+        """
+        try:
+            source_branch = getattr(review, "source_branch", "") or ""
+            if not source_branch:
+                return
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
+            if not issue:
+                return
+            tracker.add_comment(
+                issue.identifier,
+                f"YOLO: PR #{review_id} enqueued for merge.",
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "YOLO: enqueue comment failed for %s MR #%s: %s",
+                project.name,
+                review_id,
+                exc,
+            )
+
+    def _yolo_mark_task_merged(
+        self, tracker, project, review, review_id: str
+    ) -> None:
+        """Mark a GitHub-backed task Merged and comment when YOLO directly merges it.
+
+        Only called for non-Backlog trackers (``isinstance`` guard at call
+        site).  For Backlog tasks the webhook sweep handles the status
+        transition — this explicit update is only needed for GitHub-backed
+        tasks where the branch name does not equal the task identifier and
+        the legacy webhook lookup path would silently miss the task.
+
+        Best-effort: any failure is logged at DEBUG level so it never
+        blocks the main YOLO loop.
+        """
+        try:
+            source_branch = getattr(review, "source_branch", "") or ""
+            if not source_branch:
+                return
+            issue = self._resolve_task_for_branch(
+                tracker, source_branch, project_id=project.id
+            )
+            if not issue:
+                return
+            if canonicalize_status(issue.state) != MERGED:
+                tracker.update_issue(issue.identifier, status=MERGED)
+                self.state.completed.discard(issue.id)
+            tracker.add_comment(
+                issue.identifier,
+                f"YOLO: merged PR #{review_id}.",
+                author="oompah",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "YOLO: merged update failed for %s MR #%s: %s",
+                project.name,
+                review_id,
                 exc,
             )
 

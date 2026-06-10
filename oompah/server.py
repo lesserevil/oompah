@@ -6794,7 +6794,13 @@ def _label_task_merged_from_merge_group(orch, event, project) -> None:
 
     try:
         tracker = orch._tracker_for_project(project.id)
-        issue = tracker.fetch_issue_detail(branch_name)
+        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
+        # branch names are generated slugs) are found via the per-project
+        # branch index, and legacy Backlog tasks (branch==identifier) are
+        # found via the direct fetch_issue_detail fallback.
+        issue = orch._resolve_task_for_branch(
+            tracker, branch_name, project_id=project.id
+        )
         if issue is None:
             logger.debug(
                 "merge_group: no task found for branch %r (head_ref=%r)",
@@ -6834,7 +6840,13 @@ def _mark_task_in_review_from_webhook(orch, event, project) -> None:
         return
     try:
         tracker = orch._tracker_for_project(project.id)
-        issue = tracker.fetch_issue_detail(source_branch)
+        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
+        # branch names are generated slugs) are found via the per-project
+        # branch index, and legacy Backlog tasks (branch==identifier) are
+        # found via the direct fetch_issue_detail fallback.
+        issue = orch._resolve_task_for_branch(
+            tracker, source_branch, project_id=project.id
+        )
         if issue is None:
             logger.debug(
                 "webhook In Review: no task found for branch %r (project=%s)",
@@ -6919,7 +6931,13 @@ def _label_task_merged_from_pr(orch, event, project) -> None:
         return
     try:
         tracker = orch._tracker_for_project(project.id)
-        issue = tracker.fetch_issue_detail(source_branch)
+        # Use _resolve_task_for_branch so GitHub-backed tasks (whose
+        # branch names are generated slugs) are found via the per-project
+        # branch index, and legacy Backlog tasks (branch==identifier) are
+        # found via the direct fetch_issue_detail fallback.
+        issue = orch._resolve_task_for_branch(
+            tracker, source_branch, project_id=project.id
+        )
         if issue is None:
             logger.debug(
                 "webhook Merged: no task found for branch %r (project=%s)",
