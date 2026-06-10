@@ -333,8 +333,8 @@ class TestFetchAllReviewsSkipsHealthy:
 
 
 class TestFetchAllMergedBranchesSkipsHealthy:
-    def test_skips_healthy_project(self):
-        """Healthy project should not trigger forge API calls."""
+    def test_skips_healthy_project_with_warm_cache(self):
+        """Healthy project reuses warm merged-branch cache without forge calls."""
         recent = datetime.now(timezone.utc) - timedelta(seconds=45)
         proj = _make_project(
             project_id="healthy",
@@ -342,14 +342,79 @@ class TestFetchAllMergedBranchesSkipsHealthy:
             repo_url="https://github.com/org/repo",
         )
         orch = _make_orchestrator_with_store([proj])
+        orch._set_stale_cache("healthy", "merged_branches", {"feature-a"})
         with patch(
             "oompah.orchestrator.detect_provider"
         ) as mock_detect:
             result = orch._fetch_all_merged_branches()
             mock_detect.assert_not_called()
-            # Healthy project skipped
-            assert "feature-a" not in result
-            assert result == set()
+            assert result == {"feature-a"}
+
+    def test_polls_healthy_project_when_cache_cold(self):
+        """Healthy project is polled once when merged-branch cache is cold."""
+        recent = datetime.now(timezone.utc) - timedelta(seconds=45)
+        proj = _make_project(
+            project_id="healthy",
+            last_webhook_received_at=recent,
+            repo_url="https://github.com/org/repo",
+        )
+        mock_provider = MagicMock()
+        mock_provider.list_merged_branches.return_value = {"epic-TASK-472"}
+        orch = _make_orchestrator_with_store([proj])
+
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=mock_provider
+        ):
+            result = orch._fetch_all_merged_branches()
+
+        mock_provider.list_merged_branches.assert_called_once()
+        assert result == {"epic-TASK-472"}
+        assert orch._get_stale_cache("healthy", "merged_branches") == {
+            "epic-TASK-472"
+        }
+
+    @pytest.mark.asyncio
+    async def test_bounded_polls_healthy_project_when_cache_cold(self):
+        """The live bounded fetcher polls healthy projects on cold cache."""
+        recent = datetime.now(timezone.utc) - timedelta(seconds=45)
+        proj = _make_project(
+            project_id="healthy",
+            last_webhook_received_at=recent,
+            repo_url="https://github.com/org/repo",
+        )
+        mock_provider = MagicMock()
+        mock_provider.list_merged_branches.return_value = {"epic-TASK-473"}
+        orch = _make_orchestrator_with_store([proj])
+
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=mock_provider
+        ):
+            result = await orch._fetch_all_merged_branches_bounded()
+
+        mock_provider.list_merged_branches.assert_called_once()
+        assert result == {"epic-TASK-473"}
+
+    def test_invalidate_merged_branches_clears_warm_cache(self):
+        """Merged webhooks force the next fetch to poll instead of using stale cache."""
+        proj = _make_project(
+            project_id="healthy",
+            last_webhook_received_at=datetime.now(timezone.utc)
+            - timedelta(seconds=45),
+            repo_url="https://github.com/org/repo",
+        )
+        mock_provider = MagicMock()
+        mock_provider.list_merged_branches.return_value = {"new-merged-branch"}
+        orch = _make_orchestrator_with_store([proj])
+        orch._set_stale_cache("healthy", "merged_branches", {"old-branch"})
+
+        orch.invalidate_merged_branches()
+        with patch(
+            "oompah.orchestrator.detect_provider", return_value=mock_provider
+        ):
+            result = orch._fetch_all_merged_branches()
+
+        mock_provider.list_merged_branches.assert_called_once()
+        assert result == {"new-merged-branch"}
 
     def test_polls_unhealthy_project(self):
         """Unhealthy project is polled for merged branches."""

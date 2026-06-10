@@ -1555,6 +1555,9 @@ class Orchestrator:
     def invalidate_merged_branches(self) -> None:
         """Mark the merged-branches cache as stale (called by webhook handler)."""
         self._merged_branches_dirty = True
+        with self._stale_cache_lock:
+            for project_cache in self._stale_caches.values():
+                project_cache.pop("merged_branches", None)
 
     def request_refresh(self) -> None:
         """Request an immediate poll+reconciliation cycle."""
@@ -5725,33 +5728,52 @@ class Orchestrator:
         results = await asyncio.gather(*[_fetch_one_project(p) for p in projects])
         return {pid: reviews for pid, reviews in results}
 
+    @staticmethod
+    def _coerce_branch_set(branches: Any) -> set[str]:
+        """Normalize provider/cache branch lists into a string set."""
+        if not branches:
+            return set()
+        if isinstance(branches, str):
+            return {branches}
+        try:
+            return {str(branch) for branch in branches if branch}
+        except TypeError:
+            return set()
+
     def _fetch_all_merged_branches(self) -> set[str]:
         """Fetch merged PR/MR branch names across projects with stale webhooks.
 
         Projects with recent webhook deliveries (within 2.5 minutes) are
-        skipped — webhooks serve as the primary signal.
+        skipped only when a per-project merged-branch cache is warm. Cold
+        caches still poll once so a restart cannot lose the merged-branch
+        signal for Done epics awaiting rollup reconciliation.
         """
         projects = self.project_store.list_all()
         if not projects:
             return set()
 
         def _fetch_for_project(project) -> set[str]:
-            # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project.id):
-                return set()
+            project_id = str(project.id)
+            cached = self._get_stale_cache(project_id, "merged_branches")
+            # Skip polling for webhook-healthy projects only after the cache
+            # has been populated at least once in this process.
+            if self.is_webhook_healthy(project_id) and cached is not None:
+                return self._coerce_branch_set(cached)
             provider = detect_provider(
                 project.repo_url, access_token=project.access_token
             )
             if not provider:
-                return set()
+                return self._coerce_branch_set(cached)
             slug = extract_repo_slug(project.repo_url)
             try:
-                return provider.list_merged_branches(slug)
+                branches = self._coerce_branch_set(provider.list_merged_branches(slug))
+                self._set_stale_cache(project_id, "merged_branches", branches)
+                return branches
             except Exception as exc:
                 logger.debug(
                     "Failed to fetch merged branches for %s: %s", project.name, exc
                 )
-                return set()
+                return self._coerce_branch_set(cached)
 
         result: set[str] = set()
         with ThreadPoolExecutor(max_workers=min(len(projects), 4)) as pool:
@@ -5772,29 +5794,31 @@ class Orchestrator:
 
         async def _fetch_one_project(project) -> set[str]:
             project_id = str(project.id)
-            # Skip polling for webhook-healthy projects
-            if self.is_webhook_healthy(project_id):
-                return set()
+            cached = self._get_stale_cache(project_id, "merged_branches")
+            # Skip polling for webhook-healthy projects only after the cache
+            # has been populated at least once in this process.
+            if self.is_webhook_healthy(project_id) and cached is not None:
+                return self._coerce_branch_set(cached)
 
             async def _coro() -> set[str]:
                 provider = detect_provider(
                     project.repo_url, access_token=project.access_token
                 )
                 if not provider:
-                    return set()
+                    return self._coerce_branch_set(cached)
                 slug = extract_repo_slug(project.repo_url)
                 try:
-                    return provider.list_merged_branches(slug)
+                    return self._coerce_branch_set(provider.list_merged_branches(slug))
                 except Exception as exc:
                     logger.debug(
                         "Failed to fetch merged branches for %s: %s", project.name, exc
                     )
-                    return set()
+                    return self._coerce_branch_set(cached)
 
             data, _ = await self._run_bounded_refresh(
                 project_id, "merged_branches", _coro
             )
-            return data
+            return self._coerce_branch_set(data)
 
         # Run all project fetches concurrently with bounded concurrency
         results = await asyncio.gather(*[_fetch_one_project(p) for p in projects])
@@ -6673,8 +6697,8 @@ class Orchestrator:
         using the forge state cached by :meth:`_handle_review_check`.
         """
         sweeps = [
-            ("label_merged_issues", self._label_merged_issues),
             ("label_merged_epics", self._label_merged_epics),
+            ("label_merged_issues", self._label_merged_issues),
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
             ("reconcile_stale_in_review_tasks", self._reconcile_stale_in_review_tasks),

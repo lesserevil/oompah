@@ -720,8 +720,8 @@ class TestMaybeRunMergedLabels:
 
         orch._do_merged_labels()
 
-        orch._label_merged_issues.assert_called_once()
-        orch._label_merged_epics.assert_not_called()
+        orch._label_merged_epics.assert_called_once()
+        orch._label_merged_issues.assert_not_called()
         orch._reconcile_in_review_pr_outcomes.assert_not_called()
         orch._reconcile_terminal_open_reviews.assert_not_called()
         orch._reconcile_stale_in_review_tasks.assert_not_called()
