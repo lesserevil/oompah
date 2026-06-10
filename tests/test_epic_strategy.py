@@ -1259,6 +1259,54 @@ class TestOpenEpicMainPrs:
         orch._reviews_cache = {}
         return orch, proj
 
+    def test_has_epic_landing_ref_uses_shared_worktree(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        worktree = tmp_path / "epic-worktree"
+        worktree.mkdir()
+        orch.project_store.epic_branch_name.return_value = "epic-TASK-738"
+        orch.project_store.epic_worktree_path_for.return_value = str(worktree)
+
+        assert orch._has_epic_landing_ref(proj, "TASK-738") is True
+
+    def test_has_epic_landing_ref_uses_local_branch(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="stacked")
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        proj.repo_path = str(repo)
+        orch.project_store.epic_branch_name.return_value = "epic-TASK-738"
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=oompah",
+                "-c",
+                "user.email=lesserevil@users.noreply.github.com",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "branch", "epic-TASK-738"], cwd=repo, check=True)
+
+        assert orch._has_epic_landing_ref(proj, "TASK-738") is True
+
+    def test_has_epic_landing_ref_returns_false_without_branch_or_worktree(
+        self,
+        tmp_path,
+    ):
+        orch, proj = self._setup(tmp_path, strategy="stacked")
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        proj.repo_path = str(repo)
+        orch.project_store.epic_branch_name.return_value = "epic-TASK-738"
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+
+        assert orch._has_epic_landing_ref(proj, "TASK-738") is False
+
     def test_flat_mode_is_noop(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="flat")
         epic = _make_issue(
@@ -1526,6 +1574,7 @@ class TestOpenEpicMainPrs:
         provider.create_review.return_value = MagicMock(id="215")
         with (
             patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
             patch("oompah.orchestrator.detect_provider", return_value=provider),
             patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
             patch.object(orch, "_push_epic_branch") as push,
@@ -1535,6 +1584,32 @@ class TestOpenEpicMainPrs:
         push.assert_called_once_with(proj, "TASK-738")
         args = provider.create_review.call_args.args
         assert args[2] == "epic-TASK-738"
+
+    def test_inferred_parent_without_epic_landing_ref_opens_no_pr(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = "Done"
+        parent = _make_issue(
+            identifier="TASK-329",
+            issue_type="task",
+            project_id="proj-1",
+            state="Backlog",
+            title="Old decomposed feature",
+        )
+        child = _make_issue(identifier="TASK-351", parent_id="TASK-329", state="Open")
+        provider = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=False),
+            patch("oompah.orchestrator.detect_provider", return_value=provider) as detect,
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+        ):
+            opened = orch._open_epic_main_prs([parent])
+        assert opened == 0
+        detect.assert_not_called()
+        push.assert_not_called()
+        provider.create_review.assert_not_called()
 
     def test_shared_all_children_already_merged_opens_no_pr(self, tmp_path):
         """If every child is already Merged (whole epic landed), the rollup is

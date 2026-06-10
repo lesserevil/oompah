@@ -3369,6 +3369,47 @@ class Orchestrator:
         """Return True when tracker state shows this issue has children."""
         return bool(self._fetch_epic_children(issue))
 
+    def _has_epic_landing_ref(self, project: Any, epic_identifier: str) -> bool:
+        """Return True when local state has an epic branch/worktree to land."""
+        epic_branch = self.project_store.epic_branch_name(epic_identifier)
+
+        project_id = getattr(project, "id", None)
+        if (
+            project_id
+            and self._project_epic_strategy(project_id) == "shared"
+            and hasattr(self.project_store, "epic_worktree_path_for")
+        ):
+            try:
+                wt_path = self.project_store.epic_worktree_path_for(
+                    project_id,
+                    epic_identifier,
+                )
+            except Exception:
+                wt_path = None
+            if wt_path and os.path.isdir(wt_path):
+                return True
+
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path or not os.path.isdir(repo_path):
+            return False
+
+        for ref in (
+            f"refs/heads/{epic_branch}",
+            f"refs/remotes/origin/{epic_branch}",
+        ):
+            try:
+                result = subprocess.run(
+                    ["git", "show-ref", "--verify", "--quiet", ref],
+                    cwd=repo_path,
+                    timeout=10,
+                    check=False,
+                )
+            except Exception:
+                continue
+            if result.returncode == 0:
+                return True
+        return False
+
     def _project_epic_strategy(self, project_id: str | None) -> str:
         """Return the project's epic_strategy ('flat'/'stacked'/'shared').
 
@@ -4198,6 +4239,18 @@ class Orchestrator:
 
             project = self.project_store.get(project_id)
             if not project or not project.repo_url:
+                continue
+            is_declared_epic = (issue.issue_type or "").strip().lower() == "epic"
+            if not is_declared_epic and not self._has_epic_landing_ref(
+                project,
+                issue.identifier,
+            ):
+                logger.debug(
+                    "Skipping inferred epic rollup %s on %s: no epic branch "
+                    "or worktree exists",
+                    issue.identifier,
+                    project.name,
+                )
                 continue
             provider = detect_provider(
                 project.repo_url,
