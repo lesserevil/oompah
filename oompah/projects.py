@@ -608,6 +608,17 @@ def _git_worktree_add_with_recovery(
 
 
 
+def _is_github_backed(project: "Project") -> bool:
+    """Return True when *project* uses the GitHub Issues tracker backend.
+
+    Recognised values are ``"github_issues"`` and ``"github-issues"`` to
+    tolerate minor spelling variations.  All other tracker kinds (including
+    ``None``, which means legacy Backlog.md) return False.
+    """
+    kind = (project.tracker_kind or "").strip().lower()
+    return kind in ("github_issues", "github-issues")
+
+
 class ProjectStore:
     """File-backed store for project configurations."""
 
@@ -1087,24 +1098,38 @@ class ProjectStore:
         project_id: str,
         timeout_s: float = DEFAULT_SOURCE_SYNC_TIMEOUT_S,
     ) -> dict[str, str]:
-        """Pull latest code and ensure Backlog.md config compatibility.
+        """Pull latest code and (for legacy Backlog projects) check compatibility.
 
         Best-effort: any failure is logged and recorded in the returned
         status dict but does NOT raise. The orchestrator should boot
         even if a project's network is flaky — it just operates on
         whatever local state exists.
 
-        After a successful git pull, inspects backlog task files for
-        git conflict markers.  For conflicts limited to backlog task files,
-        a deterministic structured repair is attempted (see
+        **Tracker-aware behaviour:**
+
+        * For *all* projects: git self-heal (``ensure_repo_sound``) runs so
+          the checkout stays on the correct branch and tracks origin.
+        * For **legacy Backlog projects** (``tracker_kind`` is ``None`` or
+          ``"backlog"``): Backlog.md config compatibility checks and Backlog
+          task-file conflict repair/quarantine also run.
+        * For **GitHub-backed projects** (``tracker_kind="github_issues"``):
+          Backlog compatibility and conflict repair are skipped — GitHub is the
+          source of truth.  A ``"tracker": "github_issues"`` key is added to
+          the returned status dict.
+
+        After a successful git pull on a legacy project, inspects backlog task
+        files for git conflict markers.  For conflicts limited to backlog task
+        files, a deterministic structured repair is attempted (see
         :mod:`oompah.backlog_conflict`).  If repair is not safe, the
         project is quarantined (``paused=True``) and the conflicted file
         paths are stored on the project so the dashboard can surface an
         alert.
 
-        Returns ``{"git": "ok"|"failed: <reason>"|"skipped: <reason>",
-                  "backlog": "ok"|"migrated"|"failed: <reason>",
-                  "conflicts": "none"|"repaired:<n>"|"quarantined:<paths>"}``.
+        Returns ``{"git": "ok"|"reset:ok"|"failed: <reason>"|"skipped: <reason>",
+                  "backlog": "ok"|"migrated"|"failed: <reason>"|"skipped: <reason>",
+                  "conflicts": "none"|"repaired:<n>"|"quarantined:<paths>"|"skipped: <reason>",
+                  "tracker": "github_issues"  # only present for GitHub-backed projects
+                  }``.
         """
         from oompah.backlog_conflict import (
             ensure_repo_sound,
@@ -1118,7 +1143,12 @@ class ProjectStore:
                 "backlog": "skipped: unknown project",
                 "conflicts": "skipped: unknown project",
             }
+
+        github_backed = _is_github_backed(project)
         status: dict[str, str] = {}
+        if github_backed:
+            status["tracker"] = "github_issues"
+
         # Paths ensure_repo_sound() could not heal — fed into the quarantine
         # decision below so an un-healable checkout is loud, never silent.
         unmerged_failed: list[str] = []
@@ -1129,7 +1159,7 @@ class ProjectStore:
         # fast-forward to origin — hard-resetting to origin as a last resort
         # when no unpushed code work would be lost. This runs every sync (not
         # just at boot) so a checkout can't silently drift/wedge between
-        # restarts.
+        # restarts.  This step is tracker-agnostic — it always runs.
         if not project.repo_path or not os.path.isdir(
             os.path.join(project.repo_path, ".git")
         ):
@@ -1157,6 +1187,15 @@ class ProjectStore:
                     project.name,
                     exc,
                 )
+
+        # Backlog.md compatibility checks and conflict repair are only relevant
+        # for legacy Backlog projects.  GitHub-backed projects skip both steps
+        # because GitHub Issues is the authoritative task store and there are no
+        # Backlog task files to validate or repair.
+        if github_backed:
+            status["backlog"] = "skipped: github_issues"
+            status["conflicts"] = "skipped: github_issues"
+            return status
 
         try:
             compat = ensure_backlog_compatible(project.repo_path)
