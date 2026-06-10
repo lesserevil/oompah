@@ -115,6 +115,19 @@ class TestMakefileStructure:
         """stop: must call wait_for_stop to block until process and port are free."""
         assert "$(call wait_for_stop" in _makefile_text()
 
+    def test_stop_signals_oompah_process_group(self):
+        """stop: must terminate children in the setsid-created process group."""
+        text = _makefile_text()
+        start_recipe_pos = text.find("start: setup")
+        stop_recipe_pos = text.find("\nstop:")
+        restart_recipe_pos = text.find("\nrestart:", stop_recipe_pos)
+        start_recipe = text[start_recipe_pos:stop_recipe_pos]
+        stop_recipe = text[stop_recipe_pos:restart_recipe_pos]
+
+        assert "setsid $(PYTHON) -m oompah" in start_recipe
+        assert "kill -TERM -$$PID" in stop_recipe
+        assert "|| kill $$PID" in stop_recipe
+
     def test_wait_for_stop_polls_process_liveness(self):
         """wait_for_stop must poll kill -0 rather than just sleeping."""
         text = _makefile_text()

@@ -130,7 +130,7 @@ start: setup
 stop:
 	@if [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null; then \
 		PID=$$(cat $(PID_FILE)); \
-		kill $$PID; \
+		kill -TERM -$$PID 2>/dev/null || kill $$PID; \
 		$(call wait_for_stop,$$PID,$(PORT),$(STOP_TIMEOUT)); \
 		rm -f $(PID_FILE); \
 		echo "oompah stopped"; \
