@@ -1866,7 +1866,7 @@ class TestPushEpicBranch:
                 )
                 stdout = (
                     " M backlog/tasks/task-1.md\n"
-                    if status_calls == 1
+                    if status_calls <= 2
                     else ""
                 )
                 return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
@@ -1879,19 +1879,63 @@ class TestPushEpicBranch:
 
         commands = [cmd for cmd, _kwargs in calls]
         assert commands == [
+            ["git", "fetch", "origin", "epic-epic-1"],
+            ["git", "status", "--porcelain"],
             ["git", "status", "--porcelain"],
             ["git", "add", "--", "backlog/tasks"],
             ["git", "diff", "--cached", "--quiet"],
-            ["git", "commit", "-m", commands[3][3]],
+            ["git", "commit", "-m", commands[5][3]],
             ["git", "status", "--porcelain"],
             ["git", "push", "origin", "HEAD:epic-epic-1"],
         ]
         assert calls[-1][1]["cwd"] == str(wt_path)
-        commit_message = commands[3][3]
+        commit_message = commands[5][3]
         assert commit_message.startswith("epic-1: Commit shared epic task metadata")
         assert "Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in (
             commit_message
         )
+
+    def test_shared_mode_fast_forwards_clean_worktree_before_push(self, tmp_path):
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+        wt_path = tmp_path / "worktree"
+        wt_path.mkdir()
+
+        proj = _make_project_record(epic_strategy="shared")
+        proj.repo_path = str(repo_path)
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_worktree_path_for.return_value = str(wt_path)
+
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            if cmd == ["git", "status", "--porcelain"]:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            if cmd == [
+                "git",
+                "rev-list",
+                "--left-right",
+                "--count",
+                "HEAD...FETCH_HEAD",
+            ]:
+                return subprocess.CompletedProcess(cmd, 0, stdout="0\t3\n", stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        with patch("oompah.orchestrator.subprocess.run", side_effect=fake_run):
+            orch._push_epic_branch(proj, "epic-1")
+
+        commands = [cmd for cmd, _kwargs in calls]
+        assert commands == [
+            ["git", "fetch", "origin", "epic-epic-1"],
+            ["git", "status", "--porcelain"],
+            ["git", "rev-list", "--left-right", "--count", "HEAD...FETCH_HEAD"],
+            ["git", "merge", "--ff-only", "FETCH_HEAD"],
+            ["git", "status", "--porcelain"],
+            ["git", "push", "origin", "HEAD:epic-epic-1"],
+        ]
+        assert calls[3][1]["cwd"] == str(wt_path)
+        assert calls[-1][1]["cwd"] == str(wt_path)
 
     def test_shared_mode_refuses_non_metadata_dirty_worktree(self, tmp_path):
         repo_path = tmp_path / "repo"

@@ -4408,6 +4408,64 @@ class Orchestrator:
                 return self.project_store.epic_branch_name(parent_epic.identifier)
         return project.default_branch
 
+    def _fast_forward_shared_epic_worktree_if_clean(
+        self,
+        wt_path: str,
+        epic_branch: str,
+    ) -> None:
+        """Fast-forward a clean shared epic worktree to its remote branch."""
+        fetch = subprocess.run(
+            ["git", "fetch", "origin", epic_branch],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        if fetch.returncode != 0:
+            logger.debug(
+                "Skipping shared epic worktree fast-forward for %s: fetch failed: %s",
+                epic_branch,
+                fetch.stderr.strip(),
+            )
+            return
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        if status.stdout.strip():
+            return
+
+        ahead_behind = subprocess.run(
+            ["git", "rev-list", "--left-right", "--count", "HEAD...FETCH_HEAD"],
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        counts = ahead_behind.stdout.strip().split()
+        if len(counts) != 2:
+            return
+        try:
+            ahead, behind = (int(counts[0]), int(counts[1]))
+        except ValueError:
+            return
+        if ahead == 0 and behind > 0:
+            subprocess.run(
+                ["git", "merge", "--ff-only", "FETCH_HEAD"],
+                cwd=wt_path,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=60,
+            )
+
     def _push_epic_branch(self, project, epic_identifier: str) -> None:
         """Push the shared epic branch from the local repo to origin.
 
@@ -4424,6 +4482,10 @@ class Orchestrator:
                 epic_identifier,
             )
             if os.path.isdir(wt_path):
+                self._fast_forward_shared_epic_worktree_if_clean(
+                    wt_path,
+                    epic_branch,
+                )
                 self._commit_shared_epic_metadata_if_dirty(wt_path, epic_identifier)
                 push_cwd = wt_path
                 push_cmd = ["git", "push", "origin", f"HEAD:{epic_branch}"]
