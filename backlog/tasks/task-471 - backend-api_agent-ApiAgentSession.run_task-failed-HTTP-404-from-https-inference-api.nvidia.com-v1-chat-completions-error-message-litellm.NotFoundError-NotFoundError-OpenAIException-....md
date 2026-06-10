@@ -8,7 +8,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-06-09 00:40'
-updated_date: '2026-06-10 06:02'
+updated_date: '2026-06-10 06:05'
 labels:
   - bug
 dependencies: []
@@ -126,3 +126,9 @@ created: 2026-06-10 06:02
 UNDERSTANDING (Duplicate Investigator run #5): Task is already Done. Fix was applied in commit 1da9020 ('treat litellm HTTP 404 NotFoundError as transient'). This issue is NOT a duplicate — it covers HTTP 404 (litellm.NotFoundError for model routing miss) which is distinct from all other api_agent tasks (TASK-432, TASK-443, etc., which are HTTP 400 context-window errors). The fix correctly classifies litellm model-router 404s as TransientServerError. Re-dispatch is caused by the open PR review limit (1/1) deferring the merge, not by any unfinished work.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Not a duplicate. Fix applied in commit 1da9020: litellm HTTP 404 NotFoundError is now treated as TransientServerError in _http_post(), allowing the 5-retry loop to handle transient model-routing misses and preventing spurious error_watcher tasks. 8 unit tests added. Task has been Done since run #1 on 2026-06-09.
+<!-- SECTION:FINAL_SUMMARY:END -->
