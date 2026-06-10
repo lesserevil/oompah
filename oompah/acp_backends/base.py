@@ -103,6 +103,14 @@ class AcpBackendOptions:
     # subprocess path that honors that login. The Claude backend ignores
     # this field (its SDK is always subscription-billed).
     billing_model: str = "per_token"
+    # Non-HTTP project management (TASK-464.8): the ProjectStore instance
+    # and the project_id for the task this session is executing.  Backends
+    # pass these into the tool catalog so agents can call get_project /
+    # update_project without making deadlock-inducing HTTP self-calls to
+    # the local oompah server.  Both default to None; tools degrade
+    # gracefully (return an error string) when not supplied.
+    project_store: Any = None
+    project_id: str | None = None
 
 
 @runtime_checkable

@@ -103,6 +103,8 @@ class AcpAgentSession:
         permission_mode: str = "default",
         backend_name: str = "claude",
         billing_model: str = "per_token",
+        project_store: Any = None,
+        project_id: str | None = None,
     ):
         self.workspace_path = workspace_path
         self.prompt = prompt
@@ -116,6 +118,11 @@ class AcpAgentSession:
         self.permission_mode = permission_mode
         self.backend_name = backend_name
         self.billing_model = billing_model
+        # Non-HTTP project management (TASK-464.8): passed through to
+        # AcpBackendOptions so Codex/OpenCode backends can include
+        # get_project / update_project in their tool catalog.
+        self.project_store = project_store
+        self.project_id = project_id
 
         # Resolve the backend class at construction time so an
         # unregistered name fails fast rather than at dispatch time.
@@ -224,6 +231,8 @@ class AcpAgentSession:
             turn_timeout_s=self.turn_timeout_s,
             on_event=self.on_event,
             billing_model=self.billing_model,
+            project_store=self.project_store,
+            project_id=self.project_id,
         )
 
         try:

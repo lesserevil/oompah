@@ -369,7 +369,11 @@ class CodexAcpBackendSession(AcpBackendSession):
         """
         from oompah.acp_tools import build_codex_tool_catalog
 
-        return build_codex_tool_catalog(self._options.workspace_path)
+        return build_codex_tool_catalog(
+            self._options.workspace_path,
+            project_store=self._options.project_store,
+            project_id=self._options.project_id,
+        )
 
     # ---- run_turn: drive the openai-agents Runner ----
 

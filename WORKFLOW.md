@@ -128,6 +128,18 @@ The following insights were collected by previous agents working on this project
 
 ## Operating Principles
 
+**No HTTP self-calls to the local oompah server:** NEVER call `http://127.0.0.1:8090` (or any other loopback port) via `curl`, `httpx`, the `oompah task` CLI, or any other HTTP client from inside a `run_command` tool call. The oompah server is the same process that is servicing your MCP tool call — making a synchronous HTTP request back into it will deadlock the server and your task will never complete. Use the MCP tools provided to you instead.
+
+**No direct `.oompah/projects.json` edits:** NEVER read from or write to `.oompah/projects.json` directly (e.g. via `cat`, `jq`, `sed`, or `write_file`). That file is managed exclusively by the oompah server's ProjectStore. Bypassing it skips validation, corrupts in-memory state, and may lose concurrent writes. For managed-project cutover tasks, use the `mcp__oompah__get_project` and `mcp__oompah__update_project` MCP tools instead (they are always available when your worktree belongs to a managed project):
+
+```
+# Read current tracker settings for this project (no HTTP call):
+mcp__oompah__get_project
+
+# Update tracker settings for cutover (no HTTP call, no file edit):
+mcp__oompah__update_project fields_json='{"tracker_kind":"github_issues","tracker_owner":"my-org","tracker_repo":"my-repo","tracker_cutover_at":"2026-06-10T15:00:00+00:00","legacy_backlog_enabled":false,"legacy_backlog_dispatch":false}'
+```
+
 **Self-reliance:** You are an autonomous agent. Investigate and solve problems yourself by reading code, running commands, checking logs, and testing hypotheses. NEVER ask the human to explain how something works, diagnose a problem, or tell you what approach to take — that is YOUR job. The `ask_question` tool exists ONLY for genuine ambiguity where the issue could reasonably mean two different things that lead to fundamentally different implementations. If a competent engineer would know what to do, DO the work. Restating the issue as a question, asking for confirmation of your plan, or asking "how should I proceed" are all failures.
 
 **Missing capabilities:** If completing the task requires a capability this system lacks (a tool, API access, a vision model, a new integration), file a follow-up task in `Needs Human` and continue with what you *can* do. Do not block on it. Example:

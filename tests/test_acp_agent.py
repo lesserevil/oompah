@@ -683,14 +683,16 @@ class TestToolCatalogBridging:
         names = [t.name for t in cat]
         # Q2 acceptance — full set of tools claude should be able to call.
         for expected in ("read_file", "write_file", "edit_file",
-                         "list_files", "search_files", "run_command"):
+                         "list_files", "search_files", "run_command",
+                         "get_project", "update_project"):
             assert expected in names, f"missing {expected!r} in catalog"
 
     def test_catalog_size_reflects_locked_set(self, tmp_path):
         # Adding new tools is a deliberate change — this test surfaces it.
+        # Now 8: the original 6 + get_project + update_project (TASK-464.8).
         from oompah.acp_tools import build_tool_catalog
         cat = build_tool_catalog(str(tmp_path))
-        assert len(cat) == 6
+        assert len(cat) == 8
 
 
 # ----------------------------------------------------------------------

@@ -12880,6 +12880,8 @@ class Orchestrator:
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 run_command_timeout_s=60,
+                project_store=self.project_store,
+                project_id=issue.project_id or None,
             )
 
             from oompah.api_agent import AgentActivity
@@ -13072,6 +13074,8 @@ class Orchestrator:
                 on_event=_on_event,
                 backend_name=acp_backend_name,
                 billing_model=acp_billing_model,
+                project_store=self.project_store,
+                project_id=issue.project_id or None,
             )
 
             try:
