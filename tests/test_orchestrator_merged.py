@@ -10,7 +10,7 @@ from oompah.config import ServiceConfig
 from oompah.models import BlockerRef, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.scm import ReviewRequest
-from oompah.statuses import DONE
+from oompah.statuses import DONE, IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE
 
 
 def _make_config() -> ServiceConfig:
@@ -2971,3 +2971,252 @@ class TestFetchIssueAcrossTrackers:
 
         assert result is not None
         assert result.project_id == "proj-2"
+
+
+class TestReconcileInReviewPrOutcomes:
+    """Tests for _reconcile_in_review_pr_outcomes."""
+
+    def _make_orchestrator(self, tmp_path, projects=None):
+        project_store = MagicMock()
+        project_store.list_all.return_value = projects or []
+        project_store.get.side_effect = lambda pid: next(
+            (p for p in (projects or []) if p.id == pid), None
+        )
+        orch = Orchestrator(
+            config=_make_config(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        return orch
+
+    def _make_review(
+        self,
+        branch: str,
+        ci_status: str = "",
+        has_conflicts: bool = False,
+        state: str = "open",
+    ) -> ReviewRequest:
+        return ReviewRequest(
+            id="10",
+            title=f"PR for {branch}",
+            url="https://github.com/org/repo/pull/10",
+            author="alice",
+            state=state,
+            source_branch=branch,
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-01",
+            ci_status=ci_status,
+            has_conflicts=has_conflicts,
+        )
+
+    def test_marks_needs_ci_fix_when_pr_ci_failed(self, tmp_path):
+        """In Review task with a failed-CI PR is marked Needs CI Fix."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [self._make_review("TASK-1", ci_status="failed")]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-1", status=NEEDS_CI_FIX
+        )
+
+    def test_marks_needs_rebase_when_pr_has_conflicts(self, tmp_path):
+        """In Review task with a conflicted PR is marked Needs Rebase."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                self._make_review("TASK-1", has_conflicts=True, ci_status="passed")
+            ]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-1", status=NEEDS_REBASE
+        )
+
+    def test_ci_failure_takes_priority_over_conflicts(self, tmp_path):
+        """When CI fails AND conflicts exist, Needs CI Fix takes priority."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                self._make_review(
+                    "TASK-1", ci_status="failed", has_conflicts=True
+                )
+            ]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-1", status=NEEDS_CI_FIX
+        )
+
+    def test_skips_in_review_task_with_healthy_open_pr(self, tmp_path):
+        """In Review task with a passing-CI, no-conflict PR is left alone."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                self._make_review("TASK-1", ci_status="passed", has_conflicts=False)
+            ]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_skips_task_with_no_matching_pr_in_cache(self, tmp_path):
+        """In Review task whose branch is not in the cache is left alone."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                self._make_review("OTHER-BRANCH", ci_status="failed")
+            ]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_handles_empty_reviews_cache(self, tmp_path):
+        """Empty reviews cache is a no-op."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {}
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.fetch_issues_by_states.assert_not_called()
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_uses_branch_name_field_over_identifier(self, tmp_path):
+        """When branch_name is set, it is used to match against the PR."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                self._make_review(
+                    "my-feature-branch", ci_status="failed"
+                )
+            ]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue(
+                "TASK-5",
+                state=IN_REVIEW,
+                branch_name="my-feature-branch",
+            ),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.update_issue.assert_called_once_with(
+            "TASK-5", status=NEEDS_CI_FIX
+        )
+
+    def test_tracker_error_does_not_crash(self, tmp_path):
+        """TrackerError during issue fetch is silently swallowed."""
+        from oompah.tracker import TrackerError
+
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [self._make_review("TASK-1", ci_status="failed")]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.side_effect = TrackerError("boom")
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Should not raise
+        orch._reconcile_in_review_pr_outcomes()
+        mock_tracker.update_issue.assert_not_called()
+
+    def test_update_error_does_not_crash(self, tmp_path):
+        """TrackerError during status update is silently swallowed."""
+        from oompah.tracker import TrackerError
+
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [self._make_review("TASK-1", ci_status="failed")]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        mock_tracker.update_issue.side_effect = TrackerError("write fail")
+        orch._project_trackers[project.id] = mock_tracker
+
+        # Should not raise
+        orch._reconcile_in_review_pr_outcomes()
+        mock_tracker.update_issue.assert_called_once()
+
+    def test_pending_ci_does_not_change_state(self, tmp_path):
+        """In Review task with pending CI (not yet passed or failed) is left alone."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {
+            project.id: [
+                self._make_review("TASK-1", ci_status="pending")
+            ]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("TASK-1", state=IN_REVIEW),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_in_review_pr_outcomes()
+
+        mock_tracker.update_issue.assert_not_called()

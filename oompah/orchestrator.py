@@ -6391,6 +6391,7 @@ class Orchestrator:
         """
         self._label_merged_issues()
         self._label_merged_epics()
+        self._reconcile_in_review_pr_outcomes()
         self._reconcile_stale_in_review_tasks()
         self._open_deferred_done_reviews()
 
@@ -6606,6 +6607,105 @@ class Orchestrator:
                     except TrackerError as exc:
                         logger.debug(
                             "Failed to label %s as merged: %s", issue.identifier, exc
+                        )
+
+    def _reconcile_in_review_pr_outcomes(self) -> None:
+        """Mark In Review tasks Needs CI Fix or Needs Rebase based on PR state.
+
+        Uses the ``_reviews_cache`` populated by :meth:`_handle_review_check`
+        to classify open PRs:
+
+        * ``ci_status == "failed"`` → ``Needs CI Fix``
+        * ``has_conflicts == True`` (and CI not already failed) → ``Needs Rebase``
+
+        Tasks with healthy open PRs (CI passing, no conflicts) are left in
+        ``In Review``.  Tasks with no PR in the cache are left to the
+        :meth:`_reconcile_stale_in_review_tasks` sweep.
+
+        Called from :meth:`_do_merged_labels` (maintenance lane).
+        """
+        reviews_cache = getattr(self, "_reviews_cache", {}) or {}
+        if not reviews_cache:
+            return
+
+        for project in self.project_store.list_all():
+            project_id = str(project.id)
+            project_reviews = reviews_cache.get(project.id) or reviews_cache.get(
+                project_id, []
+            )
+            if not project_reviews:
+                continue
+
+            # Build a branch → ReviewRequest index for fast lookups
+            branch_to_review: dict[str, Any] = {}
+            for review in project_reviews:
+                branch = getattr(review, "source_branch", None)
+                if branch:
+                    branch_to_review[branch] = review
+
+            if not branch_to_review:
+                continue
+
+            try:
+                tracker = self._tracker_for_project(project_id)
+                issues = tracker.fetch_issues_by_states([IN_REVIEW])
+            except (ProjectError, TrackerError) as exc:
+                logger.debug(
+                    "PR outcome reconciliation fetch failed for %s: %s",
+                    project_id,
+                    exc,
+                )
+                continue
+
+            for issue in issues:
+                if not issue.project_id:
+                    issue.project_id = project_id
+                if canonicalize_status(issue.state) != IN_REVIEW:
+                    continue
+
+                # Use branch_name if set, otherwise fall back to identifier
+                branch = (
+                    (issue.branch_name or "").strip() or issue.identifier
+                )
+                review = branch_to_review.get(branch)
+                if review is None:
+                    # No open PR in cache — stale reconciliation handles this
+                    continue
+
+                ci_status = getattr(review, "ci_status", "") or ""
+                has_conflicts = bool(getattr(review, "has_conflicts", False))
+
+                if ci_status == "failed":
+                    try:
+                        tracker.update_issue(
+                            issue.identifier, status=NEEDS_CI_FIX
+                        )
+                        logger.info(
+                            "Marked %s as Needs CI Fix (PR #%s ci_status=failed)",
+                            issue.identifier,
+                            getattr(review, "id", "?"),
+                        )
+                    except TrackerError as exc:
+                        logger.debug(
+                            "Failed to mark %s Needs CI Fix: %s",
+                            issue.identifier,
+                            exc,
+                        )
+                elif has_conflicts:
+                    try:
+                        tracker.update_issue(
+                            issue.identifier, status=NEEDS_REBASE
+                        )
+                        logger.info(
+                            "Marked %s as Needs Rebase (PR #%s has_conflicts=True)",
+                            issue.identifier,
+                            getattr(review, "id", "?"),
+                        )
+                    except TrackerError as exc:
+                        logger.debug(
+                            "Failed to mark %s Needs Rebase: %s",
+                            issue.identifier,
+                            exc,
                         )
 
     def _reconcile_stale_in_review_tasks(self) -> None:
