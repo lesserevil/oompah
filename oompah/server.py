@@ -676,6 +676,10 @@ def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
     if isinstance(project_trackers, dict):
         project_trackers.pop(project_id, None)
 
+    legacy_trackers = getattr(orch, "_project_legacy_backlog_trackers", None)
+    if isinstance(legacy_trackers, dict):
+        legacy_trackers.pop(project_id, None)
+
     branch_indexes = getattr(orch, "_branch_indexes", None)
     if isinstance(branch_indexes, dict):
         branch_indexes.pop(project_id, None)
@@ -1959,6 +1963,32 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
     if not targets:
         return []
 
+    def _fetch_legacy_backlog_issues_for_project(project) -> list:
+        project_id = getattr(project, "id", "")
+        repo_path = getattr(project, "repo_path", None)
+        if not project_id or not isinstance(repo_path, str) or not repo_path:
+            return []
+        legacy_tracker_for_project = getattr(
+            orch, "_legacy_backlog_tracker_for_project", None
+        )
+        if not callable(legacy_tracker_for_project):
+            return []
+        try:
+            tracker = legacy_tracker_for_project(project_id)
+            issues = tracker.fetch_all_issues()
+        except Exception as exc:  # noqa: BLE001 - keep GitHub issue reads available
+            logger.warning(
+                "Fetch legacy Backlog issues failed for project %s: %s",
+                getattr(project, "name", project_id),
+                exc,
+            )
+            return []
+        for issue in issues:
+            issue.project_id = project_id
+            issue.tracker_kind = "backlog_md"
+            issue.is_legacy = True
+        return issues
+
     def _fetch_for_project(project):
         try:
             from oompah.projects import _is_github_backed
@@ -1970,20 +2000,37 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
             # legacy_backlog_enabled is True.  Tag them as 'backlog_md' so
             # callers can apply a "legacy" marker in the UI.
             if _is_github_backed(project):
-                visible_issues = []
+                github_issues = []
+                backlog_issues = []
                 for issue in issues:
                     issue.project_id = project.id
                     kind = (issue.tracker_kind or "").strip().lower()
                     is_github_issue = kind in ("github_issues", "github-issues")
                     if is_github_issue:
-                        visible_issues.append(issue)
+                        github_issues.append(issue)
                     elif project.legacy_backlog_enabled:
+                        backlog_issues.append(issue)
+                    # else: Backlog issues are not visible for this project.
+                if project.legacy_backlog_enabled:
+                    backlog_issues.extend(
+                        _fetch_legacy_backlog_issues_for_project(project)
+                    )
+                    seen_backlog: set[str] = set()
+                    tagged_backlog = []
+                    for issue in backlog_issues:
+                        key = issue.identifier or issue.id
+                        if key in seen_backlog:
+                            continue
+                        seen_backlog.add(key)
+                        issue.project_id = project.id
                         # Tag legacy Backlog tasks so the dashboard can mark
                         # them as legacy.
                         issue.tracker_kind = "backlog_md"
-                        visible_issues.append(issue)
-                    # else: Backlog issues are not visible for this project.
-                issues = visible_issues
+                        issue.is_legacy = True
+                        tagged_backlog.append(issue)
+                    issues = github_issues + tagged_backlog
+                else:
+                    issues = github_issues
             else:
                 for issue in issues:
                     issue.project_id = project.id

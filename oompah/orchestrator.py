@@ -567,6 +567,9 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Per-project trackers, keyed by project_id
         self._project_trackers: dict[str, TrackerProtocol] = {}
+        # Secondary Backlog.md trackers for GitHub-backed projects in legacy
+        # dual-read mode, keyed by project_id.
+        self._project_legacy_backlog_trackers: dict[str, TrackerProtocol] = {}
         # Per-project branch-to-issue index: maps work_branch → identifier.
         # Built lazily the first time _resolve_task_for_branch needs it for
         # a project and cleared with tracker read caches each tick so the
@@ -1122,6 +1125,7 @@ class Orchestrator:
         self.tracker = self._new_tracker()
         # Clear cached per-project trackers so they pick up new state config
         self._project_trackers.clear()
+        self._project_legacy_backlog_trackers.clear()
         self.workspace_mgr = WorkspaceManager(
             workspace_root=config.workspace_root,
             hooks={
@@ -1461,11 +1465,51 @@ class Orchestrator:
         self._project_trackers[project_id] = tracker
         return tracker
 
+    def _legacy_backlog_tracker_for_project(self, project_id: str) -> TrackerProtocol:
+        """Get a Backlog.md tracker scoped to a project for dual-read mode."""
+        if project_id in self._project_legacy_backlog_trackers:
+            return self._project_legacy_backlog_trackers[project_id]
+        project = self.project_store.get(project_id)
+        if not project:
+            raise ProjectError(f"Unknown project: {project_id}")
+        factory = ADAPTER_REGISTRY.get("backlog_md")
+        if factory is None:
+            raise TrackerError("Backlog.md tracker adapter is not registered")
+        tracker = factory(
+            active_states=self.config.tracker_active_states,
+            terminal_states=self.config.tracker_terminal_states,
+            cwd=project.repo_path,
+        )
+        self._project_legacy_backlog_trackers[project_id] = tracker
+        return tracker
+
     def _tracker_for_issue(self, issue: Issue) -> TrackerProtocol:
         """Get the appropriate tracker for an issue (project-specific or legacy)."""
         if issue.project_id:
             return self._tracker_for_project(issue.project_id)
         return self.tracker
+
+    def _fetch_legacy_backlog_candidates_for_project(self, project: Project) -> list[Issue]:
+        """Read legacy Backlog.md dispatch candidates for a GitHub-backed project."""
+        project_id = getattr(project, "id", "")
+        repo_path = getattr(project, "repo_path", None)
+        if not project_id or not isinstance(repo_path, str) or not repo_path:
+            return []
+        try:
+            tracker = self._legacy_backlog_tracker_for_project(project_id)
+            issues = tracker.fetch_candidate_issues()
+        except Exception as exc:  # noqa: BLE001 - legacy read must not hide GitHub work
+            logger.warning(
+                "Failed to fetch legacy Backlog candidates for project %s: %s",
+                getattr(project, "name", project_id),
+                exc,
+            )
+            return []
+        for issue in issues:
+            issue.project_id = project_id
+            issue.tracker_kind = "backlog_md"
+            issue.is_legacy = True
+        return issues
 
     def _invalidate_tracker_read_caches(self) -> None:
         """Clear the per-tick task-record cache on every tracker.
@@ -1477,7 +1521,11 @@ class Orchestrator:
         Also clears the per-project branch-to-issue index so that the next
         ``_resolve_task_for_branch`` call rebuilds it from fresh issue data.
         """
-        trackers = [self.tracker, *self._project_trackers.values()]
+        trackers = [
+            self.tracker,
+            *self._project_trackers.values(),
+            *self._project_legacy_backlog_trackers.values(),
+        ]
         for tracker in trackers:
             inval = getattr(tracker, "invalidate_read_cache", None)
             if callable(inval):
@@ -2802,11 +2850,23 @@ class Orchestrator:
                         else:
                             backlog_issues.append(issue)
                     if project.legacy_backlog_enabled:
+                        backlog_issues.extend(
+                            self._fetch_legacy_backlog_candidates_for_project(project)
+                        )
                         # Tag legacy issues so the dispatch gate can apply the
                         # legacy_backlog_dispatch check.
+                        seen_backlog: set[str] = set()
+                        tagged_backlog: list[Issue] = []
                         for issue in backlog_issues:
+                            key = issue.identifier or issue.id
+                            if key in seen_backlog:
+                                continue
+                            seen_backlog.add(key)
+                            issue.project_id = project_id
                             issue.tracker_kind = "backlog_md"
-                        return gh_issues + backlog_issues
+                            issue.is_legacy = True
+                            tagged_backlog.append(issue)
+                        return gh_issues + tagged_backlog
                     else:
                         # Backlog issues are not visible for this project.
                         return gh_issues

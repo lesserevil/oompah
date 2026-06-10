@@ -475,6 +475,62 @@ class TestFetchAllCandidatesLegacyBacklog:
         tagged = [c for c in candidates if c.id == "lb-task-2"]
         assert len(tagged) == 1
         assert tagged[0].tracker_kind == "backlog_md"
+        assert tagged[0].is_legacy is True
+
+    def test_github_backed_legacy_enabled_reads_backlog_tracker_alongside_github(
+        self, tmp_path
+    ):
+        """Dual-read fetches legacy Backlog tasks from the project repo too."""
+        proj = _make_project_mock(
+            "proj-gh",
+            tracker_kind="github_issues",
+            legacy_backlog_enabled=True,
+            legacy_backlog_dispatch=True,
+        )
+        proj.repo_path = str(tmp_path)
+        gh_issue = self._make_github_issue("gh-task-1", "proj-gh")
+        backlog_issue = self._make_backlog_issue("lb-task-3", "proj-gh")
+        legacy_tracker = MagicMock()
+        legacy_tracker.fetch_candidate_issues.return_value = [backlog_issue]
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        orch._run_bounded_refresh = AsyncMock(
+            return_value=([gh_issue], None)
+        )
+        orch._legacy_backlog_tracker_for_project = MagicMock(
+            return_value=legacy_tracker
+        )
+
+        candidates = orch._fetch_all_candidates()
+
+        by_id = {c.id: c for c in candidates}
+        assert by_id["gh-task-1"].tracker_kind == "github_issues"
+        assert by_id["lb-task-3"].tracker_kind == "backlog_md"
+        assert by_id["lb-task-3"].is_legacy is True
+        orch._legacy_backlog_tracker_for_project.assert_called_once_with("proj-gh")
+        legacy_tracker.fetch_candidate_issues.assert_called_once_with()
+
+    def test_github_backed_legacy_disabled_does_not_read_backlog_tracker(
+        self, tmp_path
+    ):
+        """Legacy Backlog reads are skipped after dual-read is disabled."""
+        proj = _make_project_mock(
+            "proj-gh",
+            tracker_kind="github_issues",
+            legacy_backlog_enabled=False,
+            legacy_backlog_dispatch=False,
+        )
+        proj.repo_path = str(tmp_path)
+        gh_issue = self._make_github_issue("gh-task-1", "proj-gh")
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        orch._run_bounded_refresh = AsyncMock(
+            return_value=([gh_issue], None)
+        )
+        orch._legacy_backlog_tracker_for_project = MagicMock()
+
+        candidates = orch._fetch_all_candidates()
+
+        assert [c.id for c in candidates] == ["gh-task-1"]
+        orch._legacy_backlog_tracker_for_project.assert_not_called()
 
     def test_github_backed_legacy_enabled_github_issues_pass_through_untagged(
         self, tmp_path
