@@ -1695,6 +1695,7 @@ class GitHubIssueTracker:
         patch_payload: dict[str, Any] = {}
         label_ops: list[tuple[str, str]] = []
         status_to_set: str | None = None
+        priority_specified = False
         priority_to_set: Any = None
 
         # Check whether we need to fetch the full body for a description update.
@@ -1722,6 +1723,7 @@ class GitHubIssueTracker:
             elif key_norm == "status":
                 status_to_set = str(value)
             elif key_norm == "priority":
+                priority_specified = True
                 priority_to_set = value
             elif key_norm == "add-label":
                 label_ops.append(("add", str(value)))
@@ -1732,17 +1734,21 @@ class GitHubIssueTracker:
                     "GitHub update_issue ignoring unsupported field %s", key
                 )
 
-        # Status change: swap the oompah:status:* label and sync GitHub state.
+        # Status and priority labels are updated through the same PATCH used
+        # for GitHub state changes. This keeps the visible oompah status from
+        # diverging when GitHub rejects the issue state update.
         if status_to_set is not None:
-            self._set_status_label(gh_id.number, status_to_set)
             if status_to_set in self.terminal_states:
                 patch_payload["state"] = "closed"
             else:
                 patch_payload.setdefault("state", "open")
-
-        # Priority label swap.
-        if priority_to_set is not None:
-            self._set_priority_label(gh_id.number, priority_to_set)
+        if status_to_set is not None or priority_specified:
+            labels = self._fetch_issue_label_names(gh_id.number)
+            if status_to_set is not None:
+                labels = self._labels_with_status(labels, status_to_set)
+            if priority_specified:
+                labels = self._labels_with_priority(labels, priority_to_set)
+            patch_payload["labels"] = labels
 
         # Issue a single PATCH for title/body/state changes.
         if patch_payload:
@@ -1771,11 +1777,7 @@ class GitHubIssueTracker:
             raise
 
         terminal = self._terminal_status()
-        self._set_status_label(gh_id.number, terminal)
-        self._client.patch(
-            self._issues_path(f"/{gh_id.number}"),
-            json={"state": "closed"},
-        )
+        self._patch_state_and_status_label(gh_id.number, "closed", terminal)
         if reason:
             self.add_comment(identifier, reason)
 
@@ -1791,11 +1793,7 @@ class GitHubIssueTracker:
             raise
 
         active = self._active_status()
-        self._set_status_label(gh_id.number, active)
-        self._client.patch(
-            self._issues_path(f"/{gh_id.number}"),
-            json={"state": "open"},
-        )
+        self._patch_state_and_status_label(gh_id.number, "open", active)
 
     def archive_issue(self, identifier: str) -> None:
         """Archive an issue.
@@ -1807,11 +1805,7 @@ class GitHubIssueTracker:
         except TrackerError:
             raise
 
-        self._set_status_label(gh_id.number, "Archived")
-        self._client.patch(
-            self._issues_path(f"/{gh_id.number}"),
-            json={"state": "closed"},
-        )
+        self._patch_state_and_status_label(gh_id.number, "closed", "Archived")
 
     def mark_needs_human(
         self, identifier: str, comment: str, author: str = "oompah"
@@ -2228,14 +2222,60 @@ class GitHubIssueTracker:
     def _get_issue_label_names(self, number: int) -> list[str]:
         """Return the list of label names currently applied to an issue."""
         try:
-            raw = self._client.get(self._issues_path(f"/{number}/labels"))
-            return [
-                lbl["name"]
-                for lbl in (raw or [])
-                if isinstance(lbl, dict) and lbl.get("name")
-            ]
+            return self._fetch_issue_label_names(number)
         except TrackerError:
             return []
+
+    def _fetch_issue_label_names(self, number: int) -> list[str]:
+        """Return issue label names, propagating GitHub read failures."""
+        raw = self._client.request_paginated(
+            self._issues_path(f"/{number}/labels"),
+            params={"per_page": 100},
+        )
+        return [
+            lbl["name"]
+            for lbl in (raw or [])
+            if isinstance(lbl, dict) and lbl.get("name")
+        ]
+
+    def _labels_with_status(self, labels: list[str], status: str) -> list[str]:
+        """Return *labels* with exactly one oompah status label."""
+        new_label = _status_to_label(status)
+        result = [name for name in labels if not name.startswith(_STATUS_LABEL_PREFIX)]
+        if new_label not in result:
+            result.append(new_label)
+        return result
+
+    def _labels_with_priority(self, labels: list[str], priority: Any) -> list[str]:
+        """Return *labels* with the requested priority label applied."""
+        result = [name for name in labels if not name.startswith("priority:")]
+        if priority is None:
+            return result
+        try:
+            pri_int = int(priority)
+        except (ValueError, TypeError):
+            logger.debug(
+                "GitHub _labels_with_priority: cannot coerce %r to int, skipping",
+                priority,
+            )
+            return result
+        new_label = f"priority:{pri_int}"
+        if new_label not in result:
+            result.append(new_label)
+        return result
+
+    def _patch_state_and_status_label(
+        self, number: int, state: str, status: str
+    ) -> None:
+        """Patch GitHub state and oompah status label in one request."""
+        labels = self._labels_with_status(
+            self._fetch_issue_label_names(number),
+            status,
+        )
+        self._client.patch(
+            self._issues_path(f"/{number}"),
+            json={"state": state, "labels": labels},
+        )
 
     def _set_status_label(self, number: int, status: str) -> None:
         """Atomically swap the ``oompah:status:*`` label on an issue.

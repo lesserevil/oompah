@@ -2104,51 +2104,72 @@ class TestGitHubIssueTrackerMutations:
     def test_update_issue_status_swaps_label_and_closes(self):
         """Updating status to a terminal state also sets state=closed."""
         tracker = self._make_tracker()
-        # _set_status_label calls GET labels, then DELETE old, then POST new.
-        # update_issue then PATCHes state.
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
-        delete_resp = _mock_response(204, json_data=None)
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=7, state="closed"))
-        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.update_issue("lesserevil/oompah-tasks#7", status="Done")
-        # Last call should be the PATCH with state=closed
         last_call = m.call_args_list[-1]
         assert last_call[0][0] == "PATCH"
         assert last_call[1]["json"]["state"] == "closed"
+        assert "oompah:status:done" in last_call[1]["json"]["labels"]
+        assert "oompah:status:open" not in last_call[1]["json"]["labels"]
+
+    def test_update_issue_status_failure_does_not_apply_separate_label_ops(self):
+        """A rejected terminal-state PATCH must not leave a Done label behind."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(
+            200,
+            json_data=[
+                {"name": "oompah:status:open"},
+                {"name": "component:ui"},
+            ],
+        )
+        patch_resp = _mock_response(401, text="Unauthorized")
+        responses = [labels_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            with pytest.raises(TrackerError, match="authentication failed"):
+                tracker.update_issue("lesserevil/oompah-tasks#7", status="Done")
+
+        methods = [call[0][0] for call in m.call_args_list]
+        assert methods == ["GET", "PATCH"]
+        patch_payload = m.call_args_list[-1][1]["json"]
+        assert patch_payload["state"] == "closed"
+        assert patch_payload["labels"] == ["component:ui", "oompah:status:done"]
 
     def test_update_issue_status_active_opens_issue(self):
         """Updating status to an active state sets state=open."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
-        delete_resp = _mock_response(204, json_data=None)
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=8, state="open"))
-        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.update_issue("lesserevil/oompah-tasks#8", status="Open")
         last_call = m.call_args_list[-1]
         assert last_call[1]["json"]["state"] == "open"
+        assert "oompah:status:open" in last_call[1]["json"]["labels"]
+        assert "oompah:status:done" not in last_call[1]["json"]["labels"]
 
     def test_update_issue_priority_swaps_label(self):
         """update_issue priority removes old priority:* label and adds new one."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "priority:3"}])
-        delete_resp = _mock_response(204, json_data=None)
-        post_label_resp = _mock_response(200, json_data=[{"name": "priority:1"}])
-        responses = [labels_resp, delete_resp, post_label_resp]
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=9))
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.update_issue("lesserevil/oompah-tasks#9", priority=1)
-        # POST for new priority label
-        label_post_call = m.call_args_list[-1]
-        assert "priority:1" in label_post_call[1]["json"]["labels"]
+        patch_call = m.call_args_list[-1]
+        assert patch_call[0][0] == "PATCH"
+        assert "priority:1" in patch_call[1]["json"]["labels"]
+        assert "priority:3" not in patch_call[1]["json"]["labels"]
 
     def test_update_issue_add_label(self):
         tracker = self._make_tracker()
@@ -2190,10 +2211,8 @@ class TestGitHubIssueTrackerMutations:
         """close_issue sets oompah:status:done label and GitHub state=closed."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
-        delete_resp = _mock_response(204, json_data=None)
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=20, state="closed"))
-        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
@@ -2201,15 +2220,15 @@ class TestGitHubIssueTrackerMutations:
         patch_call = m.call_args_list[-1]
         assert patch_call[0][0] == "PATCH"
         assert patch_call[1]["json"]["state"] == "closed"
+        assert "oompah:status:done" in patch_call[1]["json"]["labels"]
 
     def test_close_issue_posts_reason_comment(self):
         """close_issue appends a comment when reason is provided."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[])
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=21))
         comment_resp = _mock_response(201, json_data={"id": 1, "body": "**oompah**: Closed."})
-        responses = [labels_resp, post_label_resp, patch_resp, comment_resp]
+        responses = [labels_resp, patch_resp, comment_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
@@ -2222,29 +2241,26 @@ class TestGitHubIssueTrackerMutations:
     def test_close_issue_no_comment_when_no_reason(self):
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[])
-        post_label_resp = _mock_response(200, json_data=[])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=22))
-        responses = [labels_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.close_issue("lesserevil/oompah-tasks#22")
-        # Should be exactly 3 calls: GET labels, POST label, PATCH state
-        assert m.call_count == 3
+        assert m.call_count == 2
 
     def test_close_issue_uses_first_terminal_state(self):
         """close_issue uses terminal_states[0] ('Done') for the label."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[])
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=23))
-        responses = [labels_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.close_issue("lesserevil/oompah-tasks#23")
-        label_post = m.call_args_list[1]
-        assert "oompah:status:done" in label_post[1]["json"]["labels"]
+        patch_call = m.call_args_list[1]
+        assert "oompah:status:done" in patch_call[1]["json"]["labels"]
 
     # ------------------------------------------------------------------
     # reopen_issue
@@ -2254,10 +2270,8 @@ class TestGitHubIssueTrackerMutations:
         """reopen_issue sets oompah:status:open label and GitHub state=open."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
-        delete_resp = _mock_response(204, json_data=None)
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=30, state="open"))
-        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
@@ -2265,20 +2279,20 @@ class TestGitHubIssueTrackerMutations:
         patch_call = m.call_args_list[-1]
         assert patch_call[0][0] == "PATCH"
         assert patch_call[1]["json"]["state"] == "open"
+        assert "oompah:status:open" in patch_call[1]["json"]["labels"]
 
     def test_reopen_issue_uses_first_active_state(self):
         """reopen_issue uses active_states[0] ('Open') for the label."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[])
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=31))
-        responses = [labels_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.reopen_issue("lesserevil/oompah-tasks#31")
-        label_post = m.call_args_list[1]
-        assert "oompah:status:open" in label_post[1]["json"]["labels"]
+        patch_call = m.call_args_list[1]
+        assert "oompah:status:open" in patch_call[1]["json"]["labels"]
 
     # ------------------------------------------------------------------
     # archive_issue
@@ -2288,18 +2302,15 @@ class TestGitHubIssueTrackerMutations:
         """archive_issue sets oompah:status:archived and state=closed."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:in-progress"}])
-        delete_resp = _mock_response(204, json_data=None)
-        post_label_resp = _mock_response(200, json_data=[{"name": "oompah:status:archived"}])
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=40, state="closed"))
-        responses = [labels_resp, delete_resp, post_label_resp, patch_resp]
+        responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.archive_issue("lesserevil/oompah-tasks#40")
-        label_post = m.call_args_list[2]
-        assert "oompah:status:archived" in label_post[1]["json"]["labels"]
         patch_call = m.call_args_list[-1]
         assert patch_call[1]["json"]["state"] == "closed"
+        assert "oompah:status:archived" in patch_call[1]["json"]["labels"]
 
     # ------------------------------------------------------------------
     # mark_needs_human
@@ -2309,16 +2320,12 @@ class TestGitHubIssueTrackerMutations:
         """mark_needs_human sets status to Needs Human then adds a comment."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
-        delete_resp = _mock_response(204, json_data=None)
-        post_label_resp = _mock_response(
-            200, json_data=[{"name": "oompah:status:needs-human"}]
-        )
         patch_resp = _mock_response(200, json_data=_make_gh_issue(number=50))
         comment_resp = _mock_response(
             201, json_data={"id": 99, "body": "**oompah**: Action required."}
         )
         responses = [
-            labels_resp, delete_resp, post_label_resp, patch_resp, comment_resp
+            labels_resp, patch_resp, comment_resp
         ]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
