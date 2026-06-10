@@ -1429,3 +1429,338 @@ def test_fetch_in_progress_issues_excludes_completed_folder(tmp_path):
     identifiers = {i.identifier for i in issues}
     assert "TASK-20" not in identifiers
     assert "TASK-21" in identifiers
+
+
+# ---------------------------------------------------------------------------
+# Tests for TASK-461.1: per-project tracker resolution via the adapter registry
+# ---------------------------------------------------------------------------
+
+
+def _make_orch(tmp_path, *, global_tracker_kind="backlog_md"):
+    """Helper: build a minimal Orchestrator with a mocked ProjectStore."""
+    project_store = MagicMock()
+    project_store.list_all.return_value = []
+    project_store.get.return_value = None
+    config = ServiceConfig(
+        tracker_kind=global_tracker_kind,
+        tracker_active_states=["Open"],
+        tracker_terminal_states=["Done"],
+        workspace_root=str(tmp_path / "workspaces"),
+    )
+    return Orchestrator(
+        config=config,
+        workflow_path="WORKFLOW.md",
+        project_store=project_store,
+        role_store=RoleStore(path=str(tmp_path / "roles.json")),
+        state_path=str(tmp_path / "state.json"),
+    )
+
+
+def _make_project(
+    *,
+    project_id: str = "proj-1",
+    repo_path: str = "/tmp/repo",
+    tracker_kind: str | None = None,
+    tracker_owner: str | None = None,
+    tracker_repo: str | None = None,
+):
+    """Helper: build a minimal Project with optional tracker fields."""
+    from oompah.models import Project
+
+    return Project(
+        id=project_id,
+        name="Test Project",
+        repo_url="https://example.com/repo.git",
+        repo_path=repo_path,
+        tracker_kind=tracker_kind,
+        tracker_owner=tracker_owner,
+        tracker_repo=tracker_repo,
+    )
+
+
+class TestNewTrackerForProject:
+    """Tests for Orchestrator._new_tracker_for_project (TASK-461.1 AC #1)."""
+
+    def test_project_without_tracker_kind_uses_global_backlog_md(self, tmp_path):
+        """A project with no tracker_kind inherits the global backlog_md config."""
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(repo_path=str(tmp_path))
+
+        tracker = orch._new_tracker_for_project(project)
+
+        assert isinstance(tracker, BacklogMdTracker)
+
+    def test_project_with_explicit_backlog_md_returns_backlog_tracker(self, tmp_path):
+        """A project with tracker_kind='backlog_md' gets a BacklogMdTracker."""
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(repo_path=str(tmp_path), tracker_kind="backlog_md")
+
+        tracker = orch._new_tracker_for_project(project)
+
+        assert isinstance(tracker, BacklogMdTracker)
+
+    def test_project_with_github_issues_calls_factory_with_owner_and_repo(self, tmp_path):
+        """A github_issues project passes tracker_owner/repo to the factory."""
+        from oompah.tracker import ADAPTER_REGISTRY
+
+        factory_calls: list[dict] = []
+
+        def _fake_gh_factory(**kwargs):
+            factory_calls.append(dict(kwargs))
+            return MagicMock()
+
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(
+            repo_path=str(tmp_path),
+            tracker_kind="github_issues",
+            tracker_owner="myorg",
+            tracker_repo="myrepo",
+        )
+
+        original = ADAPTER_REGISTRY.get("github_issues")
+        ADAPTER_REGISTRY["github_issues"] = _fake_gh_factory
+        try:
+            orch._new_tracker_for_project(project)
+        finally:
+            if original is not None:
+                ADAPTER_REGISTRY["github_issues"] = original
+            else:
+                ADAPTER_REGISTRY.pop("github_issues", None)
+
+        assert len(factory_calls) == 1
+        call = factory_calls[0]
+        assert call["owner"] == "myorg"
+        assert call["repo"] == "myrepo"
+        assert call["cwd"] == str(tmp_path)
+
+    def test_project_with_github_issues_but_no_owner_repo_omits_kwargs(self, tmp_path):
+        """A github_issues project with no owner/repo omits those kwargs."""
+        from oompah.tracker import ADAPTER_REGISTRY
+
+        factory_calls: list[dict] = []
+
+        def _fake_gh_factory(**kwargs):
+            factory_calls.append(dict(kwargs))
+            return MagicMock()
+
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(
+            repo_path=str(tmp_path),
+            tracker_kind="github_issues",
+            # tracker_owner and tracker_repo intentionally omitted
+        )
+
+        original = ADAPTER_REGISTRY.get("github_issues")
+        ADAPTER_REGISTRY["github_issues"] = _fake_gh_factory
+        try:
+            orch._new_tracker_for_project(project)
+        finally:
+            if original is not None:
+                ADAPTER_REGISTRY["github_issues"] = original
+            else:
+                ADAPTER_REGISTRY.pop("github_issues", None)
+
+        assert len(factory_calls) == 1
+        call = factory_calls[0]
+        assert "owner" not in call
+        assert "repo" not in call
+
+    def test_project_with_unknown_tracker_kind_raises_tracker_error(self, tmp_path):
+        """An unregistered tracker_kind raises TrackerError with the project id."""
+        import pytest
+
+        orch = _make_orch(tmp_path)
+        project = _make_project(tracker_kind="jira")
+
+        with pytest.raises(TrackerError, match="jira"):
+            orch._new_tracker_for_project(project)
+
+    def test_project_tracker_kind_overrides_global_kind(self, tmp_path):
+        """Project-level tracker_kind wins over the global config."""
+        from oompah.tracker import ADAPTER_REGISTRY
+
+        factory_calls: list[dict] = []
+
+        def _fake_gh_factory(**kwargs):
+            factory_calls.append(dict(kwargs))
+            return MagicMock()
+
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(
+            repo_path=str(tmp_path),
+            tracker_kind="github_issues",
+            tracker_owner="org",
+            tracker_repo="hub",
+        )
+
+        original = ADAPTER_REGISTRY.get("github_issues")
+        ADAPTER_REGISTRY["github_issues"] = _fake_gh_factory
+        try:
+            tracker = orch._new_tracker_for_project(project)
+        finally:
+            if original is not None:
+                ADAPTER_REGISTRY["github_issues"] = original
+            else:
+                ADAPTER_REGISTRY.pop("github_issues", None)
+
+        # Factory was called (not BacklogMdTracker)
+        assert len(factory_calls) == 1
+        assert not isinstance(tracker, BacklogMdTracker)
+
+
+class TestTrackerForProject:
+    """Tests for Orchestrator._tracker_for_project (TASK-461.1 AC #2)."""
+
+    def test_returns_backlog_tracker_for_legacy_project(self, tmp_path):
+        """_tracker_for_project returns BacklogMdTracker for an unlabeled project."""
+        orch = _make_orch(tmp_path)
+        project = _make_project(project_id="p1", repo_path=str(tmp_path))
+        orch.project_store.get.return_value = project
+
+        tracker = orch._tracker_for_project("p1")
+
+        assert isinstance(tracker, BacklogMdTracker)
+
+    def test_caches_tracker_on_second_call(self, tmp_path):
+        """_tracker_for_project returns the same instance on repeated calls."""
+        orch = _make_orch(tmp_path)
+        project = _make_project(project_id="p1", repo_path=str(tmp_path))
+        orch.project_store.get.return_value = project
+
+        first = orch._tracker_for_project("p1")
+        second = orch._tracker_for_project("p1")
+
+        assert first is second
+
+    def test_cache_is_project_scoped(self, tmp_path):
+        """Different project ids produce independent tracker instances."""
+        orch = _make_orch(tmp_path)
+        proj_a = _make_project(project_id="proj-a", repo_path=str(tmp_path))
+        proj_b = _make_project(project_id="proj-b", repo_path=str(tmp_path))
+        orch.project_store.get.side_effect = lambda pid: {
+            "proj-a": proj_a,
+            "proj-b": proj_b,
+        }.get(pid)
+
+        tracker_a = orch._tracker_for_project("proj-a")
+        tracker_b = orch._tracker_for_project("proj-b")
+
+        assert tracker_a is not tracker_b
+
+    def test_raises_project_error_for_unknown_project_id(self, tmp_path):
+        """_tracker_for_project raises ProjectError when the project does not exist."""
+        import pytest
+        from oompah.projects import ProjectError
+
+        orch = _make_orch(tmp_path)
+        orch.project_store.get.return_value = None
+
+        with pytest.raises(ProjectError, match="unknown-proj"):
+            orch._tracker_for_project("unknown-proj")
+
+    def test_github_project_gets_different_tracker_type(self, tmp_path):
+        """A GitHub-backed project yields a different tracker type than a legacy project."""
+        from oompah.tracker import ADAPTER_REGISTRY
+
+        github_tracker_mock = MagicMock()
+
+        def _fake_gh_factory(**kwargs):
+            return github_tracker_mock
+
+        orch = _make_orch(tmp_path)
+        legacy_proj = _make_project(project_id="legacy", repo_path=str(tmp_path))
+        gh_proj = _make_project(
+            project_id="github",
+            repo_path=str(tmp_path),
+            tracker_kind="github_issues",
+            tracker_owner="org",
+            tracker_repo="hub",
+        )
+        orch.project_store.get.side_effect = lambda pid: {
+            "legacy": legacy_proj,
+            "github": gh_proj,
+        }.get(pid)
+
+        original = ADAPTER_REGISTRY.get("github_issues")
+        ADAPTER_REGISTRY["github_issues"] = _fake_gh_factory
+        try:
+            legacy_tracker = orch._tracker_for_project("legacy")
+            gh_tracker = orch._tracker_for_project("github")
+        finally:
+            if original is not None:
+                ADAPTER_REGISTRY["github_issues"] = original
+            else:
+                ADAPTER_REGISTRY.pop("github_issues", None)
+
+        assert isinstance(legacy_tracker, BacklogMdTracker)
+        assert gh_tracker is github_tracker_mock
+
+
+class TestGitHubIssuesFactoryOwnerRepoKwargs:
+    """Tests for _github_issues_factory kwarg precedence (TASK-461.1).
+
+    Verifies that owner/repo kwargs take precedence over env vars so
+    per-project tracker configuration is honoured by the factory.
+    """
+
+    def test_kwargs_owner_repo_preferred_over_env_vars(self, tmp_path, monkeypatch):
+        """Explicit owner/repo kwargs must be used even when env vars differ."""
+        from oompah.github_tracker import _github_issues_factory, GitHubIssueTracker
+
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_OWNER", "env-org")
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_REPO", "env-repo")
+
+        with patch("oompah.github_tracker.GitHubAuth"):
+            tracker = _github_issues_factory(
+                active_states=["Open"],
+                terminal_states=["Done"],
+                owner="kwarg-org",
+                repo="kwarg-repo",
+            )
+
+        assert tracker.owner == "kwarg-org"
+        assert tracker.repo == "kwarg-repo"
+
+    def test_falls_back_to_env_vars_when_no_kwargs(self, tmp_path, monkeypatch):
+        """Without owner/repo kwargs the factory must read env vars."""
+        from oompah.github_tracker import _github_issues_factory
+
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_OWNER", "env-owner")
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_REPO", "env-repo")
+
+        with patch("oompah.github_tracker.GitHubAuth"):
+            tracker = _github_issues_factory(
+                active_states=["Open"],
+                terminal_states=["Done"],
+            )
+
+        assert tracker.owner == "env-owner"
+        assert tracker.repo == "env-repo"
+
+    def test_raises_tracker_error_when_neither_kwargs_nor_env_set(self, monkeypatch):
+        """TrackerError must be raised when owner/repo cannot be resolved."""
+        import pytest
+        from oompah.github_tracker import _github_issues_factory
+
+        monkeypatch.delenv("OOMPAH_GITHUB_TRACKER_OWNER", raising=False)
+        monkeypatch.delenv("OOMPAH_GITHUB_TRACKER_REPO", raising=False)
+
+        with pytest.raises(TrackerError, match="OOMPAH_GITHUB_TRACKER_OWNER"):
+            _github_issues_factory(
+                active_states=["Open"],
+                terminal_states=["Done"],
+            )
+
+    def test_partial_env_only_owner_raises_tracker_error(self, monkeypatch):
+        """Only owner in env (no repo) must still raise TrackerError."""
+        import pytest
+        from oompah.github_tracker import _github_issues_factory
+
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_OWNER", "some-org")
+        monkeypatch.delenv("OOMPAH_GITHUB_TRACKER_REPO", raising=False)
+
+        with pytest.raises(TrackerError):
+            _github_issues_factory(
+                active_states=["Open"],
+                terminal_states=["Done"],
+            )

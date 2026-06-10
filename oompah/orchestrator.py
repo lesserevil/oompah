@@ -1375,14 +1375,74 @@ class Orchestrator:
             cwd=cwd,
         )
 
+    def _new_tracker_for_project(self, project: "Project") -> TrackerProtocol:
+        """Construct a tracker adapter scoped to a specific project.
+
+        Resolves the tracker backend using the project's own ``tracker_kind``
+        field when set, falling back to the global service ``tracker_kind``
+        when the project has no explicit configuration (preserves legacy
+        Backlog.md behaviour for existing projects).
+
+        For ``github_issues`` projects the factory receives the project's
+        ``tracker_owner`` and ``tracker_repo`` so each project targets its
+        own GitHub task hub rather than reading env vars.
+
+        Raises :class:`TrackerError` when the resolved kind is not registered.
+        """
+        # Prefer the project-level kind when it is an explicit non-empty string;
+        # fall back to the global service kind for projects that have not been
+        # configured (tracker_kind is None or has not been set at all).
+        _project_kind = project.tracker_kind
+        kind: str = (
+            _project_kind
+            if isinstance(_project_kind, str) and _project_kind
+            else self.config.tracker_kind
+        )
+        factory = ADAPTER_REGISTRY.get(kind)
+        if factory is None:
+            registered = sorted(ADAPTER_REGISTRY)
+            raise TrackerError(
+                f"Unsupported tracker.kind {kind!r} for project {project.id!r}."
+                f" Registered adapters: {registered}"
+            )
+        # For GitHub-backed projects pass the project-specific owner/repo so
+        # the adapter targets the correct task hub.  The factory accepts (and
+        # ignores) unknown kwargs for forward compatibility.
+        extra: dict[str, object] = {}
+        if kind == "github_issues":
+            if project.tracker_owner:
+                extra["owner"] = project.tracker_owner
+            if project.tracker_repo:
+                extra["repo"] = project.tracker_repo
+        return factory(
+            active_states=self.config.tracker_active_states,
+            terminal_states=self.config.tracker_terminal_states,
+            cwd=project.repo_path,
+            **extra,
+        )
+
     def _tracker_for_project(self, project_id: str) -> TrackerProtocol:
-        """Get or create a tracker for a project."""
+        """Get or create the tracker for a project.
+
+        Returns the cached instance when available.  On first access the
+        project's ``tracker_kind`` is resolved: projects with an explicit
+        ``tracker_kind`` get the corresponding adapter (e.g.
+        ``GitHubIssueTracker`` for ``"github_issues"``); projects without
+        an explicit kind fall back to the global service ``tracker_kind``
+        (preserving legacy Backlog.md behaviour).
+
+        Acceptance criteria (TASK-461.1):
+        - AC #1: Returns ``BacklogMdTracker`` or ``GitHubIssueTracker``
+          depending on the project's configured backend.
+        - AC #2: Cache is project-scoped; ``_project_trackers`` is keyed
+          by ``project_id`` so each project has its own instance.
+        """
         if project_id in self._project_trackers:
             return self._project_trackers[project_id]
         project = self.project_store.get(project_id)
         if not project:
             raise ProjectError(f"Unknown project: {project_id}")
-        tracker = self._new_tracker(cwd=project.repo_path)
+        tracker = self._new_tracker_for_project(project)
         self._project_trackers[project_id] = tracker
         return tracker
 
