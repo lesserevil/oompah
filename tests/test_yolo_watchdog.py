@@ -530,7 +530,7 @@ class TestYoloEpicStrategyGate:
     )
     @patch("oompah.orchestrator.detect_provider")
     @patch("oompah.orchestrator.extract_repo_slug")
-    def test_shared_child_pr_is_gate_blocked_before_any_yolo_action(
+    def test_shared_child_pr_is_closed_before_any_yolo_action(
         self, mock_slug, mock_detect, tmp_path, review_kwargs,
     ):
         project = _make_project()
@@ -538,13 +538,14 @@ class TestYoloEpicStrategyGate:
         provider = MagicMock()
         provider.merge_review.return_value = (True, "merged")
         provider.enable_auto_merge.return_value = (True, "enqueued")
+        provider.close_review.return_value = (True, "closed")
         mock_detect.return_value = provider
         mock_slug.return_value = "org/repo"
 
         orch = _make_orchestrator(tmp_path, projects=[project])
         orch._yolo_notify_conflict = MagicMock()
         orch._yolo_retry_ci = MagicMock()
-        self._install_tracker(
+        tracker = self._install_tracker(
             orch,
             project,
             child=_make_issue("TASK-472.4", parent_id="TASK-472"),
@@ -565,11 +566,21 @@ class TestYoloEpicStrategyGate:
 
         provider.merge_review.assert_not_called()
         provider.enable_auto_merge.assert_not_called()
+        provider.close_review.assert_called_once_with(
+            "org/repo",
+            "249",
+            comment=ANY,
+        )
         orch._yolo_notify_conflict.assert_not_called()
         orch._yolo_retry_ci.assert_not_called()
+        tracker.add_comment.assert_called_once()
+        comment_args = tracker.add_comment.call_args.args
+        assert comment_args[0] == "TASK-472.4"
+        assert "Closed stale child PR #249" in comment_args[1]
         records = list(orch._yolo_action_history)
         assert len(records) == 1
-        assert records[0].action_type == "gate_blocked"
+        assert records[0].action_type == "close_invalid_review"
+        assert records[0].outcome == "success"
         assert "epic_strategy=shared" in records[0].error_msg
 
     @patch("oompah.orchestrator.detect_provider")

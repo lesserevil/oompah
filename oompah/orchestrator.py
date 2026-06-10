@@ -7858,7 +7858,7 @@ class Orchestrator:
                     review,
                 )
                 if epic_block_reason:
-                    if self._close_standalone_epic_policy_review(
+                    if self._close_invalid_epic_policy_review(
                         project,
                         provider,
                         slug,
@@ -9097,7 +9097,7 @@ class Orchestrator:
 
         return None
 
-    def _close_standalone_epic_policy_review(
+    def _close_invalid_epic_policy_review(
         self,
         project: Project,
         provider: Any,
@@ -9108,18 +9108,17 @@ class Orchestrator:
         *,
         tick: int,
     ) -> bool:
-        """Close stale standalone task PRs forbidden by epic-owned policy.
+        """Close stale task PRs forbidden by epic-owned policy.
 
         ``_yolo_epic_strategy_block_reason`` intentionally blocks every
-        epic-strategy violation, including child PRs that may need a rebase
-        or human routing decision. This helper is narrower: it only handles
-        top-level non-epic tasks on projects with ``require_epic_for_tasks``.
-        Those PRs can never be valid under the project policy, so leaving
-        them open just makes YOLO reprocess the same terminal violation.
-        """
-        if not getattr(project, "require_epic_for_tasks", False):
-            return False
+        epic-strategy violation. This helper closes violations that can never
+        be valid under the current policy, so leaving them open would only let
+        YOLO reprocess the same terminal violation:
 
+        * top-level non-epic task PRs when ``require_epic_for_tasks`` is set
+        * child task PRs in ``epic_strategy=shared`` projects, where work must
+          land through the parent epic branch instead
+        """
         source_branch = (getattr(review, "source_branch", "") or "").strip()
         if not source_branch:
             return False
@@ -9135,18 +9134,70 @@ class Orchestrator:
                 exc,
             )
             return False
-        if not self._issue_requires_parent_epic(issue, project.id):
+
+        close_comment = ""
+        task_comment_prefix = ""
+        needs_human_tail = ""
+
+        if self._issue_requires_parent_epic(issue, project.id):
+            close_comment = (
+                "Closing stale standalone task PR. This project requires "
+                "epic-owned implementation work, so task work must land through "
+                "an epic rollup PR instead of a direct task PR.\n\n"
+                f"{reason}"
+            )
+            task_comment_prefix = (
+                "Closed stale standalone PR #{review_id} because this project "
+                "requires epic-owned implementation work. "
+            )
+            needs_human_tail = (
+                " The task was moved to Needs Human so it can be attached "
+                "to an epic or intentionally exempted."
+            )
+        elif (
+            self._project_epic_strategy(project.id) == "shared"
+            and issue is not None
+            and (issue.parent_id or "").strip()
+        ):
+            parent_epic = self._resolve_parent_epic(issue)
+            if parent_epic is not None:
+                try:
+                    issue_epic_branch = self.project_store.epic_branch_name(
+                        issue.identifier
+                    )
+                except Exception:  # noqa: BLE001 - branch mismatch is enough
+                    issue_epic_branch = ""
+                if source_branch != issue_epic_branch:
+                    parent_epic_branch = self.project_store.epic_branch_name(
+                        parent_epic.identifier
+                    )
+                    close_comment = (
+                        "Closing stale child task PR. This project uses shared "
+                        "epic branches, so child task work must land through "
+                        f"the parent epic rollup PR from {parent_epic_branch} "
+                        "instead of a direct task PR.\n\n"
+                        f"{reason}"
+                    )
+                    task_comment_prefix = (
+                        "Closed stale child PR #{review_id} because this "
+                        "project uses shared epic branches. "
+                    )
+                    needs_human_tail = (
+                        " The task was moved to Needs Human so the work can "
+                        "be moved to the shared epic branch or the stale PR "
+                        "can be inspected."
+                    )
+
+        if not close_comment:
             return False
 
         review_id = str(review.id)
-        comment = (
-            "Closing stale standalone task PR. This project requires "
-            "epic-owned implementation work, so task work must land through "
-            "an epic rollup PR instead of a direct task PR.\n\n"
-            f"{reason}"
-        )
         try:
-            success, msg = provider.close_review(slug, review_id, comment=comment)
+            success, msg = provider.close_review(
+                slug,
+                review_id,
+                comment=close_comment,
+            )
         except Exception as exc:  # noqa: BLE001 - provider failures are retryable
             success, msg = False, str(exc)
 
@@ -9186,6 +9237,8 @@ class Orchestrator:
             issue,
             review_id,
             reason,
+            task_comment_prefix,
+            needs_human_tail,
         )
         return True
 
@@ -9195,23 +9248,19 @@ class Orchestrator:
         issue: Issue | None,
         review_id: str,
         reason: str,
+        task_comment_prefix: str,
+        needs_human_tail: str,
     ) -> None:
         if issue is None:
             return
         current_status = canonicalize_status(issue.state)
-        comment = (
-            f"Closed stale standalone PR #{review_id} because this project "
-            "requires epic-owned implementation work. "
-            f"{reason}"
-        )
+        comment = task_comment_prefix.format(review_id=review_id) + reason
         try:
             if current_status == IN_REVIEW:
                 tracker.update_issue(issue.identifier, status=NEEDS_HUMAN)
                 tracker.add_comment(
                     issue.identifier,
-                    comment
-                    + " The task was moved to Needs Human so it can be "
-                    "attached to an epic or intentionally exempted.",
+                    comment + needs_human_tail,
                     author="oompah",
                 )
             elif current_status == DONE:

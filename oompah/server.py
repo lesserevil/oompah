@@ -1952,6 +1952,8 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                     child_states.setdefault(issue.parent_id, []).append(issue.state)
             for issue in issues:
                 if (issue.issue_type or "").strip().lower() == "epic":
+                    if canonicalize_status(issue.state) in {MERGED, ARCHIVED}:
+                        continue
                     rolled = epic_rollup_state(child_states.get(issue.id, []))
                     if rolled:
                         issue.state = rolled

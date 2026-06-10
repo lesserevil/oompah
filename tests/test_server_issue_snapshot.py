@@ -3,9 +3,12 @@ from __future__ import annotations
 import contextlib
 import json
 import time
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
+from oompah.models import Issue
 from oompah import server as server_module
 
 
@@ -46,6 +49,57 @@ def _clear_issue_snapshot_sync() -> None:
             }
         )
     server_module._api_cache.clear()
+
+
+def _issue(identifier: str, state: str, *, issue_type: str = "task", parent_id=None):
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title=identifier,
+        description="",
+        state=state,
+        issue_type=issue_type,
+        parent_id=parent_id,
+    )
+
+
+def _orch_with_issues(issues):
+    project = SimpleNamespace(id="proj-1", name="project-1")
+    tracker = MagicMock()
+    tracker.fetch_all_issues.return_value = list(issues)
+    orch = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch._tracker_for_project.return_value = tracker
+    orch._project_epic_strategy.return_value = "flat"
+    return orch
+
+
+def test_fetch_all_issues_keeps_merged_epic_terminal_status():
+    orch = _orch_with_issues(
+        [
+            _issue("TASK-1", "Merged", issue_type="epic"),
+            _issue("TASK-1.1", "Done", parent_id="TASK-1"),
+        ]
+    )
+
+    issues = server_module._fetch_all_issues(orch)
+
+    by_id = {issue.identifier: issue for issue in issues}
+    assert by_id["TASK-1"].state == "Merged"
+
+
+def test_fetch_all_issues_rolls_up_non_terminal_epic_status():
+    orch = _orch_with_issues(
+        [
+            _issue("TASK-1", "Backlog", issue_type="epic"),
+            _issue("TASK-1.1", "Done", parent_id="TASK-1"),
+        ]
+    )
+
+    issues = server_module._fetch_all_issues(orch)
+
+    by_id = {issue.identifier: issue for issue in issues}
+    assert by_id["TASK-1"].state == "Done"
 
 
 async def _reset_issue_snapshot() -> None:
