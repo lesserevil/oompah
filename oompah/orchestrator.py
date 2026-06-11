@@ -10026,18 +10026,31 @@ class Orchestrator:
             # oompah-zlz_2-cd5 fixes.
             children = self._fetch_epic_children(issue)
             if children:
+                sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
+
+                def _is_ci_fix_sibling(child: Issue) -> bool:
+                    state_key = _state_key(child.state)
+                    if state_key not in {
+                        _state_key(OPEN),
+                        _state_key(IN_PROGRESS),
+                        _state_key(NEEDS_CI_FIX),
+                    }:
+                        return False
+                    labels = {str(label) for label in (child.labels or [])}
+                    title = str(child.title or "").strip()
+                    return (
+                        "ci-fix" in labels
+                        or canonicalize_status(child.state) == NEEDS_CI_FIX
+                        or title == sibling_title
+                    )
+
                 # Idempotency: if there's already an OPEN/IN_PROGRESS
                 # ci-fix sibling under this parent, a fix is already in
                 # flight — don't file a duplicate. CLOSED siblings
                 # from previous attempts don't count (treat as
                 # finished and file a new one).
                 existing_sibling = next(
-                    (
-                        c
-                        for c in children
-                        if _state_key(c.state) in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_CI_FIX)}
-                        and ("ci-fix" in (c.labels or []) or canonicalize_status(c.state) == NEEDS_CI_FIX)
-                    ),
+                    (c for c in children if _is_ci_fix_sibling(c)),
                     None,
                 )
                 if existing_sibling is not None:
@@ -10060,7 +10073,6 @@ class Orchestrator:
                         issue.identifier,
                     )
                     return
-                sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
                 sibling_description = (
                     f"YOLO: CI tests failed on MR #{review.id} "
                     f"(branch {source_branch}). The branch's primary "
@@ -10080,6 +10092,7 @@ class Orchestrator:
                     priority=0,
                     parent=issue.identifier,
                     initial_status=NEEDS_CI_FIX,
+                    labels=["ci-fix"],
                 )
                 logger.info(
                     "YOLO: filed sibling ci-fix task %s under %s "
@@ -10129,6 +10142,7 @@ class Orchestrator:
                         priority=0,
                         parent=issue.identifier,
                         initial_status=NEEDS_CI_FIX,
+                        labels=["ci-fix"],
                     )
                     logger.info(
                         "YOLO: filed sibling ci-fix task %s under epic %s for MR #%s",
