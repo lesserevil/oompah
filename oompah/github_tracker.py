@@ -1971,6 +1971,8 @@ class GitHubIssueTracker:
                 self._issues_path(f"/{gh_id.number}"),
                 json=patch_payload,
             )
+            if status_to_set is not None:
+                self.record_trusted_status(gh_id.number, status_to_set)
 
         # Label add/remove operations.
         for op, label in label_ops:

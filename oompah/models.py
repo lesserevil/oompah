@@ -322,6 +322,11 @@ class Project:
     # than epic_strategy: shared/stacked, which only changes behavior once a
     # parent epic exists.
     require_epic_for_tasks: bool = False
+    # When true, a Proposed GitHub issue that satisfies intake readiness and
+    # approval gates is promoted to Backlog as soon as the approval is recorded.
+    # When false, approval is recorded but a project owner must explicitly move
+    # the issue to Backlog.
+    intake_auto_promote: bool = True
 
     churn_magnet_gate_enabled: bool = False
     churn_magnet_top_n: int = 10
@@ -441,6 +446,7 @@ class Project:
         # surfaces the field on disk.
         d["epic_strategy"] = self.epic_strategy
         d["require_epic_for_tasks"] = self.require_epic_for_tasks
+        d["intake_auto_promote"] = self.intake_auto_promote
         # Always emit churn-magnet gate config so dashboards can render
         # the settings and the orchestrator persists them across restarts.
         d["churn_magnet_gate_enabled"] = self.churn_magnet_gate_enabled
@@ -607,6 +613,7 @@ class Project:
             test_skip_paths=test_skip_paths,
             epic_strategy=epic_strategy,
             require_epic_for_tasks=bool(d.get("require_epic_for_tasks", False)),
+            intake_auto_promote=bool(d.get("intake_auto_promote", True)),
             churn_magnet_gate_enabled=bool(d.get("churn_magnet_gate_enabled", False)),
             churn_magnet_top_n=max(1, int(d.get("churn_magnet_top_n", 10))),
             provider_whitelist=provider_whitelist,

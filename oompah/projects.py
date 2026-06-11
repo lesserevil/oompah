@@ -896,6 +896,7 @@ class ProjectStore:
             "test_skip_paths",
             "epic_strategy",
             "require_epic_for_tasks",
+            "intake_auto_promote",
             "provider_whitelist",
             "backlog_conflict_paths",
             # Per-project tracker configuration (TASK-459.3 / TASK-464.2)
@@ -994,6 +995,11 @@ class ProjectStore:
             val = fields["require_epic_for_tasks"]
             if not isinstance(val, bool):
                 raise ProjectError("'require_epic_for_tasks' must be a boolean")
+
+        if "intake_auto_promote" in fields:
+            val = fields["intake_auto_promote"]
+            if not isinstance(val, bool):
+                raise ProjectError("'intake_auto_promote' must be a boolean")
 
         # Normalize provider_whitelist: must be a list of non-empty strings.
         if "provider_whitelist" in fields:

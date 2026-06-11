@@ -47,6 +47,18 @@ class TestProject:
         assert p.git_user_name is None
         assert p.git_user_email is None
         assert p.last_webhook_received_at is None
+        assert p.intake_auto_promote is True
+
+    def test_intake_auto_promote_round_trip(self):
+        original = Project(
+            id="p1",
+            name="test",
+            repo_url="https://x",
+            repo_path="/tmp/x",
+            intake_auto_promote=False,
+        )
+        restored = Project.from_dict(original.to_dict())
+        assert restored.intake_auto_promote is False
 
     def test_last_webhook_received_at_default_none(self):
         p = Project(id="p1", name="test", repo_url="https://x", repo_path="/tmp/x")
