@@ -1326,6 +1326,7 @@ def _make_gh_issue(
     html_url: str | None = None,
     issue_id: int | None = None,
     is_pull_request: bool = False,
+    user_login: str = "alice",
 ) -> dict:
     """Build a minimal GitHub REST API issue dict for testing."""
     payload = {
@@ -1340,6 +1341,7 @@ def _make_gh_issue(
         "updated_at": updated_at,
         "closed_at": closed_at,
         "node_id": f"I_node_{number}",
+        "user": {"login": user_login},
     }
     if is_pull_request:
         payload["html_url"] = html_url or (
@@ -1370,6 +1372,14 @@ class TestGhIssueToIssue:
         assert issue.display_identifier == "oompah-tasks#42"
         assert issue.tracker_kind == "github_issues"
 
+    def test_requestor_login_comes_from_github_issue_user(self):
+        issue = self._convert(number=42, user_login="requestor")
+        assert issue.requestor_login == "requestor"
+
+    def test_proposed_status_label_is_supported(self):
+        issue = self._convert(labels=["oompah:status:proposed"])
+        assert issue.state == "Proposed"
+
     def test_state_open_defaults_to_Proposed(self):
         issue = self._convert(state="open", labels=[])
         assert issue.state == "Proposed"
@@ -1383,6 +1393,10 @@ class TestGhIssueToIssue:
             state="open", labels=["oompah:status:in-progress"]
         )
         assert issue.state == "In Progress"
+
+    def test_proposed_status_label_maps_to_issue_state(self):
+        issue = self._convert(state="open", labels=["oompah:status:proposed"])
+        assert issue.state == "Proposed"
 
     def test_priority_from_label(self):
         issue = self._convert(labels=["priority:3"])
@@ -1405,6 +1419,21 @@ class TestGhIssueToIssue:
             labels=["oompah:status:open", "priority:1", "type:feature", "needs:frontend"]
         )
         assert issue.labels == ["needs:frontend"]
+
+    def test_intake_metadata_maps_to_issue(self):
+        body = (
+            "Issue body\n"
+            "<!-- oompah:metadata\n"
+            '{"intake": {"missing_fields": ["acceptance_criteria"], '
+            '"last_validator_result": "fail"}}\n'
+            "-->"
+        )
+        issue = self._convert(body=body)
+
+        assert issue.intake == {
+            "missing_fields": ["acceptance_criteria"],
+            "last_validator_result": "fail",
+        }
 
     def test_url_set(self):
         issue = self._convert(

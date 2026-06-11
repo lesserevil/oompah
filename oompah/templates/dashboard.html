@@ -306,6 +306,51 @@
       color: var(--border);
       font-style: italic;
     }
+    .intake-card-summary {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.45rem;
+      font-size: 0.68rem;
+      line-height: 1.2;
+      color: var(--text-muted);
+      min-width: 0;
+    }
+    .intake-state-pill {
+      flex: 0 0 auto;
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .intake-card-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .intake-state-missing-info .intake-state-pill {
+      color: var(--red);
+      border-color: rgba(248, 81, 73, 0.45);
+      background: rgba(248, 81, 73, 0.12);
+    }
+    .intake-state-awaiting-requestor-approval .intake-state-pill {
+      color: var(--yellow);
+      border-color: rgba(210, 153, 34, 0.45);
+      background: rgba(210, 153, 34, 0.12);
+    }
+    .intake-state-awaiting-owner-review .intake-state-pill {
+      color: var(--accent);
+      border-color: rgba(88, 166, 255, 0.45);
+      background: rgba(88, 166, 255, 0.12);
+    }
+    .intake-state-ready-for-backlog .intake-state-pill {
+      color: var(--green);
+      border-color: rgba(63, 185, 80, 0.45);
+      background: rgba(63, 185, 80, 0.12);
+    }
 
     /* Multimodal attachments */
     .card-attachments { display: flex; gap: 0.25rem; align-items: center; margin-top: 0.35rem; flex-wrap: wrap; }
@@ -548,6 +593,44 @@
       color: var(--text);
       line-height: 1.4;
     }
+    .detail-intake-summary {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6rem;
+      background: rgba(125, 133, 144, 0.08);
+    }
+    .detail-intake-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.45rem;
+    }
+    .detail-intake-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .detail-intake-next {
+      color: var(--text);
+      font-size: 0.78rem;
+      margin-bottom: 0.5rem;
+      line-height: 1.35;
+    }
+    .detail-intake-grid {
+      display: grid;
+      grid-template-columns: minmax(7rem, auto) 1fr;
+      gap: 0.25rem 0.6rem;
+      font-size: 0.74rem;
+    }
+    .detail-intake-key {
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .detail-intake-value {
+      color: var(--text);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
     .detail-editable {
       font-size: 0.85rem;
       color: var(--text);
@@ -645,6 +728,46 @@
       min-height: 50px;
     }
     .comment-input:focus { border-color: var(--accent); }
+
+    /* Intake actions */
+    .intake-actions {
+      border-top: 1px solid var(--border);
+      padding-top: 0.75rem;
+    }
+    .intake-actions-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.45rem;
+    }
+    .intake-actor-button {
+      font-size: 0.68rem;
+      padding: 0.18rem 0.45rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .intake-actions-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.35rem;
+    }
+    .intake-action-button {
+      width: 100%;
+      min-height: 32px;
+      font-size: 0.74rem;
+    }
+    .intake-action-button.owner-action {
+      border-color: rgba(210,153,34,0.45);
+    }
+    .intake-action-empty {
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      line-height: 1.35;
+    }
 
     /* Release Picks section */
     .release-picks-list {
@@ -2410,7 +2533,7 @@ function applyHideMergedFilter(data) {
   for (const [state, issues] of Object.entries(data)) {
     if (!Array.isArray(issues)) continue;
     const stateKey = columnKeyForStatus(state);
-    if (['Backlog', 'Open', 'In Progress', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(stateKey)) {
+    if (['Proposed', 'Backlog', 'Open', 'In Progress', 'Needs CI Fix', 'Needs Rebase', 'In Review'].includes(stateKey)) {
       filtered[state] = issues;
       continue;
     }
@@ -2940,6 +3063,54 @@ function issueDisplayIdentifier(issue) {
   );
 }
 
+function renderCardIntakeSummary(issue) {
+  const summary = issue && issue.intake_summary;
+  if (!summary) return '';
+  const state = summary.state || 'awaiting-owner-review';
+  return `
+    <div class="intake-card-summary intake-state-${esc(state)}" title="${esc(summary.next_action || '')}">
+      <span class="intake-state-pill">${esc(summary.label || 'Intake')}</span>
+      <span class="intake-card-text">${esc(summary.card_text || summary.next_action || '')}</span>
+    </div>
+  `;
+}
+
+function intakeDisplayValue(value, fallback) {
+  if (Array.isArray(value)) return value.length ? value.join(', ') : (fallback || 'None');
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (value === null || value === undefined || value === '') return fallback || 'None';
+  return String(value).replace(/_/g, ' ');
+}
+
+function renderIntakeSummary(summary) {
+  if (!summary) return '';
+  const state = summary.state || 'awaiting-owner-review';
+  const rows = [
+    ['Missing info', intakeDisplayValue(summary.missing_fields, 'None')],
+    ['Requestor approval', intakeDisplayValue(summary.requestor_approval_state, 'Awaiting')],
+    ['Owner override', intakeDisplayValue(summary.owner_override_state, 'None')],
+    ['Decomposition', intakeDisplayValue(summary.decomposition_state, 'not needed')],
+  ];
+  return `
+    <div class="detail-field">
+      <div class="detail-field-label">Intake</div>
+      <div class="detail-intake-summary intake-state-${esc(state)}">
+        <div class="detail-intake-header">
+          <span class="detail-intake-title">${esc(summary.label || 'Intake')}</span>
+          <span class="intake-state-pill">${esc(summary.ready_for_backlog ? 'Ready' : 'Blocked')}</span>
+        </div>
+        <div class="detail-intake-next">${esc(summary.next_action || '')}</div>
+        <div class="detail-intake-grid">
+          ${rows.map(([label, value]) => `
+            <div class="detail-intake-key">${esc(label)}</div>
+            <div class="detail-intake-value">${esc(value)}</div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function createCard(issue) {
   const card = document.createElement('div');
   card.className = 'card';
@@ -3012,6 +3183,7 @@ function createCard(issue) {
          data-field="title" data-id="${esc(issue.identifier)}">${esc(issue.title)}</div>
     <div class="card-desc" contenteditable="true" spellcheck="false"
          data-field="description" data-id="${esc(issue.identifier)}">${esc(issue.description || '')}</div>
+    ${renderCardIntakeSummary(issue)}
     ${renderCardAttachments(issue)}
   `;
 
@@ -3760,6 +3932,102 @@ function openAddReleasePicksModal(identifier, projectId) {
 
 // ---------------------------------------------------------------------------
 
+function intakeActorLogin() {
+  return (localStorage.getItem('oompah_intake_actor') || '').trim();
+}
+
+function setIntakeActorLogin(identifier) {
+  const current = intakeActorLogin();
+  const actor = prompt('GitHub login', current);
+  if (actor === null) return;
+  const clean = actor.trim();
+  if (clean) localStorage.setItem('oompah_intake_actor', clean);
+  else localStorage.removeItem('oompah_intake_actor');
+  if (identifier) openDetailPanel(identifier);
+}
+
+function renderIntakeActions(detail) {
+  if (!detail || statusKey(detail.state) !== 'proposed') return '';
+  const perms = detail.intake_actions || {};
+  const actor = intakeActorLogin();
+  const actorLabel = actor ? '@' + actor : 'Set Actor';
+  const buttons = [];
+  if (perms.can_requestor_approve) {
+    buttons.push(`<button class="intake-action-button requestor-action" onclick="performIntakeAction('${esc(detail.identifier)}', 'requestor-approve')">Approve Scope</button>`);
+  }
+  if (perms.can_request_changes) {
+    buttons.push(`<button class="intake-action-button owner-action" onclick="performIntakeAction('${esc(detail.identifier)}', 'request-changes')">Request Changes</button>`);
+  }
+  if (perms.can_override_readiness) {
+    buttons.push(`<button class="intake-action-button owner-action" onclick="performIntakeAction('${esc(detail.identifier)}', 'override-readiness')">Override Readiness</button>`);
+  }
+  if (perms.can_promote_to_backlog) {
+    buttons.push(`<button class="intake-action-button owner-action" onclick="performIntakeAction('${esc(detail.identifier)}', 'promote-to-backlog')">Promote to Backlog</button>`);
+  }
+
+  return `
+    <div class="detail-field intake-actions">
+      <div class="intake-actions-header">
+        <div class="detail-field-label">Intake</div>
+        <button class="intake-actor-button" onclick="setIntakeActorLogin('${esc(detail.identifier)}')">${esc(actorLabel)}</button>
+      </div>
+      ${buttons.length > 0
+        ? `<div class="intake-actions-buttons">${buttons.join('')}</div>`
+        : '<div class="intake-action-empty">No intake actions available for this actor.</div>'}
+    </div>
+  `;
+}
+
+async function performIntakeAction(identifier, action) {
+  let actor = intakeActorLogin();
+  if (!actor) {
+    const entered = prompt('GitHub login', '');
+    if (entered === null) return;
+    actor = entered.trim();
+    if (!actor) return;
+    localStorage.setItem('oompah_intake_actor', actor);
+  }
+
+  let message = '';
+  if (action === 'request-changes') {
+    const entered = prompt('Requested changes', '');
+    if (entered === null) return;
+    message = entered.trim();
+  } else if (action === 'override-readiness') {
+    const entered = prompt('Override reason', '');
+    if (entered === null) return;
+    message = entered.trim();
+  }
+
+  const projectId = document.getElementById('detail-panel-body').dataset.projectId;
+  const payload = {actor, project_id: projectId};
+  if (message) payload.message = message;
+
+  let res;
+  try {
+    res = await fetch(issueApiUrl(identifier, '/intake/' + action, {project_id: projectId}), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(issueRequestBody(identifier, payload)),
+    });
+  } catch (err) {
+    alert('Intake action failed: ' + (err.message || err));
+    return;
+  }
+  if (!res.ok) {
+    let messageText = 'Intake action failed';
+    try {
+      const body = await res.json();
+      messageText = (body.error && body.error.message) || messageText;
+    } catch (_) {}
+    alert(messageText);
+    return;
+  }
+  await openDetailPanel(identifier);
+  const data = await fetchIssues();
+  if (data) renderBoard(data);
+}
+
 async function openDetailPanel(identifier) {
   _openDetailIdentifier = identifier;
   const panel = document.getElementById('detail-panel');
@@ -3772,11 +4040,14 @@ async function openDetailPanel(identifier) {
 
   const issue = allIssuesFlat.find(i => i.identifier === identifier);
   const projectId = issue && issue.project_id ? issue.project_id : '';
+  const intakeActor = intakeActorLogin();
+  const detailParams = {project_id: projectId};
+  if (intakeActor) detailParams.actor = intakeActor;
   // Start release-picks fetch in parallel; failures are caught and handled below.
   const _rpFetch = fetch(issueApiUrl(identifier, '/release-picks', {project_id: projectId})).catch(() => null);
   let res;
   try {
-    res = await fetch(issueApiUrl(identifier, '/detail', {project_id: projectId}));
+    res = await fetch(issueApiUrl(identifier, '/detail', detailParams));
   } catch (err) {
     body.innerHTML = '<div style="color:var(--red);font-size:0.8rem;">Failed to load: network error</div>';
     return;
@@ -3833,6 +4104,8 @@ async function openDetailPanel(identifier) {
   // Asynchronously fetch + render after the detail HTML is in the DOM.
   setTimeout(() => loadIssueAttachments(detail.identifier), 0);
 
+  html += renderIntakeSummary(detail.intake_summary);
+
   // GitHub issue URL — show for GitHub-backed issues
   if (detail.url) {
     html += `
@@ -3865,6 +4138,8 @@ async function openDetailPanel(identifier) {
       </div>
     `;
   }
+
+  html += renderIntakeActions(detail);
 
   if (detail.parent_id) {
     const epic = getEpicById(detail.parent_id, detail.project_id);

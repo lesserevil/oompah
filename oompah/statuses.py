@@ -63,6 +63,7 @@ _ALIASES = {
     "to do": BACKLOG,
     "todo": BACKLOG,
     "deferred": BACKLOG,
+    "proposed": PROPOSED,
     "backlog": BACKLOG,
     "open": OPEN,
     "in progress": IN_PROGRESS,
@@ -180,7 +181,8 @@ def epic_rollup_state(child_states: Iterable[str | None]) -> str | None:
     * any child actively working        → ``In Progress`` (beats Open: a mix of
       Open + In Progress rolls up to In Progress)
     * any child Open                    → ``Open``
-    * all children Backlog              → ``Backlog``
+    * all children Proposed             → ``Proposed``
+    * all children Proposed/Backlog     → ``Backlog`` if any child reached Backlog
     * otherwise (e.g. some Done + some Backlog, none open/active) → ``In Progress``
       (the epic has started but isn't complete)
     """
@@ -200,6 +202,6 @@ def epic_rollup_state(child_states: Iterable[str | None]) -> str | None:
         return IN_PROGRESS
     if OPEN in cset:
         return OPEN
-    if cset == {BACKLOG}:
-        return BACKLOG
+    if cset <= {PROPOSED, BACKLOG}:
+        return BACKLOG if BACKLOG in cset else PROPOSED
     return IN_PROGRESS

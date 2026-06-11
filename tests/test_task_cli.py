@@ -558,6 +558,20 @@ class TestCmdSetStatus:
             task_cli._cmd_set_status("http://localhost:8080", args)
         assert m.call_count == 1
 
+    def test_actor_forwarded_for_gated_status_transition(self):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="TASK-5",
+            status="Open",
+            summary=None,
+            project=None,
+            actor="owner",
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_status("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data["actor_login"] == "owner"
+
     def test_prints_new_status(self, capsys):
         args = _make_args(
             subcommand="set-status",
@@ -597,6 +611,19 @@ class TestCmdAddLabel:
             task_cli._cmd_add_label("http://localhost:8080", args)
         data = m.call_args.kwargs.get("data", {})
         assert data["label"] == "bug"
+
+    def test_actor_forwarded_for_gated_status_label(self):
+        args = _make_args(
+            subcommand="add-label",
+            identifier="TASK-1",
+            label="oompah:status:open",
+            project=None,
+            actor="owner",
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_add_label("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data["actor_login"] == "owner"
 
     def test_prints_confirmation(self, capsys):
         args = _make_args(

@@ -242,6 +242,74 @@ class TestSetupServicesSuccess:
         assert mocks["orchestrator"]._paused is True
         mocks["orchestrator"]._save_paused_state.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_label_bootstrap_alerts_are_attached_to_orchestrator(self, tmp_path):
+        """setup_services() runs GitHub label bootstrap and surfaces alerts."""
+        mocks = self._make_mocks()
+        project = MagicMock(name="project")
+        project.id = "proj-gh"
+        project.name = "trickle"
+        mocks["projects"].list_all.return_value = [project]
+        mocks["projects"].sync_all_sources.return_value = {
+            "proj-gh": {"git": "ok", "backlog": "skipped: github_issues"}
+        }
+
+        bootstrap_result = MagicMock(name="label_bootstrap_result")
+        bootstrap_result.success = False
+        bootstrap_result.status_summary.return_value = (
+            "failed 1: oompah:status:proposed"
+        )
+        bootstrap_alert = {
+            "level": "error",
+            "source": "label_bootstrap:proj-gh",
+            "message": "Cannot create required GitHub labels in org/repo",
+        }
+
+        mock_sc = MagicMock(name="ServiceConfig_class")
+        mock_sc.from_workflow.return_value = mocks["config"]
+
+        with (
+            patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
+            patch(self._PATCHES["ServiceConfig"], mock_sc),
+            patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
+            patch(
+                self._PATCHES["ensure_backlog_compatible"],
+                return_value=mocks["compat"],
+            ),
+            patch(self._PATCHES["ProviderStore"], return_value=MagicMock()),
+            patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
+            patch(self._PATCHES["AgentProfileStore"], return_value=MagicMock()),
+            patch(self._PATCHES["RoleStore"], return_value=mocks["role_store"]),
+            patch(self._PATCHES["migrate_agent_profiles_to_roles"]),
+            patch(
+                self._PATCHES["WebhookForwarder"],
+                return_value=mocks["forwarder"],
+            ),
+            patch(
+                self._PATCHES["Orchestrator"],
+                return_value=mocks["orchestrator"],
+            ),
+            patch(
+                "oompah.backlog_webhooks.ensure_backlog_webhooks",
+                return_value={"proj-gh": "skipped: github_issues"},
+            ),
+            patch(
+                "oompah.label_bootstrap.ensure_github_labels",
+                return_value={"proj-gh": bootstrap_result},
+            ) as ensure_labels,
+            patch(
+                "oompah.label_bootstrap.build_label_bootstrap_alerts",
+                return_value=[bootstrap_alert],
+            ) as build_alerts,
+        ):
+            from oompah.bootstrap import setup_services
+
+            await setup_services(str(tmp_path / "WORKFLOW.md"))
+
+        ensure_labels.assert_called_once_with([project])
+        build_alerts.assert_called_once_with({"proj-gh": bootstrap_result})
+        assert bootstrap_alert in mocks["orchestrator"]._alerts
+
 
 # ---------------------------------------------------------------------------
 # __main__.main() — --server argument parsing

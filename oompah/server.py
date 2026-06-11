@@ -61,7 +61,18 @@ from oompah.issue_enhancer import (
     enhance_issue,
     has_quality_source,
 )
+from oompah.intake_summary import build_intake_summary
 from oompah.intake_approval import is_approval_command
+from oompah.intake_actions import (
+    OVERRIDE_READINESS,
+    PROMOTE_TO_BACKLOG,
+    REQUESTOR_APPROVE,
+    action_permissions,
+    build_audit_comment,
+    check_permission,
+    normalize_action,
+    parse_audit_marker,
+)
 from oompah.intake_promotion import (
     promote_proposed_issue_to_backlog,
     record_intake_approval,
@@ -85,6 +96,12 @@ from oompah.statuses import (
     PROPOSED,
     canonicalize_status,
     epic_rollup_state,
+)
+from oompah.transition_gate import (
+    TransitionGateResult,
+    build_gate_rejection_comment,
+    build_owner_override_comment,
+    check_intake_transition,
 )
 from oompah.agent_profile_store import (
     AgentProfileStore,
@@ -395,6 +412,21 @@ def _project_names_by_id(orch) -> dict[str, str]:
             if project_id and project_name:
                 names[project_id] = project_name
     return names
+
+
+def _project_by_id(orch, project_id: str | None):
+    """Return the configured project for *project_id*, if available."""
+
+    if not project_id:
+        return None
+    try:
+        projects = orch.project_store.list_all()
+    except Exception:
+        return None
+    for project in projects:
+        if getattr(project, "id", None) == project_id:
+            return project
+    return None
 
 
 def _display_identifier(identifier: str, project_name: str | None) -> str:
@@ -761,6 +793,13 @@ def _issue_dashboard_state(issue) -> str:
     if "archive:yes" in (issue.labels or []):
         return _dashboard_state(ARCHIVED)
     return _dashboard_state(issue.state)
+
+
+def _issue_intake_summary(issue) -> dict[str, Any] | None:
+    return build_intake_summary(
+        getattr(issue, "intake", None),
+        issue_state=getattr(issue, "state", None),
+    )
 
 
 def _issue_count_from_board(board: dict[str, Any]) -> int:
@@ -1228,6 +1267,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         branch = issue.work_branch or issue.branch_name or issue.identifier
         has_open_review = branch in unmerged_branches if branch else False
         tracker_state = issue.state
+        intake_summary = _issue_intake_summary(issue)
         entry = {
             "id": issue.id,
             "identifier": issue.identifier,
@@ -1250,12 +1290,15 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
             "tracker_repo": getattr(issue, "tracker_repo", None),
             "issue_number": getattr(issue, "issue_number", None),
             "url": getattr(issue, "url", None) or getattr(issue, "provider_url", None),
+            "requestor_login": getattr(issue, "requestor_login", None),
             "managed_repo": getattr(issue, "managed_repo", None),
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
             "is_legacy": bool(getattr(issue, "is_legacy", False)),
             **_issue_display_fields(issue, project_names),
         }
+        if intake_summary is not None:
+            entry["intake_summary"] = intake_summary
         if issue.id in parents:
             entry["children_counts"] = parents[issue.id]
         result[state].append(entry)
@@ -1974,6 +2017,222 @@ def _resolve_identifier(
     return urllib.parse.unquote(identifier)
 
 
+def _request_actor_login(body: dict | None, request: Request | None = None) -> str:
+    """Return the actor login supplied by an API client, if any."""
+
+    for key in ("actor_login", "actor", "owner_actor", "requested_by", "author"):
+        value = (body or {}).get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    if request is not None:
+        for key in ("x-oompah-actor", "x-github-actor"):
+            value = request.headers.get(key)
+            if value and value.strip():
+                return value.strip()
+    return ""
+
+
+def _request_bool(body: dict | None, *keys: str) -> bool:
+    """Return true when any named request field is a truthy boolean/string."""
+
+    for key in keys:
+        value = (body or {}).get(key)
+        if isinstance(value, bool):
+            if value:
+                return True
+            continue
+        if isinstance(value, str):
+            if value.strip().lower() in {"1", "true", "yes", "y", "on", "ready", "approved"}:
+                return True
+        elif value:
+            return True
+    return False
+
+
+def _is_bot_actor(actor_login: str) -> bool:
+    """Return true when *actor_login* matches the configured oompah bot."""
+
+    if not actor_login:
+        return False
+    try:
+        from oompah.label_auth import get_bot_login
+
+        return actor_login.strip().lower() == get_bot_login().strip().lower()
+    except Exception:
+        return False
+
+
+def _intake_audit_flags(tracker, identifier: str) -> tuple[bool, bool]:
+    """Return ``(issue_is_ready, requestor_approved)`` from intake comments."""
+
+    fetch_comments = getattr(tracker, "fetch_comments", None)
+    if not callable(fetch_comments):
+        return False, False
+    try:
+        comments = fetch_comments(identifier)
+    except Exception:
+        return False, False
+    if not isinstance(comments, list):
+        return False, False
+
+    issue_is_ready = False
+    requestor_approved = False
+    for comment in comments:
+        if isinstance(comment, dict):
+            text = comment.get("text") or comment.get("body") or ""
+        else:
+            text = getattr(comment, "text", "") or getattr(comment, "body", "")
+        marker = parse_audit_marker(text)
+        if not marker:
+            continue
+        action = marker.get("action")
+        if action == REQUESTOR_APPROVE:
+            requestor_approved = True
+        elif action == OVERRIDE_READINESS:
+            issue_is_ready = True
+    return issue_is_ready, requestor_approved
+
+
+def _transition_rejection_response(
+    result: TransitionGateResult,
+    actor_login: str,
+    from_status: str | None,
+    to_status: str | None,
+) -> JSONResponse:
+    """Build an actionable API rejection response for an intake gate failure."""
+
+    message = result.reason or "Status transition rejected by intake gate"
+    if result.remedy:
+        message = f"{message} {result.remedy}"
+    return JSONResponse(
+        {
+            "error": {
+                "code": "intake_transition_rejected",
+                "message": message,
+                "reason": result.reason,
+                "remedy": result.remedy,
+                "gate": result.gate,
+                "actor": actor_login,
+                "from_status": from_status,
+                "to_status": to_status,
+            }
+        },
+        status_code=403,
+    )
+
+
+def _evaluate_api_intake_transition(
+    *,
+    orch,
+    tracker,
+    project_id: str | None,
+    identifier: str,
+    existing_issue,
+    target_status: str,
+    body: dict | None,
+    request: Request | None,
+) -> tuple[TransitionGateResult, str, str | None, str | None, JSONResponse | None]:
+    """Check a REST/CLI status transition before writing it to the tracker."""
+
+    raw_from_status = getattr(existing_issue, "state", None)
+    from_status = canonicalize_status(raw_from_status) if raw_from_status else None
+    to_status = canonicalize_status(target_status)
+    actor_login = _request_actor_login(body, request)
+    project = _project_by_id(orch, project_id)
+    if project is None or not _is_github_tracker_kind(
+        getattr(project, "tracker_kind", None)
+    ):
+        return (
+            TransitionGateResult(allowed=True),
+            actor_login,
+            from_status,
+            to_status,
+            None,
+        )
+
+    issue_is_ready = _request_bool(
+        body,
+        "issue_is_ready",
+        "intake_ready",
+        "readiness_approved",
+        "ready",
+    )
+    requestor_approved = _request_bool(
+        body,
+        "issue_has_requestor_approval",
+        "requestor_approved",
+        "requestor_approval",
+        "scope_approved",
+    )
+
+    if _state_key(from_status) == "proposed" and _state_key(to_status) == "backlog":
+        marker_ready, marker_approved = _intake_audit_flags(tracker, identifier)
+        issue_is_ready = issue_is_ready or marker_ready
+        requestor_approved = requestor_approved or marker_approved
+
+    result = check_intake_transition(
+        from_status,
+        to_status,
+        actor_login,
+        project,
+        issue_is_ready=issue_is_ready,
+        issue_has_requestor_approval=requestor_approved,
+        is_bot=_is_bot_actor(actor_login),
+    )
+    if not result.allowed:
+        return (
+            result,
+            actor_login,
+            from_status,
+            to_status,
+            _transition_rejection_response(
+                result,
+                actor_login,
+                from_status,
+                to_status,
+            ),
+        )
+    return result, actor_login, from_status, to_status, None
+
+
+def _record_owner_override_if_needed(
+    tracker,
+    identifier: str,
+    result: TransitionGateResult | None,
+    actor_login: str,
+    existing_issue,
+    from_status: str | None,
+    to_status: str | None,
+) -> None:
+    """Post a durable audit comment for owner override transitions."""
+
+    if result is None or not result.is_owner_override:
+        return
+    add_comment = getattr(tracker, "add_comment", None)
+    if not callable(add_comment):
+        return
+    try:
+        try:
+            comment = build_audit_comment(
+                OVERRIDE_READINESS,
+                actor_login,
+                existing_issue,
+                message=(
+                    f"Owner override accepted for {from_status or 'current state'} "
+                    f"to {to_status or 'target state'}."
+                ),
+            )
+        except Exception:
+            comment = build_owner_override_comment(actor_login, from_status, to_status)
+        add_comment(identifier, comment, author="oompah")
+    except Exception as exc:
+        logger.debug(
+            "Failed to record owner override comment for %s: %s",
+            identifier,
+            exc,
+        )
+
+
 def _managed_repo_slug(repo_url: str) -> str | None:
     """Extract ``owner/repo`` from a GitHub/GitLab remote URL.
 
@@ -2388,6 +2647,7 @@ async def api_create_issue(request: Request):
                         getattr(issue, "url", None)
                         or getattr(issue, "provider_url", None)
                     ),
+                    "requestor_login": getattr(issue, "requestor_login", None),
                     "managed_repo": getattr(issue, "managed_repo", None),
                     "target_branch": getattr(issue, "target_branch", None),
                     "work_branch": getattr(issue, "work_branch", None),
@@ -2613,6 +2873,10 @@ async def api_update_issue(identifier: str, request: Request):
         )
 
         handled_status = False
+        transition_result: TransitionGateResult | None = None
+        transition_actor = ""
+        transition_from_status: str | None = None
+        transition_to_status: str | None = None
         if new_status is not None:
             requested_status = canonicalize_status(new_status)
             existing_status = canonicalize_status(
@@ -2643,13 +2907,36 @@ async def api_update_issue(identifier: str, request: Request):
                         },
                         status_code=400,
                     )
-                owner_override_actor = None
-                if owner_override_requested:
-                    owner_override_actor = str(
-                        body.get("owner_actor")
-                        or body.get("actor")
-                        or "project-owner"
-                    )
+            (
+                transition_result,
+                transition_actor,
+                transition_from_status,
+                transition_to_status,
+                rejection,
+            ) = _evaluate_api_intake_transition(
+                orch=orch,
+                tracker=tracker,
+                project_id=project_id,
+                identifier=identifier,
+                existing_issue=existing_issue,
+                target_status=str(new_status),
+                body=body,
+                request=request,
+            )
+            if rejection is not None:
+                return rejection
+
+            if (
+                existing_status == PROPOSED
+                and requested_status == BACKLOG
+                and owner_override_requested
+            ):
+                owner_override_actor = str(
+                    body.get("owner_actor")
+                    or body.get("actor_login")
+                    or body.get("actor")
+                    or "project-owner"
+                )
                 result = promote_proposed_issue_to_backlog(
                     tracker,
                     identifier,
@@ -2670,12 +2957,9 @@ async def api_update_issue(identifier: str, request: Request):
                         status_code=409,
                     )
                 handled_status = True
+                transition_result = None
 
-        if (
-            new_status is not None
-            and not handled_status
-            and str(new_status).strip().lower() == "closed"
-        ):
+        if new_status is not None and str(new_status).strip().lower() == "closed":
             # Legacy close alias; apply other fields first if any.
             update_fields: dict[str, str] = {}
             if new_priority is not None:
@@ -2722,6 +3006,16 @@ async def api_update_issue(identifier: str, request: Request):
                         needs_human_comment,
                     ),
                 )
+
+        _record_owner_override_if_needed(
+            tracker,
+            identifier,
+            transition_result,
+            transition_actor,
+            existing_issue,
+            transition_from_status,
+            transition_to_status,
+        )
 
         # --- Epic state verification (oompah-zlz_2-sytm) ---
         # For Epic issues the tracker backend may have a post-update hook that
@@ -2822,6 +3116,161 @@ async def api_update_issue(identifier: str, request: Request):
         )
 
 
+@app.post("/api/v1/issues/{identifier}/intake/{action}")
+async def api_issue_intake_action(identifier: str, action: str, request: Request):
+    """Perform a permission-checked intake action on a Proposed issue."""
+
+    try:
+        orch = _get_orchestrator()
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Invalid JSON: {exc}",
+                    }
+                },
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "request body must be a JSON object",
+                    }
+                },
+                status_code=400,
+            )
+
+        normalized_action = normalize_action(action)
+        if normalized_action is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": f"Unknown intake action {action!r}",
+                    }
+                },
+                status_code=400,
+            )
+
+        actor_login = str(body.get("actor") or body.get("author") or "").strip()
+        if not actor_login:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "actor is required",
+                    }
+                },
+                status_code=400,
+            )
+
+        project_id = body.get("project_id") or request.query_params.get("project_id")
+        resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
+        managed_repo_req = (body.get("managed_repo") or "").strip() or None
+
+        if project_id:
+            tracker, project_id = _get_tracker_for_issue_or_project(
+                orch, resolved_identifier, project_id
+            )
+            issue = tracker.fetch_issue_detail(resolved_identifier)
+        elif managed_repo_req:
+            if "/" not in managed_repo_req:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "managed_repo must be in 'owner/repo' format",
+                        }
+                    },
+                    status_code=400,
+                )
+            try:
+                tracker, project_id = _get_tracker_for_managed_repo(
+                    orch, managed_repo_req
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": {"code": "not_found", "message": str(exc)}},
+                    status_code=404,
+                )
+            issue = tracker.fetch_issue_detail(resolved_identifier)
+        else:
+            tracker, project_id, issue = _find_tracker_for_issue(
+                orch, resolved_identifier
+            )
+            if tracker is None:
+                issue = None
+
+        if issue is None:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "issue_not_found",
+                        "message": f"Issue {resolved_identifier!r} not found",
+                    }
+                },
+                status_code=404,
+            )
+
+        project = _project_by_id(orch, project_id)
+        decision = check_permission(
+            normalized_action,
+            actor_login,
+            issue,
+            project,
+        )
+        if not decision.allowed:
+            status_code = 409 if decision.code == "invalid_state" else 403
+            if decision.code in {"actor_required", "unknown_action"}:
+                status_code = 400
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": decision.code or "forbidden",
+                        "message": decision.message or "Intake action is not allowed",
+                    }
+                },
+                status_code=status_code,
+            )
+
+        audit_comment = build_audit_comment(
+            normalized_action,
+            actor_login,
+            issue,
+            message=body.get("message", body.get("comment")),
+        )
+
+        new_status = None
+        if normalized_action == PROMOTE_TO_BACKLOG:
+            tracker.update_issue(resolved_identifier, status=BACKLOG)
+            new_status = BACKLOG
+
+        tracker.add_comment(resolved_identifier, audit_comment, author=actor_login)
+
+        _api_cache.invalidate("issues:all")
+        _api_cache.invalidate(f"comments:{project_id}:{resolved_identifier}")
+        _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
+        await broadcast_issues()
+        return JSONResponse(
+            {
+                "ok": True,
+                "action": normalized_action,
+                "status": new_status,
+            }
+        )
+    except Exception as exc:
+        logger.error("Intake action API error: %s", exc)
+        return JSONResponse(
+            {"error": {"code": "intake_action_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
 @app.post("/api/v1/issues/{identifier}/labels")
 async def api_add_label(identifier: str, request: Request):
     """Add a label to an issue."""
@@ -2888,7 +3337,51 @@ async def api_add_label(identifier: str, request: Request):
                     },
                     status_code=404,
                 )
-        tracker.add_label(resolved_identifier, label)
+
+        from oompah.label_auth import label_name_to_status
+
+        status_from_label = label_name_to_status(label)
+        transition_result: TransitionGateResult | None = None
+        transition_actor = ""
+        transition_from_status: str | None = None
+        transition_to_status: str | None = None
+        existing_issue = None
+        if status_from_label is not None:
+            try:
+                existing_issue = tracker.fetch_issue_detail(resolved_identifier)
+            except Exception:
+                existing_issue = None
+            (
+                transition_result,
+                transition_actor,
+                transition_from_status,
+                transition_to_status,
+                rejection,
+            ) = _evaluate_api_intake_transition(
+                orch=orch,
+                tracker=tracker,
+                project_id=project_id,
+                identifier=resolved_identifier,
+                existing_issue=existing_issue,
+                target_status=status_from_label,
+                body=body,
+                request=request,
+            )
+            if rejection is not None:
+                return rejection
+            tracker.update_issue(resolved_identifier, status=status_from_label)
+        else:
+            tracker.add_label(resolved_identifier, label)
+
+        _record_owner_override_if_needed(
+            tracker,
+            resolved_identifier,
+            transition_result,
+            transition_actor,
+            existing_issue,
+            transition_from_status,
+            transition_to_status,
+        )
         _api_cache.invalidate("issues:all")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         await broadcast_issues()
@@ -3234,10 +3727,11 @@ async def api_issue_full_detail(identifier: str, request: Request):
     try:
         orch = _get_orchestrator()
         project_id = request.query_params.get("project_id")
+        actor_login = (request.query_params.get("actor") or "").strip()
         # Resolve identifier: issue_key query param overrides path param to
         # support GitHub identifiers with slashes.
         resolved_identifier = _resolve_identifier(identifier, None, request.query_params)
-        cache_key = f"detail:{project_id}:{resolved_identifier}"
+        cache_key = f"detail:{project_id}:{resolved_identifier}:actor:{actor_login.lower()}"
         cached = _api_cache.get(cache_key)
         if cached is not None:
             return JSONResponse(cached)
@@ -3285,11 +3779,20 @@ async def api_issue_full_detail(identifier: str, request: Request):
             "tracker_repo": getattr(issue, "tracker_repo", None),
             "issue_number": getattr(issue, "issue_number", None),
             "url": getattr(issue, "url", None) or getattr(issue, "provider_url", None),
+            "requestor_login": getattr(issue, "requestor_login", None),
             "managed_repo": getattr(issue, "managed_repo", None),
             "target_branch": getattr(issue, "target_branch", None),
             "work_branch": getattr(issue, "work_branch", None),
             "is_legacy": bool(getattr(issue, "is_legacy", False)),
+            "intake_actions": action_permissions(
+                issue,
+                _project_by_id(orch, project_id),
+                actor_login,
+            ),
         }
+        intake_summary = _issue_intake_summary(issue)
+        if intake_summary is not None:
+            result["intake_summary"] = intake_summary
         if issue.issue_type in ("epic", "feature"):
             children = tracker.fetch_children(issue.id)
             result["children"] = [
@@ -7117,7 +7620,7 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         if is_status_label(event.label_name):
             authorized = is_authorized_status_actor(event.label_actor, project)
             if authorized:
-                _record_trusted_status_label_event(orch, event, project)
+                _handle_authorized_status_label_event(orch, event, project)
             elif _is_oompah_owned_label_event(orch, event, project):
                 # The labeled status matches a known oompah-owned write in the
                 # trusted-status ledger (e.g. a backfill or API status change
@@ -7202,6 +7705,131 @@ def _is_oompah_owned_label_event(orch, event, project) -> bool:
         return trusted_status == labeled_status
     except Exception:
         return False
+
+
+def _status_before_label_event(tracker, event, to_status: str) -> str | None:
+    """Best-effort previous status for a GitHub ``issues.labeled`` event."""
+
+    try:
+        number = int(event.issue_number)
+    except (TypeError, ValueError):
+        return None
+
+    ledger = getattr(tracker, "_trusted_status_ledger", {})
+    if isinstance(ledger, dict):
+        previous = ledger.get(number)
+        if previous and _state_key(previous) != _state_key(to_status):
+            return canonicalize_status(previous)
+
+    from oompah.label_auth import label_name_to_status
+
+    raw_issue = (getattr(event, "raw", {}) or {}).get("issue") or {}
+    labels = raw_issue.get("labels") or []
+    if isinstance(labels, list):
+        for item in labels:
+            name = item.get("name") if isinstance(item, dict) else str(item)
+            status = label_name_to_status(name or "")
+            if status and _state_key(status) != _state_key(to_status):
+                return canonicalize_status(status)
+
+    try:
+        identifier = _tracker_identifier_for_issue_number(tracker, number)
+        issue = tracker.fetch_issue_detail(identifier)
+    except Exception:
+        issue = None
+    state = getattr(issue, "state", None)
+    if state and _state_key(state) != _state_key(to_status):
+        return canonicalize_status(state)
+    return None
+
+
+def _handle_authorized_status_label_event(orch, event, project) -> None:
+    """Trust or reject an actor-authorized status label under intake gates."""
+
+    if event.action != "labeled" or not event.issue_number:
+        return
+
+    from oompah.label_auth import label_name_to_status
+
+    to_status = label_name_to_status(event.label_name)
+    if not to_status:
+        return
+
+    try:
+        tracker = orch._tracker_for_project(project.id)
+    except Exception as exc:
+        logger.debug(
+            "Failed to get tracker for authorized status label event on %s#%s: %s",
+            project.name,
+            event.issue_number,
+            exc,
+        )
+        return
+
+    from_status = _status_before_label_event(tracker, event, to_status)
+    issue_is_ready = False
+    requestor_approved = False
+    identifier = ""
+    if event.issue_number:
+        try:
+            identifier = _tracker_identifier_for_issue_number(
+                tracker,
+                int(event.issue_number),
+            )
+        except (TypeError, ValueError):
+            identifier = ""
+    if (
+        identifier
+        and _state_key(from_status) == "proposed"
+        and _state_key(to_status) == "backlog"
+    ):
+        issue_is_ready, requestor_approved = _intake_audit_flags(
+            tracker,
+            identifier,
+        )
+
+    result = check_intake_transition(
+        from_status,
+        to_status,
+        event.label_actor,
+        project,
+        issue_is_ready=issue_is_ready,
+        issue_has_requestor_approval=requestor_approved,
+        is_bot=_is_bot_actor(event.label_actor),
+    )
+    if not result.allowed:
+        comment = build_gate_rejection_comment(
+            result,
+            event.label_actor,
+            from_status,
+            to_status,
+        )
+        threading.Thread(
+            target=_revert_rejected_status_label_change,
+            args=(orch, event, project, comment),
+            name=f"webhook-label-gate-revert-{project.name}",
+            daemon=True,
+        ).start()
+        return
+
+    record_trusted = getattr(tracker, "record_trusted_status", None)
+    if callable(record_trusted):
+        record_trusted(int(event.issue_number), to_status)
+
+    if result.is_owner_override and identifier:
+        try:
+            issue = tracker.fetch_issue_detail(identifier)
+        except Exception:
+            issue = None
+        _record_owner_override_if_needed(
+            tracker,
+            identifier,
+            result,
+            event.label_actor,
+            issue,
+            from_status,
+            to_status,
+        )
 
 
 def _record_trusted_status_label_event(orch, event, project) -> None:
@@ -7340,6 +7968,72 @@ def _should_post_unauthorized_status_comment(
                 _unauthorized_status_comment_last_post.pop(stale_key, None)
 
         return True
+
+
+def _revert_rejected_status_label_change(orch, event, project, comment: str) -> None:
+    """Revert an actor-authorized status label rejected by transition gates."""
+
+    issue_number = event.issue_number
+    label_name = event.label_name
+    label_actor = event.label_actor
+    action = event.action
+
+    logger.warning(
+        "Rejected oompah:status:* transition: project=%s issue=#%s "
+        "actor=%s action=%s label=%s",
+        project.name,
+        issue_number,
+        label_actor,
+        action,
+        label_name,
+    )
+
+    if not issue_number:
+        return
+
+    try:
+        tracker = orch._tracker_for_project(project.id)
+    except Exception as exc:
+        logger.error(
+            "Cannot get tracker for project %s to revert rejected transition: %s",
+            project.name,
+            exc,
+        )
+        return
+
+    record_untrusted = getattr(tracker, "record_untrusted_status_label_change", None)
+    if callable(record_untrusted):
+        record_untrusted(int(issue_number), label_name, label_actor, action)
+
+    try:
+        _do_revert_status_label(tracker, issue_number, label_name, action)
+    except Exception as exc:
+        logger.error(
+            "Failed to revert rejected label transition on %s#%s: %s",
+            project.name,
+            issue_number,
+            exc,
+        )
+
+    if not _should_post_unauthorized_status_comment(
+        project,
+        issue_number,
+        label_actor,
+    ):
+        return
+
+    try:
+        tracker.add_comment(
+            f"{project.tracker_owner or ''}/{project.tracker_repo or ''}#{issue_number}",
+            comment,
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to post intake-gate rejection comment on %s#%s: %s",
+            project.name,
+            issue_number,
+            exc,
+        )
 
 
 def _revert_unauthorized_status_label_change(orch, event, project) -> None:

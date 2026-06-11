@@ -4,7 +4,7 @@ title: 'GitHub Issues migration phase 4: tracker-neutral agent task tooling'
 status: Done
 assignee: []
 created_date: '2026-06-08 17:57'
-updated_date: '2026-06-11 17:15'
+updated_date: '2026-06-11 17:50'
 labels:
   - epic
   - github-issues

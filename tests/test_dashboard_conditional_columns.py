@@ -44,6 +44,17 @@ def test_needs_ci_fix_column_is_conditional():
     assert "base: false" in config
 
 
+def test_proposed_column_is_first_base_column():
+    script = _dashboard_script()
+    proposed = _column_config(script, "Proposed")
+    backlog = _column_config(script, "Backlog")
+
+    assert "label: 'Proposed'" in proposed
+    assert "status: 'Proposed'" in proposed
+    assert "base: true" in proposed
+    assert script.index(proposed) < script.index(backlog)
+
+
 def test_needs_rebase_column_is_conditional():
     config = _column_config(_dashboard_script(), "Needs Rebase")
 

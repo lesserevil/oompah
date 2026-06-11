@@ -6,7 +6,7 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 
 ## Features
 
-- **Issue-driven orchestration** — polls supported task trackers such as Backlog.md and [beads](https://github.com/lesserevil/beads), dispatches agents by priority, and tracks progress through comments
+- **Issue-driven orchestration** — polls supported task trackers such as GitHub Issues, Backlog.md, and [beads](https://github.com/lesserevil/beads), dispatches agents by priority, and tracks progress through comments
 - **Agent focus system** — matches issues to specialized roles (Bug Investigator, Feature Developer, Security Auditor, etc.) using keyword scoring, issue types, and labels
 - **Git worktrees** — each agent works in an isolated worktree on a named branch, preventing interference between concurrent agents
 - **Multi-project support** — manage multiple git repos, each with their own issue tracker and SCM provider
@@ -31,7 +31,7 @@ make setup
 make start
 ```
 
-> [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`. `make setup` also installs the Backlog.md CLI (`backlog`) from the upstream `MrLesk/Backlog.md` GitHub tarball into `.venv`.
+> [uv](https://docs.astral.sh/uv/) is the recommended way to manage virtual environments and dependencies. Install it with `curl -LsSf https://astral.sh/uv/install.sh | sh`. `make setup` also installs the Backlog.md CLI (`backlog`) for legacy Backlog-backed projects.
 
 ## Backends
 
@@ -122,9 +122,9 @@ projects can override those values with per-project tracker settings.
 
 | Section | Key | Description | Default |
 |---|---|---|---|
-| `tracker` | `kind` | Issue tracker type (`backlog`, `backlog_md`, or `beads`) | `beads` |
-| `tracker` | `active_states` | States that trigger agent dispatch | `[open, in_progress]` for beads, `["To Do", "In Progress"]` for Backlog.md |
-| `tracker` | `terminal_states` | States that mean "done" | `[closed]` for beads, `[Done]` for Backlog.md |
+| `tracker` | `kind` | Issue tracker type (`github_issues`, `backlog`, `backlog_md`, or `beads`) | `backlog_md` |
+| `tracker` | `active_states` | States that trigger agent dispatch | `["Open", "Needs CI Fix", "Needs Rebase"]` |
+| `tracker` | `terminal_states` | States that mean "done" | `["Done", "Merged", "Archived"]` |
 | `polling` | `interval_ms` | Poll interval in milliseconds | `30000` |
 | `workspace` | `root` | Directory for agent workspaces | `/tmp/oompah_workspaces` |
 | `agent` | `max_concurrent_agents` | Max parallel agents | `10` |
@@ -266,7 +266,7 @@ backends, with `_tool_use_id` ↔ `call_id` preserved. See
 
 Each project needs:
 
-1. A git repository with a supported task tracker initialized, such as Backlog.md (`backlog init`) or legacy beads (`bd init`)
+1. A git repository registered as an oompah managed project, with GitHub Issues configured as the task hub for new work. Legacy Backlog.md (`backlog init`) and beads (`bd init`) projects remain supported for existing deployments.
 2. A `WORKFLOW.md` in the oompah working directory
 3. At least one model provider configured
 

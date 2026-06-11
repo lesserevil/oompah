@@ -147,11 +147,20 @@ class TestIssueDetailWithProjectId:
         assert "comments" in data
         assert data["comments"] == [{"id": 1, "text": "hello"}]
 
-    def test_proposed_issue_remains_visible_in_detail_response(self, client):
-        """Proposed is pre-work, but detail views still return it normally."""
+    def test_includes_intake_summary_for_proposed_issue(self, client):
+        """GET detail includes normalized intake readiness state."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
         issue = _make_mock_issue()
         issue.state = "Proposed"
+        issue.intake = {
+            "missing_fields": [],
+            "scope": "small",
+            "requestor_approved": True,
+            "requestor_actor": "requestor",
+            "owner_override": False,
+            "decomposition_status": "not_needed",
+            "last_validator_result": "pass",
+        }
         mock_tracker.fetch_issue_detail.return_value = issue
 
         with (
@@ -165,7 +174,13 @@ class TestIssueDetailWithProjectId:
             )
 
         assert resp.status_code == 200
-        assert resp.json()["state"] == "Proposed"
+        data = resp.json()
+        assert data["state"] == "Proposed"
+        summary = data["intake_summary"]
+        assert summary["state"] == "ready-for-backlog"
+        assert summary["next_action"] == "Move this issue to Backlog."
+        assert summary["requestor_approval_state"] == "approved"
+        assert summary["owner_override_state"] == "none"
 
     def test_returns_children_for_epic(self, client):
         """GET detail for an epic includes children array."""

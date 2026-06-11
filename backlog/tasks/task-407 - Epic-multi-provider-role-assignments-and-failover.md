@@ -4,7 +4,7 @@ title: 'Epic: multi-provider role assignments and failover'
 status: Merged
 assignee: []
 created_date: '2026-06-01 21:43'
-updated_date: '2026-06-11 17:12'
+updated_date: '2026-06-11 17:36'
 labels:
   - feature
   - epic

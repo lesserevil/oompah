@@ -70,6 +70,11 @@ class TestCSSClasses:
         html = _load_dashboard()
         assert ".detail-github-link {" in html or ".detail-github-link{" in html
 
+    def test_intake_summary_css_exists(self):
+        html = _load_dashboard()
+        assert ".intake-card-summary {" in html or ".intake-card-summary{" in html
+        assert ".detail-intake-summary {" in html or ".detail-intake-summary{" in html
+
 
 # ---------------------------------------------------------------------------
 # createCard: GitHub URL tracker link
@@ -156,6 +161,28 @@ class TestCreateCardLegacyBadge:
         script = _extract_script(_load_dashboard())
         body = _extract_func_body(script, "createCard")
         assert 'aria-label="Legacy Backlog task"' in body
+
+
+class TestCreateCardIntakeSummary:
+    def test_card_renders_intake_summary(self):
+        script = _extract_script(_load_dashboard())
+        body = _extract_func_body(script, "createCard")
+
+        assert "renderCardIntakeSummary(issue)" in body
+        assert "issue.intake_summary" in script
+        assert "intake-state-${esc(state)}" in script
+
+
+class TestDetailPanelIntakeSummary:
+    def test_detail_panel_renders_intake_summary(self):
+        script = _extract_script(_load_dashboard())
+        body = _extract_func_body(script, "openDetailPanel")
+
+        assert "renderIntakeSummary(detail.intake_summary)" in body
+        assert "Missing info" in script
+        assert "Requestor approval" in script
+        assert "Owner override" in script
+        assert "Decomposition" in script
 
 
 # ---------------------------------------------------------------------------

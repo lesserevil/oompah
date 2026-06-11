@@ -275,3 +275,31 @@ def test_issue_snapshot_payload_uses_stale_threshold(monkeypatch):
         assert payload["_meta"]["stale"] is False
     finally:
         _clear_issue_snapshot_sync()
+
+
+def test_empty_issue_board_orders_proposed_before_backlog():
+    board = server_module._empty_issue_board()
+
+    assert list(board)[:2] == ["Proposed", "Backlog"]
+
+
+def test_fetch_and_serialize_issues_includes_intake_summary():
+    issue = _issue("lesserevil/oompah#10", "Proposed")
+    issue.intake = {
+        "missing_fields": ["acceptance_criteria"],
+        "scope": "small",
+        "requestor_approved": False,
+        "owner_override": False,
+        "decomposition_status": "not_needed",
+        "last_validator_result": "fail",
+    }
+    orch = _orch_with_issues([issue])
+
+    payload = server_module._fetch_and_serialize_issues(orch)
+
+    summary = payload["Proposed"][0]["intake_summary"]
+    assert summary["state"] == "missing-info"
+    assert summary["missing_fields"] == ["acceptance_criteria"]
+    assert summary["requestor_approval_state"] == "awaiting"
+    assert summary["owner_override_state"] == "none"
+    assert summary["decomposition_state"] == "not_needed"
