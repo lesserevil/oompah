@@ -68,6 +68,10 @@ def _make_orchestrator(tmp_path):
         state_path=str(tmp_path / "state.json"),
     )
     orch._fetch_in_progress_issues = MagicMock(return_value=[])
+    # _tick() submits epic maintenance as fire-and-forget executor work. These
+    # lane-contract tests only exercise dispatch serialization, so keep real
+    # tracker/git maintenance out of the background between tests.
+    orch._run_step5c_epic_maintenance = MagicMock()
     return orch
 
 

@@ -140,6 +140,33 @@ class TestShouldDispatchRejectsDuplicateCandidate:
 class TestApplyDuplicateDetection:
     """Tests for the _apply_duplicate_detection orchestrator method."""
 
+    def test_proposed_candidates_are_not_scanned(self):
+        """Proposed is pre-work and should not enter duplicate detection."""
+        from oompah.orchestrator import Orchestrator
+        from oompah.config import ServiceConfig
+
+        config = ServiceConfig()
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = config
+        orch.project_store = MagicMock()
+        orch.project_store.list_all.return_value = []
+        orch.tracker = MagicMock()
+
+        candidate = _make_issue(
+            identifier="rogers-proposal",
+            title="rogers proposal",
+            project_id=None,
+            state="Proposed",
+            labels=[],
+        )
+
+        result = orch._apply_duplicate_detection([candidate])
+
+        assert result == [candidate]
+        orch.tracker.fetch_issues_by_states.assert_not_called()
+        assert orch._last_duplicate_detection_metrics["prework_count"] == 1
+        assert orch._last_duplicate_detection_metrics["scanned_count"] == 0
+
     def test_detects_open_duplicate_and_labels_candidate(self, tmp_path, monkeypatch):
         """When candidate matches open issue by prefix, add duplicate-candidate label."""
         from oompah.orchestrator import Orchestrator
@@ -305,6 +332,75 @@ class TestApplyDuplicateDetection:
 
         result = orch._apply_duplicate_detection([])
         assert result == []
+
+
+class TestProposedDispatchFiltering:
+    """Dispatch selection treats Proposed as pre-work even from stale inputs."""
+
+    def _make_orch(self):
+        from oompah.orchestrator import Orchestrator
+        from oompah.config import ServiceConfig
+
+        config = ServiceConfig(
+            tracker_active_states=["Proposed", "Open"],
+            dispatch_scan_limit=1,
+            dispatch_ready_buffer=0,
+        )
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = config
+        orch._paused = False
+        orch.project_store = MagicMock()
+        orch.state = MagicMock()
+        orch.state.running = {}
+        orch.state.claimed = set()
+        orch.state.retry_attempts = {}
+        orch.state.completed = set()
+        orch.state.reject_streak = {}
+
+        orch._is_project_paused = lambda pid: False
+        orch._issue_has_children = lambda issue: False
+        orch._project_epic_strategy = lambda pid: "flat"
+        orch._issue_requires_parent_epic = lambda issue: False
+        orch._available_slots = lambda: 1
+        orch._per_state_available = lambda s: True
+        orch._check_budget = lambda: True
+        orch._would_dispatch_via_acp = lambda i: False
+        orch._would_dispatch_on_free_model = lambda i: False
+        orch._is_epic_rebase_task = lambda i: False
+        return orch
+
+    def test_select_dispatchable_skips_proposed_before_scan_limit(self):
+        orch = self._make_orch()
+        proposed = _make_issue(
+            identifier="intake-1",
+            title="Intake proposal",
+            state="Proposed",
+            priority=0,
+            project_id=None,
+        )
+        ready = _make_issue(
+            identifier="ready-1",
+            title="Ready work",
+            state="Open",
+            priority=1,
+            project_id=None,
+        )
+
+        result = orch._select_dispatchable([proposed, ready])
+
+        assert [issue.identifier for issue in result] == ["ready-1"]
+        assert orch._last_selection_metrics["candidate_count"] == 2
+        assert orch._last_selection_metrics["prework_count"] == 1
+        assert orch._last_selection_metrics["scanned_count"] == 1
+
+    def test_retryable_state_keys_exclude_proposed_even_if_configured_active(self):
+        orch = self._make_orch()
+
+        keys = orch._retryable_state_keys()
+
+        assert "open" in keys
+        assert "in_progress" in keys
+        assert "proposed" not in keys
 
 
 class TestEndToEndDispatchFlow:

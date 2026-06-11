@@ -1213,7 +1213,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         getattr(orch, "_unmerged_review_branches", set()) or set()
     )
 
-    result: dict[str, list] = {}
+    result: dict[str, list] = _empty_issue_board()
     for issue in all_issues:
         state = _issue_dashboard_state(issue)
         if state not in result:
@@ -7032,13 +7032,78 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
             authorized = is_authorized_status_actor(event.label_actor, project)
             if authorized:
                 _record_trusted_status_label_event(orch, event, project)
+            elif _is_oompah_owned_label_event(orch, event, project):
+                # The labeled status matches a known oompah-owned write in the
+                # trusted-status ledger (e.g. a backfill or API status change
+                # whose webhook actor did not match OOMPAH_BOT_LOGIN due to a
+                # GitHub App vs. PAT login difference).  Treat it as trusted
+                # and update the ledger rather than reverting.
+                logger.debug(
+                    "Skipping unauthorized-label check for %s#%s: "
+                    "webhook event correlates with oompah-owned write "
+                    "(label=%s actor=%s)",
+                    project.name,
+                    event.issue_number,
+                    event.label_name,
+                    event.label_actor,
+                )
+                _record_trusted_status_label_event(orch, event, project)
             else:
+                logger.debug(
+                    "External label edit detected: %s#%s actor=%s label=%s action=%s",
+                    project.name,
+                    event.issue_number,
+                    event.label_actor,
+                    event.label_name,
+                    event.action,
+                )
                 threading.Thread(
                     target=_revert_unauthorized_status_label_change,
                     args=(orch, event, project),
                     name=f"webhook-label-revert-{project.name}",
                     daemon=True,
                 ).start()
+
+
+def _is_oompah_owned_label_event(orch, event, project) -> bool:
+    """Return ``True`` when a label event can be correlated to an oompah write.
+
+    When oompah writes a status label (backfill, API status change, or any
+    other internal write), it pre-records the status in the tracker's
+    trusted-status ledger via :meth:`record_trusted_status`.  If the
+    incoming ``issues.labeled`` webhook carries the same status that oompah
+    last wrote for that issue, the event almost certainly originates from
+    oompah's own write rather than from an external actor — even when the
+    ``sender.login`` reported by GitHub does not exactly match
+    ``OOMPAH_BOT_LOGIN`` (e.g. GitHub App vs. PAT identity differences).
+
+    Only ``labeled`` events are checked; ``unlabeled`` events are never
+    correlated because they could represent oompah removing a label as part
+    of a revert *or* a human removing a label — the ledger cannot
+    distinguish these.
+
+    Security note: the correlation is conservative.  The bypass only fires
+    when the labeled status *exactly* matches the last oompah-recorded
+    status for the issue.  An external actor applying a *different*
+    status (e.g. ``oompah:status:open`` when the ledger says ``Backlog``)
+    still triggers the normal unauthorized-label revert flow.
+    """
+    if event.action != "labeled" or not event.issue_number:
+        return False
+
+    from oompah.label_auth import label_name_to_status
+
+    labeled_status = label_name_to_status(event.label_name)
+    if not labeled_status:
+        return False
+
+    try:
+        tracker = orch._tracker_for_project(project.id)
+        ledger: dict = getattr(tracker, "_trusted_status_ledger", {})
+        trusted_status = ledger.get(int(event.issue_number))
+        return trusted_status == labeled_status
+    except Exception:
+        return False
 
 
 def _record_trusted_status_label_event(orch, event, project) -> None:

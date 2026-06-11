@@ -56,6 +56,7 @@ from oompah.statuses import (
     NEEDS_HUMAN,
     NEEDS_REBASE,
     OPEN,
+    PROPOSED,
     canonicalize_status,
     epic_rollup_state,
     is_terminal_status,
@@ -190,6 +191,16 @@ def _terminal_state_keys(terminal_states: list[str] | tuple[str, ...]) -> set[st
     keys.update({_state_key(DONE), _state_key(MERGED), _state_key(ARCHIVED)})
     keys.add(_state_key("closed"))
     return keys
+
+
+def _dispatch_active_state_names(active_states: list[str] | tuple[str, ...]) -> list[str]:
+    """Return configured dispatch-active states excluding pre-work intake states."""
+    return [s for s in active_states if canonicalize_status(s) != PROPOSED]
+
+
+def _dispatch_active_state_keys(active_states: list[str] | tuple[str, ...]) -> set[str]:
+    """Return dispatch-active state keys excluding pre-work intake states."""
+    return {_state_key(s) for s in _dispatch_active_state_names(active_states)}
 
 
 def _is_terminal_state(state: str | None, terminal_states: list[str] | tuple[str, ...]) -> bool:
@@ -3002,7 +3013,7 @@ class Orchestrator:
     def _retryable_state_keys(self) -> set[str]:
         """Return states that may be dispatched by a scheduled retry."""
         keys = {_state_key(IN_PROGRESS)}
-        keys.update({_state_key(s) for s in self.config.tracker_active_states})
+        keys.update(_dispatch_active_state_keys(self.config.tracker_active_states))
         return keys
 
     def _retry_issue_matches(self, issue: Issue, retry: RetryEntry) -> bool:
@@ -3597,9 +3608,9 @@ class Orchestrator:
         if not issue.id or not issue.identifier or not issue.title or not issue.state:
             return False
         state_norm = _state_key(issue.state)
-        if state_norm not in {
-            _state_key(s) for s in self.config.tracker_active_states
-        }:
+        if state_norm not in _dispatch_active_state_keys(
+            self.config.tracker_active_states
+        ):
             return False
         if state_norm in {
             _state_key(s) for s in self.config.tracker_terminal_states
@@ -3701,7 +3712,8 @@ class Orchestrator:
         try:
             states = list(
                 dict.fromkeys(
-                    list(self.config.tracker_active_states) + [NEEDS_REBASE]
+                    _dispatch_active_state_names(self.config.tracker_active_states)
+                    + [NEEDS_REBASE]
                 )
             )
             pool = tracker.fetch_issues_by_states(states)
@@ -5610,6 +5622,10 @@ class Orchestrator:
             if canonicalize_status(issue.state) != NEEDS_HUMAN:
                 self._mark_issue_needs_epic_parent(issue, issue.project_id)
             return _reject("missing_parent_epic")
+        # Never dispatch pre-backlog intake issues — Proposed is the intake
+        # gate and must be triaged/approved before any agent work begins.
+        if canonicalize_status(issue.state) == PROPOSED:
+            return _reject("proposed")
         # Never dispatch issues that are waiting for a human answer
         if canonicalize_status(issue.state) == NEEDS_ANSWER or "asking_question" in issue.labels:
             return _reject("needs_answer")
@@ -5640,9 +5656,9 @@ class Orchestrator:
                     )
                     return _reject(f"invalid_target_branch:{_tbv.reason}")
         state_norm = _state_key(issue.state)
-        if state_norm not in {
-            _state_key(s) for s in self.config.tracker_active_states
-        }:
+        if state_norm not in _dispatch_active_state_keys(
+            self.config.tracker_active_states
+        ):
             return _reject(f"inactive_state={state_norm}")
         if state_norm in {
             _state_key(s) for s in self.config.tracker_terminal_states
@@ -6389,7 +6405,7 @@ class Orchestrator:
 
     def _watchdog_stale_completed(self) -> int:
         """Clear issues stuck in the completed set despite being active in tracker."""
-        active_norms = {_state_key(s) for s in self.config.tracker_active_states}
+        active_norms = _dispatch_active_state_keys(self.config.tracker_active_states)
         stale = []
         for issue in self._last_candidates:
             if issue.id in self.state.completed:
@@ -9197,7 +9213,10 @@ class Orchestrator:
         # a process restart creates a fresh task even though an open
         # duplicate already exists in the tracker.
         try:
-            active_states = list(self.config.tracker_active_states) + [status]
+            active_states = (
+                _dispatch_active_state_names(self.config.tracker_active_states)
+                + [status]
+            )
             existing = tracker.fetch_issues_by_labels([label], states=active_states)
             if not existing:
                 existing = tracker.fetch_issues_by_states([status])
@@ -9296,7 +9315,10 @@ class Orchestrator:
         ``work_branch`` set.
         """
         try:
-            states = list(self.config.tracker_active_states) + [IN_REVIEW]
+            states = (
+                _dispatch_active_state_names(self.config.tracker_active_states)
+                + [IN_REVIEW]
+            )
             issues = tracker.fetch_issues_by_states(states)
         except Exception as exc:  # noqa: BLE001
             logger.debug(
@@ -10004,18 +10026,31 @@ class Orchestrator:
             # oompah-zlz_2-cd5 fixes.
             children = self._fetch_epic_children(issue)
             if children:
+                sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
+
+                def _is_ci_fix_sibling(child: Issue) -> bool:
+                    state_key = _state_key(child.state)
+                    if state_key not in {
+                        _state_key(OPEN),
+                        _state_key(IN_PROGRESS),
+                        _state_key(NEEDS_CI_FIX),
+                    }:
+                        return False
+                    labels = {str(label) for label in (child.labels or [])}
+                    title = str(child.title or "").strip()
+                    return (
+                        "ci-fix" in labels
+                        or canonicalize_status(child.state) == NEEDS_CI_FIX
+                        or title == sibling_title
+                    )
+
                 # Idempotency: if there's already an OPEN/IN_PROGRESS
                 # ci-fix sibling under this parent, a fix is already in
                 # flight — don't file a duplicate. CLOSED siblings
                 # from previous attempts don't count (treat as
                 # finished and file a new one).
                 existing_sibling = next(
-                    (
-                        c
-                        for c in children
-                        if _state_key(c.state) in {_state_key(OPEN), _state_key(IN_PROGRESS), _state_key(NEEDS_CI_FIX)}
-                        and ("ci-fix" in (c.labels or []) or canonicalize_status(c.state) == NEEDS_CI_FIX)
-                    ),
+                    (c for c in children if _is_ci_fix_sibling(c)),
                     None,
                 )
                 if existing_sibling is not None:
@@ -10038,7 +10073,6 @@ class Orchestrator:
                         issue.identifier,
                     )
                     return
-                sibling_title = f"CI fix: PR #{review.id} on branch {source_branch}"
                 sibling_description = (
                     f"YOLO: CI tests failed on MR #{review.id} "
                     f"(branch {source_branch}). The branch's primary "
@@ -10058,6 +10092,7 @@ class Orchestrator:
                     priority=0,
                     parent=issue.identifier,
                     initial_status=NEEDS_CI_FIX,
+                    labels=["ci-fix"],
                 )
                 logger.info(
                     "YOLO: filed sibling ci-fix task %s under %s "
@@ -10107,6 +10142,7 @@ class Orchestrator:
                         priority=0,
                         parent=issue.identifier,
                         initial_status=NEEDS_CI_FIX,
+                        labels=["ci-fix"],
                     )
                     logger.info(
                         "YOLO: filed sibling ci-fix task %s under epic %s for MR #%s",
@@ -10211,7 +10247,13 @@ class Orchestrator:
         if not candidates:
             return []
 
-        sorted_candidates = self._sort_for_dispatch(candidates)
+        sorted_all_candidates = self._sort_for_dispatch(candidates)
+        sorted_candidates = [
+            issue
+            for issue in sorted_all_candidates
+            if canonicalize_status(issue.state) != PROPOSED
+        ]
+        prework_count = len(sorted_all_candidates) - len(sorted_candidates)
         limit = getattr(self.config, "duplicate_detection_candidate_limit", 64)
         if limit > 0:
             detection_candidates = sorted_candidates[:limit]
@@ -10238,7 +10280,8 @@ class Orchestrator:
             try:
                 # Fetch the full issue pool for this project (open + closed for comparison)
                 all_pool = tracker.fetch_issues_by_states(
-                    list(self.config.tracker_active_states) + list(self.config.tracker_terminal_states)
+                    _dispatch_active_state_names(self.config.tracker_active_states)
+                    + list(self.config.tracker_terminal_states)
                 )
             except Exception:
                 logger.debug("Failed to fetch issue pool for duplicate detection on %s", project_id)
@@ -10309,6 +10352,7 @@ class Orchestrator:
 
         self._last_duplicate_detection_metrics = {
             "candidate_count": len(candidates),
+            "prework_count": prework_count,
             "scanned_count": len(detection_candidates),
             "deferred_count": deferred_count,
             "limit": limit,
@@ -10328,11 +10372,18 @@ class Orchestrator:
         in its dispatch loop because slot count drops with each successful
         dispatch.
         """
-        sorted_issues = self._sort_for_dispatch(candidates)
+        sorted_candidates = self._sort_for_dispatch(candidates)
+        sorted_issues = [
+            issue
+            for issue in sorted_candidates
+            if canonicalize_status(issue.state) != PROPOSED
+        ]
+        prework_count = len(sorted_candidates) - len(sorted_issues)
         slots = self._available_slots()
         if slots <= 0:
             self._last_selection_metrics = {
-                "candidate_count": len(sorted_issues),
+                "candidate_count": len(sorted_candidates),
+                "prework_count": prework_count,
                 "scanned_count": 0,
                 "ready_count": 0,
                 "deferred_count": len(sorted_issues),
@@ -10431,7 +10482,8 @@ class Orchestrator:
                 target_ready,
             )
         self._last_selection_metrics = {
-            "candidate_count": len(sorted_issues),
+            "candidate_count": len(sorted_candidates),
+            "prework_count": prework_count,
             "scanned_count": scanned,
             "ready_count": len(dispatchable),
             "deferred_count": deferred_count,
@@ -13715,16 +13767,16 @@ class Orchestrator:
                     except TrackerError:
                         break
 
-                    active_norms = {
-                        _state_key(s) for s in self.config.tracker_active_states
-                    }
+                    active_norms = _dispatch_active_state_keys(
+                        self.config.tracker_active_states
+                    )
                     if _state_key(current_issue.state) not in active_norms:
                         break
                 else:
                     # Loop completed without break — all turns used up
-                    active_norms = {
-                        _state_key(s) for s in self.config.tracker_active_states
-                    }
+                    active_norms = _dispatch_active_state_keys(
+                        self.config.tracker_active_states
+                    )
                     if _state_key(current_issue.state) in active_norms:
                         exit_reason = "max_turns"
                         logger.info(
@@ -15661,7 +15713,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
             self._tick_pool, self._fetch_running_states, by_project
         )
         terminal_norms = _terminal_state_keys(self.config.tracker_terminal_states)
-        active_norms = {_state_key(s) for s in self.config.tracker_active_states}
+        active_norms = _dispatch_active_state_keys(self.config.tracker_active_states)
 
         for issue_id in running_ids:
             if issue_id not in self.state.running:

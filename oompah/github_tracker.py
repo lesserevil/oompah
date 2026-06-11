@@ -57,11 +57,12 @@ import httpx
 from oompah.models import BlockerRef, Issue
 from oompah.statuses import (
     ARCHIVED,
-    BACKLOG,
     CANONICAL_STATUSES,
     DONE,
     MERGED,
     NEEDS_HUMAN,
+    PROPOSED,
+    canonicalize_status,
     status_key,
 )
 from oompah.tracker import (
@@ -981,7 +982,7 @@ def _parse_next_link(link_header: str) -> str | None:
 # GitHub Projects V2 custom field configured.
 #
 # When no status label is present on an issue, the adapter falls back to
-# the GitHub built-in ``state`` field: ``open`` → "Backlog", ``closed`` →
+# the GitHub built-in ``state`` field: ``open`` → "Proposed", ``closed`` →
 # "Archived", then backfills the corresponding ``oompah:status:*`` label.
 #
 # Priority is encoded as ``priority:N`` (e.g. ``priority:1``).
@@ -1066,8 +1067,14 @@ def _label_to_status(label_name: str) -> str | None:
 
 
 def _github_fallback_status(gh_state: str) -> str:
-    """Return the oompah status for a GitHub issue with no status label."""
-    return ARCHIVED if gh_state == "closed" else BACKLOG
+    """Return the oompah status for a GitHub issue with no status label.
+
+    Open unlabeled issues default to ``Proposed`` (the intake gate) rather
+    than ``Backlog``, so newly-imported external issues are visible in the
+    intake view before being triaged.  Closed unlabeled issues default to
+    ``Archived``.
+    """
+    return ARCHIVED if gh_state == "closed" else PROPOSED
 
 
 def _status_closes_github_issue(status: str | None) -> bool:
@@ -1102,7 +1109,7 @@ def _extract_oompah_status(
 
     1. ``oompah:status:*`` label — explicit oompah status.
     2. GitHub ``state`` field — unlabeled ``open`` issues are treated as
-       ``"Backlog"``; unlabeled ``closed`` issues become ``"Archived"``.
+       ``"Proposed"``; unlabeled ``closed`` issues become ``"Archived"``.
     """
     for lbl in labels:
         name = lbl.get("name", "")
@@ -1463,6 +1470,21 @@ class GitHubIssueTracker:
             )
             return gh_issue
 
+        # Record this backfill write as oompah-owned in the trusted-status
+        # ledger.  This prevents the corresponding webhook event from being
+        # treated as an unauthorized human edit even when the actor reported
+        # by GitHub does not exactly match OOMPAH_BOT_LOGIN (e.g. GitHub App
+        # login vs. PAT login differences).
+        self.record_trusted_status(int(number), status)
+        logger.debug(
+            "Backfilled oompah status label for %s/%s#%s: %s (label: %s)",
+            self.owner,
+            self.repo,
+            number,
+            status,
+            _status_to_label(status),
+        )
+
         updated = dict(gh_issue)
         updated["labels"] = [{"name": label} for label in labels]
         return updated
@@ -1516,8 +1538,19 @@ class GitHubIssueTracker:
             params={"state": "open", "per_page": 100},
         )
         issues = self._normalize_issue_payloads(raw)
-        active_set = set(self.active_states)
-        candidates = [iss for iss in issues if iss.state in active_set]
+        active_set = {
+            canonicalize_status(state)
+            for state in self.active_states
+            if canonicalize_status(state) != PROPOSED
+        }
+        candidates = [
+            iss
+            for iss in issues
+            if (
+                canonicalize_status(iss.state) != PROPOSED
+                and canonicalize_status(iss.state) in active_set
+            )
+        ]
 
         # Filter out issues that have untrusted status-label changes pending.
         if self._untrusted_status_issues:
@@ -2466,6 +2499,14 @@ class GitHubIssueTracker:
         # Record this oompah-owned status change in the trusted ledger so
         # polling validation confirms it as authoritative.
         self.record_trusted_status(number, status)
+        logger.debug(
+            "API status change for %s/%s#%s: state=%s status=%s",
+            self.owner,
+            self.repo,
+            number,
+            state,
+            status,
+        )
 
     def _set_status_label(self, number: int, status: str) -> None:
         """Atomically swap the ``oompah:status:*`` label on an issue.
@@ -2496,6 +2537,13 @@ class GitHubIssueTracker:
         # Record this oompah-owned status change in the trusted ledger so
         # polling validation confirms it as authoritative.
         self.record_trusted_status(number, status)
+        logger.debug(
+            "API direct label write for %s/%s#%s: status=%s",
+            self.owner,
+            self.repo,
+            number,
+            status,
+        )
 
     def _set_priority_label(self, number: int, priority: Any) -> None:
         """Atomically swap the ``priority:N`` label on an issue.

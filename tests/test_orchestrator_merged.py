@@ -1553,6 +1553,7 @@ class TestYoloRetryCi:
         assert kwargs["priority"] == 0
         assert kwargs["parent"] == "trickle-rl5"
         assert kwargs["initial_status"] == "Needs CI Fix"
+        assert kwargs["labels"] == ["ci-fix"]
         assert "PR #23" in kwargs["title"]
         assert "trickle-rl5" in kwargs["title"]
         # Description should mention the parent epic and dispatch hint
@@ -1560,6 +1561,52 @@ class TestYoloRetryCi:
         assert "trickle-rl5" in desc
         assert "epic" in desc
         assert "Fix the failing tests" in desc
+
+    def test_existing_in_progress_ci_fix_sibling_title_is_idempotent(
+        self, tmp_path
+    ):
+        """An already-claimed sibling may have lost Needs CI Fix status.
+
+        Sibling CI-fix tasks are claimed by agents and move to In Progress.
+        Older siblings did not carry the ci-fix label, so the PR/branch title
+        is also an idempotency signal. Without this, each YOLO pass filed
+        another sibling for the same failed PR.
+        """
+        project = _make_project()
+        project.yolo = True
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+
+        epic = Issue(
+            id="lesserevil/oompah#272",
+            identifier="lesserevil/oompah#272",
+            title="Epic",
+            description="Epic body",
+            state="In Review",
+            issue_type="epic",
+            labels=[],
+            branch_name="epic-lesserevil_oompah_272",
+        )
+        sibling = _make_issue(
+            "lesserevil/oompah#292",
+            state="In Progress",
+            labels=[],
+            parent_id=epic.identifier,
+        )
+        sibling.title = "CI fix: PR #291 on branch epic-lesserevil_oompah_272"
+        children = [sibling, _make_issue("lesserevil/oompah#276", state="Done")]
+        tracker = self._attach_tracker(orch, project, epic, children=children)
+
+        review = _make_review(
+            "291",
+            source_branch="epic-lesserevil_oompah_272",
+            ci_status="failed",
+        )
+
+        orch._yolo_retry_ci(project, review)
+
+        tracker.create_issue.assert_not_called()
+        tracker.update_issue.assert_not_called()
+        tracker.add_comment.assert_not_called()
 
     def test_non_epic_bead_keeps_relabel_behavior(self, tmp_path):
         """PR matched against a non-epic bead → existing behavior preserved

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 
+PROPOSED = "Proposed"
 BACKLOG = "Backlog"
 OPEN = "Open"
 IN_PROGRESS = "In Progress"
@@ -20,6 +21,7 @@ MERGED = "Merged"
 ARCHIVED = "Archived"
 
 CANONICAL_STATUSES: tuple[str, ...] = (
+    PROPOSED,
     BACKLOG,
     OPEN,
     IN_PROGRESS,
@@ -57,6 +59,7 @@ def status_key(status: str | None) -> str:
 
 _ALIASES = {
     "": DEFAULT_STATUS,
+    "proposed": PROPOSED,
     "to do": BACKLOG,
     "todo": BACKLOG,
     "deferred": BACKLOG,
@@ -163,9 +166,15 @@ _ROLLUP_ACTIVE = frozenset(
 def epic_rollup_state(child_states: Iterable[str | None]) -> str | None:
     """Derive an epic's state from its children's statuses.
 
+    ``Proposed`` children are excluded before computing the rollup because
+    ``Proposed`` is a pre-backlog intake state: work that has not yet been
+    accepted for implementation.  A proposed child should not make an epic
+    look active or complete — the epic's own state is used instead when all
+    remaining children are proposed.
+
     Precedence (per the agreed model):
 
-    * no children                       → None (caller keeps the epic's own state)
+    * no children (or all Proposed)     → None (caller keeps the epic's own state)
     * all children Merged/Archived      → ``Merged`` (whole epic has landed)
     * all children terminal (Done/...)  → ``Done``   (complete → ready to merge)
     * any child actively working        → ``In Progress`` (beats Open: a mix of
@@ -175,7 +184,11 @@ def epic_rollup_state(child_states: Iterable[str | None]) -> str | None:
     * otherwise (e.g. some Done + some Backlog, none open/active) → ``In Progress``
       (the epic has started but isn't complete)
     """
-    canon = [canonicalize_status(s) for s in child_states if s is not None]
+    canon = [
+        canonicalize_status(s)
+        for s in child_states
+        if s is not None and canonicalize_status(s) != PROPOSED
+    ]
     if not canon:
         return None
     cset = set(canon)
