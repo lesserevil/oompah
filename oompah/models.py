@@ -125,6 +125,9 @@ class Issue:
     # here carries just paths so prompt rendering and dispatch can ignore
     # the metadata structure.
     attachments: list[str] = field(default_factory=list)
+    # Raw intake-readiness metadata (oompah.intake). The dashboard turns this
+    # into a compact intake_summary without requiring tracker-specific reads.
+    intake: dict[str, Any] | None = None
     # Explicit work branch stored in tracker metadata (oompah.work_branch).
     # Populated for GitHub-backed tasks from the hidden body metadata block.
     # When set, branch-to-issue resolution uses this value instead of
@@ -136,6 +139,8 @@ class Issue:
     issue_number: str | None = None
     display_identifier: str | None = None
     provider_url: str | None = None
+    # GitHub login of the issue creator/requestor when supplied by the tracker.
+    requestor_login: str | None = None
     # Managed code repository for this issue (e.g. "lesserevil/trickle").
     # Set by the tracker adapter for GitHub-backed issues.
     managed_repo: str | None = None

@@ -1284,12 +1284,17 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
     # for branch-to-issue resolution so callers do not need to guess the task
     # identifier from the branch name (TASK-462.1).
     work_branch: str | None = meta.get("work_branch") or None
+    intake = meta.get("intake") or meta.get("oompah.intake")
+    if not isinstance(intake, dict):
+        intake = None
 
     # Description: issue body with metadata block stripped.
     description_text = _BODY_METADATA_RE.sub("", body).strip()
     description: str | None = description_text or None
 
     url: str | None = gh_issue.get("html_url") or None
+    user = gh_issue.get("user") or {}
+    requestor_login = user.get("login") if isinstance(user, dict) else None
 
     return Issue(
         id=gh_id.canonical,
@@ -1310,12 +1315,14 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         created_at=_gh_timestamp(gh_issue.get("created_at")),
         updated_at=_gh_timestamp(gh_issue.get("updated_at")),
         closed_at=_gh_timestamp(gh_issue.get("closed_at")),
+        intake=intake,
         tracker_kind="github_issues",
         tracker_owner=owner,
         tracker_repo=repo,
         issue_number=str(number),
         display_identifier=gh_id.display,
         provider_url=url,
+        requestor_login=requestor_login,
         parent_id=parent_id,
         blocked_by=blocked_by,
     )
@@ -1363,11 +1370,15 @@ class GitHubIssueTracker:
         terminal_states: list[str],
         auth: GitHubAuth | None = None,
         cwd: str | None = None,  # ignored — accepted for factory compat
+        status_label_authorized_logins: list[str] | None = None,
     ) -> None:
         self.owner = owner
         self.repo = repo
         self.active_states = list(active_states)
         self.terminal_states = list(terminal_states)
+        self.status_label_authorized_logins = list(
+            status_label_authorized_logins or []
+        )
         self._auth = auth or GitHubAuth()
         self._client = GitHubClient(auth=self._auth)
         # In-memory ETag cache keyed by path.
@@ -1568,6 +1579,17 @@ class GitHubIssueTracker:
                     )
                     continue
                 safe_candidates.append(iss)
+            candidates = safe_candidates
+
+        # Validate dispatchable Open labels that were not applied by this
+        # process or confirmed by a webhook. This closes the polling bypass
+        # where a forbidden direct GitHub label edit is present before the
+        # webhook revert is delivered.
+        if candidates:
+            safe_candidates = []
+            for iss in candidates:
+                if self._candidate_status_label_is_trusted(iss):
+                    safe_candidates.append(iss)
             candidates = safe_candidates
 
         candidates.sort(
@@ -2606,6 +2628,47 @@ class GitHubIssueTracker:
             self._trusted_status_ledger[number] = status
             self._untrusted_status_issues.discard(number)
 
+    def _authorized_status_label_logins(self) -> frozenset[str]:
+        """Return lower-case logins trusted to apply status labels."""
+        from oompah.label_auth import get_bot_login
+
+        logins = {get_bot_login(), self.owner}
+        logins.update(self.status_label_authorized_logins)
+        return frozenset(
+            str(login).strip().lower()
+            for login in logins
+            if str(login).strip()
+        )
+
+    def _candidate_status_label_is_trusted(self, issue: Issue) -> bool:
+        """Return true when a dispatch candidate's status label is trusted."""
+        number = _extract_issue_number(issue)
+        if number is None:
+            return True
+
+        status = issue.state
+        if self._trusted_status_ledger.get(number) == status:
+            return True
+
+        # The intake transition gate only protects the Proposed/Backlog -> Open
+        # dispatch boundary. Other dispatchable retry statuses are lifecycle
+        # states set by oompah itself.
+        if status_key(status) != "open":
+            return True
+
+        authorized = self._authorized_status_label_logins()
+        if self.validate_status_label_actor(number, status, authorized):
+            self.record_trusted_status(number, status)
+            return True
+
+        self.record_untrusted_status_label_change(
+            number,
+            _status_to_label(status),
+            "polling-reconciliation",
+            "labeled",
+        )
+        return False
+
     def record_untrusted_status_label_change(
         self, number: int, label_name: str, actor: str, action: str
     ) -> None:
@@ -2722,6 +2785,7 @@ def _github_issues_factory(
     owner: str | None = None,
     repo: str | None = None,
     access_token: str | None = None,
+    status_label_authorized_logins: list[str] | None = None,
     **kwargs: Any,
 ) -> GitHubIssueTracker:
     """Factory function registered in :data:`~oompah.tracker.ADAPTER_REGISTRY`.
@@ -2754,4 +2818,5 @@ def _github_issues_factory(
         terminal_states=terminal_states,
         auth=auth,
         cwd=cwd,
+        status_label_authorized_logins=status_label_authorized_logins,
     )

@@ -21,6 +21,7 @@ from oompah.statuses import (
 
 
 def test_legacy_statuses_canonicalize_to_backlog_lifecycle_statuses():
+    assert canonicalize_status("proposed") == PROPOSED
     assert canonicalize_status("To Do") == BACKLOG
     assert canonicalize_status("deferred") == BACKLOG
     assert canonicalize_status("proposed") == PROPOSED
@@ -64,6 +65,7 @@ def test_proposed_is_not_terminal():
 
 
 def test_dispatchable_and_terminal_status_sets_are_explicit():
+    assert not is_dispatchable_status("Proposed")
     assert is_dispatchable_status("Open")
     assert is_dispatchable_status("Needs CI Fix")
     assert is_dispatchable_status("Needs Rebase")
@@ -74,7 +76,12 @@ def test_dispatchable_and_terminal_status_sets_are_explicit():
     assert is_terminal_status("Done")
     assert is_terminal_status("Merged")
     assert is_terminal_status("Archived")
+    assert not is_terminal_status("Proposed")
     assert not is_terminal_status("In Progress")
+
+
+def test_proposed_orders_before_backlog():
+    assert CANONICAL_STATUSES[:2] == (PROPOSED, BACKLOG)
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +93,10 @@ from oompah.statuses import epic_rollup_state, more_advanced_status  # noqa: E40
 
 def test_epic_rollup_all_backlog_is_backlog():
     assert epic_rollup_state(["Backlog", "Backlog"]) == "Backlog"
+
+
+def test_epic_rollup_proposed_plus_backlog_is_backlog():
+    assert epic_rollup_state(["Proposed", "Backlog"]) == "Backlog"
 
 
 def test_epic_rollup_all_done_is_done():

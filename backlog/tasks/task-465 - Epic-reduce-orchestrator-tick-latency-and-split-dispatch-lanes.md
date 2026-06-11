@@ -3,18 +3,19 @@ id: TASK-465
 title: 'Epic: reduce orchestrator tick latency and split dispatch lanes'
 status: Done
 assignee: []
-created_date: '2026-06-08 18:47'
-updated_date: '2026-06-11 17:35'
+created_date: 2026-06-08 18:47
+updated_date: 2026-06-11 17:49
 labels:
-  - epic
-  - tick-latency
-  - dispatch-performance
+- epic
+- tick-latency
+- dispatch-performance
 dependencies: []
 references:
-  - oompah/orchestrator.py
+- oompah/orchestrator.py
 modified_files:
-  - oompah/orchestrator.py
-  - tests
+- oompah/orchestrator.py
+- tests
+priority: 0
 ordinal: 1
 ---
 

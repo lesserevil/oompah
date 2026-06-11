@@ -4,7 +4,7 @@ title: Release-pick metadata and target-branch plumbing
 status: Open
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-11 17:12'
+updated_date: '2026-06-11 17:36'
 labels:
   - epic
 dependencies: []

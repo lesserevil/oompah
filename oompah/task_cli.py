@@ -319,6 +319,11 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
         "status": args.status,
         "issue_key": identifier,
     }
+    actor_arg = getattr(args, "actor", None)
+    actor = actor_arg if isinstance(actor_arg, str) and actor_arg.strip() else None
+    actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
+    if actor:
+        data["actor_login"] = str(actor).strip()
     if getattr(args, "project", None):
         data["project_id"] = args.project
     path = f"/api/v1/issues/{_encode_path_id(identifier)}"
@@ -347,6 +352,11 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
         "label": args.label,
         "issue_key": identifier,
     }
+    actor_arg = getattr(args, "actor", None)
+    actor = actor_arg if isinstance(actor_arg, str) and actor_arg.strip() else None
+    actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
+    if actor:
+        data["actor_login"] = str(actor).strip()
     if getattr(args, "project", None):
         data["project_id"] = args.project
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/labels"
@@ -526,6 +536,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PROJECT_ID",
     )
+    p_status.add_argument(
+        "--actor",
+        default=None,
+        metavar="LOGIN",
+        help="GitHub login requesting a gated intake transition",
+    )
 
     # --- add-label ---
     p_add = sub.add_parser("add-label", help="Add a label to a task")
@@ -536,6 +552,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="project",
         default=None,
         metavar="PROJECT_ID",
+    )
+    p_add.add_argument(
+        "--actor",
+        default=None,
+        metavar="LOGIN",
+        help="GitHub login requesting a gated status-label transition",
     )
 
     # --- remove-label ---

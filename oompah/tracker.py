@@ -1021,6 +1021,9 @@ class BacklogMdTracker(TrackerProtocol):
         # compatible top-level target_branch frontmatter field (TASK-454.1).
         raw_target = meta.get("oompah.target_branch") or meta.get("target_branch")
         target_branch = str(raw_target).strip() if raw_target else None
+        intake = meta.get("oompah.intake") or meta.get("intake")
+        if not isinstance(intake, dict):
+            intake = None
         return Issue(
             id=identifier,
             identifier=identifier,
@@ -1041,6 +1044,7 @@ class BacklogMdTracker(TrackerProtocol):
             updated_at=updated_at,
             closed_at=closed_at,
             attachments=attachments,
+            intake=intake,
         )
 
     def _task_path_for(self, identifier: str) -> Path | None:
