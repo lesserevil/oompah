@@ -110,6 +110,8 @@ class TestGitHubWorkBranchGeneration:
             base_branch=issue.target_branch,
             branch_name=expected_branch,
         )
+        assert issue.work_branch == expected_branch
+        assert issue.branch_name == expected_branch
 
     def test_backlog_issue_uses_no_explicit_branch_name(self, tmp_path):
         """Backlog-backed tasks must not get a GitHub-style branch — the

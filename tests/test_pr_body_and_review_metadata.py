@@ -18,7 +18,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.models import Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
-from oompah.statuses import IN_REVIEW
+from oompah.statuses import IN_REVIEW, OPEN
 
 
 # ------------------------------------------------------------------ helpers
@@ -73,6 +73,7 @@ def _make_github_issue(
     issue_number: str = "42",
     display_identifier: str = "org/repo#42",
     target_branch: str | None = None,
+    work_branch: str | None = None,
     project_id: str | None = "proj-1",
 ) -> Issue:
     return Issue(
@@ -88,6 +89,7 @@ def _make_github_issue(
         display_identifier=display_identifier,
         tracker_kind="github_issues",
         target_branch=target_branch,
+        work_branch=work_branch,
         project_id=project_id,
     )
 
@@ -348,6 +350,102 @@ class TestEnsureReviewExistsPassesDescription:
         call_kwargs = provider.create_review.call_args.kwargs
         description = call_kwargs.get("description", "")
         assert "https://github.com/org/repo/issues/42" in description
+
+    def test_github_issue_work_branch_used_for_review_creation(self, tmp_path):
+        """GitHub issue identifiers are not used as PR source branches."""
+        proj = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(
+            id="11",
+            url="https://github.com/org/repo/pull/11",
+            source_branch="oompah/repo/gh-42",
+            target_branch="main",
+        )
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        issue = _make_github_issue(work_branch="oompah/repo/gh-42")
+        entry = _make_entry(issue)
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc fix"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        assert provider.create_review.call_args.args[2] == "oompah/repo/gh-42"
+        tracker.update_issue.assert_called_with(issue.identifier, status=IN_REVIEW)
+
+    def test_github_issue_review_branch_reconstructed_when_metadata_missing(self, tmp_path):
+        """Older GitHub issues still use a safe generated source branch."""
+        proj = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = MagicMock(
+            id="12",
+            url="https://github.com/org/repo/pull/12",
+            source_branch="oompah/test-project/gh-42",
+            target_branch="main",
+        )
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+
+        issue = _make_github_issue()
+        entry = _make_entry(issue)
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc fix"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is True
+        assert provider.create_review.call_args.args[2] == "oompah/test-project/gh-42"
+
+    def test_review_handoff_failure_reports_work_branch(self, tmp_path):
+        """A failed PR handoff reopens the task with the real branch in the comment."""
+        proj = _make_project()
+        orch = _make_orchestrator(tmp_path, projects=[proj])
+        orch._reviews_cache = {"proj-1": []}
+
+        provider = MagicMock()
+        provider.create_review.return_value = None
+        tracker = MagicMock()
+        orch._tracker_for_project = MagicMock(return_value=tracker)
+        orch._post_comment = MagicMock()
+
+        issue = _make_github_issue(work_branch="oompah/repo/gh-42")
+        entry = _make_entry(issue)
+
+        with (
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch(
+                "oompah.close_gate._count_commits_ahead",
+                return_value=(1, ["abc fix"], ""),
+            ),
+        ):
+            result = orch._ensure_review_exists(entry, "proj-1")
+
+        assert result is False
+        tracker.update_issue.assert_called_with(issue.identifier, status=OPEN)
+        comment = orch._post_comment.call_args.args[1]
+        assert "Branch: `oompah/repo/gh-42`" in comment
+        assert "Branch: `org/repo#42`" not in comment
 
     def test_cross_repo_hub_issue_no_closing_keyword(self, tmp_path):
         """Cross-repo hub issue → plain link, no 'Fixes' keyword in PR body."""

@@ -3969,6 +3969,8 @@ class Orchestrator:
             project_obj = self.project_store.get(issue.project_id)
             if project_obj is not None:
                 work_branch = github_work_branch_name(project_obj.name, issue.issue_number)
+                issue.work_branch = work_branch
+                issue.branch_name = work_branch
                 try:
                     tracker = self._tracker_for_issue(issue)
                     tracker.set_metadata_field(
@@ -6412,6 +6414,31 @@ class Orchestrator:
         else:
             return f"Relates to: [{label}]({issue.url})"
 
+    def _work_branch_for_review(
+        self,
+        entry: RunningEntry,
+        project: Any | None,
+    ) -> str:
+        issue = entry.issue
+        if issue is not None:
+            return self._branch_for_issue(issue, project)
+        return entry.identifier
+
+    def _branch_for_issue(self, issue: Issue, project: Any | None = None) -> str:
+        for value in (
+            getattr(issue, "work_branch", None),
+            getattr(issue, "branch_name", None),
+        ):
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        if (
+            issue.tracker_kind == "github_issues"
+            and issue.issue_number
+            and project is not None
+        ):
+            return github_work_branch_name(project.name, issue.issue_number)
+        return issue.identifier
+
     def _ensure_review_exists(
         self, entry: RunningEntry, project_id: str | None
     ) -> bool:
@@ -6474,7 +6501,7 @@ class Orchestrator:
             )
             return True
 
-        branch = entry.identifier  # branch is named after the issue
+        branch = self._work_branch_for_review(entry, project)
         # Stacked mode: the child PR targets the epic branch instead of main.
         # Otherwise, honor Issue.target_branch when set (e.g. release branches),
         # falling back to the project's default branch.
@@ -6525,6 +6552,7 @@ class Orchestrator:
                 self._reopen_missing_review(
                     entry,
                     project_id,
+                    branch,
                     target_branch,
                     commits_ahead,
                     commit_lines,
@@ -6539,6 +6567,7 @@ class Orchestrator:
                 self._reopen_missing_review(
                     entry,
                     project_id,
+                    branch,
                     target_branch,
                     commits_ahead,
                     commit_lines,
@@ -6554,6 +6583,7 @@ class Orchestrator:
                 self._defer_review_handoff(
                     entry,
                     project_id,
+                    branch,
                     target_branch,
                     commits_ahead,
                     commit_lines,
@@ -6603,6 +6633,7 @@ class Orchestrator:
                     self._reopen_missing_review(
                         entry,
                         project_id,
+                        branch,
                         target_branch,
                         commits_ahead,
                         commit_lines,
@@ -6615,6 +6646,7 @@ class Orchestrator:
                 self._reopen_missing_review(
                     entry,
                     project_id,
+                    branch,
                     target_branch,
                     commits_ahead,
                     commit_lines,
@@ -6716,6 +6748,7 @@ class Orchestrator:
         self,
         entry: RunningEntry,
         project_id: str | None,
+        branch: str,
         target_branch: str,
         commits_ahead: int,
         commit_lines: list[str],
@@ -6744,7 +6777,7 @@ class Orchestrator:
             "Review handoff deferred: the task branch has unmerged work, but "
             "this project is at its open review limit.",
             "",
-            f"Branch: `{entry.identifier}`",
+            f"Branch: `{branch}`",
             f"Target branch: `{target_branch}`",
             f"Unmerged commits: {commits_ahead} {commit_noun}",
             f"Open reviews: {n_open}/{limit}",
@@ -6773,6 +6806,7 @@ class Orchestrator:
         self,
         entry: RunningEntry,
         project_id: str | None,
+        branch: str,
         target_branch: str,
         commits_ahead: int,
         commit_lines: list[str],
@@ -6796,7 +6830,7 @@ class Orchestrator:
             "Review handoff failed: the task branch has unmerged work but no "
             "review artifact was created.",
             "",
-            f"Branch: `{entry.identifier}`",
+            f"Branch: `{branch}`",
             f"Target branch: `{target_branch}`",
             f"Unmerged commits: {commits_ahead} {commit_noun}",
         ]
@@ -6884,7 +6918,7 @@ class Orchestrator:
                     and self._issue_has_children(issue)
                 ):
                     continue
-                branch = issue.branch_name or issue.identifier
+                branch = self._branch_for_issue(issue, project)
                 if (
                     branch
                     and branch in merged_branches
@@ -6926,7 +6960,7 @@ class Orchestrator:
         project_id: str,
     ) -> bool:
         """Return True when a Done task branch is provably ahead of its base."""
-        branch = issue.branch_name or issue.identifier
+        branch = self._branch_for_issue(issue, project)
         repo_path = getattr(project, "repo_path", "") or ""
         if not branch or not repo_path:
             return False
@@ -7034,8 +7068,7 @@ class Orchestrator:
                     or "archive:yes" in labels
                 ):
                     continue
-                # Branch name is typically the issue identifier
-                branch = issue.branch_name or issue.identifier
+                branch = self._branch_for_issue(issue, project)
                 if branch in merged:
                     rollup_strategy = self._epic_rollup_child_strategy(
                         issue,
@@ -13655,6 +13688,12 @@ class Orchestrator:
                 )
                 return True
 
+        if entry.issue is not None:
+            if not getattr(current_issue, "work_branch", None):
+                current_issue.work_branch = getattr(entry.issue, "work_branch", None)
+            if not getattr(current_issue, "branch_name", None):
+                current_issue.branch_name = getattr(entry.issue, "branch_name", None)
+
         result = check_close_gate(
             current_issue,
             repo_path=repo_path,
@@ -13779,6 +13818,12 @@ class Orchestrator:
                     exc,
                 )
                 return True
+
+        if entry.issue is not None:
+            if not getattr(current_issue, "work_branch", None):
+                current_issue.work_branch = getattr(entry.issue, "work_branch", None)
+            if not getattr(current_issue, "branch_name", None):
+                current_issue.branch_name = getattr(entry.issue, "branch_name", None)
 
         result = check_unpushed_gate(
             current_issue,

@@ -57,6 +57,18 @@ class UnpushedGateResult:
     error: str = ""
 
 
+def _branch_for_issue(issue: Any) -> str:
+    """Return the best branch name known for an issue."""
+    for value in (
+        getattr(issue, "work_branch", None),
+        getattr(issue, "branch_name", None),
+        getattr(issue, "identifier", None),
+    ):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
 def _check_unpushed(
     repo_path: str,
     branch: str,
@@ -192,13 +204,7 @@ def check_unpushed_gate(
     if (issue.issue_type or "").strip().lower() == "epic":
         return UnpushedGateResult(allowed=True, skip_reason="epic")
 
-    branch_name = getattr(issue, "branch_name", None)
-    if branch_name is None:
-        branch_name = ""
-    elif not isinstance(branch_name, str):
-        branch_name = ""
-
-    branch = (branch_name or issue.identifier or "").strip()
+    branch = _branch_for_issue(issue)
     if not branch:
         logger.debug(
             "unpushed_gate: no branch resolved for %s — skipping",
@@ -266,7 +272,7 @@ def build_unpushed_refusal_comment(
     base_branch: str,
 ) -> str:
     """Build the diagnostic comment to post when unpushed work is found."""
-    branch = (issue.branch_name or issue.identifier or "").strip()
+    branch = _branch_for_issue(issue)
 
     lines: list[str] = [
         "Completion refused by orchestrator: unpushed work detected on "

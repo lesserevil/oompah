@@ -23,7 +23,7 @@ already resolved — we only annotate the retry reason here, not correctness.
 
 Gate logic:
 
-1. Resolve branch: ``issue.branch_name or issue.identifier``.
+1. Resolve branch: ``issue.work_branch or issue.branch_name or issue.identifier``.
 2. ``git ls-remote --heads origin <branch>`` — does the branch exist on
    origin at all?  If not → no push happened → gate triggers.
 3. If branch does exist on origin: check
@@ -91,6 +91,18 @@ class LandingGateResult:
     effective_branch: str = ""
 
 
+def _branch_for_issue(issue: Issue) -> str:
+    """Return the best branch name known for an issue."""
+    for value in (
+        getattr(issue, "work_branch", None),
+        getattr(issue, "branch_name", None),
+        getattr(issue, "identifier", None),
+    ):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
 def check_landing_gate(
     issue: Issue,
     workspace_path: str,
@@ -134,7 +146,7 @@ def check_landing_gate(
     if effective_branch:
         branch = effective_branch.strip()
     else:
-        branch = (issue.branch_name or "").strip() or issue.identifier
+        branch = _branch_for_issue(issue)
     result.effective_branch = branch
 
     if not branch:

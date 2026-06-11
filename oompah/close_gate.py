@@ -24,7 +24,8 @@ Skip rules (fail-open without checking):
   "superseded", "wontfix" (manual override patterns).
 
 Gate logic:
-1. Resolve the branch name: ``issue.branch_name or issue.identifier``.
+1. Resolve the branch name:
+   ``issue.work_branch or issue.branch_name or issue.identifier``.
 2. ``git rev-list <base>..<branch> --count`` in the project's repo dir.
    * 0 → no unmerged commits → allow close.
 3. Query GitHub for PRs with ``head=<branch>`` in states ``open`` and
@@ -97,6 +98,18 @@ class CloseGateResult:
     merged_pr_links: list[str] = field(default_factory=list)
     # Internal error message (gate failed open)
     error: str = ""
+
+
+def _branch_for_issue(issue: Issue) -> str:
+    """Return the best branch name known for an issue."""
+    for value in (
+        getattr(issue, "work_branch", None),
+        getattr(issue, "branch_name", None),
+        getattr(issue, "identifier", None),
+    ):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def _count_commits_ahead(
@@ -323,7 +336,7 @@ def check_close_gate(
     # ------------------------------------------------------------------
     # Git commit check
     # ------------------------------------------------------------------
-    branch = (issue.branch_name or issue.identifier or "").strip()
+    branch = _branch_for_issue(issue)
     if not branch:
         logger.debug("close_gate: no branch resolved for %s — skipping", issue.identifier)
         return CloseGateResult(allowed=True, skip_reason="no_branch")
@@ -441,7 +454,7 @@ def build_refusal_comment(
     base_branch: str,
 ) -> str:
     """Build the diagnostic comment to post on the bead when close is refused."""
-    branch = (issue.branch_name or issue.identifier or "").strip()
+    branch = _branch_for_issue(issue)
     n = result.commits_ahead
     commit_noun = "commit" if n == 1 else "commits"
 

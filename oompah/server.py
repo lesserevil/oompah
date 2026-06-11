@@ -1214,7 +1214,7 @@ def _fetch_and_serialize_issues(orch) -> dict[str, list]:
         state = _issue_dashboard_state(issue)
         if state not in result:
             result[state] = []
-        branch = issue.branch_name or issue.identifier
+        branch = issue.work_branch or issue.branch_name or issue.identifier
         has_open_review = branch in unmerged_branches if branch else False
         tracker_state = issue.state
         entry = {

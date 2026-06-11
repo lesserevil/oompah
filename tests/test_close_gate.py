@@ -48,6 +48,7 @@ def _make_issue(
     issue_type: str = "feature",
     labels: list[str] | None = None,
     branch_name: str | None = None,
+    work_branch: str | None = None,
     project_id: str | None = "proj-1",
 ) -> Issue:
     return Issue(
@@ -61,6 +62,7 @@ def _make_issue(
         issue_type=issue_type,
         project_id=project_id,
         branch_name=branch_name,
+        work_branch=work_branch,
     )
 
 
@@ -229,6 +231,28 @@ class TestCheckCloseGate:
             )
         assert result.allowed is True
         assert result.skip_reason == "no_commits_ahead"
+
+    def test_work_branch_preferred_for_git_and_pr_checks(self):
+        """GitHub issue identifiers are not valid branch names."""
+        issue = _make_issue(
+            identifier="org/repo#42",
+            branch_name="org/repo#42",
+            work_branch="oompah/repo/gh-42",
+        )
+        with patch("oompah.close_gate._count_commits_ahead") as mock_git:
+            mock_git.return_value = (0, [], "")
+            result = check_close_gate(
+                issue,
+                repo_path="/tmp/repo",
+                slug="owner/repo",
+                base_branch="main",
+            )
+        assert result.allowed is True
+        mock_git.assert_called_once_with(
+            "/tmp/repo",
+            "main",
+            "oompah/repo/gh-42",
+        )
 
     def test_count_commits_ahead_uses_remote_tracking_branch(self, tmp_path):
         """Managed checkouts may only have origin/TASK-N after an agent push."""
@@ -469,6 +493,23 @@ class TestBuildRefusalComment:
         assert "Required: open a PR before closing" in comment
         assert "Bead reopened" in comment
 
+    def test_refusal_comment_uses_work_branch(self):
+        issue = _make_issue(
+            identifier="org/repo#42",
+            branch_name="org/repo#42",
+            work_branch="oompah/repo/gh-42",
+        )
+        result = CloseGateResult(
+            allowed=False,
+            commits_ahead=1,
+            open_prs=0,
+            merged_prs=0,
+        )
+        comment = build_refusal_comment(issue, result, "main")
+        assert "`oompah/repo/gh-42`" in comment
+        assert "--head oompah/repo/gh-42" in comment
+        assert "--head org/repo#42" not in comment
+
     def test_comment_with_merged_prs(self):
         issue = _make_issue(identifier="my-issue")
         result = CloseGateResult(
@@ -626,7 +667,11 @@ class TestOrchestratorCloseGateWiring:
     def test_gate_run_close_gate_method_calls_check_close_gate(self, tmp_path):
         """_run_close_gate calls check_close_gate with correct arguments."""
         orch = _make_orch(tmp_path, close_gate_enabled=True)
-        issue = _make_issue(project_id="proj-1")
+        issue = _make_issue(
+            identifier="org/repo#42",
+            project_id="proj-1",
+            work_branch="oompah/repo/gh-42",
+        )
 
         mock_project = MagicMock()
         mock_project.repo_path = "/tmp/myrepo"
@@ -659,6 +704,7 @@ class TestOrchestratorCloseGateWiring:
         assert call_kwargs[1]["entry_profile"] == "standard"
         assert call_kwargs[1]["entry_focus"] == "feature"
         assert call_kwargs[1]["entry_attempt"] == 2
+        assert mock_check.call_args.args[0].work_branch == "oompah/repo/gh-42"
 
     def test_gate_refused_posts_comment_and_reopens(self, tmp_path):
         """When gate refuses, a comment is posted and the bead is reopened."""

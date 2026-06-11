@@ -25,6 +25,7 @@ class FakeIssue:
         identifier: str = "test",
         issue_type: str = "task",
         branch_name: str = "test-branch",
+        work_branch: str | None = None,
         labels: list[str] | None = None,
         parent_id: str | None = None,
     ):
@@ -32,6 +33,7 @@ class FakeIssue:
         self.identifier = identifier
         self.issue_type = issue_type
         self.branch_name = branch_name
+        self.work_branch = work_branch
         self.labels = labels or []
         self.parent_id = parent_id
 
@@ -74,6 +76,26 @@ class TestCheckLandingGateSkipRules:
         issue = FakeIssue(identifier="test", branch_name="")
         result = check_landing_gate(issue, workspace_path="/fake", base_branch="main")
         assert result.allowed is True
+
+    def test_work_branch_preferred(self, monkeypatch: pytest.MonkeyPatch):
+        """GitHub work branch is used instead of the issue identifier."""
+        fake = FakeSubprocess([
+            (0, "abc refs/heads/oompah/repo/gh-42\n", ""),
+            (0, "1\n", ""),
+        ])
+        monkeypatch.setattr(subprocess, "run", fake.run)
+        issue = FakeIssue(
+            identifier="org/repo#42",
+            branch_name="org/repo#42",
+            work_branch="oompah/repo/gh-42",
+        )
+
+        result = check_landing_gate(issue, workspace_path="/fake", base_branch="main")
+
+        assert result.allowed is True
+        assert result.effective_branch == "oompah/repo/gh-42"
+        assert fake.calls[0][-1] == "oompah/repo/gh-42"
+        assert "origin/oompah/repo/gh-42" in fake.calls[1][-1]
 
 
 class TestCheckLandingGateBlocked:

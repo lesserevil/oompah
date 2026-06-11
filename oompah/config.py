@@ -394,9 +394,9 @@ class ServiceConfig:
     verify_completion_llm: bool = True
     # Close gate (oompah-zlz_2-gz8w). When True, agent-driven closes
     # are refused when the branch has commits not on the base branch
-    # AND no open or merged PR exists. Default False during initial
-    # rollout — flip via OOMPAH_CLOSE_GATE_ENABLED=true.
-    close_gate_enabled: bool = False
+    # AND no open or merged PR exists. Enabled by default; set
+    # OOMPAH_CLOSE_GATE_ENABLED=false to disable explicitly.
+    close_gate_enabled: bool = True
     # Strictness for the WORKFLOW.md → AgentProfileStore migration
     # (oompah-zlz_2-hye). One of:
     #   "warn"   — log a warning and surface a dashboard alert when
@@ -740,7 +740,7 @@ class ServiceConfig:
             close_gate_enabled=_env_bool(
                 "OOMPAH_CLOSE_GATE_ENABLED",
                 agent.get("close_gate_enabled"),
-                False,
+                True,
             ),
             strict_profile_source=_parse_strict_profile_source(
                 _env_str(

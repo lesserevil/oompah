@@ -90,7 +90,16 @@ class TestServiceConfig:
         assert cfg.worktree_cleanup_batch_size == 25
         assert cfg.release_pick_max_runtime_seconds == 15
         assert cfg.merged_labels_max_runtime_seconds == 15
+        assert cfg.close_gate_enabled is True
         assert cfg.workspace_root  # should have a default
+
+    def test_close_gate_env_can_disable_default(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_CLOSE_GATE_ENABLED", "false")
+        wf = WorkflowDefinition(config={}, prompt_template="test")
+
+        cfg = ServiceConfig.from_workflow(wf)
+
+        assert cfg.close_gate_enabled is False
 
     def test_responsiveness_tuning_from_env(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_DISPATCH_SCAN_LIMIT", "12")

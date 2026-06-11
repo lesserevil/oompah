@@ -1747,26 +1747,38 @@ class TestGitHubIssueTrackerFetch:
         params = kwargs.get("params", {})
         assert params.get("state") == "open"
 
-    def test_fetch_issues_by_states_terminal_only(self):
-        """Requesting only terminal states queries GitHub with state=closed."""
+    def test_fetch_issues_by_states_done_only_queries_all(self):
+        """Done is written open but old closed-Done issues must still be found."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_issues_by_states(["Done"])
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "all"
+
+    def test_fetch_issues_by_states_github_closed_terminal_only(self):
+        """Merged and Archived map to GitHub state=closed."""
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_issues_by_states(["Merged", "Archived"])
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "closed"
+
+    def test_fetch_issues_by_states_mixed(self):
+        """Mixed GitHub-open and GitHub-closed statuses query state=all."""
         tracker = self._make_tracker()
         resp = _mock_response(200, json_data=[])
         with patch.object(
             tracker._client._http, "request", return_value=resp
         ) as mock_req:
             tracker.fetch_issues_by_states(["Done", "Archived"])
-        _, kwargs = mock_req.call_args
-        params = kwargs.get("params", {})
-        assert params.get("state") == "closed"
-
-    def test_fetch_issues_by_states_mixed(self):
-        """Mixed active+terminal states queries GitHub with state=all."""
-        tracker = self._make_tracker()
-        resp = _mock_response(200, json_data=[])
-        with patch.object(
-            tracker._client._http, "request", return_value=resp
-        ) as mock_req:
-            tracker.fetch_issues_by_states(["Open", "Done"])
         _, kwargs = mock_req.call_args
         params = kwargs.get("params", {})
         assert params.get("state") == "all"
@@ -1865,6 +1877,17 @@ class TestGitHubIssueTrackerFetch:
             )
         assert len(result) == 1
         assert result[0].state == "Open"
+
+    def test_fetch_issues_by_labels_with_done_state_queries_all(self):
+        tracker = self._make_tracker()
+        resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http, "request", return_value=resp
+        ) as mock_req:
+            tracker.fetch_issues_by_labels(["component:ui"], states=["Done"])
+        _, kwargs = mock_req.call_args
+        params = kwargs.get("params", {})
+        assert params.get("state") == "all"
 
     # ------------------------------------------------------------------
     # fetch_comments
@@ -2019,6 +2042,41 @@ class TestGitHubIssueTrackerMutations:
         labels_sent = call_kwargs["json"]["labels"]
         assert "oompah:status:open" in labels_sent
 
+    def test_create_issue_done_status_does_not_close_github_issue(self):
+        """New Done issues keep GitHub state=open for review reconciliation."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(
+            number=101,
+            labels=["oompah:status:done"],
+            state="open",
+        )
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Done task", initial_status="Done")
+        assert m.call_count == 1
+        assert m.call_args[1]["json"]["labels"] == ["oompah:status:done"]
+
+    def test_create_issue_archived_status_closes_github_issue(self):
+        """Archived issues are terminal in both oompah and GitHub."""
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(
+            number=102,
+            labels=["oompah:status:archived"],
+            state="open",
+        )
+        responses = [
+            _mock_response(201, json_data=gh_issue),
+            _mock_response(200, json_data={**gh_issue, "state": "closed"}),
+        ]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.create_issue("Archived task", initial_status="Archived")
+        assert m.call_count == 2
+        patch_call = m.call_args_list[-1]
+        assert patch_call[0][0] == "PATCH"
+        assert patch_call[1]["json"]["state"] == "closed"
+
     def test_create_issue_uses_first_active_state_when_no_status(self):
         """When initial_status is None, the first active state is used."""
         tracker = self._make_tracker()
@@ -2140,11 +2198,11 @@ class TestGitHubIssueTrackerMutations:
         assert meta_block in new_body
         assert "Old description." not in new_body
 
-    def test_update_issue_status_swaps_label_and_closes(self):
-        """Updating status to a terminal state also sets state=closed."""
+    def test_update_issue_status_done_swaps_label_and_keeps_open(self):
+        """Updating status to Done keeps GitHub state=open for review handoff."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
-        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=7, state="closed"))
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=7, state="open"))
         responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
@@ -2152,9 +2210,25 @@ class TestGitHubIssueTrackerMutations:
             tracker.update_issue("lesserevil/oompah-tasks#7", status="Done")
         last_call = m.call_args_list[-1]
         assert last_call[0][0] == "PATCH"
-        assert last_call[1]["json"]["state"] == "closed"
+        assert last_call[1]["json"]["state"] == "open"
         assert "oompah:status:done" in last_call[1]["json"]["labels"]
         assert "oompah:status:open" not in last_call[1]["json"]["labels"]
+
+    def test_update_issue_status_merged_swaps_label_and_closes(self):
+        """Updating status to Merged closes the native GitHub issue."""
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:done"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=7, state="closed"))
+        responses = [labels_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.update_issue("lesserevil/oompah-tasks#7", status="Merged")
+        last_call = m.call_args_list[-1]
+        assert last_call[0][0] == "PATCH"
+        assert last_call[1]["json"]["state"] == "closed"
+        assert "oompah:status:merged" in last_call[1]["json"]["labels"]
+        assert "oompah:status:done" not in last_call[1]["json"]["labels"]
 
     def test_update_issue_status_failure_does_not_apply_separate_label_ops(self):
         """A rejected terminal-state PATCH must not leave a Done label behind."""
@@ -2177,7 +2251,7 @@ class TestGitHubIssueTrackerMutations:
         methods = [call[0][0] for call in m.call_args_list]
         assert methods == ["GET", "PATCH"]
         patch_payload = m.call_args_list[-1][1]["json"]
-        assert patch_payload["state"] == "closed"
+        assert patch_payload["state"] == "open"
         assert patch_payload["labels"] == ["component:ui", "oompah:status:done"]
 
     def test_update_issue_status_active_opens_issue(self):
@@ -2246,11 +2320,11 @@ class TestGitHubIssueTrackerMutations:
     # close_issue
     # ------------------------------------------------------------------
 
-    def test_close_issue_sets_terminal_status_and_closes(self):
-        """close_issue sets oompah:status:done label and GitHub state=closed."""
+    def test_close_issue_sets_done_status_and_keeps_open(self):
+        """close_issue sets oompah:status:done label and keeps GitHub state=open."""
         tracker = self._make_tracker()
         labels_resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
-        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=20, state="closed"))
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=20, state="open"))
         responses = [labels_resp, patch_resp]
         with patch.object(
             tracker._client._http, "request", side_effect=responses
@@ -2258,7 +2332,7 @@ class TestGitHubIssueTrackerMutations:
             tracker.close_issue("lesserevil/oompah-tasks#20")
         patch_call = m.call_args_list[-1]
         assert patch_call[0][0] == "PATCH"
-        assert patch_call[1]["json"]["state"] == "closed"
+        assert patch_call[1]["json"]["state"] == "open"
         assert "oompah:status:done" in patch_call[1]["json"]["labels"]
 
     def test_close_issue_posts_reason_comment(self):

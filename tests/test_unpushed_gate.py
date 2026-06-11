@@ -39,6 +39,7 @@ def _make_issue(
     issue_type: str = "feature",
     labels: list[str] | None = None,
     branch_name: str | None = None,
+    work_branch: str | None = None,
     project_id: str | None = "proj-1",
 ):
     """Minimal Issue constructor matching the test pattern from test_close_gate."""
@@ -53,6 +54,7 @@ def _make_issue(
         issue_type=issue_type,
         project_id=project_id,
         branch_name=branch_name,
+        work_branch=work_branch,
     )
 
 
@@ -66,6 +68,7 @@ class FakeIssue:
         issue_type: str = "feature",
         labels: list[str] | None = None,
         branch_name: str | None = None,
+        work_branch: str | None = None,
     ):
         self.id = issue_id
         self.identifier = identifier
@@ -77,6 +80,7 @@ class FakeIssue:
         self.issue_type = issue_type
         self.project_id = "proj-1"
         self.branch_name = branch_name
+        self.work_branch = work_branch
 
 
 class TestCheckUnpushedGate:
@@ -137,6 +141,27 @@ class TestCheckUnpushedGate:
             )
         assert result.allowed is True
         assert result.skip_reason == "no_unpushed_work"
+
+    def test_work_branch_preferred(self):
+        """GitHub work branch is used instead of the issue identifier."""
+        issue = FakeIssue(
+            identifier="org/repo#42",
+            branch_name="org/repo#42",
+            work_branch="oompah/repo/gh-42",
+        )
+        with patch("oompah.unpushed_gate._check_unpushed") as mock_check:
+            mock_check.return_value = (False, 0, [], "")
+            result = check_unpushed_gate(
+                issue,
+                repo_path="/tmp/repo",
+                base_branch="main",
+            )
+        assert result.allowed is True
+        mock_check.assert_called_once_with(
+            "/tmp/repo",
+            "oompah/repo/gh-42",
+            "main",
+        )
 
     def test_unpushed_commits_refused(self):
         """Branch whose origin/branch is behind → refused with commits_ahead > 0."""
@@ -269,6 +294,21 @@ class TestBuildUnpushedRefusalComment:
         assert "git checkout my-bead" in comment
         assert "git push origin my-bead" in comment
         assert "Bead re-opened" in comment
+
+    def test_refusal_comment_uses_work_branch(self):
+        issue = FakeIssue(
+            identifier="org/repo#42",
+            branch_name="org/repo#42",
+            work_branch="oompah/repo/gh-42",
+        )
+        result = UnpushedGateResult(
+            allowed=False,
+            has_uncommitted=False,
+            commits_ahead=1,
+        )
+        comment = build_unpushed_refusal_comment(issue, result, "main")
+        assert "`oompah/repo/gh-42`" in comment
+        assert "org/repo#42" not in comment
 
     def test_refuses_with_uncommitted(self):
         """Comment notes uncommitted worktree changes."""

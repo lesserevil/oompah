@@ -59,7 +59,10 @@ from oompah.statuses import (
     ARCHIVED,
     BACKLOG,
     CANONICAL_STATUSES,
+    DONE,
+    MERGED,
     NEEDS_HUMAN,
+    status_key,
 )
 from oompah.tracker import (
     TrackerError,
@@ -1018,6 +1021,20 @@ _STATUS_TO_LABEL_SLUG: dict[str, str] = {
     v: k for k, v in _LABEL_SLUG_TO_STATUS.items()
 }
 
+# GitHub's native issue state has only open/closed. Oompah's ``Done`` means
+# implementation work is finished and waiting for review/merge, so it must
+# stay open. Only statuses that are truly terminal in GitHub itself close the
+# issue.
+_GITHUB_CLOSED_STATUS_KEYS = frozenset({
+    status_key(MERGED),
+    status_key(ARCHIVED),
+})
+_GITHUB_ALL_QUERY_STATUS_KEYS = frozenset({
+    # Done should be GitHub-open going forward, but older oompah versions
+    # closed Done issues. Query both states so reconciliation can repair them.
+    status_key(DONE),
+})
+
 # Sentinel used for sorting issues without timestamps.
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
@@ -1051,6 +1068,29 @@ def _label_to_status(label_name: str) -> str | None:
 def _github_fallback_status(gh_state: str) -> str:
     """Return the oompah status for a GitHub issue with no status label."""
     return ARCHIVED if gh_state == "closed" else BACKLOG
+
+
+def _status_closes_github_issue(status: str | None) -> bool:
+    return status_key(status) in _GITHUB_CLOSED_STATUS_KEYS
+
+
+def _github_issue_state_for_status(status: str | None) -> str:
+    return "closed" if _status_closes_github_issue(status) else "open"
+
+
+def _github_query_state_for_statuses(statuses: set[str]) -> str:
+    query_states: set[str] = set()
+    for status in statuses:
+        key = status_key(status)
+        if key in _GITHUB_ALL_QUERY_STATUS_KEYS:
+            query_states.add("all")
+        elif key in _GITHUB_CLOSED_STATUS_KEYS:
+            query_states.add("closed")
+        else:
+            query_states.add("open")
+    if "all" in query_states or len(query_states) > 1:
+        return "all"
+    return next(iter(query_states), "open")
 
 
 def _extract_oompah_status(
@@ -1272,7 +1312,9 @@ class GitHubIssueTracker:
     active_states:
         oompah status names considered active for dispatch.
     terminal_states:
-        oompah status names considered terminal (closed).
+        oompah status names considered terminal for dispatch. GitHub's native
+        issue state is closed only for ``Merged`` and ``Archived``; ``Done``
+        remains open while review/merge work is pending.
     auth:
         :class:`GitHubAuth` instance.  When *None*, one is constructed
         from environment variables automatically.
@@ -1553,23 +1595,16 @@ class GitHubIssueTracker:
         """Return all issues whose oompah state matches any of *state_names*.
 
         Optimises the GitHub API query by requesting only ``open`` issues
-        when all requested states are non-terminal, only ``closed`` when
-        all are terminal, or ``all`` for a mixed set.
+        when all requested statuses can only be GitHub-open, only ``closed``
+        when all requested statuses can only be GitHub-closed, or ``all`` for
+        mixed sets. ``Done`` uses ``all`` so old closed-Done issues remain
+        visible to reconciliation.
         """
         if not state_names:
             return []
 
-        terminal_set = set(self.terminal_states)
         state_set = set(state_names)
-        needs_open = bool(state_set - terminal_set)
-        needs_closed = bool(state_set & terminal_set)
-
-        if needs_open and needs_closed:
-            gh_state = "all"
-        elif needs_closed:
-            gh_state = "closed"
-        else:
-            gh_state = "open"
+        gh_state = _github_query_state_for_statuses(state_set)
 
         raw = self._client.request_paginated(
             self._issues_path(),
@@ -1593,16 +1628,8 @@ class GitHubIssueTracker:
             return []
 
         if states is not None:
-            terminal_set = set(self.terminal_states)
             state_set = set(states)
-            needs_open = bool(state_set - terminal_set)
-            needs_closed = bool(state_set & terminal_set)
-            if needs_open and needs_closed:
-                gh_state = "all"
-            elif needs_closed:
-                gh_state = "closed"
-            else:
-                gh_state = "open"
+            gh_state = _github_query_state_for_statuses(state_set)
         else:
             gh_state = "all"
 
@@ -1729,10 +1756,10 @@ class GitHubIssueTracker:
                 "GitHub API returned unexpected response for issue creation"
             )
 
-        # If the initial status is terminal, close the GitHub issue immediately
-        # so that state-based filters (e.g. fetch_issues_by_states(["Done"]))
-        # correctly exclude / include it via the GitHub state field.
-        if status in self.terminal_states:
+        # If the initial status is terminal in GitHub itself, close the issue
+        # immediately. ``Done`` is intentionally left open so review handoff
+        # and merge reconciliation can still see the issue.
+        if _status_closes_github_issue(status):
             number = gh_issue.get("number")
             if number is not None:
                 try:
@@ -1758,7 +1785,8 @@ class GitHubIssueTracker:
             Issue body text.  The oompah metadata block is preserved.
         ``status``
             oompah status string.  Syncs the ``oompah:status:*`` label and
-            sets the GitHub ``state`` (open/closed) accordingly.
+            sets the GitHub native ``state`` to closed only for ``Merged`` and
+            ``Archived``. ``Done`` remains open while review/merge is pending.
         ``priority``
             Numeric dispatch priority.  Syncs the ``priority:N`` label.
         ``add_label`` / ``add-label``
@@ -1819,10 +1847,7 @@ class GitHubIssueTracker:
         # for GitHub state changes. This keeps the visible oompah status from
         # diverging when GitHub rejects the issue state update.
         if status_to_set is not None:
-            if status_to_set in self.terminal_states:
-                patch_payload["state"] = "closed"
-            else:
-                patch_payload.setdefault("state", "open")
+            patch_payload["state"] = _github_issue_state_for_status(status_to_set)
         if status_to_set is not None or priority_specified:
             labels = self._fetch_issue_label_names(gh_id.number)
             if status_to_set is not None:
@@ -1848,9 +1873,10 @@ class GitHubIssueTracker:
     def close_issue(self, identifier: str, *, reason: str | None = None) -> None:
         """Move an issue to the first configured terminal state.
 
-        Sets the ``oompah:status:*`` label to the terminal status, closes
-        the GitHub issue (``state: "closed"``), and optionally appends a
-        comment with the close reason.
+        Sets the ``oompah:status:*`` label to the terminal status and
+        optionally appends a comment with the close reason. When that terminal
+        status is ``Done``, the GitHub issue remains open until it is later
+        marked ``Merged`` or ``Archived``.
         """
         try:
             gh_id = self.parse_identifier(identifier)
@@ -1858,7 +1884,11 @@ class GitHubIssueTracker:
             raise
 
         terminal = self._terminal_status()
-        self._patch_state_and_status_label(gh_id.number, "closed", terminal)
+        self._patch_state_and_status_label(
+            gh_id.number,
+            _github_issue_state_for_status(terminal),
+            terminal,
+        )
         if reason:
             self.add_comment(identifier, reason)
 
