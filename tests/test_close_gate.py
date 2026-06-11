@@ -306,6 +306,60 @@ class TestCheckCloseGate:
         assert count == 1
         assert any("feature work" in line for line in lines)
 
+    def test_count_commits_ahead_uses_remote_when_local_branch_is_stale(
+        self, tmp_path
+    ):
+        """A stale local branch at main must not hide pushed remote work."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "oompah@example.com"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "oompah"],
+            cwd=repo,
+            check=True,
+        )
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "base.txt"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "base"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(["git", "branch", "-M", "main"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "update-ref", "refs/remotes/origin/main", "HEAD"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "branch", "TASK-1"], cwd=repo, check=True)
+        subprocess.run(["git", "checkout", "-b", "remote-work"], cwd=repo, check=True)
+        (repo / "feature.txt").write_text("feature\n")
+        subprocess.run(["git", "add", "feature.txt"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "feature work"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "update-ref", "refs/remotes/origin/TASK-1", "HEAD"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(["git", "checkout", "main"], cwd=repo, check=True)
+
+        count, lines, error = _count_commits_ahead(str(repo), "main", "TASK-1")
+
+        assert error == ""
+        assert count == 1
+        assert any("feature work" in line for line in lines)
+
     def test_no_slug_fails_open_with_commits(self):
         """No slug for forge query → fail-open even with commits ahead."""
         issue = _make_issue()

@@ -4651,6 +4651,33 @@ class Orchestrator:
                 epics_to_plan.append(issue)
         return epics_to_plan
 
+    def _pending_epic_rollup_dependency(
+        self,
+        epic: Issue,
+    ) -> tuple[str, str] | None:
+        """Return the first dependency that has not landed for epic rollup.
+
+        Dispatch can treat a blocker in ``Done`` as sufficient because the
+        dependent worker may still run before final merge.  Epic rollup PRs are
+        different: opening the dependent epic-to-main PR before its prerequisite
+        epic lands can consume review capacity and merge work out of order.
+        """
+        for blocker in epic.blocked_by or []:
+            blocker_id = (
+                getattr(blocker, "identifier", None)
+                or getattr(blocker, "id", None)
+                or ""
+            )
+            if not blocker_id:
+                continue
+            blocker_state = getattr(blocker, "state", None) or ""
+            if not blocker_state:
+                blocker_state = self._resolve_blocker_state(blocker, epic)
+            status = canonicalize_status(blocker_state)
+            if status not in {MERGED, ARCHIVED}:
+                return blocker_id, status or blocker_state or "unknown"
+        return None
+
     def _open_epic_main_prs(self, candidates: list[Issue]) -> int:
         """Open epic completion PRs for stacked/shared epics whose children are
         all closed.
@@ -4679,9 +4706,10 @@ class Orchestrator:
         Returns the number of PRs opened.
         """
         opened = 0
+        opened_by_project: dict[str, int] = {}
         for issue in candidates:
-            if _is_terminal_state(issue.state, self.config.tracker_terminal_states):
-                continue  # epic itself is closed; closing logic owns this
+            if canonicalize_status(issue.state) in {MERGED, ARCHIVED}:
+                continue  # epic itself has already landed or been discarded
             project_id = issue.project_id
             if not project_id:
                 continue
@@ -4715,6 +4743,18 @@ class Orchestrator:
             # an incomplete one to Open/In Progress/Backlog — none of which
             # should open a PR.
             if epic_rollup_state(child_states) != DONE:
+                continue
+
+            pending_dependency = self._pending_epic_rollup_dependency(issue)
+            if pending_dependency is not None:
+                blocker_id, blocker_state = pending_dependency
+                logger.info(
+                    "Deferred epic PR for %s: dependency %s is %s; waiting "
+                    "for it to land",
+                    issue.identifier,
+                    blocker_id,
+                    blocker_state,
+                )
                 continue
 
             project = self.project_store.get(project_id)
@@ -4788,16 +4828,22 @@ class Orchestrator:
                 continue
 
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
-            if at_capacity:
+            reserved = opened_by_project.get(project_id, 0)
+            if at_capacity or n_open + reserved >= limit:
                 logger.info(
                     "Deferred epic PR for %s on %s: project review cap "
                     "reached (%d/%d)",
                     issue.identifier,
                     project.name,
-                    n_open,
+                    n_open + reserved,
                     limit,
                 )
                 continue
+
+            # Resolve the target branch before pushing so the push failure
+            # fallback can verify whether an already-pushed remote epic branch
+            # has unmerged work to review.
+            target_branch = self._resolve_epic_target_branch(issue, project)
 
             # Push the epic branch from the shared epic worktree (shared
             # mode) or from the project's main repo path (stacked mode —
@@ -4806,18 +4852,25 @@ class Orchestrator:
             try:
                 self._push_epic_branch(project, issue.identifier)
             except Exception as exc:
+                if not self._remote_epic_branch_has_unmerged_work(
+                    project,
+                    target_branch,
+                    epic_branch,
+                ):
+                    logger.warning(
+                        "Failed to push epic branch %s for epic %s: %s",
+                        epic_branch,
+                        issue.identifier,
+                        exc,
+                    )
+                    continue
                 logger.warning(
-                    "Failed to push epic branch %s for epic %s: %s",
+                    "Using existing remote epic branch %s for epic %s after "
+                    "local push failed: %s",
                     epic_branch,
                     issue.identifier,
                     exc,
                 )
-                continue
-
-            # Resolve the target branch: for nested epics in shared mode,
-            # the child epic's PR targets its parent's branch rather than main.
-            # For top-level epics (or non-shared strategies), targets project.default_branch.
-            target_branch = self._resolve_epic_target_branch(issue, project)
 
             title = (
                 f"{issue.identifier}: {issue.title}"
@@ -4872,6 +4925,7 @@ class Orchestrator:
             # Persist review metadata on the epic task record (TASK-462.2).
             try:
                 tracker = self._tracker_for_project(project_id)
+                tracker.update_issue(issue.identifier, status=IN_REVIEW)
                 self._write_review_metadata(
                     tracker,
                     issue.identifier,
@@ -4887,7 +4941,51 @@ class Orchestrator:
                     exc,
                 )
             opened += 1
+            opened_by_project[project_id] = reserved + 1
         return opened
+
+    def _remote_epic_branch_has_unmerged_work(
+        self,
+        project: Any,
+        target_branch: str,
+        epic_branch: str,
+    ) -> bool:
+        """Return True when origin has epic work that is not in the target.
+
+        Shared epic worktrees can be left dirty or behind after an agent push.
+        In that state the local push path may refuse to proceed even though
+        ``origin/<epic_branch>`` already contains the completed work.  The PR
+        can still be opened safely from that remote branch when git can prove
+        it is ahead of the target branch.
+        """
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path or not os.path.isdir(repo_path):
+            return False
+        try:
+            subprocess.run(
+                ["git", "fetch", "origin", epic_branch],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        except Exception:
+            pass
+        ahead, _lines, error = self._count_review_branch_ahead(
+            project,
+            target_branch,
+            epic_branch,
+        )
+        if error:
+            logger.debug(
+                "Remote epic branch ahead check failed for %s against %s: %s",
+                epic_branch,
+                target_branch,
+                error,
+            )
+            return False
+        return ahead > 0
 
     def _resolve_epic_target_branch(self, epic: Issue, project) -> str:
         """Resolve the target branch for an epic's completion PR.
@@ -10042,7 +10140,7 @@ class Orchestrator:
     def _resolve_blocker_state(self, blocker: BlockerRef, issue: Issue) -> str:
         """Look up a blocker's current state, using a per-tick cache."""
         cache = getattr(self, "_blocker_state_cache", {})
-        bid = blocker.id or ""
+        bid = blocker.identifier or blocker.id or ""
         if bid in cache:
             blocker.state = cache[bid]
             return cache[bid].strip().lower()

@@ -131,8 +131,9 @@ def _count_commits_ahead(
     seen_ranges: set[str] = set()
     last_error = ""
     selected_range = ""
-    result: subprocess.CompletedProcess[str] | None = None
+    selected_count: int | None = None
     for base_ref in base_refs:
+        best_for_base: tuple[int, str] | None = None
         for branch_ref in branch_refs:
             ref_range = f"{base_ref}..{branch_ref}"
             if ref_range in seen_ranges:
@@ -150,25 +151,29 @@ def _count_commits_ahead(
                 last_error = f"git rev-list --count failed: {exc}"
                 continue
             if candidate.returncode == 0:
-                result = candidate
-                selected_range = ref_range
-                break
+                try:
+                    count = int(candidate.stdout.strip())
+                except ValueError:
+                    last_error = (
+                        "git rev-list --count unexpected output for "
+                        f"{ref_range}: {candidate.stdout!r}"
+                    )
+                    continue
+                if best_for_base is None or count > best_for_base[0]:
+                    best_for_base = (count, ref_range)
+                continue
             last_error = (
                 f"git rev-list --count failed for {ref_range}: "
                 f"{candidate.stderr.strip()}"
             )
-        if result is not None:
+        if best_for_base is not None:
+            selected_count, selected_range = best_for_base
             break
 
-    if result is None:
+    if selected_count is None:
         return 0, [], last_error or "git rev-list --count failed"
 
-    try:
-        count = int(result.stdout.strip())
-    except ValueError:
-        return 0, [], f"git rev-list --count unexpected output: {result.stdout!r}"
-
-    if count == 0:
+    if selected_count == 0:
         return 0, [], ""
 
     # Fetch commit summaries for the refusal comment (up to 20), using
@@ -194,7 +199,7 @@ def _count_commits_ahead(
     except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
         lines = []
 
-    return count, lines, ""
+    return selected_count, lines, ""
 
 
 def _query_prs_for_branch(

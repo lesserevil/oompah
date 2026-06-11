@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oompah.config import ServiceConfig
-from oompah.models import Issue, Project, RunningEntry
+from oompah.models import BlockerRef, Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
 from oompah.statuses import DONE, IN_PROGRESS, IN_REVIEW, NEEDS_HUMAN, OPEN
@@ -338,6 +338,25 @@ class TestResolveParentEpic:
         with patch.object(orch, "_tracker_for_issue", return_value=tracker):
             child = _make_issue(parent_id="epic-1")
             assert orch._resolve_parent_epic(child) is None
+
+
+class TestResolveBlockerState:
+    def test_prefers_fully_qualified_identifier(self, tmp_path):
+        proj = _make_project_record()
+        orch = _make_orch(tmp_path, projects=[proj])
+        issue = _make_issue(identifier="org/repo#273")
+        blocker = BlockerRef(id="272", identifier="org/repo#272")
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = _make_issue(
+            identifier="org/repo#272",
+            state="Merged",
+        )
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            state = orch._resolve_blocker_state(blocker, issue)
+
+        assert state == "merged"
+        tracker.fetch_issue_detail.assert_called_once_with("org/repo#272")
 
 
 # --------------------------------------------------------------- dispatch gate
@@ -1565,7 +1584,7 @@ class TestOpenEpicMainPrs:
     def test_skips_when_epic_already_terminal(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="shared")
         epic = _make_issue(
-            identifier="epic-1", issue_type="epic", project_id="proj-1", state="closed"
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="Merged"
         )
         provider = MagicMock()
         with (
@@ -1986,6 +2005,168 @@ class TestOpenEpicMainPrs:
             patch.object(orch, "_push_epic_branch"),
         ):
             opened = orch._open_epic_main_prs([epic])
+        assert opened == 1
+        provider.create_review.assert_called_once()
+
+    def test_uses_existing_remote_epic_branch_when_shared_push_blocked(
+        self, tmp_path
+    ):
+        orch, proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="Done"
+        )
+        child = _make_issue(identifier="c1", state="Done")
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        provider.create_review.return_value = MagicMock(id="301")
+        tracker = MagicMock()
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+            patch.object(
+                orch,
+                "_push_epic_branch",
+                side_effect=ProjectError("dirty shared worktree"),
+            ),
+            patch.object(
+                orch,
+                "_remote_epic_branch_has_unmerged_work",
+                return_value=True,
+            ) as remote_has_work,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 1
+        remote_has_work.assert_called_once_with(proj, "main", "epic-epic-1")
+        provider.create_review.assert_called_once()
+        assert provider.create_review.call_args.args[2] == "epic-epic-1"
+        tracker.update_issue.assert_called_once_with("epic-1", status=IN_REVIEW)
+
+    def test_push_failure_without_remote_work_opens_no_epic_pr(self, tmp_path):
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-1", issue_type="epic", project_id="proj-1", state="Done"
+        )
+        child = _make_issue(identifier="c1", state="Done")
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(
+                orch,
+                "_push_epic_branch",
+                side_effect=ProjectError("dirty shared worktree"),
+            ),
+            patch.object(
+                orch,
+                "_remote_epic_branch_has_unmerged_work",
+                return_value=False,
+            ),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        provider.create_review.assert_not_called()
+
+    def test_reserves_project_review_capacity_within_epic_sweep(self, tmp_path):
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epics = [
+            _make_issue(
+                identifier="epic-1",
+                issue_type="epic",
+                project_id="proj-1",
+                state="Done",
+            ),
+            _make_issue(
+                identifier="epic-2",
+                issue_type="epic",
+                project_id="proj-1",
+                state="Done",
+            ),
+        ]
+        child = _make_issue(identifier="c1", state="Done")
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        provider.create_review.return_value = MagicMock(id="302")
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
+            opened = orch._open_epic_main_prs(epics)
+
+        assert opened == 1
+        provider.create_review.assert_called_once()
+
+    def test_epic_rollup_waits_for_blocker_to_land(self, tmp_path):
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-2",
+            issue_type="epic",
+            project_id="proj-1",
+            state="Done",
+        )
+        epic.blocked_by = [
+            BlockerRef(id="1", identifier="org/repo#1", state="Done")
+        ]
+        child = _make_issue(identifier="c1", state="Done")
+        provider = MagicMock()
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
+        assert opened == 0
+        provider.create_review.assert_not_called()
+
+    def test_epic_rollup_allows_merged_blocker(self, tmp_path):
+        orch, _proj = self._setup(tmp_path, strategy="shared")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        orch.project_store.read_task_status_in_epic_worktree.return_value = None
+        epic = _make_issue(
+            identifier="epic-2",
+            issue_type="epic",
+            project_id="proj-1",
+            state="Done",
+        )
+        epic.blocked_by = [
+            BlockerRef(id="1", identifier="org/repo#1", state="Merged")
+        ]
+        child = _make_issue(identifier="c1", state="Done")
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        provider.create_review.return_value = MagicMock(id="303")
+
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch"),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+
         assert opened == 1
         provider.create_review.assert_called_once()
 
