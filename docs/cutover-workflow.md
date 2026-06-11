@@ -5,7 +5,10 @@ over from Backlog.md to GitHub Issues, verifying the new tracker, and rolling
 back if needed.
 
 See `plans/github-issues-tracker-migration.md` for the full migration plan and
-architecture background.
+architecture background. After a project is cut over, use
+`docs/github-issue-intake.md` for the operator workflow that moves newly filed
+GitHub issues from `Proposed` through intake validation and requestor approval
+to `Backlog`, then to owner-approved `Open` work.
 
 ---
 
@@ -135,6 +138,13 @@ Or click **Resume** in the Projects UI.
 The project is now live on GitHub Issues. New tasks and follow-up tasks created
 by agents will be GitHub Issues. Existing Backlog.md task files remain in the
 git tree as historical artifacts.
+
+New GitHub issues filed directly by users enter the intake workflow before they
+are dispatchable. They receive `oompah:status:proposed`, remain there while
+oompah validates required information, advance to `Backlog` only after
+requestor approval and an authorized status-label transition, and move to
+`Open` only when a project owner accepts them for agent work. See
+`docs/github-issue-intake.md` for the full filing and approval rules.
 
 ---
 
