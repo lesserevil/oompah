@@ -1,19 +1,62 @@
 # Agent Instructions
 
-This project is managed by **oompah** using
-**GitHub Issues** as the canonical task tracker. Do **not** use Backlog.md,
-`backlog`, `bd`, beads, markdown TODO lists, or any other tracker for new
-project work.
+<!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION v:1 -->
+## Issue Tracking with GitHub Issues
 
-## Quick Reference
+This project is managed by **oompah** using **GitHub Issues** as the
+canonical task tracker. Do **not** create or edit Backlog.md task files, do
+not use the `backlog` CLI for task tracking, and do not use `bd`, beads,
+TodoWrite, markdown TODO lists, or another tracker for project work.
+
+Use the `oompah task` CLI so oompah can apply the correct GitHub labels,
+status mapping, parent/child links, dependencies, and comments.
+
+### Quick Reference
 
 ```bash
 oompah task view <owner/repo#number>
 oompah task comment <owner/repo#number> --message "Progress update" --author oompah
 oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
 oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
+oompah task set-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
+oompah task add-label <owner/repo#number> needs:frontend
+oompah task set-status <owner/repo#number> Open
 oompah task set-status <owner/repo#number> Done --summary "Completed"
 ```
+
+### Rules
+
+- Always pass `--author oompah` when posting comments.
+- Use `oompah task create --project <project-id>` for follow-up work so the
+  issue is created in the configured project tracker.
+- Use `oompah task child-create <parent>` for epic children; do not hand-write
+  `parent:*` labels.
+- Do not edit `oompah:status:*`, `type:*`, `priority:*`, `parent:*`, or
+  `depends-on:*` labels directly unless you are fixing the tracker adapter.
+- Epics use `type:epic`; their effective status is derived from child issue
+  status by oompah.
+- Existing `backlog/` files are legacy history. Do not add new files there for
+  task tracking after GitHub Issues cutover.
+
+## Session Completion
+
+When ending a work session, complete all of these steps:
+
+1. File follow-up issues with `oompah task create` for remaining work.
+2. Run the relevant quality gates for the code you changed.
+3. Update the current issue status or leave a clear handoff comment.
+4. Push all committed work:
+   ```bash
+   git pull --rebase
+   git push
+   git status
+   ```
+5. Verify `git status` reports the branch is up to date with origin.
+
+Work is not complete until the code is pushed and the GitHub issue is updated.
+Never leave finished work only in a local commit.
+
+<!-- END OOMPAH GITHUB ISSUES INTEGRATION -->
 
 ## Use Makefile Targets
 
@@ -93,61 +136,3 @@ cp -rf source dest          # NOT: cp -r source dest
 - `ssh` - use `-o BatchMode=yes` to fail instead of prompting
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
-
-<!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION v:1 -->
-## Issue Tracking with GitHub Issues
-
-This project is managed by **oompah** using **GitHub Issues** as the
-canonical task tracker. Do **not** create or edit Backlog.md task files, do
-not use the `backlog` CLI for task tracking, and do not use `bd`, beads,
-TodoWrite, markdown TODO lists, or another tracker for project work.
-
-Use the `oompah task` CLI so oompah can apply the correct GitHub labels,
-status mapping, parent/child links, dependencies, and comments.
-
-### Quick Reference
-
-```bash
-oompah task view <owner/repo#number>
-oompah task comment <owner/repo#number> --message "Progress update" --author oompah
-oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
-oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
-oompah task set-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
-oompah task add-label <owner/repo#number> needs:frontend
-oompah task set-status <owner/repo#number> Open
-oompah task set-status <owner/repo#number> Done --summary "Completed"
-```
-
-### Rules
-
-- Always pass `--author oompah` when posting comments.
-- Use `oompah task create --project <project-id>` for follow-up work so the
-  issue is created in the configured project tracker.
-- Use `oompah task child-create <parent>` for epic children; do not hand-write
-  `parent:*` labels.
-- Do not edit `oompah:status:*`, `type:*`, `priority:*`, `parent:*`, or
-  `depends-on:*` labels directly unless you are fixing the tracker adapter.
-- Epics use `type:epic`; their effective status is derived from child issue
-  status by oompah.
-- Existing `backlog/` files are legacy history. Do not add new files there for
-  task tracking after GitHub Issues cutover.
-
-## Session Completion
-
-When ending a work session, complete all of these steps:
-
-1. File follow-up issues with `oompah task create` for remaining work.
-2. Run the relevant quality gates for the code you changed.
-3. Update the current issue status or leave a clear handoff comment.
-4. Push all committed work:
-   ```bash
-   git pull --rebase
-   git push
-   git status
-   ```
-5. Verify `git status` reports the branch is up to date with origin.
-
-Work is not complete until the code is pushed and the GitHub issue is updated.
-Never leave finished work only in a local commit.
-
-<!-- END OOMPAH GITHUB ISSUES INTEGRATION -->

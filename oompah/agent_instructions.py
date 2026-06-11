@@ -86,24 +86,6 @@ _TOP_BACKLOG_QUICK_REF_RE = re.compile(
 )
 
 
-GITHUB_ISSUES_TOP_QUICK_REFERENCE = """This project is managed by **oompah** using
-**GitHub Issues** as the canonical task tracker. Do **not** use Backlog.md,
-`backlog`, `bd`, beads, markdown TODO lists, or any other tracker for new
-project work.
-
-## Quick Reference
-
-```bash
-oompah task view <owner/repo#number>
-oompah task comment <owner/repo#number> --message "Progress update" --author oompah
-oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
-oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
-oompah task set-status <owner/repo#number> Done --summary "Completed"
-```
-
-"""
-
-
 def render_github_issues_agent_instructions() -> str:
     """Return the canonical AGENTS.md GitHub Issues task-tracking block."""
 
@@ -126,8 +108,14 @@ def update_agents_text_for_github_issues(text: str) -> tuple[str, bool]:
     updated = text
 
     if _TOP_BACKLOG_QUICK_REF_RE.search(updated):
+        has_managed_block = bool(
+            _GITHUB_BLOCK_RE.search(updated) or _BACKLOG_BLOCK_RE.search(updated)
+        )
+        replacement = "\n\n"
+        if not has_managed_block:
+            replacement = "\n\n" + GITHUB_ISSUES_AGENT_INSTRUCTIONS.strip() + "\n\n"
         updated = _TOP_BACKLOG_QUICK_REF_RE.sub(
-            "\n\n" + GITHUB_ISSUES_TOP_QUICK_REFERENCE,
+            replacement,
             updated,
             count=1,
         )

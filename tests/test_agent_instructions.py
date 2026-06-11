@@ -63,6 +63,46 @@ Use Makefile targets.
     assert "This project is managed by **oompah**" in updated
     assert "oompah task view <owner/repo#number>" in updated
     assert "## Other Rules" in updated
+    assert updated.count("BEGIN OOMPAH GITHUB ISSUES INTEGRATION") == 1
+    assert updated.count("This project is managed by **oompah**") == 1
+
+
+def test_update_replaces_top_backlog_reference_without_duplicate_managed_block():
+    original = """# Agent Instructions
+
+This project uses **Backlog.md** for issue tracking. Do **not** use `bd`
+(beads) as the task tracker for this project.
+
+## Quick Reference
+
+```bash
+backlog task list --plain                     # Find available work
+backlog task view TASK-123 --plain            # View task details
+backlog task edit TASK-123 --status "In Progress" --plain
+backlog task edit TASK-123 --status Done --plain
+backlog board --plain                         # Show the task board
+```
+
+## Other Rules
+
+Use Makefile targets.
+
+<!-- BEGIN BACKLOG INTEGRATION -->
+## Issue Tracking with Backlog.md
+
+Use Backlog.md for ALL task tracking.
+<!-- END BACKLOG INTEGRATION -->
+"""
+
+    updated, changed = update_agents_text_for_github_issues(original)
+
+    assert changed is True
+    assert "This project uses **Backlog.md**" not in updated
+    assert "Use Backlog.md for ALL task tracking" not in updated
+    assert "backlog task list --plain" not in updated
+    assert "## Other Rules" in updated
+    assert updated.count("BEGIN OOMPAH GITHUB ISSUES INTEGRATION") == 1
+    assert updated.count("This project is managed by **oompah**") == 1
 
 
 def test_update_existing_github_block_is_idempotent():
