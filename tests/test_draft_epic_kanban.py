@@ -432,42 +432,57 @@ class TestTrackerAddLabel:
     def _tracker(self):
         return BacklogMdTracker(active_states=["Open"], terminal_states=["Done"])
 
-    @patch.object(BacklogMdTracker, "_run_backlog")
-    def test_add_label_calls_backlog_task_edit(self, mock_run_backlog):
+    def test_add_label_calls_backlog_task_edit(self):
         """add_label must call backlog task edit with --add-label."""
-        mock_run_backlog.return_value = ""
         tracker = self._tracker()
-        mock_run_backlog.reset_mock()
-        tracker.add_label("issue-1", "draft")
-        assert call([
-            "task", "edit", "issue-1", "--add-label", "draft", "--plain",
-        ]) in mock_run_backlog.call_args_list
+        with patch.object(
+            tracker, "_run_backlog_task_edit", return_value=""
+        ) as mock_task_edit:
+            tracker.add_label("issue-1", "draft")
 
-    @patch.object(BacklogMdTracker, "_run_backlog")
-    def test_add_label_with_various_labels(self, mock_run_backlog):
+        mock_task_edit.assert_called_once_with(
+            ["task", "edit", "issue-1", "--add-label", "draft", "--plain"],
+            "issue-1",
+        )
+
+    def test_add_label_with_various_labels(self):
         """add_label works with different label values."""
-        mock_run_backlog.return_value = ""
         tracker = self._tracker()
 
-        tracker.add_label("issue-1", "draft")
-        tracker.add_label("issue-2", "urgent")
-        tracker.add_label("issue-3", "team:alpha")
+        with patch.object(
+            tracker, "_run_backlog_task_edit", return_value=""
+        ) as mock_task_edit:
+            tracker.add_label("issue-1", "draft")
+            tracker.add_label("issue-2", "urgent")
+            tracker.add_label("issue-3", "team:alpha")
 
-        assert mock_run_backlog.call_args_list == [
-            call(["task", "edit", "issue-1", "--add-label", "draft", "--plain"]),
-            call(["task", "edit", "issue-2", "--add-label", "urgent", "--plain"]),
-            call([
-                "task", "edit", "issue-3", "--add-label", "team:alpha", "--plain",
-            ]),
+        assert mock_task_edit.call_args_list == [
+            call(
+                ["task", "edit", "issue-1", "--add-label", "draft", "--plain"],
+                "issue-1",
+            ),
+            call(
+                ["task", "edit", "issue-2", "--add-label", "urgent", "--plain"],
+                "issue-2",
+            ),
+            call(
+                [
+                    "task", "edit", "issue-3",
+                    "--add-label", "team:alpha", "--plain",
+                ],
+                "issue-3",
+            ),
         ]
 
-    @patch.object(BacklogMdTracker, "_run_backlog")
-    def test_add_label_propagates_tracker_error(self, mock_run_backlog):
-        """If _run_backlog raises TrackerError, add_label propagates it."""
-        mock_run_backlog.side_effect = TrackerError("backlog command failed")
+    def test_add_label_propagates_tracker_error(self):
+        """If the task edit raises TrackerError, add_label propagates it."""
         tracker = self._tracker()
 
-        with pytest.raises(TrackerError, match="backlog command failed"):
+        with patch.object(
+            tracker,
+            "_run_backlog_task_edit",
+            side_effect=TrackerError("backlog command failed"),
+        ), pytest.raises(TrackerError, match="backlog command failed"):
             tracker.add_label("issue-1", "draft")
 
 
@@ -477,46 +492,61 @@ class TestTrackerRemoveLabel:
     def _tracker(self):
         return BacklogMdTracker(active_states=["Open"], terminal_states=["Done"])
 
-    @patch.object(BacklogMdTracker, "_run_backlog")
-    def test_remove_label_calls_backlog_task_edit(self, mock_run_backlog):
+    def test_remove_label_calls_backlog_task_edit(self):
         """remove_label must call backlog task edit with --remove-label."""
-        mock_run_backlog.return_value = ""
         tracker = self._tracker()
-        tracker.remove_label("issue-1", "draft")
-        mock_run_backlog.assert_called_once_with([
-            "task", "edit", "issue-1", "--remove-label", "draft", "--plain",
-        ])
+        with patch.object(
+            tracker, "_run_backlog_task_edit", return_value=""
+        ) as mock_task_edit:
+            tracker.remove_label("issue-1", "draft")
 
-    @patch.object(BacklogMdTracker, "_run_backlog")
-    def test_remove_label_with_various_labels(self, mock_run_backlog):
+        mock_task_edit.assert_called_once_with(
+            ["task", "edit", "issue-1", "--remove-label", "draft", "--plain"],
+            "issue-1",
+        )
+
+    def test_remove_label_with_various_labels(self):
         """remove_label works with different label values."""
-        mock_run_backlog.return_value = ""
         tracker = self._tracker()
 
-        tracker.remove_label("issue-1", "draft")
-        tracker.remove_label("issue-2", "urgent")
+        with patch.object(
+            tracker, "_run_backlog_task_edit", return_value=""
+        ) as mock_task_edit:
+            tracker.remove_label("issue-1", "draft")
+            tracker.remove_label("issue-2", "urgent")
 
-        assert mock_run_backlog.call_args_list == [
-            call(["task", "edit", "issue-1", "--remove-label", "draft", "--plain"]),
-            call(["task", "edit", "issue-2", "--remove-label", "urgent", "--plain"]),
+        assert mock_task_edit.call_args_list == [
+            call(
+                ["task", "edit", "issue-1", "--remove-label", "draft", "--plain"],
+                "issue-1",
+            ),
+            call(
+                ["task", "edit", "issue-2", "--remove-label", "urgent", "--plain"],
+                "issue-2",
+            ),
         ]
 
-    @patch.object(BacklogMdTracker, "_run_backlog")
-    def test_remove_label_swallows_tracker_error(self, mock_run_backlog):
-        """If _run_backlog raises TrackerError, remove_label swallows it."""
-        mock_run_backlog.side_effect = TrackerError("label not found")
+    def test_remove_label_swallows_tracker_error(self):
+        """If the task edit raises TrackerError, remove_label swallows it."""
         tracker = self._tracker()
 
         # Should NOT raise
-        tracker.remove_label("issue-1", "nonexistent-label")
+        with patch.object(
+            tracker,
+            "_run_backlog_task_edit",
+            side_effect=TrackerError("label not found"),
+        ):
+            tracker.remove_label("issue-1", "nonexistent-label")
 
-    @patch.object(BacklogMdTracker, "_run_backlog")
-    def test_remove_label_does_not_swallow_other_exceptions(self, mock_run_backlog):
+    def test_remove_label_does_not_swallow_other_exceptions(self):
         """remove_label only swallows TrackerError, not other exceptions."""
-        mock_run_backlog.side_effect = RuntimeError("unexpected")
         tracker = self._tracker()
 
-        with pytest.raises(RuntimeError, match="unexpected"):
+        with patch.object(
+            tracker,
+            "_run_backlog_task_edit",
+            side_effect=RuntimeError("unexpected"),
+        ), pytest.raises(RuntimeError, match="unexpected"):
             tracker.remove_label("issue-1", "draft")
 
 
