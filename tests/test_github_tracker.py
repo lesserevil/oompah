@@ -1319,9 +1319,10 @@ def _make_gh_issue(
     closed_at: str | None = None,
     html_url: str | None = None,
     issue_id: int | None = None,
+    is_pull_request: bool = False,
 ) -> dict:
     """Build a minimal GitHub REST API issue dict for testing."""
-    return {
+    payload = {
         "number": number,
         "id": issue_id or (1000 + number),
         "title": title,
@@ -1334,6 +1335,15 @@ def _make_gh_issue(
         "closed_at": closed_at,
         "node_id": f"I_node_{number}",
     }
+    if is_pull_request:
+        payload["html_url"] = html_url or (
+            f"https://github.com/lesserevil/oompah-tasks/pull/{number}"
+        )
+        payload["pull_request"] = {
+            "url": f"https://api.github.com/repos/lesserevil/oompah-tasks/pulls/{number}",
+            "html_url": payload["html_url"],
+        }
+    return payload
 
 
 class TestGhIssueToIssue:
@@ -1504,6 +1514,39 @@ class TestGitHubIssueTrackerFetch:
         assert result[0].title == "First"
         assert result[1].title == "Second"
 
+    def test_fetch_all_issues_excludes_pull_requests_even_with_status_label(self):
+        """GitHub's issues API includes PRs; oompah must not treat them as tasks."""
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, title="Real issue", labels=["oompah:status:open"]),
+            _make_gh_issue(
+                number=270,
+                title="lesserevil/oompah#268: task PR",
+                labels=["oompah:status:backlog"],
+                is_pull_request=True,
+            ),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_all_issues()
+        assert [issue.issue_number for issue in result] == ["1"]
+
+    def test_fetch_all_issues_does_not_backfill_pull_request_status_label(self):
+        """PR payloads without status labels are skipped before label backfill."""
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(
+                number=270,
+                labels=[],
+                is_pull_request=True,
+            ),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            result = tracker.fetch_all_issues()
+        assert result == []
+        assert m.call_count == 1
+
     def test_fetch_all_issues_backfills_missing_status_labels(self):
         tracker = self._make_tracker()
         gh_issues = [
@@ -1603,6 +1646,21 @@ class TestGitHubIssueTrackerFetch:
         assert "3" not in returned_numbers
         assert "4" not in returned_numbers
         assert "5" not in returned_numbers
+
+    def test_fetch_candidate_issues_excludes_pull_requests_with_active_status(self):
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, labels=["oompah:status:open"]),
+            _make_gh_issue(
+                number=270,
+                labels=["oompah:status:open"],
+                is_pull_request=True,
+            ),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+        assert [issue.issue_number for issue in result] == ["1"]
 
     def test_fetch_candidate_issues_excludes_non_active(self):
         """Issues whose oompah status is not in active_states are excluded."""
@@ -1726,6 +1784,18 @@ class TestGitHubIssueTrackerFetch:
         result = tracker.fetch_issue_detail("42")
         assert result is None
 
+    def test_fetch_issue_detail_returns_none_for_pull_request(self):
+        tracker = self._make_tracker()
+        gh_pr = _make_gh_issue(
+            number=270,
+            labels=["oompah:status:backlog"],
+            is_pull_request=True,
+        )
+        resp = _mock_response(200, json_data=gh_pr)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#270")
+        assert result is None
+
     # ------------------------------------------------------------------
     # fetch_issues_by_states
     # ------------------------------------------------------------------
@@ -1790,6 +1860,11 @@ class TestGitHubIssueTrackerFetch:
             _make_gh_issue(number=1, labels=["oompah:status:open"]),
             _make_gh_issue(number=2, labels=["oompah:status:in-progress"]),
             _make_gh_issue(number=3, labels=["oompah:status:done"], state="closed"),
+            _make_gh_issue(
+                number=270,
+                labels=["oompah:status:open"],
+                is_pull_request=True,
+            ),
         ]
         resp = _mock_response(200, json_data=gh_issues)
         with patch.object(tracker._client._http, "request", return_value=resp):

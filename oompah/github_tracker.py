@@ -1349,7 +1349,7 @@ class GitHubIssueTracker:
     def _issues_path(self, suffix: str = "") -> str:
         return self._repo_path(f"/issues{suffix}")
 
-    def _normalize_issue_payload(self, gh_issue: dict[str, Any]) -> Issue:
+    def _normalize_issue_payload(self, gh_issue: dict[str, Any]) -> Issue | None:
         """Normalize a GitHub issue payload and backfill missing status labels.
 
         GitHub's issues list endpoint can return issues created outside
@@ -1357,7 +1357,12 @@ class GitHubIssueTracker:
         the safe fallback status on GitHub before returning the normalized
         Issue.  The local normalization still uses the fallback when the
         best-effort label write fails.
+
+        GitHub also exposes pull requests through the issues API. Those are
+        review artifacts, not tasks, and must never be normalized as issues.
         """
+        if self._is_pull_request_payload(gh_issue):
+            return None
         return _gh_issue_to_issue(
             self._ensure_status_label(gh_issue),
             self.owner,
@@ -1365,23 +1370,29 @@ class GitHubIssueTracker:
         )
 
     def _normalize_issue_payloads(self, raw: list[Any]) -> list[Issue]:
-        return [
-            self._normalize_issue_payload(gh)
-            for gh in raw
-            if isinstance(gh, dict)
-        ]
+        issues: list[Issue] = []
+        for gh in raw:
+            if not isinstance(gh, dict):
+                continue
+            issue = self._normalize_issue_payload(gh)
+            if issue is not None:
+                issues.append(issue)
+        return issues
+
+    def _is_pull_request_payload(self, gh_issue: dict[str, Any]) -> bool:
+        return bool(gh_issue.get("pull_request"))
 
     def _ensure_status_label(self, gh_issue: dict[str, Any]) -> dict[str, Any]:
+        # GitHub exposes PRs through the issues API. PR lifecycle is handled
+        # by the SCM/review path, so do not stamp task labels onto PR entries.
+        if self._is_pull_request_payload(gh_issue):
+            return gh_issue
+
         labels_raw: list[dict[str, Any]] = gh_issue.get("labels") or []
         for label in labels_raw:
             name = label.get("name", "")
             if _label_to_status(name) is not None:
                 return gh_issue
-
-        # GitHub exposes PRs through the issues API. PR lifecycle is handled
-        # by the SCM/review path, so do not stamp task labels onto PR entries.
-        if gh_issue.get("pull_request"):
-            return gh_issue
 
         number = gh_issue.get("number")
         if number is None:
