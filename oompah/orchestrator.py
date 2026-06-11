@@ -12993,10 +12993,13 @@ class Orchestrator:
             model = None
             if provider is not None:
                 model = self._resolve_model(profile, provider, focus=focus)
-        # Fallback model name when no provider is configured at all (e.g.
-        # CLI-only deployments running ACP). Use whatever the profile
-        # specifies; ultimately the SDK / claude CLI choose.
-        model = model or profile.model or "default"
+        # Fallback model name for display/telemetry when no provider model is
+        # configured. Keep track of whether "default" is synthetic: non-Claude
+        # ACP backends should omit it so their subscription/OAuth clients can
+        # choose their own default model.
+        resolved_model = model or profile.model
+        synthetic_default_model = not resolved_model
+        model = resolved_model or "default"
 
         capabilities = self._resolve_capabilities(provider, model) if provider else []
         project_obj = (
@@ -13281,8 +13284,9 @@ class Orchestrator:
                     acp_model = model
             else:
                 # Other backends (codex, opencode) take their own model
-                # names — forward whatever the provider resolved.
-                acp_model = model
+                # names. If no model resolved, do not forward the synthetic
+                # "default" placeholder; their clients will choose a default.
+                acp_model = None if synthetic_default_model else model
 
             # Billing tier flows first-class so backends can pick their
             # execution path (e.g. codex: per_token -> in-process SDK,

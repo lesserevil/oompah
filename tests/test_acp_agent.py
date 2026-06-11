@@ -17,6 +17,7 @@ where the binary is installed.
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import asyncio
@@ -25,7 +26,7 @@ import pytest
 from oompah.acp_agent import AcpAgentSession, _SessionCounters, _truncate_for_log
 from oompah.agent import AgentEvent
 from oompah.config import _parse_profile_mode
-from oompah.models import AgentProfile, Issue
+from oompah.models import AgentProfile, Issue, ModelProvider
 
 
 # ----------------------------------------------------------------------
@@ -751,6 +752,111 @@ class TestRunWorkerRouting:
         asyncio.run(orch._run_worker(issue, attempt=None, profile=profile))
         orch._run_cli_worker.assert_called_once()
         orch._run_acp_worker.assert_not_called()
+
+
+class TestAcpWorkerModelHandoff:
+    def test_codex_subscription_omits_synthetic_default_model(self, tmp_path):
+        """Codex OAuth should choose its default when no role model is configured."""
+        from oompah.config import ServiceConfig
+        from oompah.orchestrator import DispatchTarget, Orchestrator
+
+        captured: dict[str, object] = {}
+
+        class _FakeAcpAgentSession:
+            last_error = None
+            input_tokens = 0
+            output_tokens = 0
+            total_tokens = 0
+            total_cost_usd = None
+            turn_count = 0
+
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            async def run_task(self):
+                return "succeeded"
+
+        project_store = MagicMock()
+        project_store.get.return_value = None
+        project_store.list_all.return_value = []
+        orch = Orchestrator(
+            config=ServiceConfig(),
+            workflow_path="WORKFLOW.md",
+            project_store=project_store,
+            state_path=str(tmp_path / "state.json"),
+        )
+        orch._create_workspace_for_issue = MagicMock(return_value=(str(tmp_path), None))
+        orch._post_comment = MagicMock()
+        orch._clear_handoff_labels = MagicMock()
+        orch._reap_oversize_outputs = MagicMock()
+        orch._record_generated_attachments = MagicMock()
+        orch._on_worker_exit = AsyncMock()
+
+        tracker = MagicMock()
+        tracker.fetch_comments.return_value = []
+        tracker.fetch_memories.return_value = {}
+        orch._tracker_for_issue = MagicMock(return_value=tracker)
+
+        provider = ModelProvider(
+            id="codex",
+            name="Codex",
+            base_url="",
+            api_key="",
+            models=[],
+            default_model=None,
+            provider_type="acp",
+            backend="codex",
+            mode="acp",
+            billing_model="subscription",
+        )
+        target = DispatchTarget(
+            role_name="fast",
+            provider=provider,
+            model="",
+            candidate_key="codex/",
+            source="role:fast[1]",
+        )
+        issue = Issue(
+            id="issue-1",
+            identifier="issue-1",
+            title="Test",
+            description="Test",
+            state="open",
+            project_id="proj-1",
+        )
+        profile = AgentProfile(
+            name="default",
+            command="claude --dangerously-skip-permissions",
+            mode="acp",
+            model_role="fast",
+        )
+        focus = SimpleNamespace(
+            name="general",
+            role="Generalist",
+            model=None,
+            model_role=None,
+            render=lambda project: "focus",
+        )
+
+        with patch("oompah.orchestrator.select_focus_async", AsyncMock(return_value=focus)), \
+             patch(
+                 "oompah.orchestrator.render_prompt",
+                 return_value=SimpleNamespace(text="prompt", parts=None, elided=[]),
+             ), \
+             patch("oompah.acp_agent.AcpAgentSession", _FakeAcpAgentSession):
+            asyncio.run(
+                orch._run_acp_worker(
+                    issue,
+                    attempt=None,
+                    profile=profile,
+                    target=target,
+                )
+            )
+
+        assert captured["backend_name"] == "codex"
+        assert captured["billing_model"] == "subscription"
+        assert captured["model"] is None
+        orch._on_worker_exit.assert_awaited_once_with(issue.id, "normal", None)
 
 
 # ----------------------------------------------------------------------
