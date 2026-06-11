@@ -1,9 +1,10 @@
 ---
 id: TASK-457
 title: 'GitHub Issues migration phase 1: tracker abstraction foundation'
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-08 17:56'
+updated_date: '2026-06-11 17:14'
 labels:
   - epic
   - github-issues

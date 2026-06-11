@@ -3,9 +3,10 @@ id: TASK-464
 title: >-
   GitHub Issues migration phase 8: managed project cutover and Backlog
   decommission
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-06-08 17:58'
+updated_date: '2026-06-11 17:34'
 labels:
   - epic
   - github-issues

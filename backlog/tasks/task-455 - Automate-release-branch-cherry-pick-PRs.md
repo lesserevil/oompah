@@ -1,10 +1,10 @@
 ---
 id: TASK-455
 title: Automate release branch cherry-pick PRs
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 17:30'
+updated_date: '2026-06-11 17:14'
 labels:
   - epic
 dependencies:

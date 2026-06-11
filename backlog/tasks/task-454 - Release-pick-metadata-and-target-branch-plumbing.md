@@ -1,10 +1,10 @@
 ---
 id: TASK-454
 title: Release-pick metadata and target-branch plumbing
-status: Backlog
+status: Open
 assignee: []
 created_date: '2026-06-08 17:29'
-updated_date: '2026-06-08 17:29'
+updated_date: '2026-06-11 17:12'
 labels:
   - epic
 dependencies: []
