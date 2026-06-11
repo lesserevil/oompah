@@ -131,6 +131,42 @@ class TestCreateAgentProfile:
         )
         assert resp.status_code == 400
 
+    def test_create_missing_name_returns_400(self, api_with_store):
+        """POST without a 'name' field returns 400 with a message mentioning 'name'."""
+        client, _ = api_with_store
+        resp = client.post(
+            "/api/v1/agent-profiles",
+            json={"mode": "cli"},
+        )
+        assert resp.status_code == 400
+        assert "name" in resp.json()["error"]["message"]
+
+    def test_create_invalid_json_body_returns_400(self, api_with_store):
+        """POST with a non-JSON body returns 400."""
+        client, _ = api_with_store
+        resp = client.post(
+            "/api/v1/agent-profiles",
+            content="not-json",
+            headers={"content-type": "application/json"},
+        )
+        assert resp.status_code == 400
+
+    def test_create_extra_fields_silently_dropped(self, api_with_store):
+        """Unknown fields in the POST body are ignored, not rejected."""
+        client, _ = api_with_store
+        resp = client.post(
+            "/api/v1/agent-profiles",
+            json={
+                "name": "ok",
+                "mode": "cli",
+                "command": "claude",
+                "spam": "should be ignored",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        # Unknown field must not appear in the response (only known fields serialized).
+        assert "spam" not in resp.json()
+
 
 class TestUpdateAgentProfile:
     def test_patch_partial(self, api_with_store):
