@@ -29,7 +29,7 @@ import logging
 import os
 from dataclasses import dataclass
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from oompah.agent_profile_store import AgentProfileStore
@@ -252,7 +252,23 @@ async def setup_services(
             )
 
     # ------------------------------------------------------------------
-    # 9. Ensure Backlog task-change webhook hooks per project
+    # 9. Ensure required GitHub tracker labels per project
+    # ------------------------------------------------------------------
+    label_bootstrap_results: dict[str, Any] = {}
+    if projects:
+        from oompah.label_bootstrap import ensure_github_labels
+
+        label_bootstrap_results = ensure_github_labels(projects)
+        for pid, result in label_bootstrap_results.items():
+            name = next((p.name for p in projects if p.id == pid), pid)
+            status_summary = result.status_summary()
+            if result.success:
+                logger.info("GitHub label bootstrap %s: %s", name, status_summary)
+            else:
+                logger.warning("GitHub label bootstrap %s: %s", name, status_summary)
+
+    # ------------------------------------------------------------------
+    # 10. Ensure Backlog task-change webhook hooks per project
     # ------------------------------------------------------------------
     if projects:
         from oompah.backlog_webhooks import ensure_backlog_webhooks
@@ -269,7 +285,7 @@ async def setup_services(
                 logger.warning("Backlog webhook hook %s: %s", name, status)
 
     # ------------------------------------------------------------------
-    # 10. Create orchestrator
+    # 11. Create orchestrator
     # ------------------------------------------------------------------
     orchestrator = Orchestrator(
         config,
@@ -280,6 +296,17 @@ async def setup_services(
         role_store=role_store,
     )
     orchestrator.set_prompt_template(workflow.prompt_template)
+    if label_bootstrap_results:
+        from oompah.label_bootstrap import build_label_bootstrap_alerts
+
+        orchestrator._alerts = [
+            alert
+            for alert in orchestrator._alerts
+            if not str(alert.get("source", "")).startswith("label_bootstrap:")
+        ]
+        orchestrator._alerts.extend(
+            build_label_bootstrap_alerts(label_bootstrap_results)
+        )
 
     # Apply --paused flag
     if start_paused and not orchestrator.is_paused:
