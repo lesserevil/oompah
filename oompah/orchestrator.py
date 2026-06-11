@@ -6065,6 +6065,10 @@ class Orchestrator:
         for issue in all_issues:
             if _state_key(issue.state) != "in_progress":
                 continue
+            if (issue.issue_type or "").strip().lower() == "epic":
+                # Epic state is a rollup of child state. The epic itself does not
+                # have a running agent, so orphan cleanup must not rewrite it.
+                continue
             if issue.id in running_ids or issue.id in retry_ids:
                 continue
             if issue.id in claimed_ids:

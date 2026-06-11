@@ -968,6 +968,20 @@ class TestResetOrphanedInProgress:
 
         mock_tracker.update_issue.assert_called_once_with("feat-1", status="Open")
 
+    def test_skips_epic_rollup_in_progress(self, tmp_path):
+        """An epic can be In Progress from child rollup without an attached agent."""
+        project = _make_project()
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        mock_tracker = MagicMock()
+        orch._project_trackers[project.id] = mock_tracker
+
+        issue = _make_issue("epic-1", state="In Progress", issue_type="epic")
+        issue.project_id = project.id
+        orch._reset_orphaned_in_progress([issue])
+
+        mock_tracker.update_issue.assert_not_called()
+        assert issue.id not in orch._orphan_reset_counts
+
     def test_resets_ci_fix_orphan_to_needs_ci_fix_p0(self, tmp_path):
         project = _make_project()
         orch = self._make_orchestrator(tmp_path, projects=[project])
