@@ -434,6 +434,126 @@ class TestParseGitHubIssuesWebhook:
         assert event.comment_id == ""
         assert event.label_name == ""
 
+    def test_non_labeled_action_has_no_label_actor(self):
+        """Non-labeled/unlabeled events have an empty label_actor."""
+        for action in ("opened", "closed", "reopened", "edited"):
+            event = parse_github_webhook("issues", self._issues_payload(action=action))
+            assert event is not None
+            assert event.label_actor == "", f"Expected empty label_actor for {action!r}"
+            assert event.label_name == "", f"Expected empty label_name for {action!r}"
+
+    def _labeled_payload(
+        self,
+        action: str = "labeled",
+        number: int = 7,
+        issue_author: str = "issue-creator",
+        label_name: str = "oompah:status:open",
+        sender_login: str = "some-user",
+        repo_full_name: str = "org/repo",
+    ) -> dict:
+        """Build an ``issues.labeled`` or ``issues.unlabeled`` payload."""
+        return {
+            "action": action,
+            "issue": {
+                "number": number,
+                "title": "Some issue",
+                "user": {"login": issue_author},
+            },
+            "label": {
+                "name": label_name,
+                "color": "e4e669",
+            },
+            "repository": {"full_name": repo_full_name},
+            "sender": {"login": sender_login},
+        }
+
+    def test_labeled_event_captures_sender_as_label_actor(self):
+        """labeled event: label_actor is sender.login, NOT issue.user.login."""
+        payload = self._labeled_payload(
+            action="labeled",
+            issue_author="issue-creator",
+            sender_login="someone-who-applied-label",
+        )
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.action == "labeled"
+        assert event.label_actor == "someone-who-applied-label"
+        # author is still the issue creator
+        assert event.author == "issue-creator"
+
+    def test_labeled_event_captures_label_name(self):
+        """labeled event: label_name is taken from payload.label.name."""
+        payload = self._labeled_payload(
+            action="labeled",
+            label_name="oompah:status:open",
+        )
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.label_name == "oompah:status:open"
+
+    def test_unlabeled_event_captures_sender_as_label_actor(self):
+        """unlabeled event: label_actor is sender.login."""
+        payload = self._labeled_payload(
+            action="unlabeled",
+            issue_author="creator",
+            sender_login="remover",
+            label_name="oompah:status:backlog",
+        )
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.action == "unlabeled"
+        assert event.label_actor == "remover"
+        assert event.label_name == "oompah:status:backlog"
+
+    def test_labeled_by_oompah_bot_captures_correctly(self):
+        """When oompah bot applies a status label, label_actor is 'oompah'."""
+        payload = self._labeled_payload(
+            action="labeled",
+            issue_author="contributor",
+            sender_login="oompah",
+            label_name="oompah:status:in-progress",
+        )
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.label_actor == "oompah"
+        assert event.label_name == "oompah:status:in-progress"
+
+    def test_labeled_without_label_key_gives_empty_fields(self):
+        """When payload has no 'label' key, label_name and label_actor are empty."""
+        payload = {
+            "action": "labeled",
+            "issue": {
+                "number": 7,
+                "title": "Test",
+                "user": {"login": "author"},
+            },
+            "repository": {"full_name": "org/repo"},
+            "sender": {"login": "actor"},
+            # No "label" key
+        }
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        assert event.label_name == ""
+        # label_actor is still set from sender even without the label object
+        assert event.label_actor == "actor"
+
+    def test_sender_login_is_label_actor_not_issue_author(self):
+        """The sender (who applies the label) differs from the issue author."""
+        payload = self._labeled_payload(
+            action="labeled",
+            issue_author="original-author",
+            sender_login="project-maintainer",
+            label_name="oompah:status:open",
+        )
+        event = parse_github_webhook("issues", payload)
+        assert event is not None
+        # The issue author is preserved in author
+        assert event.author == "original-author"
+        # The label applicant is in label_actor
+        assert event.label_actor == "project-maintainer"
+        # They are different people
+        assert event.author != event.label_actor
+
     def test_different_repo(self):
         payload = self._issues_payload(repo_full_name="other/project")
         event = parse_github_webhook("issues", payload)

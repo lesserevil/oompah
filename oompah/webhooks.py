@@ -60,7 +60,15 @@ class WebhookEvent:
                       without inspecting ``raw``.
         comment_id: The comment node id or numeric id as a string.  Set
                     for ``issue_comment`` events.
-        label_name: The label name.  Set for ``label`` events.
+        label_name: The label name.  Set for ``label`` events (repository-
+                    level label management) and for ``issues`` events with
+                    action ``labeled`` or ``unlabeled`` where the label
+                    being applied/removed is carried in ``payload.label``.
+        label_actor: The GitHub login of the user who applied or removed
+                     the label.  Set for ``issues`` events with action
+                     ``labeled`` or ``unlabeled``.  Distinct from
+                     ``author`` (the issue creator); the label actor is
+                     always ``payload.sender.login``.
         project_item_id: The ``projects_v2_item`` node id.  Set for
                          ``projects_v2_item`` events.
         project_field_name: The name of the changed field.  Set for
@@ -86,6 +94,10 @@ class WebhookEvent:
     comment_id: str = ""
     # Label-specific fields
     label_name: str = ""
+    # The login of the user who applied or removed a label on an issue.
+    # Set only for ``issues`` events with action ``labeled``/``unlabeled``.
+    # Always sourced from ``payload.sender.login``, never from the issue author.
+    label_actor: str = ""
     # GitHub Projects v2 fields
     project_item_id: str = ""
     project_field_name: str = ""
@@ -313,6 +325,17 @@ def _parse_github_issues(
     contains a ``pull_request`` key) are skipped — those are tracked
     through the ``pull_request`` event instead.
 
+    For ``labeled`` and ``unlabeled`` actions, two additional fields
+    are populated:
+
+    * ``label_name`` — the name of the label being applied or removed,
+      taken from ``payload.label.name`` (the label object in the
+      ``issues.labeled`` / ``issues.unlabeled`` payload).
+    * ``label_actor`` — the GitHub login of the user who applied or
+      removed the label, always taken from ``payload.sender.login``.
+      Never taken from ``issue.user.login`` (the issue creator) — the
+      sender is the authoritative actor for label-change events.
+
     Args:
         event_type: Always ``"issues"``.
         payload: Parsed JSON body from GitHub.
@@ -336,10 +359,23 @@ def _parse_github_issues(
 
     user = issue.get("user") or {}
     sender = payload.get("sender") or {}
-    author = user.get("login") or sender.get("login", "")
+    # ``author`` is always the issue creator (issue.user.login).
+    author = user.get("login", "") or sender.get("login", "")
 
     issue_number = str(issue.get("number", "") or "")
     title = issue.get("title", "") or ""
+
+    # For labeled/unlabeled events, capture the label being changed and
+    # the actor who made the change.  The actor MUST be sender.login —
+    # not the issue creator — because different users may label issues
+    # without being the issue author.
+    label_name = ""
+    label_actor = ""
+    if action in ("labeled", "unlabeled"):
+        label_obj = payload.get("label") or {}
+        label_name = label_obj.get("name", "") or ""
+        # Always use sender.login as the label-change actor.
+        label_actor = sender.get("login", "") or ""
 
     return WebhookEvent(
         provider="github",
@@ -352,6 +388,8 @@ def _parse_github_issues(
         merged=False,
         raw=payload,
         issue_number=issue_number,
+        label_name=label_name,
+        label_actor=label_actor,
     )
 
 

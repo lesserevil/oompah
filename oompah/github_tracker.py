@@ -1134,6 +1134,33 @@ def _extract_dependencies_from_labels(labels: list[dict[str, Any]]) -> list[str]
     return deps
 
 
+def _extract_issue_number(issue: Any) -> int | None:
+    """Extract the numeric issue number from an :class:`~oompah.models.Issue`.
+
+    Uses the ``identifier`` string (e.g. ``"org/repo#42"``) or the
+    ``tracker_issue_id`` field when present.  Returns ``None`` when the
+    number cannot be determined.
+    """
+    # Try tracker_issue_id first (set for GitHub-backed issues).
+    tid = getattr(issue, "tracker_issue_id", None)
+    if tid:
+        try:
+            return int(tid)
+        except (TypeError, ValueError):
+            pass
+    # Fall back to parsing the identifier string.
+    identifier = getattr(issue, "identifier", "") or ""
+    # identifier has the form "owner/repo#number" or "owner/repo/number".
+    for sep in ("#", "/"):
+        if sep in identifier:
+            tail = identifier.rsplit(sep, 1)[-1]
+            try:
+                return int(tail)
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
 def _gh_timestamp(ts: str | None) -> datetime | None:
     """Parse a GitHub ISO-8601 timestamp string to a timezone-aware datetime.
 
@@ -1296,6 +1323,18 @@ class GitHubIssueTracker:
         self._client = GitHubClient(auth=self._auth)
         # In-memory ETag cache keyed by path.
         self._etag_cache: dict[str, tuple[str, Any]] = {}
+        # Trusted-status ledger: maps issue number (int) → the last status
+        # string that oompah itself applied via _set_status_label or
+        # _patch_state_and_status_label, or that was confirmed via an
+        # authorized webhook.  Used during polling to avoid trusting
+        # oompah:status:* labels that were applied by unauthorized actors.
+        # Entries are set by record_trusted_status() and cleared/reset by
+        # record_untrusted_status_label_change().
+        self._trusted_status_ledger: dict[int, str] = {}
+        # Set of issue numbers whose current dispatchable status label is
+        # under review (an unauthorized change was seen but not yet reverted).
+        # These issues are skipped during fetch_candidate_issues.
+        self._untrusted_status_issues: set[int] = set()
 
     # ------------------------------------------------------------------
     # Helpers
@@ -1408,6 +1447,13 @@ class GitHubIssueTracker:
         status (derived from ``oompah:status:*`` labels or GitHub state)
         is in :attr:`active_states`.
 
+        **Label-change authorization guard:** Issues whose current status
+        label is in the ``_untrusted_status_issues`` set (i.e. an
+        unauthorized actor applied the status label and the revert is
+        pending or failed) are excluded from the candidate list.  This
+        ensures that polling/full-sync cannot promote an issue based
+        solely on an untrusted ``oompah:status:*`` label.
+
         Results are sorted by priority (ascending, ``None`` last) then by
         creation time (oldest first) so the orchestrator's dispatch loop
         receives a stable, deterministic ordering.
@@ -1419,6 +1465,25 @@ class GitHubIssueTracker:
         issues = self._normalize_issue_payloads(raw)
         active_set = set(self.active_states)
         candidates = [iss for iss in issues if iss.state in active_set]
+
+        # Filter out issues that have untrusted status-label changes pending.
+        if self._untrusted_status_issues:
+            safe_candidates = []
+            for iss in candidates:
+                # Extract the numeric issue number from the identifier.
+                num = _extract_issue_number(iss)
+                if num is not None and num in self._untrusted_status_issues:
+                    logger.warning(
+                        "fetch_candidate_issues: skipping issue #%d (%s) — "
+                        "status label was changed by an unauthorized actor; "
+                        "pending revert",
+                        num,
+                        iss.identifier,
+                    )
+                    continue
+                safe_candidates.append(iss)
+            candidates = safe_candidates
+
         candidates.sort(
             key=lambda i: (
                 i.priority if i.priority is not None else 999,
@@ -2357,6 +2422,9 @@ class GitHubIssueTracker:
             self._issues_path(f"/{number}"),
             json={"state": state, "labels": labels},
         )
+        # Record this oompah-owned status change in the trusted ledger so
+        # polling validation confirms it as authoritative.
+        self.record_trusted_status(number, status)
 
     def _set_status_label(self, number: int, status: str) -> None:
         """Atomically swap the ``oompah:status:*`` label on an issue.
@@ -2384,6 +2452,9 @@ class GitHubIssueTracker:
             self._issues_path(f"/{number}/labels"),
             json={"labels": [new_label]},
         )
+        # Record this oompah-owned status change in the trusted ledger so
+        # polling validation confirms it as authoritative.
+        self.record_trusted_status(number, status)
 
     def _set_priority_label(self, number: int, priority: Any) -> None:
         """Atomically swap the ``priority:N`` label on an issue.
@@ -2424,6 +2495,127 @@ class GitHubIssueTracker:
     def invalidate_read_cache(self) -> None:
         """Invalidate any cached reads so the next fetch returns fresh data."""
         self._etag_cache.clear()
+
+    # ------------------------------------------------------------------
+    # Trusted-status ledger
+    # ------------------------------------------------------------------
+
+    def record_trusted_status(self, number: int, status: str) -> None:
+        """Record that oompah (or an authorized actor) set *status* on issue *number*.
+
+        Called internally by :meth:`_set_status_label` and
+        :meth:`_patch_state_and_status_label` so that polling validation can
+        confirm that the current dispatchable status was applied by oompah
+        itself.
+
+        Also called by the webhook handler when an authorized label change is
+        received so the ledger stays up to date between polling cycles.
+        """
+        if number and status:
+            self._trusted_status_ledger[number] = status
+            self._untrusted_status_issues.discard(number)
+
+    def record_untrusted_status_label_change(
+        self, number: int, label_name: str, actor: str, action: str
+    ) -> None:
+        """Record that an *unauthorized* actor changed a status label on *number*.
+
+        Marks the issue as untrusted so :meth:`fetch_candidate_issues` will
+        skip it until the label is reverted and :meth:`record_trusted_status`
+        is called again.
+
+        Args:
+            number: GitHub issue number.
+            label_name: The ``oompah:status:*`` label that was changed.
+            actor: The GitHub login of the unauthorized actor.
+            action: ``"labeled"`` or ``"unlabeled"``.
+        """
+        if number:
+            self._untrusted_status_issues.add(number)
+            # Remove from trusted ledger so the next polling cycle re-validates.
+            self._trusted_status_ledger.pop(number, None)
+            logger.warning(
+                "GitHubIssueTracker: untrusted status label change recorded for "
+                "issue #%d (label=%s, actor=%s, action=%s)",
+                number,
+                label_name,
+                actor,
+                action,
+            )
+
+    def validate_status_label_actor(
+        self, number: int, status: str, authorized_logins: frozenset[str]
+    ) -> bool:
+        """Validate that the current *status* label on *number* was applied by an authorized actor.
+
+        Fetches the recent issue events from the GitHub Events API and
+        looks for the most recent ``labeled`` event for the
+        ``oompah:status:<slug>`` label corresponding to *status*.
+
+        Returns ``True`` if the most recent actor who applied that label is in
+        *authorized_logins*, or if no recent labeled event is found (i.e. the
+        label predates the event retention window — treat as trusted since we
+        cannot verify).
+
+        Returns ``False`` only when there is clear evidence that an unauthorized
+        actor applied the label.
+
+        Args:
+            number: GitHub issue number.
+            status: Canonical oompah status string (e.g. ``"Open"``).
+            authorized_logins: Set of lowercase GitHub logins that are trusted.
+        """
+        from oompah.label_auth import _status_to_label_name as _s2l
+
+        try:
+            label_to_find = _s2l(status)
+        except Exception:
+            return True  # unknown label — can't validate, treat as trusted
+
+        try:
+            events = self._client.request_paginated(
+                self._issues_path(f"/{number}/events"),
+                params={"per_page": 100},
+            )
+        except Exception as exc:
+            logger.warning(
+                "validate_status_label_actor: could not fetch events for "
+                "issue #%d: %s — treating as trusted",
+                number,
+                exc,
+            )
+            return True  # API failure — don't block dispatch, treat as trusted
+
+        # Scan events in reverse chronological order to find the most recent
+        # ``labeled`` event for the target label.
+        labeled_events = [
+            ev for ev in events
+            if ev.get("event") == "labeled"
+            and (ev.get("label") or {}).get("name") == label_to_find
+        ]
+
+        if not labeled_events:
+            # No labeled event found — label predates event retention or
+            # was applied outside the API window.  Treat as trusted.
+            return True
+
+        # The events API returns events in ascending chronological order;
+        # the last entry is the most recent.
+        most_recent = labeled_events[-1]
+        actor_login = (most_recent.get("actor") or {}).get("login", "")
+        actor_lower = (actor_login or "").strip().lower()
+        if actor_lower in authorized_logins:
+            return True
+
+        logger.warning(
+            "validate_status_label_actor: issue #%d has status=%r but the "
+            "most recent labeled event actor %r is not authorized (authorized=%s)",
+            number,
+            status,
+            actor_login,
+            authorized_logins,
+        )
+        return False
 
 
 # ---------------------------------------------------------------------------
