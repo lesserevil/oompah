@@ -19,7 +19,7 @@ from oompah.config import ServiceConfig
 from oompah.models import Issue, Project, RunningEntry
 from oompah.orchestrator import Orchestrator
 from oompah.projects import ProjectError, ProjectStore
-from oompah.statuses import DONE, IN_REVIEW, NEEDS_HUMAN, OPEN
+from oompah.statuses import DONE, IN_PROGRESS, IN_REVIEW, NEEDS_HUMAN, OPEN
 
 
 # --------------------------------------------------------------------- helpers
@@ -2099,6 +2099,128 @@ class TestDeferredDoneReviews:
             orch._open_deferred_done_reviews()
 
         orch._ensure_review_exists.assert_not_called()
+
+
+class TestEpicRollupStatusReconciliation:
+    def _orch_with_tracker(self, tmp_path):
+        proj = _make_project_record(epic_strategy="flat")
+        orch = _make_orch(tmp_path, projects=[proj])
+        tracker = MagicMock()
+        return orch, tracker
+
+    def test_backlog_epic_with_open_child_is_persisted_open(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Backlog",
+        )
+        child = _make_issue(
+            identifier="child-1",
+            state=OPEN,
+            parent_id=epic.identifier,
+        )
+        tracker.fetch_children.return_value = [child]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 1
+        tracker.update_issue.assert_called_once_with(epic.identifier, status=OPEN)
+        assert epic.state == OPEN
+
+    def test_backlog_epic_with_in_progress_child_is_persisted_in_progress(
+        self, tmp_path
+    ):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Backlog",
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=OPEN, parent_id=epic.identifier),
+            _make_issue(
+                identifier="child-2",
+                state=IN_PROGRESS,
+                parent_id=epic.identifier,
+            ),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 1
+        tracker.update_issue.assert_called_once_with(
+            epic.identifier,
+            status=IN_PROGRESS,
+        )
+        assert epic.state == IN_PROGRESS
+
+    def test_backlog_epic_with_all_done_children_is_persisted_done(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Backlog",
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=DONE, parent_id=epic.identifier),
+            _make_issue(identifier="child-2", state=DONE, parent_id=epic.identifier),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 1
+        tracker.update_issue.assert_called_once_with(epic.identifier, status=DONE)
+        assert epic.state == DONE
+
+    def test_in_review_epic_with_done_children_is_not_downgraded(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state=IN_REVIEW,
+        )
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=DONE, parent_id=epic.identifier),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 0
+        tracker.update_issue.assert_not_called()
+        assert epic.state == IN_REVIEW
+
+    def test_matching_rollup_status_is_not_rewritten(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(identifier="epic-1", issue_type="epic", state=OPEN)
+        tracker.fetch_children.return_value = [
+            _make_issue(identifier="child-1", state=OPEN, parent_id=epic.identifier),
+        ]
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 0
+        tracker.update_issue.assert_not_called()
+
+    def test_epic_with_no_children_is_not_rewritten(self, tmp_path):
+        orch, tracker = self._orch_with_tracker(tmp_path)
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            state="Backlog",
+        )
+        tracker.fetch_children.return_value = []
+
+        with patch.object(orch, "_tracker_for_issue", return_value=tracker):
+            updated = orch._reconcile_epic_rollup_statuses([epic])
+
+        assert updated == 0
+        tracker.update_issue.assert_not_called()
 
 
 class TestPushEpicBranch:

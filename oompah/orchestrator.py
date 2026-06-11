@@ -2623,6 +2623,8 @@ class Orchestrator:
 
         Jobs registered here:
 
+          ``epic_rollup_status`` — persist epic status labels derived from
+                                  child issue states.
           ``epic_auto_close``   — auto-close epics whose children are terminal.
           ``epic_open_prs``     — open epic→main PRs for stacked/shared epics.
           ``epic_staleness``    — arm/clear staleness alerts; update rebase
@@ -2641,24 +2643,34 @@ class Orchestrator:
         # consistent view even if a concurrent tick updates _last_candidates.
         candidates = list(self._last_candidates)
 
-        # 1. Auto-close epics whose children are all terminal.
+        # 1. Persist epic rollup status labels from child states so GitHub
+        # issue state matches the dashboard's derived epic state.
+        self._run_maintenance_job(
+            "epic_rollup_status",
+            lambda: self._reconcile_epic_rollup_statuses(
+                self._all_non_terminal_epics()
+            ),
+            min_interval_s=60.0,
+        )
+
+        # 2. Auto-close epics whose children are all terminal.
         self._run_maintenance_job(
             "epic_auto_close",
             lambda: self._auto_close_completed_epics(candidates),
             min_interval_s=60.0,
         )
 
-        # 2. Open the epic→main PR for stacked/shared epics.
+        # 3. Open the epic→main PR for stacked/shared epics.
         # _all_non_terminal_epics() re-reads tracker state at call time so
-        # epics that just closed in step 1 are correctly excluded.
+        # epics that just closed in step 2 are correctly excluded.
         self._run_maintenance_job(
             "epic_open_prs",
             lambda: self._open_epic_main_prs(self._all_non_terminal_epics()),
             min_interval_s=60.0,
         )
 
-        # 3 + 4. Staleness check then proactive rebase filing.
-        # Step 3 MUST complete before step 4 — _check_epic_staleness()
+        # 4 + 5. Staleness check then proactive rebase filing.
+        # Step 4 MUST complete before step 5 — _check_epic_staleness()
         # updates _epic_rebase_states which _dispatch_proactive_rebase_agents()
         # reads.  Both share the same threshold guard; running them back-to-back
         # inside a single sequential function guarantees ordering regardless of
@@ -2675,14 +2687,14 @@ class Orchestrator:
                 min_interval_s=300.0,
             )
 
-        # 5. Prune ghost rebase-state entries for closed epics.
+        # 6. Prune ghost rebase-state entries for closed epics.
         self._run_maintenance_job(
             "epic_prune_rebase",
             lambda: self._prune_stale_epic_rebase_states(candidates),
             min_interval_s=300.0,
         )
 
-        # 6. Orphan reset — _fetch_in_progress_issues() reads tracker state
+        # 7. Orphan reset — _fetch_in_progress_issues() reads tracker state
         # fresh at call time so issues that just closed during this tick are
         # not wrongly reset.
         self._run_maintenance_job(
@@ -3388,6 +3400,62 @@ class Orchestrator:
             except (TrackerError, ProjectError) as exc:
                 logger.debug("non-terminal epic fetch failed for %s: %s", pid, exc)
         return out
+
+    def _reconcile_epic_rollup_statuses(self, epics: list[Issue]) -> int:
+        """Persist each epic's tracker status from its children's states.
+
+        The dashboard derives epic state from child issue state at render time,
+        but the tracker itself also needs that status label so GitHub issues do
+        not show stale Backlog/Open values while their children are active or
+        complete.
+        """
+        updated = 0
+        for epic in epics:
+            if canonicalize_status(epic.state) in {MERGED, ARCHIVED}:
+                continue
+
+            children = self._fetch_epic_children(epic)
+            if not children:
+                continue
+
+            strategy = self._project_epic_strategy(epic.project_id)
+            if strategy == "shared":
+                child_states = [
+                    self._epic_child_effective_state(epic, child)
+                    for child in children
+                ]
+            else:
+                child_states = [child.state for child in children]
+
+            rolled = epic_rollup_state(child_states)
+            current_status = canonicalize_status(epic.state)
+            rolled_status = canonicalize_status(rolled)
+            if (
+                not rolled
+                or rolled_status == current_status
+                or (current_status == IN_REVIEW and rolled_status == DONE)
+            ):
+                continue
+
+            try:
+                tracker = self._tracker_for_issue(epic)
+                tracker.update_issue(epic.identifier, status=rolled)
+                epic.state = rolled
+                updated += 1
+                logger.info(
+                    "Reconciled epic %s status to %s from %d child issue(s)",
+                    epic.identifier,
+                    rolled,
+                    len(children),
+                )
+            except Exception as exc:  # noqa: BLE001 - maintenance should continue
+                logger.warning(
+                    "Failed to reconcile epic %s rollup status to %s: %s",
+                    epic.identifier,
+                    rolled,
+                    exc,
+                )
+        return updated
 
     def _project_max_in_flight(self, project_id: str | None) -> int:
         """Return the configured in-flight PR limit for a project.
