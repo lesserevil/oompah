@@ -250,6 +250,7 @@ class TestIntakeReadinessToRaw:
             "owner_override_at",
             "owner_actor",
             "decomposition_status",
+            "proposal_fingerprint",
             "last_validator_result",
             "last_validated_at",
         }
@@ -267,6 +268,7 @@ class TestIntakeReadinessToRaw:
         assert raw["owner_override_at"] is None
         assert raw["owner_actor"] is None
         assert raw["decomposition_status"] == "not_needed"
+        assert raw["proposal_fingerprint"] is None
         assert raw["last_validator_result"] is None
         assert raw["last_validated_at"] is None
 
@@ -281,6 +283,7 @@ class TestIntakeReadinessToRaw:
             owner_override_at="2026-06-11T17:00:00Z",
             owner_actor="bob",
             decomposition_status=DecompositionStatus.PROPOSED,
+            proposal_fingerprint="abc123",
             last_validator_result=ValidatorResult.FAIL,
             last_validated_at="2026-06-11T15:00:00Z",
         )
@@ -294,6 +297,7 @@ class TestIntakeReadinessToRaw:
         assert raw["owner_override_at"] == "2026-06-11T17:00:00Z"
         assert raw["owner_actor"] == "bob"
         assert raw["decomposition_status"] == "proposed"
+        assert raw["proposal_fingerprint"] == "abc123"
         assert raw["last_validator_result"] == "fail"
         assert raw["last_validated_at"] == "2026-06-11T15:00:00Z"
 
@@ -347,6 +351,7 @@ class TestIntakeReadinessFromRaw:
             "owner_override_at": None,
             "owner_actor": None,
             "decomposition_status": "accepted",
+            "proposal_fingerprint": "fp-123",
             "last_validator_result": "pass",
             "last_validated_at": "2026-06-11T14:00:00Z",
         }
@@ -360,6 +365,7 @@ class TestIntakeReadinessFromRaw:
         assert r.owner_override_at is None
         assert r.owner_actor is None
         assert r.decomposition_status == DecompositionStatus.ACCEPTED
+        assert r.proposal_fingerprint == "fp-123"
         assert r.last_validator_result == ValidatorResult.PASS
         assert r.last_validated_at == "2026-06-11T14:00:00Z"
 
@@ -417,6 +423,7 @@ class TestIntakeReadinessRoundTrip:
             owner_override_at=None,
             owner_actor=None,
             decomposition_status=DecompositionStatus.ACCEPTED,
+            proposal_fingerprint="fp-full",
             last_validator_result=ValidatorResult.PASS,
             last_validated_at="2026-06-11T16:00:00Z",
         )

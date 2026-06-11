@@ -26,6 +26,7 @@ This module defines the machine-readable intake state persisted in the hidden
         "owner_override_at": null,
         "owner_actor": null,
         "decomposition_status": "not_needed",
+        "proposal_fingerprint": null,
         "last_validator_result": "pass",
         "last_validated_at": "2026-06-11T16:00:00Z"
     }}
@@ -63,6 +64,8 @@ Field                      Type        Description
                                        ``"not_needed"``, ``"pending"``,
                                        ``"proposed"``, ``"accepted"``,
                                        ``"rejected"``
+``proposal_fingerprint``   str|null    Stable fingerprint of the latest
+                                       generated epic/child-task proposal
 ``last_validator_result``  str|null    Result of the latest validation run —
                                        ``"pass"``, ``"fail"``, ``"pending"``,
                                        or ``null`` (never validated)
@@ -272,6 +275,10 @@ class IntakeReadiness:
             ``None``.
         decomposition_status:
             Current state of the epic/child-task decomposition proposal.
+        proposal_fingerprint:
+            Stable fingerprint of the latest generated epic/child-task
+            proposal.  Used to suppress duplicate proposal comments and child
+            issue creation for unchanged decompositions.
         last_validator_result:
             Result of the most recent automated validation run, or ``None``
             if the issue has never been validated.
@@ -289,6 +296,7 @@ class IntakeReadiness:
     owner_override_at: str | None = None
     owner_actor: str | None = None
     decomposition_status: DecompositionStatus = DecompositionStatus.NOT_NEEDED
+    proposal_fingerprint: str | None = None
     last_validator_result: ValidatorResult | None = None
     last_validated_at: str | None = None
 
@@ -336,6 +344,7 @@ class IntakeReadiness:
             "owner_override_at": self.owner_override_at,
             "owner_actor": self.owner_actor,
             "decomposition_status": self.decomposition_status.value,
+            "proposal_fingerprint": self.proposal_fingerprint,
             "last_validator_result": (
                 self.last_validator_result.value
                 if self.last_validator_result is not None
@@ -396,6 +405,12 @@ class IntakeReadiness:
             ),
             decomposition_status=DecompositionStatus.from_raw(
                 raw.get("decomposition_status")
+            ),
+            proposal_fingerprint=(
+                str(raw["proposal_fingerprint"]).strip()
+                if raw.get("proposal_fingerprint") is not None
+                and str(raw.get("proposal_fingerprint")).strip()
+                else None
             ),
             last_validator_result=ValidatorResult.from_raw(
                 raw.get("last_validator_result")

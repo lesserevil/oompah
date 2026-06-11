@@ -29,6 +29,7 @@ from oompah.config import (
     validate_dispatch_config,
 )
 from oompah.events import EventBus, EventType
+from oompah.epic_proposal import process_epic_proposal_issue
 from oompah.models import (
     AgentProfile,
     AgentTotals,
@@ -2529,7 +2530,15 @@ class Orchestrator:
         )
         timings["duplicate_detection"] = metrics["duplicate_detection_ms"]
 
-        # 4. Candidate selection — sort + filter pass via _select_dispatchable.
+        # 4. Intake decomposition proposals — process Proposed issues that are
+        # too large for one task.  This does not dispatch agents.
+        await _timed("epic_proposals", self._process_epic_proposals, candidates)
+        metrics["epic_proposals"] = getattr(
+            self, "_last_epic_proposal_metrics", {}
+        )
+        timings["epic_proposals"] = metrics["epic_proposals_ms"]
+
+        # 5. Candidate selection — sort + filter pass via _select_dispatchable.
         # Run in a worker thread so bd CLI calls inside _should_dispatch
         # (~150ms each) don't block uvicorn's event loop. Returns the
         # final ordered list of issues that passed _should_dispatch; the
@@ -2540,7 +2549,7 @@ class Orchestrator:
         metrics["ready_count"] = len(ready)
         timings["candidate_selection"] = metrics["select_dispatchable_ms"]
 
-        # 5. Normal dispatch — one await per dispatched agent
+        # 6. Normal dispatch — one await per dispatched agent
         _t_dispatch = time.monotonic()
         dispatched = 0
         for issue in ready:
@@ -2551,7 +2560,7 @@ class Orchestrator:
         timings["normal_dispatch"] = (time.monotonic() - _t_dispatch) * 1000
         metrics["dispatched_count"] = dispatched
 
-        # 6. Epic planning — plan open epics without children
+        # 7. Epic planning — plan open epics without children
         _t_epic = time.monotonic()
         epics_to_plan = await _timed("plan_open_epics", self._plan_open_epics, candidates)
         planned = 0
@@ -10358,6 +10367,86 @@ class Orchestrator:
             "limit": limit,
         }
         return candidates
+
+    def _fetch_proposed_issues(self) -> list[Issue]:
+        """Fetch Proposed issues for intake processing.
+
+        Proposed issues are intentionally not normal dispatch candidates, so
+        intake maintenance reads them by state directly.
+        """
+        projects = self.project_store.list_all()
+        if not projects:
+            try:
+                return self.tracker.fetch_issues_by_states([PROPOSED])
+            except (TrackerNotConfiguredError, TrackerTimeoutError, TrackerError) as exc:
+                logger.debug("Failed to fetch legacy Proposed issues: %s", exc)
+                return []
+
+        proposed: list[Issue] = []
+        for project in projects:
+            try:
+                tracker = self._tracker_for_project(project.id)
+                issues = tracker.fetch_issues_by_states([PROPOSED])
+            except TrackerNotConfiguredError:
+                continue
+            except (TrackerTimeoutError, TrackerError, ProjectError) as exc:
+                logger.debug(
+                    "Failed to fetch Proposed issues for project %s: %s",
+                    project.id,
+                    exc,
+                )
+                continue
+            for issue in issues:
+                issue.project_id = project.id
+                proposed.append(issue)
+        return proposed
+
+    def _process_epic_proposals(
+        self,
+        _candidates: list[Issue] | None = None,
+    ) -> list[Issue]:
+        """Generate/apply decomposition proposals for oversized Proposed issues."""
+        issues = self._fetch_proposed_issues()
+        processed: list[Issue] = []
+        metrics = {
+            "proposed_count": len(issues),
+            "processed_count": 0,
+            "created_count": 0,
+            "applied_count": 0,
+            "duplicate_suppressed_count": 0,
+            "error_count": 0,
+        }
+        for issue in issues:
+            tracker = (
+                self._tracker_for_project(issue.project_id)
+                if issue.project_id
+                else self.tracker
+            )
+            try:
+                result = process_epic_proposal_issue(tracker, issue)
+            except Exception as exc:  # noqa: BLE001
+                metrics["error_count"] += 1
+                logger.debug(
+                    "Failed to process epic proposal for %s: %s",
+                    issue.identifier,
+                    exc,
+                )
+                continue
+            if result is None:
+                continue
+            processed.append(issue)
+            metrics["processed_count"] += 1
+            if getattr(result, "duplicate_suppressed", False):
+                metrics["duplicate_suppressed_count"] += 1
+            if getattr(result, "created", False):
+                metrics["created_count"] += 1
+            if getattr(result, "created_child_count", 0) or getattr(
+                result, "updated_child_count", 0
+            ):
+                metrics["applied_count"] += 1
+
+        self._last_epic_proposal_metrics = metrics
+        return processed
 
     def _select_dispatchable(self, candidates: list[Issue]) -> list[Issue]:
         """Sort candidates and filter via _should_dispatch.

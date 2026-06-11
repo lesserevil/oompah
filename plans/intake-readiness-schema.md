@@ -37,6 +37,7 @@ inside the existing oompah metadata block:
     "owner_override_at": null,
     "owner_actor": null,
     "decomposition_status": "not_needed",
+    "proposal_fingerprint": null,
     "last_validator_result": "pass",
     "last_validated_at": "2026-06-11T16:00:00Z"
 }}
@@ -64,6 +65,7 @@ preserved.
 | `owner_override_at` | string\|null | `null` | ISO 8601 timestamp of owner override |
 | `owner_actor` | string\|null | `null` | GitHub login of the overriding project owner |
 | `decomposition_status` | string | `"not_needed"` | Status of epic/child decomposition: `"not_needed"`, `"pending"`, `"proposed"`, `"accepted"`, `"rejected"` |
+| `proposal_fingerprint` | string\|null | `null` | Stable fingerprint of the latest generated epic/child proposal |
 | `last_validator_result` | string\|null | `null` | Latest validation run result: `"pass"`, `"fail"`, `"pending"`, or `null` (never validated) |
 | `last_validated_at` | string\|null | `null` | ISO 8601 timestamp of the last validation run |
 
@@ -269,6 +271,7 @@ All other fields are unaffected:
 |----------------|-------------|
 | `oompah/github_tracker.py` | Provides `set_metadata_field` / `get_metadata` used to read/write `oompah.intake` |
 | `oompah/intake_schema.py` | Defines the typed schema (this doc) |
+| `oompah/epic_proposal.py` | Stores full decomposition proposals under `epic_proposal` metadata and mirrors the fingerprint into `intake.proposal_fingerprint` |
 | `tests/test_intake_schema.py` | Unit tests covering all AC criteria |
 | #273 Epic: Intake readiness workflow | Parent epic; this is its schema child task |
 | #284 Decomposition proposals | Will use `decomposition_status` field |

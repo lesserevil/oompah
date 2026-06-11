@@ -23,6 +23,7 @@ from oompah.statuses import (
 def test_legacy_statuses_canonicalize_to_backlog_lifecycle_statuses():
     assert canonicalize_status("To Do") == BACKLOG
     assert canonicalize_status("deferred") == BACKLOG
+    assert canonicalize_status("proposed") == PROPOSED
     assert canonicalize_status("open") == OPEN
     assert canonicalize_status("in_progress") == IN_PROGRESS
     assert canonicalize_status("asking_question") == NEEDS_ANSWER
@@ -67,6 +68,7 @@ def test_dispatchable_and_terminal_status_sets_are_explicit():
     assert is_dispatchable_status("Needs CI Fix")
     assert is_dispatchable_status("Needs Rebase")
     assert not is_dispatchable_status("Backlog")
+    assert not is_dispatchable_status("Proposed")
     assert not is_dispatchable_status("Needs Answer")
 
     assert is_terminal_status("Done")

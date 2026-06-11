@@ -103,6 +103,7 @@ def _make_orchestrator(tmp_path, projects=None):
         state_path=str(tmp_path / "state.json"),
     )
     orch._fetch_in_progress_issues = MagicMock(return_value=[])
+    orch._process_epic_proposals = MagicMock(return_value=[])
     return orch
 
 

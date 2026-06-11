@@ -114,6 +114,7 @@ def _make_orchestrator(tmp_path, projects=None, yolo_projects=None):
         state_path=str(tmp_path / "state.json"),
     )
     orch._fetch_in_progress_issues = MagicMock(return_value=[])
+    orch._process_epic_proposals = MagicMock(return_value=[])
     # Bypass the 60-second startup delay so maintenance tests can call
     # _maybe_heal_repos / _maybe_cleanup_worktrees / _auto_archive without
     # explicitly setting maintenance_startup_delay_seconds = 0 each time.
