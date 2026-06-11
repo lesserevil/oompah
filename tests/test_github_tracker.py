@@ -1207,6 +1207,9 @@ class TestStatusLabelHelpers:
     def test_status_to_label_archived(self):
         assert _status_to_label("Archived") == "oompah:status:archived"
 
+    def test_status_to_label_proposed(self):
+        assert _status_to_label("Proposed") == "oompah:status:proposed"
+
     def test_label_to_status_open(self):
         assert _label_to_status("oompah:status:open") == "Open"
 
@@ -1215,6 +1218,9 @@ class TestStatusLabelHelpers:
 
     def test_label_to_status_done(self):
         assert _label_to_status("oompah:status:done") == "Done"
+
+    def test_label_to_status_proposed(self):
+        assert _label_to_status("oompah:status:proposed") == "Proposed"
 
     def test_label_to_status_non_status_label(self):
         assert _label_to_status("bug") is None
@@ -1238,7 +1244,7 @@ class TestStatusLabelHelpers:
 
     def test_extract_oompah_status_fallback_open(self):
         labels: list = []
-        assert _extract_oompah_status(labels, "open") == "Backlog"
+        assert _extract_oompah_status(labels, "open") == "Proposed"
 
     def test_extract_oompah_status_fallback_closed(self):
         labels: list = []
@@ -1364,9 +1370,9 @@ class TestGhIssueToIssue:
         assert issue.display_identifier == "oompah-tasks#42"
         assert issue.tracker_kind == "github_issues"
 
-    def test_state_open_defaults_to_Backlog(self):
+    def test_state_open_defaults_to_Proposed(self):
         issue = self._convert(state="open", labels=[])
-        assert issue.state == "Backlog"
+        assert issue.state == "Proposed"
 
     def test_state_closed_defaults_to_Archived(self):
         issue = self._convert(state="closed", labels=[])
@@ -1563,13 +1569,66 @@ class TestGitHubIssueTrackerFetch:
         ) as mock_req:
             result = tracker.fetch_all_issues()
 
-        assert [issue.state for issue in result] == ["Backlog", "Archived"]
+        assert [issue.state for issue in result] == ["Proposed", "Archived"]
         first_patch = mock_req.call_args_list[1]
         second_patch = mock_req.call_args_list[2]
         assert first_patch[0][0] == "PATCH"
-        assert first_patch[1]["json"]["labels"] == ["oompah:status:backlog"]
+        assert first_patch[1]["json"]["labels"] == ["oompah:status:proposed"]
         assert second_patch[0][0] == "PATCH"
         assert second_patch[1]["json"]["labels"] == ["oompah:status:archived"]
+        assert tracker._trusted_status_ledger[1] == "Proposed"
+        assert tracker._trusted_status_ledger[2] == "Archived"
+
+    def test_backfill_records_backlog_status_as_trusted(self, monkeypatch):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=3, state="open", labels=["bug"])
+        patch_resp = _mock_response(200, json_data={"ok": True})
+
+        from oompah import github_tracker
+
+        monkeypatch.setattr(
+            github_tracker,
+            "_github_fallback_status",
+            lambda _gh_state: "Backlog",
+        )
+
+        with patch.object(
+            tracker._client._http,
+            "request",
+            return_value=patch_resp,
+        ) as mock_req:
+            updated = tracker._ensure_status_label(gh_issue)
+
+        patch_call = mock_req.call_args
+        assert patch_call[0][0] == "PATCH"
+        assert patch_call[1]["json"]["labels"] == [
+            "bug",
+            "oompah:status:backlog",
+        ]
+        assert updated["labels"] == [
+            {"name": "bug"},
+            {"name": "oompah:status:backlog"},
+        ]
+        assert tracker._trusted_status_ledger[3] == "Backlog"
+
+    def test_fetch_all_issues_uses_fallback_state_when_backfill_fails(self):
+        tracker = self._make_tracker()
+        gh_issues = [
+            _make_gh_issue(number=1, state="open", labels=[]),
+            _make_gh_issue(number=2, state="closed", labels=[]),
+        ]
+
+        with (
+            patch.object(tracker._client, "request_paginated", return_value=gh_issues),
+            patch.object(
+                tracker._client,
+                "patch",
+                side_effect=TrackerError("backfill failed"),
+            ),
+        ):
+            result = tracker.fetch_all_issues()
+
+        assert [issue.state for issue in result] == ["Proposed", "Archived"]
 
     def test_fetch_all_issues_pagination(self):
         """fetch_all_issues follows pagination links (acceptance criterion #6)."""
@@ -1647,6 +1706,20 @@ class TestGitHubIssueTrackerFetch:
         assert "4" not in returned_numbers
         assert "5" not in returned_numbers
 
+    def test_fetch_candidate_issues_excludes_proposed_even_if_configured_active(self):
+        """Proposed remains pre-work and is never returned as a candidate."""
+        tracker = self._make_tracker()
+        tracker.active_states.append("Proposed")
+        gh_issues = [
+            _make_gh_issue(number=1, labels=["oompah:status:proposed"]),
+            _make_gh_issue(number=2, labels=["oompah:status:open"]),
+        ]
+        resp = _mock_response(200, json_data=gh_issues)
+        with patch.object(tracker._client._http, "request", return_value=resp):
+            result = tracker.fetch_candidate_issues()
+
+        assert [issue.issue_number for issue in result] == ["2"]
+
     def test_fetch_candidate_issues_excludes_pull_requests_with_active_status(self):
         tracker = self._make_tracker()
         gh_issues = [
@@ -1679,8 +1752,8 @@ class TestGitHubIssueTrackerFetch:
         assert "10" not in returned_numbers
         assert "11" not in returned_numbers
 
-    def test_fetch_candidate_issues_open_github_state_defaults_to_backlog(self):
-        """GitHub open issues with no status label default to non-dispatchable Backlog."""
+    def test_fetch_candidate_issues_open_github_state_defaults_to_proposed(self):
+        """GitHub open issues with no status label default to non-dispatchable Proposed."""
         tracker = self._make_tracker()
         gh_issues = [_make_gh_issue(number=7, state="open", labels=[])]
         list_resp = _mock_response(200, json_data=gh_issues)
@@ -1692,7 +1765,7 @@ class TestGitHubIssueTrackerFetch:
         assert result == []
         patch_call = mock_req.call_args_list[1]
         assert patch_call[0][0] == "PATCH"
-        assert patch_call[1]["json"]["labels"] == ["oompah:status:backlog"]
+        assert patch_call[1]["json"]["labels"] == ["oompah:status:proposed"]
 
     def test_fetch_candidate_issues_sorted_by_priority(self):
         """Candidates are sorted by priority ascending (lower = higher priority)."""
@@ -1765,6 +1838,42 @@ class TestGitHubIssueTrackerFetch:
         assert result is not None
         assert result.title == "Detail test"
         assert result.issue_number == "42"
+
+    def test_fetch_issue_detail_open_unlabeled_defaults_to_proposed(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=42, state="open", labels=[])
+        patch_resp = _mock_response(200, json_data={"ok": True})
+
+        with (
+            patch.object(tracker._client, "request", return_value=(gh_issue, None)),
+            patch.object(tracker._client, "patch", return_value=patch_resp) as patch_call,
+        ):
+            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#42")
+
+        assert result is not None
+        assert result.state == "Proposed"
+        patch_call.assert_called_once()
+        assert patch_call.call_args.kwargs["json"]["labels"] == [
+            "oompah:status:proposed"
+        ]
+
+    def test_fetch_issue_detail_closed_unlabeled_defaults_to_archived(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=43, state="closed", labels=[])
+        patch_resp = _mock_response(200, json_data={"ok": True})
+
+        with (
+            patch.object(tracker._client, "request", return_value=(gh_issue, None)),
+            patch.object(tracker._client, "patch", return_value=patch_resp) as patch_call,
+        ):
+            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#43")
+
+        assert result is not None
+        assert result.state == "Archived"
+        patch_call.assert_called_once()
+        assert patch_call.call_args.kwargs["json"]["labels"] == [
+            "oompah:status:archived"
+        ]
 
     def test_fetch_issue_detail_returns_none_for_404(self):
         tracker = self._make_tracker()

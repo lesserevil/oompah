@@ -147,6 +147,26 @@ class TestIssueDetailWithProjectId:
         assert "comments" in data
         assert data["comments"] == [{"id": 1, "text": "hello"}]
 
+    def test_proposed_issue_remains_visible_in_detail_response(self, client):
+        """Proposed is pre-work, but detail views still return it normally."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        issue = _make_mock_issue()
+        issue.state = "Proposed"
+        mock_tracker.fetch_issue_detail.return_value = issue
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module._api_cache, "get", return_value=None),
+            patch.object(server_module._api_cache, "set"),
+        ):
+            resp = client.get(
+                "/api/v1/issues/my-issue/detail",
+                params={"project_id": "proj-1"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["state"] == "Proposed"
+
     def test_returns_children_for_epic(self, client):
         """GET detail for an epic includes children array."""
         mock_orch, mock_tracker = _make_mock_orchestrator()

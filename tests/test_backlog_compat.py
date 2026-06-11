@@ -62,7 +62,7 @@ def test_ensure_backlog_compatible_migrates_legacy_statuses(tmp_path):
     for status in CANONICAL_STATUSES:
         assert status in data["statuses"]
     assert "To Do" not in data["statuses"]
-    assert "statuses: [Backlog, Open," in config_path.read_text(encoding="utf-8")
+    assert "statuses: [Proposed, Backlog, Open," in config_path.read_text(encoding="utf-8")
 
 
 def test_ensure_backlog_compatible_rewrites_statuses_as_inline_array(tmp_path):
@@ -87,7 +87,7 @@ def test_ensure_backlog_compatible_rewrites_statuses_as_inline_array(tmp_path):
     assert result.changed is True
     assert "config-format" in result.migrations
     text = config_path.read_text(encoding="utf-8")
-    assert "statuses: [Backlog, Open," in text
+    assert "statuses: [Proposed, Backlog, Open," in text
     assert "\n- Backlog\n" not in text
 
 

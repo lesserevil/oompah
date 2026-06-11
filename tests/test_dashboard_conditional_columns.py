@@ -24,6 +24,18 @@ def _column_config(script: str, key: str) -> str:
     return match.group(0)
 
 
+def test_proposed_column_is_first_core_column():
+    script = _dashboard_script()
+    columns = re.findall(r"\{key:\s*'([^']+)'", script)
+
+    assert columns[:4] == ["Proposed", "Backlog", "Open", "In Progress"]
+
+    config = _column_config(script, "Proposed")
+    assert "label: 'Proposed'" in config
+    assert "status: 'Proposed'" in config
+    assert "base: true" in config
+
+
 def test_needs_ci_fix_column_is_conditional():
     config = _column_config(_dashboard_script(), "Needs CI Fix")
 

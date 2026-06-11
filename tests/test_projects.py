@@ -55,7 +55,7 @@ def _write_backlog_config(repo, *, legacy: bool = False):
             "project_name: Test",
             "default_status: Backlog",
             "task_prefix: TASK",
-            "statuses: [Backlog, Open, In Progress, Needs Answer, Needs Human, Needs CI Fix, Needs Rebase, In Review, Decomposed, Duplicate Candidate, Done, Merged, Archived]",
+            "statuses: [Proposed, Backlog, Open, In Progress, Needs Answer, Needs Human, Needs CI Fix, Needs Rebase, In Review, Decomposed, Duplicate Candidate, Done, Merged, Archived]",
             "",
         ])
     (backlog_dir / "config.yml").write_text(content, encoding="utf-8")

@@ -26,6 +26,7 @@ from oompah.statuses import (
     NEEDS_ANSWER,
     NEEDS_HUMAN,
     OPEN,
+    PROPOSED,
     canonicalize_status,
     status_key,
 )
@@ -418,9 +419,17 @@ class BacklogMdTracker(TrackerProtocol):
         """Fetch tasks in active states, sorted for dispatch."""
         if not self.active_states:
             return []
+        active_keys = {
+            status_key(state)
+            for state in self.active_states
+            if canonicalize_status(state) != PROPOSED
+        }
         issues = [
             issue for issue in self._read_all_tasks(include_completed=False)
-            if canonicalize_status(issue.state).strip().lower() in self.active_states
+            if (
+                canonicalize_status(issue.state) != PROPOSED
+                and status_key(canonicalize_status(issue.state)) in active_keys
+            )
         ]
         return _sort_issues_for_dispatch(issues)
 

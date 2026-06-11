@@ -1783,6 +1783,136 @@ class TestUnauthorizedStatusLabelRevert:
         mock_tracker.add_comment.assert_not_called()
         mock_tracker.record_trusted_status.assert_called_once_with(42, "Open")
 
+    @pytest.mark.parametrize(
+        ("label_name", "status"),
+        [
+            ("oompah:status:proposed", "Proposed"),
+            ("oompah:status:backlog", "Backlog"),
+            ("oompah:status:archived", "Archived"),
+        ],
+    )
+    def test_oompah_owned_backfill_label_event_does_not_trigger_revert(
+        self, label_name, status
+    ):
+        """Known oompah-owned backfill events bypass unauthorized handling."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+        mock_tracker._trusted_status_ledger[42] = status
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="labeled",
+                    number=42,
+                    sender_login="unexpected-app-actor",
+                    label_name=label_name,
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "issues",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        time.sleep(0.15)
+        mock_tracker._set_status_label.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+        mock_tracker.record_untrusted_status_label_change.assert_not_called()
+        mock_tracker.record_trusted_status.assert_called_once_with(42, status)
+
+    def test_oompah_owned_backfill_label_event_is_idempotent(self):
+        """Repeated delivery of a correlated webhook stays quiet."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+        mock_tracker._trusted_status_ledger[42] = "Proposed"
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="labeled",
+                    number=42,
+                    sender_login="unexpected-app-actor",
+                    label_name="oompah:status:proposed",
+                )
+                for _ in range(2):
+                    resp = client.post(
+                        "/api/v1/webhooks/github",
+                        content=json.dumps(payload),
+                        headers={
+                            "X-GitHub-Event": "issues",
+                            "Content-Type": "application/json",
+                        },
+                    )
+                    assert resp.status_code == 200
+
+        time.sleep(0.15)
+        mock_tracker._set_status_label.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+        mock_tracker.record_untrusted_status_label_change.assert_not_called()
+        assert mock_tracker.record_trusted_status.call_count == 2
+
+    def test_external_status_label_mismatch_still_triggers_revert(self):
+        """A different status than the ledger remains an unauthorized edit."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+        mock_tracker._trusted_status_ledger[42] = "Backlog"
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="labeled",
+                    number=42,
+                    sender_login="attacker",
+                    label_name="oompah:status:open",
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "issues",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        for _ in range(100):
+            if mock_tracker.add_comment.called:
+                break
+            time.sleep(0.02)
+
+        assert mock_tracker.add_comment.called
+        mock_tracker.record_untrusted_status_label_change.assert_called_once_with(
+            42,
+            "oompah:status:open",
+            "attacker",
+            "labeled",
+        )
+        mock_tracker.record_trusted_status.assert_not_called()
+
     def test_non_status_label_does_not_trigger_revert(self):
         """Non-oompah:status:* label changes do not trigger authorization checks."""
         import time

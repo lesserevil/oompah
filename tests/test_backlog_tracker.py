@@ -150,6 +150,21 @@ def test_fetch_candidate_issues_parses_and_filters(tmp_path):
     assert issue.blocked_by[0].identifier == "TASK-9"
 
 
+def test_fetch_candidate_issues_excludes_proposed_even_if_configured_active(tmp_path):
+    backlog_dir = _write_config(tmp_path)
+    _write_task(backlog_dir, "TASK-1", "Intake item", status="Proposed")
+    _write_task(backlog_dir, "TASK-2", "Ready item", status="Open")
+    tracker = BacklogMdTracker(
+        active_states=["Proposed", "Open"],
+        terminal_states=["Done"],
+        cwd=str(tmp_path),
+    )
+
+    issues = tracker.fetch_candidate_issues()
+
+    assert [issue.identifier for issue in issues] == ["TASK-2"]
+
+
 def test_fetch_issue_detail_infers_epic_from_epic_title_without_label(tmp_path):
     backlog_dir = _write_config(tmp_path)
     _write_task(

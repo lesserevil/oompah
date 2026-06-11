@@ -59,6 +59,8 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
+from oompah.statuses import CANONICAL_STATUSES
+
 if TYPE_CHECKING:
     pass  # avoid circular import of Project at module level
 
@@ -79,20 +81,7 @@ _DEFAULT_BOT_LOGIN = "oompah"
 # as used in oompah's label convention).  This intentionally mirrors the
 # ``_STATUS_LABEL_PREFIX``/``_label_to_status`` logic in ``github_tracker.py``.
 _SLUG_TO_STATUS: dict[str, str] = {
-    "backlog": "Backlog",
-    "open": "Open",
-    "in-progress": "In Progress",
-    "needs-answer": "Needs Answer",
-    "needs-human": "Needs Human",
-    "needs-ci-fix": "Needs CI Fix",
-    "needs-rebase": "Needs Rebase",
-    "in-review": "In Review",
-    "decomposed": "Decomposed",
-    "duplicate-candidate": "Duplicate Candidate",
-    "done": "Done",
-    "merged": "Merged",
-    "archived": "Archived",
-    "proposed": "Proposed",
+    status.lower().replace(" ", "-"): status for status in CANONICAL_STATUSES
 }
 
 # ---------------------------------------------------------------------------

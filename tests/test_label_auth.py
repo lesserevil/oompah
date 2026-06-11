@@ -115,6 +115,9 @@ class TestLabelNameToStatus:
     def test_backlog(self):
         assert label_name_to_status("oompah:status:backlog") == "Backlog"
 
+    def test_proposed(self):
+        assert label_name_to_status("oompah:status:proposed") == "Proposed"
+
     def test_in_progress(self):
         assert label_name_to_status("oompah:status:in-progress") == "In Progress"
 
@@ -161,6 +164,9 @@ class TestStatusToLabelName:
     def test_backlog(self):
         assert _status_to_label_name("Backlog") == "oompah:status:backlog"
 
+    def test_proposed(self):
+        assert _status_to_label_name("Proposed") == "oompah:status:proposed"
+
     def test_in_progress(self):
         assert _status_to_label_name("In Progress") == "oompah:status:in-progress"
 
@@ -180,6 +186,7 @@ class TestStatusToLabelName:
     def test_round_trip(self):
         """label_name_to_status and _status_to_label_name are inverses."""
         labels = [
+            "oompah:status:proposed",
             "oompah:status:open",
             "oompah:status:backlog",
             "oompah:status:in-progress",

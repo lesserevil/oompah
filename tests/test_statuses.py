@@ -3,6 +3,7 @@
 from oompah.statuses import (
     ARCHIVED,
     BACKLOG,
+    CANONICAL_STATUSES,
     DONE,
     DUPLICATE_CANDIDATE,
     IN_PROGRESS,
@@ -11,9 +12,11 @@ from oompah.statuses import (
     NEEDS_CI_FIX,
     NEEDS_REBASE,
     OPEN,
+    PROPOSED,
     canonicalize_status,
     is_dispatchable_status,
     is_terminal_status,
+    status_rank,
 )
 
 
@@ -29,6 +32,34 @@ def test_legacy_statuses_canonicalize_to_backlog_lifecycle_statuses():
     assert canonicalize_status("closed") == DONE
     assert canonicalize_status("merged") == MERGED
     assert canonicalize_status("archive:yes") == ARCHIVED
+
+
+def test_proposed_canonicalizes_correctly():
+    assert canonicalize_status("proposed") == PROPOSED
+    assert canonicalize_status("Proposed") == PROPOSED
+    assert canonicalize_status("PROPOSED") == PROPOSED
+
+
+def test_proposed_appears_in_canonical_statuses():
+    assert PROPOSED in CANONICAL_STATUSES
+
+
+def test_proposed_is_before_backlog_in_canonical_ordering():
+    assert CANONICAL_STATUSES.index(PROPOSED) < CANONICAL_STATUSES.index(BACKLOG)
+
+
+def test_proposed_rank_is_less_than_backlog_rank():
+    assert status_rank(PROPOSED) < status_rank(BACKLOG)
+
+
+def test_proposed_is_not_dispatchable():
+    assert not is_dispatchable_status(PROPOSED)
+    assert not is_dispatchable_status("proposed")
+
+
+def test_proposed_is_not_terminal():
+    assert not is_terminal_status(PROPOSED)
+    assert not is_terminal_status("proposed")
 
 
 def test_dispatchable_and_terminal_status_sets_are_explicit():
@@ -91,6 +122,15 @@ def test_epic_rollup_mixed_done_backlog_is_in_progress():
 
 def test_epic_rollup_no_children_is_none():
     assert epic_rollup_state([]) is None
+
+
+def test_epic_rollup_all_proposed_children_is_none():
+    assert epic_rollup_state(["Proposed", "proposed"]) is None
+
+
+def test_epic_rollup_ignores_proposed_children_when_other_work_exists():
+    assert epic_rollup_state(["Proposed", "Open"]) == "Open"
+    assert epic_rollup_state(["Proposed", "Done"]) == "Done"
 
 
 def test_more_advanced_status_picks_further_along():

@@ -538,7 +538,7 @@ class FakeGitHubHTTPServer:
         return self._resp(200, issue)
 
     def _handle_patch_issue(self, number: int, json_body: Dict) -> MagicMock:
-        """PATCH /repos/.../issues/{number} — update title, body, or state."""
+        """PATCH /repos/.../issues/{number} — update issue fields."""
         issue = self._issues.get(number)
         if issue is None:
             return self._resp(404, {"message": "Not Found"})
@@ -549,6 +549,14 @@ class FakeGitHubHTTPServer:
             issue["body"] = json_body["body"]
         if "state" in json_body:
             issue["state"] = json_body["state"]
+            issue["closed_at"] = (
+                "2024-01-01T00:00:00Z" if json_body["state"] == "closed" else None
+            )
+        if "labels" in json_body:
+            issue["labels"] = [
+                {"id": i + 1, "name": name, "color": "ededed"}
+                for i, name in enumerate(json_body["labels"] or [])
+            ]
 
         return self._resp(200, issue)
 
