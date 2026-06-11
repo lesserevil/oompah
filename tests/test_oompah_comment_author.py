@@ -312,14 +312,24 @@ class TestAgentsMdAuthorRule:
     """AGENTS.md must instruct agents to use oompah as comment author."""
 
     def test_agents_md_contains_author_oompah_rule(self):
-        """AGENTS.md must include the Backlog.md comment author flag."""
+        """AGENTS.md must include the comment author flag for oompah.
+
+        The legacy Backlog.md CLI used ``--comment-author oompah``.  After the
+        GitHub Issues migration the canonical command is
+        ``oompah task comment ... --author oompah``.  Either form satisfies the
+        intent: agents must be instructed to attribute comments to 'oompah'.
+        """
         agents_md_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "AGENTS.md"
         )
         with open(agents_md_path) as f:
             content = f.read()
 
-        assert "--comment-author oompah" in content, (
-            "AGENTS.md must instruct agents to use --comment-author oompah "
-            "when posting comments"
+        has_author_flag = (
+            "--author oompah" in content
+            or "--comment-author oompah" in content
+        )
+        assert has_author_flag, (
+            "AGENTS.md must instruct agents to use --author oompah (GitHub Issues) "
+            "or --comment-author oompah (legacy Backlog.md) when posting comments"
         )
