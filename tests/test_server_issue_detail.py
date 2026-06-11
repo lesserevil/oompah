@@ -9,6 +9,8 @@ Covers:
   (6) _find_tracker_for_issue helper: legacy mode (no projects)
   (7) _find_tracker_for_issue helper: multi-project search
   (8) _find_tracker_for_issue helper: returns None when not found
+  (9) GET /api/v1/issues/{identifier}/comments without project_id searches all projects
+  (10) GET /api/v1/issues/{identifier}/comments returns 404 when not found
 """
 
 from __future__ import annotations
@@ -388,3 +390,40 @@ class TestFindTrackerForIssue:
         assert tracker is mock_tracker_2
         assert project_id == "proj-2"
         assert found_issue is issue
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/issues/{identifier}/comments
+# ---------------------------------------------------------------------------
+
+class TestCommentsEndpoint:
+    """Tests for the comments endpoint (project_id optional, searches all projects)."""
+
+    def test_missing_project_id_searches_all_projects(self, client):
+        """GET /comments without project_id searches all projects for the issue."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        issue = _make_mock_issue()
+        mock_tracker.fetch_issue_detail.return_value = issue
+        mock_tracker.fetch_comments.return_value = [{"author": "a", "text": "hi"}]
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module._api_cache, "get", return_value=None),
+        ):
+            resp = client.get("/api/v1/issues/my-issue/comments")
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == [{"author": "a", "text": "hi"}]
+
+    def test_not_found_returns_404(self, client):
+        """GET /comments for a non-existent issue returns 404."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.fetch_issue_detail.return_value = None
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module._api_cache, "get", return_value=None),
+        ):
+            resp = client.get("/api/v1/issues/nope/comments")
+
+        assert resp.status_code == 404
