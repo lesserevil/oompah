@@ -253,6 +253,14 @@
       align-items: center;
       gap: 0.4rem;
     }
+    .card-identifier-link {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .card-identifier-link:hover {
+      border-bottom-color: currentColor;
+    }
     .card-title {
       font-size: 0.85rem;
       font-weight: 500;
@@ -2983,12 +2991,15 @@ function createCard(issue) {
   const typeIcon = getTypeIcon(issue.issue_type);
   const typeLabel = issue.issue_type || 'task';
   const displayIdentifier = issueDisplayIdentifier(issue);
+  const cardIdentifierHtml = issue.url
+    ? `<a class="card-identifier card-identifier-link" href="${esc(issue.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open GitHub issue">${esc(displayIdentifier)}</a>`
+    : `<span class="card-identifier">${esc(displayIdentifier)}</span>`;
 
   card.innerHTML = `
     <div class="card-id">
       <span class="card-id-left">
         <span class="type-icon" title="${esc(typeLabel)}" aria-label="${esc(typeLabel)}">${typeIcon}</span>
-        <span class="card-identifier">${esc(displayIdentifier)}</span>${trackerLinkHtml}
+        ${cardIdentifierHtml}${trackerLinkHtml}
         ${epicBadgeHtml}
         ${draftEpicBadgeHtml}
         ${mergedBadgeHtml}
@@ -3003,12 +3014,16 @@ function createCard(issue) {
     ${renderCardAttachments(issue)}
   `;
 
-  // Click card ID to open detail panel
-  card.querySelector('.card-identifier').style.cursor = 'pointer';
-  card.querySelector('.card-identifier').addEventListener('click', (e) => {
-    e.stopPropagation();
-    openDetailPanel(issue.identifier);
-  });
+  // Click non-GitHub card IDs to open the detail panel. GitHub-backed card
+  // identifiers are external links that open the GitHub issue in a new tab.
+  const identifierEl = card.querySelector('.card-identifier');
+  if (identifierEl && !issue.url) {
+    identifierEl.style.cursor = 'pointer';
+    identifierEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDetailPanel(issue.identifier);
+    });
+  }
 
   // Drag handlers
   card.addEventListener('dragstart', e => {

@@ -62,6 +62,10 @@ class TestCSSClasses:
         html = _load_dashboard()
         assert ".tracker-link {" in html or ".tracker-link{" in html
 
+    def test_card_identifier_link_css_exists(self):
+        html = _load_dashboard()
+        assert ".card-identifier-link {" in html or ".card-identifier-link{" in html
+
     def test_detail_github_link_css_exists(self):
         html = _load_dashboard()
         assert ".detail-github-link {" in html or ".detail-github-link{" in html
@@ -103,6 +107,24 @@ class TestCreateCardTrackerLink:
         script = _extract_script(_load_dashboard())
         body = _extract_func_body(script, "createCard")
         assert "${trackerLinkHtml}" in body
+
+    def test_github_card_identifier_is_external_link(self):
+        """GitHub-backed cards make the visible identifier itself a link."""
+        script = _extract_script(_load_dashboard())
+        body = _extract_func_body(script, "createCard")
+        assert "cardIdentifierHtml" in body
+        assert 'class="card-identifier card-identifier-link"' in body
+        assert 'href="${esc(issue.url)}"' in body
+        assert 'target="_blank"' in body
+        assert 'rel="noopener noreferrer"' in body
+        assert "${cardIdentifierHtml}${trackerLinkHtml}" in body
+
+    def test_non_github_card_identifier_keeps_detail_click(self):
+        """Cards without issue.url keep the old detail-panel identifier click."""
+        script = _extract_script(_load_dashboard())
+        body = _extract_func_body(script, "createCard")
+        assert "if (identifierEl && !issue.url)" in body
+        assert "openDetailPanel(issue.identifier);" in body
 
 
 # ---------------------------------------------------------------------------
