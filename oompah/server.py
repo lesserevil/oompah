@@ -6864,6 +6864,8 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         payload["comment_id"] = event.comment_id
     if event.label_name:
         payload["label_name"] = event.label_name
+    if event.label_actor:
+        payload["label_actor"] = event.label_actor
     if event.project_item_id:
         payload["project_item_id"] = event.project_item_id
     if event.project_field_name:
@@ -7004,6 +7006,187 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
             name=f"webhook-merged-{project.name}",
             daemon=True,
         ).start()
+
+    # ---------------------------------------------------------------------------
+    # Unauthorized status-label authorization check
+    # ---------------------------------------------------------------------------
+    # When an ``issues.labeled`` or ``issues.unlabeled`` event carries an
+    # ``oompah:status:*`` label, verify that the actor is authorized.  If not,
+    # revert the label to the last trusted status and leave an explanatory
+    # comment on the issue.  This prevents any user with Triage-role access
+    # from promoting an issue to a dispatchable state without owner approval.
+    if (
+        event.event_type == "issues"
+        and event.action in ("labeled", "unlabeled")
+        and event.label_name
+        and event.label_actor
+        and project
+    ):
+        from oompah.label_auth import is_status_label, is_authorized_status_actor
+        if is_status_label(event.label_name) and not is_authorized_status_actor(
+            event.label_actor, project
+        ):
+            threading.Thread(
+                target=_revert_unauthorized_status_label_change,
+                args=(orch, event, project),
+                name=f"webhook-label-revert-{project.name}",
+                daemon=True,
+            ).start()
+
+
+def _revert_unauthorized_status_label_change(orch, event, project) -> None:
+    """Revert an unauthorized ``oompah:status:*`` label change and post a comment.
+
+    When a user who is not the oompah bot and not listed in
+    ``project.status_label_authorized_logins`` applies or removes an
+    ``oompah:status:*`` label on an issue, this function:
+
+    1. Removes the unauthorized label (if it was applied).
+    2. Restores the previous known-good status label (best-effort).
+    3. Posts an explanatory comment on the issue so the actor and project
+       owners understand why the change was reverted.
+    4. Logs the attempt for audit purposes.
+
+    This runs in a background thread (called from _handle_webhook_event).
+    """
+    from oompah.label_auth import is_status_label, label_name_to_status
+
+    issue_number = event.issue_number
+    label_name = event.label_name
+    label_actor = event.label_actor
+    action = event.action  # "labeled" or "unlabeled"
+
+    logger.warning(
+        "Unauthorized oompah:status:* label change: project=%s issue=#%s "
+        "actor=%s action=%s label=%s — reverting",
+        project.name,
+        issue_number,
+        label_actor,
+        action,
+        label_name,
+    )
+
+    if not issue_number:
+        return
+
+    try:
+        tracker = orch._tracker_for_project(project.id)
+    except Exception as exc:
+        logger.error(
+            "Cannot get tracker for project %s to revert label: %s",
+            project.name,
+            exc,
+        )
+        return
+
+    # Record this unauthorized attempt in the tracker's trusted-status ledger
+    # so polling validation is aware.
+    record_untrusted = getattr(tracker, "record_untrusted_status_label_change", None)
+    if callable(record_untrusted):
+        record_untrusted(int(issue_number), label_name, label_actor, action)
+
+    # Revert: if the actor applied the label (labeled), remove it.
+    # If the actor removed the label (unlabeled), we would re-apply the
+    # previous status — but we don't know the previous status from the webhook
+    # alone, so we fetch the issue to determine the current state and reconcile.
+    try:
+        _do_revert_status_label(tracker, issue_number, label_name, action)
+    except Exception as exc:
+        logger.error(
+            "Failed to revert unauthorized label change on %s#%s: %s",
+            project.name,
+            issue_number,
+            exc,
+        )
+
+    # Post an explanatory comment so the actor understands what happened.
+    try:
+        status_display = label_name_to_status(label_name) or label_name
+        if action == "labeled":
+            msg = (
+                f"⚠️ **Unauthorized status change reverted**\n\n"
+                f"@{label_actor} applied `{label_name}` (→ *{status_display}*), "
+                f"but only the oompah bot or a project owner may change "
+                f"`oompah:status:*` labels directly.\n\n"
+                f"The label change has been reverted. "
+                f"To advance this issue, ask a project owner or the oompah bot "
+                f"to update its status."
+            )
+        else:
+            msg = (
+                f"⚠️ **Unauthorized status change reverted**\n\n"
+                f"@{label_actor} removed `{label_name}` (from *{status_display}*), "
+                f"but only the oompah bot or a project owner may change "
+                f"`oompah:status:*` labels directly.\n\n"
+                f"The label change has been reverted. "
+                f"To change this issue's status, ask a project owner or the oompah bot."
+            )
+        tracker.add_comment(
+            f"{project.tracker_owner or ''}/{project.tracker_repo or ''}#{issue_number}",
+            msg,
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to post unauthorized-label-change comment on %s#%s: %s",
+            project.name,
+            issue_number,
+            exc,
+        )
+
+
+def _do_revert_status_label(tracker, issue_number: str, label_name: str, action: str) -> None:
+    """Perform the actual label revert on the GitHub issue.
+
+    For ``labeled`` actions (actor applied label): remove the unauthorized label.
+    For ``unlabeled`` actions (actor removed label): re-apply the label.
+
+    Uses :meth:`~oompah.github_tracker.GitHubIssueTracker._set_status_label`
+    when available (GitHub Issues tracker), otherwise falls back to generic
+    add/remove operations.
+    """
+    from oompah.label_auth import is_status_label
+
+    if not issue_number or not label_name:
+        return
+
+    try:
+        num = int(issue_number)
+    except (ValueError, TypeError):
+        logger.warning("_do_revert_status_label: invalid issue_number %r", issue_number)
+        return
+
+    if action == "labeled":
+        # Actor applied an unauthorized status label — remove it.
+        # Find the previous trusted status (if any) by looking at remaining
+        # labels.  Use _set_status_label to atomically swap back.
+        set_status = getattr(tracker, "_set_status_label", None)
+        if callable(set_status):
+            # Try to find a valid previous status via the ledger.
+            ledger = getattr(tracker, "_trusted_status_ledger", {})
+            prev_status = ledger.get(num)
+            if prev_status:
+                # Restore to last known-good status.
+                set_status(num, prev_status)
+            else:
+                # No ledger entry — just remove the unauthorized label
+                # and let oompah re-apply Backlog (the safe default).
+                set_status(num, "Backlog")
+        else:
+            # Generic fallback: remove the unauthorized label directly.
+            remove_label = getattr(tracker, "remove_label", None)
+            if callable(remove_label):
+                remove_label(issue_number, label_name)
+    else:
+        # action == "unlabeled" — actor removed a status label.
+        # Re-apply the label that was removed.
+        if not is_status_label(label_name):
+            return
+        set_status = getattr(tracker, "_set_status_label", None)
+        if callable(set_status):
+            from oompah.label_auth import label_name_to_status
+            status = label_name_to_status(label_name)
+            if status:
+                set_status(num, status)
 
 
 def _webhook_advanced_tracked_branch(event, project) -> bool:

@@ -339,6 +339,12 @@ class Project:
     # dashboard as an alert so the operator knows which files need attention.
     # Cleared when the project is successfully synced without conflicts.
     backlog_conflict_paths: list[str] = field(default_factory=list)
+    # GitHub logins that are authorized to apply or remove ``oompah:status:*``
+    # labels on issues in this project.  The oompah bot login (see
+    # ``OOMPAH_BOT_LOGIN`` env var, default ``"oompah"``) is always implicitly
+    # authorized and does not need to be listed here.  All comparisons are
+    # case-insensitive.  Defaults to empty (only the bot is trusted).
+    status_label_authorized_logins: list[str] = field(default_factory=list)
 
     # ---------------------------------------------------------------------------
     # Per-project tracker configuration (GitHub Issues migration — TASK-459.3 /
@@ -446,6 +452,10 @@ class Project:
         # normal project records with an empty list.
         if self.backlog_conflict_paths:
             d["backlog_conflict_paths"] = list(self.backlog_conflict_paths)
+        # Only emit status_label_authorized_logins when non-empty — most
+        # projects rely on the default (bot-only) and don't need this field.
+        if self.status_label_authorized_logins:
+            d["status_label_authorized_logins"] = list(self.status_label_authorized_logins)
         # Per-project tracker configuration. Only emit when set to keep the
         # serialized dict compact for projects that haven't been cut over yet.
         if self.tracker_kind is not None:
@@ -603,6 +613,11 @@ class Project:
             backlog_conflict_paths=[
                 str(p) for p in (d.get("backlog_conflict_paths") or [])
                 if str(p).strip()
+            ],
+            status_label_authorized_logins=[
+                str(login).strip()
+                for login in (d.get("status_label_authorized_logins") or [])
+                if str(login).strip()
             ],
             tracker_kind=tracker_kind_proj,
             tracker_owner=tracker_owner,

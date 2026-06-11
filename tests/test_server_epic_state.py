@@ -221,8 +221,12 @@ class TestEpicStateVerification:
 
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
-        # No fetch_issue_detail re-call for non-Epic
-        assert mock_tracker.fetch_issue_detail.call_count == 1
+        # Non-Epic issues do not trigger the Epic verification re-read pass.
+        # The endpoint calls fetch_issue_detail once inside
+        # _get_tracker_for_issue_or_project (tracker resolution) and once
+        # to read `existing_issue` for the is_epic check, but it must NOT
+        # call it again for the Epic verification loop.
+        assert mock_tracker.fetch_issue_detail.call_count == 2
 
     def test_epic_state_update_persists_returns_200(self, client):
         """When Epic state change persists, return 200 ok."""

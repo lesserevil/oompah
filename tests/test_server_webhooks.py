@@ -1475,3 +1475,601 @@ class TestWebhookMergedReconciliation:
         from oompah.statuses import MERGED
         for call in mock_tracker.update_issue.call_args_list:
             assert call.kwargs.get("status") != MERGED
+
+
+# ---------------------------------------------------------------------------
+# Status-label authorization tests
+# ---------------------------------------------------------------------------
+
+
+def _github_labeled_payload(
+    action: str = "labeled",
+    number: int = 42,
+    issue_author: str = "issue-creator",
+    label_name: str = "oompah:status:open",
+    sender_login: str = "unauthorized-user",
+    repo: str = "org/repo",
+) -> dict:
+    """Build a GitHub issues.labeled / issues.unlabeled payload."""
+    return {
+        "action": action,
+        "issue": {
+            "number": number,
+            "title": "Test issue",
+            "user": {"login": issue_author},
+        },
+        "label": {
+            "name": label_name,
+            "color": "e4e669",
+        },
+        "repository": {"full_name": repo},
+        "sender": {"login": sender_login},
+    }
+
+
+def _make_orch_with_tracker(projects=None, mock_tracker=None):
+    """Build a mock orchestrator with a tracker attached."""
+    if projects is None:
+        projects = [
+            Project(
+                id="proj-gh1",
+                name="github-proj",
+                repo_url="https://github.com/org/repo.git",
+                repo_path="/tmp/repos/repo",
+                webhook_secret=None,
+                status_label_authorized_logins=[],
+            ),
+        ]
+    orch = _make_mock_orchestrator(projects=projects)
+    if mock_tracker is not None:
+        orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+    return orch
+
+
+class TestStatusLabelActorWebhookPayload:
+    """The server event payload includes label_actor for issues.labeled events."""
+
+    def test_labeled_event_includes_label_actor_in_payload(self):
+        """label_actor from sender is included in the emitted event payload."""
+        from oompah.server import app, _api_cache
+        from oompah.events import EventType
+
+        received_payloads = []
+        orch = _make_orch_with_tracker()
+        orch.event_bus.subscribe(
+            EventType.FORGE_WEBHOOK_RECEIVED,
+            lambda et, p: received_payloads.append(p),
+        )
+
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_labeled_payload(
+                action="labeled",
+                sender_login="alice",
+                label_name="oompah:status:open",
+            )
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "issues",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        assert len(received_payloads) == 1
+        ep = received_payloads[0]
+        assert ep["label_actor"] == "alice"
+        assert ep["label_name"] == "oompah:status:open"
+
+    def test_non_labeled_event_omits_label_actor(self):
+        """Non-labeled issues events do not include label_actor in the payload."""
+        from oompah.server import app, _api_cache
+        from oompah.events import EventType
+
+        received_payloads = []
+        orch = _make_orch_with_tracker()
+        orch.event_bus.subscribe(
+            EventType.FORGE_WEBHOOK_RECEIVED,
+            lambda et, p: received_payloads.append(p),
+        )
+
+        with patch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_issues_payload(action="opened")
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "issues",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        assert len(received_payloads) == 1
+        ep = received_payloads[0]
+        assert "label_actor" not in ep
+
+
+class TestUnauthorizedStatusLabelRevert:
+    """Unauthorized oompah:status:* label changes trigger revert + comment."""
+
+    def _make_orch_with_tracker_for_revert(self, authorized_logins=None):
+        """Build orch with a tracker that supports revert operations."""
+        from unittest.mock import MagicMock
+
+        project = Project(
+            id="proj-gh1",
+            name="github-proj",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/tmp/repos/repo",
+            webhook_secret=None,
+            status_label_authorized_logins=authorized_logins or [],
+            tracker_owner="org",
+            tracker_repo="repo",
+        )
+        mock_tracker = MagicMock()
+        mock_tracker._set_status_label = MagicMock()
+        mock_tracker.add_comment = MagicMock()
+        mock_tracker._trusted_status_ledger = {}
+        mock_tracker._untrusted_status_issues = set()
+        mock_tracker.record_untrusted_status_label_change = MagicMock()
+
+        orch = _make_mock_orchestrator(projects=[project])
+        orch._tracker_for_project = MagicMock(return_value=mock_tracker)
+        return orch, mock_tracker, project
+
+    def test_unauthorized_labeled_triggers_revert(self):
+        """An unauthorized actor applying oompah:status:open triggers a revert."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="labeled",
+                    number=42,
+                    sender_login="unauthorized-user",  # not bot, not in allowlist
+                    label_name="oompah:status:open",
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "issues",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        # Wait for background thread to complete
+        for _ in range(100):
+            if (
+                mock_tracker._set_status_label.called
+                or mock_tracker.add_comment.called
+            ):
+                break
+            time.sleep(0.02)
+
+        # The revert thread should have attempted to set status back or add comment
+        assert (
+            mock_tracker._set_status_label.called
+            or mock_tracker.add_comment.called
+        ), "Revert or comment should have been called"
+        # Comment explaining the unauthorized change should have been posted
+        assert mock_tracker.add_comment.called
+        comment_call_args = mock_tracker.add_comment.call_args
+        comment_body = comment_call_args[0][1]
+        assert "unauthorized" in comment_body.lower() or "Unauthorized" in comment_body
+
+    def test_authorized_bot_labeled_does_not_trigger_revert(self):
+        """The oompah bot applying a status label is authorized — no revert."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="labeled",
+                    number=42,
+                    sender_login="oompah",  # the bot — authorized
+                    label_name="oompah:status:open",
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "issues",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        # Give enough time for any (incorrect) background thread to run
+        time.sleep(0.15)
+        # No revert should have been triggered
+        mock_tracker._set_status_label.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+
+    def test_authorized_owner_in_allowlist_does_not_trigger_revert(self):
+        """A project owner in the allowlist applying a status label is authorized."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=["alice"]
+        )
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="labeled",
+                    number=42,
+                    sender_login="alice",  # in allowlist
+                    label_name="oompah:status:open",
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "issues",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        time.sleep(0.15)
+        mock_tracker._set_status_label.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+
+    def test_non_status_label_does_not_trigger_revert(self):
+        """Non-oompah:status:* label changes do not trigger authorization checks."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert()
+
+        with mpatch("oompah.server._orchestrator", orch):
+            _api_cache.invalidate("issues:all")
+            client = TestClient(app)
+            payload = _github_labeled_payload(
+                action="labeled",
+                number=42,
+                sender_login="anyone",
+                label_name="bug",  # not a status label
+            )
+            resp = client.post(
+                "/api/v1/webhooks/github",
+                content=json.dumps(payload),
+                headers={
+                    "X-GitHub-Event": "issues",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        assert resp.status_code == 200
+        time.sleep(0.15)
+        mock_tracker._set_status_label.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+
+    def test_unlabeled_unauthorized_triggers_revert(self):
+        """Unauthorized removal of oompah:status:* label triggers revert."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="unlabeled",
+                    number=99,
+                    sender_login="attacker",
+                    label_name="oompah:status:open",
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "issues",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        for _ in range(100):
+            if mock_tracker.add_comment.called:
+                break
+            time.sleep(0.02)
+
+        assert mock_tracker.add_comment.called
+
+
+class TestPollingStatusLabelValidation:
+    """fetch_candidate_issues skips issues with untrusted status labels."""
+
+    def _make_tracker(self):
+        from oompah.github_tracker import GitHubIssueTracker, GitHubAuth
+        auth = MagicMock(spec=GitHubAuth)
+        auth.get_token.return_value = "fake-token"
+        tracker = GitHubIssueTracker(
+            owner="org",
+            repo="repo",
+            active_states=["Open"],
+            terminal_states=["Done", "Archived"],
+            auth=auth,
+        )
+        return tracker
+
+    def _make_gh_issue(self, number: int, status_label: str = "oompah:status:open") -> dict:
+        return {
+            "number": number,
+            "title": f"Issue #{number}",
+            "body": "",
+            "state": "open",
+            "labels": [
+                {"name": status_label, "color": "e4e669"}
+            ],
+            "user": {"login": "creator"},
+            "assignees": [],
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+            "html_url": f"https://github.com/org/repo/issues/{number}",
+            "pull_request": None,
+        }
+
+    def test_untrusted_issue_excluded_from_candidates(self):
+        """Issues in _untrusted_status_issues are excluded from fetch_candidate_issues."""
+        import httpx
+        tracker = self._make_tracker()
+
+        gh_issues = [
+            self._make_gh_issue(1),
+            self._make_gh_issue(2),
+        ]
+
+        mock_resp = MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.is_success = True
+        mock_resp.headers = httpx.Headers({})
+        mock_resp.json.return_value = gh_issues
+        mock_resp.request = MagicMock()
+
+        # Mark issue #2 as untrusted
+        tracker._untrusted_status_issues.add(2)
+
+        with patch.object(tracker._client._http, "request", return_value=mock_resp):
+            # Also patch _ensure_status_label to avoid API calls
+            with patch.object(tracker, "_ensure_status_label", side_effect=lambda x: x):
+                candidates = tracker.fetch_candidate_issues()
+
+        numbers = [int(c.identifier.rsplit("#", 1)[-1]) for c in candidates]
+        assert 2 not in numbers, "Issue #2 should be excluded (untrusted)"
+        assert 1 in numbers, "Issue #1 should be included (trusted)"
+
+    def test_trusted_issue_is_included(self):
+        """Issues NOT in _untrusted_status_issues are included normally."""
+        import httpx
+        tracker = self._make_tracker()
+
+        gh_issues = [self._make_gh_issue(3)]
+
+        mock_resp = MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.is_success = True
+        mock_resp.headers = httpx.Headers({})
+        mock_resp.json.return_value = gh_issues
+        mock_resp.request = MagicMock()
+
+        # No untrusted issues
+        with patch.object(tracker._client._http, "request", return_value=mock_resp):
+            with patch.object(tracker, "_ensure_status_label", side_effect=lambda x: x):
+                candidates = tracker.fetch_candidate_issues()
+
+        assert len(candidates) == 1
+
+    def test_record_trusted_status_updates_ledger(self):
+        """record_trusted_status stores the status in the ledger."""
+        tracker = self._make_tracker()
+        tracker.record_trusted_status(42, "Open")
+        assert tracker._trusted_status_ledger[42] == "Open"
+        assert 42 not in tracker._untrusted_status_issues
+
+    def test_record_trusted_status_clears_untrusted_set(self):
+        """record_trusted_status removes issue from untrusted set."""
+        tracker = self._make_tracker()
+        tracker._untrusted_status_issues.add(42)
+        tracker.record_trusted_status(42, "Open")
+        assert 42 not in tracker._untrusted_status_issues
+
+    def test_record_untrusted_status_label_change_adds_to_set(self):
+        """record_untrusted_status_label_change marks issue as untrusted."""
+        tracker = self._make_tracker()
+        tracker._trusted_status_ledger[5] = "Backlog"
+        tracker.record_untrusted_status_label_change(5, "oompah:status:open", "attacker", "labeled")
+        assert 5 in tracker._untrusted_status_issues
+        # Ledger entry should be removed
+        assert 5 not in tracker._trusted_status_ledger
+
+    def test_set_status_label_records_trusted_status(self):
+        """_set_status_label records the new status in the trusted ledger."""
+        import httpx
+        tracker = self._make_tracker()
+
+        # Mock the label operations
+        mock_labels_resp = MagicMock(spec=httpx.Response)
+        mock_labels_resp.status_code = 200
+        mock_labels_resp.is_success = True
+        mock_labels_resp.headers = httpx.Headers({})
+        mock_labels_resp.json.return_value = []
+        mock_labels_resp.request = MagicMock()
+
+        mock_post_resp = MagicMock(spec=httpx.Response)
+        mock_post_resp.status_code = 200
+        mock_post_resp.is_success = True
+        mock_post_resp.headers = httpx.Headers({})
+        mock_post_resp.json.return_value = {}
+        mock_post_resp.request = MagicMock()
+
+        with patch.object(tracker._client._http, "request", return_value=mock_labels_resp):
+            tracker._set_status_label(7, "Open")
+
+        assert tracker._trusted_status_ledger.get(7) == "Open"
+        assert 7 not in tracker._untrusted_status_issues
+
+
+class TestValidateStatusLabelActor:
+    """Tests for GitHubIssueTracker.validate_status_label_actor()."""
+
+    def _make_tracker(self):
+        from oompah.github_tracker import GitHubIssueTracker, GitHubAuth
+        auth = MagicMock(spec=GitHubAuth)
+        auth.get_token.return_value = "fake-token"
+        return GitHubIssueTracker(
+            owner="org",
+            repo="repo",
+            active_states=["Open"],
+            terminal_states=["Done", "Archived"],
+            auth=auth,
+        )
+
+    def _make_mock_events_response(self, events_data, headers=None):
+        import httpx
+        mock_resp = MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.is_success = True
+        mock_resp.headers = httpx.Headers(headers or {})
+        mock_resp.json.return_value = events_data
+        mock_resp.request = MagicMock()
+        return mock_resp
+
+    def test_authorized_actor_returns_true(self):
+        """When the most recent labeled event was by an authorized actor, returns True."""
+        tracker = self._make_tracker()
+        events = [
+            {
+                "event": "labeled",
+                "label": {"name": "oompah:status:open"},
+                "actor": {"login": "oompah"},
+                "created_at": "2024-01-01T00:00:00Z",
+            }
+        ]
+        mock_resp = self._make_mock_events_response(events)
+        with patch.object(tracker._client._http, "request", return_value=mock_resp):
+            result = tracker.validate_status_label_actor(
+                42, "Open", frozenset({"oompah"})
+            )
+        assert result is True
+
+    def test_unauthorized_actor_returns_false(self):
+        """When the most recent labeled event was by an unauthorized actor, returns False."""
+        tracker = self._make_tracker()
+        events = [
+            {
+                "event": "labeled",
+                "label": {"name": "oompah:status:open"},
+                "actor": {"login": "attacker"},
+                "created_at": "2024-01-01T00:00:00Z",
+            }
+        ]
+        mock_resp = self._make_mock_events_response(events)
+        with patch.object(tracker._client._http, "request", return_value=mock_resp):
+            result = tracker.validate_status_label_actor(
+                42, "Open", frozenset({"oompah"})
+            )
+        assert result is False
+
+    def test_no_labeled_events_returns_true(self):
+        """When there are no labeled events, treat as trusted (can't verify)."""
+        tracker = self._make_tracker()
+        events = []  # No labeled events at all
+        mock_resp = self._make_mock_events_response(events)
+        with patch.object(tracker._client._http, "request", return_value=mock_resp):
+            result = tracker.validate_status_label_actor(
+                42, "Open", frozenset({"oompah"})
+            )
+        assert result is True
+
+    def test_api_failure_returns_true(self):
+        """API failure to fetch events treats the issue as trusted (don't block dispatch)."""
+        from oompah.tracker import TrackerError
+        tracker = self._make_tracker()
+        with patch.object(
+            tracker._client,
+            "request_paginated",
+            side_effect=TrackerError("API unavailable"),
+        ):
+            result = tracker.validate_status_label_actor(
+                42, "Open", frozenset({"oompah"})
+            )
+        assert result is True
+
+    def test_most_recent_labeled_event_is_checked(self):
+        """Multiple labeled events: only the most recent one is authoritative."""
+        tracker = self._make_tracker()
+        events = [
+            {
+                "event": "labeled",
+                "label": {"name": "oompah:status:open"},
+                "actor": {"login": "oompah"},  # authorized, but older
+                "created_at": "2024-01-01T00:00:00Z",
+            },
+            {
+                "event": "labeled",
+                "label": {"name": "oompah:status:open"},
+                "actor": {"login": "attacker"},  # unauthorized, but more recent
+                "created_at": "2024-01-02T00:00:00Z",
+            },
+        ]
+        mock_resp = self._make_mock_events_response(events)
+        with patch.object(tracker._client._http, "request", return_value=mock_resp):
+            result = tracker.validate_status_label_actor(
+                42, "Open", frozenset({"oompah"})
+            )
+        # The most recent event was by "attacker" — unauthorized
+        assert result is False
+
+    def test_authorized_set_includes_project_owners(self):
+        """Project owners in authorized set are treated as trusted."""
+        tracker = self._make_tracker()
+        events = [
+            {
+                "event": "labeled",
+                "label": {"name": "oompah:status:open"},
+                "actor": {"login": "alice"},
+                "created_at": "2024-01-01T00:00:00Z",
+            }
+        ]
+        mock_resp = self._make_mock_events_response(events)
+        with patch.object(tracker._client._http, "request", return_value=mock_resp):
+            result = tracker.validate_status_label_actor(
+                42, "Open", frozenset({"oompah", "alice"})  # alice is authorized
+            )
+        assert result is True
