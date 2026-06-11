@@ -555,7 +555,7 @@ class FakeGitHubHTTPServer:
         if "labels" in json_body:
             issue["labels"] = [
                 {"id": i + 1, "name": name, "color": "ededed"}
-                for i, name in enumerate(json_body["labels"] or [])
+                for i, name in enumerate(json_body.get("labels") or [])
             ]
 
         return self._resp(200, issue)

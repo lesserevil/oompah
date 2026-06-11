@@ -79,6 +79,7 @@ def _stub_dispatch_needed(orch) -> None:
     orch._fetch_all_candidates = MagicMock(return_value=[])
     orch._pre_resolve_blockers = MagicMock()
     orch._apply_duplicate_detection = MagicMock(return_value=[])
+    orch._process_epic_proposals = MagicMock(return_value=[])
     orch._select_dispatchable = MagicMock(return_value=[])
     orch._plan_open_epics = MagicMock(return_value=[])
     orch._auto_close_completed_epics = MagicMock()
@@ -103,6 +104,7 @@ class TestHandleDispatchNeededTimings:
         "candidate_fetch",
         "blocker_pre_resolution",
         "duplicate_detection",
+        "epic_proposals",
         "candidate_selection",
         "normal_dispatch",
         "epic_planning",
@@ -258,6 +260,7 @@ class TestTickTimingsStorage:
             "candidate_fetch": 10.0,
             "blocker_pre_resolution": 5.0,
             "duplicate_detection": 2.0,
+            "epic_proposals": 1.0,
             "candidate_selection": 8.0,
             "normal_dispatch": 0.0,
             "epic_planning": 3.0,
@@ -334,6 +337,7 @@ class TestTickTimingsStorage:
             "candidate_fetch": 10.0,
             "blocker_pre_resolution": 5.0,
             "duplicate_detection": 2.0,
+            "epic_proposals": 1.0,
             "candidate_selection": 8.0,
             "normal_dispatch": 0.0,
             "epic_planning": 3.0,
@@ -438,6 +442,7 @@ class TestSlowTickSubstepLogging:
             "candidate_fetch": 1500.0,
             "blocker_pre_resolution": 200.0,
             "duplicate_detection": 50.0,
+            "epic_proposals": 25.0,
             "candidate_selection": 100.0,
             "normal_dispatch": 0.0,
             "epic_planning": 50.0,
@@ -485,6 +490,7 @@ class TestSlowTickSubstepLogging:
             "candidate_fetch": 0.0,
             "blocker_pre_resolution": 0.0,
             "duplicate_detection": 0.0,
+            "epic_proposals": 0.0,
             "candidate_selection": 0.0,
             "normal_dispatch": 0.0,
             "epic_planning": 0.0,
@@ -572,6 +578,7 @@ class TestTickTimingsSnapshot:
             "candidate_fetch": 5.0,
             "blocker_pre_resolution": 1.0,
             "duplicate_detection": 1.0,
+            "epic_proposals": 1.0,
             "candidate_selection": 2.0,
             "normal_dispatch": 0.0,
             "epic_planning": 0.0,
@@ -620,6 +627,7 @@ class TestTickTimingsSnapshot:
             "candidate_fetch": 10.0,
             "blocker_pre_resolution": 5.0,
             "duplicate_detection": 2.0,
+            "epic_proposals": 1.0,
             "candidate_selection": 8.0,
             "normal_dispatch": 0.0,
             "epic_planning": 3.0,

@@ -465,6 +465,7 @@ class TestProjectStoreUpdatableFields:
             "test_skip_paths",
             "epic_strategy",
             "require_epic_for_tasks",
+            "intake_auto_promote",
             "provider_whitelist",
             "backlog_conflict_paths",
             # Per-project tracker configuration

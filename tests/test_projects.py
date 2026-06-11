@@ -25,6 +25,7 @@ from oompah.projects import (
     _sanitize_identifier,
     github_work_branch_name,
 )
+from oompah.statuses import CANONICAL_STATUSES
 
 
 def _make_repo(tmp_path, *, backlog: bool = True):
@@ -55,7 +56,7 @@ def _write_backlog_config(repo, *, legacy: bool = False):
             "project_name: Test",
             "default_status: Backlog",
             "task_prefix: TASK",
-            "statuses: [Proposed, Backlog, Open, In Progress, Needs Answer, Needs Human, Needs CI Fix, Needs Rebase, In Review, Decomposed, Duplicate Candidate, Done, Merged, Archived]",
+            f"statuses: [{', '.join(CANONICAL_STATUSES)}]",
             "",
         ])
     (backlog_dir / "config.yml").write_text(content, encoding="utf-8")

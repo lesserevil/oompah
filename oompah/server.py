@@ -61,12 +61,18 @@ from oompah.issue_enhancer import (
     enhance_issue,
     has_quality_source,
 )
+from oompah.intake_approval import is_approval_command
+from oompah.intake_promotion import (
+    promote_proposed_issue_to_backlog,
+    record_intake_approval,
+)
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
 from oompah.roles import Candidate, RoleError, RoleStore, VALID_STRATEGIES, DEFAULT_STRATEGY
 from oompah.statuses import (
     ARCHIVED,
+    BACKLOG,
     CANONICAL_STATUSES,
     IN_PROGRESS,
     IN_REVIEW,
@@ -76,6 +82,7 @@ from oompah.statuses import (
     NEEDS_HUMAN,
     NEEDS_REBASE,
     OPEN,
+    PROPOSED,
     canonicalize_status,
     epic_rollup_state,
 )
@@ -2605,7 +2612,70 @@ async def api_update_issue(identifier: str, request: Request):
             and (existing_issue.issue_type or "").strip().lower() == "epic"
         )
 
-        if new_status is not None and str(new_status).strip().lower() == "closed":
+        handled_status = False
+        if new_status is not None:
+            requested_status = canonicalize_status(new_status)
+            existing_status = canonicalize_status(
+                existing_issue.state if existing_issue is not None else None
+            )
+            if existing_status == PROPOSED and requested_status == OPEN:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "intake_transition_blocked",
+                            "message": (
+                                "Proposed issues must be promoted to Backlog "
+                                "before they can be moved to Open."
+                            ),
+                        }
+                    },
+                    status_code=409,
+                )
+            if existing_status == PROPOSED and requested_status == BACKLOG:
+                owner_override_requested = body.get("owner_override", False)
+                if not isinstance(owner_override_requested, bool):
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "validation",
+                                "message": "owner_override must be a boolean",
+                            }
+                        },
+                        status_code=400,
+                    )
+                owner_override_actor = None
+                if owner_override_requested:
+                    owner_override_actor = str(
+                        body.get("owner_actor")
+                        or body.get("actor")
+                        or "project-owner"
+                    )
+                result = promote_proposed_issue_to_backlog(
+                    tracker,
+                    identifier,
+                    current_status=existing_status,
+                    owner_override_actor=owner_override_actor,
+                )
+                if not result.promoted:
+                    return JSONResponse(
+                        {
+                            "error": {
+                                "code": "intake_transition_blocked",
+                                "message": (
+                                    "Proposed issue was not promoted to Backlog: "
+                                    f"{result.reason}"
+                                ),
+                            }
+                        },
+                        status_code=409,
+                    )
+                handled_status = True
+
+        if (
+            new_status is not None
+            and not handled_status
+            and str(new_status).strip().lower() == "closed"
+        ):
             # Legacy close alias; apply other fields first if any.
             update_fields: dict[str, str] = {}
             if new_priority is not None:
@@ -2621,7 +2691,9 @@ async def api_update_issue(identifier: str, request: Request):
             update_fields = {}
             needs_human_status: str | None = None
             if new_status is not None:
-                if canonicalize_status(new_status) == NEEDS_HUMAN:
+                if handled_status:
+                    pass
+                elif canonicalize_status(new_status) == NEEDS_HUMAN:
                     needs_human_status = str(new_status)
                 else:
                     update_fields["status"] = new_status
@@ -5481,6 +5553,20 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
+        if "intake_auto_promote" in body:
+            val = body["intake_auto_promote"]
+            if isinstance(val, bool):
+                fields["intake_auto_promote"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "intake_auto_promote must be a boolean",
+                        }
+                    },
+                    status_code=400,
+                )
         if "provider_whitelist" in body:
             val = body["provider_whitelist"]
             if val is None:
@@ -7064,6 +7150,18 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
                     daemon=True,
                 ).start()
 
+    if (
+        event.event_type == "issue_comment"
+        and event.action in ("created", "edited")
+        and project
+    ):
+        threading.Thread(
+            target=_handle_intake_approval_comment,
+            args=(orch, event, project),
+            name=f"webhook-intake-approval-{project.name}",
+            daemon=True,
+        ).start()
+
 
 def _is_oompah_owned_label_event(orch, event, project) -> bool:
     """Return ``True`` when a label event can be correlated to an oompah write.
@@ -7128,6 +7226,80 @@ def _record_trusted_status_label_event(orch, event, project) -> None:
             project.name,
             event.issue_number,
             exc,
+        )
+
+
+def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
+    """Record an intake approval comment and promote when configured."""
+    comment = (event.raw or {}).get("comment") or {}
+    comment_body = comment.get("body", "") or ""
+    if not is_approval_command(comment_body):
+        return
+
+    raw_issue = (event.raw or {}).get("issue") or {}
+    if raw_issue.get("pull_request"):
+        return
+    if not event.issue_number:
+        return
+
+    try:
+        issue_number = int(event.issue_number)
+    except (TypeError, ValueError):
+        return
+
+    try:
+        tracker = orch._tracker_for_project(project.id)
+    except Exception as exc:
+        logger.error(
+            "Cannot get tracker for project %s to record intake approval: %s",
+            project.name,
+            exc,
+        )
+        return
+
+    identifier = _tracker_identifier_for_issue_number(tracker, issue_number)
+    issue = tracker.fetch_issue_detail(identifier)
+    if issue is None or canonicalize_status(issue.state) != PROPOSED:
+        return
+    identifier = str(getattr(issue, "identifier", None) or identifier)
+
+    requestor = ((raw_issue.get("user") or {}).get("login") or "").strip()
+    if not requestor:
+        return
+
+    readiness = record_intake_approval(
+        tracker,
+        identifier,
+        issue_description=getattr(issue, "description", None)
+        or raw_issue.get("body", "")
+        or "",
+        actor=event.author,
+        requestor=requestor,
+        project=project,
+    )
+    if readiness is None:
+        return
+
+    if not getattr(project, "intake_auto_promote", True):
+        logger.info(
+            "Recorded intake approval for %s; auto-promotion disabled for project %s",
+            identifier,
+            project.name,
+        )
+        return
+
+    result = promote_proposed_issue_to_backlog(
+        tracker,
+        identifier,
+        current_status=issue.state,
+    )
+    if result.promoted:
+        logger.info("Promoted %s to Backlog via intake approval", identifier)
+    else:
+        logger.info(
+            "Intake approval recorded for %s but promotion blocked: %s",
+            identifier,
+            result.reason,
         )
 
 

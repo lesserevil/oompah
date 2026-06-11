@@ -75,6 +75,7 @@ _PROJECT_READABLE_FIELDS = frozenset(
         "legacy_backlog_enabled",
         "legacy_backlog_dispatch",
         "tracker_cutover_at",
+        "intake_auto_promote",
         "paused",
     }
 )
@@ -88,6 +89,7 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
         "legacy_backlog_enabled",
         "legacy_backlog_dispatch",
         "tracker_cutover_at",
+        "intake_auto_promote",
         "paused",
     }
 )
@@ -103,6 +105,10 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         except AttributeError:
             cutover_at = str(raw)
 
+    def bool_attr(name: str, default: bool) -> bool:
+        value = getattr(project, name, default)
+        return value if isinstance(value, bool) else default
+
     return {
         "id": project.id,
         "name": getattr(project, "name", None),
@@ -111,10 +117,11 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         "tracker_owner": getattr(project, "tracker_owner", None),
         "tracker_repo": getattr(project, "tracker_repo", None),
         "github_project_node_id": getattr(project, "github_project_node_id", None),
-        "legacy_backlog_enabled": getattr(project, "legacy_backlog_enabled", False),
-        "legacy_backlog_dispatch": getattr(project, "legacy_backlog_dispatch", False),
+        "legacy_backlog_enabled": bool_attr("legacy_backlog_enabled", False),
+        "legacy_backlog_dispatch": bool_attr("legacy_backlog_dispatch", False),
         "tracker_cutover_at": cutover_at,
-        "paused": getattr(project, "paused", False),
+        "intake_auto_promote": bool_attr("intake_auto_promote", True),
+        "paused": bool_attr("paused", False),
     }
 
 

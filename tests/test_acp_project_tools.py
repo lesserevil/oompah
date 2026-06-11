@@ -37,6 +37,7 @@ def _make_project(
     legacy_backlog_enabled: bool = False,
     legacy_backlog_dispatch: bool = False,
     tracker_cutover_at: datetime | None = None,
+    intake_auto_promote: bool = True,
     paused: bool = False,
 ) -> MagicMock:
     """Build a mock Project with realistic field defaults."""
@@ -51,6 +52,7 @@ def _make_project(
     p.legacy_backlog_enabled = legacy_backlog_enabled
     p.legacy_backlog_dispatch = legacy_backlog_dispatch
     p.tracker_cutover_at = tracker_cutover_at
+    p.intake_auto_promote = intake_auto_promote
     p.paused = paused
     return p
 
@@ -139,6 +141,7 @@ class TestExecGetProject:
         assert data["legacy_backlog_enabled"] is False
         assert data["legacy_backlog_dispatch"] is False
         assert data["tracker_cutover_at"] is None
+        assert data["intake_auto_promote"] is True
         assert data["paused"] is False
 
     def test_returns_cutover_at_as_isoformat(self):
@@ -219,6 +222,7 @@ class TestExecGetProject:
             legacy_backlog_enabled=True,
             legacy_backlog_dispatch=True,
             tracker_cutover_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            intake_auto_promote=False,
             paused=True,
         )
         store = _make_store(project)
@@ -391,6 +395,19 @@ class TestExecUpdateProject:
         data = json.loads(result)
         assert data["paused"] is True
 
+    def test_updates_intake_auto_promote_flag(self):
+        from oompah.acp_tools import _exec_update_project
+
+        updated = _make_project(intake_auto_promote=False)
+        store = _make_store(updated)
+        store.update.return_value = updated
+
+        result = _exec_update_project(
+            store, "proj-test", '{"intake_auto_promote": false}'
+        )
+        data = json.loads(result)
+        assert data["intake_auto_promote"] is False
+
     def test_updates_legacy_backlog_flags(self):
         from oompah.acp_tools import _exec_update_project
 
@@ -415,6 +432,7 @@ class TestExecUpdateProject:
             "legacy_backlog_enabled",
             "legacy_backlog_dispatch",
             "tracker_cutover_at",
+            "intake_auto_promote",
             "paused",
         }
         assert _PROJECT_UPDATABLE_FIELDS == expected, (

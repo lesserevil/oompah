@@ -2397,6 +2397,7 @@ class TestGitHubIssueTrackerMutations:
         assert last_call[1]["json"]["state"] == "open"
         assert "oompah:status:done" in last_call[1]["json"]["labels"]
         assert "oompah:status:open" not in last_call[1]["json"]["labels"]
+        assert tracker._trusted_status_ledger[7] == "Done"
 
     def test_update_issue_status_merged_swaps_label_and_closes(self):
         """Updating status to Merged closes the native GitHub issue."""

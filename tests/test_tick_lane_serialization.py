@@ -108,6 +108,7 @@ def _stub_dispatch_cycle(orch: Orchestrator) -> Orchestrator:
     orch._fetch_all_candidates = MagicMock(return_value=[])
     orch._pre_resolve_blockers = MagicMock()
     orch._apply_duplicate_detection = MagicMock()
+    orch._process_epic_proposals = MagicMock(return_value=[])
     orch._select_dispatchable = MagicMock(return_value=[])
     orch._plan_open_epics = MagicMock(return_value=[])
     orch._auto_close_completed_epics = MagicMock()

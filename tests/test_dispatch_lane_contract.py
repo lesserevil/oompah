@@ -72,6 +72,7 @@ def _make_orchestrator(tmp_path):
     # lane-contract tests only exercise dispatch serialization, so keep real
     # tracker/git maintenance out of the background between tests.
     orch._run_step5c_epic_maintenance = MagicMock()
+    orch._process_epic_proposals = MagicMock(return_value=[])
     return orch
 
 
