@@ -28,10 +28,16 @@ from oompah.label_auth import (
 # ---------------------------------------------------------------------------
 
 
-def _make_project(authorized_logins: list[str] | None = None) -> MagicMock:
+def _make_project(
+    authorized_logins: list[str] | None = None,
+    *,
+    tracker_owner: str | None = None,
+) -> MagicMock:
     """Return a mock Project with the given authorized-login list."""
     project = MagicMock()
     project.status_label_authorized_logins = authorized_logins or []
+    if tracker_owner is not None:
+        project.tracker_owner = tracker_owner
     return project
 
 
@@ -231,6 +237,13 @@ class TestIsAuthorizedStatusActor:
         project = _make_project(["Alice"])
         assert is_authorized_status_actor("alice", project) is True
         assert is_authorized_status_actor("ALICE", project) is True
+
+    def test_tracker_owner_is_authorized_by_default(self):
+        """The configured tracker owner is authorized without an allowlist entry."""
+        project = _make_project([], tracker_owner="lesserevil")
+        with patch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+            assert is_authorized_status_actor("lesserevil", project) is True
+            assert is_authorized_status_actor("LESSEREVIL", project) is True
 
     def test_unauthorized_user_not_in_allowlist(self):
         """A user not in the allowlist and not the bot is unauthorized."""

@@ -92,6 +92,10 @@ logger = logging.getLogger(__name__)
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _template_cache: dict[str, str] = {}
 
+_UNAUTHORIZED_STATUS_COMMENT_COOLDOWN_SECONDS = 60 * 60
+_UNAUTHORIZED_STATUS_COMMENT_LOCK = threading.Lock()
+_unauthorized_status_comment_last_post: dict[tuple[str, str, str], float] = {}
+
 
 def _load_template(name: str) -> str:
     """Load an HTML template, cached in memory after first read."""
@@ -7023,15 +7027,82 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         and project
     ):
         from oompah.label_auth import is_status_label, is_authorized_status_actor
-        if is_status_label(event.label_name) and not is_authorized_status_actor(
-            event.label_actor, project
+
+        if is_status_label(event.label_name):
+            authorized = is_authorized_status_actor(event.label_actor, project)
+            if authorized:
+                _record_trusted_status_label_event(orch, event, project)
+            else:
+                threading.Thread(
+                    target=_revert_unauthorized_status_label_change,
+                    args=(orch, event, project),
+                    name=f"webhook-label-revert-{project.name}",
+                    daemon=True,
+                ).start()
+
+
+def _record_trusted_status_label_event(orch, event, project) -> None:
+    """Record an authorized status-label application in the tracker ledger."""
+    if event.action != "labeled" or not event.issue_number:
+        return
+
+    from oompah.label_auth import label_name_to_status
+
+    status = label_name_to_status(event.label_name)
+    if not status:
+        return
+
+    try:
+        tracker = orch._tracker_for_project(project.id)
+        record_trusted = getattr(tracker, "record_trusted_status", None)
+        if callable(record_trusted):
+            record_trusted(int(event.issue_number), status)
+    except Exception as exc:  # pragma: no cover - best-effort cache update
+        logger.debug(
+            "Failed to record trusted status label event for %s#%s: %s",
+            project.name,
+            event.issue_number,
+            exc,
+        )
+
+
+def _should_post_unauthorized_status_comment(
+    project,
+    issue_number: str | int,
+    label_actor: str,
+    *,
+    now: float | None = None,
+) -> bool:
+    """Rate-limit unauthorized-status explanatory comments per issue and actor."""
+    project_key = str(getattr(project, "id", None) or getattr(project, "name", ""))
+    key = (
+        project_key,
+        str(issue_number),
+        (label_actor or "").strip().lower(),
+    )
+    current = time.monotonic() if now is None else now
+
+    with _UNAUTHORIZED_STATUS_COMMENT_LOCK:
+        last_post = _unauthorized_status_comment_last_post.get(key)
+        if (
+            last_post is not None
+            and current - last_post < _UNAUTHORIZED_STATUS_COMMENT_COOLDOWN_SECONDS
         ):
-            threading.Thread(
-                target=_revert_unauthorized_status_label_change,
-                args=(orch, event, project),
-                name=f"webhook-label-revert-{project.name}",
-                daemon=True,
-            ).start()
+            return False
+
+        _unauthorized_status_comment_last_post[key] = current
+
+        if len(_unauthorized_status_comment_last_post) > 1024:
+            cutoff = current - _UNAUTHORIZED_STATUS_COMMENT_COOLDOWN_SECONDS
+            stale_keys = [
+                stored_key
+                for stored_key, stored_at in _unauthorized_status_comment_last_post.items()
+                if stored_at < cutoff
+            ]
+            for stale_key in stale_keys:
+                _unauthorized_status_comment_last_post.pop(stale_key, None)
+
+        return True
 
 
 def _revert_unauthorized_status_label_change(orch, event, project) -> None:
@@ -7100,6 +7171,22 @@ def _revert_unauthorized_status_label_change(orch, event, project) -> None:
         )
 
     # Post an explanatory comment so the actor understands what happened.
+    # The reservation happens before the API call so GitHub secondary-rate-limit
+    # errors do not themselves create a comment-attempt loop.
+    if not _should_post_unauthorized_status_comment(
+        project,
+        issue_number,
+        label_actor,
+    ):
+        logger.info(
+            "Suppressing repeated unauthorized-label-change comment on %s#%s "
+            "for actor=%s",
+            project.name,
+            issue_number,
+            label_actor,
+        )
+        return
+
     try:
         status_display = label_name_to_status(label_name) or label_name
         if action == "labeled":
@@ -7132,6 +7219,33 @@ def _revert_unauthorized_status_label_change(orch, event, project) -> None:
             issue_number,
             exc,
         )
+
+
+def _tracker_identifier_for_issue_number(tracker, number: int) -> str:
+    """Return the tracker-specific identifier for an issue number."""
+    identifier_for_number = getattr(tracker, "identifier_for_number", None)
+    if callable(identifier_for_number):
+        try:
+            return str(identifier_for_number(number))
+        except Exception:
+            pass
+
+    owner = getattr(tracker, "owner", None)
+    repo = getattr(tracker, "repo", None)
+    if isinstance(owner, str) and owner and isinstance(repo, str) and repo:
+        return f"{owner}/{repo}#{number}"
+
+    return str(number)
+
+
+def _remove_status_label_from_tracker(tracker, number: int, label_name: str) -> None:
+    """Remove a status label using the tracker's public label API when present."""
+    remove_label = getattr(tracker, "remove_label", None)
+    if not callable(remove_label):
+        return
+
+    identifier = _tracker_identifier_for_issue_number(tracker, number)
+    remove_label(identifier, label_name)
 
 
 def _do_revert_status_label(tracker, issue_number: str, label_name: str, action: str) -> None:
@@ -7168,14 +7282,14 @@ def _do_revert_status_label(tracker, issue_number: str, label_name: str, action:
                 # Restore to last known-good status.
                 set_status(num, prev_status)
             else:
-                # No ledger entry — just remove the unauthorized label
-                # and let oompah re-apply Backlog (the safe default).
-                set_status(num, "Backlog")
+                # No ledger entry — remove only the unauthorized label. Writing
+                # a default status here can feed a webhook loop when the write
+                # is attributed to an actor the authorization layer does not
+                # yet trust.
+                _remove_status_label_from_tracker(tracker, num, label_name)
         else:
             # Generic fallback: remove the unauthorized label directly.
-            remove_label = getattr(tracker, "remove_label", None)
-            if callable(remove_label):
-                remove_label(issue_number, label_name)
+            _remove_status_label_from_tracker(tracker, num, label_name)
     else:
         # action == "unlabeled" — actor removed a status label.
         # Re-apply the label that was removed.

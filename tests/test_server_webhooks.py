@@ -1618,6 +1618,11 @@ class TestUnauthorizedStatusLabelRevert:
         mock_tracker._trusted_status_ledger = {}
         mock_tracker._untrusted_status_issues = set()
         mock_tracker.record_untrusted_status_label_change = MagicMock()
+        mock_tracker.record_trusted_status = MagicMock()
+        mock_tracker.remove_label = MagicMock()
+        mock_tracker.identifier_for_number = MagicMock(
+            side_effect=lambda number: f"org/repo#{number}"
+        )
 
         orch = _make_mock_orchestrator(projects=[project])
         orch._tracker_for_project = MagicMock(return_value=mock_tracker)
@@ -1743,6 +1748,41 @@ class TestUnauthorizedStatusLabelRevert:
         mock_tracker._set_status_label.assert_not_called()
         mock_tracker.add_comment.assert_not_called()
 
+    def test_tracker_owner_labeled_records_trusted_status_without_revert(self):
+        """The tracker owner can apply status labels and updates the trusted ledger."""
+        import time
+        from oompah.server import app, _api_cache
+        from unittest.mock import patch as mpatch
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+
+        with mpatch("oompah.server._orchestrator", orch):
+            with mpatch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+                _api_cache.invalidate("issues:all")
+                client = TestClient(app)
+                payload = _github_labeled_payload(
+                    action="labeled",
+                    number=42,
+                    sender_login="org",
+                    label_name="oompah:status:open",
+                )
+                resp = client.post(
+                    "/api/v1/webhooks/github",
+                    content=json.dumps(payload),
+                    headers={
+                        "X-GitHub-Event": "issues",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+        assert resp.status_code == 200
+        time.sleep(0.15)
+        mock_tracker._set_status_label.assert_not_called()
+        mock_tracker.add_comment.assert_not_called()
+        mock_tracker.record_trusted_status.assert_called_once_with(42, "Open")
+
     def test_non_status_label_does_not_trigger_revert(self):
         """Non-oompah:status:* label changes do not trigger authorization checks."""
         import time
@@ -1810,6 +1850,57 @@ class TestUnauthorizedStatusLabelRevert:
             time.sleep(0.02)
 
         assert mock_tracker.add_comment.called
+
+    def test_unauthorized_comment_is_rate_limited_per_issue_actor(self):
+        """Repeated unauthorized label events do not post repeated comments."""
+        from oompah.server import (
+            _revert_unauthorized_status_label_change,
+            _unauthorized_status_comment_last_post,
+        )
+        from oompah.webhooks import WebhookEvent
+
+        orch, mock_tracker, project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+        event = WebhookEvent(
+            provider="github",
+            event_type="issues",
+            action="labeled",
+            repo_slug="org/repo",
+            issue_number="42",
+            label_name="oompah:status:open",
+            label_actor="attacker",
+        )
+
+        _unauthorized_status_comment_last_post.clear()
+        try:
+            _revert_unauthorized_status_label_change(orch, event, project)
+            _revert_unauthorized_status_label_change(orch, event, project)
+        finally:
+            _unauthorized_status_comment_last_post.clear()
+
+        assert mock_tracker.add_comment.call_count == 1
+
+    def test_labeled_without_trusted_ledger_removes_label(self):
+        """A no-ledger labeled revert removes only the untrusted label."""
+        from oompah.server import _do_revert_status_label
+
+        _orch, mock_tracker, _project = self._make_orch_with_tracker_for_revert(
+            authorized_logins=[]
+        )
+
+        _do_revert_status_label(
+            mock_tracker,
+            "42",
+            "oompah:status:open",
+            "labeled",
+        )
+
+        mock_tracker._set_status_label.assert_not_called()
+        mock_tracker.remove_label.assert_called_once_with(
+            "org/repo#42",
+            "oompah:status:open",
+        )
 
 
 class TestPollingStatusLabelValidation:

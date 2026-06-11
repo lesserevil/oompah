@@ -14,9 +14,13 @@ An ``oompah:status:*`` label change is **authorized** when the actor is:
    API calls).  Bot identity is read from the ``OOMPAH_BOT_LOGIN`` environment
    variable; the default is ``"oompah"``.
 
-2. A project owner listed in
+2. The project's GitHub tracker owner, when configured.  This covers common
+   deployments where oompah writes labels through the repository owner's PAT
+   and GitHub reports the label actor as that owner login.
+
+3. A project owner listed in
    :attr:`~oompah.models.Project.status_label_authorized_logins`.  This list
-   defaults to empty, meaning only the oompah bot is trusted by default.
+   defaults to empty.
 
 The bot-identity check is the primary guard for normal lifecycle transitions
 (claim → In Progress, merge → Merged, etc.).  The project-owner allowlist
@@ -161,7 +165,8 @@ def is_authorized_status_actor(actor_login: str, project: Any) -> bool:
     Authorization requires the actor to be one of:
 
     1. The oompah bot (``get_bot_login()``, case-insensitive comparison).
-    2. A login in ``project.status_label_authorized_logins`` (case-insensitive).
+    2. ``project.tracker_owner`` (case-insensitive), when configured.
+    3. A login in ``project.status_label_authorized_logins`` (case-insensitive).
 
     When *project* is ``None`` or has no ``status_label_authorized_logins``
     attribute, only the bot login is trusted.
@@ -185,9 +190,16 @@ def is_authorized_status_actor(actor_login: str, project: Any) -> bool:
 
     # Check per-project owner allowlist.
     if project is not None:
+        tracker_owner = getattr(project, "tracker_owner", None)
+        if (
+            isinstance(tracker_owner, str)
+            and tracker_owner.strip().lower() == actor_lower
+        ):
+            return True
+
         authorized = getattr(project, "status_label_authorized_logins", None) or []
         for login in authorized:
-            if login and login.strip().lower() == actor_lower:
+            if isinstance(login, str) and login.strip().lower() == actor_lower:
                 return True
 
     return False
