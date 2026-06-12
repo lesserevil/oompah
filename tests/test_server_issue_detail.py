@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -488,8 +488,8 @@ class TestCommentsEndpoint:
 
         assert resp.status_code == 404
 
-    def test_post_adds_comment_and_broadcasts(self, client):
-        """POST /comments writes via tracker and refreshes the board."""
+    def test_post_adds_comment_and_schedules_broadcast(self, client):
+        """POST /comments writes via tracker and schedules a board refresh."""
         mock_orch, mock_tracker = _make_mock_orchestrator()
         mock_tracker.add_comment.return_value = {
             "author": "oompah",
@@ -498,11 +498,7 @@ class TestCommentsEndpoint:
 
         with (
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
-            patch.object(
-                server_module,
-                "broadcast_issues",
-                new_callable=AsyncMock,
-            ) as mock_broadcast,
+            patch.object(server_module, "_schedule_api_coro") as mock_schedule,
         ):
             resp = client.post(
                 "/api/v1/issues/my-issue/comments",
@@ -520,7 +516,7 @@ class TestCommentsEndpoint:
             "Working on it",
             author="oompah",
         )
-        mock_broadcast.assert_awaited_once()
+        mock_schedule.assert_called_once_with(server_module.broadcast_issues)
 
     def test_post_comment_infers_project_from_github_identifier(self, client):
         """Fully-qualified GitHub ids avoid network issue search."""
@@ -539,11 +535,7 @@ class TestCommentsEndpoint:
                 "_find_tracker_for_issue",
                 side_effect=AssertionError("should not search all projects"),
             ) as mock_find,
-            patch.object(
-                server_module,
-                "broadcast_issues",
-                new_callable=AsyncMock,
-            ),
+            patch.object(server_module, "_schedule_api_coro") as mock_schedule,
         ):
             resp = client.post(
                 "/api/v1/issues/ignored/comments",
@@ -562,3 +554,4 @@ class TestCommentsEndpoint:
         )
         mock_tracker.fetch_issue_detail.assert_not_called()
         mock_find.assert_not_called()
+        mock_schedule.assert_called_once_with(server_module.broadcast_issues)

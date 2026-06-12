@@ -3795,7 +3795,7 @@ async def api_add_comment(identifier: str, request: Request):
         _api_cache.invalidate(f"comments:{project_id}:{resolved_identifier}")
         _api_cache.invalidate_prefix(f"detail:{project_id}:{resolved_identifier}")
         _api_cache.invalidate("issues:all")
-        await broadcast_issues()
+        _schedule_api_coro(broadcast_issues)
         return JSONResponse(result, status_code=201)
     except Exception as exc:
         logger.error("Add comment API error: %s", exc)
