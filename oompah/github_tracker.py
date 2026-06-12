@@ -1656,15 +1656,20 @@ class GitHubIssueTracker:
     def fetch_children(self, epic_id: str) -> list[Issue]:
         """Return child issues that reference the given parent identifier.
 
-        Attempts the GitHub sub-issues REST endpoint first.  When that
-        returns a 404 (the endpoint is not yet generally available),
-        falls back to searching for issues labelled
-        ``parent:<epic_number>``.
+        Attempts the GitHub sub-issues REST endpoint and also searches for
+        issues labelled ``parent:<epic_number>``.  The label lookup is not
+        just a fallback: older oompah-created child issues may only have the
+        label, while newer GitHub installations may expose an empty
+        sub-issues result for relationships that were stored before the API
+        was available.
         """
         try:
             gh_id = self.parse_identifier(epic_id)
         except TrackerError:
             return []
+
+        children: dict[str, Issue] = {}
+        parent_id = gh_id.canonical
 
         # Try the sub-issues endpoint (newer GitHub API).
         try:
@@ -1672,21 +1677,30 @@ class GitHubIssueTracker:
                 self._issues_path(f"/{gh_id.number}/sub_issues"),
                 params={"per_page": 100},
             )
-            return self._normalize_issue_payloads(raw)
+            for child in self._normalize_issue_payloads(raw):
+                if not child.parent_id:
+                    child.parent_id = parent_id
+                children[child.id] = child
         except TrackerError as exc:
             if "404" not in str(exc):
                 raise
 
-        # Fallback: label-based parent lookup.
+        # Label-based parent lookup. Keep this even when the sub-issues API
+        # succeeds so label-only children still block duplicate epic planning.
         parent_label = f"parent:{gh_id.number}"
         try:
             raw = self._client.request_paginated(
                 self._issues_path(),
                 params={"state": "all", "labels": parent_label, "per_page": 100},
             )
-            return self._normalize_issue_payloads(raw)
+            for child in self._normalize_issue_payloads(raw):
+                if not child.parent_id:
+                    child.parent_id = parent_id
+                children[child.id] = child
         except TrackerError:
-            return []
+            pass
+
+        return list(children.values())
 
     def fetch_comments(self, identifier: str) -> list[dict]:
         """Return all comments on an issue as a list of normalized comment dicts.
@@ -2132,6 +2146,25 @@ class GitHubIssueTracker:
                 return  # Label not on issue — that is fine.
             raise
 
+    def _ensure_dynamic_relation_label(self, label: str) -> None:
+        """Ensure an oompah relationship label exists before applying it."""
+        try:
+            self._client.post(
+                self._repo_path("/labels"),
+                json={
+                    "name": label,
+                    "color": "ededed",
+                    "description": "oompah relationship metadata",
+                },
+            )
+        except TrackerError as exc:
+            # GitHub returns 422 when the label already exists. Treat that as
+            # idempotent success so concurrent agents can create the same
+            # parent/dependency label without racing each other.
+            if "422" in str(exc):
+                return
+            raise
+
     # ------------------------------------------------------------------
     # Hierarchy and dependencies
     # ------------------------------------------------------------------
@@ -2178,6 +2211,7 @@ class GitHubIssueTracker:
             raise
 
         child_database_id = self._issue_database_id(child_gh_id)
+        parent_label = f"parent:{parent_gh_id.number}"
 
         # Try the GitHub sub-issues API. It expects the child's database id,
         # not the visible issue number.
@@ -2186,13 +2220,15 @@ class GitHubIssueTracker:
                 self._issues_path(f"/{parent_gh_id.number}/sub_issues"),
                 json={"sub_issue_id": child_database_id},
             )
+            self._ensure_dynamic_relation_label(parent_label)
+            self.add_label(child_id, parent_label)
             return
         except TrackerError as exc:
             if "404" not in str(exc):
                 raise
 
         # Fallback: set parent:<number> label on the child issue.
-        parent_label = f"parent:{parent_gh_id.number}"
+        self._ensure_dynamic_relation_label(parent_label)
         self.add_label(child_id, parent_label)
 
     def add_dependency(self, blocked_id: str, blocker_id: str) -> None:
@@ -2222,6 +2258,7 @@ class GitHubIssueTracker:
             raise
 
         blocker_database_id = self._issue_database_id(blocker_gh_id)
+        depends_on_label = f"depends-on:{blocker_gh_id.number}"
 
         # Try the GitHub issue dependencies API. It expects the blocker
         # issue's database id in the blocked_by collection.
@@ -2230,13 +2267,15 @@ class GitHubIssueTracker:
                 self._issues_path(f"/{blocked_gh_id.number}/dependencies/blocked_by"),
                 json={"issue_id": blocker_database_id},
             )
+            self._ensure_dynamic_relation_label(depends_on_label)
+            self.add_label(blocked_id, depends_on_label)
             return
         except TrackerError as exc:
             if "404" not in str(exc):
                 raise
 
         # Fallback: set depends-on:<number> label on the blocked issue.
-        depends_on_label = f"depends-on:{blocker_gh_id.number}"
+        self._ensure_dynamic_relation_label(depends_on_label)
         self.add_label(blocked_id, depends_on_label)
 
     # ------------------------------------------------------------------

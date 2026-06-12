@@ -2143,13 +2143,27 @@ class TestGitHubIssueTrackerFetch:
         """Uses the sub-issues endpoint when available."""
         tracker = self._make_tracker()
         children = [
-            _make_gh_issue(number=10, title="Child 1"),
-            _make_gh_issue(number=11, title="Child 2"),
+            _make_gh_issue(
+                number=10,
+                title="Child 1",
+                labels=["oompah:status:open"],
+            ),
+            _make_gh_issue(
+                number=11,
+                title="Child 2",
+                labels=["oompah:status:open"],
+            ),
         ]
-        resp = _mock_response(200, json_data=children)
-        with patch.object(tracker._client._http, "request", return_value=resp):
+        sub_issues_resp = _mock_response(200, json_data=children)
+        label_resp = _mock_response(200, json_data=[])
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[sub_issues_resp, label_resp],
+        ):
             result = tracker.fetch_children("lesserevil/oompah-tasks#5")
         assert len(result) == 2
+        assert {child.parent_id for child in result} == {"lesserevil/oompah-tasks#5"}
 
     def test_fetch_children_falls_back_to_label_on_404(self):
         """Falls back to label-based lookup when sub-issues API is unavailable."""
@@ -2168,6 +2182,27 @@ class TestGitHubIssueTrackerFetch:
         ):
             result = tracker.fetch_children("lesserevil/oompah-tasks#5")
         assert len(result) == 1
+
+    def test_fetch_children_checks_parent_label_when_sub_issues_empty(self):
+        """Label-only children still count when GitHub returns no sub-issues."""
+        tracker = self._make_tracker()
+        sub_issues_resp = _mock_response(200, json_data=[])
+        children = [
+            _make_gh_issue(
+                number=20,
+                labels=["parent:5", "oompah:status:open"],
+            )
+        ]
+        label_resp = _mock_response(200, json_data=children)
+        with patch.object(
+            tracker._client._http,
+            "request",
+            side_effect=[sub_issues_resp, label_resp],
+        ):
+            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+        assert len(result) == 1
+        assert result[0].identifier == "lesserevil/oompah-tasks#20"
+        assert result[0].parent_id == "lesserevil/oompah-tasks#5"
 
     # ------------------------------------------------------------------
     # Issue field mapping on normalized Issue record
@@ -3441,14 +3476,18 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
     # ------------------------------------------------------------------
 
     def test_add_parent_child_uses_sub_issues_api_when_available(self):
-        """Tries the GitHub sub-issues REST API first."""
+        """Tries the GitHub sub-issues REST API and mirrors a parent label."""
         tracker = self._make_tracker()
         child_resp = _mock_response(
             200, json_data=_make_gh_issue(number=10, issue_id=1010)
         )
         resp = _mock_response(200, json_data={"id": 123})
+        create_label_resp = _mock_response(201, json_data={"name": "parent:5"})
+        label_resp = _mock_response(200, json_data=[{"name": "parent:5"}])
         with patch.object(
-            tracker._client._http, "request", side_effect=[child_resp, resp]
+            tracker._client._http,
+            "request",
+            side_effect=[child_resp, resp, create_label_resp, label_resp],
         ) as m:
             tracker.add_parent_child(
                 "lesserevil/oompah-tasks#10",
@@ -3461,6 +3500,14 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         assert call_args[0][0] == "POST"
         assert "/issues/5/sub_issues" in call_args[0][1]
         assert call_args[1]["json"] == {"sub_issue_id": 1010}
+        create_label_call = m.call_args_list[2]
+        assert create_label_call[0][0] == "POST"
+        assert create_label_call[0][1].endswith("/labels")
+        assert create_label_call[1]["json"]["name"] == "parent:5"
+        label_call = m.call_args_list[3]
+        assert label_call[0][0] == "POST"
+        assert "/issues/10/labels" in label_call[0][1]
+        assert label_call[1]["json"]["labels"] == ["parent:5"]
 
     def test_add_parent_child_falls_back_to_label_on_404(self):
         """Falls back to parent:<number> label when sub-issues API unavailable."""
@@ -3470,18 +3517,19 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         )
         resp_404 = _mock_response(404, text="Not Found")
         resp_404.is_success = False
+        create_label_resp = _mock_response(201, json_data={"name": "parent:5"})
         label_resp = _mock_response(200, json_data=[{"name": "parent:5"}])
         with patch.object(
             tracker._client._http,
             "request",
-            side_effect=[child_resp, resp_404, label_resp],
+            side_effect=[child_resp, resp_404, create_label_resp, label_resp],
         ) as m:
             tracker.add_parent_child(
                 "lesserevil/oompah-tasks#10",
                 "lesserevil/oompah-tasks#5",
             )
-        # Third call should be add_label
-        label_call = m.call_args_list[2]
+        # Fourth call should be add_label after dynamic label creation.
+        label_call = m.call_args_list[3]
         assert label_call[0][0] == "POST"
         assert "/issues/10/labels" in label_call[0][1]
         assert label_call[1]["json"]["labels"] == ["parent:5"]
@@ -3517,14 +3565,18 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
     # ------------------------------------------------------------------
 
     def test_add_dependency_uses_dependencies_api_when_available(self):
-        """Tries the GitHub issue dependencies REST API first."""
+        """Tries the GitHub dependencies REST API and mirrors a blocker label."""
         tracker = self._make_tracker()
         blocker_resp = _mock_response(
             200, json_data=_make_gh_issue(number=5, issue_id=1005)
         )
         resp = _mock_response(200, json_data={"id": 123})
+        create_label_resp = _mock_response(201, json_data={"name": "depends-on:5"})
+        label_resp = _mock_response(200, json_data=[{"name": "depends-on:5"}])
         with patch.object(
-            tracker._client._http, "request", side_effect=[blocker_resp, resp]
+            tracker._client._http,
+            "request",
+            side_effect=[blocker_resp, resp, create_label_resp, label_resp],
         ) as m:
             tracker.add_dependency(
                 "lesserevil/oompah-tasks#10",
@@ -3537,6 +3589,14 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         assert call_args[0][0] == "POST"
         assert "/issues/10/dependencies/blocked_by" in call_args[0][1]
         assert call_args[1]["json"] == {"issue_id": 1005}
+        create_label_call = m.call_args_list[2]
+        assert create_label_call[0][0] == "POST"
+        assert create_label_call[0][1].endswith("/labels")
+        assert create_label_call[1]["json"]["name"] == "depends-on:5"
+        label_call = m.call_args_list[3]
+        assert label_call[0][0] == "POST"
+        assert "/issues/10/labels" in label_call[0][1]
+        assert label_call[1]["json"]["labels"] == ["depends-on:5"]
 
     def test_add_dependency_falls_back_to_label_on_404(self):
         """Falls back to depends-on:<number> label when dependencies API unavailable."""
@@ -3546,18 +3606,19 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         )
         resp_404 = _mock_response(404, text="Not Found")
         resp_404.is_success = False
+        create_label_resp = _mock_response(201, json_data={"name": "depends-on:5"})
         label_resp = _mock_response(200, json_data=[{"name": "depends-on:5"}])
         with patch.object(
             tracker._client._http,
             "request",
-            side_effect=[blocker_resp, resp_404, label_resp],
+            side_effect=[blocker_resp, resp_404, create_label_resp, label_resp],
         ) as m:
             tracker.add_dependency(
                 "lesserevil/oompah-tasks#10",
                 "lesserevil/oompah-tasks#5",
             )
-        # Third call should be add_label
-        label_call = m.call_args_list[2]
+        # Fourth call should be add_label after dynamic label creation.
+        label_call = m.call_args_list[3]
         assert label_call[0][0] == "POST"
         assert "/issues/10/labels" in label_call[0][1]
         assert label_call[1]["json"]["labels"] == ["depends-on:5"]
