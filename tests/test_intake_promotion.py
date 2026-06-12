@@ -197,23 +197,29 @@ class _WebhookTracker:
         return self.issue
 
 
-def _approval_payload(body: str = "/oompah approve") -> dict:
+def _approval_payload(
+    body: str = "/oompah approve",
+    *,
+    requestor: str = "alice",
+    comment_author: str | None = None,
+) -> dict:
+    author = comment_author or requestor
     return {
         "action": "created",
         "issue": {
             "number": 11,
             "title": "Proposed task",
             "body": "Ready proposal",
-            "user": {"login": "alice"},
+            "user": {"login": requestor},
             "pull_request": None,
         },
         "comment": {
             "id": 99,
             "body": body,
-            "user": {"login": "alice"},
+            "user": {"login": author},
         },
         "repository": {"full_name": "org/repo"},
-        "sender": {"login": "alice"},
+        "sender": {"login": author},
     }
 
 
@@ -262,6 +268,186 @@ def test_approval_comment_auto_promotes_when_project_allows_it():
 
     tracker.update_issue.assert_called_once_with("org/repo#11", status=BACKLOG)
     tracker.add_comment.assert_called_once()
+    assert tracker.readiness.requestor_approved is True
+
+
+def test_plain_requestor_approval_comment_auto_promotes_ready_issue():
+    import oompah.server as server
+
+    issue = Issue(
+        id="org/repo#11",
+        identifier="org/repo#11",
+        title="Proposed task",
+        state=PROPOSED,
+        description="Ready proposal",
+    )
+    tracker = _WebhookTracker(_valid_unapproved_readiness(), issue)
+    project = Project(
+        id="proj",
+        name="proj",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/tmp/repo",
+        tracker_owner="org",
+        tracker_repo="repo",
+        intake_auto_promote=True,
+    )
+    orch = MagicMock()
+    orch.event_bus = MagicMock()
+    orch.request_refresh = MagicMock()
+    orch.invalidate_merged_branches = MagicMock()
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.update = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+
+    with patch.object(server, "_orchestrator", orch):
+        client = TestClient(server.app)
+        response = client.post(
+            "/api/v1/webhooks/github",
+            json=_approval_payload("I approve this. Please add it to the backlog."),
+            headers={"X-GitHub-Event": "issue_comment"},
+        )
+
+    assert response.status_code == 200
+    for _ in range(50):
+        if tracker.update_issue.called:
+            break
+        time.sleep(0.02)
+
+    tracker.update_issue.assert_called_once_with("org/repo#11", status=BACKLOG)
+    tracker.add_comment.assert_called_once()
+    assert tracker.readiness.requestor_approved is True
+    assert tracker.readiness.requestor_actor == "alice"
+
+
+def test_plain_approval_records_and_comments_when_readiness_missing():
+    import oompah.server as server
+
+    issue = Issue(
+        id="org/repo#11",
+        identifier="org/repo#11",
+        title="Proposed task",
+        state=PROPOSED,
+        description="Incomplete proposal",
+    )
+    tracker = _WebhookTracker(
+        IntakeReadiness(
+            missing_fields=["acceptance_criteria"],
+            scope=IntakeScopeKind.SMALL,
+            requestor_approved=False,
+            last_validator_result=ValidatorResult.FAIL,
+        ),
+        issue,
+    )
+    project = Project(
+        id="proj",
+        name="proj",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/tmp/repo",
+        tracker_owner="org",
+        tracker_repo="repo",
+        intake_auto_promote=True,
+    )
+    orch = MagicMock()
+    orch.event_bus = MagicMock()
+    orch.request_refresh = MagicMock()
+    orch.invalidate_merged_branches = MagicMock()
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.update = MagicMock()
+    orch._tracker_for_project.return_value = tracker
+
+    with patch.object(server, "_orchestrator", orch):
+        client = TestClient(server.app)
+        response = client.post(
+            "/api/v1/webhooks/github",
+            json=_approval_payload("I approve this. Please add it to the backlog."),
+            headers={"X-GitHub-Event": "issue_comment"},
+        )
+
+    assert response.status_code == 200
+    for _ in range(50):
+        if tracker.add_comment.called:
+            break
+        time.sleep(0.02)
+
+    assert tracker.readiness.requestor_approved is True
+    tracker.update_issue.assert_not_called()
+    tracker.add_comment.assert_called_once()
+    comment = tracker.add_comment.call_args.args[1]
+    assert "approval has been recorded" in comment
+    assert "still Proposed" in comment
+    assert "acceptance_criteria" in comment
+
+
+def test_plain_approval_from_non_requestor_is_ignored():
+    import oompah.server as server
+
+    project = Project(
+        id="proj",
+        name="proj",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/tmp/repo",
+        tracker_owner="org",
+        tracker_repo="repo",
+        intake_auto_promote=True,
+    )
+    orch = MagicMock()
+    orch.event_bus = MagicMock()
+    orch.request_refresh = MagicMock()
+    orch.invalidate_merged_branches = MagicMock()
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.update = MagicMock()
+
+    with patch.object(server, "_orchestrator", orch):
+        client = TestClient(server.app)
+        response = client.post(
+            "/api/v1/webhooks/github",
+            json=_approval_payload(
+                "I approve this. Please add it to the backlog.",
+                requestor="alice",
+                comment_author="bob",
+            ),
+            headers={"X-GitHub-Event": "issue_comment"},
+        )
+
+    assert response.status_code == 200
+    time.sleep(0.1)
+    orch._tracker_for_project.assert_not_called()
+
+
+def test_ambiguous_requestor_comment_is_not_approval():
+    import oompah.server as server
+
+    project = Project(
+        id="proj",
+        name="proj",
+        repo_url="https://github.com/org/repo.git",
+        repo_path="/tmp/repo",
+        tracker_owner="org",
+        tracker_repo="repo",
+        intake_auto_promote=True,
+    )
+    orch = MagicMock()
+    orch.event_bus = MagicMock()
+    orch.request_refresh = MagicMock()
+    orch.invalidate_merged_branches = MagicMock()
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.update = MagicMock()
+
+    with patch.object(server, "_orchestrator", orch):
+        client = TestClient(server.app)
+        response = client.post(
+            "/api/v1/webhooks/github",
+            json=_approval_payload("Looks good to me."),
+            headers={"X-GitHub-Event": "issue_comment"},
+        )
+
+    assert response.status_code == 200
+    time.sleep(0.1)
+    orch._tracker_for_project.assert_not_called()
 
 
 def test_approval_comment_records_but_does_not_auto_promote_when_disabled():

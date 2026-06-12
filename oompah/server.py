@@ -63,7 +63,10 @@ from oompah.issue_enhancer import (
     has_quality_source,
 )
 from oompah.intake_summary import build_intake_summary
-from oompah.intake_approval import is_approval_command
+from oompah.intake_approval import (
+    is_approval_command,
+    is_plain_requestor_approval_comment,
+)
 from oompah.intake_actions import (
     OVERRIDE_READINESS,
     PROMOTE_TO_BACKLOG,
@@ -72,9 +75,11 @@ from oompah.intake_actions import (
     build_audit_comment,
     check_permission,
     normalize_action,
+    normalize_login,
     parse_audit_marker,
 )
 from oompah.intake_promotion import (
+    build_promotion_blocked_comment,
     promote_proposed_issue_to_backlog,
     record_intake_approval,
 )
@@ -7960,13 +7965,21 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
     """Record an intake approval comment and promote when configured."""
     comment = (event.raw or {}).get("comment") or {}
     comment_body = comment.get("body", "") or ""
-    if not is_approval_command(comment_body):
+    command_approval = is_approval_command(comment_body)
+    plain_approval = is_plain_requestor_approval_comment(comment_body)
+    if not (command_approval or plain_approval):
         return
 
     raw_issue = (event.raw or {}).get("issue") or {}
     if raw_issue.get("pull_request"):
         return
     if not event.issue_number:
+        return
+
+    requestor = ((raw_issue.get("user") or {}).get("login") or "").strip()
+    if not requestor:
+        return
+    if plain_approval and normalize_login(event.author) != normalize_login(requestor):
         return
 
     try:
@@ -7989,10 +8002,6 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
     if issue is None or canonicalize_status(issue.state) != PROPOSED:
         return
     identifier = str(getattr(issue, "identifier", None) or identifier)
-
-    requestor = ((raw_issue.get("user") or {}).get("login") or "").strip()
-    if not requestor:
-        return
 
     readiness = record_intake_approval(
         tracker,
@@ -8028,6 +8037,22 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
             identifier,
             result.reason,
         )
+        try:
+            tracker.add_comment(
+                identifier,
+                build_promotion_blocked_comment(
+                    readiness,
+                    reason=result.reason,
+                    requestor=requestor,
+                ),
+                author="oompah",
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to post blocked intake-promotion comment on %s: %s",
+                identifier,
+                exc,
+            )
 
 
 def _should_post_unauthorized_status_comment(

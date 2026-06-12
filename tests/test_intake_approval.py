@@ -23,6 +23,7 @@ from oompah.intake_approval import (
     is_approval_command,
     is_approval_stale,
     is_authorized_approver,
+    is_plain_requestor_approval_comment,
 )
 
 
@@ -104,6 +105,66 @@ class TestIsApprovalCommand:
 
     def test_different_slash_command_not_approval(self):
         assert is_approval_command("/approve") is False
+
+
+class TestIsPlainRequestorApprovalComment:
+    """Tests for clear plain-language requestor approval detection."""
+
+    def test_approval_and_backlog_request_is_recognized(self):
+        assert (
+            is_plain_requestor_approval_comment(
+                "I approve this. Please add it to the backlog."
+            )
+            is True
+        )
+
+    def test_first_person_approval_is_recognized(self):
+        assert is_plain_requestor_approval_comment("I approve this scope.") is True
+
+    def test_explicit_backlog_request_is_recognized(self):
+        assert is_plain_requestor_approval_comment("Please move this to Backlog.") is True
+
+    def test_scope_approval_is_recognized(self):
+        assert (
+            is_plain_requestor_approval_comment("The proposed scope is approved.")
+            is True
+        )
+
+    def test_lgtm_is_ambiguous(self):
+        assert is_plain_requestor_approval_comment("LGTM") is False
+
+    def test_looks_good_is_ambiguous(self):
+        assert is_plain_requestor_approval_comment("Looks good to me.") is False
+
+    def test_approved_keyword_alone_is_ambiguous(self):
+        assert is_plain_requestor_approval_comment("approved") is False
+
+    def test_change_request_is_not_approval(self):
+        assert (
+            is_plain_requestor_approval_comment(
+                "I approve the direction, but please make changes first."
+            )
+            is False
+        )
+
+    def test_negative_approval_is_not_approval(self):
+        assert (
+            is_plain_requestor_approval_comment(
+                "I do not approve this. Please do not add it to the backlog."
+            )
+            is False
+        )
+
+    def test_slash_command_is_not_plain_approval(self):
+        assert is_plain_requestor_approval_comment("/oompah approve") is False
+
+    def test_quoted_approval_is_ignored(self):
+        assert (
+            is_plain_requestor_approval_comment(
+                "> I approve this. Please add it to the backlog.\nNeeds more detail."
+            )
+            is False
+        )
 
 
 # ===========================================================================
