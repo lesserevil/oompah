@@ -1156,7 +1156,7 @@ class TestRunCommandTimeoutCleanup:
         from oompah.api_agent import _resolve_run_command_timeout
 
         monkeypatch.delenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", raising=False)
-        assert _resolve_run_command_timeout() == 180
+        assert _resolve_run_command_timeout() == 360
 
         monkeypatch.setenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", "45.2")
         assert _resolve_run_command_timeout() == 46
@@ -1167,7 +1167,7 @@ class TestRunCommandTimeoutCleanup:
 
         monkeypatch.setenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", value)
 
-        assert _resolve_run_command_timeout() == 180
+        assert _resolve_run_command_timeout() == 360
 
     @pytest.mark.skipif(os.name != "posix", reason="requires POSIX process groups")
     def test_timeout_kills_child_process_tree(self, tmp_path):
