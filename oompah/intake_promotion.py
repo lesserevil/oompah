@@ -11,6 +11,7 @@ from oompah.intake_schema import (
     DecompositionStatus,
     IntakeReadiness,
     IntakeScopeKind,
+    ValidatorResult,
     intake_to_raw,
     parse_intake_metadata,
 )
@@ -145,6 +146,49 @@ def build_promotion_audit_comment(
         "Backlog is not dispatchable. A project owner must move this issue to "
         "Open when it is ready for agent dispatch."
     )
+
+
+def build_promotion_blocked_comment(
+    readiness: IntakeReadiness,
+    *,
+    reason: str,
+    requestor: str | None = None,
+) -> str:
+    """Build an explanatory comment when approval is recorded but promotion is blocked."""
+
+    actor = str(requestor or "").strip()
+    prefix = f"@{actor}, " if actor else ""
+    remaining: list[str] = []
+
+    if readiness.missing_fields:
+        remaining.append("missing fields: " + ", ".join(readiness.missing_fields))
+    if readiness.scope == IntakeScopeKind.NEEDS_DECOMPOSITION:
+        remaining.append("scope still requires decomposition before Backlog")
+    if readiness.last_validator_result is None:
+        remaining.append("readiness validation has not passed yet")
+    elif readiness.last_validator_result != ValidatorResult.PASS:
+        remaining.append("latest readiness validation did not pass")
+    if not (readiness.requestor_approved or readiness.owner_override):
+        remaining.append("requestor approval is not recorded")
+
+    lines = [
+        f"{prefix}intake approval has been recorded, but this issue is still Proposed.",
+        "",
+        "Promotion to Backlog is blocked because intake readiness is incomplete.",
+        "",
+        f"Reason: {reason}.",
+        f"- readiness: {'true' if readiness.is_ready else 'false'}",
+        f"- requestor_approved: {'true' if readiness.requestor_approved else 'false'}",
+        f"- owner_override: {'true' if readiness.owner_override else 'false'}",
+    ]
+    if remaining:
+        lines += ["", "Remaining requirements:"]
+        lines += [f"- {item}" for item in remaining]
+    lines += [
+        "",
+        "Once those items are resolved, oompah can move this issue to Backlog.",
+    ]
+    return "\n".join(lines)
 
 
 def promote_proposed_issue_to_backlog(

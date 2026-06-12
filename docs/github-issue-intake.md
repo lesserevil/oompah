@@ -92,6 +92,10 @@ and reply to the oompah comment, then re-request advancement.
 Once intake is complete, the requestor must approve the proposed scope before
 the issue can leave `Proposed`. Approval may be a GitHub comment, a checked
 template field, or an oompah UI action, depending on the project configuration.
+For GitHub comments, the explicit `/oompah approve` command is accepted, and a
+clear requestor comment such as "I approve this. Please add it to the backlog."
+is also treated as scope approval. Ambiguous comments such as "looks good" or
+comments asking for changes do not satisfy requestor approval.
 
 After requestor approval, an authorized actor applies the
 `oompah:status:backlog` label to move the issue into the `Backlog` queue. If

@@ -1,9 +1,10 @@
 """Requestor approval detection for the oompah intake workflow.
 
-Defines the explicit approval action for proposed GitHub issues.  Only the
-original requestor, an authorized project owner, or the oompah bot may approve
-an intake proposal.  Ambiguous positive-sounding comments are deliberately
-ignored — only the explicit ``/oompah approve`` command counts.
+Defines approval actions for proposed GitHub issues. Only the original
+requestor, an authorized project owner, or the oompah bot may approve an
+intake proposal. The explicit ``/oompah approve`` command is available for all
+authorized approvers; conservative plain-language approval comments are
+accepted only from the original requestor by the webhook handler.
 
 Approval is tied to a specific proposal *fingerprint* (a stable hash of the
 issue body at approval time).  Material edits to the issue body invalidate a
@@ -15,6 +16,9 @@ Design decisions
   at the start of a comment.  Surrounding whitespace is stripped.  Additional
   text on the same line after the command is allowed and ignored (e.g.
   ``/oompah approve LGTM``).
+- Plain comments must carry clear approval or backlog-addition intent and must
+  not request changes. Comments that are merely positive, such as "LGTM" or
+  "looks good", are deliberately ignored.
 - Authorization is checked against: (1) the oompah bot login, (2) the original
   requestor (issue opener), (3) ``project.tracker_owner``, and (4) entries in
   ``project.status_label_authorized_logins``.
@@ -70,6 +74,35 @@ _APPROVE_TOKEN = "/oompah approve"
 #: of the full text), optionally followed by anything on the same line.
 _APPROVE_RE = re.compile(
     r"(?:^|\n)\s*/oompah\s+approve(?:\s|$)",
+    re.IGNORECASE,
+)
+
+_CHANGE_REQUEST_RE = re.compile(
+    r"\b(?:do\s+not|don't|dont|cannot|can't|cant|not)\s+"
+    r"(?:approve|accept|add|move|promote)\b"
+    r"|\b(?:request|requests|requested|need|needs|needed|asking\s+for)\s+"
+    r"changes?\b"
+    r"|\bmake\s+changes?\b"
+    r"|\bchanges?\s+(?:requested|required|needed)\b"
+    r"|\b(?:hold\s+off|wait|not\s+ready)\b",
+    re.IGNORECASE,
+)
+
+_PLAIN_APPROVAL_RE = re.compile(
+    r"\b(?:i|we)\s+(?:approve|accept)\b"
+    r"|\b(?:i|we)\s+sign\s+off(?:\s+on)?\b"
+    r"|\b(?:i|we)\s+agree\s+(?:with|to)\s+"
+    r"(?:this|the\s+(?:scope|proposal|issue|task|work))\b"
+    r"|\b(?:approved|accepted)\s+by\s+me\b"
+    r"|\b(?:the\s+)?(?:scope|proposal|issue|task|work)\s+"
+    r"(?:is\s+)?(?:approved|accepted)\b",
+    re.IGNORECASE,
+)
+
+_BACKLOG_REQUEST_RE = re.compile(
+    r"\b(?:please\s+)?(?:add|move|promote|put)"
+    r"(?:\s+(?:this|it|the\s+(?:issue|task|proposal|work)))?\s+"
+    r"(?:to|into|onto)\s+(?:the\s+)?backlog\b",
     re.IGNORECASE,
 )
 
@@ -154,6 +187,33 @@ def is_approval_command(body: str) -> bool:
     if not body:
         return False
     return bool(_APPROVE_RE.search(body))
+
+
+def _without_markdown_quotes(body: str) -> str:
+    """Return *body* with Markdown blockquote lines removed."""
+
+    return "\n".join(
+        line for line in str(body or "").splitlines() if not line.lstrip().startswith(">")
+    )
+
+
+def is_plain_requestor_approval_comment(body: str) -> bool:
+    """Return true for clear plain-language requestor approval comments.
+
+    This parser is intentionally narrower than general sentiment detection. It
+    accepts direct first-person approval ("I approve this") or an explicit
+    request to add/move the issue to the backlog, and it rejects comments that
+    ask for changes or say approval should not happen yet.
+    """
+
+    text = _without_markdown_quotes(body).strip()
+    if not text:
+        return False
+    if is_approval_command(text):
+        return False
+    if _CHANGE_REQUEST_RE.search(text):
+        return False
+    return bool(_PLAIN_APPROVAL_RE.search(text) or _BACKLOG_REQUEST_RE.search(text))
 
 
 # ---------------------------------------------------------------------------
