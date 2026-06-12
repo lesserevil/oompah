@@ -344,6 +344,13 @@ class TestCmdView:
         url = m.call_args.args[1]
         assert url == "http://localhost:8080/api/v1/issues/42/detail"
 
+    def test_github_identifier_adds_managed_repo_when_project_omitted(self):
+        args = _make_args(subcommand="view", identifier="owner/repo#42", project=None)
+        with _make_http_mock({"identifier": "owner/repo#42", "title": "t"}) as m:
+            task_cli._cmd_view("http://localhost:8080", args)
+        params = (m.call_args.kwargs or {}).get("params", {})
+        assert params["managed_repo"] == "owner/repo"
+
     def test_passes_project_id_when_given(self):
         args = _make_args(subcommand="view", identifier="TASK-1", project="proj-99")
         with _make_http_mock({"identifier": "TASK-1", "title": "t"}) as m:
@@ -393,6 +400,7 @@ class TestCmdComment:
             task_cli._cmd_comment("http://localhost:8080", args)
         data = m.call_args.kwargs.get("data", {})
         assert data["issue_key"] == "owner/repo#5"
+        assert data["managed_repo"] == "owner/repo"
 
     def test_prints_confirmation(self, capsys):
         args = _make_args(
@@ -539,6 +547,21 @@ class TestCmdChildCreate:
         data = m.call_args.kwargs.get("data", {})
         assert data["project_id"] == "proj-42"
 
+    def test_github_parent_adds_managed_repo_when_project_omitted(self):
+        args = _make_args(
+            subcommand="child-create",
+            parent_id="owner/repo#10",
+            title="Child",
+            project=None,
+            issue_type="task",
+            description=None,
+            priority=None,
+        )
+        with _make_http_mock({"ok": True, "issue": {"identifier": "T-11", "title": "Child"}}) as m:
+            task_cli._cmd_child_create("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data["managed_repo"] == "owner/repo"
+
 
 class TestCmdSetStatus:
     def test_patches_issue_with_status(self):
@@ -577,6 +600,19 @@ class TestCmdSetStatus:
         assert calls[1][0] == "POST"
         assert "/comments" in calls[1][1]
         assert calls[1][2]["text"] == "All done!"
+
+    def test_github_identifier_adds_managed_repo(self):
+        args = _make_args(
+            subcommand="set-status",
+            identifier="owner/repo#5",
+            status="Done",
+            summary=None,
+            project=None,
+        )
+        with _make_http_mock() as m:
+            task_cli._cmd_set_status("http://localhost:8080", args)
+        data = m.call_args.kwargs.get("data", {})
+        assert data["managed_repo"] == "owner/repo"
 
     def test_no_summary_no_comment_call(self):
         args = _make_args(

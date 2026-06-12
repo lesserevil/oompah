@@ -157,7 +157,7 @@ def _http(
 # ---------------------------------------------------------------------------
 
 
-_GITHUB_IDENTIFIER_RE = re.compile(r"^[^/\s]+/[^#\s]+#(\d+)$")
+_GITHUB_IDENTIFIER_RE = re.compile(r"^([^/\s]+/[^#\s]+)#(\d+)$")
 
 
 def _path_identifier(identifier: str) -> str:
@@ -170,8 +170,25 @@ def _path_identifier(identifier: str) -> str:
     """
     match = _GITHUB_IDENTIFIER_RE.match(identifier.strip())
     if match:
-        return match.group(1)
+        return match.group(2)
     return identifier
+
+
+def _managed_repo_from_identifier(identifier: str) -> str | None:
+    """Return owner/repo for a fully-qualified GitHub issue identifier."""
+    match = _GITHUB_IDENTIFIER_RE.match(identifier.strip())
+    return match.group(1) if match else None
+
+
+def _add_project_or_managed_repo(
+    payload: dict[str, Any],
+    identifier: str,
+    project: str | None,
+) -> None:
+    if project:
+        payload["project_id"] = project
+    elif managed_repo := _managed_repo_from_identifier(identifier):
+        payload["managed_repo"] = managed_repo
 
 
 def _encode_id(identifier: str) -> str:
@@ -255,8 +272,7 @@ def _cmd_view(base_url: str, args: argparse.Namespace) -> None:
     """oompah task view <identifier> [--project <id>]"""
     identifier = args.identifier
     params: dict[str, str] = {"issue_key": identifier}
-    if getattr(args, "project", None):
-        params["project_id"] = args.project
+    _add_project_or_managed_repo(params, identifier, getattr(args, "project", None))
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/detail"
     result = _http("GET", f"{base_url}{path}", params=params)
     _print_issue_detail(result)
@@ -270,8 +286,7 @@ def _cmd_comment(base_url: str, args: argparse.Namespace) -> None:
         "author": args.author,
         "issue_key": identifier,
     }
-    if getattr(args, "project", None):
-        data["project_id"] = args.project
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/comments"
     _http("POST", f"{base_url}{path}", data=data)
     print("Comment posted.")
@@ -314,8 +329,7 @@ def _cmd_child_create(base_url: str, args: argparse.Namespace) -> None:
         "parent_id": args.parent_id,
         "type": args.issue_type,
     }
-    if getattr(args, "project", None):
-        data["project_id"] = args.project
+    _add_project_or_managed_repo(data, args.parent_id, getattr(args, "project", None))
     if getattr(args, "description", None):
         data["description"] = args.description
     if getattr(args, "priority", None):
@@ -343,8 +357,7 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
     actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
     if actor:
         data["actor_login"] = str(actor).strip()
-    if getattr(args, "project", None):
-        data["project_id"] = args.project
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     path = f"/api/v1/issues/{_encode_path_id(identifier)}"
     _http("PATCH", f"{base_url}{path}", data=data)
 
@@ -356,8 +369,11 @@ def _cmd_set_status(base_url: str, args: argparse.Namespace) -> None:
             "author": "oompah",
             "issue_key": identifier,
         }
-        if getattr(args, "project", None):
-            comment_data["project_id"] = args.project
+        _add_project_or_managed_repo(
+            comment_data,
+            identifier,
+            getattr(args, "project", None),
+        )
         comment_path = f"/api/v1/issues/{_encode_path_id(identifier)}/comments"
         _http("POST", f"{base_url}{comment_path}", data=comment_data)
 
@@ -376,8 +392,7 @@ def _cmd_add_label(base_url: str, args: argparse.Namespace) -> None:
     actor = actor or os.environ.get("OOMPAH_ACTOR_LOGIN")
     if actor:
         data["actor_login"] = str(actor).strip()
-    if getattr(args, "project", None):
-        data["project_id"] = args.project
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/labels"
     _http("POST", f"{base_url}{path}", data=data)
     print(f"Label added: {args.label}")
@@ -391,8 +406,7 @@ def _cmd_remove_label(base_url: str, args: argparse.Namespace) -> None:
     encoded_label = urllib.parse.quote(args.label, safe="")
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/labels/{encoded_label}"
     params: dict[str, str] = {"issue_key": identifier}
-    if getattr(args, "project", None):
-        params["project_id"] = args.project
+    _add_project_or_managed_repo(params, identifier, getattr(args, "project", None))
     _http("DELETE", f"{base_url}{path}", params=params)
     print(f"Label removed: {args.label}")
 
@@ -404,8 +418,7 @@ def _cmd_set_dependency(base_url: str, args: argparse.Namespace) -> None:
         "depends_on": args.depends_on,
         "issue_key": identifier,
     }
-    if getattr(args, "project", None):
-        data["project_id"] = args.project
+    _add_project_or_managed_repo(data, identifier, getattr(args, "project", None))
     path = f"/api/v1/issues/{_encode_path_id(identifier)}/dependencies"
     _http("POST", f"{base_url}{path}", data=data)
     print(f"Dependency set: {identifier} depends on {args.depends_on}")

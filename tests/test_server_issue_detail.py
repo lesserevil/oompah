@@ -521,3 +521,44 @@ class TestCommentsEndpoint:
             author="oompah",
         )
         mock_broadcast.assert_awaited_once()
+
+    def test_post_comment_infers_project_from_github_identifier(self, client):
+        """Fully-qualified GitHub ids avoid network issue search."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        project = mock_orch.project_store.list_all.return_value[0]
+        project.repo_url = "https://github.com/NVIDIA-Omniverse/trickle"
+        mock_tracker.add_comment.return_value = {
+            "author": "oompah",
+            "text": "Working on it",
+        }
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(
+                server_module,
+                "_find_tracker_for_issue",
+                side_effect=AssertionError("should not search all projects"),
+            ) as mock_find,
+            patch.object(
+                server_module,
+                "broadcast_issues",
+                new_callable=AsyncMock,
+            ),
+        ):
+            resp = client.post(
+                "/api/v1/issues/ignored/comments",
+                json={
+                    "issue_key": "NVIDIA-Omniverse/trickle#240",
+                    "text": "Working on it",
+                    "author": "oompah",
+                },
+            )
+
+        assert resp.status_code == 201, resp.text
+        mock_tracker.add_comment.assert_called_once_with(
+            "NVIDIA-Omniverse/trickle#240",
+            "Working on it",
+            author="oompah",
+        )
+        mock_tracker.fetch_issue_detail.assert_not_called()
+        mock_find.assert_not_called()

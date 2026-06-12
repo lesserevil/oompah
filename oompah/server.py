@@ -2266,6 +2266,12 @@ def _managed_repo_slug(repo_url: str) -> str | None:
     return None
 
 
+def _managed_repo_from_issue_identifier(identifier: str) -> str | None:
+    """Extract ``owner/repo`` from a fully-qualified GitHub issue id."""
+    m = re.match(r"^([^/\s#]+/[^/\s#]+)#\d+$", (identifier or "").strip())
+    return m.group(1) if m else None
+
+
 def _get_tracker_for_managed_repo(orch, managed_repo: str):
     """Find the tracker and project_id for a given managed-repo slug.
 
@@ -2806,6 +2812,8 @@ async def api_update_issue(identifier: str, request: Request):
         # identifier so GitHub-backed clients don't need to know the internal
         # project_id when the identifier is unambiguous.
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if not project_id and not managed_repo_req:
+            managed_repo_req = _managed_repo_from_issue_identifier(resolved_identifier)
         if project_id:
             tracker, project_id = _get_tracker_for_issue_or_project(
                 orch, resolved_identifier, project_id
@@ -3317,6 +3325,8 @@ async def api_add_label(identifier: str, request: Request):
         resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         project_id = body.get("project_id") or request.query_params.get("project_id")
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if not project_id and not managed_repo_req:
+            managed_repo_req = _managed_repo_from_issue_identifier(resolved_identifier)
         if project_id:
             tracker, project_id = _get_tracker_for_issue_or_project(
                 orch, resolved_identifier, project_id
@@ -3653,6 +3663,8 @@ async def api_add_comment(identifier: str, request: Request):
         resolved_identifier = _resolve_identifier(identifier, body, request.query_params)
         project_id = body.get("project_id") or request.query_params.get("project_id")
         managed_repo_req = (body.get("managed_repo") or "").strip() or None
+        if not project_id and not managed_repo_req:
+            managed_repo_req = _managed_repo_from_issue_identifier(resolved_identifier)
         if project_id:
             tracker, project_id = _get_tracker_for_issue_or_project(
                 orch, resolved_identifier, project_id

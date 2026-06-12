@@ -345,6 +345,38 @@ class TestAddLabelGitHubIdentifier:
         assert resp.status_code == 201
         mock_tracker.add_label.assert_called_once_with("gh-issue-99", "in-review")
 
+    def test_github_identifier_infers_project_without_search(self, client):
+        """Fully-qualified GitHub identifiers resolve by managed repo slug."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_project = MagicMock()
+        mock_project.id = "proj-1"
+        mock_project.repo_url = "https://github.com/NVIDIA-Omniverse/trickle"
+        mock_orch.project_store.list_all.return_value = [mock_project]
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(
+                server_module,
+                "_find_tracker_for_issue",
+                side_effect=AssertionError("should not search all projects"),
+            ) as mock_find,
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues/ignored/labels",
+                json={
+                    "issue_key": "NVIDIA-Omniverse/trickle#240",
+                    "label": "triaged",
+                },
+            )
+
+        assert resp.status_code == 201
+        mock_tracker.add_label.assert_called_once_with(
+            "NVIDIA-Omniverse/trickle#240",
+            "triaged",
+        )
+        mock_find.assert_not_called()
+
 
 class TestRemoveLabelGitHubIdentifier:
     """DELETE /api/v1/issues/{identifier}/labels/{label} with issue_key."""
