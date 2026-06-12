@@ -21,8 +21,10 @@ Coverage:
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import threading
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -124,6 +126,37 @@ class TestApiLoopScheduler:
         assert created == [True]
         loop.create_task.assert_called_once()
         loop.create_task.call_args.args[0].close()
+
+    @pytest.mark.asyncio
+    async def test_api_state_serves_stale_cache_without_live_snapshot(self, monkeypatch):
+        orch = MagicMock()
+        orch.get_snapshot.side_effect = AssertionError("must not read live state")
+        snapshot = {
+            "counts": {"running": 1, "retrying": 0},
+            "running": [{"issue_id": "x"}],
+            "retrying": [],
+            "alerts": [],
+        }
+        monkeypatch.setattr(server_module, "_orchestrator", orch)
+        monkeypatch.setattr(server_module, "_ipc", None)
+        old_snapshot = server_module._state_snapshot
+        old_snapshot_at = server_module._state_snapshot_at
+        with server_module._state_snapshot_lock:
+            server_module._state_snapshot = dict(snapshot)
+            server_module._state_snapshot_at = (
+                time.monotonic() - server_module._STATE_SNAPSHOT_MAX_AGE_S - 1
+            )
+        try:
+            response = await server_module.api_state()
+            data = json.loads(response.body)
+
+            assert data["counts"] == snapshot["counts"]
+            assert data["state_snapshot_stale"] is True
+            orch.get_snapshot.assert_not_called()
+        finally:
+            with server_module._state_snapshot_lock:
+                server_module._state_snapshot = old_snapshot
+                server_module._state_snapshot_at = old_snapshot_at
 
 
 # ---------------------------------------------------------------------------

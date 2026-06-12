@@ -720,15 +720,40 @@ def _update_state_snapshot(snapshot: dict[str, Any]) -> None:
         _state_snapshot_at = time.monotonic()
 
 
-def _read_state_snapshot() -> dict[str, Any] | None:
+def _read_state_snapshot(*, allow_stale: bool = False) -> dict[str, Any] | None:
     """Return the cached snapshot if it is fresh enough, else None."""
     with _state_snapshot_lock:
         if _state_snapshot is None:
             return None
         age = time.monotonic() - _state_snapshot_at
-        if age > _STATE_SNAPSHOT_MAX_AGE_S:
+        if age > _STATE_SNAPSHOT_MAX_AGE_S and not allow_stale:
             return None
-        return dict(_state_snapshot)
+        snapshot = dict(_state_snapshot)
+        if age > _STATE_SNAPSHOT_MAX_AGE_S:
+            snapshot["state_snapshot_stale"] = True
+            snapshot["state_snapshot_age_seconds"] = round(age, 3)
+        return snapshot
+
+
+def _cached_state_snapshot_or_unavailable() -> dict[str, Any]:
+    """Return a cached state snapshot without touching live orchestrator state."""
+    snapshot = _read_state_snapshot(allow_stale=True)
+    if snapshot is not None:
+        return snapshot
+    return {
+        "paused": False,
+        "counts": {"running": 0, "retrying": 0},
+        "running": [],
+        "retrying": [],
+        "alerts": [
+            {
+                "level": "warning",
+                "source": "state_snapshot",
+                "message": "State snapshot is not available yet.",
+            }
+        ],
+        "state_snapshot_unavailable": True,
+    }
 
 
 # Shared response cache for API endpoints
@@ -1408,7 +1433,10 @@ async def websocket_endpoint(ws: WebSocket):
         # Send initial state + issues immediately
         orch = _get_orchestrator()
         await ws.send_text(
-            json.dumps({"type": "state", "data": orch.get_snapshot()}, default=str)
+            json.dumps(
+                {"type": "state", "data": _cached_state_snapshot_or_unavailable()},
+                default=str,
+            )
         )
         payload = _issues_snapshot_payload(allow_empty=True, orch=orch)
         await ws.send_text(
@@ -1425,7 +1453,11 @@ async def websocket_endpoint(ws: WebSocket):
                 if msg.get("action") == "refresh":
                     await ws.send_text(
                         json.dumps(
-                            {"type": "state", "data": orch.get_snapshot()}, default=str
+                            {
+                                "type": "state",
+                                "data": _cached_state_snapshot_or_unavailable(),
+                            },
+                            default=str,
                         )
                     )
                     await broadcast_issues()
@@ -1830,9 +1862,10 @@ async def api_state():
        (``_on_orchestrator_change`` / ``_on_state_only_change``).  This
        avoids rebuilding state during a tick / maintenance burst.
 
-    3. **Combined mode — live fallback**: calls ``orch.get_snapshot()``
-       directly when no cached snapshot is available yet (e.g. on first
-       request before the first tick completes).
+    3. **Combined mode — no live fallback**: returns a stale cached snapshot
+       if necessary. It never calls ``orch.get_snapshot()`` on the API event
+       loop because the embedded orchestrator runs on a separate loop/thread
+       and may be holding scheduler locks during long ticks.
     """
     t_start = time.monotonic()
     try:
@@ -1851,11 +1884,7 @@ async def api_state():
 
         # Combined mode: prefer the cached snapshot to avoid recomputing
         # during maintenance / tick bursts.
-        orch = _get_orchestrator()
-        snapshot = _read_state_snapshot()
-        if snapshot is None:
-            # No cached snapshot yet — fall back to live computation.
-            snapshot = orch.get_snapshot()
+        snapshot = _cached_state_snapshot_or_unavailable()
         duration_ms = (time.monotonic() - t_start) * 1000
         _record_api_latency("/api/v1/state", duration_ms)
         snapshot["api_metrics"] = _api_metrics_snapshot()
@@ -6675,8 +6704,17 @@ async def api_update_focus_suggestion(name: str, request: Request):
 async def api_budget():
     """Return current budget and cost tracking info."""
     try:
-        orch = _get_orchestrator()
-        snapshot = orch.get_snapshot()
+        snapshot = _cached_state_snapshot_or_unavailable()
+        if snapshot.get("state_snapshot_unavailable"):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "unavailable",
+                        "message": "State snapshot is not available yet.",
+                    }
+                },
+                status_code=503,
+            )
         return JSONResponse(
             {
                 "budget": snapshot["budget"],
@@ -9005,8 +9043,11 @@ async def projects_page():
 async def dashboard_content():
     """Return the htmx partial for the status view (legacy)."""
     try:
-        orch = _get_orchestrator()
-        snapshot = orch.get_snapshot()
+        snapshot = _cached_state_snapshot_or_unavailable()
+        if snapshot.get("state_snapshot_unavailable"):
+            return HTMLResponse(
+                '<p class="empty">State snapshot is not available yet.</p>'
+            )
     except Exception as exc:
         return HTMLResponse(f'<p class="empty">Error: {exc}</p>')
 
