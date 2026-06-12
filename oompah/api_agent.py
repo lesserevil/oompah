@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import re
 import signal
@@ -108,6 +109,22 @@ class ApiAgentResult:
 
 # Tools that indicate the agent is making progress (not just reading/exploring)
 _PRODUCTIVE_TOOLS = {"write_file", "edit_file", "run_command"}
+
+_DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS = 180
+_RUN_COMMAND_TIMEOUT_ENV = "OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS"
+
+
+def _resolve_run_command_timeout(raw: str | None = None) -> int:
+    value = os.environ.get(_RUN_COMMAND_TIMEOUT_ENV) if raw is None else raw
+    if value is None or not value.strip():
+        return _DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS
+    try:
+        parsed = float(value)
+    except ValueError:
+        return _DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS
+    if not math.isfinite(parsed) or parsed <= 0:
+        return _DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS
+    return max(1, int(math.ceil(parsed)))
 
 
 # ---------------------------------------------------------------------------
@@ -513,9 +530,10 @@ def _validate_command_stays_in_workspace(command: str, workspace: Path) -> str |
 def _exec_run_command(
     workspace: Path,
     args: dict[str, Any],
-    timeout: int = 60,
+    timeout: int | None = None,
     env_overrides: dict[str, str] | None = None,
 ) -> str:
+    timeout = _resolve_run_command_timeout() if timeout is None else timeout
     command = args["command"]
     cd_err = _validate_command_stays_in_workspace(command, workspace)
     if cd_err:
@@ -701,7 +719,7 @@ def _execute_tool(
     workspace: Path,
     name: str,
     args: dict[str, Any],
-    cmd_timeout: int = 60,
+    cmd_timeout: int | None = None,
     env_overrides: dict[str, str] | None = None,
 ) -> str:
     """Execute a tool call and return its string result.
@@ -1043,7 +1061,7 @@ class ApiAgentSession:
         max_turns: int = 200,
         stall_turns: int = 5,
         system_prompt: str = "",
-        command_timeout: int = 60,
+        command_timeout: int | None = None,
         enabled_tools: set[str] | None = None,
         model_max_context: int | None = None,
         log_path: str | None = None,
@@ -1056,7 +1074,11 @@ class ApiAgentSession:
         self.max_turns = max_turns
         self.stall_turns = stall_turns
         self.system_prompt = system_prompt
-        self.command_timeout = command_timeout
+        self.command_timeout = (
+            _resolve_run_command_timeout()
+            if command_timeout is None
+            else command_timeout
+        )
         # Names of tools to expose to the model. ``None`` means "all
         # tools except those that require explicit opt-in" — currently
         # ``attach_image`` is the only opt-in tool, so it's filtered out

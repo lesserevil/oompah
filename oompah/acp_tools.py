@@ -225,7 +225,7 @@ def _exec_update_project(
 def build_tool_catalog(
     workspace_path: str,
     *,
-    run_command_timeout_s: int = 60,
+    run_command_timeout_s: int | None = None,
     project_store: Any = None,
     project_id: str | None = None,
 ) -> list[Any]:
@@ -455,7 +455,7 @@ def build_tool_catalog(
 def build_codex_tool_catalog(
     workspace_path: str,
     *,
-    run_command_timeout_s: int = 60,
+    run_command_timeout_s: int | None = None,
     project_store: Any = None,
     project_id: str | None = None,
 ) -> list[Any]:
@@ -639,7 +639,7 @@ def build_codex_tool_catalog(
 def build_opencode_tool_catalog(
     workspace_path: str,
     *,
-    run_command_timeout_s: int = 60,
+    run_command_timeout_s: int | None = None,
     project_store: Any = None,
     project_id: str | None = None,
 ) -> list[Any]:

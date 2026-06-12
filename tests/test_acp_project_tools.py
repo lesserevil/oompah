@@ -497,6 +497,20 @@ class TestBuildToolCatalogProjectTools:
         assert "update_project_by_id" in names
         assert len(cat) == 11
 
+    def test_run_command_tool_uses_env_timeout(self, tmp_path, monkeypatch):
+        """ACP run_command must not pin the old 60s timeout."""
+        import asyncio
+        from oompah.acp_tools import build_tool_catalog
+
+        monkeypatch.setenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", "1")
+        cat = build_tool_catalog(str(tmp_path))
+        tool = next(t for t in cat if t.name == "run_command")
+
+        result = asyncio.run(tool.handler({"command": "sleep 2"}))
+        text = result["content"][0]["text"]
+
+        assert "Error: command timed out after 1s" in text
+
     def test_list_projects_tool_returns_data_with_store(self, tmp_path):
         """list_projects returns managed project snapshots when wired up."""
         import asyncio

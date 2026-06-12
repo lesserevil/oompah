@@ -1143,6 +1143,32 @@ class TestRunCommandRefusesCdOutsideWorkspace:
 
 
 class TestRunCommandTimeoutCleanup:
+    def test_default_timeout_uses_agent_command_env(self, tmp_path, monkeypatch):
+        from oompah.api_agent import _exec_run_command
+
+        monkeypatch.setenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", "1")
+
+        result = _exec_run_command(tmp_path, {"command": "sleep 2"})
+
+        assert "Error: command timed out after 1s" in result
+
+    def test_timeout_resolver_defaults_and_overrides(self, monkeypatch):
+        from oompah.api_agent import _resolve_run_command_timeout
+
+        monkeypatch.delenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", raising=False)
+        assert _resolve_run_command_timeout() == 180
+
+        monkeypatch.setenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", "45.2")
+        assert _resolve_run_command_timeout() == 46
+
+    @pytest.mark.parametrize("value", ["", "bogus", "0", "-1", "inf", "nan"])
+    def test_timeout_resolver_rejects_invalid_values(self, monkeypatch, value):
+        from oompah.api_agent import _resolve_run_command_timeout
+
+        monkeypatch.setenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", value)
+
+        assert _resolve_run_command_timeout() == 180
+
     @pytest.mark.skipif(os.name != "posix", reason="requires POSIX process groups")
     def test_timeout_kills_child_process_tree(self, tmp_path):
         from oompah.api_agent import _exec_run_command
@@ -1267,6 +1293,15 @@ class TestExecuteToolForwardsEnvOverrides:
             env_overrides={"OOMPAH_TEST_OVERRIDE": "/sentinel/path"},
         )
         assert "OVERRIDE=/sentinel/path" in result
+
+    def test_run_command_uses_env_timeout(self, tmp_path, monkeypatch):
+        from oompah.api_agent import _execute_tool
+
+        monkeypatch.setenv("OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS", "1")
+
+        result = _execute_tool(tmp_path, "run_command", {"command": "sleep 2"})
+
+        assert "Error: command timed out after 1s" in result
 
     def test_other_tools_unaffected_by_env_overrides(self, tmp_path):
         from oompah.api_agent import _execute_tool

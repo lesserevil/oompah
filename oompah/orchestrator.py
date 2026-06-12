@@ -13352,7 +13352,6 @@ class Orchestrator:
 
             tool_catalog = build_tool_catalog(
                 workspace_path,
-                run_command_timeout_s=60,
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
             )
