@@ -110,7 +110,7 @@ class ApiAgentResult:
 # Tools that indicate the agent is making progress (not just reading/exploring)
 _PRODUCTIVE_TOOLS = {"write_file", "edit_file", "run_command"}
 
-_DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS = 360
+_DEFAULT_RUN_COMMAND_TIMEOUT_SECONDS = 720
 _RUN_COMMAND_TIMEOUT_ENV = "OOMPAH_AGENT_COMMAND_TIMEOUT_SECONDS"
 
 

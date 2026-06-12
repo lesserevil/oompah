@@ -139,7 +139,7 @@ class TestPathIdentifier:
 class TestHttpErrorHandling:
     def test_default_timeout_is_long_enough_for_busy_local_server(self, monkeypatch):
         monkeypatch.delenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", raising=False)
-        assert task_cli._resolve_http_timeout() == 300.0
+        assert task_cli._resolve_http_timeout() == 600.0
 
     def test_timeout_env_override(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", "45.5")
@@ -148,7 +148,7 @@ class TestHttpErrorHandling:
     @pytest.mark.parametrize("value", ["", "bogus", "0", "-1", "inf", "nan"])
     def test_invalid_timeout_env_uses_default(self, monkeypatch, value):
         monkeypatch.setenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", value)
-        assert task_cli._resolve_http_timeout() == 300.0
+        assert task_cli._resolve_http_timeout() == 600.0
 
     def test_http_uses_resolved_timeout(self, monkeypatch):
         monkeypatch.setenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", "75")

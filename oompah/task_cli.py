@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover
 __all__ = ["main", "build_parser"]
 
 
-_DEFAULT_HTTP_TIMEOUT_SECONDS = 300.0
+_DEFAULT_HTTP_TIMEOUT_SECONDS = 600.0
 _HTTP_TIMEOUT_ENV = "OOMPAH_TASK_CLI_TIMEOUT_SECONDS"
 
 
