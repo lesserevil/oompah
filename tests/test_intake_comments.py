@@ -139,7 +139,7 @@ class TestShouldPostIntakeComment:
 
         assert should_post_intake_comment(existing, fingerprint, _dt(12, 5)) is False
 
-    def test_reposts_same_result_after_requestor_updates_issue(self):
+    def test_suppresses_same_result_after_requestor_updates_issue(self):
         result = _result("acceptance_criteria")
         fingerprint = compute_fingerprint(result, "alice")
         existing = {
@@ -149,7 +149,7 @@ class TestShouldPostIntakeComment:
             "issue_updated_at": _iso(12, 0),
         }
 
-        assert should_post_intake_comment(existing, fingerprint, _dt(12, 6)) is True
+        assert should_post_intake_comment(existing, fingerprint, _dt(12, 6)) is False
 
     def test_reposts_when_validator_fingerprint_changes(self):
         old = _result("acceptance_criteria")
@@ -238,7 +238,7 @@ class TestPostIntakeComment:
         ) is False
         assert len(tracker.comments) == 1
 
-    def test_same_result_reposts_after_requestor_update(self):
+    def test_same_result_does_not_repost_after_requestor_update(self):
         tracker = FakeTracker()
         result = _result("acceptance_criteria")
 
@@ -258,12 +258,12 @@ class TestPostIntakeComment:
                 result,
                 "alice",
                 issue_updated_at=_dt(12, 6),
-            )
+            ) is False
 
-        assert len(tracker.comments) == 2
+        assert len(tracker.comments) == 1
         record = tracker.metadata["oompah.intake_comment"]
         assert isinstance(record, dict)
-        assert record["posted_at"] == _iso(12, 10)
+        assert record["posted_at"] == _iso(12, 5)
 
     def test_changed_result_posts_updated_request(self):
         tracker = FakeTracker()
@@ -315,6 +315,27 @@ class TestPostIntakeComment:
         assert intake["missing_fields"] == []
         assert intake["last_validator_result"] == "pass"
         assert intake["last_validated_at"] == _iso(12, 5)
+
+    def test_post_comment_false_records_metadata_without_comment(self):
+        tracker = FakeTracker()
+
+        with patch("oompah.intake_comments._now_iso", return_value=_iso(12, 5)):
+            posted = post_intake_comment_if_needed(
+                tracker,
+                IDENTIFIER,
+                _result("acceptance criteria"),
+                "alice",
+                issue_updated_at=_dt(12, 0),
+                post_comment=False,
+            )
+
+        assert posted is False
+        assert tracker.comments == []
+        assert "oompah.intake_comment" not in tracker.metadata
+        intake = tracker.metadata["oompah.intake"]
+        assert isinstance(intake, dict)
+        assert intake["missing_fields"] == ["acceptance_criteria"]
+        assert intake["last_validator_result"] == "fail"
 
     def test_adapts_readiness_validator_result(self):
         tracker = FakeTracker()

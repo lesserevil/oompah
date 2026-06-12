@@ -8055,6 +8055,7 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
             requestor,
             issue_updated_at=getattr(issue, "updated_at", None),
             author="oompah",
+            post_comment=False,
         )
         if validation_ready:
             result = promote_proposed_issue_to_backlog(

@@ -816,6 +816,7 @@ def process_epic_proposal_issue(
             requested_actor,
             issue_updated_at=getattr(issue, "updated_at", None),
             author=author,
+            post_comment=False,
         )
         return IntakeValidationProcessResult(
             validation=validation,

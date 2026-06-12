@@ -294,7 +294,7 @@ def test_orchestrator_processes_oversized_proposed_issues():
     assert orch._last_epic_proposal_metrics["created_count"] == 1
 
 
-def test_orchestrator_posts_validation_guidance_for_small_proposed_bug():
+def test_orchestrator_records_validation_guidance_for_small_proposed_bug():
     source = _source_issue(
         title="Detect stopped dispatch loop",
         description="""
@@ -321,14 +321,7 @@ Oompah should detect the stale dispatch loop and recover or alert clearly.
     processed = orch._process_epic_proposals()
 
     assert processed == [source]
-    assert len(tracker.comments) == 1
-    _, comment, author = tracker.comments[0]
-    assert author == "oompah"
-    assert "@alice" in comment
-    assert "reproduction steps" in comment
-    assert "## Steps to Reproduce" in comment
-    assert "actual behaviour" in comment
-    assert "## Actual Behavior" in comment
+    assert tracker.comments == []
 
     readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
     assert set(readiness.missing_fields) == {
@@ -339,4 +332,4 @@ Oompah should detect the stale dispatch loop and recover or alert clearly.
     assert readiness.last_validator_result.value == "fail"
     assert orch._last_epic_proposal_metrics["processed_count"] == 1
     assert orch._last_epic_proposal_metrics["created_count"] == 0
-    assert orch._last_epic_proposal_metrics["comment_posted_count"] == 1
+    assert orch._last_epic_proposal_metrics["comment_posted_count"] == 0

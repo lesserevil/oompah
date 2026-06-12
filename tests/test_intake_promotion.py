@@ -368,17 +368,13 @@ def test_plain_approval_records_and_comments_when_readiness_missing():
 
     assert response.status_code == 200
     for _ in range(50):
-        if tracker.add_comment.called:
+        if tracker.set_metadata_field.called:
             break
         time.sleep(0.02)
 
     assert tracker.readiness.requestor_approved is True
     tracker.update_issue.assert_not_called()
-    tracker.add_comment.assert_called_once()
-    comment = tracker.add_comment.call_args.args[1]
-    assert "missing the following information" in comment
-    assert "acceptance criteria" in comment
-    assert "## Acceptance Criteria" in comment
+    tracker.add_comment.assert_not_called()
     assert "acceptance_criteria" in tracker.readiness.missing_fields
 
 

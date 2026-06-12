@@ -13,15 +13,9 @@ A comment is suppressed when **all three** conditions hold:
 1. A previous intake comment has been posted for this issue.
 2. The validator result fingerprint is identical to the one recorded in the
    issue's ``oompah.intake_comment`` metadata.
-3. The issue has **not** been updated since the previous intake comment was
-   posted.
-   (An edit or reply from the requestor signals that the requestor provided
-   new information — even if the validator still flags the same fields,
-   a fresh comment is more useful than silence.)
 
 When the fingerprint differs (validator result changed because the requestor
-fixed some fields but not all), a new comment is posted regardless of
-whether the issue was updated.
+fixed some fields but not all), a new comment may be posted.
 
 ## Metadata format
 
@@ -463,14 +457,13 @@ def should_post_intake_comment(
     Decision table
     --------------
 
-    ===========================  ======================  ========
-    Existing record              Issue changed since?    Post?
-    ===========================  ======================  ========
-    None (first time)            —                       Yes
-    Same fingerprint             No                      No (dup)
-    Same fingerprint             Yes                     Yes
-    Different fingerprint        —                       Yes
-    ===========================  ======================  ========
+    ===========================  =====
+    Existing record              Post?
+    ===========================  =====
+    None (first time)            Yes
+    Same fingerprint             No
+    Different fingerprint        Yes
+    ===========================  =====
 
     Parameters
     ----------
@@ -480,40 +473,16 @@ def should_post_intake_comment(
     fingerprint:
         The fingerprint of the *current* validator result.
     issue_updated_at:
-        The issue's ``updated_at`` timestamp at call time, or ``None`` when
-        unknown.  When ``None``, the issue is treated as *unchanged* for
-        deduplication purposes (conservative — avoid noisy re-posts when we
-        can't determine whether the issue changed).
+        Accepted for backward compatibility with older callers. It no longer
+        affects duplicate suppression because oompah's own metadata writes and
+        comments also advance GitHub's issue timestamp.
     """
     if not existing_record:
         # First time we've seen this issue — always post.
         return True
 
     existing_fp = existing_record.get("fingerprint", "")
-    if existing_fp != fingerprint:
-        # Validator result changed (requestor fixed some fields or broke new ones).
-        return True
-
-    # Same fingerprint.  Only re-post if the issue was updated since the last
-    # intake request was posted (i.e. the requestor replied/edited but we
-    # still need the same info). Comparing against the stored pre-comment
-    # issue timestamp would treat our own GitHub comment as a new issue change.
-    if issue_updated_at is None:
-        # Can't tell — be conservative and suppress to avoid spam.
-        return False
-
-    last_posted_dt = _iso_to_dt(existing_record.get("posted_at"))
-    if last_posted_dt is None:
-        # Backward compatibility for records written before ``posted_at`` was
-        # used as the duplicate baseline.
-        last_posted_dt = _iso_to_dt(existing_record.get("issue_updated_at"))
-    if last_posted_dt is None:
-        # No recorded issue timestamp — the record is stale/incomplete.
-        # Post to give the requestor a fresh reminder.
-        return True
-
-    # If the issue was modified after our last request, re-post.
-    return issue_updated_at > last_posted_dt
+    return existing_fp != fingerprint
 
 
 # ---------------------------------------------------------------------------
@@ -529,6 +498,7 @@ def post_intake_comment_if_needed(
     issue_updated_at: datetime | None = None,
     *,
     author: str = "oompah",
+    post_comment: bool = True,
 ) -> bool:
     """Post an intake comment on *identifier* if deduplication allows it.
 
@@ -552,6 +522,10 @@ def post_intake_comment_if_needed(
         be conservative (duplicate suppression still active).
     author:
         Comment attribution string.  Defaults to ``"oompah"``.
+    post_comment:
+        When ``False``, only update intake metadata. This lets automatic
+        background paths surface guidance in the UI without posting GitHub
+        comments.
 
     Returns
     -------
@@ -570,6 +544,13 @@ def post_intake_comment_if_needed(
         # Issue is ready — nothing to request.
         logger.debug(
             "intake_comments: issue %s is ready, skipping intake comment", identifier
+        )
+        return False
+
+    if not post_comment:
+        logger.debug(
+            "intake_comments: issue %s is missing fields; comment disabled",
+            identifier,
         )
         return False
 
