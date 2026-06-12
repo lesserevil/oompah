@@ -1898,6 +1898,97 @@ class TestOpenEpicMainPrs:
         provider.create_review.assert_not_called()
         push.assert_not_called()
 
+    def test_idempotent_when_existing_pr_is_missing_from_cache(self, tmp_path):
+        orch, proj = self._setup(tmp_path, strategy="stacked")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=IN_REVIEW,
+        )
+        child = _make_issue(state="closed")
+        existing_review = MagicMock()
+        existing_review.id = "254"
+        existing_review.url = "https://github.com/org/repo/pull/254"
+        existing_review.source_branch = "epic-epic-1"
+        existing_review.target_branch = "main"
+        existing_review.state = "open"
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        provider.find_pr_for_branch.return_value = existing_review
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+            patch.object(orch, "_tracker_for_project") as tracker_for_project,
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 0
+        provider.find_pr_for_branch.assert_called_once_with("org/repo", "epic-epic-1")
+        provider.create_review.assert_not_called()
+        tracker_for_project.assert_not_called()
+        push.assert_not_called()
+
+    def test_existing_pr_missing_from_cache_advances_epic_to_in_review(
+        self,
+        tmp_path,
+    ):
+        orch, proj = self._setup(tmp_path, strategy="stacked")
+        orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"
+        epic = _make_issue(
+            identifier="epic-1",
+            issue_type="epic",
+            project_id="proj-1",
+            state=DONE,
+        )
+        child = _make_issue(state="closed")
+        existing_review = MagicMock()
+        existing_review.id = "254"
+        existing_review.url = "https://github.com/org/repo/pull/254"
+        existing_review.source_branch = "epic-epic-1"
+        existing_review.target_branch = "main"
+        existing_review.state = "open"
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = set()
+        provider.find_pr_for_branch.return_value = existing_review
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_fetch_epic_children", return_value=[child]),
+            patch.object(orch, "_has_epic_landing_ref", return_value=True),
+            patch("oompah.orchestrator.detect_provider", return_value=provider),
+            patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo"),
+            patch.object(orch, "_push_epic_branch") as push,
+            patch.object(orch, "_tracker_for_project", return_value=tracker),
+        ):
+            opened = orch._open_epic_main_prs([epic])
+        assert opened == 0
+        tracker.update_issue.assert_called_once_with("epic-1", status=IN_REVIEW)
+        tracker.set_metadata_field.assert_any_call(
+            "epic-1",
+            "oompah.review_url",
+            "https://github.com/org/repo/pull/254",
+        )
+        tracker.set_metadata_field.assert_any_call(
+            "epic-1",
+            "oompah.review_number",
+            "254",
+        )
+        tracker.set_metadata_field.assert_any_call(
+            "epic-1",
+            "oompah.work_branch",
+            "epic-epic-1",
+        )
+        tracker.set_metadata_field.assert_any_call(
+            "epic-1",
+            "oompah.target_branch",
+            "main",
+        )
+        provider.create_review.assert_not_called()
+        push.assert_not_called()
+
     def test_defers_epic_pr_when_project_at_review_cap(self, tmp_path):
         orch, proj = self._setup(tmp_path, strategy="stacked")
         orch.project_store.epic_branch_name.side_effect = lambda i: f"epic-{i}"

@@ -4870,12 +4870,22 @@ class Orchestrator:
                 continue
 
             # Idempotency: if a (first-landing) review already exists with this
-            # source branch, do nothing — let it run through CI/merge.
-            reviews = getattr(self, "_reviews_cache", {}).get(project_id, [])
-            already_open = any(
-                r.source_branch == epic_branch and not r.draft for r in reviews
+            # source branch, do nothing — let it run through CI/merge. The
+            # in-memory review cache can lag a freshly opened PR, so fall back
+            # to the forge before pushing/creating another PR.
+            existing_review = self._find_open_epic_review(
+                provider,
+                slug,
+                project_id,
+                epic_branch,
             )
-            if already_open:
+            if existing_review is not None:
+                self._ensure_epic_in_review_metadata(
+                    project_id,
+                    issue,
+                    existing_review,
+                    epic_branch,
+                )
                 continue
 
             n_open, limit, at_capacity = self._project_review_capacity(project_id)
@@ -4994,6 +5004,72 @@ class Orchestrator:
             opened += 1
             opened_by_project[project_id] = reserved + 1
         return opened
+
+    def _find_open_epic_review(
+        self,
+        provider: Any,
+        slug: str,
+        project_id: str,
+        epic_branch: str,
+    ) -> ReviewRequest | Any | None:
+        """Return an open review for ``epic_branch`` from cache or forge."""
+        reviews = getattr(self, "_reviews_cache", {}).get(project_id, []) or []
+        for review in reviews:
+            if self._review_matches_open_branch(review, epic_branch):
+                return review
+
+        try:
+            review = provider.find_pr_for_branch(slug, epic_branch)
+        except Exception as exc:  # noqa: BLE001 - best-effort idempotency guard
+            logger.debug(
+                "find_pr_for_branch failed while checking epic PR %s/%s: %s",
+                slug,
+                epic_branch,
+                exc,
+            )
+            return None
+        if self._review_matches_open_branch(review, epic_branch):
+            return review
+        return None
+
+    @staticmethod
+    def _review_matches_open_branch(review: Any, branch: str) -> bool:
+        """True when ``review`` is an open PR/MR from ``branch``."""
+        if review is None:
+            return False
+        source = str(getattr(review, "source_branch", "") or "")
+        if source != branch:
+            return False
+        state = str(getattr(review, "state", "open") or "open").lower()
+        return state == "open"
+
+    def _ensure_epic_in_review_metadata(
+        self,
+        project_id: str,
+        issue: Issue,
+        review: ReviewRequest | Any,
+        epic_branch: str,
+    ) -> None:
+        """Keep an epic task aligned when the review already exists."""
+        if canonicalize_status(issue.state) == IN_REVIEW:
+            return
+        try:
+            tracker = self._tracker_for_project(project_id)
+            tracker.update_issue(issue.identifier, status=IN_REVIEW)
+            self._write_review_metadata(
+                tracker,
+                issue.identifier,
+                review_id=getattr(review, "id", None),
+                review_url=getattr(review, "url", None),
+                source_branch=getattr(review, "source_branch", None) or epic_branch,
+                target_branch=getattr(review, "target_branch", None),
+            )
+        except Exception as exc:  # noqa: BLE001 - metadata alignment is best-effort
+            logger.warning(
+                "Failed to sync existing epic PR metadata for %s: %s",
+                issue.identifier,
+                exc,
+            )
 
     def _remote_epic_branch_has_unmerged_work(
         self,
