@@ -2791,6 +2791,7 @@ class TestLabelMergedEpics:
             patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
             patch.object(orch, "_fetch_epic_children", return_value=[]),
             patch.object(orch, "_tracker_for_issue", return_value=tracker),
+            patch("oompah.orchestrator.detect_provider", return_value=None),
         ):
             orch._label_merged_epics()
         tracker.update_issue.assert_not_called()
@@ -2817,13 +2818,79 @@ class TestLabelMergedEpics:
         }
         assert marked == {"epic-1": "Merged", "c1": "Merged"}
 
-    def test_noop_when_no_merged_branches(self, tmp_path):
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_provider_landed_epic_marks_children_and_helper_tasks(
+        self,
+        mock_detect,
+        _mock_slug,
+        tmp_path,
+    ):
+        proj = _make_project_record(epic_strategy="shared")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch.project_store.epic_branch_name.side_effect = (
+            lambda epic_id: f"epic-{epic_id.replace('/', '_').replace('#', '_')}"
+        )
+        epic = _make_issue(
+            identifier="lesserevil/oompah#272",
+            issue_type="epic",
+            state="Done",
+        )
+        child = _make_issue(
+            identifier="lesserevil/oompah#275",
+            state="Done",
+            parent_id=epic.identifier,
+        )
+        ci_helper = _make_issue(
+            identifier="lesserevil/oompah#296",
+            title="CI fix: PR #291 on branch epic-lesserevil_oompah_272",
+            state="Done",
+            parent_id=epic.identifier,
+        )
+        rebase_helper = _make_issue(
+            identifier="lesserevil/oompah#298",
+            title="Rebase epic-lesserevil_oompah_272 onto main",
+            state="Done",
+            parent_id=epic.identifier,
+        )
+        orch._merged_branches = set()
+        provider = MagicMock()
+        provider.list_merged_branches.return_value = {
+            "epic-lesserevil_oompah_272",
+        }
+        mock_detect.return_value = provider
+
+        tracker = MagicMock()
+        with (
+            patch.object(orch, "_all_non_terminal_epics", return_value=[epic]),
+            patch.object(
+                orch,
+                "_fetch_epic_children",
+                return_value=[child, ci_helper, rebase_helper],
+            ),
+            patch.object(orch, "_tracker_for_issue", return_value=tracker),
+        ):
+            orch._label_merged_epics()
+
+        marked = {
+            call.args[0]: call.kwargs.get("status")
+            for call in tracker.update_issue.call_args_list
+        }
+        assert marked == {
+            epic.identifier: "Merged",
+            child.identifier: "Merged",
+            ci_helper.identifier: "Merged",
+            rebase_helper.identifier: "Merged",
+        }
+
+    def test_noop_when_no_landed_epics(self, tmp_path):
         proj = _make_project_record(epic_strategy="shared")
         orch = _make_orch(tmp_path, projects=[proj])
         orch._merged_branches = set()
         with patch.object(orch, "_all_non_terminal_epics") as fetch:
+            fetch.return_value = []
             orch._label_merged_epics()
-        fetch.assert_not_called()  # early-out before any work
+        fetch.assert_called_once()
 
 
 class TestNestedEpicMergeChain:
