@@ -465,6 +465,7 @@ def should_propose_epic_decomposition(
     return (
         validation_result.scope == ScopeClassification.EPIC_NEEDED
         and (issue.issue_type or "task").strip().lower() != "epic"
+        and not issue.parent_id
     )
 
 

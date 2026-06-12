@@ -181,6 +181,17 @@ def test_ensure_epic_proposal_posts_once_and_records_intake_metadata():
     assert readiness.proposal_fingerprint == first.proposal.fingerprint
 
 
+def test_ensure_epic_proposal_skips_existing_epic_children():
+    source = _source_issue(parent_id="lesserevil/oompah#400")
+    tracker = FakeTracker([source])
+
+    result = ensure_epic_proposal(tracker, source, requestor="alice")
+
+    assert result is None
+    assert tracker.comments == []
+    assert source.identifier not in tracker.metadata
+
+
 def test_apply_accepted_proposal_creates_proposed_epic_and_linked_children():
     source = _source_issue()
     tracker = FakeTracker([source])
