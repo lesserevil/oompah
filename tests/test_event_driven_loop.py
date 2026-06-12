@@ -185,6 +185,21 @@ class TestPostEvent:
         assert DispatchEventType.FULL_SYNC not in orch._dispatch_pending_event_keys
         assert not orch._dispatch_pending_coalesced_counts
 
+    def test_post_event_from_other_loop_uses_threadsafe_owner_loop(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        owner_loop = MagicMock()
+        owner_loop.is_running.return_value = True
+        orch._dispatch_loop = owner_loop
+        evt = DispatchEvent(event_type=DispatchEventType.FULL_SYNC)
+
+        orch._post_event(evt)
+
+        owner_loop.call_soon_threadsafe.assert_called_once_with(
+            orch._post_event_on_loop,
+            evt,
+        )
+        assert orch._dispatch_queue.qsize() == 0
+
 
 # ---------------------------------------------------------------------------
 # request_refresh() posts an event
@@ -205,6 +220,20 @@ class TestRequestRefreshPostsEvent:
         orch = _make_orchestrator(tmp_path)
         orch.request_refresh()
         assert orch._refresh_requested.is_set()
+
+    def test_posts_to_owner_loop_from_other_loop(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        owner_loop = MagicMock()
+        owner_loop.is_running.return_value = True
+        orch._dispatch_loop = owner_loop
+
+        orch.request_refresh()
+
+        calls = owner_loop.call_soon_threadsafe.call_args_list
+        assert calls[0].args == (orch._refresh_requested.set,)
+        assert calls[1].args[0] == orch._post_event_on_loop
+        assert calls[1].args[1].event_type == DispatchEventType.REFRESH_REQUESTED
+        assert orch._dispatch_queue.qsize() == 0
 
 
 # ---------------------------------------------------------------------------

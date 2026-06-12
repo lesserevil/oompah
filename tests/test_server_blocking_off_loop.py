@@ -99,6 +99,34 @@ def _make_to_thread_spy():
 
 
 # ---------------------------------------------------------------------------
+# API loop scheduler — observer callbacks may run from orchestrator thread
+# ---------------------------------------------------------------------------
+
+class TestApiLoopScheduler:
+    def test_schedule_api_coro_uses_captured_api_loop(self):
+        loop = MagicMock()
+        loop.is_running.return_value = True
+        created: list[bool] = []
+
+        def factory():
+            async def _noop():
+                return None
+
+            created.append(True)
+            return _noop()
+
+        with patch.object(server_module, "_api_event_loop", loop):
+            server_module._schedule_api_coro(factory)
+
+        assert not created
+        callback = loop.call_soon_threadsafe.call_args.args[0]
+        callback()
+        assert created == [True]
+        loop.create_task.assert_called_once()
+        loop.create_task.call_args.args[0].close()
+
+
+# ---------------------------------------------------------------------------
 # api_list_foci — load_foci must run via to_thread
 # ---------------------------------------------------------------------------
 

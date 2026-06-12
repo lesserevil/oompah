@@ -155,7 +155,8 @@ def _html_response(name: str) -> HTMLResponse:
 # ---------------------------------------------------------------------------
 # When Granian is the HTTP server it owns the process; the orchestrator and
 # all long-lived services are started *inside* the ASGI lifespan so they
-# share the worker's event loop (required for the WebSocket _broadcast path).
+# share the worker process. The orchestrator runs on its own thread/loop so
+# synchronous tracker work in dispatch ticks cannot stall API handlers.
 #
 # Guard: the lifespan only activates when ``OOMPAH_EMBED_ORCHESTRATOR=1`` is
 # set by ``__main__._run_granian()``.  For the uvicorn path and tests the
@@ -210,6 +211,9 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
     cli_port_s = os.environ.get("OOMPAH_SERVER_PORT_OVERRIDE")
     cli_port: int | None = int(cli_port_s) if cli_port_s else None
     start_paused = os.environ.get("OOMPAH_START_PAUSED") == "1"
+
+    global _api_event_loop
+    _api_event_loop = _asyncio.get_running_loop()
 
     try:
         services: Services = await setup_services(
@@ -288,6 +292,10 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         try:
             while True:
                 await _asyncio.sleep(0.5)
+                if not orch_thread.is_alive():
+                    logger.error("Orchestrator thread exited unexpectedly")
+                    os.kill(os.getppid(), signal.SIGTERM)
+                    return
                 if services.orchestrator.wants_restart:
                     logger.info(
                         "Orchestrator wants restart; signalling Granian supervisor"
@@ -298,23 +306,41 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
         except _asyncio.CancelledError:
             pass
 
+    def _run_orchestrator_thread() -> None:
+        try:
+            _asyncio.run(services.orchestrator.run())
+        except Exception:
+            logger.exception("Orchestrator thread crashed")
+
     watch_task = _asyncio.create_task(_watch_workflow())
-    orch_task = _asyncio.create_task(services.orchestrator.run())
+    orch_thread = threading.Thread(
+        target=_run_orchestrator_thread,
+        name="oompah-orchestrator",
+        daemon=True,
+    )
+    orch_thread.start()
     supervise_task = _asyncio.create_task(_supervise())
 
     try:
         yield  # --- app is running ---
     finally:
         # Shutdown: stop all background tasks.
-        await services.orchestrator.stop()
+        stop_future = services.orchestrator.stop_threadsafe()
+        if stop_future is not None:
+            try:
+                await _asyncio.wait_for(_asyncio.wrap_future(stop_future), timeout=5.0)
+            except (_asyncio.TimeoutError, Exception) as exc:
+                logger.warning("Timed out stopping orchestrator thread: %s", exc)
+        else:
+            await services.orchestrator.stop()
         await services.webhook_forwarder.stop()
         supervise_task.cancel()
         watch_task.cancel()
-        orch_task.cancel()
         try:
-            await _asyncio.wait_for(orch_task, timeout=5.0)
+            await _asyncio.to_thread(orch_thread.join, 5.0)
         except (_asyncio.CancelledError, _asyncio.TimeoutError):
             pass
+        _api_event_loop = None
 
 
 app = FastAPI(title="oompah", version="0.1.0", lifespan=_lifespan)
@@ -668,6 +694,7 @@ _issues_snapshot: dict[str, Any] = {
 _issues_refresh_task: asyncio.Task | None = None
 _api_metrics_lock = threading.Lock()
 _api_metrics: dict[str, dict[str, Any]] = {}
+_api_event_loop: asyncio.AbstractEventLoop | None = None
 
 # ---------------------------------------------------------------------------
 # State snapshot cache for combined-mode API responsiveness
@@ -1165,6 +1192,20 @@ def _sync_orchestrator_review_cache(
         notify()
 
 
+def _schedule_api_coro(factory: Callable[[], Any]) -> None:
+    """Schedule an async callback on the API event loop from any thread."""
+    loop = _api_event_loop
+    if loop is not None and loop.is_running():
+        loop.call_soon_threadsafe(lambda: loop.create_task(factory()))
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(factory())
+    except RuntimeError:
+        pass
+
+
 def _on_state_only_change(snapshot: dict) -> None:
     """Called on agent activity — broadcast state only, no issues re-fetch."""
     import time
@@ -1178,12 +1219,7 @@ def _on_state_only_change(snapshot: dict) -> None:
     if now - _last_state_broadcast < _STATE_THROTTLE_MS:
         return
     _last_state_broadcast = now
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(_broadcast({"type": "state", "data": snapshot}))
-    except RuntimeError:
-        pass
+    _schedule_api_coro(lambda: _broadcast({"type": "state", "data": snapshot}))
 
 
 def _on_orchestrator_change(snapshot: dict) -> None:
@@ -1200,36 +1236,25 @@ def _on_orchestrator_change(snapshot: dict) -> None:
     if now - _last_state_broadcast < _STATE_THROTTLE_MS:
         return
     _last_state_broadcast = now
-    # Schedule broadcast in the running event loop
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(_broadcast({"type": "state", "data": snapshot}))
-            loop.create_task(_throttled_broadcast_issues())
-    except RuntimeError:
-        pass
+    _schedule_api_coro(lambda: _broadcast({"type": "state", "data": snapshot}))
+    _schedule_api_coro(_throttled_broadcast_issues)
 
 
 def _on_agent_activity(identifier: str, entry) -> None:
     """Called by orchestrator on each agent activity entry. Push to WS clients."""
     if not _ws_clients:
         return
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(
-                _broadcast(
-                    {
-                        "type": "activity",
-                        "identifier": identifier,
-                        "entry": entry.to_dict()
-                        if hasattr(entry, "to_dict")
-                        else str(entry),
-                    }
-                )
-            )
-    except RuntimeError:
-        pass
+    _schedule_api_coro(
+        lambda: _broadcast(
+            {
+                "type": "activity",
+                "identifier": identifier,
+                "entry": entry.to_dict()
+                if hasattr(entry, "to_dict")
+                else str(entry),
+            }
+        )
+    )
 
 
 def _fetch_and_serialize_issues(orch) -> dict[str, list]:

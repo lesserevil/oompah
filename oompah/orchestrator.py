@@ -644,6 +644,7 @@ class Orchestrator:
         self._dispatch_pending_coalesced_counts: dict[str, int] = {}
         self._dispatch_event_lock = threading.Lock()
         self._dispatch_events_coalesced = 0
+        self._dispatch_loop: asyncio.AbstractEventLoop | None = None
         # EventBus: typed pub/sub for internal event-driven communication.
         # The legacy _observers/_state_only_observers/_activity_observers lists
         # are kept for backward compatibility with server.py, but internally
@@ -1303,7 +1304,7 @@ class Orchestrator:
         logger.info("Orchestrator unpaused")
         # Post a REFRESH_REQUESTED event so the dispatch loop wakes immediately.
         # Also set the legacy event for any code that still awaits it.
-        self._refresh_requested.set()
+        self._set_refresh_requested()
         self._post_event(
             DispatchEvent(
                 event_type=DispatchEventType.REFRESH_REQUESTED,
@@ -1648,7 +1649,7 @@ class Orchestrator:
 
     def request_refresh(self) -> None:
         """Request an immediate poll+reconciliation cycle."""
-        self._refresh_requested.set()
+        self._set_refresh_requested()
         self._post_event(
             DispatchEvent(
                 event_type=DispatchEventType.REFRESH_REQUESTED,
@@ -1963,6 +1964,19 @@ class Orchestrator:
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
 
+    def _running_loop(self) -> asyncio.AbstractEventLoop | None:
+        try:
+            return asyncio.get_running_loop()
+        except RuntimeError:
+            return None
+
+    def _set_refresh_requested(self) -> None:
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running() and self._running_loop() is not loop:
+            loop.call_soon_threadsafe(self._refresh_requested.set)
+            return
+        self._refresh_requested.set()
+
     def _mark_dispatch_event_dequeued(self, event: DispatchEvent) -> int:
         key = self._dispatch_event_key(event)
         lock = getattr(self, "_dispatch_event_lock", None)
@@ -1974,13 +1988,8 @@ class Orchestrator:
             pending.discard(key)
             return counts.pop(key, 0)
 
-    def _post_event(self, event: DispatchEvent) -> None:
-        """Put an event onto the dispatch queue (thread-safe, non-blocking).
-
-        Callers that run from the event loop can call this directly.
-        Callers from threads should use asyncio.get_event_loop().call_soon_threadsafe
-        if they need to post from outside the loop (rare — most callers are async).
-        """
+    def _post_event_on_loop(self, event: DispatchEvent) -> None:
+        """Put an event onto the dispatch queue from its owning event loop."""
         key = self._dispatch_event_key(event)
         lock = getattr(self, "_dispatch_event_lock", None)
         pending = getattr(self, "_dispatch_pending_event_keys", None)
@@ -2006,6 +2015,21 @@ class Orchestrator:
             logger.warning(
                 "Dispatch queue unexpectedly full; dropping event %s", event.event_type
             )
+
+    def _post_event(self, event: DispatchEvent) -> None:
+        """Put an event onto the dispatch queue (thread-safe, non-blocking)."""
+        loop = self._dispatch_loop
+        if loop is not None and loop.is_running() and self._running_loop() is not loop:
+            loop.call_soon_threadsafe(self._post_event_on_loop, event)
+            return
+        self._post_event_on_loop(event)
+
+    def stop_threadsafe(self):
+        """Schedule ``stop()`` on the orchestrator loop from another thread."""
+        loop = self._dispatch_loop
+        if loop is None or not loop.is_running() or self._running_loop() is loop:
+            return None
+        return asyncio.run_coroutine_threadsafe(self.stop(), loop)
 
     async def _full_sync_loop(self) -> None:
         """Background task: post FULL_SYNC events at the configured safety-net interval.
@@ -2039,6 +2063,7 @@ class Orchestrator:
         (targeted optimisations can be layered on top later without changing
         the loop contract).
         """
+        self._dispatch_loop = asyncio.get_running_loop()
         await self.startup_cleanup()
         await self._recover_restart_issues()
         full_sync_interval_s = self.config.full_sync_interval_ms / 1000.0
@@ -2122,6 +2147,7 @@ class Orchestrator:
                 await full_sync_task
             except (asyncio.CancelledError, Exception):
                 pass
+            self._dispatch_loop = None
 
     async def stop(self) -> None:
         """Gracefully stop the orchestrator."""
@@ -2133,6 +2159,7 @@ class Orchestrator:
         for issue_id, retry in list(self.state.retry_attempts.items()):
             if retry.timer_handle and not retry.timer_handle.cancelled():
                 retry.timer_handle.cancel()
+        self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
         logger.info("Orchestrator stopped")
 
     async def _tick(self) -> None:
