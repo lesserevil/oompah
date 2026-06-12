@@ -299,17 +299,22 @@ class TestPostIntakeComment:
         tracker = FakeTracker()
         result = ValidatorResult(is_ready=True, missing_fields=[])
 
-        posted = post_intake_comment_if_needed(
-            tracker,
-            IDENTIFIER,
-            result,
-            "alice",
-            issue_updated_at=_dt(12, 0),
-        )
+        with patch("oompah.intake_comments._now_iso", return_value=_iso(12, 5)):
+            posted = post_intake_comment_if_needed(
+                tracker,
+                IDENTIFIER,
+                result,
+                "alice",
+                issue_updated_at=_dt(12, 0),
+            )
 
         assert posted is False
         assert tracker.comments == []
-        assert tracker.metadata == {}
+        intake = tracker.metadata["oompah.intake"]
+        assert isinstance(intake, dict)
+        assert intake["missing_fields"] == []
+        assert intake["last_validator_result"] == "pass"
+        assert intake["last_validated_at"] == _iso(12, 5)
 
     def test_adapts_readiness_validator_result(self):
         tracker = FakeTracker()

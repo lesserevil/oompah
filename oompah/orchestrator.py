@@ -10722,6 +10722,7 @@ class Orchestrator:
             "processed_count": 0,
             "created_count": 0,
             "applied_count": 0,
+            "comment_posted_count": 0,
             "duplicate_suppressed_count": 0,
             "error_count": 0,
         }
@@ -10749,6 +10750,8 @@ class Orchestrator:
                 metrics["duplicate_suppressed_count"] += 1
             if getattr(result, "created", False):
                 metrics["created_count"] += 1
+            if getattr(result, "comment_posted", False):
+                metrics["comment_posted_count"] += 1
             if getattr(result, "created_child_count", 0) or getattr(
                 result, "updated_child_count", 0
             ):

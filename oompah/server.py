@@ -67,6 +67,7 @@ from oompah.intake_approval import (
     is_approval_command,
     is_plain_requestor_approval_comment,
 )
+from oompah.intake_comments import post_intake_comment_if_needed
 from oompah.intake_actions import (
     OVERRIDE_READINESS,
     PROMOTE_TO_BACKLOG,
@@ -83,6 +84,7 @@ from oompah.intake_promotion import (
     promote_proposed_issue_to_backlog,
     record_intake_approval,
 )
+from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
 from oompah.providers import ProviderStore
@@ -8031,28 +8033,69 @@ def _handle_intake_approval_comment(orch, event: WebhookEvent, project) -> None:
     )
     if result.promoted:
         logger.info("Promoted %s to Backlog via intake approval", identifier)
-    else:
-        logger.info(
-            "Intake approval recorded for %s but promotion blocked: %s",
-            identifier,
-            result.reason,
+        return
+
+    validation_checked = False
+    validation_ready = False
+    try:
+        validation = validate_issue(
+            title=getattr(issue, "title", None) or raw_issue.get("title", "") or "",
+            description=getattr(issue, "description", None)
+            or raw_issue.get("body", "")
+            or "",
+            issue_type=getattr(issue, "issue_type", None),
+            labels=getattr(issue, "labels", None),
         )
-        try:
-            tracker.add_comment(
+        validation_checked = True
+        validation_ready = bool(validation.ready)
+        post_intake_comment_if_needed(
+            tracker,
+            identifier,
+            validation,
+            requestor,
+            issue_updated_at=getattr(issue, "updated_at", None),
+            author="oompah",
+        )
+        if validation_ready:
+            result = promote_proposed_issue_to_backlog(
+                tracker,
                 identifier,
-                build_promotion_blocked_comment(
-                    readiness,
-                    reason=result.reason,
-                    requestor=requestor,
-                ),
-                author="oompah",
+                current_status=issue.state,
             )
-        except Exception as exc:
-            logger.warning(
-                "Failed to post blocked intake-promotion comment on %s: %s",
-                identifier,
-                exc,
-            )
+            if result.promoted:
+                logger.info("Promoted %s to Backlog after intake validation", identifier)
+                return
+    except Exception as exc:  # noqa: BLE001 - guidance must not block webhooks
+        logger.warning(
+            "Failed to validate Proposed issue %s after intake approval: %s",
+            identifier,
+            exc,
+        )
+
+    logger.info(
+        "Intake approval recorded for %s but promotion blocked: %s",
+        identifier,
+        result.reason,
+    )
+    if validation_checked and not validation_ready:
+        return
+
+    try:
+        tracker.add_comment(
+            identifier,
+            build_promotion_blocked_comment(
+                readiness,
+                reason=result.reason,
+                requestor=requestor,
+            ),
+            author="oompah",
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to post blocked intake-promotion comment on %s: %s",
+            identifier,
+            exc,
+        )
 
 
 def _should_post_unauthorized_status_comment(

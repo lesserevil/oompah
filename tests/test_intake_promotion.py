@@ -191,7 +191,8 @@ class _WebhookTracker:
         return {"oompah.intake": intake_to_raw(self.readiness)}
 
     def _set_metadata(self, identifier: str, key: str, value: object) -> None:
-        self.readiness = IntakeReadiness.from_raw(value)
+        if key == "oompah.intake":
+            self.readiness = IntakeReadiness.from_raw(value)
 
     def fetch_issue_detail(self, identifier: str) -> Issue:
         return self.issue
@@ -375,9 +376,10 @@ def test_plain_approval_records_and_comments_when_readiness_missing():
     tracker.update_issue.assert_not_called()
     tracker.add_comment.assert_called_once()
     comment = tracker.add_comment.call_args.args[1]
-    assert "approval has been recorded" in comment
-    assert "still Proposed" in comment
-    assert "acceptance_criteria" in comment
+    assert "missing the following information" in comment
+    assert "acceptance criteria" in comment
+    assert "## Acceptance Criteria" in comment
+    assert "acceptance_criteria" in tracker.readiness.missing_fields
 
 
 def test_plain_approval_from_non_requestor_is_ignored():

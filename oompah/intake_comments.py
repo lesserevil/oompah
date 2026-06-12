@@ -563,6 +563,9 @@ def post_intake_comment_if_needed(
         else ValidatorResult.from_validation_result(result)
     )
 
+    validated_at = _now_iso()
+    _update_intake_metadata(tracker, identifier, comment_result, validated_at)
+
     if comment_result.is_ready or not comment_result.missing_fields:
         # Issue is ready — nothing to request.
         logger.debug(
@@ -592,15 +595,13 @@ def post_intake_comment_if_needed(
         return False
 
     # Persist the new record so future calls can deduplicate.
-    posted_at = _now_iso()
     record: dict[str, Any] = {
         "fingerprint": fingerprint,
         "requested_actor": requested_actor.strip(),
-        "posted_at": posted_at,
+        "posted_at": validated_at,
         "issue_updated_at": _dt_to_iso(issue_updated_at),
     }
     _save_intake_record(tracker, identifier, record)
-    _update_intake_metadata(tracker, identifier, comment_result, posted_at)
 
     logger.info(
         "intake_comments: posted intake comment on %s (fp=%s, actor=%s, fields=%s)",

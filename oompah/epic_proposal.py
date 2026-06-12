@@ -24,6 +24,7 @@ from oompah.intake_schema import (
     intake_to_raw,
     parse_intake_metadata,
 )
+from oompah.intake_comments import post_intake_comment_if_needed
 from oompah.issue_validator import ScopeClassification, ValidationResult, validate_issue
 from oompah.models import Issue
 from oompah.statuses import DECOMPOSED, PROPOSED
@@ -198,6 +199,15 @@ class EpicProposalApplyResult:
     updated_child_count: int = 0
     duplicate_suppressed: bool = False
     skipped_reason: str | None = None
+
+
+@dataclass
+class IntakeValidationProcessResult:
+    """Result of validating a Proposed issue that did not need decomposition."""
+
+    validation: ValidationResult
+    comment_posted: bool = False
+    validation_recorded: bool = True
 
 
 def _now_iso() -> str:
@@ -777,8 +787,8 @@ def process_epic_proposal_issue(
     *,
     requestor: str | None = None,
     author: str = "oompah",
-) -> EpicProposalEnsureResult | EpicProposalApplyResult | None:
-    """Run the decomposition proposal step for one Proposed issue."""
+) -> EpicProposalEnsureResult | EpicProposalApplyResult | IntakeValidationProcessResult | None:
+    """Run intake validation and decomposition handling for one Proposed issue."""
     validation = validate_issue(
         title=issue.title,
         description=issue.description,
@@ -793,7 +803,24 @@ def process_epic_proposal_issue(
         author=author,
     )
     if ensured is None:
-        return None
+        requested_actor = (
+            requestor
+            or getattr(issue, "requestor_login", None)
+            or getattr(issue, "author", None)
+            or ""
+        )
+        comment_posted = post_intake_comment_if_needed(
+            tracker,
+            issue.identifier,
+            validation,
+            requested_actor,
+            issue_updated_at=getattr(issue, "updated_at", None),
+            author=author,
+        )
+        return IntakeValidationProcessResult(
+            validation=validation,
+            comment_posted=comment_posted,
+        )
 
     readiness = _load_readiness(tracker, issue.identifier)
     if readiness.decomposition_status == DecompositionStatus.ACCEPTED:
