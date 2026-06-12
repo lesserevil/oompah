@@ -22,6 +22,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import re
 import sys
@@ -34,6 +35,10 @@ except ImportError:  # pragma: no cover
     _httpx = None  # type: ignore[assignment]
 
 __all__ = ["main", "build_parser"]
+
+
+_DEFAULT_HTTP_TIMEOUT_SECONDS = 120.0
+_HTTP_TIMEOUT_ENV = "OOMPAH_TASK_CLI_TIMEOUT_SECONDS"
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +75,20 @@ def _resolve_server_url(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_http_timeout() -> float:
+    """Return the timeout for local oompah API calls."""
+    raw = os.environ.get(_HTTP_TIMEOUT_ENV, "").strip()
+    if not raw:
+        return _DEFAULT_HTTP_TIMEOUT_SECONDS
+    try:
+        timeout = float(raw)
+    except ValueError:
+        return _DEFAULT_HTTP_TIMEOUT_SECONDS
+    if not math.isfinite(timeout) or timeout <= 0:
+        return _DEFAULT_HTTP_TIMEOUT_SECONDS
+    return timeout
+
+
 def _http(
     method: str,
     url: str,
@@ -93,7 +112,7 @@ def _http(
     base_url = url.split("/api/")[0] if "/api/" in url else url
 
     try:
-        with _httpx.Client(timeout=30.0) as client:
+        with _httpx.Client(timeout=_resolve_http_timeout()) as client:
             if method == "GET":
                 resp = client.get(url, params=params)
             elif method == "POST":

@@ -137,6 +137,38 @@ class TestPathIdentifier:
 
 
 class TestHttpErrorHandling:
+    def test_default_timeout_is_long_enough_for_busy_local_server(self, monkeypatch):
+        monkeypatch.delenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", raising=False)
+        assert task_cli._resolve_http_timeout() == 120.0
+
+    def test_timeout_env_override(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", "45.5")
+        assert task_cli._resolve_http_timeout() == 45.5
+
+    @pytest.mark.parametrize("value", ["", "bogus", "0", "-1", "inf", "nan"])
+    def test_invalid_timeout_env_uses_default(self, monkeypatch, value):
+        monkeypatch.setenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", value)
+        assert task_cli._resolve_http_timeout() == 120.0
+
+    def test_http_uses_resolved_timeout(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_TASK_CLI_TIMEOUT_SECONDS", "75")
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"ok": True}
+        mock_resp.is_success = True
+        mock_resp.status_code = 200
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_resp
+
+        with patch("httpx.Client", return_value=mock_client) as client_cls:
+            result = task_cli._http("GET", "http://127.0.0.1:8080/api/v1/test")
+
+        assert result == {"ok": True}
+        client_cls.assert_called_once_with(timeout=75.0)
+
     def test_connection_error_exits_with_actionable_message(self):
         import httpx
 
