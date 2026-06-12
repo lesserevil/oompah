@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import json
 import logging
 import os
@@ -626,6 +627,13 @@ from concurrent.futures import ThreadPoolExecutor
 _api_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="api")
 _issues_broadcast_pending = False
 _STATE_THROTTLE_MS = 500  # Don't broadcast state more than every 500ms
+
+
+async def _run_api_io(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    """Run blocking tracker/API I/O in the shared API thread pool."""
+    loop = asyncio.get_running_loop()
+    call = functools.partial(func, *args, **kwargs)
+    return await loop.run_in_executor(_api_thread_pool, call)
 
 
 def _env_positive_int_ms(name: str, default: int) -> int:
@@ -3673,20 +3681,36 @@ async def api_add_comment(identifier: str, request: Request):
                     },
                     status_code=404,
                 )
-        result = tracker.add_comment(resolved_identifier, text, author=author)
+        result = await _run_api_io(
+            tracker.add_comment,
+            resolved_identifier,
+            text,
+            author=author,
+        )
 
         # When a human (non-oompah) answers a question, move the task
         # back to Open so the orchestrator picks it up.
         if author != "oompah":
             try:
-                issue = tracker.fetch_issue_detail(resolved_identifier)
+                issue = await _run_api_io(
+                    tracker.fetch_issue_detail,
+                    resolved_identifier,
+                )
                 if issue and (
                     canonicalize_status(issue.state) == NEEDS_ANSWER
                     or "asking_question" in issue.labels
                 ):
-                    tracker.update_issue(resolved_identifier, status=OPEN)
+                    await _run_api_io(
+                        tracker.update_issue,
+                        resolved_identifier,
+                        status=OPEN,
+                    )
                     if "asking_question" in issue.labels:
-                        tracker.remove_label(resolved_identifier, "asking_question")
+                        await _run_api_io(
+                            tracker.remove_label,
+                            resolved_identifier,
+                            "asking_question",
+                        )
                     logger.info(
                         "Moved %s from Needs Answer to Open after user comment",
                         resolved_identifier,

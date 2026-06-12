@@ -78,6 +78,31 @@ def client():
     return TestClient(app, raise_server_exceptions=False)
 
 
+@pytest.mark.asyncio
+async def test_run_api_io_uses_shared_api_thread_pool(monkeypatch):
+    calls = []
+
+    class FakeLoop:
+        async def run_in_executor(self, executor, call):
+            calls.append((executor, call))
+            return call()
+
+    monkeypatch.setattr(
+        server_module.asyncio,
+        "get_running_loop",
+        lambda: FakeLoop(),
+    )
+
+    result = await server_module._run_api_io(
+        lambda value, *, suffix: f"{value}{suffix}",
+        "ok",
+        suffix="!",
+    )
+
+    assert result == "ok!"
+    assert calls[0][0] is server_module._api_thread_pool
+
+
 # ---------------------------------------------------------------------------
 # GET /api/v1/issues/{identifier}/detail with project_id
 # ---------------------------------------------------------------------------
@@ -462,3 +487,37 @@ class TestCommentsEndpoint:
             resp = client.get("/api/v1/issues/nope/comments")
 
         assert resp.status_code == 404
+
+    def test_post_adds_comment_and_broadcasts(self, client):
+        """POST /comments writes via tracker and refreshes the board."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.add_comment.return_value = {
+            "author": "oompah",
+            "text": "Working on it",
+        }
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(
+                server_module,
+                "broadcast_issues",
+                new_callable=AsyncMock,
+            ) as mock_broadcast,
+        ):
+            resp = client.post(
+                "/api/v1/issues/my-issue/comments",
+                json={
+                    "text": "Working on it",
+                    "author": "oompah",
+                    "project_id": "proj-1",
+                },
+            )
+
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["text"] == "Working on it"
+        mock_tracker.add_comment.assert_called_once_with(
+            "my-issue",
+            "Working on it",
+            author="oompah",
+        )
+        mock_broadcast.assert_awaited_once()
