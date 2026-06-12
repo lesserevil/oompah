@@ -13377,10 +13377,12 @@ class Orchestrator:
                     last_message=f"ACP session: {model}",
                 )
 
+            task_tracker = self._tracker_for_issue(issue)
             tool_catalog = build_tool_catalog(
                 workspace_path,
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
+                task_tracker=task_tracker,
             )
 
             from oompah.api_agent import AgentActivity
@@ -13576,6 +13578,7 @@ class Orchestrator:
                 billing_model=acp_billing_model,
                 project_store=self.project_store,
                 project_id=issue.project_id or None,
+                task_tracker=task_tracker,
             )
 
             try:

@@ -105,6 +105,7 @@ class AcpAgentSession:
         billing_model: str = "per_token",
         project_store: Any = None,
         project_id: str | None = None,
+        task_tracker: Any = None,
     ):
         self.workspace_path = workspace_path
         self.prompt = prompt
@@ -123,6 +124,7 @@ class AcpAgentSession:
         # non-HTTP project-management tools in their tool catalog.
         self.project_store = project_store
         self.project_id = project_id
+        self.task_tracker = task_tracker
 
         # Resolve the backend class at construction time so an
         # unregistered name fails fast rather than at dispatch time.
@@ -233,6 +235,7 @@ class AcpAgentSession:
             billing_model=self.billing_model,
             project_store=self.project_store,
             project_id=self.project_id,
+            task_tracker=self.task_tracker,
         )
 
         try:

@@ -49,6 +49,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -218,6 +219,211 @@ def _exec_update_project(
 
 
 # ---------------------------------------------------------------------------
+# Shared direct task-command helpers
+# ---------------------------------------------------------------------------
+
+_SHELL_CONTROL_TOKENS = {"&&", "||", ";", "|", "&"}
+
+
+def _oompah_task_argv(command: str) -> tuple[list[str] | None, str | None]:
+    """Return ``oompah task`` argv from a simple shell command.
+
+    ACP tool calls run inside the oompah service process. If the model runs
+    ``oompah task ...`` through the shell, the spawned CLI calls back into the
+    local HTTP server and can deadlock the service. This parser recognizes the
+    simple command forms agents use and lets the MCP tool execute them directly
+    through the active tracker.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError as exc:
+        stripped = command.strip()
+        if stripped.startswith("oompah ") or " oompah " in f" {stripped} ":
+            return [], f"Error: could not parse oompah task command: {exc}"
+        return None, None
+
+    if not tokens:
+        return None, None
+
+    start: int | None = None
+    if len(tokens) >= 2 and Path(tokens[0]).name == "oompah" and tokens[1] == "task":
+        start = 2
+    elif (
+        len(tokens) >= 4
+        and tokens[0] == "uv"
+        and tokens[1] == "run"
+        and Path(tokens[2]).name == "oompah"
+        and tokens[3] == "task"
+    ):
+        start = 4
+
+    if start is None:
+        return None, None
+
+    if any(token in _SHELL_CONTROL_TOKENS for token in tokens[start:]):
+        return [], (
+            "Error: compound shell commands containing `oompah task` are not "
+            "supported in ACP mode. Run the task command by itself, then run "
+            "follow-up shell commands separately."
+        )
+    return tokens[start:], None
+
+
+def _priority_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    from oompah.tracker import _backlog_priority_int
+
+    return _backlog_priority_int(value)
+
+
+def _issue_detail_dict(tracker: Any, issue: Any, project_id: str | None) -> dict[str, Any]:
+    identifier = getattr(issue, "identifier", None) or getattr(issue, "id", "")
+    detail = {
+        "id": getattr(issue, "id", identifier),
+        "identifier": identifier,
+        "display_identifier": getattr(issue, "display_identifier", None) or identifier,
+        "title": getattr(issue, "title", ""),
+        "description": getattr(issue, "description", ""),
+        "priority": getattr(issue, "priority", None),
+        "state": getattr(issue, "state", ""),
+        "issue_type": getattr(issue, "issue_type", "task"),
+        "parent_id": getattr(issue, "parent_id", None),
+        "project_id": project_id or getattr(issue, "project_id", None),
+        "labels": list(getattr(issue, "labels", None) or []),
+        "url": getattr(issue, "url", None) or getattr(issue, "provider_url", None),
+        "comments": tracker.fetch_comments(identifier),
+    }
+    if detail["issue_type"] in ("epic", "feature"):
+        children = tracker.fetch_children(identifier)
+        detail["children"] = [
+            {
+                "id": getattr(child, "id", None),
+                "identifier": getattr(child, "identifier", None),
+                "display_identifier": getattr(child, "display_identifier", None)
+                or getattr(child, "identifier", None),
+                "title": getattr(child, "title", ""),
+                "state": getattr(child, "state", ""),
+                "priority": getattr(child, "priority", None),
+                "issue_type": getattr(child, "issue_type", "task"),
+                "project_id": getattr(child, "project_id", None) or project_id,
+            }
+            for child in children
+        ]
+    return detail
+
+
+def _format_issue_detail(detail: dict[str, Any]) -> str:
+    import contextlib
+    import io
+
+    from oompah.task_cli import _print_issue_detail
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        _print_issue_detail(detail)
+    return buf.getvalue().rstrip()
+
+
+def _exec_oompah_task_command(
+    command: str,
+    task_tracker: Any,
+    project_id: str | None = None,
+) -> str | None:
+    """Execute a simple ``oompah task ...`` command without local HTTP.
+
+    Returns ``None`` when *command* is not an oompah task command, otherwise a
+    user-facing command result string.
+    """
+    argv, parse_error = _oompah_task_argv(command)
+    if parse_error is not None:
+        return parse_error
+    if argv is None:
+        return None
+    if task_tracker is None:
+        return "Error: oompah task direct routing requires an active task tracker"
+
+    from oompah.task_cli import build_parser
+
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return f"Error: invalid oompah task command (exit {exc.code})"
+
+    requested_project = getattr(args, "project", None)
+    if requested_project and project_id and requested_project != project_id:
+        return (
+            f"Error: oompah task command requested project {requested_project!r}, "
+            f"but this ACP session is scoped to {project_id!r}"
+        )
+
+    try:
+        if args.subcommand == "view":
+            issue = task_tracker.fetch_issue_detail(args.identifier)
+            if issue is None:
+                return f"Error: Issue {args.identifier!r} not found"
+            return _format_issue_detail(
+                _issue_detail_dict(task_tracker, issue, project_id)
+            )
+
+        if args.subcommand == "comment":
+            task_tracker.add_comment(args.identifier, args.message, author=args.author)
+            return "Comment posted."
+
+        if args.subcommand == "set-status":
+            task_tracker.update_issue(args.identifier, status=args.status)
+            if getattr(args, "summary", None):
+                task_tracker.add_comment(
+                    args.identifier,
+                    args.summary,
+                    author="oompah",
+                )
+            return f"Status set to: {args.status}"
+
+        if args.subcommand == "add-label":
+            task_tracker.add_label(args.identifier, args.label)
+            return f"Label added: {args.label}"
+
+        if args.subcommand == "remove-label":
+            task_tracker.remove_label(args.identifier, args.label)
+            return f"Label removed: {args.label}"
+
+        if args.subcommand == "set-dependency":
+            task_tracker.add_dependency(args.identifier, args.depends_on)
+            return f"Dependency set: {args.identifier} depends on {args.depends_on}"
+
+        if args.subcommand == "create":
+            issue = task_tracker.create_issue(
+                title=args.title,
+                issue_type=args.issue_type,
+                description=getattr(args, "description", None),
+                priority=_priority_int(getattr(args, "priority", None)),
+                labels=getattr(args, "labels", None),
+            )
+            url = getattr(issue, "url", None) or getattr(issue, "provider_url", None)
+            output = f"Created: {issue.identifier} - {issue.title}"
+            return f"{output}\nURL: {url}" if url else output
+
+        if args.subcommand == "child-create":
+            issue = task_tracker.create_issue(
+                title=args.title,
+                issue_type=args.issue_type,
+                description=getattr(args, "description", None),
+                priority=_priority_int(getattr(args, "priority", None)),
+                labels=None,
+                parent=args.parent_id,
+            )
+            url = getattr(issue, "url", None) or getattr(issue, "provider_url", None)
+            output = f"Created: {issue.identifier} - {issue.title}"
+            return f"{output}\nURL: {url}" if url else output
+    except Exception as exc:
+        return f"Error: {exc}"
+
+    return f"Error: unsupported oompah task subcommand: {args.subcommand}"
+
+
+# ---------------------------------------------------------------------------
 # Claude Agent SDK tool catalog
 # ---------------------------------------------------------------------------
 
@@ -228,6 +434,7 @@ def build_tool_catalog(
     run_command_timeout_s: int | None = None,
     project_store: Any = None,
     project_id: str | None = None,
+    task_tracker: Any = None,
 ) -> list[Any]:
     """Build the SDK-flavored tool list for one ACP session.
 
@@ -334,6 +541,13 @@ def build_tool_catalog(
         {"command": str},
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
+        direct = _exec_oompah_task_command(
+            str(args.get("command", "")),
+            task_tracker,
+            current_project_id,
+        )
+        if direct is not None:
+            return _wrap_text(direct)
         return _wrap_text(
             _exec_run_command(
                 workspace,
@@ -458,6 +672,7 @@ def build_codex_tool_catalog(
     run_command_timeout_s: int | None = None,
     project_store: Any = None,
     project_id: str | None = None,
+    task_tracker: Any = None,
 ) -> list[Any]:
     """Build the OpenAI-Agents-SDK-flavored tool list for a Codex session.
 
@@ -563,6 +778,9 @@ def build_codex_tool_catalog(
         workspace — ``cd`` to absolute paths outside is refused.
         Project-specific tracker environment overrides are applied when
         configured. Returns stdout, stderr, and exit code."""
+        direct = _exec_oompah_task_command(command, task_tracker, current_project_id)
+        if direct is not None:
+            return direct
         return _exec_run_command(
             workspace,
             {"command": command},
@@ -642,6 +860,7 @@ def build_opencode_tool_catalog(
     run_command_timeout_s: int | None = None,
     project_store: Any = None,
     project_id: str | None = None,
+    task_tracker: Any = None,
 ) -> list[Any]:
     """Build the OpenCode-SDK-flavored tool list for an OpenCode session.
 
@@ -753,6 +972,13 @@ def build_opencode_tool_catalog(
         {"command": str},
     )
     async def run_command(args: dict[str, Any]) -> dict[str, Any]:
+        direct = _exec_oompah_task_command(
+            str(args.get("command", "")),
+            task_tracker,
+            project_id,
+        )
+        if direct is not None:
+            return _wrap_text(direct)
         return _wrap_text(
             _exec_run_command(
                 workspace,

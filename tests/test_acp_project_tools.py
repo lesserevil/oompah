@@ -21,6 +21,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from oompah.models import Issue
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -63,6 +65,21 @@ def _make_store(project: MagicMock | None = None) -> MagicMock:
     store.update.return_value = project
     store.list_all.return_value = [] if project is None else [project]
     return store
+
+
+def _make_issue(identifier: str = "owner/repo#240") -> Issue:
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title="Test issue",
+        description="Issue body",
+        state="open",
+        issue_type="task",
+        priority=2,
+        labels=["oompah:status:open"],
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -441,6 +458,92 @@ class TestExecUpdateProject:
 
 
 # ---------------------------------------------------------------------------
+# Tests for direct oompah task command routing
+# ---------------------------------------------------------------------------
+
+class TestExecOompahTaskCommand:
+    """ACP run_command must not self-call the local HTTP task CLI."""
+
+    def test_non_task_command_not_intercepted(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        assert _exec_oompah_task_command("echo hi", tracker, "proj") is None
+
+    def test_comment_routes_directly_to_tracker(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            "oompah task comment owner/repo#240 --message 'Working on it' "
+            "--author oompah",
+            tracker,
+            "proj",
+        )
+
+        assert result == "Comment posted."
+        tracker.add_comment.assert_called_once_with(
+            "owner/repo#240",
+            "Working on it",
+            author="oompah",
+        )
+
+    def test_set_status_with_summary_routes_directly_to_tracker(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            "oompah task set-status owner/repo#240 Done --summary 'Finished'",
+            tracker,
+            "proj",
+        )
+
+        assert result == "Status set to: Done"
+        tracker.update_issue.assert_called_once_with("owner/repo#240", status="Done")
+        tracker.add_comment.assert_called_once_with(
+            "owner/repo#240",
+            "Finished",
+            author="oompah",
+        )
+
+    def test_view_formats_tracker_detail_without_http(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+        tracker.fetch_issue_detail.return_value = _make_issue()
+        tracker.fetch_comments.return_value = [
+            {"id": 1, "author": "oompah", "created_at": "now", "text": "hello"}
+        ]
+
+        result = _exec_oompah_task_command(
+            "oompah task view owner/repo#240",
+            tracker,
+            "proj",
+        )
+
+        assert "Task owner/repo#240 - Test issue" in result
+        assert "hello" in result
+        tracker.fetch_issue_detail.assert_called_once_with("owner/repo#240")
+
+    def test_compound_task_command_returns_error_instead_of_subprocess(self):
+        from oompah.acp_tools import _exec_oompah_task_command
+
+        tracker = MagicMock()
+
+        result = _exec_oompah_task_command(
+            "oompah task comment owner/repo#240 --message hi && echo done",
+            tracker,
+            "proj",
+        )
+
+        assert result.startswith("Error:")
+        tracker.add_comment.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Tests for the Claude tool catalog (build_tool_catalog)
 # ---------------------------------------------------------------------------
 
@@ -510,6 +613,36 @@ class TestBuildToolCatalogProjectTools:
         text = result["content"][0]["text"]
 
         assert "Error: command timed out after 1s" in text
+
+    def test_run_command_tool_intercepts_oompah_task_comment(self, tmp_path):
+        """ACP run_command routes task CLI commands directly through tracker."""
+        import asyncio
+        from oompah.acp_tools import build_tool_catalog
+
+        tracker = MagicMock()
+        cat = build_tool_catalog(
+            str(tmp_path),
+            project_id="proj-test",
+            task_tracker=tracker,
+        )
+        tool = next(t for t in cat if t.name == "run_command")
+
+        result = asyncio.run(
+            tool.handler({
+                "command": (
+                    "oompah task comment owner/repo#240 --message 'Working' "
+                    "--author oompah"
+                )
+            })
+        )
+        text = result["content"][0]["text"]
+
+        assert text == "Comment posted."
+        tracker.add_comment.assert_called_once_with(
+            "owner/repo#240",
+            "Working",
+            author="oompah",
+        )
 
     def test_list_projects_tool_returns_data_with_store(self, tmp_path):
         """list_projects returns managed project snapshots when wired up."""
@@ -668,14 +801,17 @@ class TestAcpAgentSessionProjectStoreFlow:
         from oompah.acp_agent import AcpAgentSession
 
         store = _make_store()
+        tracker = MagicMock()
         session = AcpAgentSession(
             workspace_path="/tmp/ws",
             prompt="test",
             project_store=store,
             project_id="proj-test",
+            task_tracker=tracker,
         )
         assert session.project_store is store
         assert session.project_id == "proj-test"
+        assert session.task_tracker is tracker
 
     def test_session_defaults_project_store_to_none(self):
         from oompah.acp_agent import AcpAgentSession
@@ -683,12 +819,13 @@ class TestAcpAgentSessionProjectStoreFlow:
         session = AcpAgentSession(workspace_path="/tmp/ws", prompt="test")
         assert session.project_store is None
         assert session.project_id is None
+        assert session.task_tracker is None
 
-    def test_run_task_passes_project_store_to_backend_options(self):
-        """run_task must include project_store / project_id in the
+    def test_run_task_passes_project_context_to_backend_options(self):
+        """run_task must include project_store / project_id / tracker in the
         AcpBackendOptions passed to start_session."""
         import asyncio
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import MagicMock
 
         from oompah.acp_agent import AcpAgentSession
         from oompah.acp_backends.base import AcpBackendOptions
@@ -714,6 +851,7 @@ class TestAcpAgentSessionProjectStoreFlow:
         mock_backend.start_session = _start_session
 
         store = _make_store()
+        tracker = MagicMock()
 
         with patch("oompah.acp_agent.get_backend_or_raise", return_value=lambda: mock_backend):
             session = AcpAgentSession(
@@ -721,6 +859,7 @@ class TestAcpAgentSessionProjectStoreFlow:
                 prompt="hello",
                 project_store=store,
                 project_id="proj-flow",
+                task_tracker=tracker,
             )
             asyncio.run(session.run_task())
 
@@ -728,6 +867,7 @@ class TestAcpAgentSessionProjectStoreFlow:
         opts = captured_options[0]
         assert opts.project_store is store
         assert opts.project_id == "proj-flow"
+        assert opts.task_tracker is tracker
 
 
 # ---------------------------------------------------------------------------

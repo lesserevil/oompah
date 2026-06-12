@@ -112,6 +112,10 @@ class AcpBackendOptions:
     # gracefully (return an error string) when not supplied.
     project_store: Any = None
     project_id: str | None = None
+    # Tracker for the task's managed project. ACP run_command uses this to
+    # execute ``oompah task ...`` commands directly instead of spawning the
+    # HTTP-backed CLI, which would self-call the local server process.
+    task_tracker: Any = None
 
 
 @runtime_checkable

@@ -373,6 +373,7 @@ class CodexAcpBackendSession(AcpBackendSession):
             self._options.workspace_path,
             project_store=self._options.project_store,
             project_id=self._options.project_id,
+            task_tracker=self._options.task_tracker,
         )
 
     # ---- run_turn: drive the openai-agents Runner ----
