@@ -6740,6 +6740,114 @@ class Orchestrator:
             return github_work_branch_name(project.name, issue.issue_number)
         return issue.identifier
 
+    def _helper_branch_token(self, raw: str | None) -> str:
+        """Normalize a branch token parsed from an auto-filed helper issue."""
+        value = str(raw or "").strip()
+        return value.strip("`'\".,;)")
+
+    def _helper_landing_branches_for_issue(self, issue: Issue) -> list[str]:
+        """Return PR/epic branches named by CI-fix or rebase helper issues."""
+        title = str(issue.title or "").strip()
+        description = str(issue.description or "")
+        branches: list[str] = []
+
+        ci_match = re.search(
+            r"\bCI\s+fix:\s*PR\s*#\d+\s+on branch\s+([^\s)]+)",
+            title,
+            flags=re.IGNORECASE,
+        )
+        if ci_match:
+            branches.append(self._helper_branch_token(ci_match.group(1)))
+
+        rebase_match = re.search(
+            r"^Rebase\s+(.+?)\s+onto\s+\S+",
+            title,
+            flags=re.IGNORECASE,
+        )
+        if rebase_match:
+            branches.append(self._helper_branch_token(rebase_match.group(1)))
+
+        if ci_match is None and title.lower().startswith("ci fix:"):
+            desc_match = re.search(
+                r"\bbranch\s+`?([^`\s)]+)`?",
+                description,
+                flags=re.IGNORECASE,
+            )
+            if desc_match:
+                branches.append(self._helper_branch_token(desc_match.group(1)))
+
+        if title.lower().startswith("rebase ") and issue.parent_id:
+            try:
+                branches.append(
+                    self.project_store.epic_branch_name(issue.parent_id)
+                )
+            except Exception:  # noqa: BLE001 - parsed title branch is enough
+                pass
+
+        return [branch for branch in branches if branch]
+
+    def _candidate_landing_branches_for_issue(
+        self,
+        issue: Issue,
+        project: Any | None = None,
+    ) -> list[str]:
+        """Return branch names whose merged PR should land ``issue``."""
+        branches = [self._branch_for_issue(issue, project)]
+        branches.extend(self._helper_landing_branches_for_issue(issue))
+        return list(dict.fromkeys(branch for branch in branches if branch))
+
+    def _is_helper_landing_issue(self, issue: Issue) -> bool:
+        title = str(issue.title or "").strip().lower()
+        return title.startswith("ci fix:") or title.startswith("rebase ")
+
+    def _landed_branch_for_issue(
+        self,
+        project: Project,
+        issue: Issue,
+        project_id: str,
+        candidate_branches: list[str],
+        merged_branches: set[str],
+        open_review_branches: set[str],
+        provider: Any | None,
+        slug: str,
+    ) -> str | None:
+        """Return the first candidate branch with a confirmed merged PR."""
+        for branch in candidate_branches:
+            if branch in open_review_branches:
+                continue
+            if branch in merged_branches and self._merged_branch_tip_landed(
+                project,
+                issue,
+                project_id,
+                branch,
+                rollup_strategy=self._epic_rollup_child_strategy(issue, project_id),
+            ):
+                return branch
+
+            if provider is None or not slug:
+                continue
+            try:
+                review = provider.find_pr_for_branch(slug, branch)
+            except Exception as exc:  # noqa: BLE001 - best-effort reconciliation
+                logger.debug(
+                    "Merged issue PR lookup failed for %s branch %s: %s",
+                    issue.identifier,
+                    branch,
+                    exc,
+                )
+                continue
+            if str(getattr(review, "state", "") or "").lower() != "merged":
+                continue
+            if self._merged_branch_tip_landed(
+                project,
+                issue,
+                project_id,
+                branch,
+                rollup_strategy=self._epic_rollup_child_strategy(issue, project_id),
+            ):
+                return branch
+        return None
+
     def _ensure_review_exists(
         self, entry: RunningEntry, project_id: str | None
     ) -> bool:
@@ -7338,19 +7446,44 @@ class Orchestrator:
         )
 
     def _label_merged_issues(self) -> None:
-        """Label closed issues whose branch has been merged."""
+        """Label issues whose own or helper-associated branch has merged."""
         merged = getattr(self, "_merged_branches", set())
-        if not merged:
-            return
+        reviews_cache = getattr(self, "_reviews_cache", {}) or {}
 
         for project in self.project_store.list_all():
             if self._job_deadline_exceeded("merged_labels"):
                 return
             project_id = str(project.id)
             tracker = self._tracker_for_project(project.id)
+            project_reviews = reviews_cache.get(project.id) or reviews_cache.get(
+                project_id,
+                [],
+            )
+            open_review_branches = {
+                str(review.source_branch)
+                for review in project_reviews
+                if getattr(review, "source_branch", None)
+                and str(getattr(review, "state", "") or "open").lower() == "open"
+            }
+            provider = None
+            slug = ""
+            if getattr(project, "repo_url", None):
+                try:
+                    provider = detect_provider(
+                        project.repo_url,
+                        access_token=getattr(project, "access_token", None),
+                    )
+                    if provider:
+                        slug = extract_repo_slug(project.repo_url)
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    logger.debug(
+                        "Merged issue provider setup failed for %s: %s",
+                        getattr(project, "name", project_id),
+                        exc,
+                    )
             try:
                 merge_candidate_states = list(self.config.tracker_terminal_states)
-                for state in (IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE):
+                for state in (IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE, NEEDS_HUMAN):
                     if state not in merge_candidate_states:
                         merge_candidate_states.append(state)
                 closed_issues = tracker.fetch_issues_by_states(merge_candidate_states)
@@ -7369,21 +7502,29 @@ class Orchestrator:
                     or "archive:yes" in labels
                 ):
                     continue
-                branch = self._branch_for_issue(issue, project)
-                if branch in merged:
+                helper_issue = self._is_helper_landing_issue(issue)
+                allow_provider_lookup = (
+                    helper_issue
+                    or not merged
+                    or issue_status
+                    in {IN_REVIEW, NEEDS_CI_FIX, NEEDS_REBASE, NEEDS_HUMAN}
+                )
+                branch = self._landed_branch_for_issue(
+                    project,
+                    issue,
+                    project_id,
+                    self._candidate_landing_branches_for_issue(issue, project),
+                    merged,
+                    open_review_branches,
+                    provider if allow_provider_lookup else None,
+                    slug if allow_provider_lookup else "",
+                )
+                if branch:
                     rollup_strategy = self._epic_rollup_child_strategy(
                         issue,
                         project_id,
                     )
-                    if not self._merged_branch_tip_landed(
-                        project,
-                        issue,
-                        project_id,
-                        branch,
-                        rollup_strategy=rollup_strategy,
-                    ):
-                        continue
-                    if rollup_strategy == "shared":
+                    if rollup_strategy == "shared" and not helper_issue:
                         logger.info(
                             "Skipped marking %s Merged from child branch %s: "
                             "project epic_strategy=shared waits for the epic "
@@ -7392,7 +7533,7 @@ class Orchestrator:
                             branch,
                         )
                         continue
-                    if rollup_strategy == "stacked":
+                    if rollup_strategy == "stacked" and not helper_issue:
                         if issue_status == DONE:
                             continue
                         try:
@@ -7480,9 +7621,10 @@ class Orchestrator:
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
 
-                # Use branch_name if set, otherwise fall back to identifier
-                branch = (
-                    (issue.branch_name or "").strip() or issue.identifier
+                branch = self._stale_in_review_effective_branch(
+                    issue,
+                    project_id,
+                    project,
                 )
                 review = branch_to_review.get(branch)
                 if review is None:
@@ -7677,9 +7819,13 @@ class Orchestrator:
             if self._job_deadline_exceeded("merged_labels"):
                 return
             project_id = str(project.id)
+            project_reviews = reviews_cache.get(project.id) or reviews_cache.get(
+                project_id,
+                [],
+            )
             open_branches = {
                 str(r.source_branch)
-                for r in (reviews_cache.get(project_id, []) or [])
+                for r in (project_reviews or [])
                 if getattr(r, "source_branch", None)
             }
             try:
@@ -7709,7 +7855,11 @@ class Orchestrator:
                     issue.project_id = project_id
                 if canonicalize_status(issue.state) != IN_REVIEW:
                     continue
-                branch = self._stale_in_review_effective_branch(issue, project_id)
+                branch = self._stale_in_review_effective_branch(
+                    issue,
+                    project_id,
+                    project,
+                )
                 if not branch or branch in open_branches:
                     continue
                 rollup_strategy = self._epic_rollup_child_strategy(
@@ -7922,6 +8072,7 @@ class Orchestrator:
         self,
         issue: Issue,
         project_id: str | None,
+        project: Project | None = None,
     ) -> str:
         """Return the branch stale-review reconciliation should verify."""
         strategy = self._project_epic_strategy(project_id)
@@ -7933,8 +8084,12 @@ class Orchestrator:
                 return self.project_store.epic_branch_name(issue.identifier)
             except Exception:  # noqa: BLE001 - fall back to the legacy branch rule
                 pass
-        branch = (issue.branch_name or "").strip()
-        return branch or issue.identifier
+        if project is None and project_id:
+            try:
+                project = self.project_store.get(project_id)
+            except Exception:  # noqa: BLE001 - fall back to local issue fields
+                project = None
+        return self._branch_for_issue(issue, project)
 
     def _count_review_branch_ahead(
         self,
@@ -8174,8 +8329,7 @@ class Orchestrator:
         skipped.
         """
         merged = getattr(self, "_merged_branches", set())
-        if not merged:
-            return
+        provider_cache: dict[str, tuple[Any | None, str]] = {}
         for epic in self._all_non_terminal_epics():
             if self._job_deadline_exceeded("merged_labels"):
                 return
@@ -8189,7 +8343,56 @@ class Orchestrator:
             except Exception:  # noqa: BLE001
                 continue
             if epic_branch not in merged:
-                continue
+                project = self.project_store.get(project_id)
+                if not project or not getattr(project, "repo_url", None):
+                    continue
+                if project_id not in provider_cache:
+                    try:
+                        provider = detect_provider(
+                            project.repo_url,
+                            access_token=getattr(project, "access_token", None),
+                        )
+                        slug = extract_repo_slug(project.repo_url) if provider else ""
+                    except Exception as exc:  # noqa: BLE001 - best effort
+                        logger.debug(
+                            "Merged epic provider setup failed for %s: %s",
+                            project_id,
+                            exc,
+                        )
+                        provider, slug = None, ""
+                    provider_cache[project_id] = (provider, slug)
+                provider, slug = provider_cache[project_id]
+                if provider is None or not slug:
+                    continue
+                try:
+                    merged_refs = self._coerce_branch_set(
+                        provider.list_merged_branches(slug)
+                    )
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    logger.debug(
+                        "Merged epic branch lookup failed for %s branch %s: %s",
+                        epic.identifier,
+                        epic_branch,
+                        exc,
+                    )
+                    merged_refs = set()
+                landed = epic_branch in merged_refs
+                if not landed:
+                    try:
+                        review = provider.find_pr_for_branch(slug, epic_branch)
+                    except Exception as exc:  # noqa: BLE001 - best effort
+                        logger.debug(
+                            "Merged epic PR lookup failed for %s branch %s: %s",
+                            epic.identifier,
+                            epic_branch,
+                            exc,
+                        )
+                        review = None
+                    landed = (
+                        str(getattr(review, "state", "") or "").lower() == "merged"
+                    )
+                if not landed:
+                    continue
             self._mark_epic_merged(epic, epic_branch=epic_branch)
 
     def _mark_epic_merged(self, epic: Issue, *, epic_branch: str | None = None) -> None:

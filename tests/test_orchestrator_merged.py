@@ -9,6 +9,7 @@ import pytest
 from oompah.config import ServiceConfig
 from oompah.models import BlockerRef, Issue, RunningEntry
 from oompah.orchestrator import Orchestrator
+from oompah.projects import github_work_branch_name
 from oompah.scm import ReviewRequest
 from oompah.statuses import DONE, IN_REVIEW, MERGED, NEEDS_CI_FIX, NEEDS_REBASE
 
@@ -77,8 +78,9 @@ class TestLabelMergedIssues:
         orch = self._make_orchestrator(tmp_path)
         orch._merged_branches = set()
         orch._label_merged_issues()
-        # No projects queried
-        orch.project_store.list_all.assert_not_called()
+        # The sweep still checks projects because provider fallback can
+        # reconcile landed PRs when the merged-branch cache is empty.
+        orch.project_store.list_all.assert_called_once()
 
     def test_labels_closed_issue_with_matching_branch(self, tmp_path):
         project = _make_project()
@@ -204,6 +206,96 @@ class TestLabelMergedIssues:
         mock_tracker.update_issue.assert_called_once_with(
             "issue-123", status="Merged"
         )
+
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_done_ci_fix_helper_marked_merged_when_review_branch_landed(
+        self,
+        mock_detect,
+        _mock_slug,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._merged_branches = set()
+        landed_branch = "oompah/proj/gh-269"
+
+        provider = MagicMock()
+
+        def find_pr_for_branch(_slug, branch):
+            if branch != landed_branch:
+                return None
+            return ReviewRequest(
+                id="270",
+                title="PR #270",
+                url="https://github.com/org/repo/pull/270",
+                author="alice",
+                state="merged",
+                source_branch=landed_branch,
+                target_branch="main",
+                created_at="2026-01-01",
+                updated_at="2026-01-02",
+            )
+
+        provider.find_pr_for_branch.side_effect = find_pr_for_branch
+        mock_detect.return_value = provider
+
+        helper = _make_issue(
+            "lesserevil/oompah#271",
+            state=DONE,
+            branch_name="oompah/proj/gh-271",
+            project_id=project.id,
+        )
+        helper.title = f"CI fix: PR #270 on branch {landed_branch}"
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [helper]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._label_merged_issues()
+
+        assert provider.find_pr_for_branch.call_args_list[-1] == call(
+            "org/repo",
+            landed_branch,
+        )
+        mock_tracker.update_issue.assert_called_once_with(
+            helper.identifier,
+            status=MERGED,
+        )
+
+    def test_done_issue_with_open_review_is_not_closed_from_stale_merged_ref(
+        self,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._merged_branches = {"feat-branch"}
+        orch._reviews_cache = {
+            project.id: [
+                ReviewRequest(
+                    id="271",
+                    title="PR #271",
+                    url="https://github.com/org/repo/pull/271",
+                    author="alice",
+                    state="open",
+                    source_branch="feat-branch",
+                    target_branch="main",
+                    created_at="2026-01-01",
+                    updated_at="2026-01-02",
+                )
+            ]
+        }
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [
+            _make_issue("feat-branch", state=DONE, project_id=project.id),
+        ]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._label_merged_issues()
+
+        mock_tracker.update_issue.assert_not_called()
 
     def test_shared_epic_child_not_marked_merged_from_child_branch(self, tmp_path):
         project = _make_project(epic_strategy="shared")
@@ -497,6 +589,60 @@ class TestReconcileStaleInReviewTasks:
         orch._reconcile_stale_in_review_tasks()
 
         mock_tracker.update_issue.assert_called_once_with("TASK-1", status="Merged")
+        mock_tracker.add_comment.assert_not_called()
+
+    @patch("oompah.orchestrator.extract_repo_slug", return_value="org/repo")
+    @patch("oompah.orchestrator.detect_provider")
+    def test_stale_github_in_review_uses_generated_branch_before_needs_human(
+        self,
+        mock_detect,
+        _mock_slug,
+        tmp_path,
+    ):
+        project = _make_project()
+        project.name = "oompah"
+        project.repo_path = str(tmp_path)
+        orch = self._make_orchestrator(tmp_path, projects=[project])
+        orch._reviews_cache = {project.id: []}
+        orch._merged_branches = set()
+
+        expected_branch = github_work_branch_name(project.name, "269")
+        provider = MagicMock()
+        provider.find_pr_for_branch.return_value = ReviewRequest(
+            id="290",
+            title="PR #290",
+            url="https://github.com/org/repo/pull/290",
+            author="alice",
+            state="merged",
+            source_branch=expected_branch,
+            target_branch="main",
+            created_at="2026-01-01",
+            updated_at="2026-01-02",
+        )
+        mock_detect.return_value = provider
+
+        issue = _make_issue(
+            "lesserevil/oompah#269",
+            state=IN_REVIEW,
+            project_id=project.id,
+        )
+        issue.tracker_kind = "github_issues"
+        issue.issue_number = "269"
+
+        mock_tracker = MagicMock()
+        mock_tracker.fetch_issues_by_states.return_value = [issue]
+        orch._project_trackers[project.id] = mock_tracker
+
+        orch._reconcile_stale_in_review_tasks()
+
+        provider.find_pr_for_branch.assert_called_once_with(
+            "org/repo",
+            expected_branch,
+        )
+        mock_tracker.update_issue.assert_called_once_with(
+            issue.identifier,
+            status=MERGED,
+        )
         mock_tracker.add_comment.assert_not_called()
 
     @patch("oompah.orchestrator.detect_provider", return_value=None)

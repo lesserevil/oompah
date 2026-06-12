@@ -6,7 +6,7 @@ Covers:
   (3) get_snapshot() does not expose raw access_token or webhook_secret in projects
   (4) get_snapshot() uses to_safe_dict() (not to_dict()) for projects
   (5) api_state() serves from cached snapshot in combined mode
-  (6) api_state() falls back to live get_snapshot() when cache is empty
+  (6) api_state() avoids live get_snapshot() when cache is empty or stale
   (7) Observer callbacks update the state snapshot cache
   (8) WebSocket state broadcasts include maintenance status
 """
@@ -252,8 +252,8 @@ class TestApiStateCachingCombinedMode:
             server_module._state_snapshot_at = 0.0
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_live_when_cache_empty(self):
-        """api_state() calls get_snapshot() when no cached snapshot is available."""
+    async def test_returns_unavailable_when_cache_empty(self):
+        """api_state() returns a placeholder without calling get_snapshot()."""
         live_snapshot = {
             "paused": False,
             "counts": {"running": 2, "retrying": 0},
@@ -277,8 +277,10 @@ class TestApiStateCachingCombinedMode:
             response = await server_module.api_state()
             data = json.loads(response.body)
 
-            assert data["counts"]["running"] == 2
-            mock_orch.get_snapshot.assert_called_once()
+            assert data["counts"]["running"] == 0
+            assert data["state_snapshot_unavailable"] is True
+            assert data["alerts"][0]["source"] == "state_snapshot"
+            mock_orch.get_snapshot.assert_not_called()
         finally:
             server_module._orchestrator = original_orch
             server_module._ipc = original_ipc
@@ -286,8 +288,8 @@ class TestApiStateCachingCombinedMode:
             server_module._state_snapshot_at = original_at
 
     @pytest.mark.asyncio
-    async def test_cache_expires_after_max_age(self):
-        """api_state() falls back to live when cached snapshot is too old."""
+    async def test_serves_stale_cache_after_max_age(self):
+        """api_state() serves stale cache without calling get_snapshot()."""
         old_snapshot = {
             "paused": False,
             "counts": {"running": 5, "retrying": 0},
@@ -312,15 +314,21 @@ class TestApiStateCachingCombinedMode:
             server_module._ipc = None
             # Set an expired cache (monotonic time far in the past)
             server_module._state_snapshot = old_snapshot
-            server_module._state_snapshot_at = time.monotonic() - (server_module._STATE_SNAPSHOT_MAX_AGE_S + 10)
+            server_module._state_snapshot_at = time.monotonic() - (
+                server_module._STATE_SNAPSHOT_MAX_AGE_S + 10
+            )
 
             import json
             response = await server_module.api_state()
             data = json.loads(response.body)
 
-            # Should return fresh data (running=0), not expired cache (running=5)
-            assert data["counts"]["running"] == 0
-            mock_orch.get_snapshot.assert_called_once()
+            assert data["counts"]["running"] == 5
+            assert data["state_snapshot_stale"] is True
+            assert (
+                data["state_snapshot_age_seconds"]
+                >= server_module._STATE_SNAPSHOT_MAX_AGE_S
+            )
+            mock_orch.get_snapshot.assert_not_called()
         finally:
             server_module._orchestrator = original_orch
             server_module._ipc = original_ipc
