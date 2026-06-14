@@ -20,7 +20,8 @@ Design decisions
   not request changes. Comments that are merely positive, such as "LGTM" or
   "looks good", are deliberately ignored.
 - Authorization is checked against: (1) the oompah bot login, (2) the original
-  requestor (issue opener), (3) ``project.tracker_owner``, and (4) entries in
+  requestor (issue opener), (3) ``project.status_actor_login``, (4)
+  ``project.tracker_owner``, and (5) entries in
   ``project.status_label_authorized_logins``.
 - The *proposal fingerprint* is a SHA-256 digest of the normalized issue body
   text (stripped of surrounding whitespace) so that cosmetic whitespace changes
@@ -232,18 +233,20 @@ def is_authorized_approver(
 
     1. The oompah bot (``get_bot_login()``) is always authorized.
     2. The original requestor (``requestor_login``) is always authorized.
-    3. ``project.tracker_owner`` (case-insensitive) is authorized as an owner
+    3. ``project.status_actor_login`` (case-insensitive) is authorized as an
+       owner override.
+    4. ``project.tracker_owner`` (case-insensitive) is authorized as an owner
        override.
-    4. Any login in ``project.status_label_authorized_logins`` is authorized
+    5. Any login in ``project.status_label_authorized_logins`` is authorized
        as an owner override.
 
     Args:
         actor_login: GitHub login of the user attempting to approve.
         requestor_login: GitHub login of the original issue reporter.
         project: A :class:`~oompah.models.Project` instance (or any object
-            with ``tracker_owner`` and ``status_label_authorized_logins``
-            attributes).  May be ``None``; if so, only the bot and requestor
-            are checked.
+            with ``status_actor_login``, ``tracker_owner`` and
+            ``status_label_authorized_logins`` attributes).  May be ``None``;
+            if so, only the bot and requestor are checked.
 
     Returns:
         A ``(is_authorized, is_owner_override)`` tuple.  ``is_authorized``
@@ -267,6 +270,13 @@ def is_authorized_approver(
 
     # Project owner checks — authorized, but counts as an override.
     if project is not None:
+        status_actor_login = getattr(project, "status_actor_login", None)
+        if (
+            isinstance(status_actor_login, str)
+            and status_actor_login.strip().lower() == actor_lower
+        ):
+            return True, True
+
         tracker_owner = getattr(project, "tracker_owner", None)
         if (
             isinstance(tracker_owner, str)

@@ -14,11 +14,14 @@ An ``oompah:status:*`` label change is **authorized** when the actor is:
    API calls).  Bot identity is read from the ``OOMPAH_BOT_LOGIN`` environment
    variable; the default is ``"oompah"``.
 
-2. The project's GitHub tracker owner, when configured.  This covers common
-   deployments where oompah writes labels through the repository owner's PAT
-   and GitHub reports the label actor as that owner login.
+2. The project's configured status actor, when set.  This normally resolves to
+   the GitHub login that owns the project's configured access token.
 
-3. A project owner listed in
+3. The project's GitHub tracker owner, when configured.  This is kept for
+   compatibility with existing deployments that used the repository owner as
+   the status actor before ``status_actor_login`` existed.
+
+4. A project owner listed in
    :attr:`~oompah.models.Project.status_label_authorized_logins`.  This list
    defaults to empty.
 
@@ -154,8 +157,9 @@ def is_authorized_status_actor(actor_login: str, project: Any) -> bool:
     Authorization requires the actor to be one of:
 
     1. The oompah bot (``get_bot_login()``, case-insensitive comparison).
-    2. ``project.tracker_owner`` (case-insensitive), when configured.
-    3. A login in ``project.status_label_authorized_logins`` (case-insensitive).
+    2. ``project.status_actor_login`` (case-insensitive), when configured.
+    3. ``project.tracker_owner`` (case-insensitive), when configured.
+    4. A login in ``project.status_label_authorized_logins`` (case-insensitive).
 
     When *project* is ``None`` or has no ``status_label_authorized_logins``
     attribute, only the bot login is trusted.
@@ -179,6 +183,13 @@ def is_authorized_status_actor(actor_login: str, project: Any) -> bool:
 
     # Check per-project owner allowlist.
     if project is not None:
+        status_actor_login = getattr(project, "status_actor_login", None)
+        if (
+            isinstance(status_actor_login, str)
+            and status_actor_login.strip().lower() == actor_lower
+        ):
+            return True
+
         tracker_owner = getattr(project, "tracker_owner", None)
         if (
             isinstance(tracker_owner, str)

@@ -363,6 +363,14 @@ async function loadProjects() {
           <span class="field-label">Task Hub:</span>
           <span class="field-value">${(p.tracker_owner || p.tracker_repo) ? esc((p.tracker_owner || '') + '/' + (p.tracker_repo || '')) : '<em style="color:var(--text-muted);font-style:italic;">not set</em>'}</span>
         </div>
+        <div class="field-row" data-field="status-actor">
+          <span class="field-label">Status Actor:</span>
+          <span class="field-value">${p.status_actor_login ? esc(p.status_actor_login) : '<em style="color:var(--text-muted);font-style:italic;">not resolved from token</em>'}</span>
+        </div>
+        <div class="field-row" data-field="status-label-actors">
+          <span class="field-label">Status Allowlist:</span>
+          <span class="field-value">${(p.status_label_authorized_logins || []).length ? esc(p.status_label_authorized_logins.join(', ')) : '<em style="color:var(--text-muted);font-style:italic;">none</em>'}</span>
+        </div>
         ${p.github_project_node_id ? `<div class="field-row" data-field="github-project-node-id">
           <span class="field-label">GH Project:</span>
           <span class="field-value">${esc(p.github_project_node_id)}</span>
@@ -478,7 +486,7 @@ async function loadProjects() {
         </div>
         <div class="form-group">
           <label>Tracker Owner <span style="font-weight:400;color:var(--text-muted);">(GitHub org or user that owns the task hub repo)</span></label>
-          <input type="text" id="edit-tracker-owner-${esc(p.id)}" value="${esc(p.tracker_owner || '')}" placeholder="e.g. lesserevil">
+          <input type="text" id="edit-tracker-owner-${esc(p.id)}" value="${esc(p.tracker_owner || '')}" placeholder="e.g. my-org">
         </div>
         <div class="form-group">
           <label>Tracker Repo <span style="font-weight:400;color:var(--text-muted);">(GitHub repo name for the central task hub)</span></label>
@@ -487,6 +495,14 @@ async function loadProjects() {
         <div class="form-group">
           <label>GitHub Project Node ID <span style="font-weight:400;color:var(--text-muted);">(optional — GitHub Projects board node ID for field sync)</span></label>
           <input type="text" id="edit-github-project-node-id-${esc(p.id)}" value="${esc(p.github_project_node_id || '')}" placeholder="e.g. PVT_kwDOA...">
+        </div>
+        <div class="form-group">
+          <label>Status Actor Login <span style="font-weight:400;color:var(--text-muted);">(defaults to the owner of the configured project token)</span></label>
+          <input type="text" id="edit-status-actor-login-${esc(p.id)}" value="${esc(p.status_actor_login || '')}" placeholder="e.g. project-owner">
+        </div>
+        <div class="form-group">
+          <label>Status Authorized Logins <span style="font-weight:400;color:var(--text-muted);">(comma-separated GitHub logins allowed to move issues through protected status transitions)</span></label>
+          <input type="text" id="edit-status-label-authorized-logins-${esc(p.id)}" value="${esc((p.status_label_authorized_logins || []).join(', '))}" placeholder="e.g. project-owner, release-manager">
         </div>
         <div class="form-group">
           <label>Legacy Backlog Flags <span style="font-weight:400;color:var(--text-muted);">(only applies when tracker_kind = github_issues)</span></label>
@@ -714,11 +730,18 @@ async function saveProject(id) {
   const trackerOwner = document.getElementById('edit-tracker-owner-' + id).value.trim() || null;
   const trackerRepo = document.getElementById('edit-tracker-repo-' + id).value.trim() || null;
   const githubProjectNodeId = document.getElementById('edit-github-project-node-id-' + id).value.trim() || null;
+  const statusActorLogin = document.getElementById('edit-status-actor-login-' + id).value.trim() || null;
+  const statusLabelAuthorizedLoginsRaw = document.getElementById('edit-status-label-authorized-logins-' + id).value.trim();
+  const statusLabelAuthorizedLogins = statusLabelAuthorizedLoginsRaw
+    ? statusLabelAuthorizedLoginsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0)
+    : [];
   const legacyBacklogEnabled = document.getElementById('edit-legacy-backlog-enabled-' + id).checked;
   const legacyBacklogDispatch = document.getElementById('edit-legacy-backlog-dispatch-' + id).checked;
   const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy, provider_whitelist: providerWhitelist,
     tracker_kind: trackerKind, tracker_owner: trackerOwner, tracker_repo: trackerRepo,
     github_project_node_id: githubProjectNodeId,
+    status_actor_login: statusActorLogin,
+    status_label_authorized_logins: statusLabelAuthorizedLogins,
     legacy_backlog_enabled: legacyBacklogEnabled, legacy_backlog_dispatch: legacyBacklogDispatch};
   if (repoUrl) body.repo_url = repoUrl;
   if (gitUserName) body.git_user_name = gitUserName;

@@ -73,6 +73,8 @@ _PROJECT_READABLE_FIELDS = frozenset(
         "tracker_owner",
         "tracker_repo",
         "github_project_node_id",
+        "status_actor_login",
+        "status_label_authorized_logins",
         "legacy_backlog_enabled",
         "legacy_backlog_dispatch",
         "tracker_cutover_at",
@@ -87,6 +89,8 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
         "tracker_owner",
         "tracker_repo",
         "github_project_node_id",
+        "status_actor_login",
+        "status_label_authorized_logins",
         "legacy_backlog_enabled",
         "legacy_backlog_dispatch",
         "tracker_cutover_at",
@@ -118,6 +122,10 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         "tracker_owner": getattr(project, "tracker_owner", None),
         "tracker_repo": getattr(project, "tracker_repo", None),
         "github_project_node_id": getattr(project, "github_project_node_id", None),
+        "status_actor_login": getattr(project, "status_actor_login", None),
+        "status_label_authorized_logins": list(
+            getattr(project, "status_label_authorized_logins", []) or []
+        ),
         "legacy_backlog_enabled": bool_attr("legacy_backlog_enabled", False),
         "legacy_backlog_dispatch": bool_attr("legacy_backlog_dispatch", False),
         "tracker_cutover_at": cutover_at,
@@ -560,7 +568,8 @@ def build_tool_catalog(
         "list_projects",
         "List managed projects and their tracker/cutover configuration. "
         "Returns JSON containing id, name, repo_url, tracker_kind, "
-        "tracker_owner, tracker_repo, tracker_cutover_at, "
+        "tracker_owner, tracker_repo, status_actor_login, "
+        "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
         "github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
@@ -574,7 +583,8 @@ def build_tool_catalog(
         "get_project",
         "Read the tracker configuration for the managed project this "
         "worktree belongs to. Returns JSON with id, name, tracker_kind, "
-        "tracker_owner, tracker_repo, tracker_cutover_at, "
+        "tracker_owner, tracker_repo, status_actor_login, "
+        "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
         "github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
@@ -606,7 +616,8 @@ def build_tool_catalog(
         "Update tracker configuration fields for the managed project. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, legacy_backlog_enabled, "
+        "github_project_node_id, status_actor_login, "
+        "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Example: '{\"tracker_kind\": \"github_issues\", "
         "\"tracker_owner\": \"my-org\", \"tracker_repo\": \"my-repo\"}'. "
@@ -630,7 +641,8 @@ def build_tool_catalog(
         "project id. Call list_projects first to find the project id. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, legacy_backlog_enabled, "
+        "github_project_node_id, status_actor_login, "
+        "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",
@@ -991,7 +1003,8 @@ def build_opencode_tool_catalog(
         "list_projects",
         "List managed projects and their tracker/cutover configuration. "
         "Returns JSON containing id, name, repo_url, tracker_kind, "
-        "tracker_owner, tracker_repo, tracker_cutover_at, "
+        "tracker_owner, tracker_repo, status_actor_login, "
+        "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
         "github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
@@ -1005,7 +1018,8 @@ def build_opencode_tool_catalog(
         "get_project",
         "Read the tracker configuration for the managed project this "
         "worktree belongs to. Returns JSON with id, name, tracker_kind, "
-        "tracker_owner, tracker_repo, tracker_cutover_at, "
+        "tracker_owner, tracker_repo, status_actor_login, "
+        "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
         "github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
@@ -1037,7 +1051,8 @@ def build_opencode_tool_catalog(
         "Update tracker configuration fields for the managed project. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, legacy_backlog_enabled, "
+        "github_project_node_id, status_actor_login, "
+        "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Example: '{\"tracker_kind\": \"github_issues\", "
         "\"tracker_owner\": \"my-org\", \"tracker_repo\": \"my-repo\"}'. "
@@ -1061,7 +1076,8 @@ def build_opencode_tool_catalog(
         "project id. Call list_projects first to find the project id. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, legacy_backlog_enabled, "
+        "github_project_node_id, status_actor_login, "
+        "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
         "or editing .oompah/projects.json directly.",

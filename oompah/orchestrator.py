@@ -1463,9 +1463,13 @@ class Orchestrator:
                 extra["repo"] = project.tracker_repo
             if getattr(project, "access_token", None):
                 extra["access_token"] = project.access_token
-            extra["status_label_authorized_logins"] = list(
+            status_label_logins = list(
                 getattr(project, "status_label_authorized_logins", []) or []
             )
+            status_actor_login = getattr(project, "status_actor_login", None)
+            if status_actor_login:
+                status_label_logins.append(str(status_actor_login))
+            extra["status_label_authorized_logins"] = status_label_logins
         return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,

@@ -32,10 +32,13 @@ def _make_project(
     authorized_logins: list[str] | None = None,
     *,
     tracker_owner: str | None = None,
+    status_actor_login: str | None = None,
 ) -> MagicMock:
     """Return a mock Project with the given authorized-login list."""
     project = MagicMock()
     project.status_label_authorized_logins = authorized_logins or []
+    if status_actor_login is not None:
+        project.status_actor_login = status_actor_login
     if tracker_owner is not None:
         project.tracker_owner = tracker_owner
     return project
@@ -254,10 +257,17 @@ class TestIsAuthorizedStatusActor:
 
     def test_tracker_owner_is_authorized_by_default(self):
         """The configured tracker owner is authorized without an allowlist entry."""
-        project = _make_project([], tracker_owner="lesserevil")
+        project = _make_project([], tracker_owner="repo-owner")
         with patch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
-            assert is_authorized_status_actor("lesserevil", project) is True
-            assert is_authorized_status_actor("LESSEREVIL", project) is True
+            assert is_authorized_status_actor("repo-owner", project) is True
+            assert is_authorized_status_actor("REPO-OWNER", project) is True
+
+    def test_status_actor_is_authorized_by_default(self):
+        """The configured project status actor is authorized without allowlist entry."""
+        project = _make_project([], status_actor_login="status-actor")
+        with patch.dict("os.environ", {"OOMPAH_BOT_LOGIN": "oompah"}):
+            assert is_authorized_status_actor("status-actor", project) is True
+            assert is_authorized_status_actor("STATUS-ACTOR", project) is True
 
     def test_unauthorized_user_not_in_allowlist(self):
         """A user not in the allowlist and not the bot is unauthorized."""

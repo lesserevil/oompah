@@ -36,6 +36,8 @@ def _make_project(
     tracker_owner: str | None = None,
     tracker_repo: str | None = None,
     github_project_node_id: str | None = None,
+    status_actor_login: str | None = None,
+    status_label_authorized_logins: list[str] | None = None,
     legacy_backlog_enabled: bool = False,
     legacy_backlog_dispatch: bool = False,
     tracker_cutover_at: datetime | None = None,
@@ -51,6 +53,8 @@ def _make_project(
     p.tracker_owner = tracker_owner
     p.tracker_repo = tracker_repo
     p.github_project_node_id = github_project_node_id
+    p.status_actor_login = status_actor_login
+    p.status_label_authorized_logins = status_label_authorized_logins or []
     p.legacy_backlog_enabled = legacy_backlog_enabled
     p.legacy_backlog_dispatch = legacy_backlog_dispatch
     p.tracker_cutover_at = tracker_cutover_at
@@ -103,7 +107,7 @@ class TestExecListProjects:
         aethel = _make_project(
             project_id="proj-aethel",
             name="aethel",
-            repo_url="https://github.com/lesserevil/aethel",
+            repo_url="https://github.com/example-org/aethel",
         )
         store = _make_store()
         store.list_all.return_value = [trickle, aethel]
@@ -143,6 +147,8 @@ class TestExecGetProject:
             tracker_kind="github_issues",
             tracker_owner="my-org",
             tracker_repo="my-repo",
+            status_actor_login="status-actor",
+            status_label_authorized_logins=["release-manager"],
         )
         store = _make_store(project)
 
@@ -155,6 +161,8 @@ class TestExecGetProject:
         assert data["tracker_kind"] == "github_issues"
         assert data["tracker_owner"] == "my-org"
         assert data["tracker_repo"] == "my-repo"
+        assert data["status_actor_login"] == "status-actor"
+        assert data["status_label_authorized_logins"] == ["release-manager"]
         assert data["legacy_backlog_enabled"] is False
         assert data["legacy_backlog_dispatch"] is False
         assert data["tracker_cutover_at"] is None
@@ -446,6 +454,8 @@ class TestExecUpdateProject:
             "tracker_owner",
             "tracker_repo",
             "github_project_node_id",
+            "status_actor_login",
+            "status_label_authorized_logins",
             "legacy_backlog_enabled",
             "legacy_backlog_dispatch",
             "tracker_cutover_at",

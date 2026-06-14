@@ -771,6 +771,8 @@ _api_cache = TTLCache()
 _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
     {
         "access_token",
+        "status_actor_login",
+        "status_label_authorized_logins",
         "tracker_kind",
         "tracker_owner",
         "tracker_repo",
@@ -799,6 +801,38 @@ def _invalidate_project_tracker_cache(orch: object, project_id: str) -> None:
     stale_caches = getattr(orch, "_stale_caches", None)
     if isinstance(stale_caches, dict):
         stale_caches.pop(project_id, None)
+
+
+def _resolve_github_token_owner(access_token: str | None) -> str | None:
+    """Return the GitHub login that owns *access_token*, if it can be resolved."""
+
+    token = str(access_token or "").strip()
+    if not token:
+        return None
+    try:
+        import ssl
+        import urllib.request
+
+        req = urllib.request.Request(
+            "https://api.github.com/user",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "oompah",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        context = ssl.create_default_context()
+        with urllib.request.urlopen(req, timeout=10, context=context) as resp:
+            payload = resp.read().decode("utf-8")
+        data = json.loads(payload)
+    except Exception as exc:
+        logger.warning("Could not resolve GitHub token owner: %s", exc)
+        return None
+    login = data.get("login") if isinstance(data, dict) else None
+    if isinstance(login, str) and login.strip():
+        return login.strip()
+    return None
 
 
 def _state_key(state: str | None) -> str:
@@ -5980,6 +6014,47 @@ async def api_create_project(request: Request):
         tracker_owner = (body.get("tracker_owner") or "").strip() or None
         tracker_repo = (body.get("tracker_repo") or "").strip() or None
         github_project_node_id = (body.get("github_project_node_id") or "").strip() or None
+        status_actor_raw = body.get("status_actor_login")
+        if status_actor_raw is not None and not isinstance(status_actor_raw, str):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "validation",
+                        "message": "status_actor_login must be a string or null",
+                    }
+                },
+                status_code=400,
+            )
+        status_actor_login = (
+            status_actor_raw.strip()
+            if isinstance(status_actor_raw, str) and status_actor_raw.strip()
+            else None
+        )
+        if status_actor_login is None and access_token:
+            status_actor_login = _resolve_github_token_owner(access_token)
+        status_label_authorized_logins_raw = body.get("status_label_authorized_logins")
+        status_label_authorized_logins: list[str] = []
+        if status_label_authorized_logins_raw is not None:
+            if not (
+                isinstance(status_label_authorized_logins_raw, list)
+                and all(isinstance(x, str) for x in status_label_authorized_logins_raw)
+            ):
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "status_label_authorized_logins must be a list of strings or null",
+                        }
+                    },
+                    status_code=400,
+                )
+            seen_status_logins = set()
+            for login in status_label_authorized_logins_raw:
+                cleaned = login.strip()
+                key = cleaned.lower()
+                if cleaned and key not in seen_status_logins:
+                    status_label_authorized_logins.append(cleaned)
+                    seen_status_logins.add(key)
         legacy_backlog_enabled = bool(body.get("legacy_backlog_enabled", False))
         legacy_backlog_dispatch = bool(body.get("legacy_backlog_dispatch", False))
         project = orch.project_store.create(
@@ -5995,6 +6070,8 @@ async def api_create_project(request: Request):
             tracker_owner=tracker_owner,
             tracker_repo=tracker_repo,
             github_project_node_id=github_project_node_id,
+            status_actor_login=status_actor_login,
+            status_label_authorized_logins=status_label_authorized_logins,
             legacy_backlog_enabled=legacy_backlog_enabled,
             legacy_backlog_dispatch=legacy_backlog_dispatch,
         )
@@ -6063,6 +6140,7 @@ async def api_update_project(project_id: str, request: Request):
                 },
                 status_code=400,
             )
+        existing_project = orch.project_store.get(project_id)
         fields = {}
         for key in (
             "name",
@@ -6205,6 +6283,45 @@ async def api_update_project(project_id: str, request: Request):
                     },
                     status_code=400,
                 )
+        if "status_label_authorized_logins" in body:
+            val = body["status_label_authorized_logins"]
+            if val is None:
+                fields["status_label_authorized_logins"] = []
+            elif isinstance(val, list) and all(isinstance(x, str) for x in val):
+                fields["status_label_authorized_logins"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "status_label_authorized_logins must be a list of strings or null",
+                        }
+                    },
+                    status_code=400,
+                )
+        if "status_actor_login" in body:
+            val = body["status_actor_login"]
+            if val is None or (isinstance(val, str) and not val.strip()):
+                token_for_actor = (
+                    fields["access_token"]
+                    if "access_token" in fields
+                    else getattr(existing_project, "access_token", None)
+                )
+                fields["status_actor_login"] = _resolve_github_token_owner(
+                    token_for_actor
+                )
+            elif isinstance(val, str):
+                fields["status_actor_login"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "status_actor_login must be a string or null",
+                        }
+                    },
+                    status_code=400,
+                )
         # Per-project tracker configuration (TASK-459.3)
         for key in ("tracker_kind", "tracker_owner", "tracker_repo", "github_project_node_id"):
             if key in body:
@@ -6220,6 +6337,15 @@ async def api_update_project(project_id: str, request: Request):
                         status_code=400,
                     )
                 fields[key] = val
+        if (
+            "access_token" in fields
+            and "status_actor_login" not in fields
+            and isinstance(fields["access_token"], str)
+            and fields["access_token"].strip()
+        ):
+            fields["status_actor_login"] = _resolve_github_token_owner(
+                fields["access_token"]
+            )
         for key in ("legacy_backlog_enabled", "legacy_backlog_dispatch"):
             if key in body:
                 fields[key] = bool(body[key])

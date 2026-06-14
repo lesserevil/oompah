@@ -91,3 +91,38 @@ class TestDashboardIntakeActions:
         assert "method: 'POST'" in body
         assert "issueRequestBody(identifier, payload)" in body
         assert "actor" in body
+
+    def test_update_issue_adds_project_status_actor_for_protected_moves(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "updateIssue")
+
+        assert "statusChangeNeedsProjectActor" in body
+        assert "projectStatusActorLogin(project)" in body
+        assert "outgoing.actor_login = actor" in body
+        assert "prompt(" not in body
+
+    def test_project_status_actor_prefers_configured_actor(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "projectStatusActorLogin")
+
+        assert "project.status_actor_login" in body
+        assert "project.status_label_authorized_logins" in body
+        assert "project.tracker_owner" in body
+
+    def test_update_issue_surfaces_persistent_board_errors(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "updateIssue")
+
+        assert "showBoardError(message)" in body
+        assert "clearBoardError()" in body
+
+    def test_board_error_region_exists(self):
+        html = (
+            Path(__file__).resolve().parents[1]
+            / "oompah"
+            / "templates"
+            / "dashboard.html"
+        ).read_text(encoding="utf-8")
+
+        assert 'id="board-error"' in html
+        assert 'role="alert"' in html

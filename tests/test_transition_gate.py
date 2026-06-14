@@ -18,7 +18,11 @@ from oompah.server import app
 from oompah.transition_gate import check_intake_transition
 
 
-def _project(owner: str = "owner", authorized: list[str] | None = None):
+def _project(
+    owner: str = "owner",
+    authorized: list[str] | None = None,
+    status_actor_login: str | None = None,
+):
     return SimpleNamespace(
         id="proj-1",
         name="proj",
@@ -28,6 +32,7 @@ def _project(owner: str = "owner", authorized: list[str] | None = None):
         tracker_kind="github_issues",
         legacy_backlog_enabled=False,
         webhook_secret=None,
+        status_actor_login=status_actor_login,
         status_label_authorized_logins=authorized or [],
     )
 
@@ -108,6 +113,16 @@ class TestTransitionGateCore:
 
         assert result.allowed is True
         assert result.is_owner_override is True
+
+    def test_status_actor_is_project_owner(self):
+        result = check_intake_transition(
+            "Backlog",
+            "Open",
+            "status-actor",
+            _project(owner="repo-owner", status_actor_login="status-actor"),
+        )
+
+        assert result.allowed is True
 
     def test_non_owner_cannot_make_backlog_issue_open(self):
         result = check_intake_transition(

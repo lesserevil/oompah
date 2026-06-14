@@ -36,10 +36,12 @@ def _make_project(
     authorized_logins: list[str] | None = None,
     *,
     tracker_owner: str | None = None,
+    status_actor_login: str | None = None,
 ) -> MagicMock:
     """Return a mock Project with given intake-authorization settings."""
     project = MagicMock()
     project.status_label_authorized_logins = authorized_logins or []
+    project.status_actor_login = status_actor_login
     project.tracker_owner = tracker_owner
     return project
 
@@ -225,6 +227,16 @@ class TestIsAuthorizedApprover:
     def test_tracker_owner_case_insensitive(self):
         project = _make_project(tracker_owner="Repo-Admin")
         authorized, override = is_authorized_approver("repo-admin", "alice", project)
+        assert authorized is True
+        assert override is True
+
+    def test_status_actor_is_authorized_as_override(self):
+        project = _make_project(status_actor_login="status-actor")
+        authorized, override = is_authorized_approver(
+            "STATUS-ACTOR",
+            "alice",
+            project,
+        )
         assert authorized is True
         assert override is True
 

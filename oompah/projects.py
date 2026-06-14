@@ -715,6 +715,8 @@ class ProjectStore:
         tracker_owner: str | None = None,
         tracker_repo: str | None = None,
         github_project_node_id: str | None = None,
+        status_actor_login: str | None = None,
+        status_label_authorized_logins: list[str] | None = None,
         legacy_backlog_enabled: bool = False,
         legacy_backlog_dispatch: bool = False,
     ) -> Project:
@@ -733,6 +735,9 @@ class ProjectStore:
             tracker_owner: GitHub org/user owning the task hub repository.
             tracker_repo: GitHub task hub repository name.
             github_project_node_id: GitHub Projects v2 node ID for board views.
+            status_actor_login: GitHub login used as the project-owner status actor.
+            status_label_authorized_logins: Additional GitHub logins authorized to
+                                      move protected status labels.
             legacy_backlog_enabled: When True, existing Backlog.md tasks are still readable.
             legacy_backlog_dispatch: When True, existing Backlog.md tasks are still dispatchable.
         """
@@ -859,6 +864,12 @@ class ProjectStore:
             tracker_owner=str(tracker_owner).strip() if tracker_owner else None,
             tracker_repo=str(tracker_repo).strip() if tracker_repo else None,
             github_project_node_id=str(github_project_node_id).strip() if github_project_node_id else None,
+            status_actor_login=str(status_actor_login).strip() if status_actor_login else None,
+            status_label_authorized_logins=[
+                str(login).strip()
+                for login in (status_label_authorized_logins or [])
+                if str(login).strip()
+            ],
             legacy_backlog_enabled=bool(legacy_backlog_enabled),
             legacy_backlog_dispatch=bool(legacy_backlog_dispatch),
         )
@@ -898,6 +909,8 @@ class ProjectStore:
             "require_epic_for_tasks",
             "intake_auto_promote",
             "provider_whitelist",
+            "status_actor_login",
+            "status_label_authorized_logins",
             "backlog_conflict_paths",
             # Per-project tracker configuration (TASK-459.3 / TASK-464.2)
             "tracker_kind",
@@ -1020,6 +1033,40 @@ class ProjectStore:
             else:
                 raise ProjectError(
                     "'provider_whitelist' must be a list of strings or null"
+                )
+
+        # Normalize the project status actor: optional non-empty string.
+        if "status_actor_login" in fields:
+            val = fields["status_actor_login"]
+            if val is None:
+                fields["status_actor_login"] = None
+            elif isinstance(val, str):
+                fields["status_actor_login"] = val.strip() or None
+            else:
+                raise ProjectError("'status_actor_login' must be a string or null")
+
+        # Normalize status label actor allowlist: must be a list of non-empty strings.
+        if "status_label_authorized_logins" in fields:
+            val = fields["status_label_authorized_logins"]
+            if val is None:
+                fields["status_label_authorized_logins"] = []
+            elif isinstance(val, list):
+                cleaned = []
+                seen = set()
+                for item in val:
+                    if not isinstance(item, str):
+                        raise ProjectError(
+                            "'status_label_authorized_logins' entries must be strings"
+                        )
+                    s = item.strip()
+                    key = s.lower()
+                    if s and key not in seen:
+                        cleaned.append(s)
+                        seen.add(key)
+                fields["status_label_authorized_logins"] = cleaned
+            else:
+                raise ProjectError(
+                    "'status_label_authorized_logins' must be a list of strings or null"
                 )
 
         # Validate max_in_flight_prs is a positive integer (floats are rejected)

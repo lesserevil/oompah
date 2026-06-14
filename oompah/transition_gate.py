@@ -148,8 +148,9 @@ def is_project_owner(actor_login: str, project: Any) -> bool:
 
     A project owner is:
 
-    1. The ``tracker_owner`` of *project* (case-insensitive).
-    2. Any login in ``project.status_label_authorized_logins`` (case-insensitive).
+    1. The ``status_actor_login`` of *project* (case-insensitive).
+    2. The ``tracker_owner`` of *project* (case-insensitive, legacy).
+    3. Any login in ``project.status_label_authorized_logins`` (case-insensitive).
 
     The oompah bot login is *not* included here intentionally — bot actions
     are handled separately via the *is_bot* flag in
@@ -158,8 +159,8 @@ def is_project_owner(actor_login: str, project: Any) -> bool:
     Args:
         actor_login: The GitHub login of the actor.
         project: A :class:`~oompah.models.Project` instance or any object
-                 with ``tracker_owner`` and ``status_label_authorized_logins``
-                 attributes.
+                 with ``status_actor_login``, ``tracker_owner`` and
+                 ``status_label_authorized_logins`` attributes.
 
     Returns:
         ``True`` when the actor is a project owner.
@@ -168,6 +169,13 @@ def is_project_owner(actor_login: str, project: Any) -> bool:
         return False
 
     actor_lower = actor_login.strip().lower()
+
+    status_actor_login = getattr(project, "status_actor_login", None)
+    if (
+        isinstance(status_actor_login, str)
+        and status_actor_login.strip().lower() == actor_lower
+    ):
+        return True
 
     tracker_owner = getattr(project, "tracker_owner", None)
     if isinstance(tracker_owner, str) and tracker_owner.strip().lower() == actor_lower:

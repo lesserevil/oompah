@@ -467,6 +467,8 @@ class TestProjectStoreUpdatableFields:
             "require_epic_for_tasks",
             "intake_auto_promote",
             "provider_whitelist",
+            "status_actor_login",
+            "status_label_authorized_logins",
             "backlog_conflict_paths",
             # Per-project tracker configuration
             "tracker_kind",
@@ -961,6 +963,8 @@ class TestProjectTrackerFields:
         assert p.tracker_owner is None
         assert p.tracker_repo is None
         assert p.github_project_node_id is None
+        assert p.status_actor_login is None
+        assert p.status_label_authorized_logins == []
         assert p.legacy_backlog_enabled is False
         assert p.legacy_backlog_dispatch is False
         assert p.tracker_cutover_at is None
@@ -974,6 +978,8 @@ class TestProjectTrackerFields:
         assert "tracker_owner" not in d
         assert "tracker_repo" not in d
         assert "github_project_node_id" not in d
+        assert "status_actor_login" not in d
+        assert "status_label_authorized_logins" not in d
         assert "tracker_cutover_at" not in d
 
     def test_to_dict_always_emits_legacy_flags(self):
@@ -1000,6 +1006,15 @@ class TestProjectTrackerFields:
         d = p.to_dict()
         assert d["github_project_node_id"] == "PVT_abc123"
 
+    def test_to_dict_emits_status_actor_and_allowlist_when_set(self):
+        p = self._make_project(
+            status_actor_login="status-actor",
+            status_label_authorized_logins=["alice", "bob"],
+        )
+        d = p.to_dict()
+        assert d["status_actor_login"] == "status-actor"
+        assert d["status_label_authorized_logins"] == ["alice", "bob"]
+
     def test_to_dict_emits_cutover_as_isoformat(self):
         from datetime import datetime, timezone
 
@@ -1024,6 +1039,8 @@ class TestProjectTrackerFields:
         assert p.tracker_owner is None
         assert p.tracker_repo is None
         assert p.github_project_node_id is None
+        assert p.status_actor_login is None
+        assert p.status_label_authorized_logins == []
         assert p.legacy_backlog_enabled is False
         assert p.legacy_backlog_dispatch is False
         assert p.tracker_cutover_at is None
@@ -1089,6 +1106,16 @@ class TestProjectTrackerFields:
         p2 = Project.from_dict(d)
         assert p2.github_project_node_id == "PVT_xyz"
 
+    def test_from_dict_status_actor_and_allowlist_round_trip(self):
+        p = self._make_project(
+            status_actor_login="status-actor",
+            status_label_authorized_logins=["alice", "bob"],
+        )
+        d = p.to_dict()
+        p2 = Project.from_dict(d)
+        assert p2.status_actor_login == "status-actor"
+        assert p2.status_label_authorized_logins == ["alice", "bob"]
+
 
 class TestProjectStoreTrackerFieldUpdate:
     """Tests for updating tracker fields via ProjectStore.update()."""
@@ -1146,6 +1173,39 @@ class TestProjectStoreTrackerFieldUpdate:
         updated = self.store.update("proj-tr", github_project_node_id="PVT_abc")
         assert updated.github_project_node_id == "PVT_abc"
 
+    def test_update_status_actor_login_trims_whitespace(self):
+        updated = self.store.update("proj-tr", status_actor_login="  status-actor  ")
+        assert updated.status_actor_login == "status-actor"
+
+    def test_update_status_actor_login_null_clears(self):
+        self.store.update("proj-tr", status_actor_login="status-actor")
+        updated = self.store.update("proj-tr", status_actor_login=None)
+        assert updated.status_actor_login is None
+
+    def test_update_status_actor_login_rejects_non_string(self):
+        with pytest.raises(ProjectError, match="status_actor_login"):
+            self.store.update("proj-tr", status_actor_login=["status-actor"])
+
+    def test_update_status_label_allowlist_normalizes_and_dedupes(self):
+        updated = self.store.update(
+            "proj-tr",
+            status_label_authorized_logins=[" Alice ", "alice", "", "Bob"],
+        )
+        assert updated.status_label_authorized_logins == ["Alice", "Bob"]
+
+    def test_update_status_label_allowlist_null_clears(self):
+        self.store.update("proj-tr", status_label_authorized_logins=["alice"])
+        updated = self.store.update("proj-tr", status_label_authorized_logins=None)
+        assert updated.status_label_authorized_logins == []
+
+    def test_update_status_label_allowlist_rejects_non_list(self):
+        with pytest.raises(ProjectError, match="status_label_authorized_logins"):
+            self.store.update("proj-tr", status_label_authorized_logins="alice")
+
+    def test_update_status_label_allowlist_rejects_non_string_entries(self):
+        with pytest.raises(ProjectError, match="entries must be strings"):
+            self.store.update("proj-tr", status_label_authorized_logins=["alice", 123])
+
     def test_update_legacy_backlog_enabled(self):
         updated = self.store.update("proj-tr", legacy_backlog_enabled=True)
         assert updated.legacy_backlog_enabled is True
@@ -1190,6 +1250,8 @@ class TestProjectStoreTrackerFieldUpdate:
             tracker_kind="github_issues",
             tracker_owner="myorg",
             tracker_repo="tasks",
+            status_actor_login="status-actor",
+            status_label_authorized_logins=["alice"],
             legacy_backlog_enabled=True,
             legacy_backlog_dispatch=False,
         )
@@ -1202,6 +1264,8 @@ class TestProjectStoreTrackerFieldUpdate:
         assert loaded.tracker_kind == "github_issues"
         assert loaded.tracker_owner == "myorg"
         assert loaded.tracker_repo == "tasks"
+        assert loaded.status_actor_login == "status-actor"
+        assert loaded.status_label_authorized_logins == ["alice"]
         assert loaded.legacy_backlog_enabled is True
         assert loaded.legacy_backlog_dispatch is False
 
@@ -1384,6 +1448,95 @@ Use Backlog.md for ALL task tracking.
         assert res.status_code == 200
         assert self.store.get("proj-tracker").github_project_node_id == "PVT_abc"
 
+    def test_patch_status_actor_login(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"status_actor_login": "  status-actor  "},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").status_actor_login == "status-actor"
+        assert res.json()["status_actor_login"] == "status-actor"
+
+    def test_patch_status_actor_login_invalid_type(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"status_actor_login": ["status-actor"]},
+        )
+        assert res.status_code == 400
+        assert "status_actor_login" in res.json()["error"]["message"]
+
+    def test_patch_blank_status_actor_defaults_to_token_owner(self, monkeypatch):
+        import oompah.server as srv
+
+        self.store.update("proj-tracker", access_token="old-token")
+        monkeypatch.setattr(
+            srv,
+            "_resolve_github_token_owner",
+            lambda token: "token-owner" if token == "old-token" else None,
+        )
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"status_actor_login": ""},
+        )
+
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").status_actor_login == "token-owner"
+
+    def test_patch_access_token_defaults_status_actor_to_token_owner(self, monkeypatch):
+        import oompah.server as srv
+
+        monkeypatch.setattr(
+            srv,
+            "_resolve_github_token_owner",
+            lambda token: "TokenOwner" if token == "new-token" else None,
+        )
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"access_token": "new-token"},
+        )
+
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").status_actor_login == "TokenOwner"
+
+    def test_patch_explicit_status_actor_overrides_token_owner(self, monkeypatch):
+        import oompah.server as srv
+
+        monkeypatch.setattr(
+            srv,
+            "_resolve_github_token_owner",
+            lambda token: "TokenOwner",
+        )
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"access_token": "new-token", "status_actor_login": "ProjectActor"},
+        )
+
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").status_actor_login == "ProjectActor"
+
+    def test_patch_status_label_authorized_logins(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"status_label_authorized_logins": [" alice ", "alice", "Bob"]},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").status_label_authorized_logins == [
+            "alice",
+            "Bob",
+        ]
+        assert res.json()["status_label_authorized_logins"] == ["alice", "Bob"]
+
+    def test_patch_status_label_authorized_logins_invalid_type(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"status_label_authorized_logins": "alice"},
+        )
+        assert res.status_code == 400
+        assert "status_label_authorized_logins" in res.json()["error"]["message"]
+
     def test_patch_legacy_backlog_enabled(self):
         res = self.client.patch(
             "/api/v1/projects/proj-tracker",
@@ -1434,6 +1587,8 @@ Use Backlog.md for ALL task tracking.
                 "tracker_kind": "github_issues",
                 "tracker_owner": "acme",
                 "tracker_repo": "tasks",
+                "status_actor_login": "status-actor",
+                "status_label_authorized_logins": ["reviewer"],
                 "legacy_backlog_enabled": True,
             },
         )
@@ -1443,6 +1598,8 @@ Use Backlog.md for ALL task tracking.
         assert data["tracker_kind"] == "github_issues"
         assert data["tracker_owner"] == "acme"
         assert data["tracker_repo"] == "tasks"
+        assert data["status_actor_login"] == "status-actor"
+        assert data["status_label_authorized_logins"] == ["reviewer"]
         assert data["legacy_backlog_enabled"] is True
 
     def test_get_includes_legacy_flags_with_defaults(self):
@@ -1468,6 +1625,8 @@ Use Backlog.md for ALL task tracking.
                 "tracker_owner": "acme",
                 "tracker_repo": "oompah-tasks",
                 "github_project_node_id": "PVT_xyz",
+                "status_actor_login": "status-actor",
+                "status_label_authorized_logins": ["reviewer"],
                 "legacy_backlog_enabled": True,
                 "legacy_backlog_dispatch": False,
                 "tracker_cutover_at": "2026-06-09T00:00:00",
@@ -1479,6 +1638,8 @@ Use Backlog.md for ALL task tracking.
         assert data["tracker_owner"] == "acme"
         assert data["tracker_repo"] == "oompah-tasks"
         assert data["github_project_node_id"] == "PVT_xyz"
+        assert data["status_actor_login"] == "status-actor"
+        assert data["status_label_authorized_logins"] == ["reviewer"]
         assert data["legacy_backlog_enabled"] is True
         assert data["legacy_backlog_dispatch"] is False
         assert data["tracker_cutover_at"] is not None

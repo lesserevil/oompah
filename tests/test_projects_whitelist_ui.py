@@ -132,6 +132,38 @@ class TestProviderWhitelistCardDisplay:
         )
 
 
+class TestStatusActorProjectSettings:
+    """The project page exposes status actor and allowlist settings."""
+
+    def test_status_actor_display_row_present(self, html: str) -> None:
+        assert 'data-field="status-actor"' in html
+        assert "Status Actor:" in html
+        assert "p.status_actor_login" in html
+
+    def test_status_allowlist_display_row_present(self, html: str) -> None:
+        assert 'data-field="status-label-actors"' in html
+        assert "Status Allowlist:" in html
+        assert "p.status_label_authorized_logins" in html
+
+    def test_status_actor_edit_input_present(self, html: str) -> None:
+        assert "edit-status-actor-login-" in html
+        assert "Status Actor Login" in html
+
+    def test_status_allowlist_edit_input_present(self, html: str) -> None:
+        assert "edit-status-label-authorized-logins-" in html
+        assert "Status Authorized Logins" in html
+
+    def test_saveProject_includes_status_actor_payload(self, script: str) -> None:
+        body = _get_func_body(script, "saveProject")
+        assert "statusActorLogin" in body
+        assert "status_actor_login" in body
+
+    def test_saveProject_includes_status_allowlist_payload(self, script: str) -> None:
+        body = _get_func_body(script, "saveProject")
+        assert "statusLabelAuthorizedLogins" in body
+        assert "status_label_authorized_logins" in body
+
+
 # ---------------------------------------------------------------------------
 # Provider Whitelist edit form control
 # ---------------------------------------------------------------------------

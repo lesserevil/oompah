@@ -348,11 +348,15 @@ class Project:
     # dashboard as an alert so the operator knows which files need attention.
     # Cleared when the project is successfully synced without conflicts.
     backlog_conflict_paths: list[str] = field(default_factory=list)
-    # GitHub logins that are authorized to apply or remove ``oompah:status:*``
-    # labels on issues in this project.  The oompah bot login (see
-    # ``OOMPAH_BOT_LOGIN`` env var, default ``"oompah"``) is always implicitly
-    # authorized and does not need to be listed here.  All comparisons are
-    # case-insensitive.  Defaults to empty (only the bot is trusted).
+    # GitHub login oompah uses as the project-owner actor for protected status
+    # transitions.  By default this is resolved from the configured project
+    # access token owner.  Operators may override it when the token owner cannot
+    # be resolved or a different service account should represent the project.
+    status_actor_login: str | None = None
+    # Additional GitHub logins authorized to apply or remove
+    # ``oompah:status:*`` labels on issues in this project.  The oompah bot
+    # login and ``status_actor_login`` are implicitly authorized and do not need
+    # to be listed here.  All comparisons are case-insensitive.
     status_label_authorized_logins: list[str] = field(default_factory=list)
 
     # ---------------------------------------------------------------------------
@@ -462,8 +466,10 @@ class Project:
         # normal project records with an empty list.
         if self.backlog_conflict_paths:
             d["backlog_conflict_paths"] = list(self.backlog_conflict_paths)
+        if self.status_actor_login:
+            d["status_actor_login"] = self.status_actor_login
         # Only emit status_label_authorized_logins when non-empty — most
-        # projects rely on the default (bot-only) and don't need this field.
+        # projects rely on the default project status actor and don't need this field.
         if self.status_label_authorized_logins:
             d["status_label_authorized_logins"] = list(self.status_label_authorized_logins)
         # Per-project tracker configuration. Only emit when set to keep the
@@ -583,6 +589,10 @@ class Project:
         github_project_node_id: str | None = (
             str(raw_github_node).strip() if raw_github_node else None
         ) or None
+        raw_status_actor_login = d.get("status_actor_login")
+        status_actor_login: str | None = (
+            str(raw_status_actor_login).strip() if raw_status_actor_login else None
+        ) or None
         tracker_cutover_at: datetime | None = None
         raw_cutover = d.get("tracker_cutover_at")
         if raw_cutover:
@@ -625,6 +635,7 @@ class Project:
                 str(p) for p in (d.get("backlog_conflict_paths") or [])
                 if str(p).strip()
             ],
+            status_actor_login=status_actor_login,
             status_label_authorized_logins=[
                 str(login).strip()
                 for login in (d.get("status_label_authorized_logins") or [])
