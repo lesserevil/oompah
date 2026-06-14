@@ -108,7 +108,7 @@ def test_requestor_approval_accepts_proposed_decomposition():
     assert readiness.decomposition_status == DecompositionStatus.ACCEPTED
 
 
-def test_unapproved_proposed_issue_remains_proposed():
+def test_validator_pass_promotes_unapproved_proposed_issue_to_backlog():
     tracker = FakeTracker(_valid_unapproved_readiness())
 
     result = promote_proposed_issue_to_backlog(
@@ -117,9 +117,26 @@ def test_unapproved_proposed_issue_remains_proposed():
         current_status=PROPOSED,
     )
 
-    assert result.promoted is False
-    assert "requestor_approved=false" in result.reason
-    assert tracker.update_calls == []
+    assert result.promoted is True
+    assert result.reason == "validator_passed"
+    assert tracker.update_calls == [("org/repo#2", {"status": BACKLOG})]
+    assert len(tracker.comments) == 1
+
+
+def test_validator_pass_can_promote_without_audit_comment():
+    tracker = FakeTracker(_valid_unapproved_readiness())
+
+    result = promote_proposed_issue_to_backlog(
+        tracker,
+        "org/repo#2",
+        current_status=PROPOSED,
+        post_audit_comment=False,
+    )
+
+    assert result.promoted is True
+    assert result.reason == "validator_passed"
+    assert result.audit_comment is None
+    assert tracker.update_calls == [("org/repo#2", {"status": BACKLOG})]
     assert tracker.comments == []
 
 

@@ -76,7 +76,7 @@ def client():
 
 
 class TestTransitionGateCore:
-    def test_proposed_to_backlog_requires_readiness_and_approval(self):
+    def test_proposed_to_backlog_requires_readiness(self):
         result = check_intake_transition(
             "Proposed",
             "Backlog",
@@ -86,16 +86,14 @@ class TestTransitionGateCore:
 
         assert result.allowed is False
         assert "readiness validation" in result.reason
-        assert "requestor approval" in result.reason
 
-    def test_ready_and_approved_can_move_to_backlog(self):
+    def test_ready_issue_can_move_to_backlog_without_requestor_approval(self):
         result = check_intake_transition(
             "Proposed",
             "Backlog",
             "alice",
             _project(owner="owner"),
             issue_is_ready=True,
-            issue_has_requestor_approval=True,
         )
 
         assert result.allowed is True
@@ -181,7 +179,6 @@ class TestApiTransitionGates:
         assert resp.status_code == 403
         message = resp.json()["error"]["message"]
         assert "readiness validation" in message
-        assert "requestor approval" in message
         assert "To promote this issue to Backlog" in message
         tracker.update_issue.assert_not_called()
 

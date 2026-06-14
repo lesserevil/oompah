@@ -24,7 +24,7 @@ def test_missing_fields_summary_requires_requestor_info():
     )
 
 
-def test_awaiting_requestor_approval_summary():
+def test_valid_unapproved_summary_is_ready_for_backlog():
     summary = build_intake_summary(
         {
             "missing_fields": [],
@@ -38,7 +38,8 @@ def test_awaiting_requestor_approval_summary():
     )
 
     assert summary is not None
-    assert summary["state"] == "awaiting-requestor-approval"
+    assert summary["state"] == "ready-for-backlog"
+    assert summary["ready_for_backlog"] is True
     assert summary["requestor_approval_state"] == "awaiting"
     assert summary["owner_override_state"] == "none"
 

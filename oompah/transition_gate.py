@@ -7,8 +7,7 @@ is allowed to touch ``oompah:status:*`` labels at all.
 Even an authorized actor cannot bypass the intake workflow:
 
 * **Proposed → Backlog** requires that the issue has passed the readiness
-  validator *and* the requestor has approved, unless the actor is a project
-  owner who explicitly overrides.
+  validator, unless the actor is a project owner who explicitly overrides.
 
 * **Proposed/Backlog → Open** requires project-owner authorization.
   Only a project owner or the oompah bot may make an issue dispatchable.
@@ -21,8 +20,8 @@ Design
 ------
 :func:`check_intake_transition` is the public entry point.  Callers pass the
 *from* and *to* status, the actor login, the project, and optional readiness /
-approval flags (which default to ``False`` — the conservative safe default
-until the readiness validator and requestor-approval modules land).
+approval flags. Readiness defaults to ``False`` — the conservative safe
+default until intake validation has run.
 
 The function returns a :class:`TransitionGateResult` that callers use to
 decide whether to allow or revert the transition and what message to post.
@@ -56,7 +55,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 #: Gate applied to ``Proposed`` → ``Backlog`` transitions.
-#: Requires readiness + requestor approval, or owner override.
+#: Requires readiness, or owner override.
 GATE_PROPOSED_TO_BACKLOG = "proposed_to_backlog"
 
 #: Gate applied to any → ``Open`` transitions from ``Proposed`` or ``Backlog``.
@@ -205,8 +204,7 @@ def check_intake_transition(
     ----------
     * **Proposed → Backlog** (``GATE_PROPOSED_TO_BACKLOG``):
 
-      - *Allowed* when ``issue_is_ready=True`` **and**
-        ``issue_has_requestor_approval=True``.
+      - *Allowed* when ``issue_is_ready=True``.
       - *Allowed* when the actor is a project owner (owner override; recorded
         via :attr:`TransitionGateResult.is_owner_override`).
       - *Allowed* when the oompah bot is the actor (``is_bot=True``).
@@ -228,8 +226,10 @@ def check_intake_transition(
         issue_is_ready: ``True`` when the issue has passed the readiness
                         validator.  Defaults to ``False`` (conservative).
         issue_has_requestor_approval: ``True`` when the requestor has
-                                      approved the issue.  Defaults to
-                                      ``False`` (conservative).
+                                      approved an oompah-created proposal.
+                                      Retained for compatibility; ordinary
+                                      Proposed → Backlog promotion no longer
+                                      requires it.
         is_bot: ``True`` when the actor is the oompah bot.  Bot transitions
                 are always trusted.
 
@@ -259,10 +259,10 @@ def check_intake_transition(
         >>> r.gate
         'proposed_to_backlog'
 
-        # Ready + approved non-owner — allowed
+        # Ready non-owner — allowed
         >>> check_intake_transition(
         ...     "Proposed", "Backlog", "bob", project,
-        ...     issue_is_ready=True, issue_has_requestor_approval=True
+        ...     issue_is_ready=True
         ... ).allowed
         True
     """
@@ -281,7 +281,7 @@ def check_intake_transition(
     # Gate: Proposed → Backlog
     # -----------------------------------------------------------------------
     if gate == GATE_PROPOSED_TO_BACKLOG:
-        if issue_is_ready and issue_has_requestor_approval:
+        if issue_is_ready:
             return TransitionGateResult(allowed=True, gate=gate)
 
         if owner:
@@ -291,7 +291,7 @@ def check_intake_transition(
                 is_owner_override=True,
                 reason=(
                     f"Owner override: @{actor_login} promoted Proposed → Backlog "
-                    f"without readiness/approval check."
+                    f"without readiness check."
                 ),
             )
 
@@ -299,8 +299,6 @@ def check_intake_transition(
         missing: list[str] = []
         if not issue_is_ready:
             missing.append("readiness validation")
-        if not issue_has_requestor_approval:
-            missing.append("requestor approval")
 
         missing_str = " and ".join(missing)
         return TransitionGateResult(
@@ -314,7 +312,7 @@ def check_intake_transition(
                 "To promote this issue to Backlog:\n"
                 "1. Ensure all required fields are filled in (description, "
                 "acceptance criteria, etc.).\n"
-                "2. Wait for the requestor to approve the issue.\n"
+                "2. Wait for oompah intake validation to pass.\n"
                 "3. A project owner can override by applying the label directly."
             ),
         )

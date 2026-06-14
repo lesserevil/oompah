@@ -10722,6 +10722,7 @@ class Orchestrator:
             "processed_count": 0,
             "created_count": 0,
             "applied_count": 0,
+            "promoted_count": 0,
             "comment_posted_count": 0,
             "duplicate_suppressed_count": 0,
             "error_count": 0,
@@ -10732,8 +10733,20 @@ class Orchestrator:
                 if issue.project_id
                 else self.tracker
             )
+            auto_promote = True
+            if issue.project_id:
+                try:
+                    project = self.project_store.get(issue.project_id)
+                except Exception:
+                    project = None
+                if project is not None:
+                    auto_promote = bool(getattr(project, "intake_auto_promote", True))
             try:
-                result = process_epic_proposal_issue(tracker, issue)
+                result = process_epic_proposal_issue(
+                    tracker,
+                    issue,
+                    auto_promote=auto_promote,
+                )
             except Exception as exc:  # noqa: BLE001
                 metrics["error_count"] += 1
                 logger.debug(
@@ -10752,6 +10765,8 @@ class Orchestrator:
                 metrics["created_count"] += 1
             if getattr(result, "comment_posted", False):
                 metrics["comment_posted_count"] += 1
+            if getattr(result, "promoted", False):
+                metrics["promoted_count"] += 1
             if getattr(result, "created_child_count", 0) or getattr(
                 result, "updated_child_count", 0
             ):

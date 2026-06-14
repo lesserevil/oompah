@@ -8,9 +8,9 @@ Overview
 
 When a GitHub issue is created in a project tracked by oompah, it may start
 in a ``Proposed`` state.  The intake workflow validates the issue, asks the
-requestor for missing information, and — once the issue is sufficiently
-well-formed and the requestor has approved the proposed scope — promotes it to
-``Backlog``.  Project owners may bypass this flow with an explicit override.
+requestor for missing information when required, and — once the issue is
+sufficiently well-formed — promotes it to ``Backlog``.  Project owners may
+bypass this flow with an explicit override.
 
 This module defines the machine-readable intake state persisted in the hidden
 ``<!-- oompah:metadata … -->`` block in the issue body as ``"intake"``::
@@ -53,11 +53,13 @@ Field                      Type        Description
                                        ``"small"``, ``"large"``,
                                        ``"needs_decomposition"``, ``"unknown"``
 ``requestor_approved``     bool        True once the original requestor has
-                                       approved the proposed scope
+                                       explicitly approved a generated
+                                       decomposition or similar proposal
 ``requestor_approved_at``  str|null    ISO 8601 timestamp of requestor approval
 ``requestor_actor``        str|null    GitHub login of the approving requestor
 ``owner_override``         bool        True if a project owner overrode the
-                                       intake result without requestor approval
+                                       intake result without waiting for
+                                       validation
 ``owner_override_at``      str|null    ISO 8601 timestamp of owner override
 ``owner_actor``            str|null    GitHub login of the overriding owner
 ``decomposition_status``   string      Status of epic/child decomposition —
@@ -80,8 +82,7 @@ of the following hold:
 
 1. ``missing_fields`` is empty (no required information absent).
 2. ``scope`` is NOT ``"needs_decomposition"`` (issue is appropriately sized).
-3. ``requestor_approved`` is ``True`` **OR** ``owner_override`` is ``True``.
-4. ``last_validator_result`` is ``"pass"`` (most recent validator passed).
+3. ``last_validator_result`` is ``"pass"`` (most recent validator passed).
 
 The :attr:`IntakeReadiness.is_ready` property encodes this contract.
 
@@ -257,7 +258,7 @@ class IntakeReadiness:
             Scope classification of the proposed issue.
         requestor_approved:
             ``True`` once the original issue requestor has explicitly approved
-            the proposed scope and acceptance criteria.
+            a generated decomposition or similar oompah-created proposal.
         requestor_approved_at:
             ISO 8601 timestamp string recording when requestor approval was
             granted, or ``None`` if not yet approved.
@@ -265,8 +266,8 @@ class IntakeReadiness:
             GitHub login of the requestor who approved, or ``None``.
         owner_override:
             ``True`` if a project owner has overridden the normal intake flow
-            (e.g. fast-tracked an issue to ``Backlog`` without requestor
-            approval, or force-rejected an approved issue).
+            (e.g. fast-tracked an issue to ``Backlog`` without waiting for
+            validation, or force-rejected an approved issue).
         owner_override_at:
             ISO 8601 timestamp string recording when the owner override was
             applied, or ``None`` if no override is active.
@@ -308,15 +309,11 @@ class IntakeReadiness:
 
         1. ``missing_fields`` is empty.
         2. ``scope`` is not :attr:`~IntakeScopeKind.NEEDS_DECOMPOSITION`.
-        3. :attr:`requestor_approved` is ``True`` **or**
-           :attr:`owner_override` is ``True``.
-        4. :attr:`last_validator_result` is :attr:`~ValidatorResult.PASS`.
+        3. :attr:`last_validator_result` is :attr:`~ValidatorResult.PASS`.
         """
         if self.missing_fields:
             return False
         if self.scope == IntakeScopeKind.NEEDS_DECOMPOSITION:
-            return False
-        if not (self.requestor_approved or self.owner_override):
             return False
         if self.last_validator_result != ValidatorResult.PASS:
             return False

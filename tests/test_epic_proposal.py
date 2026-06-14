@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from oompah.epic_proposal import (
@@ -18,15 +19,15 @@ from oompah.intake_schema import (
 from oompah.issue_validator import ScopeClassification, validate_issue
 from oompah.models import Issue
 from oompah.orchestrator import Orchestrator
-from oompah.statuses import DECOMPOSED, PROPOSED
+from oompah.statuses import BACKLOG, DECOMPOSED, PROPOSED
 
 
 def _oversized_description() -> str:
     return """
 ## Problem
 The intake workflow needs a multi-phase overhaul that validates quality,
-handles requestor approval, and decomposes oversized work before it reaches
-the backlog.
+handles generated proposal approval, and decomposes oversized work before it
+reaches the backlog.
 
 ## Desired Behavior
 Oompah should keep broad requests in Proposed while it produces an actionable
@@ -333,3 +334,90 @@ Oompah should detect the stale dispatch loop and recover or alert clearly.
     assert orch._last_epic_proposal_metrics["processed_count"] == 1
     assert orch._last_epic_proposal_metrics["created_count"] == 0
     assert orch._last_epic_proposal_metrics["comment_posted_count"] == 0
+    assert orch._last_epic_proposal_metrics["promoted_count"] == 0
+
+
+def test_orchestrator_promotes_valid_small_proposed_issue_without_comment():
+    source = _source_issue(
+        title="Add managed-project issue template refresh workflow",
+        description="""
+## Problem
+Oompah-managed projects need a first-class way to keep GitHub issue templates
+aligned with the current canonical templates shipped by oompah.
+
+## Desired Behavior
+Oompah should expose a project-level workflow that lets an operator inspect
+and update a managed project's issue templates to the latest canonical
+oompah templates.
+
+## Acceptance Criteria
+- Each GitHub-Issues-backed managed project can report whether its issue
+  templates match the latest canonical oompah templates.
+- Applying updates writes the canonical templates without touching unrelated
+  files.
+""".strip(),
+        issue_type="feature",
+        requestor_login="alice",
+    )
+    tracker = FakeTracker([source])
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = []
+    orch.tracker = tracker
+
+    processed = orch._process_epic_proposals()
+
+    assert processed == [source]
+    assert tracker.issues[source.identifier].state == BACKLOG
+    assert tracker.comments == []
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.is_ready is True
+    assert readiness.requestor_approved is False
+    assert orch._last_epic_proposal_metrics["processed_count"] == 1
+    assert orch._last_epic_proposal_metrics["created_count"] == 0
+    assert orch._last_epic_proposal_metrics["comment_posted_count"] == 0
+    assert orch._last_epic_proposal_metrics["promoted_count"] == 1
+
+
+def test_orchestrator_respects_project_intake_auto_promote_false():
+    source = _source_issue(
+        title="Add managed-project issue template refresh workflow",
+        description="""
+## Problem
+Oompah-managed projects need a first-class way to keep GitHub issue templates
+aligned with the current canonical templates shipped by oompah.
+
+## Desired Behavior
+Oompah should expose a project-level workflow that lets an operator inspect
+and update a managed project's issue templates to the latest canonical
+oompah templates.
+
+## Acceptance Criteria
+- Each GitHub-Issues-backed managed project can report whether its issue
+  templates match the latest canonical oompah templates.
+- Applying updates writes the canonical templates without touching unrelated
+  files.
+""".strip(),
+        issue_type="feature",
+        requestor_login="alice",
+        project_id="proj",
+    )
+    tracker = FakeTracker([source])
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = []
+    orch.project_store.get.return_value = SimpleNamespace(intake_auto_promote=False)
+    orch.tracker = tracker
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+
+    processed = orch._process_epic_proposals()
+
+    assert processed == [source]
+    assert tracker.issues[source.identifier].state == PROPOSED
+    assert tracker.comments == []
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.is_ready is True
+    assert orch._last_epic_proposal_metrics["processed_count"] == 1
+    assert orch._last_epic_proposal_metrics["promoted_count"] == 0

@@ -14,7 +14,6 @@ from oompah.statuses import PROPOSED, canonicalize_status
 
 _STATE_LABELS = {
     "missing-info": "Missing info",
-    "awaiting-requestor-approval": "Awaiting requestor",
     "awaiting-owner-review": "Awaiting owner",
     "ready-for-backlog": "Ready for Backlog",
 }
@@ -53,8 +52,6 @@ def _next_action(
 ) -> str:
     if state == "missing-info":
         return "Requestor needs to add: " + ", ".join(missing_fields) + "."
-    if state == "awaiting-requestor-approval":
-        return "Requestor must approve the proposed scope, or an owner must override."
     if state == "ready-for-backlog":
         return "Move this issue to Backlog."
     if scope == "needs_decomposition":
@@ -73,8 +70,6 @@ def _card_text(
 ) -> str:
     if state == "missing-info":
         return ", ".join(missing_fields[:2]) + (" +" if len(missing_fields) > 2 else "")
-    if state == "awaiting-requestor-approval":
-        return "scope approval needed"
     if state == "ready-for-backlog":
         return "promote when ready"
     if owner_override:
@@ -117,7 +112,6 @@ def build_intake_summary(
     ready_for_backlog = (
         not missing_fields
         and scope != "needs_decomposition"
-        and (requestor_approved or owner_override)
         and last_validator_result == "pass"
     )
 
@@ -125,12 +119,6 @@ def build_intake_summary(
         state = "missing-info"
     elif ready_for_backlog:
         state = "ready-for-backlog"
-    elif (
-        scope != "needs_decomposition"
-        and last_validator_result == "pass"
-        and not (requestor_approved or owner_override)
-    ):
-        state = "awaiting-requestor-approval"
     else:
         state = "awaiting-owner-review"
 

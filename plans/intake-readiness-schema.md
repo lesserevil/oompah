@@ -58,7 +58,7 @@ preserved.
 |-------|------|---------|-------------|
 | `missing_fields` | `list[str]` | `[]` | Required issue fields that are absent (e.g. `["acceptance_criteria", "repro_steps"]`). Empty means all required fields are present. |
 | `scope` | string | `"unknown"` | Scope classification: `"small"`, `"large"`, `"needs_decomposition"`, `"unknown"` |
-| `requestor_approved` | bool | `false` | `true` once the original issue requestor has approved the proposed scope |
+| `requestor_approved` | bool | `false` | `true` once the original issue requestor has approved a generated decomposition or similar oompah-created proposal |
 | `requestor_approved_at` | string\|null | `null` | ISO 8601 timestamp of requestor approval |
 | `requestor_actor` | string\|null | `null` | GitHub login of the approving requestor |
 | `owner_override` | bool | `false` | `true` if a project owner overrode the normal intake flow |
@@ -78,8 +78,7 @@ of the following hold:
 
 1. `missing_fields` is empty (no required information absent).
 2. `scope` is NOT `"needs_decomposition"` (issue is appropriately sized).
-3. `requestor_approved` is `true` **OR** `owner_override` is `true`.
-4. `last_validator_result` is `"pass"` (most recent validator passed).
+3. `last_validator_result` is `"pass"` (most recent validator passed).
 
 This is encoded in `IntakeReadiness.is_ready` (a computed property).
 
@@ -215,7 +214,7 @@ tracker.set_metadata_field(
 )
 ```
 
-### Recording requestor approval
+### Recording generated proposal approval
 
 ```python
 readiness.requestor_approved = True

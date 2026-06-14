@@ -327,10 +327,9 @@ class Project:
     # than epic_strategy: shared/stacked, which only changes behavior once a
     # parent epic exists.
     require_epic_for_tasks: bool = False
-    # When true, a Proposed GitHub issue that satisfies intake readiness and
-    # approval gates is promoted to Backlog as soon as the approval is recorded.
-    # When false, approval is recorded but a project owner must explicitly move
-    # the issue to Backlog.
+    # When true, a Proposed GitHub issue that satisfies intake readiness is
+    # promoted to Backlog as soon as validation records a pass. When false, a
+    # project owner must explicitly move the issue to Backlog.
     intake_auto_promote: bool = True
 
     churn_magnet_gate_enabled: bool = False

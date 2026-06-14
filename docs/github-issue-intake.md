@@ -22,10 +22,10 @@ intake workflow first.
 flowchart TD
     A[User files GitHub issue] --> B[Issue receives oompah:status:proposed]
     B --> C{Intake validation}
-    C -- Required info missing --> D[oompah comments + issue stays Proposed]
-    C -- Info complete --> E{Requestor approval}
-    E -- Scope approved --> F[Authorized actor applies oompah:status:backlog]
-    F --> G[Issue moves to Backlog]
+    C -- Required info missing --> D[oompah records missing fields; issue stays Proposed]
+    D --> E[Requestor edits the issue body]
+    E --> C
+    C -- Info complete --> G[Issue moves to Backlog]
     G --> H{Owner review}
     H -- Accepted for work --> I[Owner applies oompah:status:open]
     I --> J[Issue is dispatchable; oompah picks it up]
@@ -54,8 +54,9 @@ Every issue should include:
 | **Priority** | Optional | `p0`–`p3` label, or set by oompah according to project defaults |
 | **Target branch** | Optional | Required for release-pick or release-branch work |
 
-Issues filed without a description will stay in `Proposed` until the requestor
-adds the missing detail and an authorized actor advances them to `Backlog`.
+Issues filed without enough detail stay in `Proposed` until the requestor
+edits the issue body with the missing information. Once the issue validates,
+oompah advances it to `Backlog`.
 
 ### Issue templates
 
@@ -74,33 +75,28 @@ When a new issue is opened, oompah's webhook handler receives the
 `issues.opened` event and applies the `oompah:status:proposed` label.  The
 issue is **not** yet visible to the dispatch queue.
 
-`Proposed` signals that this issue has been seen but not yet reviewed by an
-authorized project owner.
+`Proposed` signals that this issue has been seen but has not yet passed intake
+validation.
 
 ### Step 2 — Intake validation
 
-oompah optionally comments on the new issue to confirm receipt and list any
-missing required fields (e.g. no description, no issue type label, no target
-branch for a release-pick request).
+oompah validates the new issue and records the result in the hidden
+`<!-- oompah:metadata ... -->` block.
 
 If required information is missing, the issue remains in `Proposed` with a
-comment explaining what is needed.  The requestor should update the issue body
-and reply to the oompah comment, then re-request advancement.
+dashboard-visible intake summary explaining what is needed.  The requestor
+should update the original issue body.  oompah re-validates on the next
+webhook or polling refresh.
 
-### Step 3 — Requestor approval
+### Step 3 — Backlog promotion
 
-Once intake is complete, the requestor must approve the proposed scope before
-the issue can leave `Proposed`. Approval may be a GitHub comment, a checked
-template field, or an oompah UI action, depending on the project configuration.
-For GitHub comments, the explicit `/oompah approve` command is accepted, and a
-clear requestor comment such as "I approve this. Please add it to the backlog."
-is also treated as scope approval. Ambiguous comments such as "looks good" or
-comments asking for changes do not satisfy requestor approval.
+Once intake validation passes, oompah applies the `oompah:status:backlog`
+label and moves the issue into the `Backlog` queue. Validation metadata updates
+do not rewrite the requestor-authored issue content, so no separate requestor
+approval is required for ordinary well-formed issues.
 
-After requestor approval, an authorized actor applies the
-`oompah:status:backlog` label to move the issue into the `Backlog` queue. If
-the requestor is also an authorized actor, the approval and label transition can
-happen in the same action.
+If oompah creates a decomposition proposal for an oversized issue, explicit
+approval can still be required before that generated proposal is applied.
 
 **Who can apply status labels?**
 
@@ -119,16 +115,16 @@ GitHub login to the project's `status_label_authorized_logins` setting.
 
 ### Step 4 — Backlog
 
-Once the `oompah:status:backlog` label is applied by an authorized actor, the
-issue appears in the oompah dashboard but is still **not dispatched** to an
-agent.  `Backlog` is the holding state for reviewed work that has not yet been
-prioritized for active development.
+Once the `oompah:status:backlog` label is applied by oompah or another
+authorized actor, the issue appears in the oompah dashboard but is still **not
+dispatched** to an agent.  `Backlog` is the holding state for validated work
+that has not yet been prioritized for active development.
 
 Project owners can use the oompah dashboard or `oompah task set-status` to
 manage the backlog:
 
 ```bash
-# Move an issue from Proposed to Backlog (if you are an authorized actor)
+# Move an issue from Proposed to Backlog (requires validator pass, unless owner override)
 oompah task set-status owner/repo#123 Backlog
 
 # View the current state of an issue

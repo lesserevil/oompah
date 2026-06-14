@@ -25,6 +25,7 @@ from oompah.intake_schema import (
     parse_intake_metadata,
 )
 from oompah.intake_comments import post_intake_comment_if_needed
+from oompah.intake_promotion import promote_proposed_issue_to_backlog
 from oompah.issue_validator import ScopeClassification, ValidationResult, validate_issue
 from oompah.models import Issue
 from oompah.statuses import DECOMPOSED, PROPOSED
@@ -207,6 +208,7 @@ class IntakeValidationProcessResult:
 
     validation: ValidationResult
     comment_posted: bool = False
+    promoted: bool = False
     validation_recorded: bool = True
 
 
@@ -787,6 +789,7 @@ def process_epic_proposal_issue(
     *,
     requestor: str | None = None,
     author: str = "oompah",
+    auto_promote: bool = True,
 ) -> EpicProposalEnsureResult | EpicProposalApplyResult | IntakeValidationProcessResult | None:
     """Run intake validation and decomposition handling for one Proposed issue."""
     validation = validate_issue(
@@ -818,9 +821,20 @@ def process_epic_proposal_issue(
             author=author,
             post_comment=False,
         )
+        promoted = False
+        if validation.ready and auto_promote:
+            promotion = promote_proposed_issue_to_backlog(
+                tracker,
+                issue.identifier,
+                current_status=issue.state,
+                author=author,
+                post_audit_comment=False,
+            )
+            promoted = promotion.promoted
         return IntakeValidationProcessResult(
             validation=validation,
             comment_posted=comment_posted,
+            promoted=promoted,
         )
 
     readiness = _load_readiness(tracker, issue.identifier)

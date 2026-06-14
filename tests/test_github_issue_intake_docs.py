@@ -88,19 +88,19 @@ class TestGitHubIssueIntakeDoc:
             "the intake progression"
         )
 
-    def test_documents_requestor_approval_before_backlog(self):
-        """Must make requestor approval a distinct step before Backlog."""
+    def test_documents_validation_before_backlog(self):
+        """Must make validation the gate before Backlog."""
         content = self._content.lower()
-        approval_pos = content.find("after requestor approval")
-        backlog_pos = content.find("oompah:status:backlog", approval_pos)
-        assert approval_pos != -1, (
-            "docs/github-issue-intake.md must document requestor approval"
+        validation_pos = content.find("intake validation")
+        backlog_pos = content.find("oompah:status:backlog", validation_pos)
+        assert validation_pos != -1, (
+            "docs/github-issue-intake.md must document intake validation"
         )
         assert backlog_pos != -1, (
             "docs/github-issue-intake.md must document Backlog promotion"
         )
-        assert approval_pos < backlog_pos, (
-            "requestor approval must be described before Backlog promotion"
+        assert validation_pos < backlog_pos, (
+            "validation must be described before Backlog promotion"
         )
 
     def test_documents_owner_open_transition(self):
@@ -236,9 +236,9 @@ class TestCutoverWorkflowGuidance:
     def test_documents_post_cutover_proposed_flow(self):
         """Post-cutover user-filed issues must start at Proposed."""
         content = self._content
-        assert "Proposed" in content and "requestor approval" in content, (
+        assert "Proposed" in content and "intake validation" in content, (
             "docs/cutover-workflow.md must mention Proposed intake and "
-            "requestor approval after GitHub Issues cutover"
+            "intake validation after GitHub Issues cutover"
         )
         assert "Backlog" in content and "Open" in content, (
             "docs/cutover-workflow.md must mention Backlog and owner Open "

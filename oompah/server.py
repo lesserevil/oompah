@@ -84,6 +84,7 @@ from oompah.intake_promotion import (
     promote_proposed_issue_to_backlog,
     record_intake_approval,
 )
+from oompah.intake_schema import parse_intake_metadata
 from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
@@ -2131,8 +2132,31 @@ def _is_bot_actor(actor_login: str) -> bool:
         return False
 
 
+def _intake_metadata_flags(tracker, identifier: str) -> tuple[bool, bool]:
+    """Return ``(issue_is_ready, requestor_approved)`` from intake metadata."""
+
+    get_metadata = getattr(tracker, "get_metadata", None)
+    if not callable(get_metadata):
+        return False, False
+    try:
+        meta = get_metadata(identifier)
+    except Exception:
+        return False, False
+    if not isinstance(meta, dict):
+        return False, False
+
+    readiness = parse_intake_metadata(meta.get("oompah.intake") or meta.get("intake"))
+    return readiness.is_ready, bool(
+        readiness.requestor_approved or readiness.owner_override
+    )
+
+
 def _intake_audit_flags(tracker, identifier: str) -> tuple[bool, bool]:
-    """Return ``(issue_is_ready, requestor_approved)`` from intake comments."""
+    """Return ``(issue_is_ready, requestor_approved)`` from intake metadata/comments."""
+
+    issue_is_ready, requestor_approved = _intake_metadata_flags(tracker, identifier)
+    if issue_is_ready or requestor_approved:
+        return issue_is_ready, requestor_approved
 
     fetch_comments = getattr(tracker, "fetch_comments", None)
     if not callable(fetch_comments):
@@ -2144,8 +2168,6 @@ def _intake_audit_flags(tracker, identifier: str) -> tuple[bool, bool]:
     if not isinstance(comments, list):
         return False, False
 
-    issue_is_ready = False
-    requestor_approved = False
     for comment in comments:
         if isinstance(comment, dict):
             text = comment.get("text") or comment.get("body") or ""

@@ -1,10 +1,10 @@
 """Tests for oompah.intake_schema — intake readiness schema and metadata (#283).
 
-Covers:
+Coverage:
 - IntakeScopeKind: from_raw parsing, unknown fallback
 - DecompositionStatus: from_raw parsing, unknown fallback
 - ValidatorResult: from_raw parsing, None for missing
-- IntakeReadiness.is_ready: all four readiness criteria
+- IntakeReadiness.is_ready: readiness criteria
 - IntakeReadiness.to_raw / from_raw: round-trip fidelity
 - parse_intake_metadata: safe defaults, None/empty inputs
 - intake_to_raw: convenience wrapper
@@ -149,7 +149,7 @@ class TestValidatorResult:
 
 
 class TestIntakeReadinessIsReady:
-    """Tests for the four readiness criteria encoded in IntakeReadiness.is_ready."""
+    """Tests for the readiness criteria encoded in IntakeReadiness.is_ready."""
 
     def _ready_state(self) -> IntakeReadiness:
         """Return a fully-ready IntakeReadiness instance."""
@@ -192,18 +192,18 @@ class TestIntakeReadinessIsReady:
         r.scope = IntakeScopeKind.UNKNOWN
         assert r.is_ready is True
 
-    def test_no_approval_no_override_prevents_ready(self):
+    def test_no_approval_no_override_still_ready_after_validator_pass(self):
         r = self._ready_state()
         r.requestor_approved = False
         r.owner_override = False
-        assert r.is_ready is False
-
-    def test_owner_override_satisfies_approval_criterion(self):
-        """owner_override=True can substitute for requestor approval."""
-        r = self._ready_state()
-        r.requestor_approved = False
-        r.owner_override = True
         assert r.is_ready is True
+
+    def test_owner_override_does_not_substitute_for_validation(self):
+        """Owner override is handled by promotion code, not readiness."""
+        r = self._ready_state()
+        r.owner_override = True
+        r.last_validator_result = ValidatorResult.FAIL
+        assert r.is_ready is False
 
     def test_validator_fail_prevents_ready(self):
         r = self._ready_state()
@@ -693,8 +693,8 @@ class TestIsReadyEdgeCases:
         )
         assert r.is_ready is False
 
-    def test_both_approved_and_override_passes(self):
-        """Having both requestor approval AND owner override is also ready."""
+    def test_both_approved_and_override_passes_when_validator_passes(self):
+        """Approval metadata does not block an otherwise valid issue."""
         r = IntakeReadiness(
             scope=IntakeScopeKind.SMALL,
             requestor_approved=True,
@@ -708,7 +708,6 @@ class TestIsReadyEdgeCases:
         r = IntakeReadiness(
             scope=IntakeScopeKind.LARGE,
             decomposition_status=DecompositionStatus.ACCEPTED,
-            requestor_approved=True,
             last_validator_result=ValidatorResult.PASS,
         )
         assert r.is_ready is True
@@ -718,7 +717,6 @@ class TestIsReadyEdgeCases:
         r = IntakeReadiness(
             scope=IntakeScopeKind.SMALL,
             decomposition_status=DecompositionStatus.PENDING,
-            requestor_approved=True,
             last_validator_result=ValidatorResult.PASS,
         )
         assert r.is_ready is True

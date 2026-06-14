@@ -108,8 +108,8 @@ def apply_owner_override(
 def _promotion_reason(readiness: IntakeReadiness) -> str | None:
     if readiness.owner_override:
         return "owner_override"
-    if readiness.is_ready and readiness.requestor_approved:
-        return "ready_and_requestor_approved"
+    if readiness.is_ready:
+        return "validator_passed"
     return None
 
 
@@ -117,8 +117,6 @@ def _blocked_reason(readiness: IntakeReadiness) -> str:
     missing: list[str] = []
     if readiness.missing_fields:
         missing.append("missing_fields=" + ",".join(readiness.missing_fields))
-    if not readiness.requestor_approved:
-        missing.append("requestor_approved=false")
     if not readiness.is_ready:
         missing.append("readiness=false")
     return "; ".join(missing) or "promotion gates not satisfied"
@@ -133,6 +131,8 @@ def build_promotion_audit_comment(
     if reason == "owner_override":
         actor = readiness.owner_actor or "project owner"
         detail = f"owner override by @{actor}"
+    elif reason == "validator_passed":
+        detail = "intake validation passed"
     else:
         actor = readiness.requestor_actor or "requestor"
         detail = f"readiness passed and requestor approval by @{actor}"
@@ -168,9 +168,6 @@ def build_promotion_blocked_comment(
         remaining.append("readiness validation has not passed yet")
     elif readiness.last_validator_result != ValidatorResult.PASS:
         remaining.append("latest readiness validation did not pass")
-    if not (readiness.requestor_approved or readiness.owner_override):
-        remaining.append("requestor approval is not recorded")
-
     lines = [
         f"{prefix}intake approval has been recorded, but this issue is still Proposed.",
         "",
@@ -198,6 +195,7 @@ def promote_proposed_issue_to_backlog(
     current_status: str | None,
     owner_override_actor: str | None = None,
     author: str = "oompah",
+    post_audit_comment: bool = True,
 ) -> IntakePromotionResult:
     """Promote an issue from Proposed to Backlog when intake gates allow it."""
     if canonicalize_status(current_status) != PROPOSED:
@@ -224,9 +222,10 @@ def promote_proposed_issue_to_backlog(
 
     tracker.update_issue(identifier, status=BACKLOG)
     audit_comment = build_promotion_audit_comment(readiness, reason=reason)
-    tracker.add_comment(identifier, audit_comment, author=author)
+    if post_audit_comment:
+        tracker.add_comment(identifier, audit_comment, author=author)
     return IntakePromotionResult(
         promoted=True,
         reason=reason,
-        audit_comment=audit_comment,
+        audit_comment=audit_comment if post_audit_comment else None,
     )
