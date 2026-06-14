@@ -538,7 +538,7 @@ class TestMetadataPreservation:
         from oompah.github_tracker import GitHubAuth, GitHubIssueTracker
 
         return GitHubIssueTracker(
-            owner="lesserevil",
+            owner="example-org",
             repo="oompah",
             active_states=["Open", "In Progress"],
             terminal_states=["Done"],

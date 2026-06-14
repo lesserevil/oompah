@@ -38,12 +38,12 @@ from oompah.statuses import MERGED, OPEN
 # Test helpers — GitHub-flavoured
 # ---------------------------------------------------------------------------
 
-_OWNER = "lesserevil"
+_OWNER = "example-org"
 _REPO = "oompah-tasks"
 
 
 def _gh_id(number: int) -> str:
-    """Return a fully-qualified GitHub identifier like ``lesserevil/oompah-tasks#N``."""
+    """Return a fully-qualified GitHub identifier like ``example-org/oompah-tasks#N``."""
     return f"{_OWNER}/{_REPO}#{number}"
 
 
@@ -244,7 +244,7 @@ class TestBuildChildIndexGitHub:
 
     def test_lookup_key_uppercase_github_identifier(self):
         """Key must be (upper(source_id), branch) — GitHub IDs have mixed-case."""
-        source_id = "LesseRevil/oompah-tasks#42"
+        source_id = "Example-Org/oompah-tasks#42"
         child = _gh_issue(
             number=100,
             target_branch="release/2.0",
@@ -323,7 +323,7 @@ class TestBackportsMetadataRoundtrip:
 
     def test_pr_open_entry_with_github_pr_url_roundtrips(self):
         """An entry with a GitHub PR URL survives serialise → parse."""
-        pr_url = "https://github.com/lesserevil/trickle/pull/99"
+        pr_url = "https://github.com/example-org/trickle/pull/99"
         entries = [
             BackportEntry(
                 branch="release/1.0",

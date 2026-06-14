@@ -188,13 +188,13 @@ class TestCreateProjectBacklogRequirement:
                     git_user_name="Test",
                     git_user_email="t@example.com",
                     tracker_kind="github_issues",
-                    tracker_owner="lesserevil",
+                    tracker_owner="example-org",
                     tracker_repo="oompah",
                 )
 
         mock_compat.assert_not_called()
         assert project.tracker_kind == "github_issues"
-        assert project.tracker_owner == "lesserevil"
+        assert project.tracker_owner == "example-org"
         assert project.tracker_repo == "oompah"
 
 

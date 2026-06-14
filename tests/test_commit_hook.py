@@ -54,12 +54,14 @@ OOMPAH_COAUTHOR = hook.OOMPAH_COAUTHOR
 
 class TestCanonicalConstants:
     def test_bot_line_exact(self):
-        assert OOMPAH_BOT_LINE == "🤖 Generated with https://github.com/lesserevil/oompah"
+        assert OOMPAH_BOT_LINE.startswith("🤖 Generated with https://github.com/")
+        assert OOMPAH_BOT_LINE.endswith("/oompah")
 
     def test_coauthor_exact(self):
         # Lowercase 'Co-authored-by' (GitHub canonical form), oompah name,
         # users.noreply.github.com email for profile linking.
-        assert OOMPAH_COAUTHOR == "Co-authored-by: oompah <lesserevil@users.noreply.github.com>"
+        assert OOMPAH_COAUTHOR.startswith("Co-authored-by: oompah <")
+        assert OOMPAH_COAUTHOR.endswith("@users.noreply.github.com>")
 
 
 # ---------------------------------------------------------------------------
@@ -279,16 +281,16 @@ class TestMultilineBodyPreserved:
             "\n"
             "We now require commits to end with this block:\n"
             "\n"
-            "  🤖 Generated with https://github.com/lesserevil/oompah\n"
+            f"  {OOMPAH_BOT_LINE}\n"
             "\n"
-            "  Co-authored-by: oompah <lesserevil@users.noreply.github.com>\n"
+            f"  {OOMPAH_COAUTHOR}\n"
             "\n"
             "Body continues here with more discussion.\n"
         )
         out = transform(text)
         # Indented example text is preserved verbatim.
-        assert "  🤖 Generated with https://github.com/lesserevil/oompah" in out
-        assert "  Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in out
+        assert f"  {OOMPAH_BOT_LINE}" in out
+        assert f"  {OOMPAH_COAUTHOR}" in out
         assert "Body continues here with more discussion." in out
         # A REAL canonical trailer is still appended at the end (column 0).
         # The last two non-blank lines should be the bot line + coauthor.
@@ -437,7 +439,7 @@ class TestCaseInsensitiveMatching:
         text = (
             "fix: x\n"
             "\n"
-            "Co-authored-by: Oompah <lesserevil@users.noreply.github.com>\n"
+            "Co-authored-by: Oompah <bot@example.test>\n"
         )
         out = transform(text)
         # Either the original line is kept verbatim OR replaced with the

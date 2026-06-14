@@ -46,7 +46,7 @@ def _make_backlog_issue(identifier: str = "TASK-42") -> Issue:
 
 
 def _make_github_issue(
-    identifier: str = "lesserevil/oompah-tasks#7",
+    identifier: str = "example-org/oompah-tasks#7",
     issue_number: str = "7",
 ) -> Issue:
     """Issue object representing a GitHub-backed task with full tracker identity."""
@@ -61,12 +61,12 @@ def _make_github_issue(
         created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
         tracker_kind="github_issues",
-        tracker_owner="lesserevil",
+        tracker_owner="example-org",
         tracker_repo="oompah-tasks",
         issue_number=issue_number,
         display_identifier="tasks#7",
-        provider_url="https://github.com/lesserevil/oompah-tasks/issues/7",
-        managed_repo="lesserevil/trickle",
+        provider_url="https://github.com/example-org/oompah-tasks/issues/7",
+        managed_repo="example-org/trickle",
         target_branch="main",
         work_branch="oompah/trickle/gh-7",
         is_legacy=False,
@@ -176,11 +176,11 @@ class TestBoardTrackerIdentityFields:
         entry = data["Open"][0]
 
         assert entry["tracker_kind"] == "github_issues"
-        assert entry["tracker_owner"] == "lesserevil"
+        assert entry["tracker_owner"] == "example-org"
         assert entry["tracker_repo"] == "oompah-tasks"
         assert entry["issue_number"] == "7"
-        assert entry["url"] == "https://github.com/lesserevil/oompah-tasks/issues/7"
-        assert entry["managed_repo"] == "lesserevil/trickle"
+        assert entry["url"] == "https://github.com/example-org/oompah-tasks/issues/7"
+        assert entry["managed_repo"] == "example-org/trickle"
         assert entry["target_branch"] == "main"
         assert entry["work_branch"] == "oompah/trickle/gh-7"
         assert entry["is_legacy"] is False
@@ -319,14 +319,14 @@ class TestDetailTrackerIdentityFields:
         body = resp.json()
 
         assert body["tracker_kind"] == "github_issues"
-        assert body["tracker_owner"] == "lesserevil"
+        assert body["tracker_owner"] == "example-org"
         assert body["tracker_repo"] == "oompah-tasks"
         assert body["issue_number"] == "7"
         assert (
             body["url"]
-            == "https://github.com/lesserevil/oompah-tasks/issues/7"
+            == "https://github.com/example-org/oompah-tasks/issues/7"
         )
-        assert body["managed_repo"] == "lesserevil/trickle"
+        assert body["managed_repo"] == "example-org/trickle"
         assert body["target_branch"] == "main"
         assert body["work_branch"] == "oompah/trickle/gh-7"
         assert body["is_legacy"] is False
@@ -447,7 +447,7 @@ class TestCreateIssueTrackerFields:
         assert resp.status_code == 201
         issue_payload = resp.json()["issue"]
         assert issue_payload["tracker_kind"] == "github_issues"
-        assert issue_payload["tracker_owner"] == "lesserevil"
+        assert issue_payload["tracker_owner"] == "example-org"
         assert issue_payload["tracker_repo"] == "oompah-tasks"
         assert issue_payload["issue_number"] == "7"
         assert issue_payload["is_legacy"] is False

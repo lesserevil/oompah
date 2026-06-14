@@ -78,7 +78,7 @@ def test_bootstrap_project_labels_creates_missing_labels() -> None:
     client = FakeGitHubClient(existing=["oompah:status:backlog"])
 
     result = bootstrap_project_labels(
-        owner="lesserevil",
+        owner="example-org",
         repo="oompah",
         client=client,
         labels=_TEST_LABELS,
@@ -90,11 +90,11 @@ def test_bootstrap_project_labels_creates_missing_labels() -> None:
     assert result.created == ["oompah:status:proposed"]
     assert result.already_exists == ["oompah:status:backlog"]
     assert client.request_calls == [
-        ("/repos/lesserevil/oompah/labels", {"per_page": 100})
+        ("/repos/example-org/oompah/labels", {"per_page": 100})
     ]
     assert client.post_calls == [
         (
-            "/repos/lesserevil/oompah/labels",
+            "/repos/example-org/oompah/labels",
             {
                 "name": "oompah:status:proposed",
                 "color": "fbca04",
@@ -108,7 +108,7 @@ def test_bootstrap_project_labels_is_idempotent() -> None:
     client = FakeGitHubClient(existing=[name for name, _, _ in _TEST_LABELS])
 
     result = bootstrap_project_labels(
-        owner="lesserevil",
+        owner="example-org",
         repo="oompah",
         client=client,
         labels=_TEST_LABELS,
@@ -124,13 +124,13 @@ def test_permission_failure_produces_actionable_alert_with_repo_and_label() -> N
     client = FakeGitHubClient(
         post_errors={
             "oompah:status:proposed": TrackerError(
-                "GitHub API error 403 (POST /repos/lesserevil/oompah/labels)"
+                "GitHub API error 403 (POST /repos/example-org/oompah/labels)"
             )
         }
     )
 
     result = bootstrap_project_labels(
-        owner="lesserevil",
+        owner="example-org",
         repo="oompah",
         client=client,
         labels=(("oompah:status:proposed", "fbca04", "Proposed"),),
@@ -142,9 +142,9 @@ def test_permission_failure_produces_actionable_alert_with_repo_and_label() -> N
     assert result.success is False
     assert result.has_permission_error is True
     assert alerts[0]["level"] == "error"
-    assert alerts[0]["repo"] == "lesserevil/oompah"
+    assert alerts[0]["repo"] == "example-org/oompah"
     assert alerts[0]["labels"] == ["oompah:status:proposed"]
-    assert "lesserevil/oompah" in alerts[0]["message"]
+    assert "example-org/oompah" in alerts[0]["message"]
     assert "oompah:status:proposed" in alerts[0]["message"]
     assert "write access" in alerts[0]["message"]
 
@@ -152,12 +152,12 @@ def test_permission_failure_produces_actionable_alert_with_repo_and_label() -> N
 def test_label_list_permission_failure_mentions_required_labels() -> None:
     client = FakeGitHubClient(
         list_error=TrackerError(
-            "GitHub API error 403 (GET /repos/lesserevil/oompah/labels)"
+            "GitHub API error 403 (GET /repos/example-org/oompah/labels)"
         )
     )
 
     result = bootstrap_project_labels(
-        owner="lesserevil",
+        owner="example-org",
         repo="oompah",
         client=client,
         labels=_TEST_LABELS,

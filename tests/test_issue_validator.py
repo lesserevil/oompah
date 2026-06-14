@@ -1,4 +1,4 @@
-"""Tests for oompah.issue_validator (lesserevil/oompah#279).
+"""Tests for oompah.issue_validator (example-org/oompah#279).
 
 Coverage targets:
 - Ready issues for each type (bug, feature, chore, task, epic).

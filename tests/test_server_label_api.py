@@ -295,14 +295,14 @@ class TestAddLabelGitHubIdentifier:
                 json={
                     "label": "draft",
                     "project_id": "proj-1",
-                    "issue_key": "lesserevil/oompah-tasks#1234",
+                    "issue_key": "example-org/oompah-tasks#1234",
                 },
             )
 
         assert resp.status_code == 201
         # Tracker receives the GitHub identifier, not the placeholder path param.
         mock_tracker.add_label.assert_called_once_with(
-            "lesserevil/oompah-tasks#1234", "draft"
+            "example-org/oompah-tasks#1234", "draft"
         )
 
     def test_url_percent_encoded_identifier_is_decoded(self, client):
@@ -393,13 +393,13 @@ class TestRemoveLabelGitHubIdentifier:
                 "/api/v1/issues/placeholder/labels/draft",
                 params={
                     "project_id": "proj-1",
-                    "issue_key": "lesserevil/oompah-tasks#1234",
+                    "issue_key": "example-org/oompah-tasks#1234",
                 },
             )
 
         assert resp.status_code == 200
         mock_tracker.remove_label.assert_called_once_with(
-            "lesserevil/oompah-tasks#1234", "draft"
+            "example-org/oompah-tasks#1234", "draft"
         )
 
     def test_percent_encoded_label_is_decoded(self, client):

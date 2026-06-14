@@ -2172,15 +2172,15 @@ class TestBuildBranchIndex:
         orch = self._make_orchestrator(tmp_path)
         tracker = MagicMock()
         tracker.fetch_issues_by_states.return_value = [
-            self._make_issue_with_branch("lesserevil/tasks#1", "oompah/proj/gh-1"),
-            self._make_issue_with_branch("lesserevil/tasks#2", "oompah/proj/gh-2"),
+            self._make_issue_with_branch("example-org/tasks#1", "oompah/proj/gh-1"),
+            self._make_issue_with_branch("example-org/tasks#2", "oompah/proj/gh-2"),
         ]
 
         idx = orch._build_branch_index("proj-1", tracker)
 
         assert idx == {
-            "oompah/proj/gh-1": "lesserevil/tasks#1",
-            "oompah/proj/gh-2": "lesserevil/tasks#2",
+            "oompah/proj/gh-1": "example-org/tasks#1",
+            "oompah/proj/gh-2": "example-org/tasks#2",
         }
 
     def test_issues_without_work_branch_excluded(self, tmp_path):

@@ -43,15 +43,15 @@ epic and child-task breakdown for the requestor to approve.
 
 def _source_issue(**overrides) -> Issue:
     defaults = {
-        "id": "lesserevil/oompah#500",
-        "identifier": "lesserevil/oompah#500",
+        "id": "example-org/oompah#500",
+        "identifier": "example-org/oompah#500",
         "title": "Build multi-phase intake decomposition workflow",
         "description": _oversized_description(),
         "priority": 0,
         "state": PROPOSED,
         "issue_type": "task",
         "labels": [],
-        "url": "https://github.com/lesserevil/oompah/issues/500",
+        "url": "https://github.com/example-org/oompah/issues/500",
     }
     defaults.update(overrides)
     return Issue(**defaults)
@@ -87,7 +87,7 @@ class FakeTracker:
         labels: list[str] | None = None,
         parent: str | None = None,
     ) -> Issue:
-        identifier = f"lesserevil/oompah#{self._next}"
+        identifier = f"example-org/oompah#{self._next}"
         self._next += 1
         issue = Issue(
             id=identifier,
@@ -154,7 +154,7 @@ def test_generate_epic_proposal_from_oversized_validator_result():
     assert len(proposal.fingerprint) == 64
     assert len(proposal.children) >= 3
     assert any("child" in child.title.lower() for child in proposal.children)
-    assert all("lesserevil/oompah#500" in child.description for child in proposal.children)
+    assert all("example-org/oompah#500" in child.description for child in proposal.children)
     assert all("@alice" in child.description for child in proposal.children)
 
 
@@ -183,7 +183,7 @@ def test_ensure_epic_proposal_posts_once_and_records_intake_metadata():
 
 
 def test_ensure_epic_proposal_skips_existing_epic_children():
-    source = _source_issue(parent_id="lesserevil/oompah#400")
+    source = _source_issue(parent_id="example-org/oompah#400")
     tracker = FakeTracker([source])
 
     result = ensure_epic_proposal(tracker, source, requestor="alice")
@@ -224,7 +224,7 @@ def test_apply_accepted_proposal_creates_proposed_epic_and_linked_children():
         child = tracker.issues[child_id]
         assert child.state == PROPOSED
         assert child.parent_id == result.epic_identifier
-        assert "Source issue: lesserevil/oompah#500" in (child.description or "")
+        assert "Source issue: example-org/oompah#500" in (child.description or "")
         assert "@alice" in (child.description or "")
 
 

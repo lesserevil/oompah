@@ -1483,7 +1483,7 @@ class TestOpenEpicMainPrs:
                 "-c",
                 "user.name=oompah",
                 "-c",
-                "user.email=lesserevil@users.noreply.github.com",
+                "user.email=example-org@users.noreply.github.com",
                 "commit",
                 "--allow-empty",
                 "-m",
@@ -2543,9 +2543,9 @@ class TestPushEpicBranch:
         assert calls[-1][1]["cwd"] == str(wt_path)
         commit_message = commands[5][3]
         assert commit_message.startswith("epic-1: Commit shared epic task metadata")
-        assert "Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in (
-            commit_message
-        )
+        assert "Generated with https://github.com/" in commit_message
+        assert "\n\nCo-authored-by: oompah <" in commit_message
+        assert commit_message.rstrip().endswith("@users.noreply.github.com>")
 
     def test_shared_mode_fast_forwards_clean_worktree_before_push(self, tmp_path):
         repo_path = tmp_path / "repo"
@@ -2832,31 +2832,31 @@ class TestLabelMergedEpics:
             lambda epic_id: f"epic-{epic_id.replace('/', '_').replace('#', '_')}"
         )
         epic = _make_issue(
-            identifier="lesserevil/oompah#272",
+            identifier="example-org/oompah#272",
             issue_type="epic",
             state="Done",
         )
         child = _make_issue(
-            identifier="lesserevil/oompah#275",
+            identifier="example-org/oompah#275",
             state="Done",
             parent_id=epic.identifier,
         )
         ci_helper = _make_issue(
-            identifier="lesserevil/oompah#296",
-            title="CI fix: PR #291 on branch epic-lesserevil_oompah_272",
+            identifier="example-org/oompah#296",
+            title="CI fix: PR #291 on branch epic-example-org_oompah_272",
             state="Done",
             parent_id=epic.identifier,
         )
         rebase_helper = _make_issue(
-            identifier="lesserevil/oompah#298",
-            title="Rebase epic-lesserevil_oompah_272 onto main",
+            identifier="example-org/oompah#298",
+            title="Rebase epic-example-org_oompah_272 onto main",
             state="Done",
             parent_id=epic.identifier,
         )
         orch._merged_branches = set()
         provider = MagicMock()
         provider.list_merged_branches.return_value = {
-            "epic-lesserevil_oompah_272",
+            "epic-example-org_oompah_272",
         }
         mock_detect.return_value = provider
 

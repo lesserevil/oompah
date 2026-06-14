@@ -427,7 +427,7 @@ class TestCreateIssueSourceTaskId:
                 json={
                     "title": "GH follow-up",
                     "project_id": "proj-1",
-                    "source_task_id": "lesserevil/oompah-tasks#99",
+                    "source_task_id": "example-org/oompah-tasks#99",
                     "description": "Detail.",
                 },
             )
@@ -435,4 +435,4 @@ class TestCreateIssueSourceTaskId:
         assert resp.status_code == 201
         call_kwargs = mock_tracker.create_issue.call_args.kwargs
         description = call_kwargs.get("description", "")
-        assert "Triggered by: lesserevil/oompah-tasks#99" in description
+        assert "Triggered by: example-org/oompah-tasks#99" in description

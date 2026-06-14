@@ -284,7 +284,7 @@ def test_empty_issue_board_orders_proposed_before_backlog():
 
 
 def test_fetch_and_serialize_issues_includes_intake_summary():
-    issue = _issue("lesserevil/oompah#10", "Proposed")
+    issue = _issue("example-org/oompah#10", "Proposed")
     issue.intake = {
         "missing_fields": ["acceptance_criteria"],
         "scope": "small",

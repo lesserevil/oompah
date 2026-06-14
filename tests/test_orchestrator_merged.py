@@ -242,7 +242,7 @@ class TestLabelMergedIssues:
         mock_detect.return_value = provider
 
         helper = _make_issue(
-            "lesserevil/oompah#271",
+            "example-org/oompah#271",
             state=DONE,
             branch_name="oompah/proj/gh-271",
             project_id=project.id,
@@ -622,7 +622,7 @@ class TestReconcileStaleInReviewTasks:
         mock_detect.return_value = provider
 
         issue = _make_issue(
-            "lesserevil/oompah#269",
+            "example-org/oompah#269",
             state=IN_REVIEW,
             project_id=project.id,
         )
@@ -1723,28 +1723,28 @@ class TestYoloRetryCi:
         orch = self._make_orchestrator(tmp_path, projects=[project])
 
         epic = Issue(
-            id="lesserevil/oompah#272",
-            identifier="lesserevil/oompah#272",
+            id="example-org/oompah#272",
+            identifier="example-org/oompah#272",
             title="Epic",
             description="Epic body",
             state="In Review",
             issue_type="epic",
             labels=[],
-            branch_name="epic-lesserevil_oompah_272",
+            branch_name="epic-example-org_oompah_272",
         )
         sibling = _make_issue(
-            "lesserevil/oompah#292",
+            "example-org/oompah#292",
             state="In Progress",
             labels=[],
             parent_id=epic.identifier,
         )
-        sibling.title = "CI fix: PR #291 on branch epic-lesserevil_oompah_272"
-        children = [sibling, _make_issue("lesserevil/oompah#276", state="Done")]
+        sibling.title = "CI fix: PR #291 on branch epic-example-org_oompah_272"
+        children = [sibling, _make_issue("example-org/oompah#276", state="Done")]
         tracker = self._attach_tracker(orch, project, epic, children=children)
 
         review = _make_review(
             "291",
-            source_branch="epic-lesserevil_oompah_272",
+            source_branch="epic-example-org_oompah_272",
             ci_status="failed",
         )
 

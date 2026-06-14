@@ -26,7 +26,7 @@ from oompah.issue_validator import (
 )
 
 
-IDENTIFIER = "lesserevil/oompah#281"
+IDENTIFIER = "example-org/oompah#281"
 
 
 def _dt(hour: int, minute: int = 0) -> datetime:

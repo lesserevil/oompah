@@ -82,7 +82,7 @@ class TestGitHubIdentifier:
     stable and filesystem-safe.
     """
 
-    def _make(self, owner="lesserevil", repo="oompah-tasks", number=1234):
+    def _make(self, owner="example-org", repo="oompah-tasks", number=1234):
         return GitHubIdentifier(owner=owner, repo=repo, number=number)
 
     # ------------------------------------------------------------------
@@ -91,15 +91,15 @@ class TestGitHubIdentifier:
 
     def test_canonical_format(self):
         gh = self._make()
-        assert gh.canonical == "lesserevil/oompah-tasks#1234"
+        assert gh.canonical == "example-org/oompah-tasks#1234"
 
     def test_str_returns_canonical(self):
         gh = self._make()
-        assert str(gh) == "lesserevil/oompah-tasks#1234"
+        assert str(gh) == "example-org/oompah-tasks#1234"
 
     def test_canonical_single_digit_number(self):
         gh = self._make(number=1)
-        assert gh.canonical == "lesserevil/oompah-tasks#1"
+        assert gh.canonical == "example-org/oompah-tasks#1"
 
     # ------------------------------------------------------------------
     # display form
@@ -129,13 +129,13 @@ class TestGitHubIdentifier:
 
     def test_url_safe_format(self):
         gh = self._make()
-        assert gh.url_safe == "lesserevil/oompah-tasks/1234"
+        assert gh.url_safe == "example-org/oompah-tasks/1234"
 
     def test_url_safe_three_components(self):
         gh = self._make()
         parts = gh.url_safe.split("/")
         assert len(parts) == 3
-        assert parts[0] == "lesserevil"
+        assert parts[0] == "example-org"
         assert parts[1] == "oompah-tasks"
         assert parts[2] == "1234"
 
@@ -226,8 +226,8 @@ class TestParseGitHubIdentifier:
     # ------------------------------------------------------------------
 
     def test_parses_canonical_form(self):
-        gh = parse_github_identifier("lesserevil/oompah-tasks#1234")
-        assert gh.owner == "lesserevil"
+        gh = parse_github_identifier("example-org/oompah-tasks#1234")
+        assert gh.owner == "example-org"
         assert gh.repo == "oompah-tasks"
         assert gh.number == 1234
 
@@ -254,8 +254,8 @@ class TestParseGitHubIdentifier:
         assert isinstance(result, GitHubIdentifier)
 
     def test_strips_surrounding_whitespace(self):
-        gh = parse_github_identifier("  lesserevil/oompah-tasks#42  ")
-        assert gh.canonical == "lesserevil/oompah-tasks#42"
+        gh = parse_github_identifier("  example-org/oompah-tasks#42  ")
+        assert gh.canonical == "example-org/oompah-tasks#42"
 
     # ------------------------------------------------------------------
     # Bare numbers — acceptance criterion #1
@@ -338,7 +338,7 @@ class TestGitHubIdentifierToIssueFields:
     """Tests for the helper that maps GitHubIdentifier to Issue field dict."""
 
     def test_returns_dict(self):
-        gh = GitHubIdentifier(owner="lesserevil", repo="oompah-tasks", number=1)
+        gh = GitHubIdentifier(owner="example-org", repo="oompah-tasks", number=1)
         result = github_identifier_to_issue_fields(gh)
         assert isinstance(result, dict)
 
@@ -365,14 +365,14 @@ class TestGitHubIdentifierToIssueFields:
         assert isinstance(result["issue_number"], str)
 
     def test_display_identifier(self):
-        gh = GitHubIdentifier(owner="lesserevil", repo="oompah-tasks", number=1234)
+        gh = GitHubIdentifier(owner="example-org", repo="oompah-tasks", number=1234)
         result = github_identifier_to_issue_fields(gh)
         assert result["display_identifier"] == "oompah-tasks#1234"
 
     def test_can_unpack_into_issue(self):
         """The returned dict can be unpacked as Issue keyword arguments."""
         from oompah.models import Issue
-        gh = GitHubIdentifier(owner="lesserevil", repo="oompah-tasks", number=7)
+        gh = GitHubIdentifier(owner="example-org", repo="oompah-tasks", number=7)
         fields = github_identifier_to_issue_fields(gh)
         issue = Issue(
             id="7",
@@ -381,7 +381,7 @@ class TestGitHubIdentifierToIssueFields:
             **fields,
         )
         assert issue.tracker_kind == "github_issues"
-        assert issue.tracker_owner == "lesserevil"
+        assert issue.tracker_owner == "example-org"
         assert issue.tracker_repo == "oompah-tasks"
         assert issue.issue_number == "7"
         assert issue.display_identifier == "oompah-tasks#7"
@@ -397,7 +397,7 @@ class TestGitHubIssueTrackerIdentifierHelpers:
 
     def _make_tracker(self) -> GitHubIssueTracker:
         return GitHubIssueTracker(
-            owner="lesserevil",
+            owner="example-org",
             repo="oompah-tasks",
             active_states=["Open", "In Progress"],
             terminal_states=["Done", "Archived"],
@@ -406,8 +406,8 @@ class TestGitHubIssueTrackerIdentifierHelpers:
 
     def test_parse_identifier_valid(self):
         tracker = self._make_tracker()
-        gh = tracker.parse_identifier("lesserevil/oompah-tasks#42")
-        assert gh.owner == "lesserevil"
+        gh = tracker.parse_identifier("example-org/oompah-tasks#42")
+        assert gh.owner == "example-org"
         assert gh.number == 42
 
     def test_parse_identifier_raises_tracker_error_for_bare_number(self):
@@ -424,10 +424,10 @@ class TestGitHubIssueTrackerIdentifierHelpers:
     def test_identifier_for_number(self):
         tracker = self._make_tracker()
         gh = tracker.identifier_for_number(99)
-        assert gh.owner == "lesserevil"
+        assert gh.owner == "example-org"
         assert gh.repo == "oompah-tasks"
         assert gh.number == 99
-        assert gh.canonical == "lesserevil/oompah-tasks#99"
+        assert gh.canonical == "example-org/oompah-tasks#99"
 
     def test_identifier_for_number_branch_slug(self):
         tracker = self._make_tracker()
@@ -1014,7 +1014,7 @@ class TestGitHubIssueTracker:
     def _make_tracker(self, pat: str = "test_token") -> GitHubIssueTracker:
         auth = GitHubAuth(pat=pat)
         return GitHubIssueTracker(
-            owner="lesserevil",
+            owner="example-org",
             repo="oompah-tasks",
             active_states=["Open", "In Progress"],
             terminal_states=["Done", "Archived"],
@@ -1029,7 +1029,7 @@ class TestGitHubIssueTracker:
         tracker = self._make_tracker()
         issue = Issue(
             id="gh-1",
-            identifier="lesserevil/oompah-tasks#1",
+            identifier="example-org/oompah-tasks#1",
             title="Test",
             state="Archived",
         )
@@ -1039,7 +1039,7 @@ class TestGitHubIssueTracker:
         tracker = self._make_tracker()
         issue = Issue(
             id="gh-2",
-            identifier="lesserevil/oompah-tasks#2",
+            identifier="example-org/oompah-tasks#2",
             title="Active",
             state="Open",
         )
@@ -1075,7 +1075,7 @@ class TestGitHubIssueTracker:
         gh_issue = _make_gh_issue(number=1, body="")
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_attachments("lesserevil/oompah-tasks#1")
+            result = tracker.fetch_attachments("example-org/oompah-tasks#1")
         assert result == []
 
     def test_fetch_memories_returns_empty_dict(self):
@@ -1087,7 +1087,7 @@ class TestGitHubIssueTracker:
         gh_issue = _make_gh_issue(number=1, body="")
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#1")
+            result = tracker.get_metadata("example-org/oompah-tasks#1")
         assert result == {}
 
     def test_create_issue_posts_to_github(self):
@@ -1096,7 +1096,7 @@ class TestGitHubIssueTracker:
         resp = _mock_response(201, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
             issue = tracker.create_issue("Test issue")
-        assert issue.identifier == "lesserevil/oompah-tasks#42"
+        assert issue.identifier == "example-org/oompah-tasks#42"
         assert issue.title == "Test issue"
 
     def test_add_comment_posts_to_github(self):
@@ -1104,13 +1104,13 @@ class TestGitHubIssueTracker:
         comment_resp = {"id": 1, "body": "**oompah**: hello", "created_at": "2024-01-01T00:00:00Z"}
         resp = _mock_response(201, json_data=comment_resp)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.add_comment("lesserevil/oompah-tasks#1", "hello")
+            result = tracker.add_comment("example-org/oompah-tasks#1", "hello")
         assert result["body"] == "**oompah**: hello"
 
     def test_repo_path_helper(self):
         tracker = self._make_tracker()
-        assert tracker._repo_path() == "/repos/lesserevil/oompah-tasks"
-        assert tracker._repo_path("/issues") == "/repos/lesserevil/oompah-tasks/issues"
+        assert tracker._repo_path() == "/repos/example-org/oompah-tasks"
+        assert tracker._repo_path("/issues") == "/repos/example-org/oompah-tasks/issues"
 
 
 # ===========================================================================
@@ -1126,7 +1126,7 @@ class TestGitHubIssuesFactory:
             _github_issues_factory(active_states=[], terminal_states=[])
 
     def test_requires_repo_env(self, monkeypatch):
-        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_OWNER", "lesserevil")
+        monkeypatch.setenv("OOMPAH_GITHUB_TRACKER_OWNER", "example-org")
         monkeypatch.delenv("OOMPAH_GITHUB_TRACKER_REPO", raising=False)
         with pytest.raises(TrackerError, match="OOMPAH_GITHUB_TRACKER_REPO"):
             _github_issues_factory(active_states=[], terminal_states=[])
@@ -1336,7 +1336,7 @@ def _make_gh_issue(
         "body": body,
         "state": state,
         "labels": [{"name": lbl} for lbl in (labels or [])],
-        "html_url": html_url or f"https://github.com/lesserevil/oompah-tasks/issues/{number}",
+        "html_url": html_url or f"https://github.com/example-org/oompah-tasks/issues/{number}",
         "created_at": created_at,
         "updated_at": updated_at,
         "closed_at": closed_at,
@@ -1345,10 +1345,10 @@ def _make_gh_issue(
     }
     if is_pull_request:
         payload["html_url"] = html_url or (
-            f"https://github.com/lesserevil/oompah-tasks/pull/{number}"
+            f"https://github.com/example-org/oompah-tasks/pull/{number}"
         )
         payload["pull_request"] = {
-            "url": f"https://api.github.com/repos/lesserevil/oompah-tasks/pulls/{number}",
+            "url": f"https://api.github.com/repos/example-org/oompah-tasks/pulls/{number}",
             "html_url": payload["html_url"],
         }
     return payload
@@ -1359,14 +1359,14 @@ class TestGhIssueToIssue:
 
     def _convert(self, **kwargs) -> Issue:
         return _gh_issue_to_issue(
-            _make_gh_issue(**kwargs), owner="lesserevil", repo="oompah-tasks"
+            _make_gh_issue(**kwargs), owner="example-org", repo="oompah-tasks"
         )
 
     def test_basic_fields(self):
         issue = self._convert(number=42, title="Fix the bug")
-        assert issue.identifier == "lesserevil/oompah-tasks#42"
+        assert issue.identifier == "example-org/oompah-tasks#42"
         assert issue.title == "Fix the bug"
-        assert issue.tracker_owner == "lesserevil"
+        assert issue.tracker_owner == "example-org"
         assert issue.tracker_repo == "oompah-tasks"
         assert issue.issue_number == "42"
         assert issue.display_identifier == "oompah-tasks#42"
@@ -1437,9 +1437,9 @@ class TestGhIssueToIssue:
 
     def test_url_set(self):
         issue = self._convert(
-            number=5, html_url="https://github.com/lesserevil/oompah-tasks/issues/5"
+            number=5, html_url="https://github.com/example-org/oompah-tasks/issues/5"
         )
-        assert issue.url == "https://github.com/lesserevil/oompah-tasks/issues/5"
+        assert issue.url == "https://github.com/example-org/oompah-tasks/issues/5"
         assert issue.provider_url == issue.url
 
     def test_timestamps_parsed(self):
@@ -1498,7 +1498,7 @@ class TestGhIssueToIssue:
         ID-based lookups are consistent across the tracker protocol."""
         issue = self._convert(number=7, issue_id=99999)
         assert issue.id == issue.identifier
-        assert issue.id == "lesserevil/oompah-tasks#7"
+        assert issue.id == "example-org/oompah-tasks#7"
 
 
 # ===========================================================================
@@ -1517,7 +1517,7 @@ class TestGitHubIssueTrackerFetch:
     def _make_tracker(self) -> GitHubIssueTracker:
         auth = GitHubAuth(pat="test_token")
         return GitHubIssueTracker(
-            owner="lesserevil",
+            owner="example-org",
             repo="oompah-tasks",
             active_states=["Open", "In Progress", "Needs CI Fix", "Needs Rebase"],
             terminal_states=["Done", "Merged", "Archived"],
@@ -1556,7 +1556,7 @@ class TestGitHubIssueTrackerFetch:
             _make_gh_issue(number=1, title="Real issue", labels=["oompah:status:open"]),
             _make_gh_issue(
                 number=270,
-                title="lesserevil/oompah#268: task PR",
+                title="example-org/oompah#268: task PR",
                 labels=["oompah:status:backlog"],
                 is_pull_request=True,
             ),
@@ -1666,7 +1666,7 @@ class TestGitHubIssueTrackerFetch:
             200,
             json_data=[_make_gh_issue(number=1, labels=["oompah:status:open"])],
             headers={
-                "link": '<https://api.github.com/repos/lesserevil/oompah-tasks/issues?page=2>; rel="next"'
+                "link": '<https://api.github.com/repos/example-org/oompah-tasks/issues?page=2>; rel="next"'
             },
         )
         page2 = _mock_response(
@@ -1841,7 +1841,7 @@ class TestGitHubIssueTrackerFetch:
             200,
             json_data=[_make_gh_issue(number=1, labels=["oompah:status:open"])],
             headers={
-                "link": '<https://api.github.com/repos/lesserevil/oompah-tasks/issues?page=2>; rel="next"'
+                "link": '<https://api.github.com/repos/example-org/oompah-tasks/issues?page=2>; rel="next"'
             },
         )
         page2 = _mock_response(
@@ -1863,7 +1863,7 @@ class TestGitHubIssueTrackerFetch:
         gh_issue = _make_gh_issue(number=42, title="Detail test")
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#42")
+            result = tracker.fetch_issue_detail("example-org/oompah-tasks#42")
         assert result is not None
         assert result.title == "Detail test"
         assert result.issue_number == "42"
@@ -1877,7 +1877,7 @@ class TestGitHubIssueTrackerFetch:
             patch.object(tracker._client, "request", return_value=(gh_issue, None)),
             patch.object(tracker._client, "patch", return_value=patch_resp) as patch_call,
         ):
-            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#42")
+            result = tracker.fetch_issue_detail("example-org/oompah-tasks#42")
 
         assert result is not None
         assert result.state == "Proposed"
@@ -1895,7 +1895,7 @@ class TestGitHubIssueTrackerFetch:
             patch.object(tracker._client, "request", return_value=(gh_issue, None)),
             patch.object(tracker._client, "patch", return_value=patch_resp) as patch_call,
         ):
-            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#43")
+            result = tracker.fetch_issue_detail("example-org/oompah-tasks#43")
 
         assert result is not None
         assert result.state == "Archived"
@@ -1909,7 +1909,7 @@ class TestGitHubIssueTrackerFetch:
         resp_404 = _mock_response(404, text="Not Found")
         resp_404.is_success = False
         with patch.object(tracker._client._http, "request", return_value=resp_404):
-            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#9999")
+            result = tracker.fetch_issue_detail("example-org/oompah-tasks#9999")
         assert result is None
 
     def test_fetch_issue_detail_returns_none_for_invalid_identifier(self):
@@ -1931,7 +1931,7 @@ class TestGitHubIssueTrackerFetch:
         )
         resp = _mock_response(200, json_data=gh_pr)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_issue_detail("lesserevil/oompah-tasks#270")
+            result = tracker.fetch_issue_detail("example-org/oompah-tasks#270")
         assert result is None
 
     # ------------------------------------------------------------------
@@ -2033,7 +2033,7 @@ class TestGitHubIssueTrackerFetch:
         gh_issue = _make_gh_issue(number=5, labels=["oompah:status:in-progress"])
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_issue_states_by_ids(["lesserevil/oompah-tasks#5"])
+            result = tracker.fetch_issue_states_by_ids(["example-org/oompah-tasks#5"])
         assert len(result) == 1
         assert result[0].state == "In Progress"
 
@@ -2052,8 +2052,8 @@ class TestGitHubIssueTrackerFetch:
             side_effect=[resp_valid, resp_404],
         ):
             result = tracker.fetch_issue_states_by_ids([
-                "lesserevil/oompah-tasks#1",
-                "lesserevil/oompah-tasks#9999",
+                "example-org/oompah-tasks#1",
+                "example-org/oompah-tasks#9999",
             ])
         assert len(result) == 1
 
@@ -2114,7 +2114,7 @@ class TestGitHubIssueTrackerFetch:
         ]
         resp = _mock_response(200, json_data=comments)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_comments("lesserevil/oompah-tasks#5")
+            result = tracker.fetch_comments("example-org/oompah-tasks#5")
         assert len(result) == 2
         assert result[0]["body"] == "First comment"
 
@@ -2127,7 +2127,7 @@ class TestGitHubIssueTrackerFetch:
         tracker = self._make_tracker()
         resp = _mock_response(200, json_data=[])
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_comments("lesserevil/oompah-tasks#1")
+            result = tracker.fetch_comments("example-org/oompah-tasks#1")
         assert result == []
 
     # ------------------------------------------------------------------
@@ -2161,9 +2161,9 @@ class TestGitHubIssueTrackerFetch:
             "request",
             side_effect=[sub_issues_resp, label_resp],
         ):
-            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+            result = tracker.fetch_children("example-org/oompah-tasks#5")
         assert len(result) == 2
-        assert {child.parent_id for child in result} == {"lesserevil/oompah-tasks#5"}
+        assert {child.parent_id for child in result} == {"example-org/oompah-tasks#5"}
 
     def test_fetch_children_falls_back_to_label_on_404(self):
         """Falls back to label-based lookup when sub-issues API is unavailable."""
@@ -2180,7 +2180,7 @@ class TestGitHubIssueTrackerFetch:
         with patch.object(
             tracker._client._http, "request", side_effect=[resp_404, resp_200]
         ):
-            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+            result = tracker.fetch_children("example-org/oompah-tasks#5")
         assert len(result) == 1
 
     def test_fetch_children_checks_parent_label_when_sub_issues_empty(self):
@@ -2199,10 +2199,10 @@ class TestGitHubIssueTrackerFetch:
             "request",
             side_effect=[sub_issues_resp, label_resp],
         ):
-            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+            result = tracker.fetch_children("example-org/oompah-tasks#5")
         assert len(result) == 1
-        assert result[0].identifier == "lesserevil/oompah-tasks#20"
-        assert result[0].parent_id == "lesserevil/oompah-tasks#5"
+        assert result[0].identifier == "example-org/oompah-tasks#20"
+        assert result[0].parent_id == "example-org/oompah-tasks#5"
 
     # ------------------------------------------------------------------
     # Issue field mapping on normalized Issue record
@@ -2256,7 +2256,7 @@ class TestGitHubIssueTrackerMutations:
     def _make_tracker(self) -> GitHubIssueTracker:
         auth = GitHubAuth(pat="test_token")
         return GitHubIssueTracker(
-            owner="lesserevil",
+            owner="example-org",
             repo="oompah-tasks",
             active_states=["Open", "In Progress", "Needs CI Fix"],
             terminal_states=["Done", "Merged", "Archived"],
@@ -2274,7 +2274,7 @@ class TestGitHubIssueTrackerMutations:
         resp = _mock_response(201, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
             issue = tracker.create_issue("My new task")
-        assert issue.identifier == "lesserevil/oompah-tasks#99"
+        assert issue.identifier == "example-org/oompah-tasks#99"
         assert issue.url is not None
         assert "99" in issue.url
         assert issue.title == "My new task"
@@ -2401,7 +2401,7 @@ class TestGitHubIssueTrackerMutations:
             tracker.create_issue("Endpoint test")
         call_args = m.call_args
         assert call_args[0][0] == "POST"
-        assert "/repos/lesserevil/oompah-tasks/issues" in str(call_args)
+        assert "/repos/example-org/oompah-tasks/issues" in str(call_args)
 
     def test_create_issue_raises_on_bad_response(self):
         tracker = self._make_tracker()
@@ -2420,7 +2420,7 @@ class TestGitHubIssueTrackerMutations:
         tracker = self._make_tracker()
         resp = _mock_response(200, json_data=_make_gh_issue(number=5, title="New title"))
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.update_issue("lesserevil/oompah-tasks#5", title="New title")
+            tracker.update_issue("example-org/oompah-tasks#5", title="New title")
         patch_call = m.call_args
         assert patch_call[0][0] == "PATCH"
         assert patch_call[1]["json"]["title"] == "New title"
@@ -2438,7 +2438,7 @@ class TestGitHubIssueTrackerMutations:
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.update_issue(
-                "lesserevil/oompah-tasks#6", description="New description."
+                "example-org/oompah-tasks#6", description="New description."
             )
         patch_call = m.call_args_list[1]
         new_body = patch_call[1]["json"]["body"]
@@ -2455,7 +2455,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.update_issue("lesserevil/oompah-tasks#7", status="Done")
+            tracker.update_issue("example-org/oompah-tasks#7", status="Done")
         last_call = m.call_args_list[-1]
         assert last_call[0][0] == "PATCH"
         assert last_call[1]["json"]["state"] == "open"
@@ -2472,7 +2472,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.update_issue("lesserevil/oompah-tasks#7", status="Merged")
+            tracker.update_issue("example-org/oompah-tasks#7", status="Merged")
         last_call = m.call_args_list[-1]
         assert last_call[0][0] == "PATCH"
         assert last_call[1]["json"]["state"] == "closed"
@@ -2495,7 +2495,7 @@ class TestGitHubIssueTrackerMutations:
             tracker._client._http, "request", side_effect=responses
         ) as m:
             with pytest.raises(TrackerError, match="authentication failed"):
-                tracker.update_issue("lesserevil/oompah-tasks#7", status="Done")
+                tracker.update_issue("example-org/oompah-tasks#7", status="Done")
 
         methods = [call[0][0] for call in m.call_args_list]
         assert methods == ["GET", "PATCH"]
@@ -2512,7 +2512,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.update_issue("lesserevil/oompah-tasks#8", status="Open")
+            tracker.update_issue("example-org/oompah-tasks#8", status="Open")
         last_call = m.call_args_list[-1]
         assert last_call[1]["json"]["state"] == "open"
         assert "oompah:status:open" in last_call[1]["json"]["labels"]
@@ -2527,7 +2527,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.update_issue("lesserevil/oompah-tasks#9", priority=1)
+            tracker.update_issue("example-org/oompah-tasks#9", priority=1)
         patch_call = m.call_args_list[-1]
         assert patch_call[0][0] == "PATCH"
         assert "priority:1" in patch_call[1]["json"]["labels"]
@@ -2539,7 +2539,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", return_value=post_resp
         ) as m:
-            tracker.update_issue("lesserevil/oompah-tasks#10", **{"add-label": "needs:review"})
+            tracker.update_issue("example-org/oompah-tasks#10", **{"add-label": "needs:review"})
         assert m.call_args[0][0] == "POST"
         assert "needs:review" in m.call_args[1]["json"]["labels"]
 
@@ -2549,7 +2549,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", return_value=del_resp
         ) as m:
-            tracker.update_issue("lesserevil/oompah-tasks#10", **{"remove-label": "needs:review"})
+            tracker.update_issue("example-org/oompah-tasks#10", **{"remove-label": "needs:review"})
         assert m.call_args[0][0] == "DELETE"
         assert "needs%3Areview" in m.call_args[0][1]
 
@@ -2557,7 +2557,7 @@ class TestGitHubIssueTrackerMutations:
         """Unknown field keys are silently ignored, no API call made."""
         tracker = self._make_tracker()
         with patch.object(tracker._client._http, "request") as m:
-            tracker.update_issue("lesserevil/oompah-tasks#11", nonexistent_field="x")
+            tracker.update_issue("example-org/oompah-tasks#11", nonexistent_field="x")
         m.assert_not_called()
 
     def test_update_issue_invalid_identifier_raises(self):
@@ -2578,7 +2578,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.close_issue("lesserevil/oompah-tasks#20")
+            tracker.close_issue("example-org/oompah-tasks#20")
         patch_call = m.call_args_list[-1]
         assert patch_call[0][0] == "PATCH"
         assert patch_call[1]["json"]["state"] == "open"
@@ -2594,7 +2594,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.close_issue("lesserevil/oompah-tasks#21", reason="Closed.")
+            tracker.close_issue("example-org/oompah-tasks#21", reason="Closed.")
         # Comment POST should be the last call
         last_call = m.call_args_list[-1]
         assert last_call[0][0] == "POST"
@@ -2608,7 +2608,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.close_issue("lesserevil/oompah-tasks#22")
+            tracker.close_issue("example-org/oompah-tasks#22")
         assert m.call_count == 2
 
     def test_close_issue_uses_first_terminal_state(self):
@@ -2620,7 +2620,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.close_issue("lesserevil/oompah-tasks#23")
+            tracker.close_issue("example-org/oompah-tasks#23")
         patch_call = m.call_args_list[1]
         assert "oompah:status:done" in patch_call[1]["json"]["labels"]
 
@@ -2637,7 +2637,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.reopen_issue("lesserevil/oompah-tasks#30")
+            tracker.reopen_issue("example-org/oompah-tasks#30")
         patch_call = m.call_args_list[-1]
         assert patch_call[0][0] == "PATCH"
         assert patch_call[1]["json"]["state"] == "open"
@@ -2652,7 +2652,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.reopen_issue("lesserevil/oompah-tasks#31")
+            tracker.reopen_issue("example-org/oompah-tasks#31")
         patch_call = m.call_args_list[1]
         assert "oompah:status:open" in patch_call[1]["json"]["labels"]
 
@@ -2669,7 +2669,7 @@ class TestGitHubIssueTrackerMutations:
         with patch.object(
             tracker._client._http, "request", side_effect=responses
         ) as m:
-            tracker.archive_issue("lesserevil/oompah-tasks#40")
+            tracker.archive_issue("example-org/oompah-tasks#40")
         patch_call = m.call_args_list[-1]
         assert patch_call[1]["json"]["state"] == "closed"
         assert "oompah:status:archived" in patch_call[1]["json"]["labels"]
@@ -2693,7 +2693,7 @@ class TestGitHubIssueTrackerMutations:
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.mark_needs_human(
-                "lesserevil/oompah-tasks#50", "Action required."
+                "example-org/oompah-tasks#50", "Action required."
             )
         # Last call should be the comment POST
         last_call = m.call_args_list[-1]
@@ -2711,7 +2711,7 @@ class TestGitHubIssueTrackerMutations:
         comment = {"id": 1, "body": "**oompah**: hello", "created_at": "2024-01-01T00:00:00Z"}
         resp = _mock_response(201, json_data=comment)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.add_comment("lesserevil/oompah-tasks#1", "hello")
+            result = tracker.add_comment("example-org/oompah-tasks#1", "hello")
         assert result["id"] == 1
         assert result["body"] == "**oompah**: hello"
 
@@ -2720,7 +2720,7 @@ class TestGitHubIssueTrackerMutations:
         tracker = self._make_tracker()
         resp = _mock_response(201, json_data={"id": 2, "body": "**bot**: msg"})
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.add_comment("lesserevil/oompah-tasks#1", "msg", author="bot")
+            tracker.add_comment("example-org/oompah-tasks#1", "msg", author="bot")
         posted_body = m.call_args[1]["json"]["body"]
         assert posted_body == "**bot**: msg"
 
@@ -2728,14 +2728,14 @@ class TestGitHubIssueTrackerMutations:
         tracker = self._make_tracker()
         resp = _mock_response(201, json_data={"id": 3, "body": "**alice**: hi"})
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.add_comment("lesserevil/oompah-tasks#2", "hi", author="alice")
+            tracker.add_comment("example-org/oompah-tasks#2", "hi", author="alice")
         assert "**alice**" in m.call_args[1]["json"]["body"]
 
     def test_add_comment_posts_to_comments_endpoint(self):
         tracker = self._make_tracker()
         resp = _mock_response(201, json_data={"id": 4, "body": "x"})
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.add_comment("lesserevil/oompah-tasks#3", "x")
+            tracker.add_comment("example-org/oompah-tasks#3", "x")
         call_args = m.call_args
         assert call_args[0][0] == "POST"
         assert "/issues/3/comments" in call_args[0][1]
@@ -2743,12 +2743,12 @@ class TestGitHubIssueTrackerMutations:
     def test_add_comment_raises_on_empty_text(self):
         tracker = self._make_tracker()
         with pytest.raises(TrackerError, match="Comment text is required"):
-            tracker.add_comment("lesserevil/oompah-tasks#1", "")
+            tracker.add_comment("example-org/oompah-tasks#1", "")
 
     def test_add_comment_raises_on_whitespace_text(self):
         tracker = self._make_tracker()
         with pytest.raises(TrackerError, match="Comment text is required"):
-            tracker.add_comment("lesserevil/oompah-tasks#1", "   ")
+            tracker.add_comment("example-org/oompah-tasks#1", "   ")
 
     def test_add_comment_invalid_identifier_raises(self):
         tracker = self._make_tracker()
@@ -2761,7 +2761,7 @@ class TestGitHubIssueTrackerMutations:
         # Simulate a response that parses as a list (unexpected but possible)
         resp = _mock_response(201, json_data=[])
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.add_comment("lesserevil/oompah-tasks#1", "test msg")
+            result = tracker.add_comment("example-org/oompah-tasks#1", "test msg")
         assert "body" in result
         assert "test msg" in result["body"]
 
@@ -2774,7 +2774,7 @@ class TestGitHubIssueTrackerMutations:
         tracker = self._make_tracker()
         resp = _mock_response(200, json_data=[{"name": "bug"}])
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.add_label("lesserevil/oompah-tasks#5", "bug")
+            tracker.add_label("example-org/oompah-tasks#5", "bug")
         call_args = m.call_args
         assert call_args[0][0] == "POST"
         assert "/issues/5/labels" in call_args[0][1]
@@ -2790,7 +2790,7 @@ class TestGitHubIssueTrackerMutations:
         tracker = self._make_tracker()
         resp = _mock_response(200, json_data=[{"name": "oompah:status:open"}])
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.add_label("lesserevil/oompah-tasks#6", "oompah:status:open")
+            tracker.add_label("example-org/oompah-tasks#6", "oompah:status:open")
         assert m.call_args[1]["json"]["labels"] == ["oompah:status:open"]
 
     # ------------------------------------------------------------------
@@ -2802,7 +2802,7 @@ class TestGitHubIssueTrackerMutations:
         tracker = self._make_tracker()
         resp = _mock_response(204, json_data=None)
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.remove_label("lesserevil/oompah-tasks#5", "bug")
+            tracker.remove_label("example-org/oompah-tasks#5", "bug")
         call_args = m.call_args
         assert call_args[0][0] == "DELETE"
         assert "/issues/5/labels/bug" in call_args[0][1]
@@ -2812,7 +2812,7 @@ class TestGitHubIssueTrackerMutations:
         tracker = self._make_tracker()
         resp = _mock_response(204, json_data=None)
         with patch.object(tracker._client._http, "request", return_value=resp) as m:
-            tracker.remove_label("lesserevil/oompah-tasks#7", "oompah:status:open")
+            tracker.remove_label("example-org/oompah-tasks#7", "oompah:status:open")
         call_url = m.call_args[0][1]
         assert "oompah%3Astatus%3Aopen" in call_url
 
@@ -2822,7 +2822,7 @@ class TestGitHubIssueTrackerMutations:
         resp = _mock_response(404, text="Not Found")
         with patch.object(tracker._client._http, "request", return_value=resp):
             # Should not raise
-            tracker.remove_label("lesserevil/oompah-tasks#5", "nonexistent")
+            tracker.remove_label("example-org/oompah-tasks#5", "nonexistent")
 
     def test_remove_label_re_raises_non_404_errors(self):
         """Non-404 errors from remove_label are propagated."""
@@ -2830,7 +2830,7 @@ class TestGitHubIssueTrackerMutations:
         resp = _mock_response(500, text="Server Error")
         with patch.object(tracker._client._http, "request", return_value=resp):
             with pytest.raises(TrackerError):
-                tracker.remove_label("lesserevil/oompah-tasks#5", "bug")
+                tracker.remove_label("example-org/oompah-tasks#5", "bug")
 
     def test_remove_label_invalid_identifier_raises(self):
         tracker = self._make_tracker()
@@ -3027,7 +3027,7 @@ class TestGitHubIssueTrackerMetadata:
     def _make_tracker(self) -> GitHubIssueTracker:
         auth = GitHubAuth(pat="test_token")
         return GitHubIssueTracker(
-            owner="lesserevil",
+            owner="example-org",
             repo="oompah-tasks",
             active_states=["Open", "In Progress"],
             terminal_states=["Done", "Archived"],
@@ -3090,7 +3090,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=10, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#10")
+            result = tracker.get_metadata("example-org/oompah-tasks#10")
         assert result == {
             "oompah.project_id": "proj-abc",
             "oompah.target_branch": "main",
@@ -3104,7 +3104,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=42, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#42")
+            result = tracker.get_metadata("example-org/oompah-tasks#42")
         assert result["oompah.work_branch"] == "oompah/trickle/gh-42"
 
     def test_get_metadata_reads_review_fields(self):
@@ -3115,7 +3115,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=5, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#5")
+            result = tracker.get_metadata("example-org/oompah-tasks#5")
         assert result["oompah.review_url"] == "https://github.com/org/repo/pull/7"
         assert result["oompah.review_number"] == 7
 
@@ -3127,7 +3127,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=3, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#3")
+            result = tracker.get_metadata("example-org/oompah-tasks#3")
         assert result["oompah.attachments"] == [
             {"name": "patch.diff", "url": "https://example.com/patch.diff"}
         ]
@@ -3140,7 +3140,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=8, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#8")
+            result = tracker.get_metadata("example-org/oompah-tasks#8")
         assert result["oompah.release_pick"] == ["release/1.2", "release/1.3"]
 
     def test_get_metadata_returns_empty_when_no_block(self):
@@ -3148,7 +3148,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=1, body="Plain text, no metadata block.")
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#1")
+            result = tracker.get_metadata("example-org/oompah-tasks#1")
         assert result == {}
 
     def test_get_metadata_returns_empty_when_body_is_null(self):
@@ -3156,14 +3156,14 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=2, body="")
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#2")
+            result = tracker.get_metadata("example-org/oompah-tasks#2")
         assert result == {}
 
     def test_get_metadata_returns_empty_on_api_error(self):
         tracker = self._make_tracker()
         resp = _mock_response(404, text="Not Found")
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.get_metadata("lesserevil/oompah-tasks#999")
+            result = tracker.get_metadata("example-org/oompah-tasks#999")
         assert result == {}
 
     def test_get_metadata_invalid_identifier_returns_empty(self):
@@ -3188,7 +3188,7 @@ class TestGitHubIssueTrackerMetadata:
             tracker._client._http, "request", side_effect=responses
         ) as m:
             tracker.set_metadata_field(
-                "lesserevil/oompah-tasks#11", "oompah.target_branch", "main"
+                "example-org/oompah-tasks#11", "oompah.target_branch", "main"
             )
         # Second call should be a PATCH with the updated body.
         patch_call = m.call_args_list[1]
@@ -3207,7 +3207,7 @@ class TestGitHubIssueTrackerMetadata:
             tracker._client._http, "request", side_effect=[get_resp, patch_resp]
         ) as m:
             tracker.set_metadata_field(
-                "lesserevil/oompah-tasks#12", "oompah.work_branch", "oompah/feat-1"
+                "example-org/oompah-tasks#12", "oompah.work_branch", "oompah/feat-1"
             )
         body_sent = m.call_args_list[1].kwargs["json"]["body"]
         assert "Keep this description." in body_sent
@@ -3224,7 +3224,7 @@ class TestGitHubIssueTrackerMetadata:
             tracker._client._http, "request", side_effect=[get_resp, patch_resp]
         ) as m:
             tracker.set_metadata_field(
-                "lesserevil/oompah-tasks#13", "oompah.work_branch", "oompah/feat-2"
+                "example-org/oompah-tasks#13", "oompah.work_branch", "oompah/feat-2"
             )
         body_sent = m.call_args_list[1].kwargs["json"]["body"]
         assert '"project_id": "proj-x"' in body_sent
@@ -3242,7 +3242,7 @@ class TestGitHubIssueTrackerMetadata:
             tracker._client._http, "request", side_effect=[get_resp, patch_resp]
         ) as m:
             tracker.set_metadata_field(
-                "lesserevil/oompah-tasks#14", "oompah.target_branch", "new-branch"
+                "example-org/oompah-tasks#14", "oompah.target_branch", "new-branch"
             )
         body_sent = m.call_args_list[1].kwargs["json"]["body"]
         assert '"new-branch"' in body_sent
@@ -3252,7 +3252,7 @@ class TestGitHubIssueTrackerMetadata:
         tracker = self._make_tracker()
         with pytest.raises(TrackerError, match="oompah."):
             tracker.set_metadata_field(
-                "lesserevil/oompah-tasks#1", "target_branch", "main"
+                "example-org/oompah-tasks#1", "target_branch", "main"
             )
 
     def test_set_metadata_field_raises_for_issue_not_found(self):
@@ -3261,7 +3261,7 @@ class TestGitHubIssueTrackerMetadata:
         with patch.object(tracker._client._http, "request", return_value=resp):
             with pytest.raises(TrackerError, match="not found"):
                 tracker.set_metadata_field(
-                    "lesserevil/oompah-tasks#999", "oompah.target_branch", "main"
+                    "example-org/oompah-tasks#999", "oompah.target_branch", "main"
                 )
 
     def test_set_metadata_field_invalid_identifier_raises(self):
@@ -3278,11 +3278,11 @@ class TestGitHubIssueTrackerMetadata:
             tracker._client._http, "request", side_effect=[get_resp, patch_resp]
         ) as m:
             tracker.set_metadata_field(
-                "lesserevil/oompah-tasks#20", "oompah.project_id", "proj-y"
+                "example-org/oompah-tasks#20", "oompah.project_id", "proj-y"
             )
         patch_call = m.call_args_list[1]
         assert patch_call.args[0] == "PATCH"
-        assert "/repos/lesserevil/oompah-tasks/issues/20" in str(patch_call.args[1])
+        assert "/repos/example-org/oompah-tasks/issues/20" in str(patch_call.args[1])
 
     # ------------------------------------------------------------------
     # fetch_attachments
@@ -3297,7 +3297,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=30, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_attachments("lesserevil/oompah-tasks#30")
+            result = tracker.fetch_attachments("example-org/oompah-tasks#30")
         assert result == [attachment]
 
     def test_fetch_attachments_returns_empty_when_key_absent(self):
@@ -3307,7 +3307,7 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=31, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_attachments("lesserevil/oompah-tasks#31")
+            result = tracker.fetch_attachments("example-org/oompah-tasks#31")
         assert result == []
 
     def test_fetch_attachments_filters_non_dict_entries(self):
@@ -3317,14 +3317,14 @@ class TestGitHubIssueTrackerMetadata:
         gh_issue = _make_gh_issue(number=32, body=body)
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_attachments("lesserevil/oompah-tasks#32")
+            result = tracker.fetch_attachments("example-org/oompah-tasks#32")
         assert result == [{"name": "ok.diff"}]
 
     def test_fetch_attachments_returns_empty_on_api_error(self):
         tracker = self._make_tracker()
         resp = _mock_response(404, text="Not Found")
         with patch.object(tracker._client._http, "request", return_value=resp):
-            result = tracker.fetch_attachments("lesserevil/oompah-tasks#999")
+            result = tracker.fetch_attachments("example-org/oompah-tasks#999")
         assert result == []
 
     # ------------------------------------------------------------------
@@ -3341,7 +3341,7 @@ class TestGitHubIssueTrackerMetadata:
         with patch.object(
             tracker._client._http, "request", side_effect=[get_resp, patch_resp]
         ) as m:
-            tracker.set_attachments("lesserevil/oompah-tasks#40", attachments)
+            tracker.set_attachments("example-org/oompah-tasks#40", attachments)
         body_sent = m.call_args_list[1].kwargs["json"]["body"]
         assert '"attachments"' in body_sent
         assert '"file.diff"' in body_sent
@@ -3356,7 +3356,7 @@ class TestGitHubIssueTrackerMetadata:
         with patch.object(
             tracker._client._http, "request", side_effect=[get_resp, patch_resp]
         ) as m:
-            tracker.set_attachments("lesserevil/oompah-tasks#41", [])
+            tracker.set_attachments("example-org/oompah-tasks#41", [])
         body_sent = m.call_args_list[1].kwargs["json"]["body"]
         # Metadata block should still exist (target_branch absent, but block exists
         # because attachments=[] is still stored) and contain empty attachments list.
@@ -3373,7 +3373,7 @@ class TestGitHubIssueTrackerMetadata:
         ):
             # Should not raise even with project_root set.
             tracker.set_attachments(
-                "lesserevil/oompah-tasks#42",
+                "example-org/oompah-tasks#42",
                 [{"name": "x.diff"}],
                 project_root="/some/path",
             )
@@ -3388,7 +3388,7 @@ class TestGitHubIssueTrackerMetadata:
         with patch.object(
             tracker._client._http, "request", side_effect=[get_resp, patch_resp]
         ) as m:
-            tracker.set_attachments("lesserevil/oompah-tasks#43", [{"name": "a.diff"}])
+            tracker.set_attachments("example-org/oompah-tasks#43", [{"name": "a.diff"}])
         body_sent = m.call_args_list[1].kwargs["json"]["body"]
         assert '"target_branch": "main"' in body_sent
         assert '"project_id": "proj-q"' in body_sent
@@ -3431,7 +3431,7 @@ class TestGitHubIssueTrackerMetadata:
             tracker._client._http, "request", side_effect=[get_for_write, patch_resp]
         ) as write_mock:
             tracker.set_metadata_field(
-                f"lesserevil/oompah-tasks#{issue_number}", field_key, field_value
+                f"example-org/oompah-tasks#{issue_number}", field_key, field_value
             )
 
         # Capture the body that was PATCHed back.
@@ -3442,7 +3442,7 @@ class TestGitHubIssueTrackerMetadata:
         get_for_read = _mock_response(200, json_data=gh_issue_written)
         with patch.object(tracker._client._http, "request", return_value=get_for_read):
             result = tracker.get_metadata(
-                f"lesserevil/oompah-tasks#{issue_number}"
+                f"example-org/oompah-tasks#{issue_number}"
             )
 
         assert result[field_key] == field_value
@@ -3464,7 +3464,7 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
     def _make_tracker(self) -> GitHubIssueTracker:
         auth = GitHubAuth(pat="test_token")
         return GitHubIssueTracker(
-            owner="lesserevil",
+            owner="example-org",
             repo="oompah-tasks",
             active_states=["Open", "In Progress"],
             terminal_states=["Done", "Archived"],
@@ -3490,8 +3490,8 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
             side_effect=[child_resp, resp, create_label_resp, label_resp],
         ) as m:
             tracker.add_parent_child(
-                "lesserevil/oompah-tasks#10",
-                "lesserevil/oompah-tasks#5",
+                "example-org/oompah-tasks#10",
+                "example-org/oompah-tasks#5",
             )
         lookup_call = m.call_args_list[0]
         assert lookup_call[0][0] == "GET"
@@ -3525,8 +3525,8 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
             side_effect=[child_resp, resp_404, create_label_resp, label_resp],
         ) as m:
             tracker.add_parent_child(
-                "lesserevil/oompah-tasks#10",
-                "lesserevil/oompah-tasks#5",
+                "example-org/oompah-tasks#10",
+                "example-org/oompah-tasks#5",
             )
         # Fourth call should be add_label after dynamic label creation.
         label_call = m.call_args_list[3]
@@ -3546,19 +3546,19 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         ):
             with pytest.raises(TrackerError):
                 tracker.add_parent_child(
-                    "lesserevil/oompah-tasks#10",
-                    "lesserevil/oompah-tasks#5",
+                    "example-org/oompah-tasks#10",
+                    "example-org/oompah-tasks#5",
                 )
 
     def test_add_parent_child_invalid_child_identifier_raises(self):
         tracker = self._make_tracker()
         with pytest.raises(TrackerError):
-            tracker.add_parent_child("bad-id", "lesserevil/oompah-tasks#5")
+            tracker.add_parent_child("bad-id", "example-org/oompah-tasks#5")
 
     def test_add_parent_child_invalid_parent_identifier_raises(self):
         tracker = self._make_tracker()
         with pytest.raises(TrackerError):
-            tracker.add_parent_child("lesserevil/oompah-tasks#10", "bad-id")
+            tracker.add_parent_child("example-org/oompah-tasks#10", "bad-id")
 
     # ------------------------------------------------------------------
     # add_dependency
@@ -3579,8 +3579,8 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
             side_effect=[blocker_resp, resp, create_label_resp, label_resp],
         ) as m:
             tracker.add_dependency(
-                "lesserevil/oompah-tasks#10",
-                "lesserevil/oompah-tasks#5",
+                "example-org/oompah-tasks#10",
+                "example-org/oompah-tasks#5",
             )
         lookup_call = m.call_args_list[0]
         assert lookup_call[0][0] == "GET"
@@ -3614,8 +3614,8 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
             side_effect=[blocker_resp, resp_404, create_label_resp, label_resp],
         ) as m:
             tracker.add_dependency(
-                "lesserevil/oompah-tasks#10",
-                "lesserevil/oompah-tasks#5",
+                "example-org/oompah-tasks#10",
+                "example-org/oompah-tasks#5",
             )
         # Fourth call should be add_label after dynamic label creation.
         label_call = m.call_args_list[3]
@@ -3635,19 +3635,19 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         ):
             with pytest.raises(TrackerError):
                 tracker.add_dependency(
-                    "lesserevil/oompah-tasks#10",
-                    "lesserevil/oompah-tasks#5",
+                    "example-org/oompah-tasks#10",
+                    "example-org/oompah-tasks#5",
                 )
 
     def test_add_dependency_invalid_blocked_identifier_raises(self):
         tracker = self._make_tracker()
         with pytest.raises(TrackerError):
-            tracker.add_dependency("bad-id", "lesserevil/oompah-tasks#5")
+            tracker.add_dependency("bad-id", "example-org/oompah-tasks#5")
 
     def test_add_dependency_invalid_blocker_identifier_raises(self):
         tracker = self._make_tracker()
         with pytest.raises(TrackerError):
-            tracker.add_dependency("lesserevil/oompah-tasks#10", "bad-id")
+            tracker.add_dependency("example-org/oompah-tasks#10", "bad-id")
 
     # ------------------------------------------------------------------
     # _gh_issue_to_issue extracts parent and dependencies from labels
@@ -3657,38 +3657,38 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         """parent:<number> label is converted to parent_id on the Issue."""
         from oompah.github_tracker import _gh_issue_to_issue
         gh_issue = _make_gh_issue(number=10, labels=["parent:5"])
-        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
-        assert issue.parent_id == "lesserevil/oompah-tasks#5"
+        issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
+        assert issue.parent_id == "example-org/oompah-tasks#5"
 
     def test_gh_issue_to_issue_no_parent_when_no_label(self):
         """Issue has no parent_id when parent: label is absent."""
         from oompah.github_tracker import _gh_issue_to_issue
         gh_issue = _make_gh_issue(number=10)
-        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
         assert issue.parent_id is None
 
     def test_gh_issue_to_issue_extracts_dependencies_from_labels(self):
         """depends-on:<number> labels are converted to blocked_by on the Issue."""
         from oompah.github_tracker import _gh_issue_to_issue
         gh_issue = _make_gh_issue(number=10, labels=["depends-on:5", "depends-on:7"])
-        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
         assert len(issue.blocked_by) == 2
         dep_ids = {b.identifier for b in issue.blocked_by}
-        assert "lesserevil/oompah-tasks#5" in dep_ids
-        assert "lesserevil/oompah-tasks#7" in dep_ids
+        assert "example-org/oompah-tasks#5" in dep_ids
+        assert "example-org/oompah-tasks#7" in dep_ids
 
     def test_gh_issue_to_issue_no_dependencies_when_no_labels(self):
         """Issue has empty blocked_by when depends-on: labels are absent."""
         from oompah.github_tracker import _gh_issue_to_issue
         gh_issue = _make_gh_issue(number=10)
-        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
         assert issue.blocked_by == []
 
     def test_gh_issue_to_issue_excludes_parent_and_depends_on_from_user_labels(self):
         """parent: and depends-on: labels are excluded from user-facing labels."""
         from oompah.github_tracker import _gh_issue_to_issue
         gh_issue = _make_gh_issue(number=10, labels=["parent:5", "depends-on:7", "needs:backend"])
-        issue = _gh_issue_to_issue(gh_issue, owner="lesserevil", repo="oompah-tasks")
+        issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
         assert issue.labels == ["needs:backend"]
         assert "parent:5" not in issue.labels
         assert "depends-on:7" not in issue.labels
@@ -3711,10 +3711,10 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         with patch.object(
             tracker._client._http, "request", side_effect=[resp_404, resp_200]
         ):
-            result = tracker.fetch_children("lesserevil/oompah-tasks#5")
+            result = tracker.fetch_children("example-org/oompah-tasks#5")
         assert len(result) == 2
         for child in result:
-            assert child.parent_id == "lesserevil/oompah-tasks#5"
+            assert child.parent_id == "example-org/oompah-tasks#5"
 
     # ------------------------------------------------------------------
     # fetch_issue_detail returns issue with blocked_by populated
@@ -3726,12 +3726,12 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         gh_issue = _make_gh_issue(number=10, labels=["depends-on:5", "depends-on:7"])
         resp = _mock_response(200, json_data=gh_issue)
         with patch.object(tracker._client._http, "request", return_value=resp):
-            issue = tracker.fetch_issue_detail("lesserevil/oompah-tasks#10")
+            issue = tracker.fetch_issue_detail("example-org/oompah-tasks#10")
         assert issue is not None
         assert len(issue.blocked_by) == 2
         dep_ids = {b.identifier for b in issue.blocked_by}
-        assert "lesserevil/oompah-tasks#5" in dep_ids
-        assert "lesserevil/oompah-tasks#7" in dep_ids
+        assert "example-org/oompah-tasks#5" in dep_ids
+        assert "example-org/oompah-tasks#7" in dep_ids
 
 
 # ===========================================================================

@@ -198,7 +198,7 @@ class TestCutoverToDualReadMode:
                 "tracker_cutover_at": "2026-06-10T10:00:00+00:00",
                 "legacy_backlog_enabled": True,
                 "legacy_backlog_dispatch": False,
-                "tracker_owner": "lesserevil",
+                "tracker_owner": "example-org",
                 "tracker_repo": "oompah-tasks",
             },
         )
@@ -254,14 +254,14 @@ class TestCutoverToDualReadMode:
             "/api/v1/projects/proj-lowrisk",
             json={
                 "tracker_kind": "github_issues",
-                "tracker_owner": "lesserevil",
+                "tracker_owner": "example-org",
                 "tracker_repo": "oompah-tasks",
                 "legacy_backlog_enabled": True,
             },
         )
         assert res.status_code == 200
         proj = self.store.get("proj-lowrisk")
-        assert proj.tracker_owner == "lesserevil"
+        assert proj.tracker_owner == "example-org"
         assert proj.tracker_repo == "oompah-tasks"
 
     def test_rollback_patch_restores_full_legacy_mode(self):
@@ -337,8 +337,8 @@ class TestSmokeTaskCreation:
         # Mock tracker used by the server for project "proj-lowrisk"
         self.mock_tracker = MagicMock()
         self.smoke_issue = Issue(
-            id="lesserevil/oompah-tasks#1",
-            identifier="lesserevil/oompah-tasks#1",
+            id="example-org/oompah-tasks#1",
+            identifier="example-org/oompah-tasks#1",
             title="[SMOKE] Cutover verification task",
             description="Auto-generated smoke task for cutover verification.",
             state="Open",
@@ -394,7 +394,7 @@ class TestSmokeTaskCreation:
         assert res.status_code == 201
         body = res.json()
         assert body["ok"] is True
-        assert body["issue"]["identifier"] == "lesserevil/oompah-tasks#1"
+        assert body["issue"]["identifier"] == "example-org/oompah-tasks#1"
 
     def test_create_smoke_task_initial_state_open(self):
         """Newly created smoke task starts in 'Open' state (GitHub Issues default)."""
@@ -437,7 +437,7 @@ class TestSmokeTaskDispatch:
             legacy_backlog_dispatch=False,
         )
         orch = _make_orchestrator(tmp_path, projects=[proj])
-        smoke_issue = _github_issue("lesserevil/oompah-tasks#1", "proj-lowrisk")
+        smoke_issue = _github_issue("example-org/oompah-tasks#1", "proj-lowrisk")
         assert orch._should_dispatch(smoke_issue) is True
 
     def test_legacy_backlog_task_not_dispatchable_in_default_dual_read(
@@ -474,7 +474,7 @@ class TestSmokeTaskDispatch:
                 legacy_backlog_dispatch=legacy_dispatch,
             )
             orch = _make_orchestrator(tmp_path, projects=[proj])
-            smoke_issue = _github_issue("lesserevil/oompah-tasks#1", "proj-lowrisk")
+            smoke_issue = _github_issue("example-org/oompah-tasks#1", "proj-lowrisk")
             assert orch._should_dispatch(smoke_issue) is True, (
                 f"smoke task must dispatch regardless of legacy_backlog_dispatch={legacy_dispatch}"
             )
@@ -521,7 +521,7 @@ class TestSmokeTaskReviewFlow:
         srv._orchestrator = old_orch
 
     def _smoke_id(self) -> str:
-        return "lesserevil/oompah-tasks#1"
+        return "example-org/oompah-tasks#1"
 
     def test_update_status_to_in_progress(self):
         """Smoke task can be moved to 'In Progress'."""
@@ -630,7 +630,7 @@ class TestSmokeTaskComments:
         orch._tracker_for_project.return_value = self.mock_tracker
 
         # Make find_tracker_for_issue succeed for the smoke identifier
-        smoke_issue = _github_issue("lesserevil/oompah-tasks#1", "proj-lowrisk")
+        smoke_issue = _github_issue("example-org/oompah-tasks#1", "proj-lowrisk")
         self.mock_tracker.fetch_issue_detail.return_value = smoke_issue
 
         old_orch = srv._orchestrator
@@ -642,7 +642,7 @@ class TestSmokeTaskComments:
 
     def test_add_comment_calls_tracker_add_comment(self):
         """Direct call: add_comment is invoked on the GitHub tracker."""
-        smoke_id = "lesserevil/oompah-tasks#1"
+        smoke_id = "example-org/oompah-tasks#1"
         self.mock_tracker.add_comment(
             smoke_id, "Smoke task dispatched and running.", author="oompah"
         )
@@ -658,7 +658,7 @@ class TestSmokeTaskComments:
         We verify the tracker routing by calling add_comment directly on the
         mock tracker — the comment goes to GitHub Issues (not Backlog.md).
         """
-        smoke_id = "lesserevil/oompah-tasks#1"
+        smoke_id = "example-org/oompah-tasks#1"
         self.mock_tracker.add_comment.return_value = {"id": "c99", "body": "x"}
 
         # Direct call simulating what the server would do via _tracker_for_project
@@ -674,7 +674,7 @@ class TestSmokeTaskComments:
 
     def test_multiple_comments_all_go_to_github_tracker(self):
         """Multiple add_comment calls all target the GitHub tracker."""
-        smoke_id = "lesserevil/oompah-tasks#1"
+        smoke_id = "example-org/oompah-tasks#1"
         comments = [
             "Agent dispatched.",
             "In Progress: working on smoke scenario.",
@@ -740,7 +740,7 @@ class TestLegacyTasksNotMigrated:
                 "tracker_kind": "github_issues",
                 "tracker_cutover_at": "2026-06-10T10:00:00+00:00",
                 "legacy_backlog_enabled": True,
-                "tracker_owner": "lesserevil",
+                "tracker_owner": "example-org",
                 "tracker_repo": "oompah-tasks",
             },
         )
@@ -771,7 +771,7 @@ class TestLegacyTasksNotMigrated:
         """The GitHub tracker's create_issue is never called for Backlog tasks."""
         mock_gh_tracker = MagicMock()
         mock_gh_tracker.create_issue.return_value = _github_issue(
-            "lesserevil/oompah-tasks#1", "proj-lowrisk"
+            "example-org/oompah-tasks#1", "proj-lowrisk"
         )
 
         proj = _make_project(
@@ -863,7 +863,7 @@ class TestDualReadCandidateMix:
         )
         orch = _make_orchestrator(tmp_path, projects=[proj])
 
-        smoke_task = _github_issue("lesserevil/oompah-tasks#1", "proj-lowrisk")
+        smoke_task = _github_issue("example-org/oompah-tasks#1", "proj-lowrisk")
         legacy_1 = _backlog_issue("TASK-100", "proj-lowrisk")
         legacy_2 = _backlog_issue("TASK-101", "proj-lowrisk")
 
@@ -879,7 +879,7 @@ class TestDualReadCandidateMix:
         backlog_candidates = [c for c in candidates if c.tracker_kind == "backlog_md"]
 
         assert len(gh_candidates) == 1
-        assert gh_candidates[0].identifier == "lesserevil/oompah-tasks#1"
+        assert gh_candidates[0].identifier == "example-org/oompah-tasks#1"
 
         assert len(backlog_candidates) == 2
         backlog_ids = {c.identifier for c in backlog_candidates}
@@ -896,7 +896,7 @@ class TestDualReadCandidateMix:
         )
         orch = _make_orchestrator(tmp_path, projects=[proj])
 
-        smoke_task = _github_issue("lesserevil/oompah-tasks#1", "proj-lowrisk")
+        smoke_task = _github_issue("example-org/oompah-tasks#1", "proj-lowrisk")
         legacy_1 = _backlog_issue("TASK-100", "proj-lowrisk")
         legacy_1.tracker_kind = "backlog_md"
 
@@ -968,7 +968,7 @@ class TestEndToEndSmokeScenario:
 
         # Simulate GitHub tracker returning a new smoke task
         smoke_task = _github_issue(
-            "lesserevil/oompah-tasks#42",
+            "example-org/oompah-tasks#42",
             "proj-lowrisk",
             state="Open",
             title="[SMOKE] Cutover smoke task",
@@ -979,7 +979,7 @@ class TestEndToEndSmokeScenario:
 
         # 1. Smoke task appears in candidates
         candidates = orch._fetch_all_candidates()
-        smoke = next(c for c in candidates if c.identifier == "lesserevil/oompah-tasks#42")
+        smoke = next(c for c in candidates if c.identifier == "example-org/oompah-tasks#42")
         assert smoke.tracker_kind == "github_issues"
 
         # 2. Smoke task is dispatchable
@@ -1033,7 +1033,7 @@ class TestEndToEndSmokeScenario:
         orch = _make_orchestrator(tmp_path, projects=[proj])
 
         # Simulate tracker returning a mix of GitHub and Backlog tasks
-        smoke_task = _github_issue("lesserevil/oompah-tasks#42", "proj-lowrisk")
+        smoke_task = _github_issue("example-org/oompah-tasks#42", "proj-lowrisk")
         legacy_tasks = [
             _backlog_issue(f"TASK-{n}", "proj-lowrisk") for n in range(100, 115)
         ]
@@ -1055,7 +1055,7 @@ class TestEndToEndSmokeScenario:
         # GitHub smoke task is unaffected
         gh_cands = [c for c in candidates if c.tracker_kind == "github_issues"]
         assert len(gh_cands) == 1
-        assert gh_cands[0].identifier == "lesserevil/oompah-tasks#42"
+        assert gh_cands[0].identifier == "example-org/oompah-tasks#42"
 
     def test_cutover_state_persistent_across_store_reload(self, tmp_path):
         """Project store persists the cutover state: tracker_kind, flags, and timestamp."""
@@ -1067,7 +1067,7 @@ class TestEndToEndSmokeScenario:
         store.update(
             "proj-lowrisk",
             tracker_kind="github_issues",
-            tracker_owner="lesserevil",
+            tracker_owner="example-org",
             tracker_repo="oompah-tasks",
             tracker_cutover_at=cutover_ts,
             legacy_backlog_enabled=True,
@@ -1083,7 +1083,7 @@ class TestEndToEndSmokeScenario:
         )
         reloaded = store2.get("proj-lowrisk")
         assert reloaded.tracker_kind == "github_issues"
-        assert reloaded.tracker_owner == "lesserevil"
+        assert reloaded.tracker_owner == "example-org"
         assert reloaded.tracker_repo == "oompah-tasks"
         assert reloaded.legacy_backlog_enabled is True
         assert reloaded.legacy_backlog_dispatch is False

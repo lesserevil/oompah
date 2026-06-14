@@ -33,9 +33,9 @@ def _commit_file(repo, rel_path: str, content: str, when: str):
     env = {
         **os.environ,
         "GIT_AUTHOR_NAME": "oompah",
-        "GIT_AUTHOR_EMAIL": "lesserevil@users.noreply.github.com",
+        "GIT_AUTHOR_EMAIL": "example-org@users.noreply.github.com",
         "GIT_COMMITTER_NAME": "oompah",
-        "GIT_COMMITTER_EMAIL": "lesserevil@users.noreply.github.com",
+        "GIT_COMMITTER_EMAIL": "example-org@users.noreply.github.com",
         "GIT_AUTHOR_DATE": when,
         "GIT_COMMITTER_DATE": when,
     }
@@ -47,7 +47,7 @@ def test_backlog_files_post_cutover_report_lists_new_backlog_files(tmp_path):
     repo.mkdir()
     _git(repo, "init")
     _git(repo, "config", "user.name", "oompah")
-    _git(repo, "config", "user.email", "lesserevil@users.noreply.github.com")
+    _git(repo, "config", "user.email", "example-org@users.noreply.github.com")
 
     _commit_file(
         repo,
@@ -65,10 +65,10 @@ def test_backlog_files_post_cutover_report_lists_new_backlog_files(tmp_path):
     project = Project(
         id="proj-gh",
         name="github-backed",
-        repo_url="https://github.com/lesserevil/oompah",
+        repo_url="https://github.com/example-org/oompah",
         repo_path=str(repo),
         tracker_kind="github_issues",
-        tracker_owner="lesserevil",
+        tracker_owner="example-org",
         tracker_repo="oompah",
         tracker_cutover_at=datetime(2026, 6, 10, 16, 0, tzinfo=timezone.utc),
     )

@@ -18,6 +18,7 @@ from oompah.error_watcher import (
     ErrorWatcher,
     LogFileWatcher,
     ProjectLogWatcherManager,
+    _COMMIT_TRAILER,
     _detect_error_level,
     _extract_message,
     _priority_for_level,
@@ -273,8 +274,7 @@ class TestErrorWatcherGitPersistence:
 
         message = _git(["log", "-1", "--pretty=%B"], cwd=repo).stdout
         assert "Record ErrorWatcher task TASK-900" in message
-        assert "Generated with https://github.com/lesserevil/oompah" in message
-        assert "Co-authored-by: oompah <lesserevil@users.noreply.github.com>" in message
+        assert _COMMIT_TRAILER in message
 
     def test_report_error_returns_identifier_when_push_fails(self, tmp_path, caplog):
         repo, _origin = _init_git_backlog_repo(tmp_path, with_remote=False)

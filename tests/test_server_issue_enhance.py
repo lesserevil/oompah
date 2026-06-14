@@ -363,7 +363,7 @@ class TestRunIssueEnhancementHelper:
 def _make_orch_with_managed_repo(
     tmp_path,
     project_id: str = "proj-2",
-    repo_url: str = "https://github.com/lesserevil/trickle",
+    repo_url: str = "https://github.com/example-org/trickle",
 ):
     """Build a mock orchestrator whose project is identified by managed repo URL."""
     mock_project = MagicMock()
@@ -398,7 +398,7 @@ class TestCreateIssueManagedRepo:
                 "/api/v1/issues",
                 json={
                     "title": "New GitHub task",
-                    "managed_repo": "lesserevil/trickle",
+                    "managed_repo": "example-org/trickle",
                     "type": "task",
                 },
             )
@@ -409,7 +409,7 @@ class TestCreateIssueManagedRepo:
     def test_create_via_managed_repo_ssh_url(self, client, tmp_path):
         """SSH git remote URLs are also matched for managed_repo lookup."""
         mock_orch, mock_tracker, _ = _make_orch_with_managed_repo(
-            tmp_path, repo_url="git@github.com:lesserevil/trickle.git"
+            tmp_path, repo_url="git@github.com:example-org/trickle.git"
         )
         with (
             patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
@@ -419,7 +419,7 @@ class TestCreateIssueManagedRepo:
                 "/api/v1/issues",
                 json={
                     "title": "SSH repo task",
-                    "managed_repo": "lesserevil/trickle",
+                    "managed_repo": "example-org/trickle",
                     "type": "task",
                 },
             )
@@ -485,7 +485,7 @@ class TestCreateIssueManagedRepo:
                 json={
                     "title": "explicit project",
                     "project_id": "proj-2",
-                    "managed_repo": "lesserevil/trickle",
+                    "managed_repo": "example-org/trickle",
                     "type": "task",
                 },
             )
@@ -508,15 +508,15 @@ class TestResolveIdentifier:
 
     def test_body_issue_key_overrides_path_param(self):
         result = server_module._resolve_identifier(
-            "placeholder", {"issue_key": "lesserevil/oompah-tasks#1234"}, {}
+            "placeholder", {"issue_key": "example-org/oompah-tasks#1234"}, {}
         )
-        assert result == "lesserevil/oompah-tasks#1234"
+        assert result == "example-org/oompah-tasks#1234"
 
     def test_query_issue_key_overrides_path_param(self):
         result = server_module._resolve_identifier(
-            "placeholder", {}, {"issue_key": "lesserevil/oompah-tasks#1234"}
+            "placeholder", {}, {"issue_key": "example-org/oompah-tasks#1234"}
         )
-        assert result == "lesserevil/oompah-tasks#1234"
+        assert result == "example-org/oompah-tasks#1234"
 
     def test_body_issue_key_wins_over_query(self):
         result = server_module._resolve_identifier(
@@ -545,23 +545,23 @@ class TestManagedRepoSlug:
 
     def test_https_url(self):
         assert server_module._managed_repo_slug(
-            "https://github.com/lesserevil/trickle"
-        ) == "lesserevil/trickle"
+            "https://github.com/example-org/trickle"
+        ) == "example-org/trickle"
 
     def test_https_url_with_git_suffix(self):
         assert server_module._managed_repo_slug(
-            "https://github.com/lesserevil/trickle.git"
-        ) == "lesserevil/trickle"
+            "https://github.com/example-org/trickle.git"
+        ) == "example-org/trickle"
 
     def test_ssh_url(self):
         assert server_module._managed_repo_slug(
-            "git@github.com:lesserevil/trickle.git"
-        ) == "lesserevil/trickle"
+            "git@github.com:example-org/trickle.git"
+        ) == "example-org/trickle"
 
     def test_ssh_url_no_git_suffix(self):
         assert server_module._managed_repo_slug(
-            "git@github.com:lesserevil/trickle"
-        ) == "lesserevil/trickle"
+            "git@github.com:example-org/trickle"
+        ) == "example-org/trickle"
 
     def test_returns_none_for_local_path(self):
         assert server_module._managed_repo_slug("/home/user/repo") is None
@@ -585,29 +585,29 @@ class TestGetTrackerForManagedRepo:
 
     def test_finds_project_by_https_url(self):
         mock_orch, mock_tracker, _ = self._make_orch(
-            "https://github.com/lesserevil/trickle.git"
+            "https://github.com/example-org/trickle.git"
         )
         tracker, project_id = server_module._get_tracker_for_managed_repo(
-            mock_orch, "lesserevil/trickle"
+            mock_orch, "example-org/trickle"
         )
         assert tracker is mock_tracker
         assert project_id == "proj-x"
 
     def test_finds_project_by_ssh_url(self):
         mock_orch, mock_tracker, _ = self._make_orch(
-            "git@github.com:lesserevil/trickle.git"
+            "git@github.com:example-org/trickle.git"
         )
         tracker, project_id = server_module._get_tracker_for_managed_repo(
-            mock_orch, "lesserevil/trickle"
+            mock_orch, "example-org/trickle"
         )
         assert tracker is mock_tracker
 
     def test_case_insensitive_match(self):
         mock_orch, mock_tracker, _ = self._make_orch(
-            "https://github.com/LesserEvil/Trickle"
+            "https://github.com/Example-Org/Trickle"
         )
         tracker, _ = server_module._get_tracker_for_managed_repo(
-            mock_orch, "lesserevil/trickle"
+            mock_orch, "example-org/trickle"
         )
         assert tracker is mock_tracker
 
@@ -617,5 +617,5 @@ class TestGetTrackerForManagedRepo:
         )
         with pytest.raises(ValueError, match="No project found"):
             server_module._get_tracker_for_managed_repo(
-                mock_orch, "lesserevil/trickle"
+                mock_orch, "example-org/trickle"
             )

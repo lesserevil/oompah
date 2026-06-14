@@ -357,17 +357,17 @@ class TestResolveBeadForBranch:
         # The tracker has one issue whose work_branch is the GitHub slug.
         gh_issue = MagicMock()
         gh_issue.work_branch = "oompah/trickle/gh-42"
-        gh_issue.identifier = "lesserevil/oompah-tasks#42"
+        gh_issue.identifier = "example-org/oompah-tasks#42"
         tracker.fetch_issues_by_states.return_value = [gh_issue]
 
-        resolved = MagicMock(identifier="lesserevil/oompah-tasks#42")
+        resolved = MagicMock(identifier="example-org/oompah-tasks#42")
         tracker.fetch_issue_detail.return_value = resolved
 
         result = orch._resolve_task_for_branch(
             tracker, "oompah/trickle/gh-42", project_id="proj-1"
         )
         assert result is resolved
-        tracker.fetch_issue_detail.assert_called_once_with("lesserevil/oompah-tasks#42")
+        tracker.fetch_issue_detail.assert_called_once_with("example-org/oompah-tasks#42")
 
     def test_github_epic_branch_resolved_via_index(self, tmp_path):
         """epic- prefix is stripped when looking up the index."""
@@ -376,10 +376,10 @@ class TestResolveBeadForBranch:
 
         gh_epic = MagicMock()
         gh_epic.work_branch = "oompah/trickle/epic-gh-7"
-        gh_epic.identifier = "lesserevil/oompah-tasks#7"
+        gh_epic.identifier = "example-org/oompah-tasks#7"
         tracker.fetch_issues_by_states.return_value = [gh_epic]
 
-        resolved = MagicMock(identifier="lesserevil/oompah-tasks#7")
+        resolved = MagicMock(identifier="example-org/oompah-tasks#7")
         tracker.fetch_issue_detail.return_value = resolved
 
         result = orch._resolve_task_for_branch(
