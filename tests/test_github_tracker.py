@@ -34,6 +34,7 @@ from oompah.github_tracker import (
     _extract_oompah_status,
     _extract_priority,
     _extract_issue_type,
+    _extract_parent_from_body,
     _parse_body_metadata,
     _gh_timestamp,
     _gh_issue_to_issue,
@@ -1277,6 +1278,25 @@ class TestStatusLabelHelpers:
         labels = [{"name": "type:bug"}]
         assert _extract_issue_type(labels) == "bug"
 
+    def test_extract_issue_type_epic_title_fallback(self):
+        assert _extract_issue_type([], "Epic: Milestone 1") == "epic"
+
+    def test_extract_issue_type_label_beats_epic_title(self):
+        labels = [{"name": "type:feature"}]
+        assert _extract_issue_type(labels, "Epic: Milestone 1") == "feature"
+
+    def test_extract_parent_from_body_hash_reference(self):
+        body = "Parent: #3\n\nWork details."
+        assert _extract_parent_from_body(body) == "3"
+
+    def test_extract_parent_from_body_qualified_reference(self):
+        body = "Parent: example-org/oompah-tasks#3"
+        assert _extract_parent_from_body(body) == "3"
+
+    def test_extract_parent_from_body_github_url(self):
+        body = "Parent: https://github.com/example-org/oompah-tasks/issues/3"
+        assert _extract_parent_from_body(body) == "3"
+
     def test_parse_body_metadata_empty(self):
         assert _parse_body_metadata("") == {}
         assert _parse_body_metadata(None) == {}
@@ -1413,6 +1433,10 @@ class TestGhIssueToIssue:
     def test_issue_type_defaults_to_task(self):
         issue = self._convert(labels=[])
         assert issue.issue_type == "task"
+
+    def test_epic_title_defaults_to_epic_type(self):
+        issue = self._convert(title="Epic: Milestone 1", labels=[])
+        assert issue.issue_type == "epic"
 
     def test_user_labels_exclude_internal(self):
         issue = self._convert(
@@ -3657,6 +3681,20 @@ class TestGitHubIssueTrackerHierarchyAndDependencies:
         """parent:<number> label is converted to parent_id on the Issue."""
         from oompah.github_tracker import _gh_issue_to_issue
         gh_issue = _make_gh_issue(number=10, labels=["parent:5"])
+        issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
+        assert issue.parent_id == "example-org/oompah-tasks#5"
+
+    def test_gh_issue_to_issue_extracts_parent_from_body(self):
+        """A leading Parent: #<number> body line is converted to parent_id."""
+        from oompah.github_tracker import _gh_issue_to_issue
+        gh_issue = _make_gh_issue(number=10, body="Parent: #5\n\nWork details")
+        issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
+        assert issue.parent_id == "example-org/oompah-tasks#5"
+
+    def test_gh_issue_to_issue_parent_label_beats_body(self):
+        """Explicit parent labels remain authoritative over body hints."""
+        from oompah.github_tracker import _gh_issue_to_issue
+        gh_issue = _make_gh_issue(number=10, labels=["parent:5"], body="Parent: #7")
         issue = _gh_issue_to_issue(gh_issue, owner="example-org", repo="oompah-tasks")
         assert issue.parent_id == "example-org/oompah-tasks#5"
 

@@ -2510,6 +2510,12 @@ def _fetch_all_issues(orch, filter_project: str | None = None):
                 # column instead of a stale Open/In-Progress. See
                 # _effective_display_status.
                 issue.state = _effective_display_status(orch, issue)
+            issue_by_id = {issue.id: issue for issue in issues}
+            for issue in issues:
+                parent_id = (issue.parent_id or "").strip()
+                parent = issue_by_id.get(parent_id) if parent_id else None
+                if parent and canonicalize_status(parent.state) == PROPOSED:
+                    issue.state = PROPOSED
             # Roll each epic up to a state derived from its children's
             # (now-enriched) states, so the board shows the epic in the
             # column that matches its children — Done (ready to merge) when

@@ -130,6 +130,21 @@ def test_fetch_all_issues_keeps_epic_state_when_children_only_proposed():
     assert by_id["TASK-1.1"].state == "Proposed"
 
 
+def test_fetch_all_issues_keeps_child_proposed_when_parent_is_proposed():
+    orch = _orch_with_issues(
+        [
+            _issue("TASK-1", "Proposed", issue_type="epic"),
+            _issue("TASK-1.1", "Backlog", parent_id="TASK-1"),
+        ]
+    )
+
+    issues = server_module._fetch_all_issues(orch)
+
+    by_id = {issue.identifier: issue for issue in issues}
+    assert by_id["TASK-1"].state == "Proposed"
+    assert by_id["TASK-1.1"].state == "Proposed"
+
+
 def test_fetch_and_serialize_issues_keeps_proposed_visible_and_counted():
     orch = _orch_with_issues(
         [
@@ -143,6 +158,24 @@ def test_fetch_and_serialize_issues_keeps_proposed_visible_and_counted():
     assert [issue["identifier"] for issue in board["Proposed"]] == ["TASK-1.1"]
     assert board["Backlog"][0]["children_counts"]["Proposed"] == 1
     assert board["Backlog"][0]["children_counts"]["Open"] == 0
+
+
+def test_fetch_and_serialize_issues_counts_child_under_proposed_parent_as_proposed():
+    orch = _orch_with_issues(
+        [
+            _issue("TASK-1", "Proposed", issue_type="epic"),
+            _issue("TASK-1.1", "Backlog", parent_id="TASK-1"),
+        ]
+    )
+
+    board = server_module._fetch_and_serialize_issues(orch)
+
+    assert [issue["identifier"] for issue in board["Proposed"]] == [
+        "TASK-1",
+        "TASK-1.1",
+    ]
+    assert board["Proposed"][0]["children_counts"]["Proposed"] == 1
+    assert board["Proposed"][0]["children_counts"]["Backlog"] == 0
 
 
 def test_fetch_all_issues_github_dual_read_fetches_legacy_backlog_tracker():

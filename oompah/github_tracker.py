@@ -1131,7 +1131,10 @@ def _extract_priority(labels: list[dict[str, Any]]) -> int | None:
     return None
 
 
-def _extract_issue_type(labels: list[dict[str, Any]]) -> str:
+def _extract_issue_type(
+    labels: list[dict[str, Any]],
+    title: str | None = None,
+) -> str:
     """Extract the issue type from a ``type:<kind>`` label.
 
     Defaults to ``"task"`` when no type label is present.
@@ -1142,6 +1145,8 @@ def _extract_issue_type(labels: list[dict[str, Any]]) -> str:
             kind = name[len("type:"):]
             if kind:
                 return kind
+    if str(title or "").strip().lower().startswith("epic:"):
+        return "epic"
     return "task"
 
 
@@ -1168,6 +1173,29 @@ def _extract_parent_from_labels(labels: list[dict[str, Any]]) -> str | None:
         name = lbl.get("name", "")
         if name.startswith("parent:"):
             return name[len("parent:"):]
+    return None
+
+
+def _extract_parent_from_body(body: str | None) -> str | None:
+    """Extract parent issue number from a leading ``Parent:`` body line."""
+    if not body:
+        return None
+    for match in re.finditer(r"(?im)^\s*Parent\s*:\s*(?P<ref>\S+)\s*$", body):
+        ref = match.group("ref").strip()
+        if ref.isdigit():
+            return ref
+        if ref.startswith("#") and ref[1:].isdigit():
+            return ref[1:]
+        m = re.match(r"^[^/\s]+/[^#\s]+#(?P<number>\d+)$", ref)
+        if m:
+            return m.group("number")
+        m = re.match(
+            r"^https://github\.com/[^/\s]+/[^/\s]+/issues/(?P<number>\d+)"
+            r"(?:[?#].*)?$",
+            ref,
+        )
+        if m:
+            return m.group("number")
     return None
 
 
@@ -1246,12 +1274,13 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
 
     status = _extract_oompah_status(labels_raw, gh_state)
     priority = _extract_priority(labels_raw)
-    issue_type = _extract_issue_type(labels_raw)
+    body: str = gh_issue.get("body") or ""
+    issue_type = _extract_issue_type(labels_raw, gh_issue.get("title"))
 
     # Extract parent from parent:<number> label (fallback for sub-issues API).
-    parent_number = _extract_parent_from_labels(labels_raw)
+    parent_number = _extract_parent_from_labels(labels_raw) or _extract_parent_from_body(body)
     parent_id: str | None = None
-    if parent_number:
+    if parent_number and parent_number != str(number):
         parent_id = f"{owner}/{repo}#{parent_number}"
 
     # Extract dependencies from depends-on:<number> labels (fallback for dependencies API).
@@ -1273,7 +1302,6 @@ def _gh_issue_to_issue(gh_issue: dict[str, Any], owner: str, repo: str) -> Issue
         and not lbl["name"].startswith("depends-on:")
     ]
 
-    body: str = gh_issue.get("body") or ""
     meta = _parse_body_metadata(body)
     target_branch: str | None = (
         meta.get("target_branch") or meta.get("oompah.target_branch") or None
