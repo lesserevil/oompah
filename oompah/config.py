@@ -471,6 +471,16 @@ class ServiceConfig:
     # agent.project_stale_cache_ttl_ms in WORKFLOW.md.
     project_stale_cache_ttl_ms: int = 300000
 
+    # Dispatch-loop heartbeat staleness detection (lesserevil/oompah#305).
+    # If the dispatch loop has not completed a tick for longer than
+    # (full_sync_interval_ms × dispatch_loop_stale_factor) milliseconds,
+    # it is considered stale: a dashboard alert is raised and automatic
+    # recovery is attempted. A factor of 3.0 means the loop is flagged
+    # stale after 3 missed full-sync intervals (15 minutes by default).
+    # Set to 0 to disable stale-loop detection entirely.
+    # Configurable via OOMPAH_DISPATCH_LOOP_STALE_FACTOR.
+    dispatch_loop_stale_factor: float = 3.0
+
     def __post_init__(self):
         self.tracker_kind = _parse_tracker_kind(self.tracker_kind)
         self.dispatch_scan_limit = max(int(self.dispatch_scan_limit), 0)
@@ -794,6 +804,11 @@ class ServiceConfig:
                 "OOMPAH_PROJECT_STALE_CACHE_TTL_MS",
                 agent.get("project_stale_cache_ttl_ms"),
                 300000,
+            ),
+            dispatch_loop_stale_factor=_env_float(
+                "OOMPAH_DISPATCH_LOOP_STALE_FACTOR",
+                agent.get("dispatch_loop_stale_factor"),
+                3.0,
             ),
         )
 

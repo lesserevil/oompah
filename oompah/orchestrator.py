@@ -664,6 +664,13 @@ class Orchestrator:
         # when the next safety-net full sync should fire and to support
         # logging the safety-net message when the interval elapses.
         self._last_full_sync: float = 0.0
+        # Dispatch-loop heartbeat staleness detection (lesserevil/oompah#305).
+        # Monotonic timestamp when staleness was first detected. 0.0 means
+        # either not yet stale or we have never completed a tick.
+        self._dispatch_stale_detected_at: float = 0.0
+        # True once automatic loop recovery has been requested (prevents
+        # duplicate restart requests on consecutive supervise iterations).
+        self._dispatch_loop_recovery_requested: bool = False
         # Timestamp (monotonic) of the last managed-checkout self-heal pass.
         # Drives the periodic ensure_repo_sound() sweep so checkouts can't
         # silently drift/wedge between restarts. 0.0 => never run yet.
@@ -1864,6 +1871,164 @@ class Orchestrator:
             return True
         elapsed_ms = (time.monotonic() - self._last_full_sync) * 1000
         return elapsed_ms >= self.config.full_sync_interval_ms
+
+    # ------------------------------------------------------------------
+    # Dispatch-loop heartbeat / staleness detection (lesserevil/oompah#305)
+    # ------------------------------------------------------------------
+
+    def is_dispatch_loop_stale(self) -> bool:
+        """Return True when the dispatch loop has stopped ticking.
+
+        The loop is considered stale when:
+        - At least one tick has completed (``_last_full_sync != 0.0``), AND
+        - The elapsed time since the last tick exceeds
+          ``full_sync_interval_ms × dispatch_loop_stale_factor``.
+
+        Returns False before the first tick so a slow-starting service does
+        not falsely alarm, and also returns False when
+        ``dispatch_loop_stale_factor == 0`` (detection disabled).
+        """
+        factor = self.config.dispatch_loop_stale_factor
+        if factor <= 0:
+            return False
+        if self._last_full_sync == 0.0:
+            return False
+        threshold_ms = self.config.full_sync_interval_ms * factor
+        elapsed_ms = (time.monotonic() - self._last_full_sync) * 1000
+        return elapsed_ms >= threshold_ms
+
+    def dispatch_loop_stale_seconds(self) -> float:
+        """Return seconds elapsed since the last completed dispatch tick.
+
+        Returns 0.0 before the first tick completes.
+        """
+        if self._last_full_sync == 0.0:
+            return 0.0
+        return time.monotonic() - self._last_full_sync
+
+    def _arm_dispatch_stale_alert(self, elapsed_s: float) -> None:
+        """Arm (or refresh) the dispatch-loop-stale dashboard alert.
+
+        Idempotent: calling repeatedly only updates the elapsed-time
+        message; it does not add duplicate entries.
+        """
+        source = "dispatch_loop_stale"
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
+        self._alerts.append(
+            {
+                "level": "error",
+                "source": source,
+                "title": "Orchestrator dispatch loop is stale",
+                "message": (
+                    f"The dispatch loop has not completed a tick in "
+                    f"{elapsed_s:.0f}s "
+                    f"(threshold: {self.config.full_sync_interval_ms / 1000 * self.config.dispatch_loop_stale_factor:.0f}s). "
+                    "Open issues will not be dispatched until the loop recovers. "
+                    "Automatic recovery has been attempted."
+                ),
+            }
+        )
+        logger.error(
+            "Dispatch loop stale: no tick completed in %.0fs "
+            "(threshold=%.0fs). Alert armed, recovery queued.",
+            elapsed_s,
+            self.config.full_sync_interval_ms / 1000 * self.config.dispatch_loop_stale_factor,
+        )
+
+    def _clear_dispatch_stale_alert(self) -> None:
+        """Clear the dispatch-loop-stale alert if present."""
+        source = "dispatch_loop_stale"
+        before = len(self._alerts)
+        self._alerts = [a for a in self._alerts if a.get("source") != source]
+        if len(self._alerts) != before:
+            logger.info("Dispatch loop recovered — cleared stale-loop alert.")
+
+    def recover_stale_dispatch_loop(self) -> bool:
+        """Attempt to recover a stale dispatch loop.
+
+        Recovery is safe: it uses the existing ``wants_restart`` mechanism
+        which the server's ``_supervise`` task already monitors. Before
+        requesting restart, ``_save_state`` preserves any running-agent
+        issue IDs so they are re-dispatched after the service comes back up.
+
+        Returns True if recovery was requested, False if it was skipped
+        (e.g. already requested, or no agents to recover).
+
+        Thread-safe: may be called from the server's supervise task (a
+        different thread/event loop from the orchestrator's own loop).
+        """
+        if self._dispatch_loop_recovery_requested:
+            return False  # already requested
+
+        running_count = len(self.state.running)
+
+        if running_count > 0:
+            # There are active agents in flight. The stale loop is a problem
+            # but killing those agents is worse. Log loudly and arm the alert;
+            # the operator must intervene or wait for agents to finish.
+            logger.error(
+                "Dispatch loop stale but %d agent(s) are active — "
+                "skipping auto-restart to avoid killing in-flight work. "
+                "Restart manually when agents complete.",
+                running_count,
+            )
+            return False
+
+        logger.warning(
+            "Dispatch loop stale with no running agents — "
+            "preserving state and requesting service restart for recovery."
+        )
+
+        # Save state so issue IDs that were queued/retrying survive restart.
+        # paused=False ensures the service comes up dispatching after restart.
+        try:
+            self._save_state(paused=False, restart_issues=[])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to persist state before stale-loop restart: %s", exc)
+
+        # Signal the Granian supervisor to restart the service.
+        self._restart_requested = True
+        self._stopping = True
+        # Post SHUTDOWN to wake the dispatch queue in case the loop IS alive
+        # but blocked waiting on a queue.get().
+        try:
+            self._post_event(DispatchEvent(event_type=DispatchEventType.SHUTDOWN))
+        except Exception:  # noqa: BLE001
+            pass  # Best-effort; supervisor restart will handle it regardless.
+
+        self._dispatch_loop_recovery_requested = True
+        return True
+
+    def check_and_recover_dispatch_loop(self) -> None:
+        """Heartbeat check: arm alert and attempt recovery when the loop is stale.
+
+        Designed to be called periodically from the server's ``_supervise``
+        task (or any thread). On each call:
+
+        - If not stale: clear any existing stale alert and reset detection state.
+        - If stale and first detection: record detection time, arm alert.
+        - If stale and past grace period (1× full_sync_interval_ms of
+          continued staleness): attempt ``recover_stale_dispatch_loop()``.
+        """
+        if not self.is_dispatch_loop_stale():
+            self._clear_dispatch_stale_alert()
+            self._dispatch_stale_detected_at = 0.0
+            self._dispatch_loop_recovery_requested = False
+            return
+
+        elapsed_s = self.dispatch_loop_stale_seconds()
+
+        if self._dispatch_stale_detected_at == 0.0:
+            self._dispatch_stale_detected_at = time.monotonic()
+
+        # Always arm/refresh the alert so the dashboard shows current elapsed.
+        self._arm_dispatch_stale_alert(elapsed_s)
+
+        # After a grace period of continued staleness, trigger recovery.
+        grace_s = self.config.full_sync_interval_ms / 1000.0
+        time_since_detection = time.monotonic() - self._dispatch_stale_detected_at
+        if time_since_detection >= grace_s:
+            self.recover_stale_dispatch_loop()
 
     def _maybe_heal_repos(self) -> None:
         """Periodically drive every managed checkout back to a sound state.
