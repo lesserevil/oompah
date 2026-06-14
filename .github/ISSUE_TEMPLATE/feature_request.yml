@@ -1,0 +1,54 @@
+name: Feature Request
+description: Request a new capability or workflow improvement
+title: "[Feature] "
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests should describe the user problem, desired behavior, and acceptance criteria.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user need, workflow gap, or limitation should this solve?
+      placeholder: |
+        I want to add a managed project without hand-editing multiple config files.
+    validations:
+      required: true
+  - type: textarea
+    id: desired_behavior
+    attributes:
+      label: Desired Behavior
+      description: What should the system do after this change?
+      placeholder: |
+        Oompah should provide a guided project setup flow that validates repo access and tracker settings.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List concrete checks that prove the feature is complete.
+      placeholder: |
+        - A project can be added through the UI.
+        - Invalid repo credentials show an actionable error.
+        - Tests cover the setup flow.
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use Case
+      description: Describe the specific workflow or user scenario.
+      placeholder: |
+        A project owner wants to onboard a repository and have new GitHub issues appear in oompah.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Workarounds, prior art, or designs you considered.
+    validations:
+      required: false

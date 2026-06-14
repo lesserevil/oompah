@@ -1,0 +1,46 @@
+name: Question
+description: Ask a question that may reveal a documentation or workflow gap
+title: "[Question] "
+labels: ["type:task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions are tracked as tasks when answering them may require documentation, clarification, or follow-up work.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to understand or accomplish?
+      placeholder: |
+        I am trying to understand how oompah maps GitHub issue labels to task states.
+    validations:
+      required: true
+  - type: textarea
+    id: desired_behavior
+    attributes:
+      label: Desired Behavior
+      description: What answer, decision, or documentation outcome would resolve this?
+      placeholder: |
+        I need a clear explanation of the state mapping and where it is configured.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How will we know the question has been answered?
+      placeholder: |
+        - The answer is documented in the issue or docs.
+        - Any discovered follow-up work is linked.
+    validations:
+      required: true
+  - type: textarea
+    id: docs_checked
+    attributes:
+      label: Documentation Checked
+      description: Which docs, issues, or code paths did you already check?
+      placeholder: |
+        README.md, docs/github-issue-intake.md, related GitHub issues
+    validations:
+      required: false

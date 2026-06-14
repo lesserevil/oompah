@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Oompah Discussions
+    url: https://github.com/lesserevil/oompah/discussions
+    about: Use discussions for broad ideas or conversations that are not ready to become tracked work.

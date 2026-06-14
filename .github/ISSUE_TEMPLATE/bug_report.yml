@@ -1,0 +1,73 @@
+name: Bug Report
+description: Report something broken in an oompah-managed project
+title: "[Bug] "
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bug reports must include enough detail for oompah to validate the issue before it enters the backlog.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is broken, and why does it matter?
+      placeholder: |
+        The service appears healthy, but new Open issues do not dispatch.
+    validations:
+      required: true
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Provide numbered steps, or explain why the bug is not reliably reproducible.
+      placeholder: |
+        1. Start the service.
+        2. Create or move an issue to Open.
+        3. Observe that no agent starts.
+    validations:
+      required: true
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: Actual Behavior
+      description: What currently happens?
+      placeholder: |
+        The UI shows no alerts, but the dispatch loop has stopped ticking.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead?
+      placeholder: |
+        Oompah should surface an alert and recover or restart the dispatch loop safely.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List concrete checks that prove the bug is fixed.
+      placeholder: |
+        - The stale loop condition is detected.
+        - A regression test covers the failure.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, version, branch, command, runner, browser, or other relevant context.
+      placeholder: |
+        Ubuntu 24.04, oompah main, service on port 8090
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Screenshots
+      description: Paste relevant logs, screenshots, or links.
+    validations:
+      required: false
