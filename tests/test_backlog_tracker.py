@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 import yaml
 
 from oompah.config import ServiceConfig
@@ -1523,6 +1524,7 @@ def _make_orch(tmp_path, *, global_tracker_kind="backlog_md"):
 def _make_project(
     *,
     project_id: str = "proj-1",
+    repo_url: str = "https://example.com/repo.git",
     repo_path: str = "/tmp/repo",
     tracker_kind: str | None = None,
     tracker_owner: str | None = None,
@@ -1535,7 +1537,7 @@ def _make_project(
     return Project(
         id=project_id,
         name="Test Project",
-        repo_url="https://example.com/repo.git",
+        repo_url=repo_url,
         repo_path=repo_path,
         tracker_kind=tracker_kind,
         tracker_owner=tracker_owner,
@@ -1631,8 +1633,8 @@ class TestNewTrackerForProject:
         assert len(factory_calls) == 1
         assert factory_calls[0]["access_token"] == "ghp_project_token"
 
-    def test_project_with_github_issues_but_no_owner_repo_omits_kwargs(self, tmp_path):
-        """A github_issues project with no owner/repo omits those kwargs."""
+    def test_project_with_github_issues_infers_owner_repo_from_repo_url(self, tmp_path):
+        """A github_issues project can infer owner/repo from a GitHub repo URL."""
         from oompah.tracker import ADAPTER_REGISTRY
 
         factory_calls: list[dict] = []
@@ -1643,6 +1645,7 @@ class TestNewTrackerForProject:
 
         orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
         project = _make_project(
+            repo_url="https://actor@github.com/example-org/example-repo.git",
             repo_path=str(tmp_path),
             tracker_kind="github_issues",
             # tracker_owner and tracker_repo intentionally omitted
@@ -1660,8 +1663,20 @@ class TestNewTrackerForProject:
 
         assert len(factory_calls) == 1
         call = factory_calls[0]
-        assert "owner" not in call
-        assert "repo" not in call
+        assert call["owner"] == "example-org"
+        assert call["repo"] == "example-repo"
+
+    def test_project_with_github_issues_but_no_owner_repo_raises(self, tmp_path):
+        """Missing owner/repo must not fall back to the global task hub."""
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(
+            repo_url="https://gitlab.com/example-org/example-repo.git",
+            repo_path=str(tmp_path),
+            tracker_kind="github_issues",
+        )
+
+        with pytest.raises(TrackerError, match="tracker_owner and tracker_repo"):
+            orch._new_tracker_for_project(project)
 
     def test_project_with_unknown_tracker_kind_raises_tracker_error(self, tmp_path):
         """An unregistered tracker_kind raises TrackerError with the project id."""

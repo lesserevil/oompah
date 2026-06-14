@@ -12,6 +12,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -46,6 +47,37 @@ def _repo_name_from_url(repo_url: str) -> str:
         value = value.rsplit(":", 1)[-1]
     name = os.path.basename(value)
     return name or "unnamed"
+
+
+def github_owner_repo_from_url(repo_url: str) -> tuple[str | None, str | None]:
+    """Return ``(owner, repo)`` for GitHub clone URLs, else ``(None, None)``."""
+    value = (repo_url or "").strip()
+    if not value:
+        return None, None
+
+    path = ""
+    if value.startswith("git@") or re.match(r"^[^/@:]+@github\.com:", value, re.I):
+        if ":" not in value:
+            return None, None
+        host, path = value.split(":", 1)
+        if not host.lower().endswith("@github.com"):
+            return None, None
+    elif value.lower().startswith(("https://", "http://", "ssh://")):
+        parsed = urlsplit(value)
+        host = (parsed.hostname or "").lower()
+        if host != "github.com":
+            return None, None
+        path = parsed.path
+    else:
+        return None, None
+
+    path = path.strip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2:
+        return None, None
+    return parts[0], parts[1]
 
 
 def _sanitize_identifier(value: str) -> str:
@@ -850,6 +882,15 @@ class ProjectStore:
         # Always idempotent; degrades gracefully when git lfs is missing.
         lfs_available = _bootstrap_lfs(repo_path)
 
+        tracker_owner_value = str(tracker_owner).strip() if tracker_owner else None
+        tracker_repo_value = str(tracker_repo).strip() if tracker_repo else None
+        if _is_github_backed_kind(_resolved_kind) and (
+            not tracker_owner_value or not tracker_repo_value
+        ):
+            inferred_owner, inferred_repo = github_owner_repo_from_url(repo_url)
+            tracker_owner_value = tracker_owner_value or inferred_owner
+            tracker_repo_value = tracker_repo_value or inferred_repo
+
         project_id = f"proj-{uuid.uuid4().hex[:8]}"
         project = Project(
             id=project_id,
@@ -864,8 +905,8 @@ class ProjectStore:
             access_token=access_token,
             lfs_available=lfs_available,
             tracker_kind=str(tracker_kind).strip() if tracker_kind else None,
-            tracker_owner=str(tracker_owner).strip() if tracker_owner else None,
-            tracker_repo=str(tracker_repo).strip() if tracker_repo else None,
+            tracker_owner=tracker_owner_value,
+            tracker_repo=tracker_repo_value,
             github_project_node_id=str(github_project_node_id).strip() if github_project_node_id else None,
             status_actor_login=str(status_actor_login).strip() if status_actor_login else None,
             status_label_authorized_logins=[

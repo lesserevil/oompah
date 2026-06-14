@@ -77,6 +77,7 @@ from oompah.projects import (
     ProjectError,
     ProjectStore,
     _is_github_backed,
+    github_owner_repo_from_url,
     github_work_branch_name,
 )
 from oompah.providers import ProviderStore
@@ -1453,14 +1454,28 @@ class Orchestrator:
                 f" Registered adapters: {registered}"
             )
         # For GitHub-backed projects pass the project-specific owner/repo so
-        # the adapter targets the correct task hub.  The factory accepts (and
-        # ignores) unknown kwargs for forward compatibility.
+        # the adapter targets the correct task hub. Never let a project-scoped
+        # GitHub tracker fall back to the global GitHub env vars; that leaks one
+        # project's issues into another project's board.
         extra: dict[str, object] = {}
         if kind == "github_issues":
-            if project.tracker_owner:
-                extra["owner"] = project.tracker_owner
-            if project.tracker_repo:
-                extra["repo"] = project.tracker_repo
+            owner = (getattr(project, "tracker_owner", None) or "").strip()
+            repo = (getattr(project, "tracker_repo", None) or "").strip()
+            if not owner or not repo:
+                inferred_owner, inferred_repo = github_owner_repo_from_url(
+                    getattr(project, "repo_url", "") or ""
+                )
+                owner = owner or (inferred_owner or "")
+                repo = repo or (inferred_repo or "")
+            if not owner or not repo:
+                raise TrackerError(
+                    "GitHub Issues project "
+                    f"{getattr(project, 'id', '<unknown>')!r} requires "
+                    "tracker_owner and tracker_repo, or a github.com repo_url "
+                    "that oompah can infer them from."
+                )
+            extra["owner"] = owner
+            extra["repo"] = repo
             if getattr(project, "access_token", None):
                 extra["access_token"] = project.access_token
             status_label_logins = list(
