@@ -86,15 +86,15 @@ def build_intake_summary(
 ) -> dict[str, Any] | None:
     """Return a UI-ready intake summary for an issue.
 
-    ``None`` is returned for non-Proposed issues that do not carry intake
-    metadata.  Proposed issues get a default "awaiting owner review" summary
-    even before the validator has written metadata, so the detail pane still
-    explains the current intake state.
+    ``None`` is returned for non-Proposed issues, even when they still carry
+    historical intake metadata.  Proposed issues get a default "awaiting owner
+    review" summary even before the validator has written metadata, so the
+    detail pane still explains the current intake state.
     """
     is_proposed = canonicalize_status(issue_state) == PROPOSED
+    if not is_proposed:
+        return None
     if not isinstance(raw, dict):
-        if not is_proposed:
-            return None
         raw = {}
 
     missing_fields = _string_list(raw.get("missing_fields"))

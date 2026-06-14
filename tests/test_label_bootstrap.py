@@ -192,7 +192,7 @@ def test_validate_project_config_reports_actor_and_cutover_errors() -> None:
 
 
 def test_missing_cutover_is_warning_not_bootstrap_blocker() -> None:
-    project = _project(tracker_cutover_at=None)
+    project = _project(tracker_cutover_at=None, legacy_backlog_enabled=True)
     client = FakeGitHubClient(existing=[name for name, _, _ in _TEST_LABELS])
 
     results = ensure_github_labels(
@@ -205,6 +205,22 @@ def test_missing_cutover_is_warning_not_bootstrap_blocker() -> None:
     assert result.success is True
     assert result.config_warnings
     assert "tracker_cutover_at" in result.config_warnings[0]
+
+
+def test_github_only_project_without_cutover_does_not_warn() -> None:
+    project = _project(tracker_cutover_at=None, legacy_backlog_enabled=False)
+    client = FakeGitHubClient(existing=[name for name, _, _ in _TEST_LABELS])
+
+    results = ensure_github_labels(
+        [project],
+        labels=_TEST_LABELS,
+        client_factory=lambda _project: client,
+    )
+
+    result = results["proj-gh"]
+    assert result.success is True
+    assert result.config_warnings == []
+    assert build_label_bootstrap_alerts(results) == []
 
 
 def test_ensure_github_labels_skips_non_github_projects() -> None:

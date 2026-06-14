@@ -76,3 +76,19 @@ def test_ready_for_backlog_summary_with_owner_override():
 
 def test_non_proposed_issue_without_metadata_has_no_summary():
     assert build_intake_summary(None, issue_state="Backlog") is None
+
+
+def test_non_proposed_issue_with_stale_metadata_has_no_summary():
+    summary = build_intake_summary(
+        {
+            "missing_fields": [],
+            "scope": "small",
+            "requestor_approved": False,
+            "owner_override": False,
+            "decomposition_status": "not_needed",
+            "last_validator_result": "pass",
+        },
+        issue_state="In Review",
+    )
+
+    assert summary is None

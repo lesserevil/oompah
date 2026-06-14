@@ -275,7 +275,10 @@ def validate_project_config_warnings(project: "Project") -> list[str]:
     warnings: list[str] = []
     if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
         return warnings
-    if getattr(project, "tracker_cutover_at", None) is None:
+    if (
+        getattr(project, "legacy_backlog_enabled", False) is True
+        and getattr(project, "tracker_cutover_at", None) is None
+    ):
         warnings.append(
             "tracker_cutover_at is not set; record the GitHub Issues cutover "
             "timestamp so post-cutover Backlog.md drift can be detected"

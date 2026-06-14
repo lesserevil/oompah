@@ -303,3 +303,21 @@ def test_fetch_and_serialize_issues_includes_intake_summary():
     assert summary["requestor_approval_state"] == "awaiting"
     assert summary["owner_override_state"] == "none"
     assert summary["decomposition_state"] == "not_needed"
+
+
+def test_fetch_and_serialize_issues_omits_stale_intake_summary_after_intake():
+    issue = _issue("example-org/oompah#309", "In Review")
+    issue.intake = {
+        "missing_fields": [],
+        "scope": "small",
+        "requestor_approved": False,
+        "owner_override": False,
+        "decomposition_status": "not_needed",
+        "last_validator_result": "pass",
+    }
+    orch = _orch_with_issues([issue])
+
+    payload = server_module._fetch_and_serialize_issues(orch)
+
+    assert payload["In Review"][0]["identifier"] == "example-org/oompah#309"
+    assert "intake_summary" not in payload["In Review"][0]
