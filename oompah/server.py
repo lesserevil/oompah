@@ -311,6 +311,12 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
                     Path(_GRANIAN_RESTART_SENTINEL).touch()
                     os.kill(os.getppid(), signal.SIGTERM)
                     return
+                # Heartbeat check: detect and recover a stale dispatch loop
+                # (lesserevil/oompah#305). This runs on the server's own event
+                # loop so it fires even when the orchestrator's asyncio loop is
+                # stuck. Recovery sets wants_restart=True which is picked up
+                # on the very next iteration above.
+                services.orchestrator.check_and_recover_dispatch_loop()
         except _asyncio.CancelledError:
             pass
 
