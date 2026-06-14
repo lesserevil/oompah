@@ -6009,8 +6009,9 @@ async def api_create_project(request: Request):
         git_user_name = body.get("git_user_name", "").strip() or None
         git_user_email = body.get("git_user_email", "").strip() or None
         access_token = (body.get("access_token") or "").strip() or None
-        # Per-project tracker configuration
-        tracker_kind = (body.get("tracker_kind") or "").strip() or None
+        # Per-project tracker configuration. New projects use GitHub Issues by
+        # default; legacy Backlog must be selected explicitly.
+        tracker_kind = (body.get("tracker_kind") or "").strip() or "github_issues"
         tracker_owner = (body.get("tracker_owner") or "").strip() or None
         tracker_repo = (body.get("tracker_repo") or "").strip() or None
         github_project_node_id = (body.get("github_project_node_id") or "").strip() or None
@@ -6074,6 +6075,7 @@ async def api_create_project(request: Request):
             status_label_authorized_logins=status_label_authorized_logins,
             legacy_backlog_enabled=legacy_backlog_enabled,
             legacy_backlog_dispatch=legacy_backlog_dispatch,
+            paused=True,
         )
         # Sync log watchers in case the new project has a log_path
         if _log_watcher_manager:

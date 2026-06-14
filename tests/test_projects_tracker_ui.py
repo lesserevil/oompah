@@ -147,9 +147,9 @@ class TestTrackerCardDisplay:
         assert 'data-field="tracker-kind"' in load_body
 
     def test_tracker_kind_fallback_label(self, script: str) -> None:
-        """Card template shows 'backlog (default)' when tracker_kind is not set."""
+        """Card template shows legacy Backlog when tracker_kind is not set."""
         load_body = _get_func_body(script, "loadProjects")
-        assert "backlog (default)" in load_body
+        assert "backlog (legacy)" in load_body
 
     def test_task_hub_field_row(self, script: str) -> None:
         """Card template renders a data-field='task-hub' row."""
@@ -259,6 +259,18 @@ class TestTrackerEditForm:
         """The tracker-kind select offers 'backlog' as an option."""
         load_body = _get_func_body(script, "loadProjects")
         assert 'value="backlog"' in load_body
+
+
+class TestAddProjectTrackerDefaults:
+    """The add form must create safe GitHub-backed paused projects."""
+
+    def test_add_project_sends_github_issues_tracker_kind(self, script: str) -> None:
+        add_body = _get_func_body(script, "addProject")
+        assert "tracker_kind: 'github_issues'" in add_body
+
+    def test_add_project_sends_paused_true(self, script: str) -> None:
+        add_body = _get_func_body(script, "addProject")
+        assert "paused: true" in add_body
 
 
 # ---------------------------------------------------------------------------

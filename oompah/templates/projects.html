@@ -160,9 +160,8 @@
            form. New projects dispatch to all providers by default (empty whitelist).
            Operators can restrict providers immediately after creation via the Edit
            form on the project card. The API correctly defaults provider_whitelist to
-           [] on POST so edit-after-create is semantically safe with no interim
-           window where an unwanted provider could be used (the project has no tasks
-           yet at creation time). -->
+           [] on POST. New projects are also created paused, so edit-after-create is
+           safe before dispatch is enabled. -->
       <div class="form-group">
         <label>Git Repository URL</label>
         <input type="text" id="add-repo" placeholder="https://github.com/org/repo.git or https://gitlab.com/group/project.git">
@@ -357,7 +356,7 @@ async function loadProjects() {
         <div class="section-label">Tracker</div>
         <div class="field-row" data-field="tracker-kind">
           <span class="field-label">Backend:</span>
-          <span class="field-value">${p.tracker_kind ? esc(p.tracker_kind) : '<em style="color:var(--text-muted);font-style:italic;">backlog (default)</em>'}</span>
+          <span class="field-value">${p.tracker_kind ? esc(p.tracker_kind) : '<em style="color:var(--text-muted);font-style:italic;">backlog (legacy)</em>'}</span>
         </div>
         <div class="field-row" data-field="task-hub">
           <span class="field-label">Task Hub:</span>
@@ -479,7 +478,7 @@ async function loadProjects() {
         <div class="form-group">
           <label>Tracker Kind <span style="font-weight:400;color:var(--text-muted);">(backlog = Backlog.md files; github_issues = GitHub Issues API)</span></label>
           <select id="edit-tracker-kind-${esc(p.id)}" style="width:100%;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
-            <option value="" ${!p.tracker_kind ? 'selected' : ''}>backlog (default)</option>
+            <option value="" ${!p.tracker_kind ? 'selected' : ''}>backlog (legacy)</option>
             <option value="backlog" ${p.tracker_kind === 'backlog' ? 'selected' : ''}>backlog</option>
             <option value="github_issues" ${p.tracker_kind === 'github_issues' ? 'selected' : ''}>github_issues</option>
           </select>
@@ -594,7 +593,7 @@ async function addProject() {
     res = await fetch('/api/v1/projects', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({repo_url: repo, name, branch, branches, default_branch: defaultBranch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken}),
+      body: JSON.stringify({repo_url: repo, name, branch, branches, default_branch: defaultBranch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken, tracker_kind: 'github_issues', paused: true}),
     });
   } catch (err) {
     console.error('addProject fetch failed:', err);

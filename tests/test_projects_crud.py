@@ -440,6 +440,81 @@ class TestProjectAPI:
         assert res.status_code == 404
 
 
+class TestProjectCreateAPIDefaults:
+    """Regression tests for add-project defaults."""
+
+    @pytest.fixture(autouse=True)
+    def client(self, tmp_path, monkeypatch):
+        from unittest.mock import MagicMock
+        from fastapi.testclient import TestClient
+        import oompah.server as srv
+        from oompah.server import app
+
+        project = Project(
+            id="proj-created",
+            name="created",
+            repo_url="https://github.com/example-org/example-repo.git",
+            repo_path=str(tmp_path / "repos" / "example-repo"),
+            branch="main",
+            tracker_kind="github_issues",
+            paused=True,
+        )
+        project_store = MagicMock()
+        project_store.create.return_value = project
+        project_store.list_all.return_value = [project]
+
+        orch = MagicMock()
+        orch.project_store = project_store
+        orch._observers = []
+        orch._state_only_observers = []
+        orch._activity_observers = []
+        orch.get_snapshot.return_value = {"counts": {}, "running": {}}
+
+        monkeypatch.setattr(srv, "_orchestrator", orch)
+        monkeypatch.setattr(srv, "_log_watcher_manager", None)
+        monkeypatch.setattr(srv, "_install_backlog_hook_for_project", MagicMock())
+        monkeypatch.setattr(
+            srv, "_ensure_github_agent_instructions_for_project", MagicMock()
+        )
+
+        self.client = TestClient(app)
+        self.project_store = project_store
+        yield self.client
+
+    def test_create_defaults_to_github_issues_and_paused(self):
+        res = self.client.post(
+            "/api/v1/projects",
+            json={
+                "repo_url": "https://github.com/example-org/example-repo.git",
+                "git_user_name": "Example User",
+                "git_user_email": "user@example.com",
+            },
+        )
+
+        assert res.status_code == 201
+        kwargs = self.project_store.create.call_args.kwargs
+        assert kwargs["tracker_kind"] == "github_issues"
+        assert kwargs["paused"] is True
+        assert res.json()["tracker_kind"] == "github_issues"
+        assert res.json()["paused"] is True
+
+    def test_create_preserves_explicit_legacy_tracker_kind_but_still_pauses(self):
+        res = self.client.post(
+            "/api/v1/projects",
+            json={
+                "repo_url": "https://github.com/example-org/example-repo.git",
+                "git_user_name": "Example User",
+                "git_user_email": "user@example.com",
+                "tracker_kind": "backlog_md",
+            },
+        )
+
+        assert res.status_code == 201
+        kwargs = self.project_store.create.call_args.kwargs
+        assert kwargs["tracker_kind"] == "backlog_md"
+        assert kwargs["paused"] is True
+
+
 class TestProjectStoreUpdatableFields:
     """Verify the UPDATABLE_FIELDS constant matches expected set."""
 

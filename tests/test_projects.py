@@ -196,6 +196,7 @@ class TestCreateProjectBacklogRequirement:
         assert project.tracker_kind == "github_issues"
         assert project.tracker_owner == "example-org"
         assert project.tracker_repo == "oompah"
+        assert project.paused is True
 
 
 class TestSyncProjectSources:

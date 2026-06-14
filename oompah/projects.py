@@ -719,6 +719,7 @@ class ProjectStore:
         status_label_authorized_logins: list[str] | None = None,
         legacy_backlog_enabled: bool = False,
         legacy_backlog_dispatch: bool = False,
+        paused: bool = True,
     ) -> Project:
         """Register a project by cloning its git repo.
 
@@ -740,6 +741,8 @@ class ProjectStore:
                                       move protected status labels.
             legacy_backlog_enabled: When True, existing Backlog.md tasks are still readable.
             legacy_backlog_dispatch: When True, existing Backlog.md tasks are still dispatchable.
+            paused: New managed projects start paused so operators can confirm
+                    tracker, token, branch, and provider settings before dispatch.
         """
         if not name:
             name = _repo_name_from_url(repo_url)
@@ -872,6 +875,7 @@ class ProjectStore:
             ],
             legacy_backlog_enabled=bool(legacy_backlog_enabled),
             legacy_backlog_dispatch=bool(legacy_backlog_dispatch),
+            paused=bool(paused),
         )
         self._projects[project_id] = project
         self._save()
