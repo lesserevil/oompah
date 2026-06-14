@@ -69,6 +69,11 @@
     .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; }
     .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
     .worktree-list { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; margin-top: 0.5rem; }
+    .tmpl-panel { font-size: 0.8rem; margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+    .tmpl-panel pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; overflow-x: auto; font-size: 0.7rem; max-height: 300px; white-space: pre; }
+    .tmpl-diff-add { color: var(--green); }
+    .tmpl-diff-del { color: var(--red); }
+    .tmpl-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
     .edit-form { margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; display: none; }
     .edit-form .form-group { margin-bottom: 0.5rem; }
     .btn-edit { color: var(--accent); border-color: rgba(88, 166, 255, 0.3); }
@@ -413,9 +418,9 @@ async function loadProjects() {
           ? `<button class="btn-resume" onclick="resumeProject('${esc(p.id)}')">Resume</button>`
           : `<button class="btn-pause" onclick="pauseProject('${esc(p.id)}')">Pause</button>`}
         <button onclick="showWorktrees('${esc(p.id)}')">Worktrees</button>
-        ${(!p.tracker_kind || p.tracker_kind !== 'github_issues')
-          ? `<button class="btn-cutover" onclick="showCutoverModal('${esc(p.id)}', '${esc(p.name)}')" title="Switch this project to GitHub Issues tracker">Cutover to GitHub Issues</button>`
-          : ''}
+        ${p.tracker_kind === 'github_issues'
+          ? `<button class="btn-edit" onclick="showTemplateStatus('${esc(p.id)}')" title="Check and refresh issue templates">Templates</button>`
+          : `<button class="btn-cutover" onclick="showCutoverModal('${esc(p.id)}', '${esc(p.name)}')" title="Switch this project to GitHub Issues tracker">Cutover to GitHub Issues</button>`}
         <button class="btn-danger" onclick="deleteProject('${esc(p.id)}', '${esc(p.name)}')">Delete</button>
       </div>
       <div class="edit-form" id="edit-${esc(p.id)}">
@@ -556,6 +561,7 @@ async function loadProjects() {
         </div>
       </div>
       <div class="worktree-list" id="wt-${esc(p.id)}" style="display:none;"></div>
+      <div class="worktree-list" id="tmpl-${esc(p.id)}" style="display:none;font-family:inherit;"></div>
     </div>
   `).join('');
 }
@@ -873,6 +879,110 @@ async function confirmCutover() {
 // initProjectSelector() is independent and can run in parallel.
 loadProviders().then(function() { loadProjects(); });
 initProjectSelector();
+
+// ---------------------------------------------------------------------------
+// Issue template refresh
+// ---------------------------------------------------------------------------
+
+async function showTemplateStatus(id) {
+  const el = document.getElementById('tmpl-' + id);
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<div class="tmpl-panel"><em style="color:var(--text-muted);">Checking templates…</em></div>';
+
+  let data;
+  try {
+    const res = await fetch('/api/v1/projects/' + id + '/issue-templates/status');
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const msg = (body.error && body.error.message) || ('HTTP ' + res.status);
+      el.innerHTML = '<div class="tmpl-panel"><em style="color:var(--red);">Error: ' + esc(msg) + '</em></div>';
+      return;
+    }
+    data = await res.json();
+  } catch (err) {
+    console.error('showTemplateStatus fetch failed:', err);
+    el.innerHTML = '<div class="tmpl-panel"><em style="color:var(--red);">Network error: ' + esc((err && err.message) || String(err)) + '</em></div>';
+    return;
+  }
+
+  if (data.all_current) {
+    el.innerHTML = '<div class="tmpl-panel"><span style="color:var(--green);">✓ All issue templates are up to date.</span></div>';
+    return;
+  }
+
+  // Render drifted templates with diff and action buttons.
+  const drifted = data.drifted || [];
+  let html = '<div class="tmpl-panel">';
+  html += '<strong style="color:#d29922;">⚠ ' + drifted.length + ' template(s) need updating</strong>';
+  for (const d of drifted) {
+    html += '<div style="margin-top:0.5rem;"><strong>' + esc(d.filename) + '</strong>';
+    if (d.diff) {
+      html += '<pre>' + renderDiff(d.diff) + '</pre>';
+    }
+    html += '</div>';
+  }
+  html += '<div class="tmpl-actions">';
+  html += '<button onclick="applyTemplates(\'' + esc(id) + '\')" class="btn-primary" style="font-size:0.75rem;">Apply &amp; Push Updates</button>';
+  html += '<button onclick="document.getElementById(\'tmpl-' + esc(id) + '\').style.display=\'none\'" style="font-size:0.75rem;">Dismiss</button>';
+  html += '</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderDiff(diff) {
+  return diff.split('\n').map(function(line) {
+    const escaped = line
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    if (line.startsWith('+') && !line.startsWith('+++')) {
+      return '<span class="tmpl-diff-add">' + escaped + '</span>';
+    } else if (line.startsWith('-') && !line.startsWith('---')) {
+      return '<span class="tmpl-diff-del">' + escaped + '</span>';
+    }
+    return escaped;
+  }).join('\n');
+}
+
+async function applyTemplates(id) {
+  const el = document.getElementById('tmpl-' + id);
+  if (el) {
+    el.innerHTML = '<div class="tmpl-panel"><em style="color:var(--text-muted);">Applying templates…</em></div>';
+    el.style.display = 'block';
+  }
+  let data;
+  try {
+    const res = await fetch('/api/v1/projects/' + id + '/issue-templates/apply', {method: 'POST'});
+    data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = (data.error && data.error.message) || ('HTTP ' + res.status);
+      const isDirty = data.error && data.error.code === 'dirty_worktree';
+      if (el) {
+        el.innerHTML = '<div class="tmpl-panel"><em style="color:var(--red);">'
+          + (isDirty ? '⚠ Conflict: ' : 'Error: ')
+          + esc(msg) + '</em></div>';
+      }
+      return;
+    }
+  } catch (err) {
+    console.error('applyTemplates fetch failed:', err);
+    if (el) {
+      el.innerHTML = '<div class="tmpl-panel"><em style="color:var(--red);">Network error: ' + esc((err && err.message) || String(err)) + '</em></div>';
+    }
+    return;
+  }
+  const applied = (data.applied || []).length;
+  const sha = data.commit_sha ? data.commit_sha.slice(0, 8) : '';
+  const pushed = data.pushed;
+  if (el) {
+    el.innerHTML = '<div class="tmpl-panel"><span style="color:var(--green);">✓ '
+      + (applied > 0 ? applied + ' template(s) updated' : 'All templates already current')
+      + (sha ? ' — commit ' + esc(sha) : '')
+      + (pushed ? ' — pushed' : '')
+      + '.</span></div>';
+  }
+}
 </script>
 </body>
 </html>

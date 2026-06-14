@@ -2879,6 +2879,202 @@ async def api_issue_quality_source(project_id: str):
         )
 
 
+# ---------------------------------------------------------------------------
+# Issue template refresh endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/projects/{project_id}/issue-templates/status")
+async def api_issue_templates_status(project_id: str):
+    """Report whether a managed project's issue templates match canonical oompah templates.
+
+    Returns ``{"all_current": bool, "drifted": [...], "current": [...]}`` where
+    each entry has ``filename``, ``is_current``, and (for drifted entries) a
+    ``diff`` string.
+
+    Only meaningful for ``github_issues``-backed projects; returns a 400 for
+    projects that use a different tracker.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "not_applicable",
+                        "message": "issue template refresh is only available for github_issues projects",
+                    }
+                },
+                status_code=400,
+            )
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no local repo path"}},
+                status_code=400,
+            )
+
+        from oompah.issue_template_refresh import check_template_drift
+
+        status = await asyncio.to_thread(check_template_drift, repo_path)
+        return JSONResponse(
+            {
+                "all_current": status.all_current,
+                "drifted": [
+                    {"filename": d.filename, "is_current": False, "diff": d.diff}
+                    for d in status.drifted
+                ],
+                "current": [
+                    {"filename": d.filename, "is_current": True}
+                    for d in status.current
+                ],
+            }
+        )
+    except Exception as exc:
+        logger.error("issue-templates/status API error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "lookup_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.get("/api/v1/projects/{project_id}/issue-templates/preview")
+async def api_issue_templates_preview(project_id: str):
+    """Return a unified diff previewing pending template updates.
+
+    Returns ``{"diff": "<unified diff string>"}`` — empty diff means all
+    templates are already current.
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "not_applicable",
+                        "message": "issue template refresh is only available for github_issues projects",
+                    }
+                },
+                status_code=400,
+            )
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no local repo path"}},
+                status_code=400,
+            )
+
+        from oompah.issue_template_refresh import preview_template_updates
+
+        diff = await asyncio.to_thread(preview_template_updates, repo_path)
+        return JSONResponse({"diff": diff})
+    except Exception as exc:
+        logger.error("issue-templates/preview API error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "preview_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+@app.post("/api/v1/projects/{project_id}/issue-templates/apply")
+async def api_issue_templates_apply(project_id: str):
+    """Apply canonical oompah templates to the managed project and commit/push.
+
+    Writes ``bug_report.yml``, ``feature_request.yml``, and ``question.yml``
+    into the managed repo's ``.github/ISSUE_TEMPLATE/`` directory, then commits
+    and pushes using the project's configured git identity and default branch.
+
+    Returns ``{"applied": [...], "skipped": [...], "commit_sha": "...", "pushed": bool}``
+    on success.  Returns a 409 when the managed repo has uncommitted changes that
+    would be overwritten (dirty-worktree conflict).
+    """
+    try:
+        orch = _get_orchestrator()
+        project = orch.project_store.get(project_id)
+        if project is None:
+            return JSONResponse(
+                {"error": {"code": "not_found", "message": "project not found"}},
+                status_code=404,
+            )
+        if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "not_applicable",
+                        "message": "issue template refresh is only available for github_issues projects",
+                    }
+                },
+                status_code=400,
+            )
+        repo_path = getattr(project, "repo_path", None)
+        if not repo_path:
+            return JSONResponse(
+                {"error": {"code": "no_repo", "message": "project has no local repo path"}},
+                status_code=400,
+            )
+
+        from oompah.issue_template_refresh import apply_template_updates
+
+        result = await asyncio.to_thread(
+            apply_template_updates,
+            repo_path,
+            git_user_name=getattr(project, "git_user_name", None),
+            git_user_email=getattr(project, "git_user_email", None),
+            branch=getattr(project, "default_branch", None) or "main",
+        )
+
+        if result.error:
+            # Dirty-worktree conflicts → 409
+            if "Refused" in result.error and "uncommitted changes" in result.error:
+                return JSONResponse(
+                    {"error": {"code": "dirty_worktree", "message": result.error}},
+                    status_code=409,
+                )
+            return JSONResponse(
+                {"error": {"code": "apply_failed", "message": result.error}},
+                status_code=500,
+            )
+
+        logger.info(
+            "Issue template refresh applied for project %s: %s (sha=%s pushed=%s)",
+            project_id,
+            result.applied,
+            result.commit_sha,
+            result.pushed,
+        )
+        return JSONResponse(
+            {
+                "applied": result.applied,
+                "skipped": result.skipped,
+                "commit_sha": result.commit_sha,
+                "pushed": result.pushed,
+            }
+        )
+    except Exception as exc:
+        logger.error("issue-templates/apply API error for %s: %s", project_id, exc)
+        return JSONResponse(
+            {"error": {"code": "apply_failed", "message": str(exc)}},
+            status_code=500,
+        )
+
+
+# ---------------------------------------------------------------------------
+# (end issue template refresh endpoints)
+# ---------------------------------------------------------------------------
+
+
 @app.patch("/api/v1/issues/{identifier}")
 async def api_update_issue(identifier: str, request: Request):
     """Update an issue's state, priority, or title.
