@@ -97,6 +97,7 @@ class TestDashboardIntakeActions:
         body = _function_body(script, "updateIssue")
 
         assert "statusChangeNeedsProjectActor" in body
+        assert "await refreshProjectConfigForStatusActor" in body
         assert "projectStatusActorLogin(project)" in body
         assert "outgoing.actor_login = actor" in body
         assert "prompt(" not in body
@@ -105,10 +106,19 @@ class TestDashboardIntakeActions:
         script = _load_dashboard_script()
         body = _function_body(script, "statusChangeNeedsProjectActor")
 
-        assert "project.tracker_kind !== 'github_issues'" in body
+        assert "(project && project.tracker_kind) || (issue && issue.tracker_kind)" in body
+        assert "trackerKind !== 'github_issues'" in body
         assert "const toKey = statusKey(targetStatus)" in body
         assert "if (!issue && toKey === 'open') return true" in body
         assert "if (!issue) return false" in body
+
+    def test_update_issue_refreshes_project_config_for_protected_moves(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "refreshProjectConfigForStatusActor")
+
+        assert "fetch('/api/v1/state')" in body
+        assert "currentProjects = state.projects" in body
+        assert "currentProjects.find(p => p.id === projectId)" in body
 
     def test_project_status_actor_prefers_configured_actor(self):
         script = _load_dashboard_script()

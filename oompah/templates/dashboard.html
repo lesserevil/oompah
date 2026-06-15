@@ -2028,6 +2028,23 @@ function projectStatusActorLogin(project) {
   return String(project.tracker_owner || '').trim();
 }
 
+async function refreshProjectConfigForStatusActor(projectId) {
+  if (!projectId) return null;
+  const existing = currentProjects.find(p => p.id === projectId);
+  if (existing) return existing;
+  try {
+    const res = await fetch('/api/v1/state');
+    if (!res.ok) return null;
+    const state = await res.json();
+    if (Array.isArray(state.projects)) {
+      currentProjects = state.projects;
+    }
+    return currentProjects.find(p => p.id === projectId) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function findIssueForUpdate(identifier, projectId) {
   return allIssuesFlat.find(i =>
     i.identifier === identifier &&
@@ -2036,7 +2053,8 @@ function findIssueForUpdate(identifier, projectId) {
 }
 
 function statusChangeNeedsProjectActor(issue, project, targetStatus) {
-  if (!project || project.tracker_kind !== 'github_issues') return false;
+  const trackerKind = (project && project.tracker_kind) || (issue && issue.tracker_kind) || '';
+  if (trackerKind !== 'github_issues') return false;
   const toKey = statusKey(targetStatus);
   if (!issue && toKey === 'open') return true;
   if (!issue) return false;
@@ -2672,7 +2690,14 @@ async function updateIssue(identifier, fields) {
   const projectId = outgoing.project_id || '';
   if (outgoing.status !== undefined && !outgoing.actor_login) {
     const issue = findIssueForUpdate(identifier, projectId);
-    const project = currentProjects.find(p => p.id === (projectId || (issue && issue.project_id)));
+    let project = currentProjects.find(p => p.id === (projectId || (issue && issue.project_id)));
+    if (
+      statusChangeNeedsProjectActor(issue, project, outgoing.status) &&
+      !project &&
+      (projectId || (issue && issue.project_id))
+    ) {
+      project = await refreshProjectConfigForStatusActor(projectId || issue.project_id);
+    }
     if (statusChangeNeedsProjectActor(issue, project, outgoing.status)) {
       const actor = projectStatusActorLogin(project);
       if (!actor) {
