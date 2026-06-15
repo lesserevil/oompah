@@ -427,6 +427,8 @@ class FakeGitHubHTTPServer:
         self._issues: Dict[int, Dict] = {}
         # number → list of raw GitHub comment dicts
         self._comments: Dict[int, List[Dict]] = {}
+        # name → raw GitHub repository label dict
+        self._repo_labels: Dict[str, Dict] = {}
         self._next_number: int = 1
         self._next_comment_id: int = 1
 
@@ -620,6 +622,36 @@ class FakeGitHubHTTPServer:
         self._comments[number].append(comment)
         return self._resp(201, comment)
 
+    def _handle_create_repo_label(self, json_body: Dict) -> MagicMock:
+        """POST /repos/.../labels — create a repository label.
+
+        Relation fallback code creates dynamic labels such as ``parent:1`` and
+        ``depends-on:2`` before applying them to issues.  GitHub returns 422
+        when a repository label already exists; the production tracker treats
+        that as idempotent success.
+        """
+        name = str(json_body.get("name") or "")
+        if not name:
+            return self._resp(422, {"message": "Validation Failed"})
+
+        if name in self._repo_labels:
+            return self._resp(
+                422,
+                {
+                    "message": "Validation Failed",
+                    "errors": [{"resource": "Label", "code": "already_exists"}],
+                },
+            )
+
+        label = {
+            "id": 1000 + len(self._repo_labels),
+            "name": name,
+            "color": json_body.get("color", "ededed"),
+            "description": json_body.get("description"),
+        }
+        self._repo_labels[name] = label
+        return self._resp(201, label)
+
     # ------------------------------------------------------------------
     # Request dispatcher
     # ------------------------------------------------------------------
@@ -642,6 +674,10 @@ class FakeGitHubHTTPServer:
             return self._resp(404, {"message": "Not Found"})
 
         path = clean_url[len(repo_base):]
+
+        # ── /labels (repository label create) ────────────────────────
+        if path == "/labels" and method == "POST":
+            return self._handle_create_repo_label(json_body)
 
         # ── /issues (list or create) ──────────────────────────────────
         if path == "/issues":
