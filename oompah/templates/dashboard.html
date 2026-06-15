@@ -2068,12 +2068,11 @@ function statusChangeNeedsProjectActor(issue, project, targetStatus) {
   const trackerKind = (project && project.tracker_kind) || (issue && issue.tracker_kind) || '';
   if (trackerKind !== 'github_issues') return false;
   const toKey = statusKey(targetStatus);
-  if (!issue && toKey === 'open') return true;
+  if (toKey === 'open') return true;
   if (!issue) return false;
   const fromKey = statusKey(issue.state);
   return (
-    (fromKey === 'backlog' && toKey === 'open') ||
-    (fromKey === 'proposed' && (toKey === 'backlog' || toKey === 'open'))
+    fromKey === 'proposed' && toKey === 'backlog'
   );
 }
 

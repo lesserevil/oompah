@@ -109,8 +109,15 @@ class TestDashboardIntakeActions:
         assert "(project && project.tracker_kind) || (issue && issue.tracker_kind)" in body
         assert "trackerKind !== 'github_issues'" in body
         assert "const toKey = statusKey(targetStatus)" in body
-        assert "if (!issue && toKey === 'open') return true" in body
+        assert "if (toKey === 'open') return true" in body
         assert "if (!issue) return false" in body
+
+    def test_status_actor_needed_for_optimistic_drag_to_open(self):
+        script = _load_dashboard_script()
+        body = _function_body(script, "statusChangeNeedsProjectActor")
+
+        assert "if (toKey === 'open') return true" in body
+        assert "fromKey === 'proposed' && toKey === 'backlog'" in body
 
     def test_update_issue_refreshes_project_config_for_protected_moves(self):
         script = _load_dashboard_script()
