@@ -1063,6 +1063,7 @@ class TestForwarderProcess:
         assert fp.repo_path == "/tmp/repos/my-project"
         assert fp.repo_slug == "org/my-project"
         assert fp.access_token == "project-token"
+        assert fp.forwarding_enabled is True
         assert fp.process is None
         assert fp.restart_delay_s == 1.0
         assert fp.restart_attempts == 0
@@ -1191,6 +1192,7 @@ class TestWebhookForwarderPoll:
             repo_url="https://github.com/org/repo.git",
             repo_path="/tmp/test-repo",
             access_token="old-token",
+            webhook_forwarding_enabled=True,
         )
         store = _FakeProjectStore([proj])
         fwd = WebhookForwarder(project_store=store)
@@ -1200,6 +1202,7 @@ class TestWebhookForwarderPoll:
         proj.repo_url = "https://github.com/org/renamed.git"
         proj.repo_path = "/tmp/renamed-repo"
         proj.access_token = "new-token"
+        proj.webhook_forwarding_enabled = False
 
         await fwd._poll_and_restart()
 
@@ -1208,6 +1211,29 @@ class TestWebhookForwarderPoll:
         assert fp.repo_path == "/tmp/renamed-repo"
         assert fp.repo_slug == "org/renamed"
         assert fp.access_token == "new-token"
+        assert fp.forwarding_enabled is False
+
+    @pytest.mark.asyncio
+    async def test_disabled_project_does_not_launch_forwarder(self):
+        proj = Project(
+            id="proj-1",
+            name="polling-only",
+            repo_url="https://github.com/org/repo.git",
+            repo_path="/tmp/test-repo",
+            webhook_forwarding_enabled=False,
+        )
+        store = _FakeProjectStore([proj])
+        fwd = WebhookForwarder(project_store=store)
+        fwd._extension_available = True
+
+        with patch("asyncio.create_subprocess_exec") as create_proc:
+            await fwd._poll_and_restart()
+
+        assert "proj-1" in fwd._processes
+        fp = fwd._processes["proj-1"]
+        assert fp.forwarding_enabled is False
+        assert fp.process is None
+        create_proc.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_removing_project_terminates_forwarder(self):
@@ -2118,6 +2144,23 @@ def test_build_webhook_forwarder_alerts_includes_project_errors():
     assert alerts[0]["source"] == "webhook_forwarder:proj-ova"
     assert alerts[0]["level"] == "error"
     assert "Polling backup is active" in alerts[0]["message"]
+
+
+def test_build_webhook_forwarder_alerts_skips_config_disabled_projects():
+    alerts = build_webhook_forwarder_alerts({
+        "available": True,
+        "detail": "",
+        "projects": {
+            "proj-ova": {
+                "name": "ova",
+                "forwarding_enabled": False,
+                "last_error": "gh: Not Found (HTTP 404)",
+                "disabled": True,
+            }
+        },
+    })
+
+    assert alerts == []
 
 
 class TestWebhookForwarderStderrCapture:

@@ -772,6 +772,7 @@ class _ForwarderProcess:
         "repo_path",
         "repo_slug",
         "access_token",
+        "forwarding_enabled",
         "process",
         "restart_delay_s",
         "restart_attempts",
@@ -790,12 +791,14 @@ class _ForwarderProcess:
         repo_path: str,
         repo_slug: str = "",
         access_token: str | None = None,
+        forwarding_enabled: bool = True,
     ):
         self.project_id = project_id
         self.project_name = project_name
         self.repo_path = repo_path
         self.repo_slug = repo_slug
         self.access_token = access_token
+        self.forwarding_enabled = forwarding_enabled
         self.process: asyncio.subprocess.Process | None = None
         self.restart_delay_s: float = _WEBHOOK_BASE_DELAY_S
         self.restart_attempts: int = 0
@@ -855,6 +858,8 @@ def build_webhook_forwarder_alerts(status: dict[str, Any]) -> list[dict[str, str
     if isinstance(projects, dict):
         for project_id, project_status in projects.items():
             if not isinstance(project_status, dict):
+                continue
+            if project_status.get("forwarding_enabled") is False:
                 continue
             error = str(project_status.get("last_error") or "").strip()
             if not error:
@@ -983,6 +988,7 @@ class WebhookForwarder:
                 "last_stderr": fp.last_stderr,
                 "last_error": fp.last_error,
                 "last_error_at": fp.last_error_at,
+                "forwarding_enabled": fp.forwarding_enabled,
                 "disabled": fp.disabled,
                 "disabled_reason": fp.disabled_reason,
             }
@@ -1125,6 +1131,9 @@ class WebhookForwarder:
         for project in projects:
             repo_slug = extract_repo_slug(project.repo_url)
             access_token = getattr(project, "access_token", None)
+            forwarding_enabled = bool(
+                getattr(project, "webhook_forwarding_enabled", True)
+            )
             if project.id not in self._processes:
                 self._processes[project.id] = _ForwarderProcess(
                     project_id=project.id,
@@ -1132,15 +1141,27 @@ class WebhookForwarder:
                     repo_path=project.repo_path,
                     repo_slug=repo_slug,
                     access_token=access_token,
+                    forwarding_enabled=forwarding_enabled,
                 )
             else:
                 fp = self._processes[project.id]
-                old_config = (fp.repo_path, fp.repo_slug, fp.access_token)
-                new_config = (project.repo_path, repo_slug, access_token)
+                old_config = (
+                    fp.repo_path,
+                    fp.repo_slug,
+                    fp.access_token,
+                    fp.forwarding_enabled,
+                )
+                new_config = (
+                    project.repo_path,
+                    repo_slug,
+                    access_token,
+                    forwarding_enabled,
+                )
                 fp.project_name = project.name
                 fp.repo_path = project.repo_path
                 fp.repo_slug = repo_slug
                 fp.access_token = access_token
+                fp.forwarding_enabled = forwarding_enabled
                 if old_config != new_config:
                     self._clear_project_error(fp)
 
@@ -1153,6 +1174,10 @@ class WebhookForwarder:
         # Poll each active project.
         for project in projects:
             fp = self._processes[project.id]
+            if not fp.forwarding_enabled:
+                await self._terminate(fp.project_id)
+                self._clear_project_error(fp)
+                continue
             await self._check_and_restart(fp)
 
     async def _check_and_restart(self, fp: _ForwarderProcess) -> None:

@@ -47,6 +47,7 @@ class TestProject:
         assert p.git_user_name is None
         assert p.git_user_email is None
         assert p.last_webhook_received_at is None
+        assert p.webhook_forwarding_enabled is True
         assert p.intake_auto_promote is True
 
     def test_intake_auto_promote_round_trip(self):
@@ -101,6 +102,17 @@ class TestProject:
         )
         restored = Project.from_dict(original.to_dict())
         assert restored.last_webhook_received_at == original.last_webhook_received_at
+
+    def test_webhook_forwarding_enabled_round_trip_false(self):
+        original = Project(
+            id="p1",
+            name="test",
+            repo_url="https://x",
+            repo_path="/tmp/x",
+            webhook_forwarding_enabled=False,
+        )
+        restored = Project.from_dict(original.to_dict())
+        assert restored.webhook_forwarding_enabled is False
 
 
 class TestModelProvider:

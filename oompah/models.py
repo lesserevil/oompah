@@ -264,6 +264,11 @@ class Project:
     # UTC timestamp of the most recent successful webhook delivery for this
     # project, updated every time a forge webhook (GitHub/GitLab) is received.
     last_webhook_received_at: datetime | None = None
+    # When False, do not launch gh-webhook forwarding for this project. Some
+    # GitHub repos allow issue/PR automation but do not grant repo-hook admin
+    # permission to the project token; those projects intentionally rely on
+    # polling instead of surfacing a repeated forwarder failure.
+    webhook_forwarding_enabled: bool = True
     # Maximum number of concurrent open (non-draft) PRs/MRs allowed for this
     # project before new review handoffs are deferred. Dispatch can continue
     # while this limit is full. Default 1 preserves the original
@@ -429,6 +434,7 @@ class Project:
             "max_in_flight_prs": self.max_in_flight_prs,
             "merge_queue_enabled": self.merge_queue_enabled,
             "paused": self.paused,
+            "webhook_forwarding_enabled": self.webhook_forwarding_enabled,
         }
         if self.git_user_name:
             d["git_user_name"] = self.git_user_name
@@ -619,6 +625,9 @@ class Project:
             access_token=d.get("access_token"),
             lfs_available=bool(d.get("lfs_available", False)),
             last_webhook_received_at=last_webhook_received_at,
+            webhook_forwarding_enabled=bool(
+                d.get("webhook_forwarding_enabled", True)
+            ),
             max_in_flight_prs=max_in_flight_prs,
             merge_queue_enabled=bool(d.get("merge_queue_enabled", False)),
             paused=bool(d.get("paused", False)),

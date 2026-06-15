@@ -530,6 +530,7 @@ class TestProjectStoreUpdatableFields:
             "yolo",
             "log_path",
             "webhook_secret",
+            "webhook_forwarding_enabled",
             "access_token",
             "last_webhook_received_at",
             "max_in_flight_prs",

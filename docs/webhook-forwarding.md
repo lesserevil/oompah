@@ -187,6 +187,13 @@ To subscribe to additional GitHub events (e.g. `release`, `milestone`), extend
 `OOMPAH_WEBHOOK_EVENTS` in your `.env` file. See `.env.example` for the full
 list and descriptions.
 
+Projects can also opt out of `gh webhook forward` individually by setting
+`webhook_forwarding_enabled` to `false` in the project configuration. Use this
+when the project token can manage issues and pull requests but does not have
+repository webhook administration permission. Oompah will then rely on its
+polling backup for that project without surfacing the missing hook permission
+as a forwarder failure.
+
 ## Troubleshooting
 
 **The extension is installed but webhooks still aren't firing.**
@@ -203,6 +210,11 @@ WARNING when the subprocess exits non-zero. Common causes:
 - **Auth expired** — run `gh auth refresh` and restart oompah.
 - **Repo not accessible** — the gh user must have webhook permission on
   the repo. Check `gh auth status` and the repo's settings.
+- **Repo hooks not permitted** — GitHub may allow issue/PR API access while
+  returning `HTTP 404` for `repos/<owner>/<repo>/hooks` if the credential lacks
+  repository admin permission. Either grant hook administration permission or
+  set `webhook_forwarding_enabled` to `false` for that project so oompah uses
+  polling intentionally.
 - **Rate-limited** — GitHub limits webhook forwarders; wait and retry.
 
 **I see `push` and `pull_request` events but no `issues` or `issue_comment` events.**
