@@ -43,6 +43,27 @@ epic and child-task breakdown for the requestor to approve.
 """.strip()
 
 
+def _closeout_description() -> str:
+    return """
+Blocked by: #4, #119, #125, #132
+
+## Problem
+Milestone 1 is not complete until the implementation tickets have landed and
+the final delivery gate has been verified.
+
+## Desired Behavior
+Perform the closeout verification after the blocking implementation epics are
+complete. This should tighten docs, tests, and Makefile gates, not create a
+new implementation breakdown.
+
+## Acceptance Criteria
+- `make ci` runs real Python checks and passes.
+- README install and run commands work from a clean checkout.
+- `GET /` renders the expected shell.
+- Static assets referenced by the page return 200.
+""".strip()
+
+
 def _source_issue(**overrides) -> Issue:
     defaults = {
         "id": "example-org/oompah#500",
@@ -435,8 +456,50 @@ def test_process_epic_proposal_does_not_re_decompose_generated_child_in_yolo_pro
     assert result is not None
     assert getattr(result, "created_child_count", 0) == 0
     assert tracker.create_calls == []
-    assert tracker.issues[source.identifier].state == PROPOSED
+    assert tracker.issues[source.identifier].state == BACKLOG
     assert tracker.comments == []
+    assert getattr(result, "promoted", False) is True
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.is_ready is True
+    assert readiness.scope.value == "small"
+    assert readiness.decomposition_status == DecompositionStatus.NOT_NEEDED
+
+
+def test_process_epic_proposal_treats_blocked_closeout_gate_as_leaf_task():
+    source = _source_issue(
+        title="Verify and close Milestone 1 web app skeleton",
+        description=_closeout_description(),
+        requestor_login="alice",
+    )
+    tracker = FakeTracker([source])
+
+    validation = validate_issue(
+        title=source.title,
+        description=source.description,
+        issue_type=source.issue_type,
+        labels=source.labels,
+    )
+    assert validation.scope == ScopeClassification.EPIC_NEEDED
+
+    result = process_epic_proposal_issue(
+        tracker,
+        source,
+        requestor="alice",
+        project=SimpleNamespace(yolo=True),
+    )
+
+    assert result is not None
+    assert getattr(result, "created_child_count", 0) == 0
+    assert tracker.create_calls == []
+    assert tracker.issues[source.identifier].state == BACKLOG
+    assert tracker.comments == []
+    assert getattr(result, "promoted", False) is True
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.is_ready is True
+    assert readiness.scope.value == "small"
+    assert readiness.decomposition_status == DecompositionStatus.NOT_NEEDED
 
 
 def test_process_epic_proposal_skips_parent_nodes_with_children():

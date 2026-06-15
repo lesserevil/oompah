@@ -12,7 +12,7 @@ import hashlib
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -53,6 +53,14 @@ _AC_HEADING_RE = re.compile(
 _DECOMPOSITION_FINGERPRINT_RE = re.compile(
     r"Epic proposal fingerprint:\s*`?[0-9a-f]{64}`?",
     re.IGNORECASE,
+)
+_CLOSEOUT_VERIFICATION_RE = re.compile(
+    r"\b(?:verify\s+and\s+close|closeout\s+verification|delivery\s+gate)\b",
+    re.IGNORECASE,
+)
+_BLOCKED_BY_RE = re.compile(
+    r"^\s*(?:blocked\s+by|depends\s+on):",
+    re.IGNORECASE | re.MULTILINE,
 )
 
 
@@ -623,6 +631,40 @@ def _is_generated_decomposition_issue(issue: Issue) -> bool:
     )
 
 
+def _is_closeout_verification_issue(issue: Issue) -> bool:
+    """Return true for final verification gates that should stay as leaf work."""
+    if _is_epic_issue(issue):
+        return False
+    title = str(issue.title or "")
+    body = str(issue.description or "")
+    if not _CLOSEOUT_VERIFICATION_RE.search(title + "\n" + body):
+        return False
+    return bool(_BLOCKED_BY_RE.search(body))
+
+
+def _is_forced_leaf_issue(issue: Issue) -> bool:
+    return (
+        _is_generated_decomposition_issue(issue)
+        or _is_closeout_verification_issue(issue)
+    )
+
+
+def _as_leaf_validation(result: ValidationResult) -> ValidationResult:
+    """Coerce known leaf-work issues away from decomposition-only scope."""
+    if result.scope != ScopeClassification.EPIC_NEEDED:
+        return result
+    warnings = [
+        warning
+        for warning in result.warnings
+        if "epic scope detected" not in warning.lower()
+    ]
+    return replace(
+        result,
+        scope=ScopeClassification.SMALL_TASK,
+        warnings=warnings,
+    )
+
+
 def should_propose_epic_decomposition(
     validation_result: ValidationResult,
     issue: Issue,
@@ -631,7 +673,7 @@ def should_propose_epic_decomposition(
     return (
         validation_result.scope == ScopeClassification.EPIC_NEEDED
         and not _is_epic_issue(issue)
-        and not _is_generated_decomposition_issue(issue)
+        and not _is_forced_leaf_issue(issue)
     )
 
 
@@ -1076,12 +1118,15 @@ def process_epic_proposal_issue(
         issue_type=issue.issue_type,
         labels=issue.labels,
     )
+    forced_leaf = _is_forced_leaf_issue(issue)
+    if forced_leaf:
+        validation = _as_leaf_validation(validation)
     has_children = _issue_has_children(tracker, issue)
     if has_children:
         return None
 
     ensured = None
-    if not _is_epic_issue(issue):
+    if not _is_epic_issue(issue) and not forced_leaf:
         ensured = ensure_epic_proposal(
             tracker,
             issue,
