@@ -31,11 +31,12 @@ Replace `v0.1.0` with the tag listed on the
 
 ## Install from a release wheel artifact
 
-When a GitHub Release is published (see [#313](https://github.com/lesserevil/oompah/issues/313)),
-wheel artifacts are attached.  You can install directly from the artifact URL:
+GitHub Releases attach wheel artifacts. You can install directly from the
+artifact URL:
 
 ```bash
 uv tool install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
+pipx install "https://github.com/lesserevil/oompah/releases/download/v0.1.0/oompah-0.1.0-py3-none-any.whl"
 ```
 
 ## Verify the install
@@ -87,3 +88,5 @@ oompah task --server http://192.168.1.10:8080 view owner/repo#123
 See [`plans/cli-packaging-boundary.md`](../plans/cli-packaging-boundary.md) for
 the decision record on why the CLI ships in the main `oompah` package rather
 than as a separate `oompah-cli` package.
+
+Maintainer release steps live in [`docs/cli-release.md`](cli-release.md).
