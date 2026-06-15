@@ -383,16 +383,15 @@ def _proposal_fingerprint_payload(
     children: list[EpicProposalChild],
 ) -> dict[str, Any]:
     return {
-        "source_identifier": source.identifier,
         "source_title": _normalize_text(source.title),
         "source_description": _normalize_text(source.description),
         "source_issue_type": _normalize_text(source.issue_type),
         "epic_title": _normalize_text(epic_title),
-        "epic_summary": _normalize_text(epic_summary),
+        "epic_summary": _normalise_proposal_semantic_text(epic_summary),
         "children": [
             {
                 "title": _normalize_text(child.title),
-                "description": _normalize_text(child.description),
+                "description": _normalise_proposal_semantic_text(child.description),
                 "issue_type": _normalize_text(child.issue_type),
             }
             for child in children
@@ -410,6 +409,24 @@ def compute_epic_proposal_fingerprint(
     payload = _proposal_fingerprint_payload(source, epic_title, epic_summary, children)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _normalise_proposal_semantic_text(value: str | None) -> str:
+    """Normalize proposal text while ignoring unstable GitHub owner strings."""
+    text = _normalize_text(value)
+    text = re.sub(
+        r"https://github\.com/[A-Za-z0-9][A-Za-z0-9\-]*/"
+        r"[A-Za-z0-9][A-Za-z0-9_.\-]*/issues/[1-9][0-9]*",
+        "github-issue-url",
+        text,
+    )
+    text = re.sub(
+        r"\b[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?/"
+        r"[A-Za-z0-9][A-Za-z0-9_.\-]*#[1-9][0-9]*\b",
+        "github-issue-ref",
+        text,
+    )
+    return text
 
 
 def generate_epic_proposal(
@@ -467,6 +484,91 @@ def build_epic_proposal_comment(proposal: EpicProposal) -> str:
         "the proposed split should change.\n\n"
         f"Proposal fingerprint: `{proposal.fingerprint}`"
     )
+
+
+def _proposal_comment_signature_from_text(
+    text: str | None,
+) -> tuple[str, tuple[str, ...]] | None:
+    """Extract a semantic proposal signature from an existing comment."""
+    body = str(text or "")
+    if "I generated a proposed epic breakdown" not in body:
+        return None
+    if "## Proposed Epic" not in body or "## Proposed Child Tasks" not in body:
+        return None
+
+    epic_part = body.split("## Proposed Epic", 1)[1].split(
+        "## Proposed Child Tasks", 1
+    )[0]
+    epic_title = ""
+    epic_match = re.search(r"^\s*\*\*(.+?)\*\*\s*$", epic_part, re.MULTILINE)
+    if epic_match:
+        epic_title = epic_match.group(1)
+    else:
+        for line in epic_part.splitlines():
+            cleaned = line.strip()
+            if cleaned:
+                epic_title = cleaned.strip("* ")
+                break
+
+    child_part = body.split("## Proposed Child Tasks", 1)[1]
+    child_titles = [
+        match.group(1)
+        for match in re.finditer(
+            r"^\s*(?:\d+[.)]|[-*])\s+\*\*(.+?)\*\*",
+            child_part,
+            re.MULTILINE,
+        )
+    ]
+
+    if not epic_title or not child_titles:
+        return None
+    return (
+        _normalize_text(epic_title).lower(),
+        tuple(_normalize_text(title).lower() for title in child_titles),
+    )
+
+
+def _proposal_comment_signature(proposal: EpicProposal) -> tuple[str, tuple[str, ...]]:
+    return (
+        _normalize_text(proposal.epic_title).lower(),
+        tuple(_normalize_text(child.title).lower() for child in proposal.children),
+    )
+
+
+def _has_matching_epic_proposal_comment(
+    tracker: Any,
+    identifier: str,
+    proposal: EpicProposal,
+) -> bool:
+    """Return true when GitHub already has this proposal comment.
+
+    Metadata is the primary dedupe mechanism, but OVA exposed a failure mode
+    where metadata was overwritten during tracker-owner correction. Existing
+    comments are a useful second line of defense as long as the comparison is
+    semantic and ignores proposal fingerprints/source-owner strings.
+    """
+    fetch_comments = getattr(tracker, "fetch_comments", None)
+    if not callable(fetch_comments):
+        return False
+
+    wanted = _proposal_comment_signature(proposal)
+    try:
+        comments = fetch_comments(identifier)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "epic_proposal: failed to fetch comments for %s: %s",
+            identifier,
+            exc,
+        )
+        return False
+
+    for comment in comments or []:
+        if not isinstance(comment, dict):
+            continue
+        text = comment.get("text") or comment.get("body") or ""
+        if _proposal_comment_signature_from_text(text) == wanted:
+            return True
+    return False
 
 
 def should_propose_epic_decomposition(
@@ -575,6 +677,14 @@ def ensure_epic_proposal(
     readiness.decomposition_status = DecompositionStatus.PROPOSED
     save_epic_proposal(tracker, source.identifier, proposal)
     _save_readiness(tracker, source.identifier, readiness)
+
+    if _has_matching_epic_proposal_comment(tracker, source.identifier, proposal):
+        return EpicProposalEnsureResult(
+            proposal=proposal,
+            created=True,
+            comment_posted=False,
+            duplicate_suppressed=True,
+        )
 
     comment_posted = False
     try:

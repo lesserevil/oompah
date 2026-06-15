@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from oompah.epic_proposal import (
     EPIC_PROPOSAL_METADATA_KEY,
     apply_epic_proposal,
+    build_epic_proposal_comment,
     ensure_epic_proposal,
     generate_epic_proposal,
 )
@@ -76,6 +77,13 @@ class FakeTracker:
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         self.comments.append((identifier, text, author))
         return {"author": author, "text": text}
+
+    def fetch_comments(self, identifier: str) -> list[dict[str, str]]:
+        return [
+            {"author": author, "text": text}
+            for comment_identifier, text, author in self.comments
+            if comment_identifier == identifier
+        ]
 
     def create_issue(
         self,
@@ -158,6 +166,30 @@ def test_generate_epic_proposal_from_oversized_validator_result():
     assert all("@alice" in child.description for child in proposal.children)
 
 
+def test_proposal_fingerprint_ignores_unstable_source_owner():
+    source = _source_issue(
+        identifier="NVIDIA-dev/ova#3",
+        id="NVIDIA-dev/ova#3",
+        url="https://github.com/NVIDIA-dev/ova/issues/3",
+    )
+    alias_source = _source_issue(
+        identifier="NVShawn/ova#3",
+        id="NVShawn/ova#3",
+        url="https://github.com/NVIDIA-dev/ova/issues/3",
+    )
+    validation = validate_issue(
+        title=source.title,
+        description=source.description,
+        issue_type=source.issue_type,
+        labels=source.labels,
+    )
+
+    first = generate_epic_proposal(source, validation_result=validation)
+    second = generate_epic_proposal(alias_source, validation_result=validation)
+
+    assert first.fingerprint == second.fingerprint
+
+
 def test_ensure_epic_proposal_posts_once_and_records_intake_metadata():
     source = _source_issue()
     tracker = FakeTracker([source])
@@ -180,6 +212,26 @@ def test_ensure_epic_proposal_posts_once_and_records_intake_metadata():
     assert readiness.scope.value == "needs_decomposition"
     assert readiness.decomposition_status == DecompositionStatus.PROPOSED
     assert readiness.proposal_fingerprint == first.proposal.fingerprint
+
+
+def test_ensure_epic_proposal_suppresses_existing_matching_comment_without_metadata():
+    source = _source_issue()
+    tracker = FakeTracker([source])
+    existing = generate_epic_proposal(source, requestor="alice")
+    legacy_comment = build_epic_proposal_comment(existing).replace(
+        existing.fingerprint,
+        "legacy-different-fingerprint",
+    )
+    tracker.comments.append((source.identifier, legacy_comment, "oompah"))
+
+    result = ensure_epic_proposal(tracker, source, requestor="alice")
+
+    assert result is not None
+    assert result.created is True
+    assert result.comment_posted is False
+    assert result.duplicate_suppressed is True
+    assert len(tracker.comments) == 1
+    assert EPIC_PROPOSAL_METADATA_KEY in tracker.metadata[source.identifier]
 
 
 def test_ensure_epic_proposal_skips_existing_epic_children():
