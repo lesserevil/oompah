@@ -1443,6 +1443,10 @@ Use Backlog.md for ALL task tracking.
         assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in text
         assert "Use Backlog.md for ALL task tracking" not in text
         assert "oompah task create --project <project-id>" in text
+        assert "Prefer the `oompah task` CLI only when it is installed" in text
+        assert "GitHub Fallback" in text
+        assert "`parent:<issue-number>`" in text
+        assert "`depends-on:<issue-number>`" in text
 
     def test_patch_tracker_kind_invalidates_cached_tracker(self):
         import oompah.server as srv

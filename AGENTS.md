@@ -8,10 +8,28 @@ canonical task tracker. Do **not** create or edit Backlog.md task files, do
 not use the `backlog` CLI for task tracking, and do not use `bd`, beads,
 TodoWrite, markdown TODO lists, or another tracker for project work.
 
-Use the `oompah task` CLI so oompah can apply the correct GitHub labels,
-status mapping, parent/child links, dependencies, and comments.
+Prefer the `oompah task` CLI only when it is installed and configured for the
+oompah server that manages this project. The CLI applies the correct GitHub
+labels, status mapping, parent/child links, dependencies, and comments.
 
-### Quick Reference
+### Optional CLI Setup
+
+The CLI is distributed from GitHub, not PyPI. Install it with `uv tool` or
+`pipx` from a release tag or from `main`, then point it at the local oompah
+server:
+
+```bash
+uv tool install "git+https://github.com/lesserevil/oompah@<tag>"
+pipx install "git+https://github.com/lesserevil/oompah@<tag>"
+oompah task --help
+OOMPAH_SERVER_PORT=<port> oompah task view <owner/repo#number>
+oompah task --server http://127.0.0.1:<port> view <owner/repo#number>
+```
+
+### CLI Quick Reference
+
+Use these commands only after the CLI is installed and configured for the
+correct server:
 
 ```bash
 oompah task view <owner/repo#number>
@@ -24,15 +42,37 @@ oompah task set-status <owner/repo#number> Open
 oompah task set-status <owner/repo#number> Done --summary "Completed"
 ```
 
+### GitHub Fallback
+
+If the CLI is unavailable, use GitHub directly while preserving the structured
+metadata oompah needs:
+
+- Create follow-up work as GitHub issues in the configured task hub repository
+  and link back to the source issue.
+- For epic children, use GitHub's structured sub-issue/parent relationship.
+  If that is unavailable, apply the oompah-compatible `parent:<issue-number>`
+  label to the child issue.
+- For dependencies, use GitHub's structured dependency/blocking relationship.
+  If that is unavailable, apply the oompah-compatible
+  `depends-on:<issue-number>` label to the blocked issue.
+- Body text such as `Parent: #123`, `Depends on #123`, or a task-list item is
+  human context only. It is not sufficient for oompah rollups, dispatch, or
+  dependency gates.
+
 ### Rules
 
-- Always pass `--author oompah` when posting comments.
-- Use `oompah task create --project <project-id>` for follow-up work so the
-  issue is created in the configured project tracker.
-- Use `oompah task child-create <parent>` for epic children; do not hand-write
-  `parent:*` labels.
+- Always pass `--author oompah` when posting comments through the CLI. In the
+  GitHub fallback path, make clear the update is from `oompah`.
+- Use `oompah task create --project <project-id>` for follow-up work when the
+  CLI is available; otherwise create the GitHub issue with the source link and
+  structured metadata described above.
+- Use `oompah task child-create <parent>` for epic children when the CLI is
+  available; otherwise use GitHub sub-issues or the `parent:*` fallback label.
+- Use `oompah task set-dependency` when the CLI is available; otherwise use
+  GitHub dependencies or the `depends-on:*` fallback label.
 - Do not edit `oompah:status:*`, `type:*`, `priority:*`, `parent:*`, or
-  `depends-on:*` labels directly unless you are fixing the tracker adapter.
+  `depends-on:*` labels directly when the CLI or structured GitHub controls are
+  available. Use `parent:*` and `depends-on:*` only as compatibility fallbacks.
 - Epics use `type:epic`; their effective status is derived from child issue
   status by oompah.
 - Existing `backlog/` files are legacy history. Do not add new files there for
@@ -42,9 +82,11 @@ oompah task set-status <owner/repo#number> Done --summary "Completed"
 
 When ending a work session, complete all of these steps:
 
-1. File follow-up issues with `oompah task create` for remaining work.
+1. File follow-up issues for remaining work, using `oompah task create` when
+   available or the GitHub fallback above.
 2. Run the relevant quality gates for the code you changed.
-3. Update the current issue status or leave a clear handoff comment.
+3. Update the current issue status with `oompah task set-status` when
+   available, or with the repository's GitHub issue status controls.
 4. Push all committed work:
    ```bash
    git pull --rebase
@@ -53,8 +95,9 @@ When ending a work session, complete all of these steps:
    ```
 5. Verify `git status` reports the branch is up to date with origin.
 
-Work is not complete until the code is pushed and the GitHub issue is updated.
-Never leave finished work only in a local commit.
+Work is not complete until the code is pushed and the GitHub issue is updated
+through the CLI or GitHub fallback path. Never leave finished work only in a
+local commit.
 
 <!-- END OOMPAH GITHUB ISSUES INTEGRATION -->
 

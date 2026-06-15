@@ -39,11 +39,13 @@ Oompah supports two ACP (Agent Control Protocol) backends for running AI coding 
 
 ### Install matrix
 
-| Backend | Dispatch mode | What drives the agent | Install command |
+| Backend | Dispatch mode | What drives the agent | Install command (from cloned repo) |
 |---|---|---|---|
-| `claude` | ACP (subscription) | Claude Agent SDK → `claude` CLI | `uv pip install 'oompah[claude]'` |
-| `codex` | ACP (per-token or subscription) | OpenAI Agents SDK → `codex` CLI | `uv pip install 'oompah[codex]'` |
-| *(none)* | API | Direct HTTP to any OpenAI-compatible API | `uv pip install oompah` (base install) |
+| `claude` | ACP (subscription) | Claude Agent SDK → `claude` CLI | `uv pip install -e '.[claude]'` |
+| `codex` | ACP (per-token or subscription) | OpenAI Agents SDK → `codex` CLI | `uv pip install -e '.[codex]'` |
+| *(none)* | API | Direct HTTP to any OpenAI-compatible API | `uv pip install -e .` (base install) |
+
+> **oompah is not published to PyPI.** All install commands above require the repo to be cloned first (see [Quick start](#quick-start)). For installing just the `oompah task` CLI without cloning, see [docs/cli-install.md](docs/cli-install.md).
 
 ### Installing backend extras
 

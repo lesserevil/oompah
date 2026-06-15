@@ -95,7 +95,9 @@ The call:
 4. Sets the legacy Backlog flags as specified.
 5. Pauses the project when `paused=true` is supplied.
 6. Updates the managed repository's `AGENTS.md` oompah task-tracking section
-   so new agents use `oompah task ...` commands instead of Backlog.md.
+   so new agents prefer `oompah task ...` only when the CLI is installed and
+   configured, with GitHub-native and label-based fallbacks instead of
+   Backlog.md.
 
 Keep the project **paused** until the verification steps pass.
 

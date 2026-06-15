@@ -177,11 +177,29 @@ class TestAgentsMdGitHubIssuesGuidance:
             "Run ensure_github_issues_agent_instructions() to install it."
         )
 
-    def test_instructs_use_oompah_task_cli(self):
-        """AGENTS.md must instruct agents to use the oompah task CLI."""
+    def test_instructs_optional_oompah_task_cli(self):
+        """AGENTS.md must make oompah task CLI usage conditional."""
         assert "oompah task" in self._content, (
-            "AGENTS.md must tell agents to use the oompah task CLI for "
+            "AGENTS.md must mention the optional oompah task CLI for "
             "GitHub-backed work"
+        )
+        assert "Prefer the `oompah task` CLI only when it is installed" in self._content
+        assert "Use these commands only after the CLI is installed" in self._content
+        assert "uv tool install" in self._content
+        assert "OOMPAH_SERVER_PORT=<port>" in self._content
+        assert "GitHub Fallback" in self._content
+
+    def test_includes_structured_github_metadata_fallbacks(self):
+        """AGENTS.md must preserve parent/dependency metadata without the CLI."""
+        assert "GitHub's structured sub-issue/parent relationship" in self._content
+        assert "`parent:<issue-number>`" in self._content
+        assert "GitHub's structured dependency/blocking relationship" in self._content
+        assert "`depends-on:<issue-number>`" in self._content
+        assert "`Parent: #123`" in self._content
+        assert "human context only" in self._content
+        assert "not sufficient for oompah rollups" in self._content, (
+            "AGENTS.md must say Parent: body text alone is not structured "
+            "oompah metadata"
         )
 
     def test_does_not_use_backlog_md_as_primary_tracker(self):

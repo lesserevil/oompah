@@ -1,0 +1,75 @@
+name: CLI Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to package, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build and publish CLI artifacts
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Validate tag checkout
+        run: |
+          test -n "$RELEASE_TAG"
+          test "$(git rev-parse "${RELEASE_TAG}^{commit}")" = "$(git rev-parse HEAD)"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: Build wheel and sdist
+        run: python -m build --sdist --wheel
+
+      - name: Verify wheel console script
+        run: |
+          python -m venv .release-smoke
+          . .release-smoke/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl
+          oompah --help
+          oompah task --help
+
+      - name: Generate GitHub Release notes
+        run: python scripts/render_cli_release_notes.py --tag "$RELEASE_TAG" --output CLI_RELEASE_NOTES.md
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "oompah $RELEASE_TAG" \
+              --notes-file CLI_RELEASE_NOTES.md
+          else
+            gh release create "$RELEASE_TAG" \
+              --target "$(git rev-parse HEAD)" \
+              --title "oompah $RELEASE_TAG" \
+              --notes-file CLI_RELEASE_NOTES.md
+          fi
+          gh release upload "$RELEASE_TAG" dist/* --clobber

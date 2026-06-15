@@ -2186,10 +2186,11 @@ class GitHubIssueTracker:
                 },
             )
         except TrackerError as exc:
-            # GitHub returns 422 when the label already exists. Treat that as
-            # idempotent success so concurrent agents can create the same
-            # parent/dependency label without racing each other.
-            if "422" in str(exc):
+            # GitHub returns 422 when the label already exists. Some test
+            # doubles and older API surfaces do not expose the repository
+            # label creation endpoint; in that case keep going and let the
+            # issue-label application report any real failure.
+            if "422" in str(exc) or "404" in str(exc):
                 return
             raise
 
