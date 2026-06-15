@@ -666,12 +666,14 @@ def ensure_epic_proposal(
     validation_result: ValidationResult | None = None,
     requestor: str | None = None,
     author: str = "oompah",
+    post_comment: bool = True,
 ) -> EpicProposalEnsureResult | None:
     """Create or refresh the proposal metadata/comment for an oversized issue.
 
     Returns ``None`` when the issue is not classified as needing decomposition.
     Repeated calls with the same proposal fingerprint update readiness metadata
-    but suppress duplicate comments.
+    but suppress duplicate comments.  Callers may disable the proposal comment
+    when policy allows immediate application.
     """
     result = validation_result or validate_issue(
         title=source.title,
@@ -716,6 +718,14 @@ def ensure_epic_proposal(
     readiness.decomposition_status = DecompositionStatus.PROPOSED
     save_epic_proposal(tracker, source.identifier, proposal)
     _save_readiness(tracker, source.identifier, readiness)
+
+    if not post_comment:
+        return EpicProposalEnsureResult(
+            proposal=proposal,
+            created=True,
+            comment_posted=False,
+            duplicate_suppressed=False,
+        )
 
     if _has_matching_epic_proposal_comment(tracker, source.identifier, proposal):
         return EpicProposalEnsureResult(
@@ -921,7 +931,7 @@ def apply_epic_proposal(
         tracker.add_comment(
             source.identifier,
             (
-                f"Applied accepted decomposition proposal `{proposal.fingerprint}`: "
+                f"Applied decomposition proposal `{proposal.fingerprint}`: "
                 f"{epic_identifier} with {len(child_ids)} child task(s)."
             ),
             author=author,
@@ -1038,9 +1048,13 @@ def process_epic_proposal_issue(
     requestor: str | None = None,
     author: str = "oompah",
     auto_promote: bool = True,
+    auto_decompose: bool = False,
     project: Any = None,
 ) -> EpicProposalEnsureResult | EpicProposalApplyResult | IntakeValidationProcessResult | None:
     """Run intake validation and decomposition handling for one Proposed issue."""
+    if project is not None and bool(getattr(project, "yolo", False)):
+        auto_decompose = True
+
     validation = validate_issue(
         title=issue.title,
         description=issue.description,
@@ -1059,6 +1073,7 @@ def process_epic_proposal_issue(
             validation_result=validation,
             requestor=requestor,
             author=author,
+            post_comment=not auto_decompose,
         )
     if ensured is None:
         requested_actor = (
@@ -1090,6 +1105,14 @@ def process_epic_proposal_issue(
             validation=validation,
             comment_posted=comment_posted,
             promoted=promoted,
+        )
+
+    if auto_decompose:
+        return apply_epic_proposal(
+            tracker,
+            issue,
+            require_accepted=False,
+            author=author,
         )
 
     record_approval_from_existing_comments(

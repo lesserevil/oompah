@@ -363,6 +363,31 @@ def test_process_epic_proposal_ignores_approved_typo_in_polling_comments():
     assert readiness.decomposition_status == DecompositionStatus.PROPOSED
 
 
+def test_process_epic_proposal_auto_decomposes_yolo_project_without_approval():
+    source = _source_issue(requestor_login="alice")
+    tracker = FakeTracker([source])
+
+    result = process_epic_proposal_issue(
+        tracker,
+        source,
+        requestor="alice",
+        project=SimpleNamespace(yolo=True),
+    )
+
+    assert result is not None
+    assert getattr(result, "created_epic", False) is True
+    assert getattr(result, "created_child_count", 0) > 0
+    assert tracker.issues[source.identifier].state == DECOMPOSED
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.requestor_approved is False
+    assert readiness.decomposition_status == DecompositionStatus.ACCEPTED
+
+    assert len(tracker.comments) == 1
+    assert tracker.comments[0][1].startswith("Applied decomposition proposal")
+    assert "Proposed Child Tasks" not in tracker.comments[0][1]
+
+
 def test_process_epic_proposal_skips_parent_nodes_with_children():
     source = _source_issue()
     child = _source_issue(
@@ -447,6 +472,29 @@ def test_orchestrator_processes_oversized_proposed_issues():
     assert readiness.decomposition_status == DecompositionStatus.PROPOSED
     assert orch._last_epic_proposal_metrics["processed_count"] == 1
     assert orch._last_epic_proposal_metrics["created_count"] == 1
+
+
+def test_orchestrator_auto_decomposes_oversized_proposed_issues_for_yolo_projects():
+    source = _source_issue()
+    project = SimpleNamespace(id="proj", yolo=True, intake_auto_promote=True)
+    tracker = FakeTracker([source])
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.get.return_value = project
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch.tracker = tracker
+
+    processed = orch._process_epic_proposals()
+
+    assert processed == [source]
+    assert tracker.issues[source.identifier].state == DECOMPOSED
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.decomposition_status == DecompositionStatus.ACCEPTED
+    assert orch._last_epic_proposal_metrics["processed_count"] == 1
+    assert orch._last_epic_proposal_metrics["created_count"] == 0
+    assert orch._last_epic_proposal_metrics["applied_count"] == 1
+    assert orch._last_epic_proposal_metrics["comment_posted_count"] == 0
 
 
 def test_orchestrator_records_validation_guidance_for_small_proposed_bug():
