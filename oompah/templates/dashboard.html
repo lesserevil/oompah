@@ -2046,9 +2046,21 @@ async function refreshProjectConfigForStatusActor(projectId) {
 }
 
 function findIssueForUpdate(identifier, projectId) {
+  const raw = String(identifier || '');
   return allIssuesFlat.find(i =>
-    i.identifier === identifier &&
+    issueMatchesIdentifier(i, raw) &&
     (!projectId || i.project_id === projectId)
+  );
+}
+
+function issueMatchesIdentifier(issue, identifier) {
+  if (!issue) return false;
+  const raw = String(identifier || '');
+  return (
+    issue.identifier === raw ||
+    issue.id === raw ||
+    issue.display_identifier === raw ||
+    issueDisplayIdentifier(issue) === raw
   );
 }
 
@@ -2670,7 +2682,7 @@ function moveIssueInBoard(identifier, newState, projectId) {
   for (const [state, issues] of Object.entries(boardData)) {
     if (!Array.isArray(issues)) continue;
     const idx = issues.findIndex(
-      i => i.identifier === identifier && (!projectId || i.project_id === projectId)
+      i => issueMatchesIdentifier(i, identifier) && (!projectId || i.project_id === projectId)
     );
     if (idx !== -1) {
       const [issue] = issues.splice(idx, 1);
@@ -2687,9 +2699,14 @@ async function updateIssue(identifier, fields) {
   if (outgoing.status !== undefined) {
     outgoing.status = statusForColumn(columnKeyForStatus(outgoing.status));
   }
-  const projectId = outgoing.project_id || '';
+  let projectId = outgoing.project_id || '';
+  const issue = findIssueForUpdate(identifier, projectId);
+  if (!projectId && issue && issue.project_id) {
+    projectId = issue.project_id;
+    outgoing.project_id = projectId;
+  }
+  const apiIdentifier = issue && issue.identifier ? issue.identifier : identifier;
   if (outgoing.status !== undefined && !outgoing.actor_login) {
-    const issue = findIssueForUpdate(identifier, projectId);
     let project = currentProjects.find(p => p.id === (projectId || (issue && issue.project_id)));
     if (
       statusChangeNeedsProjectActor(issue, project, outgoing.status) &&
@@ -2711,12 +2728,12 @@ async function updateIssue(identifier, fields) {
     }
   }
   clearBoardError();
-  const optimisticKey = optimisticIssueKey(identifier, projectId);
+  const optimisticKey = optimisticIssueKey(apiIdentifier, projectId);
   const hasBoardOptimistic = outgoing.status !== undefined || outgoing.priority !== undefined;
   if (hasBoardOptimistic) {
     // Record optimistic state to suppress rubber-banding from stale WebSocket data.
     optimisticUpdates[optimisticKey] = {
-      identifier: identifier,
+      identifier: apiIdentifier,
       project_id: projectId,
       state: outgoing.status !== undefined ? statusForColumn(outgoing.status) : undefined,
       priority: outgoing.priority,
@@ -2725,10 +2742,10 @@ async function updateIssue(identifier, fields) {
   }
   let res;
   try {
-    res = await fetch(issueApiUrl(identifier), {
+    res = await fetch(issueApiUrl(apiIdentifier), {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(issueRequestBody(identifier, outgoing)),
+      body: JSON.stringify(issueRequestBody(apiIdentifier, outgoing)),
     });
   } catch (err) {
     if (hasBoardOptimistic) delete optimisticUpdates[optimisticKey];

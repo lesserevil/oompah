@@ -58,9 +58,23 @@ def test_update_issue_uses_route_safe_url_and_issue_key_body():
     script = _script()
     body = _async_function_body(script, "updateIssue")
 
-    assert "fetch(issueApiUrl(identifier)" in body
-    assert "JSON.stringify(issueRequestBody(identifier, outgoing))" in body
+    assert (
+        "const apiIdentifier = issue && issue.identifier ? issue.identifier : identifier;"
+        in body
+    )
+    assert "fetch(issueApiUrl(apiIdentifier)" in body
+    assert "JSON.stringify(issueRequestBody(apiIdentifier, outgoing))" in body
     assert "`/api/v1/issues/${identifier}`" not in body
+
+
+def test_update_issue_can_canonicalize_display_identifiers():
+    script = _script()
+    find_body = _function_body(script, "findIssueForUpdate")
+    match_body = _function_body(script, "issueMatchesIdentifier")
+
+    assert "issueMatchesIdentifier(i, raw)" in find_body
+    assert "issue.display_identifier === raw" in match_body
+    assert "issueDisplayIdentifier(issue) === raw" in match_body
 
 
 def test_detail_panel_uses_route_safe_detail_and_release_pick_urls():

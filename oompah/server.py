@@ -2382,6 +2382,40 @@ def _managed_repo_from_issue_identifier(identifier: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _canonicalize_project_issue_identifier(tracker, identifier: str) -> str:
+    """Resolve project-scoped GitHub display ids to canonical identifiers.
+
+    GitHub-backed issues are stored as ``owner/repo#number`` but displayed in
+    the dashboard as ``repo#number``.  Mutating API callers that already pass a
+    project_id may legitimately send the display form; resolve it through the
+    project tracker before the tracker tries to parse it as fully qualified.
+    """
+    raw = (identifier or "").strip()
+    if not raw or _managed_repo_from_issue_identifier(raw):
+        return raw
+
+    match = re.match(r"^(?:(?P<repo>[^/\s#]+)#|#?)(?P<number>\d+)$", raw)
+    if not match:
+        return raw
+
+    display_repo = match.group("repo")
+    tracker_repo = getattr(tracker, "repo", None)
+    if (
+        display_repo
+        and tracker_repo
+        and display_repo.lower() != str(tracker_repo).lower()
+    ):
+        return raw
+
+    identifier_for_number = getattr(tracker, "identifier_for_number", None)
+    if not callable(identifier_for_number):
+        return raw
+    try:
+        return str(identifier_for_number(int(match.group("number"))))
+    except Exception:
+        return raw
+
+
 def _get_tracker_for_managed_repo(orch, managed_repo: str):
     """Find the tracker and project_id for a given managed-repo slug.
 
@@ -3129,6 +3163,10 @@ async def api_update_issue(identifier: str, request: Request):
         if project_id:
             tracker, project_id = _get_tracker_for_issue_or_project(
                 orch, resolved_identifier, project_id
+            )
+            resolved_identifier = _canonicalize_project_issue_identifier(
+                tracker,
+                resolved_identifier,
             )
         elif managed_repo_req:
             if "/" not in managed_repo_req:

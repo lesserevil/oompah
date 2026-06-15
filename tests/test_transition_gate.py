@@ -52,6 +52,7 @@ def _issue(state: str = "Proposed") -> Issue:
 def _make_orchestrator(issue: Issue, project=None):
     project = project or _project()
     tracker = MagicMock()
+    tracker.repo = "repo"
     tracker.fetch_issue_detail.return_value = issue
     tracker.fetch_comments.return_value = []
     tracker.update_issue = MagicMock()
@@ -168,6 +169,32 @@ class TestApiTransitionGates:
                 "/api/v1/issues/placeholder",
                 json={
                     "issue_key": "owner/repo#42",
+                    "project_id": "proj-1",
+                    "status": "Open",
+                    "actor_login": "owner",
+                },
+            )
+
+        assert resp.status_code == 200
+        tracker.update_issue.assert_called_once_with("owner/repo#42", status="Open")
+
+    def test_owner_patch_can_promote_project_scoped_display_id(self, client):
+        issue = _issue(state="Backlog")
+        orch, tracker = _make_orchestrator(issue)
+
+        def fetch_issue_detail(identifier):
+            return issue if identifier == "owner/repo#42" else None
+
+        tracker.fetch_issue_detail.side_effect = fetch_issue_detail
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.patch(
+                "/api/v1/issues/placeholder",
+                json={
+                    "issue_key": "repo#42",
                     "project_id": "proj-1",
                     "status": "Open",
                     "actor_login": "owner",
