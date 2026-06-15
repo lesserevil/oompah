@@ -15,12 +15,12 @@ codex = [
 ]
 ```
 
-Install with:
+Install with (from a cloned oompah repo — oompah is not on PyPI):
 
 ```bash
-pip install 'oompah[codex]'
-# or
-uv pip install --extra codex oompah
+uv pip install -e '.[codex]'
+# or, editable install with pip
+pip install -e '.[codex]'
 ```
 
 ## Why this pin
