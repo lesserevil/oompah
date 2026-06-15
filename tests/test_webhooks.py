@@ -28,6 +28,7 @@ from oompah.webhooks import (
     WebhookEvent,
     WebhookForwarder,
     _ForwarderProcess,
+    build_webhook_forwarder_alerts,
     check_gh_webhook_available,
     match_project_by_repo,
     parse_github_webhook,
@@ -1279,6 +1280,7 @@ class TestWebhookForwarderPoll:
 
         store = _FakeProjectStore([proj])
         fwd = WebhookForwarder(project_store=store)
+        fwd._extension_available = False
 
         # Register project.
         await fwd._poll_and_restart()
@@ -1910,7 +1912,7 @@ class TestWebhookForwarderHookCleanup:
         assert ["gh", "api", "-X", "DELETE", "repos/org/repo/hooks/456"] in calls
 
     @pytest.mark.asyncio
-    async def test_cleanup_inspection_failure_does_not_block_launch(self, git_repo):
+    async def test_cleanup_transient_inspection_failure_does_not_block_launch(self, git_repo):
         fwd = WebhookForwarder()
         fwd._extension_available = True
         fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
@@ -1937,7 +1939,7 @@ class TestWebhookForwarderHookCleanup:
         async def fake_exec(*args, **kwargs):
             calls.append(list(args))
             if args[:2] == ("gh", "api"):
-                return _FakeProc(stderr=b"hook permission denied\n", returncode=1)
+                return _FakeProc(stderr=b"api temporarily unavailable\n", returncode=1)
             return _ForwardProc()
 
         with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
@@ -1946,6 +1948,41 @@ class TestWebhookForwarderHookCleanup:
         assert any(call[:3] == ["gh", "api", "repos/org/repo/hooks"] for call in calls)
         assert any(call[:3] == ["gh", "webhook", "forward"] for call in calls)
         assert fp.process is not None
+
+    @pytest.mark.asyncio
+    async def test_cleanup_repo_not_found_disables_project_and_blocks_launch(self, git_repo):
+        statuses: list[dict] = []
+        fwd = WebhookForwarder(status_callback=statuses.append)
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
+        fp.restart_attempts = 1
+        fwd._processes["p1"] = fp
+        calls: list[list[str]] = []
+
+        class _FakeProc:
+            def __init__(self, stdout=b"", stderr=b"", returncode=0):
+                self._stdout = stdout
+                self._stderr = stderr
+                self.returncode = returncode
+
+            async def communicate(self):
+                return self._stdout, self._stderr
+
+        async def fake_exec(*args, **kwargs):
+            calls.append(list(args))
+            return _FakeProc(stderr=b"gh: Not Found (HTTP 404)\n", returncode=1)
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        assert calls == [["gh", "api", "repos/org/repo/hooks", "--jq", (
+            ".[] | select(.name == \"cli\" "
+            "and .config.url == \"https://webhook-forwarder.github.com/hook\") | .id"
+        )]]
+        assert fp.disabled is True
+        assert "Not Found" in fp.last_error
+        assert fp.process is None
+        assert statuses
 
 
 class TestWebhookForwarderExtensionMissing:
@@ -2064,6 +2101,25 @@ class TestWebhookForwarderExtensionMissing:
                 await fwd.stop()
 
 
+def test_build_webhook_forwarder_alerts_includes_project_errors():
+    alerts = build_webhook_forwarder_alerts({
+        "available": True,
+        "detail": "",
+        "projects": {
+            "proj-ova": {
+                "name": "ova",
+                "last_error": "gh: Not Found (HTTP 404)",
+                "disabled": True,
+            }
+        },
+    })
+
+    assert len(alerts) == 1
+    assert alerts[0]["source"] == "webhook_forwarder:proj-ova"
+    assert alerts[0]["level"] == "error"
+    assert "Polling backup is active" in alerts[0]["message"]
+
+
 class TestWebhookForwarderStderrCapture:
     """The forwarder must capture subprocess stderr so install/auth
     errors surface in oompah.log instead of being silently dropped."""
@@ -2139,6 +2195,48 @@ class TestWebhookForwarderStderrCapture:
 
         assert fp.last_stderr == "websocket closed\n"
         assert fp.process is None
+
+    @pytest.mark.asyncio
+    async def test_fatal_stderr_disables_project_and_reports_status(self, git_repo):
+        statuses: list[dict] = []
+        fwd = WebhookForwarder(status_callback=statuses.append)
+        fwd._extension_available = True
+        fp = _ForwarderProcess("p1", "test-repo", str(git_repo), "org/repo")
+        fwd._processes["p1"] = fp
+
+        class _FakeStderr:
+            def __init__(self):
+                self._chunks = [
+                    b"Error: error creating webhook: HTTP 404: Not Found\n",
+                    b"",
+                ]
+
+            async def read(self, _n):
+                return self._chunks.pop(0) if self._chunks else b""
+
+        class _FakeProc:
+            pid = 1
+            returncode = 1
+            stderr = _FakeStderr()
+
+            async def wait(self):
+                return self.returncode
+
+        async def fake_exec(*args, **kwargs):
+            return _FakeProc()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+            await fwd._launch(fp)
+
+        assert fp.stderr_task is not None
+        await fp.stderr_task
+
+        assert fp.disabled is True
+        assert "error creating webhook" in fp.last_error
+        assert statuses
+        project_status = statuses[-1]["projects"]["p1"]
+        assert project_status["disabled"] is True
+        assert "error creating webhook" in project_status["last_error"]
 
     @pytest.mark.asyncio
     async def test_terminate_cancels_stderr_task(self, git_repo):

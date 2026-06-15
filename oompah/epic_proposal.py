@@ -24,8 +24,15 @@ from oompah.intake_schema import (
     intake_to_raw,
     parse_intake_metadata,
 )
+from oompah.intake_approval import (
+    is_approval_command,
+    is_plain_requestor_approval_comment,
+)
 from oompah.intake_comments import post_intake_comment_if_needed
-from oompah.intake_promotion import promote_proposed_issue_to_backlog
+from oompah.intake_promotion import (
+    promote_proposed_issue_to_backlog,
+    record_intake_approval,
+)
 from oompah.issue_validator import ScopeClassification, ValidationResult, validate_issue
 from oompah.models import Issue
 from oompah.statuses import DECOMPOSED, PROPOSED
@@ -571,6 +578,37 @@ def _has_matching_epic_proposal_comment(
     return False
 
 
+def _issue_has_children(tracker: Any, issue: Issue) -> bool:
+    """Return true when tracker state shows *issue* has child issues."""
+    fetch_children = getattr(tracker, "fetch_children", None)
+    if not callable(fetch_children):
+        return False
+    identifiers = [
+        value
+        for value in (getattr(issue, "identifier", None), getattr(issue, "id", None))
+        if isinstance(value, str) and value.strip()
+    ]
+    seen: set[str] = set()
+    for identifier in identifiers:
+        if identifier in seen:
+            continue
+        seen.add(identifier)
+        try:
+            if list(fetch_children(identifier) or []):
+                return True
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "epic_proposal: failed to fetch children for %s: %s",
+                identifier,
+                exc,
+            )
+    return False
+
+
+def _is_epic_issue(issue: Issue) -> bool:
+    return (issue.issue_type or "task").strip().lower() == "epic"
+
+
 def should_propose_epic_decomposition(
     validation_result: ValidationResult,
     issue: Issue,
@@ -578,8 +616,7 @@ def should_propose_epic_decomposition(
     """Return True when a validator result should enter decomposition."""
     return (
         validation_result.scope == ScopeClassification.EPIC_NEEDED
-        and (issue.issue_type or "task").strip().lower() != "epic"
-        and not issue.parent_id
+        and not _is_epic_issue(issue)
     )
 
 
@@ -643,6 +680,8 @@ def ensure_epic_proposal(
         labels=source.labels,
     )
     if not should_propose_epic_decomposition(result, source):
+        return None
+    if _issue_has_children(tracker, source):
         return None
 
     proposal = generate_epic_proposal(
@@ -807,10 +846,21 @@ def apply_epic_proposal(
             description=epic_description,
             priority=source.priority,
             initial_status=PROPOSED,
+            parent=source.parent_id,
         )
         epic_identifier = epic.identifier
         proposal.epic_identifier = epic_identifier
         created_epic = True
+        if source.parent_id:
+            try:
+                tracker.add_parent_child(epic_identifier, source.parent_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "epic_proposal: failed to link generated epic %s under %s: %s",
+                    epic_identifier,
+                    source.parent_id,
+                    exc,
+                )
 
     child_ids: list[str] = []
     created_children = 0
@@ -893,6 +943,94 @@ def apply_epic_proposal(
     )
 
 
+def _comment_text(comment: dict[str, Any]) -> str:
+    return str(comment.get("text") or comment.get("body") or "")
+
+
+def _comment_author(comment: dict[str, Any]) -> str:
+    author = comment.get("author")
+    if isinstance(author, str) and author.strip():
+        return author.strip()
+    user = comment.get("user")
+    if isinstance(user, dict):
+        login = user.get("login")
+        if isinstance(login, str) and login.strip():
+            return login.strip()
+    return ""
+
+
+def _normalize_login(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def record_approval_from_existing_comments(
+    tracker: Any,
+    issue: Issue,
+    *,
+    requestor: str | None,
+    project: Any = None,
+) -> IntakeReadiness | None:
+    """Poll comments for an approval that a missed webhook would have handled."""
+    requestor_login = _normalize_login(
+        requestor
+        or getattr(issue, "requestor_login", None)
+        or getattr(issue, "author", None)
+    )
+    if not requestor_login:
+        return None
+
+    readiness = _load_readiness(tracker, issue.identifier)
+    if readiness.decomposition_status == DecompositionStatus.ACCEPTED:
+        return readiness
+
+    fetch_comments = getattr(tracker, "fetch_comments", None)
+    if not callable(fetch_comments):
+        return None
+
+    try:
+        comments = fetch_comments(issue.identifier)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "epic_proposal: failed to fetch approval comments for %s: %s",
+            issue.identifier,
+            exc,
+        )
+        return None
+
+    for comment in comments or []:
+        if not isinstance(comment, dict):
+            continue
+        body = _comment_text(comment)
+        actor = _comment_author(comment)
+        if not body or not actor:
+            continue
+
+        command_approval = is_approval_command(body)
+        plain_approval = is_plain_requestor_approval_comment(body)
+        if not command_approval and not plain_approval:
+            continue
+        if plain_approval and _normalize_login(actor) != requestor_login:
+            continue
+
+        updated = record_intake_approval(
+            tracker,
+            issue.identifier,
+            issue_description=issue.description or "",
+            actor=actor,
+            requestor=requestor_login,
+            project=project,
+        )
+        if updated is not None:
+            logger.info(
+                "Recorded intake approval for %s from existing comment by %s",
+                issue.identifier,
+                actor,
+            )
+            return updated
+
+    return None
+
+
 def process_epic_proposal_issue(
     tracker: Any,
     issue: Issue,
@@ -900,6 +1038,7 @@ def process_epic_proposal_issue(
     requestor: str | None = None,
     author: str = "oompah",
     auto_promote: bool = True,
+    project: Any = None,
 ) -> EpicProposalEnsureResult | EpicProposalApplyResult | IntakeValidationProcessResult | None:
     """Run intake validation and decomposition handling for one Proposed issue."""
     validation = validate_issue(
@@ -908,13 +1047,19 @@ def process_epic_proposal_issue(
         issue_type=issue.issue_type,
         labels=issue.labels,
     )
-    ensured = ensure_epic_proposal(
-        tracker,
-        issue,
-        validation_result=validation,
-        requestor=requestor,
-        author=author,
-    )
+    has_children = _issue_has_children(tracker, issue)
+    if has_children:
+        return None
+
+    ensured = None
+    if not _is_epic_issue(issue):
+        ensured = ensure_epic_proposal(
+            tracker,
+            issue,
+            validation_result=validation,
+            requestor=requestor,
+            author=author,
+        )
     if ensured is None:
         requested_actor = (
             requestor
@@ -947,6 +1092,16 @@ def process_epic_proposal_issue(
             promoted=promoted,
         )
 
+    record_approval_from_existing_comments(
+        tracker,
+        issue,
+        requestor=(
+            requestor
+            or getattr(issue, "requestor_login", None)
+            or getattr(issue, "author", None)
+        ),
+        project=project,
+    )
     readiness = _load_readiness(tracker, issue.identifier)
     if readiness.decomposition_status == DecompositionStatus.ACCEPTED:
         return apply_epic_proposal(tracker, issue, require_accepted=True, author=author)

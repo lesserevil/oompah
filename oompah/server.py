@@ -246,25 +246,12 @@ async def _lifespan(app: "FastAPI"):  # noqa: F821 – forward ref ok
     # can reach it.
     set_orchestrator(services.orchestrator)
 
-    # Wire forwarder health alerts into the orchestrator.
-    def _on_forwarder_status(status: dict) -> None:
-        orch = services.orchestrator
-        orch._alerts = [
-            a for a in orch._alerts if a.get("source") != "webhook_forwarder"
-        ]
-        if not status.get("available"):
-            detail = status.get("detail") or "gh-webhook extension unavailable"
-            orch._alerts.append({
-                "level": "warning",
-                "source": "webhook_forwarder",
-                "message": (
-                    f"Webhooks degraded: {detail}. "
-                    "Install with `make install-gh-extensions`. "
-                    "Falling back to periodic full-sync (slower)."
-                ),
-            })
+    from oompah.bootstrap import attach_webhook_forwarder_alerts
 
-    services.webhook_forwarder._status_callback = _on_forwarder_status
+    attach_webhook_forwarder_alerts(
+        services.orchestrator,
+        services.webhook_forwarder,
+    )
     await services.webhook_forwarder.start()
 
     # Workflow file watcher task.

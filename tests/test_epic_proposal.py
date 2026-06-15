@@ -11,6 +11,7 @@ from oompah.epic_proposal import (
     build_epic_proposal_comment,
     ensure_epic_proposal,
     generate_epic_proposal,
+    process_epic_proposal_issue,
 )
 from oompah.intake_schema import (
     DecompositionStatus,
@@ -123,6 +124,13 @@ class FakeTracker:
     def fetch_issue_detail(self, identifier: str) -> Issue | None:
         return self.issues.get(identifier)
 
+    def fetch_children(self, epic_id: str) -> list[Issue]:
+        return [
+            issue
+            for issue in self.issues.values()
+            if (issue.parent_id or "") == epic_id
+        ]
+
     def update_issue(self, identifier: str, **fields: object) -> None:
         self.update_calls.append((identifier, dict(fields)))
         issue = self.issues[identifier]
@@ -234,15 +242,32 @@ def test_ensure_epic_proposal_suppresses_existing_matching_comment_without_metad
     assert EPIC_PROPOSAL_METADATA_KEY in tracker.metadata[source.identifier]
 
 
-def test_ensure_epic_proposal_skips_existing_epic_children():
-    source = _source_issue(parent_id="example-org/oompah#400")
-    tracker = FakeTracker([source])
+def test_ensure_epic_proposal_skips_issues_that_already_have_children():
+    source = _source_issue()
+    child = _source_issue(
+        id="example-org/oompah#501",
+        identifier="example-org/oompah#501",
+        title="Child task under existing epic",
+        parent_id=source.identifier,
+    )
+    tracker = FakeTracker([source, child])
 
     result = ensure_epic_proposal(tracker, source, requestor="alice")
 
     assert result is None
     assert tracker.comments == []
     assert source.identifier not in tracker.metadata
+
+
+def test_ensure_epic_proposal_allows_child_leaf_decomposition():
+    source = _source_issue(parent_id="example-org/oompah#400")
+    tracker = FakeTracker([source])
+
+    result = ensure_epic_proposal(tracker, source, requestor="alice")
+
+    assert result is not None
+    assert result.created is True
+    assert tracker.comments
 
 
 def test_apply_accepted_proposal_creates_proposed_epic_and_linked_children():
@@ -296,6 +321,83 @@ def test_apply_same_proposal_does_not_duplicate_child_tasks():
     assert second.duplicate_suppressed is True
     assert len(tracker.create_calls) == create_count
     assert second.child_identifiers == first.child_identifiers
+
+
+def test_process_epic_proposal_applies_approval_found_by_polling_comments():
+    source = _source_issue(requestor_login="alice")
+    tracker = FakeTracker([source])
+    tracker.comments.append((source.identifier, "/oompah approve", "alice"))
+
+    result = process_epic_proposal_issue(
+        tracker,
+        source,
+        requestor="alice",
+    )
+
+    assert result is not None
+    assert getattr(result, "created_child_count", 0) > 0
+    assert tracker.issues[source.identifier].state == DECOMPOSED
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.requestor_approved is True
+    assert readiness.decomposition_status == DecompositionStatus.ACCEPTED
+
+
+def test_process_epic_proposal_ignores_approved_typo_in_polling_comments():
+    source = _source_issue(requestor_login="alice")
+    tracker = FakeTracker([source])
+    tracker.comments.append((source.identifier, "/oompah approved", "alice"))
+
+    result = process_epic_proposal_issue(
+        tracker,
+        source,
+        requestor="alice",
+    )
+
+    assert result is not None
+    assert getattr(result, "created_child_count", 0) == 0
+    assert tracker.issues[source.identifier].state == PROPOSED
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    assert readiness.requestor_approved is False
+    assert readiness.decomposition_status == DecompositionStatus.PROPOSED
+
+
+def test_process_epic_proposal_skips_parent_nodes_with_children():
+    source = _source_issue()
+    child = _source_issue(
+        id="example-org/oompah#501",
+        identifier="example-org/oompah#501",
+        title="Child task under existing parent",
+        parent_id=source.identifier,
+    )
+    tracker = FakeTracker([source, child])
+    tracker.comments.append((source.identifier, "/oompah approve", "alice"))
+
+    result = process_epic_proposal_issue(
+        tracker,
+        source,
+        requestor="alice",
+    )
+
+    assert result is None
+    assert tracker.issues[source.identifier].state == PROPOSED
+    assert source.identifier not in tracker.metadata
+
+
+def test_apply_child_leaf_decomposition_links_generated_epic_under_original_parent():
+    source = _source_issue(parent_id="example-org/oompah#400")
+    tracker = FakeTracker([source])
+    ensure_epic_proposal(tracker, source, requestor="alice")
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    readiness.decomposition_status = DecompositionStatus.ACCEPTED
+    tracker.set_metadata_field(source.identifier, "oompah.intake", intake_to_raw(readiness))
+
+    result = apply_epic_proposal(tracker, source)
+
+    assert result.epic_identifier is not None
+    assert tracker.issues[result.epic_identifier].parent_id == "example-org/oompah#400"
+    assert (result.epic_identifier, "example-org/oompah#400") in tracker.parent_links
 
 
 def test_apply_changed_proposal_updates_existing_epic_and_children():

@@ -10918,6 +10918,7 @@ class Orchestrator:
                 else self.tracker
             )
             auto_promote = True
+            project = None
             if issue.project_id:
                 try:
                     project = self.project_store.get(issue.project_id)
@@ -10930,6 +10931,7 @@ class Orchestrator:
                     tracker,
                     issue,
                     auto_promote=auto_promote,
+                    project=project,
                 )
             except Exception as exc:  # noqa: BLE001
                 metrics["error_count"] += 1

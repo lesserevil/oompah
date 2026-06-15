@@ -663,6 +663,7 @@ def match_project_by_repo(
 import asyncio
 import os
 import shutil
+from datetime import datetime, timezone
 
 from oompah.scm import extract_repo_slug
 
@@ -776,6 +777,10 @@ class _ForwarderProcess:
         "restart_attempts",
         "stderr_task",
         "last_stderr",
+        "last_error",
+        "last_error_at",
+        "disabled",
+        "disabled_reason",
     )
 
     def __init__(
@@ -801,6 +806,76 @@ class _ForwarderProcess:
         # _WEBHOOK_STDERR_TAIL_BYTES). Useful for surfacing auth or
         # extension-install errors when the process crashes.
         self.last_stderr: str = ""
+        self.last_error: str = ""
+        self.last_error_at: str = ""
+        self.disabled: bool = False
+        self.disabled_reason: str = ""
+
+
+def _is_fatal_forwarder_error(detail: str) -> bool:
+    """Return true when retrying the same gh-webhook invocation is pointless."""
+    text = (detail or "").lower()
+    if not text:
+        return False
+    if "http 404" in text or "not found" in text:
+        return True
+    if "http 403" in text or "permission denied" in text:
+        return True
+    if "could not resolve to a repository" in text:
+        return True
+    if "repository not found" in text:
+        return True
+    return False
+
+
+def _truncate_error_detail(detail: str, limit: int = 500) -> str:
+    """Keep alert/log details readable without storing large stderr tails."""
+    text = " ".join((detail or "").strip().split())
+    if len(text) <= limit:
+        return text
+    return text[: max(limit - 1, 0)].rstrip(" ,.;:-") + "..."
+
+
+def build_webhook_forwarder_alerts(status: dict[str, Any]) -> list[dict[str, str]]:
+    """Build dashboard alerts from a :class:`WebhookForwarder` status snapshot."""
+    alerts: list[dict[str, str]] = []
+    if not status.get("available"):
+        detail = str(status.get("detail") or "gh-webhook extension unavailable")
+        alerts.append({
+            "level": "warning",
+            "source": "webhook_forwarder",
+            "message": (
+                f"Webhooks degraded: {detail}. "
+                "Install with `make install-gh-extensions`. "
+                "Polling backup is active, but updates may be delayed."
+            ),
+        })
+
+    projects = status.get("projects") or {}
+    if isinstance(projects, dict):
+        for project_id, project_status in projects.items():
+            if not isinstance(project_status, dict):
+                continue
+            error = str(project_status.get("last_error") or "").strip()
+            if not error:
+                continue
+            name = str(project_status.get("name") or project_id)
+            disabled = bool(project_status.get("disabled"))
+            action = (
+                "The forwarder stopped retrying for this project until the "
+                "repo URL, repo path, or token changes."
+                if disabled
+                else "The forwarder will keep retrying with backoff."
+            )
+            alerts.append({
+                "level": "error" if disabled else "warning",
+                "source": f"webhook_forwarder:{project_id}",
+                "message": (
+                    f"Webhook forwarding failed for {name}: {error}. "
+                    f"{action} Polling backup is active."
+                ),
+            })
+    return alerts
 
 
 class WebhookForwarder:
@@ -906,9 +981,15 @@ class WebhookForwarder:
                 "running": fp.process is not None and fp.process.returncode is None,
                 "restart_attempts": fp.restart_attempts,
                 "last_stderr": fp.last_stderr,
+                "last_error": fp.last_error,
+                "last_error_at": fp.last_error_at,
+                "disabled": fp.disabled,
+                "disabled_reason": fp.disabled_reason,
             }
         return {
             "running": self.is_running,
+            "available": bool(self._extension_available),
+            "detail": self._extension_detail,
             "extension_available": self._extension_available,
             "extension_detail": self._extension_detail,
             "events": self._events,
@@ -964,12 +1045,42 @@ class WebhookForwarder:
         if self._status_callback is None:
             return
         try:
-            self._status_callback({
-                "available": bool(self._extension_available),
-                "detail": self._extension_detail,
-            })
+            self._status_callback(self.status)
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning("WebhookForwarder status_callback raised: %s", exc)
+
+    def _record_project_error(
+        self,
+        fp: _ForwarderProcess,
+        detail: str,
+        *,
+        fatal: bool | None = None,
+    ) -> None:
+        """Record and surface the latest per-project forwarder error."""
+        clean_detail = _truncate_error_detail(detail) or "unknown error"
+        if fatal is None:
+            fatal = _is_fatal_forwarder_error(clean_detail)
+        fp.last_error = clean_detail
+        fp.last_error_at = datetime.now(timezone.utc).isoformat()
+        if fatal:
+            fp.disabled = True
+            fp.disabled_reason = clean_detail
+            logger.error(
+                "WebhookForwarder: disabling webhook forwarding for project %s: %s",
+                fp.project_name,
+                clean_detail,
+            )
+        self._notify_status()
+
+    def _clear_project_error(self, fp: _ForwarderProcess) -> None:
+        """Clear a prior project error once the configuration changes or runs."""
+        if not (fp.last_error or fp.disabled or fp.disabled_reason):
+            return
+        fp.last_error = ""
+        fp.last_error_at = ""
+        fp.disabled = False
+        fp.disabled_reason = ""
+        self._notify_status()
 
     async def stop(self) -> None:
         """Stop the forwarder and terminate all subprocesses.
@@ -1024,10 +1135,14 @@ class WebhookForwarder:
                 )
             else:
                 fp = self._processes[project.id]
+                old_config = (fp.repo_path, fp.repo_slug, fp.access_token)
+                new_config = (project.repo_path, repo_slug, access_token)
                 fp.project_name = project.name
                 fp.repo_path = project.repo_path
                 fp.repo_slug = repo_slug
                 fp.access_token = access_token
+                if old_config != new_config:
+                    self._clear_project_error(fp)
 
         # Remove stale entries for deleted projects.
         stale = set(self._processes) - live_ids
@@ -1042,6 +1157,9 @@ class WebhookForwarder:
 
     async def _check_and_restart(self, fp: _ForwarderProcess) -> None:
         """Check one project's process and restart it if dead."""
+        if fp.disabled:
+            return
+
         proc = fp.process
 
         if proc is not None:
@@ -1054,6 +1172,7 @@ class WebhookForwarder:
             if rc is None:
                 # Still running.
                 fp.restart_delay_s = _WEBHOOK_BASE_DELAY_S
+                self._clear_project_error(fp)
                 return
 
             # Process has exited.
@@ -1096,12 +1215,19 @@ class WebhookForwarder:
         # operator; the dashboard banner keeps the state visible.
         if self._extension_available is False:
             return
+        if fp.disabled:
+            return
 
         repo_path = fp.repo_path
         if not repo_path or not os.path.isdir(repo_path):
             logger.debug(
                 "WebhookForwarder: skipping project %s (no repo_path or dir not found)",
                 fp.project_name,
+            )
+            self._record_project_error(
+                fp,
+                "configured repo_path is missing or not a directory",
+                fatal=True,
             )
             return
 
@@ -1110,12 +1236,22 @@ class WebhookForwarder:
                 "WebhookForwarder: skipping project %s (not a git repo)",
                 fp.project_name,
             )
+            self._record_project_error(
+                fp,
+                "configured repo_path is not a Git worktree",
+                fatal=True,
+            )
             return
 
         if not fp.repo_slug:
             logger.warning(
                 "WebhookForwarder: skipping project %s (could not determine repo slug)",
                 fp.project_name,
+            )
+            self._record_project_error(
+                fp,
+                "could not determine GitHub repo slug from project repo_url",
+                fatal=True,
             )
             return
 
@@ -1125,6 +1261,8 @@ class WebhookForwarder:
 
         if fp.restart_attempts > 0:
             await self._cleanup_existing_forwarder_hooks(fp, env)
+            if fp.disabled:
+                return
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -1143,6 +1281,7 @@ class WebhookForwarder:
                 stderr=asyncio.subprocess.PIPE,
             )
             fp.process = proc
+            self._clear_project_error(fp)
             # Reset stderr buffer for the new invocation and start the
             # background drainer. Capturing stderr is critical for
             # surfacing install/auth issues — without it, a process
@@ -1161,6 +1300,7 @@ class WebhookForwarder:
                 "WebhookForwarder: 'gh' CLI not found — skipping project %s",
                 fp.project_name,
             )
+            self._record_project_error(fp, "'gh' CLI not found on PATH", fatal=True)
             fp.process = None
         except Exception as exc:
             logger.warning(
@@ -1168,6 +1308,7 @@ class WebhookForwarder:
                 fp.project_name,
                 exc,
             )
+            self._record_project_error(fp, str(exc), fatal=None)
             fp.process = None
 
     async def _cleanup_existing_forwarder_hooks(
@@ -1198,11 +1339,17 @@ class WebhookForwarder:
             ),
         )
         if rc != 0:
+            detail = _short_process_error(stdout, stderr)
             logger.warning(
                 "WebhookForwarder: could not inspect existing gh-webhook hooks "
                 "for project %s: %s",
                 fp.project_name,
-                _short_process_error(stdout, stderr),
+                detail,
+            )
+            self._record_project_error(
+                fp,
+                detail,
+                fatal=_is_fatal_forwarder_error(detail),
             )
             return
 
@@ -1222,12 +1369,18 @@ class WebhookForwarder:
                     fp.project_name,
                 )
             else:
+                detail = _short_process_error(delete_stdout, delete_stderr)
                 logger.warning(
                     "WebhookForwarder: failed to remove stale gh-webhook hook %s "
                     "for project %s: %s",
                     hook_id,
                     fp.project_name,
-                    _short_process_error(delete_stdout, delete_stderr),
+                    detail,
+                )
+                self._record_project_error(
+                    fp,
+                    detail,
+                    fatal=_is_fatal_forwarder_error(detail),
                 )
 
     async def _run_gh_api(
@@ -1311,12 +1464,18 @@ class WebhookForwarder:
         # If the process exited badly, log the captured tail so the
         # operator can see auth/install errors in oompah.log.
         if rc not in (None, 0) and fp.last_stderr:
+            detail = _short_process_error("", fp.last_stderr)
             logger.warning(
                 "WebhookForwarder: gh webhook forward stderr for project %s "
                 "(exit=%d): %s",
                 fp.project_name,
                 rc,
                 fp.last_stderr.strip(),
+            )
+            self._record_project_error(
+                fp,
+                detail,
+                fatal=_is_fatal_forwarder_error(fp.last_stderr),
             )
 
     async def _terminate(self, project_id: str) -> None:

@@ -78,6 +78,27 @@ class Services:
     workflow: object  # oompah.config.WorkflowDefinition, typed loosely
 
 
+def attach_webhook_forwarder_alerts(
+    orchestrator: "Orchestrator",
+    webhook_forwarder: "WebhookForwarder",
+) -> None:
+    """Route webhook-forwarder health updates into orchestrator alerts."""
+    from oompah.webhooks import build_webhook_forwarder_alerts
+
+    def _on_forwarder_status(status: dict[str, Any]) -> None:
+        orchestrator._alerts = [
+            alert
+            for alert in orchestrator._alerts
+            if not (
+                str(alert.get("source", "")) == "webhook_forwarder"
+                or str(alert.get("source", "")).startswith("webhook_forwarder:")
+            )
+        ]
+        orchestrator._alerts.extend(build_webhook_forwarder_alerts(status))
+
+    webhook_forwarder._status_callback = _on_forwarder_status
+
+
 async def setup_services(
     workflow_path: str,
     cli_port: int | None = None,
@@ -296,6 +317,7 @@ async def setup_services(
         role_store=role_store,
     )
     orchestrator.set_prompt_template(workflow.prompt_template)
+    attach_webhook_forwarder_alerts(orchestrator, webhook_forwarder)
     if label_bootstrap_results:
         from oompah.label_bootstrap import build_label_bootstrap_alerts
 
