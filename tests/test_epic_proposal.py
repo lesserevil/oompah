@@ -270,6 +270,28 @@ def test_ensure_epic_proposal_allows_child_leaf_decomposition():
     assert tracker.comments
 
 
+def test_ensure_epic_proposal_skips_generated_decomposition_children():
+    source = _source_issue(
+        parent_id="example-org/oompah#400",
+        description=(
+            _oversized_description()
+            + "\n\n## Decomposition\n"
+            + "- Epic proposal fingerprint: `"
+            + ("a" * 64)
+            + "`\n"
+            + "- Source issue: example-org/oompah#123"
+        ),
+    )
+    tracker = FakeTracker([source])
+
+    result = ensure_epic_proposal(tracker, source, requestor="alice")
+
+    assert result is None
+    assert tracker.create_calls == []
+    assert tracker.comments == []
+    assert source.identifier not in tracker.metadata
+
+
 def test_apply_accepted_proposal_creates_proposed_epic_and_linked_children():
     source = _source_issue()
     tracker = FakeTracker([source])
@@ -388,6 +410,35 @@ def test_process_epic_proposal_auto_decomposes_yolo_project_without_approval():
     assert "Proposed Child Tasks" not in tracker.comments[0][1]
 
 
+def test_process_epic_proposal_does_not_re_decompose_generated_child_in_yolo_project():
+    source = _source_issue(
+        requestor_login="alice",
+        parent_id="example-org/oompah#400",
+        description=(
+            _oversized_description()
+            + "\n\n## Decomposition\n"
+            + "- Epic proposal fingerprint: `"
+            + ("a" * 64)
+            + "`\n"
+            + "- Source issue: example-org/oompah#123"
+        ),
+    )
+    tracker = FakeTracker([source])
+
+    result = process_epic_proposal_issue(
+        tracker,
+        source,
+        requestor="alice",
+        project=SimpleNamespace(yolo=True),
+    )
+
+    assert result is not None
+    assert getattr(result, "created_child_count", 0) == 0
+    assert tracker.create_calls == []
+    assert tracker.issues[source.identifier].state == PROPOSED
+    assert tracker.comments == []
+
+
 def test_process_epic_proposal_skips_parent_nodes_with_children():
     source = _source_issue()
     child = _source_issue(
@@ -495,6 +546,32 @@ def test_orchestrator_auto_decomposes_oversized_proposed_issues_for_yolo_project
     assert orch._last_epic_proposal_metrics["created_count"] == 0
     assert orch._last_epic_proposal_metrics["applied_count"] == 1
     assert orch._last_epic_proposal_metrics["comment_posted_count"] == 0
+
+
+def test_orchestrator_skips_proposed_intake_for_paused_projects():
+    source = _source_issue(project_id="proj")
+    project = SimpleNamespace(
+        id="proj",
+        yolo=True,
+        intake_auto_promote=True,
+        paused=True,
+    )
+    tracker = FakeTracker([source])
+    orch = Orchestrator.__new__(Orchestrator)
+    orch.project_store = MagicMock()
+    orch.project_store.list_all.return_value = [project]
+    orch.project_store.get.return_value = project
+    orch._tracker_for_project = MagicMock(return_value=tracker)
+    orch.tracker = tracker
+
+    processed = orch._process_epic_proposals()
+
+    assert processed == []
+    orch._tracker_for_project.assert_not_called()
+    assert tracker.metadata == {}
+    assert tracker.create_calls == []
+    assert tracker.comments == []
+    assert orch._last_epic_proposal_metrics["proposed_count"] == 0
 
 
 def test_orchestrator_records_validation_guidance_for_small_proposed_bug():

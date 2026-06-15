@@ -10877,6 +10877,8 @@ class Orchestrator:
 
         proposed: list[Issue] = []
         for project in projects:
+            if getattr(project, "paused", False):
+                continue
             try:
                 tracker = self._tracker_for_project(project.id)
                 issues = tracker.fetch_issues_by_states([PROPOSED])

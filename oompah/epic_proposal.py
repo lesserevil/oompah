@@ -50,6 +50,10 @@ _AC_HEADING_RE = re.compile(
     r"^#{1,6}\s+(?:acceptance criteria|success criteria|definition of done|done criteria|ac)\b.*$",
     re.IGNORECASE | re.MULTILINE,
 )
+_DECOMPOSITION_FINGERPRINT_RE = re.compile(
+    r"Epic proposal fingerprint:\s*`?[0-9a-f]{64}`?",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -609,6 +613,16 @@ def _is_epic_issue(issue: Issue) -> bool:
     return (issue.issue_type or "task").strip().lower() == "epic"
 
 
+def _is_generated_decomposition_issue(issue: Issue) -> bool:
+    """Return true for issues created as children of a decomposition proposal."""
+    body = str(issue.description or "")
+    return (
+        "## Decomposition" in body
+        and "Source issue:" in body
+        and _DECOMPOSITION_FINGERPRINT_RE.search(body) is not None
+    )
+
+
 def should_propose_epic_decomposition(
     validation_result: ValidationResult,
     issue: Issue,
@@ -617,6 +631,7 @@ def should_propose_epic_decomposition(
     return (
         validation_result.scope == ScopeClassification.EPIC_NEEDED
         and not _is_epic_issue(issue)
+        and not _is_generated_decomposition_issue(issue)
     )
 
 
