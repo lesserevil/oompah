@@ -66,7 +66,7 @@ Use Makefile targets.
     assert "This project is managed by **oompah**" in updated
     assert "oompah task view <owner/repo#number>" in updated
     assert "uv tool install" in updated
-    assert "OOMPAH_SERVER_PORT=<port>" in updated
+    assert "OOMPAH_SERVER_URL=http://127.0.0.1:<port>" in updated
     assert "## Other Rules" in updated
     assert updated.count("BEGIN OOMPAH GITHUB ISSUES INTEGRATION") == 1
     assert updated.count("This project is managed by **oompah**") == 1
@@ -117,7 +117,7 @@ def test_rendered_github_instructions_make_cli_optional_with_fallbacks():
     assert "oompah server that manages this project" in rendered
     assert "uv tool install" in rendered
     assert "pipx install" in rendered
-    assert "OOMPAH_SERVER_PORT=<port>" in rendered
+    assert "OOMPAH_SERVER_URL=http://127.0.0.1:<port>" in rendered
     assert "oompah task --server http://127.0.0.1:<port>" in rendered
     assert "GitHub Fallback" in rendered
     assert "GitHub's structured sub-issue/parent relationship" in rendered

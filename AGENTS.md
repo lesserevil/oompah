@@ -22,7 +22,7 @@ server:
 uv tool install "git+https://github.com/lesserevil/oompah@<tag>"
 pipx install "git+https://github.com/lesserevil/oompah@<tag>"
 oompah task --help
-OOMPAH_SERVER_PORT=<port> oompah task view <owner/repo#number>
+OOMPAH_SERVER_URL=http://127.0.0.1:<port> oompah task view <owner/repo#number>
 oompah task --server http://127.0.0.1:<port> view <owner/repo#number>
 ```
 

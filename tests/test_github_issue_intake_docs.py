@@ -186,7 +186,7 @@ class TestAgentsMdGitHubIssuesGuidance:
         assert "Prefer the `oompah task` CLI only when it is installed" in self._content
         assert "Use these commands only after the CLI is installed" in self._content
         assert "uv tool install" in self._content
-        assert "OOMPAH_SERVER_PORT=<port>" in self._content
+        assert "OOMPAH_SERVER_URL=http://127.0.0.1:<port>" in self._content
         assert "GitHub Fallback" in self._content
 
     def test_includes_structured_github_metadata_fallbacks(self):

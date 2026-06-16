@@ -1,7 +1,7 @@
 """Tests for oompah/task_cli.py — the tracker-neutral task command wrapper.
 
 Covers:
-  - _resolve_server_url: env var, port override, explicit server URL
+  - _resolve_server_url: URL env var, port override, explicit server URL
   - _http: connection error, timeout, 4xx/5xx errors, success
   - _encode_id: slash/hash encoding
   - _print_issue_detail: formatting
@@ -13,7 +13,7 @@ Covers:
   - _cmd_add_label: correct endpoint, body
   - _cmd_remove_label: query-param identifier, encoded label
   - _cmd_set_dependency: correct endpoint, body
-  - main(): dispatch table, --port flag, argparse help
+  - main(): dispatch table, --server/--port flags, argparse help
   - __main__.py: task subcommand dispatch
 """
 
@@ -55,43 +55,34 @@ def _make_args(**kwargs):
 
 class TestResolveServerUrl:
     def test_default_returns_localhost_8080(self, monkeypatch):
-        monkeypatch.delenv("OOMPAH_SERVER_PORT", raising=False)
-        monkeypatch.delenv("OOMPAH_SERVER_HOST", raising=False)
+        monkeypatch.delenv("OOMPAH_SERVER_URL", raising=False)
         assert task_cli._resolve_server_url(None, None) == "http://127.0.0.1:8080"
 
     def test_explicit_server_wins(self, monkeypatch):
-        monkeypatch.setenv("OOMPAH_SERVER_PORT", "9999")
+        monkeypatch.setenv("OOMPAH_SERVER_URL", "http://env.example:9999")
         result = task_cli._resolve_server_url("http://example.com:1234", None)
         assert result == "http://example.com:1234"
 
     def test_explicit_server_trailing_slash_stripped(self):
         assert task_cli._resolve_server_url("http://example.com/", None) == "http://example.com"
 
-    def test_port_override(self, monkeypatch):
-        monkeypatch.delenv("OOMPAH_SERVER_HOST", raising=False)
+    def test_port_override_uses_localhost(self, monkeypatch):
+        monkeypatch.delenv("OOMPAH_SERVER_URL", raising=False)
         result = task_cli._resolve_server_url(None, 9090)
         assert result == "http://127.0.0.1:9090"
 
-    def test_env_port(self, monkeypatch):
-        monkeypatch.setenv("OOMPAH_SERVER_PORT", "7777")
-        monkeypatch.delenv("OOMPAH_SERVER_HOST", raising=False)
+    def test_env_server_url(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_SERVER_URL", "http://10.0.0.1:7777")
         result = task_cli._resolve_server_url(None, None)
-        assert result == "http://127.0.0.1:7777"
+        assert result == "http://10.0.0.1:7777"
 
-    def test_env_host(self, monkeypatch):
-        monkeypatch.setenv("OOMPAH_SERVER_HOST", "10.0.0.1")
-        monkeypatch.delenv("OOMPAH_SERVER_PORT", raising=False)
+    def test_env_server_url_trailing_slash_stripped(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_SERVER_URL", "http://10.0.0.1:7777/")
         result = task_cli._resolve_server_url(None, None)
-        assert result == "http://10.0.0.1:8080"
+        assert result == "http://10.0.0.1:7777"
 
-    def test_invalid_env_port_falls_back_to_8080(self, monkeypatch):
-        monkeypatch.setenv("OOMPAH_SERVER_PORT", "not-a-number")
-        monkeypatch.delenv("OOMPAH_SERVER_HOST", raising=False)
-        result = task_cli._resolve_server_url(None, None)
-        assert result == "http://127.0.0.1:8080"
-
-    def test_port_override_takes_precedence_over_env(self, monkeypatch):
-        monkeypatch.setenv("OOMPAH_SERVER_PORT", "9999")
+    def test_port_override_takes_precedence_over_env_url(self, monkeypatch):
+        monkeypatch.setenv("OOMPAH_SERVER_URL", "http://env.example:9999")
         result = task_cli._resolve_server_url(None, 1234)
         assert "1234" in result
 

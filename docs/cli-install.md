@@ -74,12 +74,13 @@ with the oompah server.  The server URL defaults to `http://127.0.0.1:8080`;
 override it with:
 
 ```bash
-# Override just the port (server runs on localhost)
-OOMPAH_SERVER_PORT=9000 oompah task view owner/repo#123
-# or
+# Override the full server URL
+OOMPAH_SERVER_URL=http://127.0.0.1:9000 oompah task view owner/repo#123
+
+# Override just the port for a single command (server runs on localhost)
 oompah task --port 9000 view owner/repo#123
 
-# Override the full server URL (e.g. remote or non-default host)
+# Override the full server URL for a single command
 oompah task --server http://192.168.1.10:8080 view owner/repo#123
 ```
 

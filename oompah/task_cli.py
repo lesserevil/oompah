@@ -52,22 +52,17 @@ def _resolve_server_url(
 ) -> str:
     """Return the base URL for the local oompah server.
 
-    Priority: explicit --server flag > --port flag > OOMPAH_SERVER_PORT env
-    variable > default port 8080.  The host is always taken from
-    OOMPAH_SERVER_HOST (default ``127.0.0.1``) unless a full URL is given
-    via ``--server``.
+    Priority: explicit --server flag > --port flag > OOMPAH_SERVER_URL env
+    variable > default ``http://127.0.0.1:8080``.
     """
     if server_override:
         return server_override.rstrip("/")
-    host = os.environ.get("OOMPAH_SERVER_HOST", "127.0.0.1")
-    port = port_override
-    if port is None:
-        env_port = os.environ.get("OOMPAH_SERVER_PORT", "").strip()
-        try:
-            port = int(env_port) if env_port else 8080
-        except ValueError:
-            port = 8080
-    return f"http://{host}:{port}"
+    if port_override is not None:
+        return f"http://127.0.0.1:{port_override}"
+    env_url = os.environ.get("OOMPAH_SERVER_URL", "").strip()
+    if env_url:
+        return env_url.rstrip("/")
+    return "http://127.0.0.1:8080"
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +122,7 @@ def _http(
         sys.exit(
             f"ERROR: Cannot connect to oompah server at {base_url}.\n"
             "Is the server running?  Start it with: make start\n"
-            "Override the port with --port or OOMPAH_SERVER_PORT."
+            "Override the server with --server, --port, or OOMPAH_SERVER_URL."
         )
     except _httpx.TimeoutException:
         sys.exit(
@@ -436,8 +431,8 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Tracker-neutral task operations.\n\n"
             "Calls the local oompah server API and works for both GitHub Issues "
-            "and legacy Backlog trackers.  Set OOMPAH_SERVER_PORT (default 8080) "
-            "or use --port to point at a non-default server."
+            "and legacy Backlog trackers.  Set OOMPAH_SERVER_URL or use "
+            "--server/--port to point at a non-default server."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -447,7 +442,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="URL",
         help=(
             "oompah server base URL, e.g. http://127.0.0.1:8080. "
-            "Overrides --port and OOMPAH_SERVER_PORT."
+            "Overrides --port and OOMPAH_SERVER_URL."
         ),
     )
     parser.add_argument(
@@ -455,7 +450,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="N",
-        help="oompah server port (default: OOMPAH_SERVER_PORT env or 8080)",
+        help="oompah server port on localhost (default: 8080)",
     )
 
     sub = parser.add_subparsers(dest="subcommand", required=True)
