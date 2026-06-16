@@ -68,9 +68,15 @@ from oompah.statuses import (
 from oompah.tracker import (
     TrackerError,
     TrackerTimeoutError,
+    _backlog_priority_int,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _priority_label_value(priority: Any) -> int | None:
+    """Return the numeric value for a GitHub ``priority:N`` label."""
+    return _backlog_priority_int(priority)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1866,7 +1872,7 @@ class GitHubIssueTracker:
         title: str,
         issue_type: str = "task",
         description: str | None = None,
-        priority: int | None = None,
+        priority: Any = None,
         initial_status: str | None = None,
         labels: list[str] | None = None,
         parent: str | None = None,
@@ -1874,8 +1880,9 @@ class GitHubIssueTracker:
         """Create a new GitHub issue and return the normalized Issue record.
 
         The initial status is encoded as an ``oompah:status:*`` label.
-        Priority is encoded as a ``priority:N`` label.  Issue type (when
-        non-default) is encoded as a ``type:<kind>`` label.  User-supplied
+        Priority is encoded as a ``priority:N`` label and may be supplied as a
+        numeric value or tracker-neutral name such as ``high``.  Issue type
+        (when non-default) is encoded as a ``type:<kind>`` label. User-supplied
         labels are appended verbatim.
 
         Returns
@@ -1892,7 +1899,9 @@ class GitHubIssueTracker:
 
         # Priority label.
         if priority is not None:
-            all_labels.append(f"priority:{int(priority)}")
+            pri_int = _priority_label_value(priority)
+            if pri_int is not None:
+                all_labels.append(f"priority:{pri_int}")
 
         # Issue type label (omit default "task" to keep issues uncluttered).
         if issue_type and issue_type != "task":
@@ -2563,9 +2572,8 @@ class GitHubIssueTracker:
         result = [name for name in labels if not name.startswith("priority:")]
         if priority is None:
             return result
-        try:
-            pri_int = int(priority)
-        except (ValueError, TypeError):
+        pri_int = _priority_label_value(priority)
+        if pri_int is None:
             logger.debug(
                 "GitHub _labels_with_priority: cannot coerce %r to int, skipping",
                 priority,
@@ -2656,9 +2664,8 @@ class GitHubIssueTracker:
                 except TrackerError:
                     pass
         if priority is not None:
-            try:
-                pri_int = int(priority)
-            except (ValueError, TypeError):
+            pri_int = _priority_label_value(priority)
+            if pri_int is None:
                 logger.debug(
                     "GitHub _set_priority_label: cannot coerce %r to int, skipping",
                     priority,

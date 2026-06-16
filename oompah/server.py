@@ -88,6 +88,7 @@ from oompah.intake_schema import parse_intake_metadata
 from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
+from oompah.tracker import _backlog_priority_int
 from oompah.providers import ProviderStore
 from oompah.roles import Candidate, RoleError, RoleStore, VALID_STRATEGIES, DEFAULT_STRATEGY
 from oompah.statuses import (
@@ -121,6 +122,11 @@ if TYPE_CHECKING:
     from oompah.orchestrator import Orchestrator
 
 logger = logging.getLogger(__name__)
+
+
+def _task_priority_int(value: Any) -> int | None:
+    """Normalize task priority values accepted by tracker-neutral APIs."""
+    return _backlog_priority_int(value)
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _template_cache: dict[str, str] = {}
@@ -2773,7 +2779,7 @@ async def api_create_issue(request: Request):
             title=title,
             issue_type=issue_type,
             description=description,
-            priority=body.get("priority"),
+            priority=_task_priority_int(body.get("priority")),
             initial_status=body.get("status"),
             labels=initial_labels,
             parent=parent_id,
