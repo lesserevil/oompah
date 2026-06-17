@@ -310,6 +310,92 @@ class TestSetupServicesSuccess:
         build_alerts.assert_called_once_with({"proj-gh": bootstrap_result})
         assert bootstrap_alert in mocks["orchestrator"]._alerts
 
+    @pytest.mark.asyncio
+    async def test_missing_root_backlog_is_nonfatal_with_managed_projects(
+        self,
+        tmp_path,
+    ):
+        """GitHub-managed project stores do not require a root Backlog.md config."""
+        from oompah.backlog_compat import BacklogCompatibilityError
+
+        mocks = self._make_mocks()
+        project = MagicMock(name="project")
+        project.id = "proj-gh"
+        project.name = "oompah"
+        project.tracker_kind = "github_issues"
+        mocks["projects"].list_all.return_value = [project]
+        mocks["projects"].sync_all_sources.return_value = {
+            "proj-gh": {"git": "ok", "backlog": "skipped: github_issues"}
+        }
+
+        mock_sc = MagicMock(name="ServiceConfig_class")
+        mock_sc.from_workflow.return_value = mocks["config"]
+
+        with (
+            patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
+            patch(self._PATCHES["ServiceConfig"], mock_sc),
+            patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
+            patch(
+                self._PATCHES["ensure_backlog_compatible"],
+                side_effect=BacklogCompatibilityError(
+                    "No Backlog.md project found in /tmp/repo. Run `backlog init`."
+                ),
+            ),
+            patch(self._PATCHES["ProviderStore"], return_value=MagicMock()),
+            patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
+            patch(self._PATCHES["AgentProfileStore"], return_value=MagicMock()),
+            patch(self._PATCHES["RoleStore"], return_value=mocks["role_store"]),
+            patch(self._PATCHES["migrate_agent_profiles_to_roles"]),
+            patch(
+                self._PATCHES["WebhookForwarder"],
+                return_value=mocks["forwarder"],
+            ),
+            patch(
+                self._PATCHES["Orchestrator"],
+                return_value=mocks["orchestrator"],
+            ),
+            patch("oompah.label_bootstrap.ensure_github_labels", return_value={}),
+            patch(
+                "oompah.backlog_webhooks.ensure_backlog_webhooks",
+                return_value={"proj-gh": "skipped: github_issues"},
+            ),
+        ):
+            from oompah.bootstrap import setup_services
+
+            services = await setup_services(str(tmp_path / "WORKFLOW.md"))
+
+        assert services.project_store is mocks["projects"]
+        assert services.orchestrator is mocks["orchestrator"]
+
+    @pytest.mark.asyncio
+    async def test_missing_root_backlog_remains_fatal_without_managed_projects(
+        self,
+        tmp_path,
+    ):
+        """Legacy single-tracker startup still requires a Backlog.md config."""
+        from oompah.backlog_compat import BacklogCompatibilityError
+        from oompah.bootstrap import StartupError, setup_services
+
+        mocks = self._make_mocks()
+
+        mock_sc = MagicMock(name="ServiceConfig_class")
+        mock_sc.from_workflow.return_value = mocks["config"]
+
+        with (
+            patch(self._PATCHES["load_workflow"], return_value=mocks["workflow"]),
+            patch(self._PATCHES["ServiceConfig"], mock_sc),
+            patch(self._PATCHES["validate_dispatch_config"], return_value=[]),
+            patch(
+                self._PATCHES["ensure_backlog_compatible"],
+                side_effect=BacklogCompatibilityError(
+                    "No Backlog.md project found in /tmp/repo. Run `backlog init`."
+                ),
+            ),
+            patch(self._PATCHES["ProjectStore"], return_value=mocks["projects"]),
+        ):
+            with pytest.raises(StartupError, match="Backlog.md compatibility error"):
+                await setup_services(str(tmp_path / "WORKFLOW.md"))
+
 
 # ---------------------------------------------------------------------------
 # __main__.main() — --server argument parsing

@@ -42,6 +42,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_GITHUB_TRACKER_KINDS = frozenset({"github_issues", "github-issues"})
+_MISSING_BACKLOG_PROJECT_PREFIX = "No Backlog.md project found"
+
 
 class StartupError(RuntimeError):
     """Raised by :func:`setup_services` on config/backlog/profile validation
@@ -97,6 +100,17 @@ def attach_webhook_forwarder_alerts(
         orchestrator._alerts.extend(build_webhook_forwarder_alerts(status))
 
     webhook_forwarder._status_callback = _on_forwarder_status
+
+
+def _is_missing_backlog_project_error(exc: BaseException) -> bool:
+    return str(exc).strip().startswith(_MISSING_BACKLOG_PROJECT_PREFIX)
+
+
+def _root_backlog_check_is_optional(config: Any, projects: list[Any]) -> bool:
+    if projects:
+        return True
+    tracker_kind = str(getattr(config, "tracker_kind", "") or "").strip().lower()
+    return tracker_kind in _GITHUB_TRACKER_KINDS
 
 
 async def setup_services(
@@ -177,7 +191,13 @@ async def setup_services(
         raise StartupError("Config validation failed: " + "; ".join(errors))
 
     # ------------------------------------------------------------------
-    # 3. Backlog.md compatibility check
+    # 3. Load managed-project config before root tracker compatibility
+    # ------------------------------------------------------------------
+    project_store = ProjectStore()
+    projects = project_store.list_all()
+
+    # ------------------------------------------------------------------
+    # 4. Backlog.md compatibility check
     # ------------------------------------------------------------------
     try:
         compat = ensure_backlog_compatible(os.path.dirname(workflow_path))
@@ -188,11 +208,20 @@ async def setup_services(
                 ", ".join(compat.migrations),
             )
     except BacklogCompatibilityError as exc:
-        logger.error("Backlog.md compatibility error: %s", exc)
-        raise StartupError(f"Backlog.md compatibility error: {exc}") from exc
+        if _is_missing_backlog_project_error(exc) and _root_backlog_check_is_optional(
+            config,
+            projects,
+        ):
+            logger.info(
+                "Skipping root Backlog.md compatibility check: %s",
+                exc,
+            )
+        else:
+            logger.error("Backlog.md compatibility error: %s", exc)
+            raise StartupError(f"Backlog.md compatibility error: {exc}") from exc
 
     # ------------------------------------------------------------------
-    # 4. Strict profile-source mode check
+    # 5. Strict profile-source mode check
     # ------------------------------------------------------------------
     if (
         config.strict_profile_source == "strict"
@@ -214,7 +243,7 @@ async def setup_services(
         )
 
     # ------------------------------------------------------------------
-    # 5. Non-fatal drift warning
+    # 6. Non-fatal drift warning
     # ------------------------------------------------------------------
     if config.agent_profiles_drift:
         logger.warning(
@@ -225,15 +254,14 @@ async def setup_services(
         )
 
     # ------------------------------------------------------------------
-    # 6. Resolve port
+    # 7. Resolve port
     # ------------------------------------------------------------------
     port = cli_port or config.server_port
 
     # ------------------------------------------------------------------
-    # 7. Create shared stores
+    # 8. Create shared stores
     # ------------------------------------------------------------------
     provider_store = ProviderStore()
-    project_store = ProjectStore()
     # AgentProfileStore: ServiceConfig.from_workflow already created / migrated
     # the JSON file when it parsed the workflow above.  Re-open the same path
     # here so the orchestrator and the HTTP API share a single in-memory store.
@@ -254,9 +282,8 @@ async def setup_services(
     )
 
     # ------------------------------------------------------------------
-    # 8. Sync managed-project sources before dispatch
+    # 9. Sync managed-project sources before dispatch
     # ------------------------------------------------------------------
-    projects = project_store.list_all()
     if projects:
         logger.info(
             "Syncing sources for %d project(s) before dispatch...",
@@ -273,7 +300,7 @@ async def setup_services(
             )
 
     # ------------------------------------------------------------------
-    # 9. Ensure required GitHub tracker labels per project
+    # 10. Ensure required GitHub tracker labels per project
     # ------------------------------------------------------------------
     label_bootstrap_results: dict[str, Any] = {}
     if projects:
@@ -289,7 +316,7 @@ async def setup_services(
                 logger.warning("GitHub label bootstrap %s: %s", name, status_summary)
 
     # ------------------------------------------------------------------
-    # 10. Ensure Backlog task-change webhook hooks per project
+    # 11. Ensure Backlog task-change webhook hooks per project
     # ------------------------------------------------------------------
     if projects:
         from oompah.backlog_webhooks import ensure_backlog_webhooks
@@ -306,7 +333,7 @@ async def setup_services(
                 logger.warning("Backlog webhook hook %s: %s", name, status)
 
     # ------------------------------------------------------------------
-    # 11. Create orchestrator
+    # 12. Create orchestrator
     # ------------------------------------------------------------------
     orchestrator = Orchestrator(
         config,
