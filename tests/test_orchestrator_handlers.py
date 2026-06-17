@@ -681,7 +681,7 @@ class TestHandleYoloReview:
 
 
 class TestMaybeRunMergedLabels:
-    """_maybe_run_merged_labels() delegates to the maintenance lane gate."""
+    """_maybe_run_merged_labels() delegates merge sweeps to the maintenance gate."""
 
     def _orch(self, tmp_path):
         orch = _make_orchestrator(tmp_path)
@@ -690,11 +690,10 @@ class TestMaybeRunMergedLabels:
         orch._reconcile_in_review_pr_outcomes = MagicMock()
         orch._reconcile_terminal_open_reviews = MagicMock()
         orch._reconcile_stale_in_review_tasks = MagicMock()
-        orch._open_deferred_done_reviews = MagicMock()
         return orch
 
     def test_calls_all_sweeps(self, tmp_path):
-        """_maybe_run_merged_labels calls every merged-label sweep on first run."""
+        """_maybe_run_merged_labels calls every merge-label sweep on first run."""
         orch = self._orch(tmp_path)
         orch._maybe_run_merged_labels()
         orch._label_merged_issues.assert_called_once()
@@ -702,7 +701,6 @@ class TestMaybeRunMergedLabels:
         orch._reconcile_in_review_pr_outcomes.assert_called_once()
         orch._reconcile_terminal_open_reviews.assert_called_once()
         orch._reconcile_stale_in_review_tasks.assert_called_once()
-        orch._open_deferred_done_reviews.assert_called_once()
 
     def test_uses_configured_runtime_budget(self, tmp_path):
         """merged_labels uses its env-backed runtime budget."""
@@ -727,7 +725,6 @@ class TestMaybeRunMergedLabels:
         orch._reconcile_in_review_pr_outcomes.assert_not_called()
         orch._reconcile_terminal_open_reviews.assert_not_called()
         orch._reconcile_stale_in_review_tasks.assert_not_called()
-        orch._open_deferred_done_reviews.assert_not_called()
 
     def test_throttled_on_second_call(self, tmp_path):
         """Second call within interval is coalesced (not executed)."""
@@ -765,12 +762,50 @@ class TestMaybeRunMergedLabels:
 
 
 # ---------------------------------------------------------------------------
+# _maybe_open_deferred_done_reviews
+# ---------------------------------------------------------------------------
+
+
+class TestMaybeOpenDeferredDoneReviews:
+    """Deferred review handoff is independent from merged-label sweeps."""
+
+    def test_runs_as_own_maintenance_job(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch._open_deferred_done_reviews = MagicMock()
+
+        orch._maybe_open_deferred_done_reviews()
+
+        orch._open_deferred_done_reviews.assert_called_once()
+        assert "deferred_done_reviews" in orch._maintenance_jobs
+
+    def test_not_starved_by_merged_labels_budget(self, tmp_path):
+        orch = _make_orchestrator(tmp_path)
+        orch._label_merged_epics = MagicMock()
+        orch._label_merged_issues = MagicMock()
+        orch._reconcile_in_review_pr_outcomes = MagicMock()
+        orch._reconcile_terminal_open_reviews = MagicMock()
+        orch._reconcile_stale_in_review_tasks = MagicMock()
+        orch._open_deferred_done_reviews = MagicMock()
+
+        # Simulate merged_labels exhausting its budget immediately.
+        orch._job_deadline_exceeded = MagicMock(return_value=True)
+        orch._maybe_run_merged_labels()
+        orch._open_deferred_done_reviews.assert_not_called()
+
+        # The independent job still runs because it has its own maintenance key.
+        orch._job_deadline_exceeded = MagicMock(return_value=False)
+        orch._maybe_open_deferred_done_reviews()
+
+        orch._open_deferred_done_reviews.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # _run_step5b_maintenance  (TASK-466.2: extended with archive + merged labels)
 # ---------------------------------------------------------------------------
 
 
 class TestRunStep5bMaintenanceExtended:
-    """_run_step5b_maintenance includes archive, merged labels, and release picks."""
+    """_run_step5b_maintenance includes independent maintenance jobs."""
 
     def test_calls_auto_archive(self, tmp_path):
         """_run_step5b_maintenance calls _auto_archive."""
@@ -778,6 +813,7 @@ class TestRunStep5bMaintenanceExtended:
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
         orch._auto_archive = MagicMock()
+        orch._maybe_open_deferred_done_reviews = MagicMock()
         orch._maybe_run_merged_labels = MagicMock()
         orch._maybe_run_release_pick_reconciliation = MagicMock()
 
@@ -791,6 +827,7 @@ class TestRunStep5bMaintenanceExtended:
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
         orch._auto_archive = MagicMock()
+        orch._maybe_open_deferred_done_reviews = MagicMock()
         orch._maybe_run_merged_labels = MagicMock()
         orch._maybe_run_release_pick_reconciliation = MagicMock()
 
@@ -804,6 +841,7 @@ class TestRunStep5bMaintenanceExtended:
         orch._maybe_heal_repos = MagicMock()
         orch._maybe_cleanup_worktrees = MagicMock()
         orch._auto_archive = MagicMock()
+        orch._maybe_open_deferred_done_reviews = MagicMock()
         orch._maybe_run_merged_labels = MagicMock()
         orch._maybe_run_release_pick_reconciliation = MagicMock()
 
@@ -811,13 +849,16 @@ class TestRunStep5bMaintenanceExtended:
 
         orch._maybe_run_release_pick_reconciliation.assert_called_once()
 
-    def test_all_five_jobs_run_in_order(self, tmp_path):
-        """All five maintenance jobs run in stable order."""
+    def test_all_six_jobs_run_in_order(self, tmp_path):
+        """All six maintenance jobs run in stable order."""
         orch = _make_orchestrator(tmp_path)
         call_order = []
         orch._maybe_heal_repos = lambda: call_order.append("heal")
         orch._maybe_cleanup_worktrees = lambda: call_order.append("cleanup")
         orch._auto_archive = lambda: call_order.append("archive")
+        orch._maybe_open_deferred_done_reviews = lambda: call_order.append(
+            "deferred_done_reviews"
+        )
         orch._maybe_run_merged_labels = lambda: call_order.append("merged_labels")
         orch._maybe_run_release_pick_reconciliation = lambda: call_order.append(
             "release_picks"
@@ -829,6 +870,7 @@ class TestRunStep5bMaintenanceExtended:
             "heal",
             "cleanup",
             "archive",
+            "deferred_done_reviews",
             "merged_labels",
             "release_picks",
         ]
@@ -845,15 +887,18 @@ class TestRunStep5bMaintenanceExtended:
         orch._label_merged_issues = MagicMock()
         orch._label_merged_epics = MagicMock()
         orch._reconcile_stale_in_review_tasks = MagicMock()
+        orch._open_deferred_done_reviews = MagicMock()
         orch._reconcile_release_picks_pass = MagicMock()
 
         orch._run_step5b_maintenance()
 
         assert "auto_archive" in orch._maintenance_jobs
+        assert "deferred_done_reviews" in orch._maintenance_jobs
         assert "merged_labels" in orch._maintenance_jobs
         assert "release_picks" in orch._maintenance_jobs
         snapshot = orch.get_snapshot()
         assert "auto_archive" in snapshot["maintenance"]["jobs"]
+        assert "deferred_done_reviews" in snapshot["maintenance"]["jobs"]
         assert "merged_labels" in snapshot["maintenance"]["jobs"]
         assert "release_picks" in snapshot["maintenance"]["jobs"]
 

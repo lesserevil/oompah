@@ -2131,9 +2131,11 @@ class Orchestrator:
         1. :meth:`_maybe_heal_repos` — managed-checkout self-heal.
         2. :meth:`_maybe_cleanup_worktrees` — terminal worktree removal.
         3. :meth:`_auto_archive` — archive closed issues older than _ARCHIVE_DAYS.
-        4. :meth:`_maybe_run_merged_labels` — label merged issues/epics + reconcile
+        4. :meth:`_maybe_open_deferred_done_reviews` — hand Done work with
+           unmerged branches to review when capacity frees.
+        5. :meth:`_maybe_run_merged_labels` — label merged issues/epics + reconcile
            stale In Review tasks.
-        5. :meth:`_maybe_run_release_pick_reconciliation` — reconcile release-pick
+        6. :meth:`_maybe_run_release_pick_reconciliation` — reconcile release-pick
            metadata and backport tasks.
 
         Submitted to ``_tick_pool`` by :meth:`_tick` and **not** awaited so it
@@ -2142,6 +2144,7 @@ class Orchestrator:
         self._maybe_heal_repos()
         self._maybe_cleanup_worktrees()
         self._auto_archive()
+        self._maybe_open_deferred_done_reviews()
         self._maybe_run_merged_labels()
         self._maybe_run_release_pick_reconciliation()
 
@@ -7463,7 +7466,6 @@ class Orchestrator:
             ("reconcile_in_review_pr_outcomes", self._reconcile_in_review_pr_outcomes),
             ("reconcile_terminal_open_reviews", self._reconcile_terminal_open_reviews),
             ("reconcile_stale_in_review_tasks", self._reconcile_stale_in_review_tasks),
-            ("open_deferred_done_reviews", self._open_deferred_done_reviews),
         ]
         for name, sweep in sweeps:
             if self._job_deadline_exceeded("merged_labels"):
@@ -7475,11 +7477,27 @@ class Orchestrator:
                 return
             sweep()
 
+    def _maybe_open_deferred_done_reviews(self) -> None:
+        """Retry Done-task review handoff as its own maintenance job.
+
+        This used to run as the last sub-step of ``merged_labels``. Large
+        projects can exhaust the merged-label runtime budget before that
+        tail step, which strands completed task branches in Done with no PR.
+        Keep it independently throttled so review handoff cannot starve behind
+        merge reconciliation.
+        """
+        self._run_maintenance_job(
+            "deferred_done_reviews",
+            self._open_deferred_done_reviews,
+            min_interval_s=self._MERGED_LABELS_INTERVAL_S,
+            max_runtime_s=self.config.merged_labels_max_runtime_seconds or None,
+        )
+
     def _open_deferred_done_reviews(self) -> None:
         """Retry review handoff for Done tasks when project capacity frees."""
         merged_branches = getattr(self, "_merged_branches", set()) or set()
         for project in self.project_store.list_all():
-            if self._job_deadline_exceeded("merged_labels"):
+            if self._job_deadline_exceeded("deferred_done_reviews"):
                 return
             project_id = str(project.id)
             if self._project_review_capacity(project_id)[2]:
@@ -7496,7 +7514,7 @@ class Orchestrator:
                 continue
 
             for issue in issues:
-                if self._job_deadline_exceeded("merged_labels"):
+                if self._job_deadline_exceeded("deferred_done_reviews"):
                     return
                 if self._project_review_capacity(project_id)[2]:
                     break
