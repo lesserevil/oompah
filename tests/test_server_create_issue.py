@@ -310,6 +310,41 @@ class TestCreateIssueEpicDraftLabel:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/issues — priority normalization
+# ---------------------------------------------------------------------------
+
+class TestCreateIssuePriority:
+    """Tests that tracker-neutral priority names are normalized before persistence."""
+
+    @pytest.mark.parametrize(
+        ("priority_name", "expected_priority"),
+        [("high", 1), ("medium", 2), ("low", 3)],
+    )
+    def test_named_priority_passed_to_tracker_as_int(
+        self, client, priority_name, expected_priority
+    ):
+        """POST priority=high/medium/low should not reach trackers as raw strings."""
+        mock_orch, mock_tracker = _make_mock_orchestrator()
+        mock_tracker.create_issue.return_value = _make_mock_issue("T-101")
+
+        with (
+            patch.object(server_module, "_get_orchestrator", return_value=mock_orch),
+            patch.object(server_module, "broadcast_issues", new_callable=AsyncMock),
+        ):
+            resp = client.post(
+                "/api/v1/issues",
+                json={
+                    "title": "Prioritized task",
+                    "project_id": "proj-1",
+                    "priority": priority_name,
+                },
+            )
+
+        assert resp.status_code == 201
+        assert mock_tracker.create_issue.call_args.kwargs["priority"] == expected_priority
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/issues — source_task_id metadata (TASK-460.3 AC#2)
 # ---------------------------------------------------------------------------
 

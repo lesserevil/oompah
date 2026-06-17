@@ -2370,6 +2370,15 @@ class TestGitHubIssueTrackerMutations:
         call_kwargs = m.call_args[1]
         assert "priority:2" in call_kwargs["json"]["labels"]
 
+    def test_create_issue_accepts_named_priority(self):
+        tracker = self._make_tracker()
+        gh_issue = _make_gh_issue(number=12, labels=["priority:1", "oompah:status:open"])
+        resp = _mock_response(201, json_data=gh_issue)
+        with patch.object(tracker._client._http, "request", return_value=resp) as m:
+            tracker.create_issue("Prio task", priority="high")
+        call_kwargs = m.call_args[1]
+        assert "priority:1" in call_kwargs["json"]["labels"]
+
     def test_create_issue_sends_type_label_for_non_task(self):
         tracker = self._make_tracker()
         gh_issue = _make_gh_issue(number=13, labels=["type:bug", "oompah:status:open"])
@@ -2554,6 +2563,19 @@ class TestGitHubIssueTrackerMutations:
             tracker.update_issue("example-org/oompah-tasks#9", priority=1)
         patch_call = m.call_args_list[-1]
         assert patch_call[0][0] == "PATCH"
+        assert "priority:1" in patch_call[1]["json"]["labels"]
+        assert "priority:3" not in patch_call[1]["json"]["labels"]
+
+    def test_update_issue_accepts_named_priority(self):
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "priority:3"}])
+        patch_resp = _mock_response(200, json_data=_make_gh_issue(number=9))
+        responses = [labels_resp, patch_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker.update_issue("example-org/oompah-tasks#9", priority="high")
+        patch_call = m.call_args_list[-1]
         assert "priority:1" in patch_call[1]["json"]["labels"]
         assert "priority:3" not in patch_call[1]["json"]["labels"]
 
@@ -3006,6 +3028,19 @@ class TestGitHubIssueTrackerMutations:
         delete_call = m.call_args_list[1]
         assert delete_call[0][0] == "DELETE"
         assert "priority%3A3" in delete_call[0][1]
+        post_call = m.call_args_list[2]
+        assert "priority:1" in post_call[1]["json"]["labels"]
+
+    def test_set_priority_label_accepts_named_priority(self):
+        tracker = self._make_tracker()
+        labels_resp = _mock_response(200, json_data=[{"name": "priority:3"}])
+        delete_resp = _mock_response(204, json_data=None)
+        post_resp = _mock_response(200, json_data=[{"name": "priority:1"}])
+        responses = [labels_resp, delete_resp, post_resp]
+        with patch.object(
+            tracker._client._http, "request", side_effect=responses
+        ) as m:
+            tracker._set_priority_label(44, "high")
         post_call = m.call_args_list[2]
         assert "priority:1" in post_call[1]["json"]["labels"]
 
