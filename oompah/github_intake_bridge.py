@@ -155,6 +155,86 @@ def _find_native_issue_for_external(
     return None, {}
 
 
+def _native_status_is_merged_or_archived(status: str | None) -> bool:
+    return status_key(canonicalize_status(status)) in _TERMINAL_CLOSE_KEYS
+
+
+def _github_issue_is_closed(github_issue: Issue) -> bool:
+    raw_state = status_key(github_issue.state)
+    return raw_state == "closed" or getattr(github_issue, "closed_at", None) is not None
+
+
+def _metadata_last_github_state(metadata: dict[str, Any]) -> str:
+    return str(metadata.get("last_github_state") or "").strip().lower()
+
+
+def _write_external_metadata_if_changed(
+    native_tracker: Any,
+    identifier: str,
+    original: dict[str, Any],
+    updated: dict[str, Any],
+) -> None:
+    if updated != original:
+        _set_external_metadata(native_tracker, identifier, updated)
+
+
+def _reconcile_native_status_from_github_issue(
+    native_tracker: Any,
+    github_issue: Issue,
+    existing: Issue | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> Issue | None:
+    """Apply GitHub open/closed state to an already-imported native task."""
+    external_id = github_issue.identifier
+    if existing is None or metadata is None:
+        existing, metadata = _find_native_issue_for_external(native_tracker, external_id)
+    if existing is None:
+        return None
+
+    metadata = dict(metadata or {})
+    original_metadata = dict(metadata)
+    current_status = canonicalize_status(existing.state)
+    github_closed = _github_issue_is_closed(github_issue)
+
+    if github_closed:
+        metadata["last_github_state"] = "closed"
+        if not _native_status_is_merged_or_archived(current_status):
+            native_tracker.update_issue(existing.identifier, status=ARCHIVED)
+            current_status = ARCHIVED
+            metadata["external_closed_at"] = _now_iso()
+            metadata["last_synced_status"] = ARCHIVED
+            metadata["last_synced_at"] = _now_iso()
+            existing = native_tracker.fetch_issue_detail(existing.identifier) or existing
+        _write_external_metadata_if_changed(
+            native_tracker,
+            existing.identifier,
+            original_metadata,
+            metadata,
+        )
+        return existing
+
+    was_closed_by_github = (
+        _metadata_last_github_state(metadata) == "closed"
+        or bool(metadata.get("external_closed_at"))
+    )
+    if current_status == ARCHIVED and was_closed_by_github:
+        native_tracker.update_issue(existing.identifier, status=PROPOSED)
+        metadata["last_github_state"] = "open"
+        metadata["external_reopened_at"] = _now_iso()
+        metadata["last_synced_status"] = PROPOSED
+        metadata["last_synced_at"] = _now_iso()
+        existing = native_tracker.fetch_issue_detail(existing.identifier) or existing
+        _write_external_metadata_if_changed(
+            native_tracker,
+            existing.identifier,
+            original_metadata,
+            metadata,
+        )
+        return existing
+
+    return existing
+
+
 def _github_issue_from_event(event: WebhookEvent, project: Project) -> Issue | None:
     issue = (event.raw or {}).get("issue") or {}
     number = event.issue_number or issue.get("number")
@@ -164,6 +244,15 @@ def _github_issue_from_event(event: WebhookEvent, project: Project) -> Issue | N
     slug = github_issue_intake_repo_slug(project) or ""
     owner, repo = slug.split("/", 1)
     user = issue.get("user") if isinstance(issue.get("user"), dict) else {}
+    closed_at = issue.get("closed_at")
+    parsed_closed_at = None
+    if closed_at:
+        try:
+            parsed_closed_at = datetime.fromisoformat(
+                str(closed_at).replace("Z", "+00:00")
+            )
+        except ValueError:
+            parsed_closed_at = None
     return Issue(
         id=external_id,
         identifier=external_id,
@@ -177,6 +266,7 @@ def _github_issue_from_event(event: WebhookEvent, project: Project) -> Issue | N
         issue_number=str(number),
         provider_url=str(issue.get("html_url") or _issue_url(owner, repo, number)),
         requestor_login=str(user.get("login") or event.author or "").strip() or None,
+        closed_at=parsed_closed_at,
     )
 
 
@@ -229,7 +319,15 @@ def ensure_native_issue_for_github_issue(
     external_id = github_issue.identifier
     existing, metadata = _find_native_issue_for_external(native_tracker, external_id)
     if existing is not None:
-        return existing
+        return _reconcile_native_status_from_github_issue(
+            native_tracker,
+            github_issue,
+            existing,
+            metadata,
+        )
+
+    if _github_issue_is_closed(github_issue):
+        return None
 
     created = native_tracker.create_issue(
         github_issue.title,
@@ -389,6 +487,12 @@ def handle_github_issue_event_for_native_project(
     if github_issue is None:
         return
 
+    if _github_issue_is_closed(github_issue):
+        _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+        return
+
+    _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+
     if event.event_type == "issues" and event.action in {"opened", "edited", "reopened"}:
         if not _github_issue_ready_for_native_import(github_tracker, github_issue):
             return
@@ -451,9 +555,12 @@ def poll_github_issue_intake_project(orch: Any, project: Project) -> int:
         logger.debug("github_intake: poll fetch failed for %s: %s", project.name, exc)
         return 0
     for github_issue in github_issues:
-        if str(github_issue.state or "").strip().lower() == "closed":
-            continue
         try:
+            if _github_issue_is_closed(github_issue):
+                _reconcile_native_status_from_github_issue(native_tracker, github_issue)
+                continue
+
+            _reconcile_native_status_from_github_issue(native_tracker, github_issue)
             if not _github_issue_ready_for_native_import(github_tracker, github_issue):
                 continue
             before, _ = _find_native_issue_for_external(

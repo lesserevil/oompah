@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from oompah.github_intake_bridge import (
     ensure_native_issue_for_github_issue,
+    handle_github_issue_event_for_native_project,
     import_github_comment_to_native,
     poll_github_issue_intake_project,
     sync_github_issue_intake_statuses_for_project,
 )
 from oompah.models import Issue, Project
-from oompah.statuses import MERGED, PROPOSED
+from oompah.statuses import ARCHIVED, MERGED, PROPOSED
+from oompah.webhooks import WebhookEvent
 
 
 class FakeNativeTracker:
@@ -19,6 +22,7 @@ class FakeNativeTracker:
         self.issues: dict[str, Issue] = {}
         self.metadata: dict[str, dict[str, object]] = {}
         self.comments: list[tuple[str, str, str]] = []
+        self.update_calls: list[tuple[str, dict[str, object]]] = []
         self._next = 1
 
     def create_issue(
@@ -59,6 +63,16 @@ class FakeNativeTracker:
 
     def set_metadata_field(self, identifier: str, key: str, value: object) -> None:
         self.metadata.setdefault(identifier, {})[key] = value
+
+    def update_issue(self, identifier: str, **fields: object) -> None:
+        issue = self.issues[identifier]
+        if "status" in fields:
+            issue.state = str(fields["status"])
+        if "state" in fields:
+            issue.state = str(fields["state"])
+        if "title" in fields:
+            issue.title = str(fields["title"])
+        self.update_calls.append((identifier, dict(fields)))
 
     def add_comment(self, identifier: str, text: str, author: str = "oompah") -> dict:
         self.comments.append((identifier, text, author))
@@ -283,6 +297,129 @@ def test_poll_imports_github_issue_after_external_readiness_passes(monkeypatch):
             "oompah",
         )
     ]
+
+
+def test_poll_archives_native_task_when_github_issue_is_closed(monkeypatch):
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=PROPOSED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": PROPOSED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker(
+        [
+            _github_issue(
+                state=ARCHIVED,
+                closed_at=datetime(2026, 6, 19, tzinfo=timezone.utc),
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    imported = poll_github_issue_intake_project(_orch(native), _project())
+
+    assert imported == 0
+    assert native.issues[issue.identifier].state == ARCHIVED
+    assert native.update_calls == [(issue.identifier, {"status": ARCHIVED})]
+    metadata = native.metadata[issue.identifier]["oompah.external.github"]
+    assert metadata["last_github_state"] == "closed"
+    assert metadata["last_synced_status"] == ARCHIVED
+    assert "external_closed_at" in metadata
+
+
+def test_closed_github_webhook_archives_existing_native_task(monkeypatch):
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=PROPOSED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": PROPOSED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker([_github_issue(state="closed")])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+    event = WebhookEvent(
+        provider="github",
+        event_type="issues",
+        action="closed",
+        repo_slug="example-org/app",
+        issue_number="7",
+        raw={"issue": {"number": 7, "state": "closed", "title": "Report export fails"}},
+    )
+
+    handle_github_issue_event_for_native_project(_orch(native), event, _project())
+
+    assert native.issues[issue.identifier].state == ARCHIVED
+    assert native.update_calls == [(issue.identifier, {"status": ARCHIVED})]
+
+
+def test_closed_github_issue_does_not_archive_merged_native_task(monkeypatch):
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=MERGED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_synced_status": MERGED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker([_github_issue(state="closed")])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    poll_github_issue_intake_project(_orch(native), _project())
+
+    assert native.issues[issue.identifier].state == MERGED
+    assert native.update_calls == []
+
+
+def test_reopened_github_issue_moves_externally_archived_task_to_proposed(monkeypatch):
+    native = FakeNativeTracker()
+    issue = native.create_issue("Imported", initial_status=ARCHIVED)
+    native.set_metadata_field(
+        issue.identifier,
+        "oompah.external.github",
+        {
+            "id": "example-org/app#7",
+            "last_github_state": "closed",
+            "external_closed_at": "2026-06-19T00:00:00+00:00",
+            "last_synced_status": ARCHIVED,
+            "imported_comment_ids": [],
+        },
+    )
+    github = FakeGitHubTracker([_github_issue(description=_valid_description())])
+    monkeypatch.setattr(
+        "oompah.github_intake_bridge._github_tracker_for_project",
+        lambda project, active, terminal: github,
+    )
+
+    imported = poll_github_issue_intake_project(_orch(native), _project())
+
+    assert imported == 0
+    assert native.issues[issue.identifier].state == PROPOSED
+    assert native.update_calls == [(issue.identifier, {"status": PROPOSED})]
+    metadata = native.metadata[issue.identifier]["oompah.external.github"]
+    assert metadata["last_github_state"] == "open"
+    assert metadata["last_synced_status"] == PROPOSED
+    assert "external_reopened_at" in metadata
 
 
 def test_status_sync_comments_and_closes_github_issue_on_terminal_state(monkeypatch):
