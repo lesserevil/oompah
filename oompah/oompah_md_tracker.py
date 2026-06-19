@@ -571,6 +571,10 @@ class OompahMarkdownTracker:
                 attachments.append(entry["path"])
             elif isinstance(entry, str):
                 attachments.append(entry)
+        external_github = meta.get("oompah.external.github")
+        if not isinstance(external_github, dict):
+            external_github = {}
+        external_number = external_github.get("number")
         return Issue(
             id=identifier,
             identifier=identifier,
@@ -598,6 +602,11 @@ class OompahMarkdownTracker:
                 meta.get("work_branch") or meta.get("oompah.work_branch")
             ),
             tracker_kind=TRACKER_KIND,
+            tracker_owner=_optional_str(external_github.get("owner")),
+            tracker_repo=_optional_str(external_github.get("repo")),
+            issue_number=str(external_number) if external_number is not None else None,
+            provider_url=_optional_str(external_github.get("url")),
+            requestor_login=_optional_str(external_github.get("requestor_login")),
         )
 
     def _read_records(self) -> list[dict[str, Any]]:

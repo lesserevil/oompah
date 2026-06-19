@@ -35,7 +35,7 @@ from oompah.orchestrator import (
 
 def _make_config(**overrides) -> ServiceConfig:
     """Minimal ServiceConfig for testing."""
-    cfg = ServiceConfig()
+    cfg = ServiceConfig(tracker_kind="backlog_md")
     for k, v in overrides.items():
         setattr(cfg, k, v)
     return cfg

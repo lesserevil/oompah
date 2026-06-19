@@ -161,6 +161,10 @@ class FakeTracker:
             issue.description = str(fields["description"])
         if "status" in fields:
             issue.state = str(fields["status"])
+        if "issue-type" in fields:
+            issue.issue_type = str(fields["issue-type"])
+        if "type" in fields:
+            issue.issue_type = str(fields["type"])
 
     def add_parent_child(self, child_id: str, parent_id: str) -> None:
         self.parent_links.append((child_id, parent_id))
@@ -346,6 +350,40 @@ def test_apply_accepted_proposal_creates_proposed_epic_and_linked_children():
         assert child.parent_id == result.epic_identifier
         assert "Source issue: example-org/oompah#500" in (child.description or "")
         assert "@alice" in (child.description or "")
+
+
+def test_apply_external_github_proposal_reuses_source_as_epic():
+    source = _source_issue()
+    tracker = FakeTracker([source])
+    tracker.set_metadata_field(
+        source.identifier,
+        "oompah.external.github",
+        {"id": "example-org/oompah#500"},
+    )
+    ensured = ensure_epic_proposal(tracker, source, requestor="alice")
+    assert ensured is not None
+
+    readiness = parse_intake_metadata(tracker.metadata[source.identifier]["oompah.intake"])
+    readiness.decomposition_status = DecompositionStatus.ACCEPTED
+    tracker.set_metadata_field(source.identifier, "oompah.intake", intake_to_raw(readiness))
+
+    result = apply_epic_proposal(tracker, source)
+
+    assert result.skipped_reason is None
+    assert result.created_epic is False
+    assert result.epic_identifier == source.identifier
+    assert tracker.issues[source.identifier].issue_type == "epic"
+    assert tracker.issues[source.identifier].state == PROPOSED
+    assert tracker.issues[source.identifier].title.startswith("Epic:")
+    assert len(result.child_identifiers) == len(ensured.proposal.children)
+    assert tracker.parent_links == [
+        (child_id, source.identifier)
+        for child_id in result.child_identifiers
+    ]
+    assert not any(
+        call[0] == source.identifier and call[1].get("status") == DECOMPOSED
+        for call in tracker.update_calls
+    )
 
 
 def test_apply_same_proposal_does_not_duplicate_child_tasks():

@@ -287,6 +287,30 @@ class TestCreateProjectBacklogRequirement:
         assert project.tracker_owner == "example-org"
         assert project.tracker_repo == "example-repo"
 
+    def test_oompah_md_github_intake_infers_tracker_owner_repo_from_github_url(self, tmp_path):
+        store = _store(tmp_path)
+        repo_path = tmp_path / "repos" / "repo"
+        repo_path.mkdir(parents=True)
+        (repo_path / ".git").mkdir()
+
+        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
+            with patch("oompah.projects.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                project = store.create(
+                    "https://github.com/example-org/example-repo.git",
+                    name="repo",
+                    git_user_name="Test",
+                    git_user_email="t@example.com",
+                    tracker_kind="oompah_md",
+                    github_issue_intake_enabled=True,
+                )
+
+        mock_compat.assert_not_called()
+        assert project.tracker_kind == "oompah_md"
+        assert project.github_issue_intake_enabled is True
+        assert project.tracker_owner == "example-org"
+        assert project.tracker_repo == "example-repo"
+
 
 class TestSyncProjectSources:
     # The git-health portion of sync_project_sources is now delegated to

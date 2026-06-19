@@ -501,8 +501,25 @@ class TestProjectCreateAPIDefaults:
         kwargs = self.project_store.create.call_args.kwargs
         assert kwargs["tracker_kind"] == "oompah_md"
         assert kwargs["paused"] is True
+        assert kwargs["github_issue_intake_enabled"] is False
         assert res.json()["tracker_kind"] == "oompah_md"
         assert res.json()["paused"] is True
+
+    def test_create_sends_github_issue_intake_enabled(self):
+        res = self.client.post(
+            "/api/v1/projects",
+            json={
+                "repo_url": "https://github.com/example-org/example-repo.git",
+                "git_user_name": "Example User",
+                "git_user_email": "user@example.com",
+                "github_issue_intake_enabled": True,
+            },
+        )
+
+        assert res.status_code == 201
+        kwargs = self.project_store.create.call_args.kwargs
+        assert kwargs["tracker_kind"] == "oompah_md"
+        assert kwargs["github_issue_intake_enabled"] is True
 
     def test_create_preserves_explicit_legacy_tracker_kind_but_still_pauses(self):
         res = self.client.post(
@@ -556,6 +573,7 @@ class TestProjectStoreUpdatableFields:
             "tracker_kind",
             "tracker_owner",
             "tracker_repo",
+            "github_issue_intake_enabled",
             "github_project_node_id",
             "legacy_backlog_enabled",
             "legacy_backlog_dispatch",
@@ -1044,6 +1062,7 @@ class TestProjectTrackerFields:
         assert p.tracker_kind is None
         assert p.tracker_owner is None
         assert p.tracker_repo is None
+        assert p.github_issue_intake_enabled is False
         assert p.github_project_node_id is None
         assert p.status_actor_login is None
         assert p.status_label_authorized_logins == []
@@ -1059,6 +1078,7 @@ class TestProjectTrackerFields:
         assert "tracker_kind" not in d
         assert "tracker_owner" not in d
         assert "tracker_repo" not in d
+        assert d["github_issue_intake_enabled"] is False
         assert "github_project_node_id" not in d
         assert "status_actor_login" not in d
         assert "status_label_authorized_logins" not in d
@@ -1087,6 +1107,11 @@ class TestProjectTrackerFields:
         p = self._make_project(github_project_node_id="PVT_abc123")
         d = p.to_dict()
         assert d["github_project_node_id"] == "PVT_abc123"
+
+    def test_to_dict_emits_github_issue_intake_flag(self):
+        p = self._make_project(github_issue_intake_enabled=True)
+        d = p.to_dict()
+        assert d["github_issue_intake_enabled"] is True
 
     def test_to_dict_emits_status_actor_and_allowlist_when_set(self):
         p = self._make_project(
@@ -1120,6 +1145,7 @@ class TestProjectTrackerFields:
         assert p.tracker_kind is None
         assert p.tracker_owner is None
         assert p.tracker_repo is None
+        assert p.github_issue_intake_enabled is False
         assert p.github_project_node_id is None
         assert p.status_actor_login is None
         assert p.status_label_authorized_logins == []
@@ -1132,12 +1158,14 @@ class TestProjectTrackerFields:
             tracker_kind="github_issues",
             tracker_owner="acme",
             tracker_repo="tasks",
+            github_issue_intake_enabled=True,
         )
         d = p.to_dict()
         p2 = Project.from_dict(d)
         assert p2.tracker_kind == "github_issues"
         assert p2.tracker_owner == "acme"
         assert p2.tracker_repo == "tasks"
+        assert p2.github_issue_intake_enabled is True
 
     def test_from_dict_round_trip_legacy_flags(self):
         p = self._make_project(
@@ -1254,6 +1282,14 @@ class TestProjectStoreTrackerFieldUpdate:
     def test_update_github_project_node_id(self):
         updated = self.store.update("proj-tr", github_project_node_id="PVT_abc")
         assert updated.github_project_node_id == "PVT_abc"
+
+    def test_update_github_issue_intake_enabled(self):
+        updated = self.store.update("proj-tr", github_issue_intake_enabled=True)
+        assert updated.github_issue_intake_enabled is True
+
+    def test_update_github_issue_intake_enabled_rejects_non_bool(self):
+        with pytest.raises(ProjectError, match="must be a boolean"):
+            self.store.update("proj-tr", github_issue_intake_enabled="yes")
 
     def test_update_status_actor_login_trims_whitespace(self):
         updated = self.store.update("proj-tr", status_actor_login="  status-actor  ")
@@ -1422,6 +1458,14 @@ class TestProjectAPITrackerFields:
         )
         assert res.status_code == 200
         assert self.store.get("proj-tracker").tracker_kind == "github_issues"
+
+    def test_patch_github_issue_intake_enabled(self):
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"github_issue_intake_enabled": True},
+        )
+        assert res.status_code == 200
+        assert self.store.get("proj-tracker").github_issue_intake_enabled is True
 
     def test_patch_github_tracker_updates_agents_md(self):
         project = self.store.get("proj-tracker")

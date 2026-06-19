@@ -378,6 +378,10 @@ class Project:
     # to global OOMPAH_GITHUB_TRACKER_OWNER / _REPO env vars when None.
     tracker_owner: str | None = None
     tracker_repo: str | None = None
+    # For native Markdown projects, allow GitHub issues in tracker_owner/repo
+    # to act as an external customer intake source. The internal Markdown task
+    # remains authoritative after import.
+    github_issue_intake_enabled: bool = False
     # GitHub Projects (v2) node ID for board/roadmap views. Optional — oompah
     # does not require a Project board to manage GitHub Issues.
     github_project_node_id: str | None = None
@@ -486,6 +490,7 @@ class Project:
             d["tracker_owner"] = self.tracker_owner
         if self.tracker_repo is not None:
             d["tracker_repo"] = self.tracker_repo
+        d["github_issue_intake_enabled"] = self.github_issue_intake_enabled
         if self.github_project_node_id is not None:
             d["github_project_node_id"] = self.github_project_node_id
         # Always emit the legacy backlog flags so API consumers can read them
@@ -653,6 +658,9 @@ class Project:
             tracker_kind=tracker_kind_proj,
             tracker_owner=tracker_owner,
             tracker_repo=tracker_repo,
+            github_issue_intake_enabled=bool(
+                d.get("github_issue_intake_enabled", False)
+            ),
             github_project_node_id=github_project_node_id,
             legacy_backlog_enabled=bool(d.get("legacy_backlog_enabled", False)),
             legacy_backlog_dispatch=bool(d.get("legacy_backlog_dispatch", False)),

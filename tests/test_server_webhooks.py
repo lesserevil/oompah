@@ -1608,6 +1608,7 @@ class TestUnauthorizedStatusLabelRevert:
             repo_url="https://github.com/org/repo.git",
             repo_path="/tmp/repos/repo",
             webhook_secret=None,
+            tracker_kind="github_issues",
             status_label_authorized_logins=authorized_logins or [],
             tracker_owner="org",
             tracker_repo="repo",

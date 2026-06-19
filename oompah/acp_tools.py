@@ -72,6 +72,7 @@ _PROJECT_READABLE_FIELDS = frozenset(
         "tracker_kind",
         "tracker_owner",
         "tracker_repo",
+        "github_issue_intake_enabled",
         "github_project_node_id",
         "status_actor_login",
         "status_label_authorized_logins",
@@ -88,6 +89,7 @@ _PROJECT_UPDATABLE_FIELDS = frozenset(
         "tracker_kind",
         "tracker_owner",
         "tracker_repo",
+        "github_issue_intake_enabled",
         "github_project_node_id",
         "status_actor_login",
         "status_label_authorized_logins",
@@ -121,6 +123,10 @@ def _project_snapshot(project: Any) -> dict[str, Any]:
         "tracker_kind": getattr(project, "tracker_kind", None),
         "tracker_owner": getattr(project, "tracker_owner", None),
         "tracker_repo": getattr(project, "tracker_repo", None),
+        "github_issue_intake_enabled": bool_attr(
+            "github_issue_intake_enabled",
+            False,
+        ),
         "github_project_node_id": getattr(project, "github_project_node_id", None),
         "status_actor_login": getattr(project, "status_actor_login", None),
         "status_label_authorized_logins": list(
@@ -571,7 +577,7 @@ def build_tool_catalog(
         "tracker_owner, tracker_repo, status_actor_login, "
         "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
-        "github_project_node_id, and paused for each project. "
+        "github_issue_intake_enabled, github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
         ".oompah/projects.json.",
         {},
@@ -586,7 +592,7 @@ def build_tool_catalog(
         "tracker_owner, tracker_repo, status_actor_login, "
         "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
-        "github_project_node_id, and paused fields. "
+        "github_issue_intake_enabled, github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
         "self-calls from inside an oompah MCP tool deadlock the server. "
         "No parameters required.",
@@ -616,7 +622,7 @@ def build_tool_catalog(
         "Update tracker configuration fields for the managed project. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, status_actor_login, "
+        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
         "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Example: '{\"tracker_kind\": \"github_issues\", "
@@ -641,7 +647,7 @@ def build_tool_catalog(
         "project id. Call list_projects first to find the project id. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, status_actor_login, "
+        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
         "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "
@@ -812,7 +818,7 @@ def build_codex_tool_catalog(
         worktree belongs to. Returns JSON with id, name, tracker_kind,
         tracker_owner, tracker_repo, tracker_cutover_at,
         legacy_backlog_enabled, legacy_backlog_dispatch,
-        github_project_node_id, and paused fields.
+        github_issue_intake_enabled, github_project_node_id, and paused fields.
         Use this instead of calling http://127.0.0.1:8090 — HTTP
         self-calls from inside an oompah MCP tool deadlock the server."""
         return _exec_get_project(project_store, current_project_id)
@@ -828,7 +834,7 @@ def build_codex_tool_catalog(
         """Update tracker configuration fields for the managed project.
         ``fields_json`` must be a JSON-encoded object whose keys are a
         subset of: tracker_kind, tracker_owner, tracker_repo,
-        github_project_node_id, legacy_backlog_enabled,
+        github_issue_intake_enabled, github_project_node_id, legacy_backlog_enabled,
         legacy_backlog_dispatch, tracker_cutover_at, paused.
         Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id>
         or editing .oompah/projects.json directly — both can deadlock or
@@ -1006,7 +1012,7 @@ def build_opencode_tool_catalog(
         "tracker_owner, tracker_repo, status_actor_login, "
         "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
-        "github_project_node_id, and paused for each project. "
+        "github_issue_intake_enabled, github_project_node_id, and paused for each project. "
         "Use this to discover target project ids instead of reading "
         ".oompah/projects.json.",
         {},
@@ -1021,7 +1027,7 @@ def build_opencode_tool_catalog(
         "tracker_owner, tracker_repo, status_actor_login, "
         "status_label_authorized_logins, tracker_cutover_at, "
         "legacy_backlog_enabled, legacy_backlog_dispatch, "
-        "github_project_node_id, and paused fields. "
+        "github_issue_intake_enabled, github_project_node_id, and paused fields. "
         "Use this instead of calling http://127.0.0.1:8090 — HTTP "
         "self-calls from inside an oompah MCP tool deadlock the server. "
         "No parameters required.",
@@ -1051,7 +1057,7 @@ def build_opencode_tool_catalog(
         "Update tracker configuration fields for the managed project. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, status_actor_login, "
+        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
         "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Example: '{\"tracker_kind\": \"github_issues\", "
@@ -1076,7 +1082,7 @@ def build_opencode_tool_catalog(
         "project id. Call list_projects first to find the project id. "
         "Pass 'fields_json' as a JSON-encoded object whose keys are a "
         "subset of: tracker_kind, tracker_owner, tracker_repo, "
-        "github_project_node_id, status_actor_login, "
+        "github_issue_intake_enabled, github_project_node_id, status_actor_login, "
         "status_label_authorized_logins, legacy_backlog_enabled, "
         "legacy_backlog_dispatch, tracker_cutover_at, paused. "
         "Use this instead of PATCH http://127.0.0.1:8090/api/v1/projects/<id> "

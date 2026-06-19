@@ -460,6 +460,7 @@ class TestExecUpdateProject:
             "legacy_backlog_dispatch",
             "tracker_cutover_at",
             "intake_auto_promote",
+            "github_issue_intake_enabled",
             "paused",
         }
         assert _PROJECT_UPDATABLE_FIELDS == expected, (

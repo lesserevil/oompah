@@ -129,7 +129,7 @@ projects can override those values with per-project tracker settings.
 
 | Section | Key | Description | Default |
 |---|---|---|---|
-| `tracker` | `kind` | Issue tracker type (`oompah_md`, `github_issues`, `backlog`, `backlog_md`, or `beads`) | `backlog_md` |
+| `tracker` | `kind` | Issue tracker type (`oompah_md`, `github_issues`, `backlog`, `backlog_md`, or `beads`) | `oompah_md` |
 | `tracker` | `active_states` | States that trigger agent dispatch | `["Open", "Needs CI Fix", "Needs Rebase"]` |
 | `tracker` | `terminal_states` | States that mean "done" | `["Done", "Merged", "Archived"]` |
 | `polling` | `interval_ms` | Poll interval in milliseconds | `30000` |

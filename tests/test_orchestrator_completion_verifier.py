@@ -84,6 +84,7 @@ def _closed_issue(identifier: str, description: str = "", labels=None) -> Issue:
 
 def _make_orch(tmp_path, *, verify_completion: bool = False) -> Orchestrator:
     config = ServiceConfig(
+        tracker_kind="backlog_md",
         verify_completion=verify_completion,
         verify_completion_llm=False,  # disable LLM in tests (no network)
     )

@@ -88,6 +88,10 @@ from oompah.intake_promotion import (
     record_intake_approval,
 )
 from oompah.intake_schema import parse_intake_metadata
+from oompah.github_intake_bridge import (
+    event_matches_github_issue_intake,
+    handle_github_issue_event_for_native_project,
+)
 from oompah.issue_validator import validate_issue
 from oompah.models import AgentProfile
 from oompah.projects import ProjectError, ProjectStore
@@ -778,6 +782,7 @@ _PROJECT_TRACKER_CACHE_FIELDS = frozenset(
         "tracker_kind",
         "tracker_owner",
         "tracker_repo",
+        "github_issue_intake_enabled",
         "github_project_node_id",
         "legacy_backlog_enabled",
         "legacy_backlog_dispatch",
@@ -2266,8 +2271,10 @@ def _evaluate_api_intake_transition(
     to_status = canonicalize_status(target_status)
     actor_login = _request_actor_login(body, request)
     project = _project_by_id(orch, project_id)
-    if project is None or not _is_github_tracker_kind(
-        getattr(project, "tracker_kind", None)
+    tracker_kind = getattr(project, "tracker_kind", None) if project is not None else None
+    if project is None or not (
+        _is_github_tracker_kind(tracker_kind)
+        or _is_oompah_md_tracker_kind(tracker_kind)
     ):
         return (
             TransitionGateResult(allowed=True),
@@ -6257,6 +6264,9 @@ async def api_create_project(request: Request):
         tracker_kind = (body.get("tracker_kind") or "").strip() or "oompah_md"
         tracker_owner = (body.get("tracker_owner") or "").strip() or None
         tracker_repo = (body.get("tracker_repo") or "").strip() or None
+        github_issue_intake_enabled = bool(
+            body.get("github_issue_intake_enabled", False)
+        )
         github_project_node_id = (body.get("github_project_node_id") or "").strip() or None
         status_actor_raw = body.get("status_actor_login")
         if status_actor_raw is not None and not isinstance(status_actor_raw, str):
@@ -6313,6 +6323,7 @@ async def api_create_project(request: Request):
             tracker_kind=tracker_kind,
             tracker_owner=tracker_owner,
             tracker_repo=tracker_repo,
+            github_issue_intake_enabled=github_issue_intake_enabled,
             github_project_node_id=github_project_node_id,
             status_actor_login=status_actor_login,
             status_label_authorized_logins=status_label_authorized_logins,
@@ -6582,6 +6593,20 @@ async def api_update_project(project_id: str, request: Request):
                         status_code=400,
                     )
                 fields[key] = val
+        if "github_issue_intake_enabled" in body:
+            val = body["github_issue_intake_enabled"]
+            if isinstance(val, bool):
+                fields["github_issue_intake_enabled"] = val
+            else:
+                return JSONResponse(
+                    {
+                        "error": {
+                            "code": "validation",
+                            "message": "github_issue_intake_enabled must be a boolean",
+                        }
+                    },
+                    status_code=400,
+                )
         if (
             "access_token" in fields
             and "status_actor_login" not in fields
@@ -8108,11 +8133,25 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
     # comment on the issue.  This prevents any user with Triage-role access
     # from promoting an issue to a dispatchable state without owner approval.
     if (
+        project
+        and event_matches_github_issue_intake(project, event)
+        and event.event_type in ("issues", "issue_comment")
+        and event.action in ("opened", "edited", "reopened", "created")
+    ):
+        threading.Thread(
+            target=handle_github_issue_event_for_native_project,
+            args=(orch, event, project),
+            name=f"github-intake-{project.name}",
+            daemon=True,
+        ).start()
+
+    if (
         event.event_type == "issues"
         and event.action in ("labeled", "unlabeled")
         and event.label_name
         and event.label_actor
         and project
+        and _is_github_tracker_kind(getattr(project, "tracker_kind", None))
     ):
         from oompah.label_auth import is_status_label, is_authorized_status_actor
 
@@ -8156,6 +8195,7 @@ def _handle_webhook_event(event: WebhookEvent, project) -> None:
         event.event_type == "issue_comment"
         and event.action in ("created", "edited")
         and project
+        and _is_github_tracker_kind(getattr(project, "tracker_kind", None))
     ):
         threading.Thread(
             target=_handle_intake_approval_comment,
@@ -9213,6 +9253,20 @@ def _ensure_github_agent_instructions_for_project(project) -> None:
     _ensure_tracker_agent_instructions_for_project(project)
 
 
+def _match_github_webhook_project(projects: list, event: WebhookEvent):
+    """Find the managed project for a GitHub webhook event."""
+    project = match_project_by_repo(projects, event.repo_slug, "github")
+    if project is not None:
+        return project
+    for candidate in projects:
+        try:
+            if event_matches_github_issue_intake(candidate, event):
+                return candidate
+        except Exception:
+            continue
+    return None
+
+
 @app.post("/api/v1/webhooks/github")
 async def api_webhook_github(request: Request):
     """Receive GitHub webhook events (push, pull_request, etc.).
@@ -9254,7 +9308,7 @@ async def api_webhook_github(request: Request):
         # Find matching project
         orch = _get_orchestrator()
         projects = orch.project_store.list_all()
-        project = match_project_by_repo(projects, event.repo_slug, "github")
+        project = _match_github_webhook_project(projects, event)
 
         # Validate signature if project has a webhook_secret
         if project and project.webhook_secret:

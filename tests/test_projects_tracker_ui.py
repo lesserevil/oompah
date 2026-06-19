@@ -6,11 +6,11 @@ These tests verify the static HTML/JS structure using the same
 source-inspection approach as test_projects_whitelist_ui.py.
 
 Coverage:
-  - Tracker section with tracker_kind, task hub, and legacy Backlog flags is
+  - Tracker section with tracker_kind, task hub, GitHub intake, and legacy Backlog flags is
     rendered in each project card.
   - Cutover modal element is present with the migration-warning copy.
   - Cutover button appears for non-github_issues projects.
-  - Edit form includes tracker settings section with all 6 tracker fields.
+  - Edit form includes tracker settings section with all tracker fields.
   - saveProject() reads and sends tracker fields in the PATCH body.
   - showCutoverModal / closeCutoverModal / confirmCutover JS functions exist.
   - confirmCutover() sends tracker_kind=github_issues and tracker_cutover_at.
@@ -235,6 +235,11 @@ class TestTrackerEditForm:
         load_body = _get_func_body(script, "loadProjects")
         assert "edit-github-project-node-id-" in load_body
 
+    def test_github_issue_intake_checkbox_in_edit_form(self, script: str) -> None:
+        """Edit form contains a native GitHub issue intake checkbox."""
+        load_body = _get_func_body(script, "loadProjects")
+        assert "edit-github-issue-intake-enabled-" in load_body
+
     def test_legacy_backlog_enabled_checkbox_in_edit_form(self, script: str) -> None:
         """Edit form contains a legacy_backlog_enabled checkbox."""
         load_body = _get_func_body(script, "loadProjects")
@@ -307,6 +312,11 @@ class TestSaveProjectTrackerFields:
         body = _get_func_body(script, "saveProject")
         assert "edit-github-project-node-id-" in body
 
+    def test_save_project_reads_github_issue_intake_enabled(self, script: str) -> None:
+        """saveProject reads the github_issue_intake_enabled checkbox."""
+        body = _get_func_body(script, "saveProject")
+        assert "edit-github-issue-intake-enabled-" in body
+
     def test_save_project_reads_legacy_backlog_enabled(self, script: str) -> None:
         """saveProject reads the legacy_backlog_enabled checkbox."""
         body = _get_func_body(script, "saveProject")
@@ -336,6 +346,11 @@ class TestSaveProjectTrackerFields:
         """PATCH body includes github_project_node_id."""
         body = _get_func_body(script, "saveProject")
         assert "github_project_node_id" in body
+
+    def test_save_project_sends_github_issue_intake_enabled_in_body(self, script: str) -> None:
+        """PATCH body includes github_issue_intake_enabled."""
+        body = _get_func_body(script, "saveProject")
+        assert "github_issue_intake_enabled" in body
 
     def test_save_project_sends_legacy_backlog_enabled_in_body(self, script: str) -> None:
         """PATCH body includes legacy_backlog_enabled."""

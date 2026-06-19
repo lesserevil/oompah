@@ -367,6 +367,10 @@ async function loadProjects() {
           <span class="field-label">Task Hub:</span>
           <span class="field-value">${(p.tracker_owner || p.tracker_repo) ? esc((p.tracker_owner || '') + '/' + (p.tracker_repo || '')) : '<em style="color:var(--text-muted);font-style:italic;">not set</em>'}</span>
         </div>
+        <div class="field-row" data-field="github-issue-intake">
+          <span class="field-label">GH Intake:</span>
+          <span class="field-value">${p.github_issue_intake_enabled ? '<span style="color:var(--green);">On</span>' : '<span style="color:var(--text-muted);">Off</span>'}</span>
+        </div>
         <div class="field-row" data-field="status-actor">
           <span class="field-label">Status Actor:</span>
           <span class="field-value">${p.status_actor_login ? esc(p.status_actor_login) : '<em style="color:var(--text-muted);font-style:italic;">not resolved from token</em>'}</span>
@@ -496,6 +500,13 @@ async function loadProjects() {
         <div class="form-group">
           <label>Tracker Repo <span style="font-weight:400;color:var(--text-muted);">(GitHub repo name for the central task hub)</span></label>
           <input type="text" id="edit-tracker-repo-${esc(p.id)}" value="${esc(p.tracker_repo || '')}" placeholder="e.g. oompah-tasks">
+        </div>
+        <div class="form-group">
+          <label>GitHub Issue Intake <span style="font-weight:400;color:var(--text-muted);">(native oompah_md only; imports external GitHub issues into Markdown tasks)</span></label>
+          <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--text);cursor:pointer;margin-bottom:0;">
+            <input type="checkbox" id="edit-github-issue-intake-enabled-${esc(p.id)}" ${p.github_issue_intake_enabled ? 'checked' : ''}>
+            <span>Allow incoming GitHub issues from Tracker Owner/Repo</span>
+          </label>
         </div>
         <div class="form-group">
           <label>GitHub Project Node ID <span style="font-weight:400;color:var(--text-muted);">(optional — GitHub Projects board node ID for field sync)</span></label>
@@ -735,6 +746,7 @@ async function saveProject(id) {
   const trackerKind = trackerKindRaw || null;
   const trackerOwner = document.getElementById('edit-tracker-owner-' + id).value.trim() || null;
   const trackerRepo = document.getElementById('edit-tracker-repo-' + id).value.trim() || null;
+  const githubIssueIntakeEnabled = document.getElementById('edit-github-issue-intake-enabled-' + id).checked;
   const githubProjectNodeId = document.getElementById('edit-github-project-node-id-' + id).value.trim() || null;
   const statusActorLogin = document.getElementById('edit-status-actor-login-' + id).value.trim() || null;
   const statusLabelAuthorizedLoginsRaw = document.getElementById('edit-status-label-authorized-logins-' + id).value.trim();
@@ -745,6 +757,7 @@ async function saveProject(id) {
   const legacyBacklogDispatch = document.getElementById('edit-legacy-backlog-dispatch-' + id).checked;
   const body = {name, branch, branches, default_branch: defaultBranch, max_in_flight_prs: maxInFlightPrs, epic_strategy: epicStrategy, provider_whitelist: providerWhitelist,
     tracker_kind: trackerKind, tracker_owner: trackerOwner, tracker_repo: trackerRepo,
+    github_issue_intake_enabled: githubIssueIntakeEnabled,
     github_project_node_id: githubProjectNodeId,
     status_actor_login: statusActorLogin,
     status_label_authorized_logins: statusLabelAuthorizedLogins,

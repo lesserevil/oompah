@@ -76,7 +76,7 @@ class TestServiceConfig:
     def test_from_workflow_defaults(self):
         wf = WorkflowDefinition(config={}, prompt_template="test")
         cfg = ServiceConfig.from_workflow(wf)
-        assert cfg.tracker_kind == "backlog_md"
+        assert cfg.tracker_kind == "oompah_md"
         assert cfg.poll_interval_ms == 120000
         assert cfg.max_concurrent_agents == 10
         assert cfg.budget_limit == 0.0

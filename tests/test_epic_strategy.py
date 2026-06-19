@@ -64,6 +64,7 @@ def _make_project_record(
     p.branch = "main"
     p.default_branch = "main"
     p.branches = ["main"]
+    p.tracker_kind = "backlog_md"
     p.matches_branch = lambda b: fnmatch.fnmatch(b, "main")
     p.paused = paused
     p.epic_strategy = epic_strategy
@@ -83,7 +84,7 @@ def _make_orch(tmp_path, projects=None):
         f"epic-{epic_id.replace('/', '_')}"
     )
     orch = Orchestrator(
-        config=ServiceConfig(),
+        config=ServiceConfig(tracker_kind="backlog_md"),
         workflow_path="WORKFLOW.md",
         project_store=project_store,
         state_path=str(tmp_path / "state.json"),

@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 EPIC_PROPOSAL_METADATA_KEY = "oompah.epic_proposal"
 INTAKE_METADATA_KEY = "oompah.intake"
+EXTERNAL_GITHUB_METADATA_KEY = "oompah.external.github"
 MAX_GENERATED_CHILDREN = 6
 MIN_GENERATED_CHILDREN = 3
 
@@ -870,6 +871,16 @@ def _all_applied_issue_ids_exist(tracker: Any, proposal: EpicProposal) -> bool:
     return all(_issue_exists(tracker, child_id) for child_id in proposal.child_identifiers)
 
 
+def _should_reuse_source_as_epic(tracker: Any, source: Issue) -> bool:
+    """Return true when the source issue should become the epic itself."""
+    try:
+        metadata = tracker.get_metadata(source.identifier)
+    except Exception:
+        return False
+    external = metadata.get(EXTERNAL_GITHUB_METADATA_KEY)
+    return isinstance(external, dict) and bool(str(external.get("id") or "").strip())
+
+
 def apply_epic_proposal(
     tracker: Any,
     source: Issue,
@@ -899,7 +910,17 @@ def apply_epic_proposal(
 
     created_epic = False
     epic_description = _epic_description(proposal)
-    if proposal.epic_identifier and _issue_exists(tracker, proposal.epic_identifier):
+    reuse_source_as_epic = _should_reuse_source_as_epic(tracker, source)
+    if reuse_source_as_epic:
+        tracker.update_issue(
+            source.identifier,
+            title=proposal.epic_title,
+            description=epic_description,
+            **{"issue-type": "epic", "status": PROPOSED},
+        )
+        epic_identifier = source.identifier
+        proposal.epic_identifier = epic_identifier
+    elif proposal.epic_identifier and _issue_exists(tracker, proposal.epic_identifier):
         tracker.update_issue(
             proposal.epic_identifier,
             title=proposal.epic_title,
@@ -975,14 +996,15 @@ def apply_epic_proposal(
     readiness.proposal_fingerprint = proposal.fingerprint
     _save_readiness(tracker, source.identifier, readiness)
 
-    try:
-        tracker.update_issue(source.identifier, status=DECOMPOSED)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug(
-            "epic_proposal: failed to mark source %s decomposed: %s",
-            source.identifier,
-            exc,
-        )
+    if not reuse_source_as_epic:
+        try:
+            tracker.update_issue(source.identifier, status=DECOMPOSED)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "epic_proposal: failed to mark source %s decomposed: %s",
+                source.identifier,
+                exc,
+            )
 
     try:
         tracker.add_comment(

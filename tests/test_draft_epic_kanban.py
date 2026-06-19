@@ -64,6 +64,8 @@ def _make_orch_with_issues(issues: list[Issue]) -> MagicMock:
     mock_orch = MagicMock()
     mock_orch.project_store.list_all.return_value = []
     mock_orch.tracker = mock_tracker
+    board = server_module._fetch_and_serialize_issues(mock_orch)
+    server_module._set_issues_snapshot(board, duration_ms=0, orch_id=id(mock_orch))
     return mock_orch
 
 
@@ -99,9 +101,26 @@ def _find_entry(data: dict, identifier: str) -> dict | None:
 @pytest.fixture(autouse=True)
 def clear_api_cache():
     """Clear the server-side API cache before each test."""
+    _clear_issue_snapshot()
     server_module._api_cache.clear()
     yield
+    _clear_issue_snapshot()
     server_module._api_cache.clear()
+
+
+def _clear_issue_snapshot() -> None:
+    task = getattr(server_module, "_issues_refresh_task", None)
+    if task is not None and not task.done():
+        task.cancel()
+    server_module._issues_refresh_task = None
+    with server_module._issues_snapshot_lock:
+        server_module._issues_snapshot["data"] = None
+        server_module._issues_snapshot["orch_id"] = None
+        server_module._issues_snapshot["created_at_monotonic"] = 0.0
+        server_module._issues_snapshot["created_at_wall"] = None
+        server_module._issues_snapshot["duration_ms"] = None
+        server_module._issues_snapshot["issue_count"] = 0
+        server_module._issues_snapshot["error"] = None
 
 
 @pytest.fixture()

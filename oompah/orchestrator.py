@@ -30,6 +30,11 @@ from oompah.config import (
 )
 from oompah.events import EventBus, EventType
 from oompah.epic_proposal import process_epic_proposal_issue
+from oompah.github_intake_bridge import (
+    poll_github_issue_intake_project,
+    project_uses_github_issue_intake,
+    sync_github_issue_intake_statuses_for_project,
+)
 from oompah.models import (
     AgentProfile,
     AgentTotals,
@@ -2141,6 +2146,8 @@ class Orchestrator:
            stale In Review tasks.
         6. :meth:`_maybe_run_release_pick_reconciliation` — reconcile release-pick
            metadata and backport tasks.
+        7. :meth:`_maybe_sync_github_issue_intake` — import external GitHub intake
+           into native tasks and mirror native status changes back to GitHub.
 
         Submitted to ``_tick_pool`` by :meth:`_tick` and **not** awaited so it
         does not contribute to dispatch tick latency.
@@ -2151,6 +2158,7 @@ class Orchestrator:
         self._maybe_open_deferred_done_reviews()
         self._maybe_run_merged_labels()
         self._maybe_run_release_pick_reconciliation()
+        self._maybe_sync_github_issue_intake()
 
     def _dispatch_event_key(self, event: DispatchEvent) -> str:
         return str(event.event_type)
@@ -7650,6 +7658,53 @@ class Orchestrator:
             min_interval_s=self._RELEASE_PICKS_INTERVAL_S,
             max_runtime_s=self.config.release_pick_max_runtime_seconds or None,
         )
+
+    def _maybe_sync_github_issue_intake(self) -> None:
+        """Periodically sync external GitHub intake for native Markdown projects."""
+        self._run_maintenance_job(
+            "github_issue_intake",
+            self._sync_github_issue_intake_pass,
+            min_interval_s=300.0,
+            max_runtime_s=120.0,
+        )
+
+    def _sync_github_issue_intake_pass(self) -> None:
+        """Import GitHub intake and mirror status changes for enabled projects."""
+        metrics = {
+            "projects": 0,
+            "imported": 0,
+            "status_scanned": 0,
+            "status_commented": 0,
+            "status_closed": 0,
+            "errors": 0,
+        }
+        for project in self.project_store.list_all():
+            if self._job_deadline_exceeded("github_issue_intake"):
+                break
+            if not project_uses_github_issue_intake(project):
+                continue
+            metrics["projects"] += 1
+            try:
+                metrics["imported"] += poll_github_issue_intake_project(self, project)
+                status_metrics = sync_github_issue_intake_statuses_for_project(
+                    self,
+                    project,
+                )
+                metrics["status_scanned"] += int(status_metrics.get("scanned", 0))
+                metrics["status_commented"] += int(status_metrics.get("commented", 0))
+                metrics["status_closed"] += int(status_metrics.get("closed", 0))
+                metrics["errors"] += int(status_metrics.get("errors", 0))
+            except Exception as exc:  # noqa: BLE001
+                metrics["errors"] += 1
+                logger.debug(
+                    "GitHub issue intake sync failed for project %s: %s",
+                    getattr(project, "name", "?"),
+                    exc,
+                )
+        self._maintenance_status["github_issue_intake"] = {
+            **metrics,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     def _label_merged_issues(self) -> None:
         """Label issues whose own or helper-associated branch has merged."""

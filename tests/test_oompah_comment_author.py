@@ -29,7 +29,7 @@ from oompah.tracker import BacklogMdTracker
 # ---------------------------------------------------------------------------
 
 def _make_config() -> ServiceConfig:
-    return ServiceConfig()
+    return ServiceConfig(tracker_kind="backlog_md")
 
 
 def _make_issue(identifier: str = "test-1", state: str = "open") -> Issue:

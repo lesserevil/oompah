@@ -106,6 +106,29 @@ class TestOompahMarkdownTrackerMutations:
         assert child.identifier in _frontmatter(parent_path)["children"]
         assert parent_refreshed.issue_type == "epic"
 
+    def test_external_github_metadata_normalizes_provider_fields(self, tmp_path):
+        tracker = _tracker(tmp_path)
+        issue = tracker.create_issue("Imported issue")
+
+        tracker.set_metadata_field(
+            issue.identifier,
+            "oompah.external.github",
+            {
+                "owner": "example-org",
+                "repo": "customer-app",
+                "number": "42",
+                "url": "https://github.com/example-org/customer-app/issues/42",
+                "requestor_login": "alice",
+            },
+        )
+
+        refreshed = tracker.fetch_issue_detail(issue.identifier)
+        assert refreshed.tracker_owner == "example-org"
+        assert refreshed.tracker_repo == "customer-app"
+        assert refreshed.issue_number == "42"
+        assert refreshed.provider_url == "https://github.com/example-org/customer-app/issues/42"
+        assert refreshed.requestor_login == "alice"
+
     def test_comments_are_appended_and_parsed(self, tmp_path):
         tracker = _tracker(tmp_path)
         issue = tracker.create_issue("Needs comment")

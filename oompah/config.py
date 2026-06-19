@@ -227,6 +227,7 @@ _TRACKER_KIND_ALIASES = {
     "oompah": "oompah_md",
 }
 _STRICT_PROFILE_SOURCE_VALUES = ("warn", "strict")
+DEFAULT_TRACKER_KIND = "oompah_md"
 
 
 def _parse_strict_profile_source(value: Any) -> str:
@@ -318,7 +319,7 @@ def _parse_state_list(value: Any, default: list[str]) -> list[str]:
 
 def _parse_tracker_kind(value: Any) -> str:
     """Normalize tracker.kind while preserving unsupported values."""
-    raw = str(value or "backlog_md").strip().lower()
+    raw = str(value or DEFAULT_TRACKER_KIND).strip().lower()
     return _TRACKER_KIND_ALIASES.get(raw, raw)
 
 
@@ -326,7 +327,7 @@ def _parse_tracker_kind(value: Any) -> str:
 class ServiceConfig:
     """Typed runtime configuration derived from workflow front matter."""
 
-    tracker_kind: str = "backlog_md"
+    tracker_kind: str = DEFAULT_TRACKER_KIND
     tracker_active_states: list[str] = field(
         default_factory=lambda: [OPEN, NEEDS_CI_FIX, NEEDS_REBASE]
     )
@@ -529,7 +530,7 @@ class ServiceConfig:
         c = wf.config
 
         tracker = c.get("tracker", {}) or {}
-        tracker_kind = _parse_tracker_kind(tracker.get("kind", "backlog_md"))
+        tracker_kind = _parse_tracker_kind(tracker.get("kind", DEFAULT_TRACKER_KIND))
         active_default = [OPEN, NEEDS_CI_FIX, NEEDS_REBASE]
         terminal_default = [DONE, MERGED, ARCHIVED]
         polling = c.get("polling", {}) or {}

@@ -756,6 +756,7 @@ class ProjectStore:
         tracker_owner: str | None = None,
         tracker_repo: str | None = None,
         github_project_node_id: str | None = None,
+        github_issue_intake_enabled: bool = False,
         status_actor_login: str | None = None,
         status_label_authorized_logins: list[str] | None = None,
         legacy_backlog_enabled: bool = False,
@@ -777,6 +778,8 @@ class ProjectStore:
                           oompah's native Markdown task store.
             tracker_owner: GitHub org/user owning the task hub repository.
             tracker_repo: GitHub task hub repository name.
+            github_issue_intake_enabled: For native Markdown projects, import
+                                      incoming GitHub issues from tracker_owner/repo.
             github_project_node_id: GitHub Projects v2 node ID for board views.
             status_actor_login: GitHub login used as the project-owner status actor.
             status_label_authorized_logins: Additional GitHub logins authorized to
@@ -895,7 +898,13 @@ class ProjectStore:
 
         tracker_owner_value = str(tracker_owner).strip() if tracker_owner else None
         tracker_repo_value = str(tracker_repo).strip() if tracker_repo else None
-        if _is_github_backed_kind(_resolved_kind) and (
+        if (
+            _is_github_backed_kind(_resolved_kind)
+            or (
+                _is_oompah_md_kind(_resolved_kind)
+                and bool(github_issue_intake_enabled)
+            )
+        ) and (
             not tracker_owner_value or not tracker_repo_value
         ):
             inferred_owner, inferred_repo = github_owner_repo_from_url(repo_url)
@@ -918,6 +927,7 @@ class ProjectStore:
             tracker_kind=str(tracker_kind).strip() if tracker_kind else None,
             tracker_owner=tracker_owner_value,
             tracker_repo=tracker_repo_value,
+            github_issue_intake_enabled=bool(github_issue_intake_enabled),
             github_project_node_id=str(github_project_node_id).strip() if github_project_node_id else None,
             status_actor_login=str(status_actor_login).strip() if status_actor_login else None,
             status_label_authorized_logins=[
@@ -973,6 +983,7 @@ class ProjectStore:
             "tracker_kind",
             "tracker_owner",
             "tracker_repo",
+            "github_issue_intake_enabled",
             "github_project_node_id",
             "legacy_backlog_enabled",
             "legacy_backlog_dispatch",
@@ -1163,6 +1174,15 @@ class ProjectStore:
                     fields[key] = s or None
                 else:
                     raise ProjectError(f"'{key}' must be a string or null")
+
+        if "github_issue_intake_enabled" in fields:
+            val = fields["github_issue_intake_enabled"]
+            if val is None:
+                fields["github_issue_intake_enabled"] = False
+            elif isinstance(val, bool):
+                fields["github_issue_intake_enabled"] = val
+            else:
+                raise ProjectError("'github_issue_intake_enabled' must be a boolean")
 
         # legacy_backlog_enabled / legacy_backlog_dispatch: boolean flags.
         for key in ("legacy_backlog_enabled", "legacy_backlog_dispatch"):

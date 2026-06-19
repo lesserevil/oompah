@@ -89,7 +89,7 @@ The hook never fails a git commit:
 
 The `post-commit` Backlog hook is a **legacy mechanism** that applies only to
 projects where `tracker_kind` is `backlog_md` (or unset, defaulting to legacy
-mode).
+mode in older deployments).
 
 For **GitHub-backed projects** (`tracker_kind: github_issues`), task state
 lives in GitHub Issues. Those projects do not install or consult the Backlog

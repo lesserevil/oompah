@@ -59,6 +59,7 @@ def _make_project(
     p.yolo = yolo
     p.merge_queue_enabled = merge_queue_enabled
     p.access_token = None
+    p.tracker_kind = "backlog_md"
     return p
 
 
@@ -1783,7 +1784,7 @@ class TestYoloGitHubTrackerUpdates:
             (p for p in (projects or []) if p.id == pid), None
         )
         orch = Orchestrator(
-            config=ServiceConfig(),
+            config=ServiceConfig(tracker_kind="backlog_md"),
             workflow_path="WORKFLOW.md",
             project_store=project_store,
             state_path=str(tmp_path / "state.json"),

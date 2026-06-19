@@ -78,3 +78,29 @@ With sync disabled, oompah writes files without committing or pushing them.
 
 Native tracker projects skip Backlog.md compatibility checks and Backlog task
 conflict repair because `.oompah/tasks` is the task source of truth.
+
+## Optional GitHub Issue Intake
+
+Native projects can also accept customer-facing intake from GitHub Issues
+without making GitHub the task tracker. Enable `github_issue_intake_enabled`
+on the project and set `tracker_owner` / `tracker_repo` to the GitHub
+repository that receives external issues.
+
+The workflow is:
+
+1. A customer opens or comments on a GitHub issue.
+2. Oompah validates the GitHub issue in GitHub, but does not decompose work
+   there.
+3. Oompah creates an internal `.oompah/tasks` issue in `Proposed` with
+   `oompah.external.github` metadata referencing the GitHub issue.
+4. Intake readiness and decomposition happen on the internal Markdown issue.
+   If decomposition is needed, the imported issue becomes the epic and child
+   tasks are created under it.
+5. Oompah works from the internal Markdown issue graph. On internal status
+   changes, oompah posts a status comment to the originating GitHub issue.
+6. When the internal issue reaches `Merged` or `Archived`, oompah closes the
+   originating GitHub issue.
+
+GitHub comments are copied into the internal issue once. Comments authored by
+oompah on GitHub are ignored, and comments made on internal Markdown tasks are
+not copied back to GitHub.
