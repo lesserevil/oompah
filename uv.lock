@@ -763,21 +763,22 @@ name = "oompah"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "fastapi" },
     { name = "httpx" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "claude-agent-sdk" },
+    { name = "fastapi" },
+    { name = "granian" },
     { name = "jinja2" },
+    { name = "openai-agents" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-liquid" },
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "watchfiles" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "claude-agent-sdk" },
-    { name = "openai-agents" },
 ]
 claude = [
     { name = "claude-agent-sdk" },
@@ -787,14 +788,32 @@ codex = [
 ]
 dev = [
     { name = "claude-agent-sdk" },
+    { name = "fastapi" },
     { name = "granian" },
     { name = "httpx" },
+    { name = "jinja2" },
     { name = "openai-agents" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "python-liquid" },
+    { name = "python-multipart" },
+    { name = "pyyaml" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "watchfiles" },
 ]
 granian = [
     { name = "granian" },
+]
+server = [
+    { name = "fastapi" },
+    { name = "jinja2" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "python-liquid" },
+    { name = "python-multipart" },
+    { name = "pyyaml" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "watchfiles" },
 ]
 
 [package.dev-dependencies]
@@ -807,26 +826,36 @@ dev = [
 requires-dist = [
     { name = "claude-agent-sdk", marker = "extra == 'claude'", specifier = ">=0.1.0" },
     { name = "claude-agent-sdk", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "fastapi", specifier = ">=0.115" },
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.115" },
+    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
     { name = "granian", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "granian", marker = "extra == 'granian'", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
-    { name = "jinja2", specifier = ">=3.1" },
+    { name = "jinja2", marker = "extra == 'dev'", specifier = ">=3.1" },
+    { name = "jinja2", marker = "extra == 'server'", specifier = ">=3.1" },
     { name = "oompah", extras = ["claude"], marker = "extra == 'all'" },
     { name = "oompah", extras = ["codex"], marker = "extra == 'all'" },
+    { name = "oompah", extras = ["granian"], marker = "extra == 'all'" },
+    { name = "oompah", extras = ["server"], marker = "extra == 'all'" },
     { name = "openai-agents", marker = "extra == 'codex'", specifier = ">=0.17.2,<0.18" },
     { name = "openai-agents", marker = "extra == 'dev'", specifier = ">=0.17.2,<0.18" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8" },
+    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'dev'", specifier = ">=2.8" },
+    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'server'", specifier = ">=2.8" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
-    { name = "python-liquid", specifier = ">=1.12" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
-    { name = "watchfiles", specifier = ">=1.0" },
+    { name = "python-liquid", marker = "extra == 'dev'", specifier = ">=1.12" },
+    { name = "python-liquid", marker = "extra == 'server'", specifier = ">=1.12" },
+    { name = "python-multipart", marker = "extra == 'dev'", specifier = ">=0.0.9" },
+    { name = "python-multipart", marker = "extra == 'server'", specifier = ">=0.0.9" },
+    { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'server'", specifier = ">=6.0" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'dev'", specifier = ">=0.34" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.34" },
+    { name = "watchfiles", marker = "extra == 'dev'", specifier = ">=1.0" },
+    { name = "watchfiles", marker = "extra == 'server'", specifier = ">=1.0" },
 ]
-provides-extras = ["claude", "codex", "granian", "all", "dev"]
+provides-extras = ["server", "claude", "codex", "granian", "all", "dev"]
 
 [package.metadata.requires-dev]
 dev = [

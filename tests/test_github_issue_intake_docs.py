@@ -155,12 +155,12 @@ class TestGitHubIssueIntakeDoc:
 
 
 # ===========================================================================
-# AGENTS.md — must use GitHub Issues, not Backlog.md as primary tracker
+# AGENTS.md — must use native oompah tasks with GitHub intake
 # ===========================================================================
 
 
 class TestAgentsMdGitHubIssuesGuidance:
-    """AGENTS.md must instruct agents to use GitHub Issues, not Backlog.md."""
+    """AGENTS.md must instruct agents to use native oompah tasks."""
 
     @pytest.fixture(autouse=True)
     def content(self):
@@ -169,37 +169,40 @@ class TestAgentsMdGitHubIssuesGuidance:
             pytest.fail("AGENTS.md is missing from the repository root")
         self._content = open(agents_path, encoding="utf-8").read()
 
-    def test_has_github_issues_integration_block(self):
-        """AGENTS.md must contain the OOMPAH GITHUB ISSUES INTEGRATION block."""
-        assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in self._content, (
-            "AGENTS.md must contain the GitHub Issues integration block "
-            "(BEGIN OOMPAH GITHUB ISSUES INTEGRATION). "
-            "Run ensure_github_issues_agent_instructions() to install it."
+    def test_has_oompah_task_integration_block(self):
+        """AGENTS.md must contain the OOMPAH TASK INTEGRATION block."""
+        assert "BEGIN OOMPAH TASK INTEGRATION" in self._content, (
+            "AGENTS.md must contain the native oompah task integration block "
+            "(BEGIN OOMPAH TASK INTEGRATION). "
+            "Run ensure_oompah_task_agent_instructions() to install it."
         )
 
-    def test_instructs_optional_oompah_task_cli(self):
-        """AGENTS.md must make oompah task CLI usage conditional."""
+    def test_instructs_standalone_oompah_task_cli_install(self):
+        """AGENTS.md must document the standalone GitHub CLI install."""
         assert "oompah task" in self._content, (
-            "AGENTS.md must mention the optional oompah task CLI for "
-            "GitHub-backed work"
+            "AGENTS.md must mention the oompah task CLI for native task work"
         )
-        assert "Prefer the `oompah task` CLI only when it is installed" in self._content
-        assert "Use these commands only after the CLI is installed" in self._content
+        assert "standalone task CLI only" in self._content
+        assert "does not install the oompah service runtime" in self._content
         assert "uv tool install" in self._content
-        assert "OOMPAH_SERVER_URL=http://127.0.0.1:<port>" in self._content
-        assert "GitHub Fallback" in self._content
+        assert "uv pip install -e '.[server]'" in self._content
+        assert (
+            'OOMPAH_SERVER_URL="${OOMPAH_SERVER_URL:-http://127.0.0.1:<port>}"'
+            in self._content
+        )
+        assert "GitHub Fallback" not in self._content
 
-    def test_includes_structured_github_metadata_fallbacks(self):
-        """AGENTS.md must preserve parent/dependency metadata without the CLI."""
-        assert "GitHub's structured sub-issue/parent relationship" in self._content
-        assert "`parent:<issue-number>`" in self._content
-        assert "GitHub's structured dependency/blocking relationship" in self._content
-        assert "`depends-on:<issue-number>`" in self._content
-        assert "`Parent: #123`" in self._content
-        assert "human context only" in self._content
-        assert "not sufficient for oompah rollups" in self._content, (
-            "AGENTS.md must say Parent: body text alone is not structured "
-            "oompah metadata"
+    def test_includes_github_intake_not_decomposition_workflow(self):
+        """AGENTS.md must describe GitHub Issues as intake only."""
+        assert "GitHub Issues are customer-facing intake" in self._content
+        assert "Do not decompose work in GitHub" in self._content
+        assert "Do not create GitHub sub-issues" in self._content
+        assert "metadata referencing the external GitHub issue" in self._content
+        assert "GitHub comments are copied into the internal task" in self._content
+        assert "are not copied to GitHub" in self._content
+        assert "originating GitHub issue when the internal task reaches" in self._content, (
+            "AGENTS.md must describe closing external GitHub intake from "
+            "internal terminal task state"
         )
 
     def test_does_not_use_backlog_md_as_primary_tracker(self):

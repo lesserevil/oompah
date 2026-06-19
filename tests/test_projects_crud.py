@@ -1524,8 +1524,8 @@ Use GitHub Issues for task tracking.
         assert "BEGIN OOMPAH TASK INTEGRATION" in text
         assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in text
         assert "Use GitHub Issues for task tracking" not in text
-        assert "under `.oompah/tasks/`" in text
-        assert "Do not add new files there for\n  task tracking" in text
+        assert "`.oompah/tasks`" in text
+        assert "Existing `backlog/` files are legacy history only" in text
 
     def test_patch_tracker_kind_invalidates_cached_tracker(self):
         import oompah.server as srv

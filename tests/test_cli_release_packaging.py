@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import tomllib
 
 import yaml
 
@@ -49,6 +50,24 @@ def test_release_notes_include_exact_tag_and_artifact_install_commands():
         'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
         in notes
     )
+    assert "task CLI release" in notes
+    assert "does not install or configure the oompah service runtime" in notes
+
+
+def test_default_package_install_is_task_cli_only():
+    data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert data["project"]["dependencies"] == ["httpx>=0.27"]
+
+    extras = data["project"]["optional-dependencies"]
+    assert "server" in extras
+    assert "fastapi>=0.115" in extras["server"]
+    assert "uvicorn[standard]>=0.34" in extras["server"]
+    assert "watchfiles>=1.0" in extras["server"]
+
+    assert "fastapi>=0.115" in extras["dev"]
+    assert "watchfiles>=1.0" in extras["dev"]
+    assert "oompah[server]" in extras["all"]
 
 
 def test_release_notes_renderer_validates_tag_and_artifacts(tmp_path):
@@ -142,3 +161,5 @@ def test_release_docs_cover_tag_creation_and_verification_commands():
         'v0.1.0/oompah-0.1.0-py3-none-any.whl"'
         in text
     )
+    assert "standalone `oompah task` client" in text
+    assert "does not install or configure" in text

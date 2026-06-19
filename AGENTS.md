@@ -1,92 +1,114 @@
 # Agent Instructions
 
-<!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION v:1 -->
-## Issue Tracking with GitHub Issues
+<!-- BEGIN OOMPAH TASK INTEGRATION v:2 -->
+## Issue Tracking with oompah
 
-This project is managed by **oompah** using **GitHub Issues** as the
-canonical task tracker. Do **not** create or edit Backlog.md task files, do
-not use the `backlog` CLI for task tracking, and do not use `bd`, beads,
-TodoWrite, markdown TODO lists, or another tracker for project work.
+This project is managed by **oompah**. The canonical task tracker is oompah's
+native Markdown task manager, stored by oompah on the default branch under
+`.oompah/tasks`. Do not create or edit Backlog.md task files, do not use the
+`backlog` CLI, and do not use `bd`, beads, TodoWrite, standalone markdown TODO
+lists, or direct GitHub issue edits for internal task tracking.
 
-Prefer the `oompah task` CLI only when it is installed and configured for the
-oompah server that manages this project. The CLI applies the correct GitHub
-labels, status mapping, parent/child links, dependencies, and comments.
+Use the `oompah task` CLI against the running oompah server. The CLI/API keeps
+task status, parent/child relationships, dependencies, comments, and
+git-backed `.oompah/tasks` files consistent. Humans and agents may inspect
+`.oompah/tasks`, but oompah should be the only writer.
 
-### Optional CLI Setup
+### Install the Task CLI
 
-The CLI is distributed from GitHub, not PyPI. Install it with `uv tool` or
-`pipx` from a release tag or from `main`, then point it at the local oompah
-server:
+The CLI is distributed from GitHub, not PyPI. The default GitHub install is the
+standalone task CLI only; it does not install the oompah service runtime, create
+service configuration, or start a local service.
+
+Prefer a release tag when one is available:
 
 ```bash
 uv tool install "git+https://github.com/lesserevil/oompah@<tag>"
 pipx install "git+https://github.com/lesserevil/oompah@<tag>"
+```
+
+For unreleased development versions, install from `main`:
+
+```bash
+uv tool install "git+https://github.com/lesserevil/oompah"
+pipx install "git+https://github.com/lesserevil/oompah"
+```
+
+Service operators install the server runtime separately from a cloned oompah
+repo with `uv pip install -e '.[server]'` or `make setup`; managed-project
+contributors should not need that.
+
+### Server Setup
+
+Point the CLI at the oompah service that manages this project:
+
+```bash
+export OOMPAH_SERVER_URL="${OOMPAH_SERVER_URL:-http://127.0.0.1:<port>}"
 oompah task --help
-OOMPAH_SERVER_URL=http://127.0.0.1:<port> oompah task view <owner/repo#number>
-oompah task --server http://127.0.0.1:<port> view <owner/repo#number>
+oompah task view <task-id>
 ```
 
 ### CLI Quick Reference
 
-Use these commands only after the CLI is installed and configured for the
-correct server:
-
 ```bash
-oompah task view <owner/repo#number>
-oompah task comment <owner/repo#number> --message "Progress update" --author oompah
-oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <owner/repo#number>
-oompah task child-create <owner/repo#number> --title "Child task title" --description "Details"
-oompah task set-dependency <owner/repo#number> --depends-on <owner/repo#other-number>
-oompah task add-label <owner/repo#number> needs:frontend
-oompah task set-status <owner/repo#number> Open
-oompah task set-status <owner/repo#number> Done --summary "Completed"
+oompah task view <task-id> --project <project-id>
+oompah task comment <task-id> --project <project-id> --message "Progress update" --author oompah
+oompah task create --project <project-id> --title "Follow-up title" --description "Details"
+oompah task child-create <task-id> --project <project-id> --title "Child task title" --description "Details"
+oompah task set-dependency <task-id> --project <project-id> --depends-on <other-task-id>
+oompah task add-label <task-id> needs:frontend --project <project-id>
+oompah task set-status <task-id> Open --project <project-id>
+oompah task set-status <task-id> Done --project <project-id> --summary "Completed"
 ```
 
-### GitHub Fallback
+### GitHub Issue Intake
 
-If the CLI is unavailable, use GitHub directly while preserving the structured
-metadata oompah needs:
+GitHub Issues are customer-facing intake, not the internal task graph.
 
-- Create follow-up work as GitHub issues in the configured task hub repository
-  and link back to the source issue.
-- For epic children, use GitHub's structured sub-issue/parent relationship.
-  If that is unavailable, apply the oompah-compatible `parent:<issue-number>`
-  label to the child issue.
-- For dependencies, use GitHub's structured dependency/blocking relationship.
-  If that is unavailable, apply the oompah-compatible
-  `depends-on:<issue-number>` label to the blocked issue.
-- Body text such as `Parent: #123`, `Depends on #123`, or a task-list item is
-  human context only. It is not sufficient for oompah rollups, dispatch, or
-  dependency gates.
+- A customer may open or comment on a GitHub issue.
+- Oompah validates the GitHub issue in GitHub and asks for missing information
+  there.
+- Do not decompose work in GitHub. Do not create GitHub sub-issues for oompah
+  decomposition.
+- Once intake is sound, oompah creates an internal native Markdown task in
+  `Proposed` with metadata referencing the external GitHub issue.
+- If the work is too large, oompah decomposes the internal task. The imported
+  task becomes the internal epic and child tasks are created under
+  `.oompah/tasks`.
+- Oompah works and tracks the internal task or epic. On state changes, oompah
+  comments on the originating GitHub issue.
+- Oompah closes the originating GitHub issue when the internal task reaches
+  `Merged` or `Archived`.
+
+GitHub comments are copied into the internal task. Comments made by oompah on
+GitHub are not copied back into the internal task, and comments made on
+internal tasks are not copied to GitHub except for oompah's status-change
+comments.
 
 ### Rules
 
-- Always pass `--author oompah` when posting comments through the CLI. In the
-  GitHub fallback path, make clear the update is from `oompah`.
-- Use `oompah task create --project <project-id>` for follow-up work when the
-  CLI is available; otherwise create the GitHub issue with the source link and
-  structured metadata described above.
-- Use `oompah task child-create <parent>` for epic children when the CLI is
-  available; otherwise use GitHub sub-issues or the `parent:*` fallback label.
-- Use `oompah task set-dependency` when the CLI is available; otherwise use
-  GitHub dependencies or the `depends-on:*` fallback label.
-- Do not edit `oompah:status:*`, `type:*`, `priority:*`, `parent:*`, or
-  `depends-on:*` labels directly when the CLI or structured GitHub controls are
-  available. Use `parent:*` and `depends-on:*` only as compatibility fallbacks.
-- Epics use `type:epic`; their effective status is derived from child issue
-  status by oompah.
-- Existing `backlog/` files are legacy history. Do not add new files there for
-  task tracking after GitHub Issues cutover.
+- Search existing oompah tasks before creating follow-up work.
+- File follow-up work with `oompah task create --project <project-id>`, not
+  GitHub Issues.
+- Create decomposition children with `oompah task child-create`; do not
+  hand-write parent metadata.
+- Record blockers with `oompah task set-dependency`; do not hand-write
+  dependency metadata.
+- Always pass `--author oompah` when posting progress comments through the CLI.
+- Do not edit `.oompah/tasks` files directly unless you are repairing a tracker
+  bug and have checked with the project owner.
+- Do not edit GitHub `oompah:*`, `type:*`, `priority:*`, `parent:*`, or
+  `depends-on:*` labels directly.
+- Existing `backlog/` files are legacy history only. Do not add new files
+  there.
 
 ## Session Completion
 
 When ending a work session, complete all of these steps:
 
-1. File follow-up issues for remaining work, using `oompah task create` when
-   available or the GitHub fallback above.
+1. File follow-up tasks with `oompah task create` for remaining work.
 2. Run the relevant quality gates for the code you changed.
-3. Update the current issue status with `oompah task set-status` when
-   available, or with the repository's GitHub issue status controls.
+3. Update the current oompah task status or leave a clear handoff comment.
 4. Push all committed work:
    ```bash
    git pull --rebase
@@ -95,11 +117,10 @@ When ending a work session, complete all of these steps:
    ```
 5. Verify `git status` reports the branch is up to date with origin.
 
-Work is not complete until the code is pushed and the GitHub issue is updated
-through the CLI or GitHub fallback path. Never leave finished work only in a
-local commit.
+Work is not complete until the code is pushed and the oompah task is updated.
+Never leave finished work only in a local commit.
 
-<!-- END OOMPAH GITHUB ISSUES INTEGRATION -->
+<!-- END OOMPAH TASK INTEGRATION -->
 
 ## Use Makefile Targets
 

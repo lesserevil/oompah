@@ -30,9 +30,9 @@ index credentials.
    an existing tag through **Run workflow** and the `tag` input.
 
 The workflow checks out the tag, validates that the checkout is exactly that
-tag, builds `dist/*.whl` and `dist/*.tar.gz`, smoke-installs the wheel, runs
-`oompah --help` and `oompah task --help`, then creates or updates the GitHub
-Release for that tag.
+tag, builds `dist/*.whl` and `dist/*.tar.gz`, smoke-installs the lightweight
+CLI wheel, runs `oompah --help` and `oompah task --help`, then creates or
+updates the GitHub Release for that tag.
 
 ## Verify a release
 
@@ -62,6 +62,12 @@ Verify the installed console script:
 oompah --help
 oompah task --help
 ```
+
+The default release artifact is for managed-project contributors and agents. It
+installs the standalone `oompah task` client and does not install or configure
+the oompah service runtime. Service operators should install the server extra
+from a cloned repository with `uv pip install -e '.[server]'` or use
+`make setup`.
 
 ## Release notes
 

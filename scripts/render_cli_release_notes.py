@@ -60,7 +60,10 @@ def render_release_notes(
     tag_url = f"git+https://github.com/{repository}@{tag}"
     return f"""# oompah {tag}
 
-GitHub-only CLI release for `{tag}`.
+GitHub-only task CLI release for `{tag}`.
+
+The default install provides `oompah task` for talking to an existing oompah
+service. It does not install or configure the oompah service runtime.
 
 ## Install from the Git tag
 
@@ -85,7 +88,7 @@ oompah task --help
 
 ## Artifacts
 
-- `{wheel_name}` - installable wheel for the `oompah` console script
+- `{wheel_name}` - lightweight installable wheel for the `oompah task` CLI
 - `{sdist_name}` - source distribution built from the tagged source state
 
 This project publishes CLI artifacts through GitHub Releases only.

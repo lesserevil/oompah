@@ -59,7 +59,7 @@ endef
 
 help:
 	@echo "oompah — make targets:"
-	@echo "  setup          Install dependencies and Backlog.md CLI into $(VENV) (idempotent)"
+	@echo "  setup          Install server dependencies and Backlog.md CLI into $(VENV) (idempotent)"
 	@echo "  start          Start oompah in the background (default port: $(PORT))"
 	@echo "  stop           Stop the background oompah process"
 	@echo "  restart        Hard restart (stop + start) — use for orchestrator/agent changes"
@@ -77,7 +77,7 @@ setup: $(VENV)/.uv-setup ensure-backlog
 
 $(VENV)/.uv-setup: pyproject.toml
 	@test -d $(VENV) || uv venv $(VENV)
-	uv pip install -e .
+	uv pip install -e '.[server]'
 	@touch $@
 	@echo "Setup complete. Run 'make start' to launch oompah."
 
@@ -149,10 +149,10 @@ restart: stop start
 # ASGI lifespan. See backlog/docs/doc-1 (Granian HTTP server migration plan)
 # and TASK-472 for context.
 #
-# Requires: uv pip install -e '.[granian]'   (or: make setup-granian)
+# Requires: uv pip install -e '.[server,granian]'
 run-granian:
 	@if ! $(PYTHON) -c "import granian" 2>/dev/null; then \
-		echo "granian is not installed. Run: uv pip install -e '.[granian]'"; \
+		echo "granian is not installed. Run: uv pip install -e '.[server,granian]'"; \
 		exit 1; \
 	fi
 	$(PYTHON) -m oompah --server granian

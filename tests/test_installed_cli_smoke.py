@@ -218,6 +218,72 @@ class TestCurrentInstallSmoke:
             f"stderr: {result.stderr}\nstdout: {result.stdout}"
         )
 
+    def test_oompah_task_help_does_not_import_server_dependencies(self):
+        """``oompah task`` must work from a CLI-only install without server deps."""
+        code = """
+import builtins
+import sys
+
+real_import = builtins.__import__
+
+def guarded_import(name, *args, **kwargs):
+    if name == "watchfiles" or name.startswith("watchfiles."):
+        raise ImportError("blocked server-only dependency")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+
+from oompah.__main__ import main
+
+sys.argv = ["oompah", "task", "--help"]
+try:
+    main()
+except SystemExit as exc:
+    raise SystemExit(exc.code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            "oompah task --help imported a server-only dependency.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+
+    def test_oompah_help_does_not_import_server_dependencies(self):
+        """Top-level help must work from a CLI-only install without server deps."""
+        code = """
+import builtins
+import sys
+
+real_import = builtins.__import__
+
+def guarded_import(name, *args, **kwargs):
+    if name == "watchfiles" or name.startswith("watchfiles."):
+        raise ImportError("blocked server-only dependency")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+
+from oompah.__main__ import main
+
+sys.argv = ["oompah", "--help"]
+try:
+    main()
+except SystemExit as exc:
+    raise SystemExit(exc.code)
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            "oompah --help imported a server-only dependency.\n"
+            f"stderr: {result.stderr}\nstdout: {result.stdout}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # TestIsolatedVenvSmoke

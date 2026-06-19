@@ -8,8 +8,6 @@ import logging
 import os
 import sys
 
-from watchfiles import awatch
-
 logger = logging.getLogger("oompah")
 
 # Sentinel file written by the Granian lifespan _supervise() task to signal
@@ -136,6 +134,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    try:
+        import watchfiles  # noqa: F401
+    except ImportError:
+        sys.exit(
+            "ERROR: oompah server dependencies are not installed.\n"
+            "The default GitHub install provides the standalone task CLI only.\n"
+            "Install the service runtime from a clone with: uv pip install -e '.[server]'\n"
+            "For task operations, use: oompah task --help"
+        )
+
     # Load .env file before anything else so $VAR references in WORKFLOW.md resolve.
     env_path = os.path.abspath(args.env_file)
     n = _load_startup_env(env_path)
@@ -210,7 +218,8 @@ def _run_granian(
     SIGTERMs the Granian supervisor, causing ``serve()`` to return.  This
     function then detects the sentinel, removes it, and re-execs.
 
-    Requires the ``granian`` extra: ``uv pip install -e .[granian]``
+    Requires the ``server`` and ``granian`` extras:
+    ``uv pip install -e '.[server,granian]'``
     """
     try:
         from granian import Granian
@@ -218,7 +227,7 @@ def _run_granian(
     except ImportError:
         logger.error(
             "granian is not installed. Install it with: "
-            "uv pip install -e '.[granian]'"
+            "uv pip install -e '.[server,granian]'"
         )
         sys.exit(1)
 
@@ -289,6 +298,7 @@ async def _run(
     from oompah.bootstrap import StartupError, setup_services
     from oompah.config import ServiceConfig, WorkflowError, load_workflow, validate_dispatch_config
     from oompah.server import app, set_orchestrator
+    from watchfiles import awatch
 
     try:
         services = await setup_services(workflow_path, cli_port, start_paused)

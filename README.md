@@ -35,15 +35,18 @@ make start
 
 ## Backends
 
-Oompah supports two ACP (Agent Control Protocol) backends for running AI coding agents. The base install is lightweight — backend SDKs are optional extras you install only for the backends you use.
+Oompah supports two ACP (Agent Control Protocol) backends for running AI coding
+agents. The default package install is the lightweight `oompah task` CLI. To run
+the orchestration service, install the `server` extra; backend SDKs remain
+optional extras you install only for the backends you use.
 
 ### Install matrix
 
 | Backend | Dispatch mode | What drives the agent | Install command (from cloned repo) |
 |---|---|---|---|
-| `claude` | ACP (subscription) | Claude Agent SDK → `claude` CLI | `uv pip install -e '.[claude]'` |
-| `codex` | ACP (per-token or subscription) | OpenAI Agents SDK → `codex` CLI | `uv pip install -e '.[codex]'` |
-| *(none)* | API | Direct HTTP to any OpenAI-compatible API | `uv pip install -e .` (base install) |
+| `claude` | ACP (subscription) | Claude Agent SDK → `claude` CLI | `uv pip install -e '.[server,claude]'` |
+| `codex` | ACP (per-token or subscription) | OpenAI Agents SDK → `codex` CLI | `uv pip install -e '.[server,codex]'` |
+| *(none)* | API | Direct HTTP to any OpenAI-compatible API | `uv pip install -e '.[server]'` |
 
 > **oompah is not published to PyPI.** All install commands above require the repo to be cloned first (see [Quick start](#quick-start)). For installing just the `oompah task` CLI without cloning, see [docs/cli-install.md](docs/cli-install.md).
 
@@ -51,19 +54,19 @@ Oompah supports two ACP (Agent Control Protocol) backends for running AI coding 
 
 ```bash
 # Claude backend only (recommended default — bills against Pro/Max subscription)
-uv pip install -e '.[claude]'
+uv pip install -e '.[server,claude]'
 
 # Codex backend only
-uv pip install -e '.[codex]'
+uv pip install -e '.[server,codex]'
 
 # Both backends
 uv pip install -e '.[all]'
 
-# Development dependencies only (no ACP backend)
+# Development dependencies for the full service test suite
 uv pip install -e '.[dev]'
 ```
 
-**Why are SDKs optional?** The Claude Agent SDK and OpenAI Agents SDK are large dependencies that operators running in pure API mode (or using only one backend) should not have to install. The base `oompah` package ships with no ACP backend SDK; each backend's SDK is gated behind a lazy import that surfaces a clear install hint when the SDK is missing. See `plans/acp-agent.md` for the architectural rationale.
+**Why are SDKs optional?** The Claude Agent SDK and OpenAI Agents SDK are large dependencies that operators running in pure API mode (or using only one backend) should not have to install. The base `oompah` package ships with the task CLI only; the service runtime and each backend's SDK are gated behind extras and lazy imports that surface clear install hints when missing. See `plans/acp-agent.md` for the architectural rationale.
 
 ## Configuration
 
@@ -288,7 +291,7 @@ curl -X POST http://localhost:8080/api/v1/projects \
 ## Development
 
 ```bash
-# Install with dev dependencies
+# Install with server and dev dependencies
 uv pip install -e ".[dev]"
 
 # Run tests

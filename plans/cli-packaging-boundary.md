@@ -1,19 +1,27 @@
 # CLI Packaging Boundary Decision
 
-**Status:** Decided — keep in main package  
+**Status:** Revised — default install is task CLI only
 **Issue:** lesserevil/oompah#317  
 **Epic:** lesserevil/oompah#312 — Distribute the oompah CLI through GitHub releases
 
 ## Background
 
-The `oompah` console script currently lives in the main `oompah` package alongside
-the full orchestration server. Issue #317 asks whether managed-project contributors
-who only need `oompah task` should install a slimmer package instead.
+The `oompah` console script lives in the main `oompah` package. Issue #317
+asked whether managed-project contributors who only need `oompah task` should
+install a slimmer package instead. The initial decision kept all runtime
+dependencies in the default package because `uv tool` and `pipx` isolate them.
+The native task-manager rollout made the CLI a required contributor tool, so
+the default install now needs to be truly service-free.
 
 ## Current Dependency Footprint
 
-Running `uv tree` against the main package shows **~122 transitive packages**
-dominated by the server stack:
+The default package now installs only the task CLI dependency:
+
+| Direct dependency | Role |
+|-------------------|------|
+| `httpx` | HTTP client used by `oompah task` |
+
+The server runtime is behind the `server` extra:
 
 | Direct dependency | Role |
 |-------------------|------|
@@ -35,14 +43,34 @@ dependency: `httpx`.
 
 ## Options Evaluated
 
-### Option A — Keep in main package (chosen)
+### Option A — Keep one package, make default install CLI-only (chosen)
+
+`uv tool install git+https://github.com/lesserevil/oompah@<tag>` installs the
+same `oompah` console script, but only the task CLI dependency. Running the
+service requires installing the `server` extra from a clone:
+
+```bash
+uv pip install -e '.[server]'
+```
+
+**Pros:**
+- One package name, one release workflow, and one version number.
+- The default GitHub install satisfies managed-project contributors who only
+  need `oompah task`.
+- No version skew between the CLI and server API package.
+- Service dependencies do not land in project contributor environments.
+
+**Cons:**
+- The `oompah` console script has two modes with different dependency sets.
+- Operators must install the `server` extra before running the service.
+
+### Option B — Keep full service dependencies in the default package (rejected)
 
 `uv tool install git+https://github.com/lesserevil/oompah` (or a tagged release
 artifact) installs the full package in an isolated tool environment. Users get
 both the `oompah` server binary and the `oompah task` subcommand from one install.
 
 **Pros:**
-- Zero extra maintenance: one package, one release workflow, one version number.
 - `oompah task` always ships in lock-step with the server it talks to — no
   version-skew risk.
 - `uv tool` / `pipx` isolate the dependency tree; the extra ~120 packages go into
@@ -54,7 +82,7 @@ both the `oompah` server binary and the `oompah task` subcommand from one instal
 - Slightly heavier download on first install (~3–5 MB extra for the server libs).
 - Agents that only need `oompah task` pull in fastapi/uvicorn/etc. they never use.
 
-### Option B — Split into `oompah-cli` or `oompah-task`
+### Option C — Split into `oompah-cli` or `oompah-task`
 
 A new package containing only `task_cli.py` + `httpx`, published separately.
 
@@ -69,16 +97,10 @@ A new package containing only `task_cli.py` + `httpx`, published separately.
   re-exporting it; the `oompah.__main__` dispatch path would need updating.
 - Adds friction for contributors wanting the full server.
 
-## Decision: Option A — Keep in main package
+## Decision: Option A — One package, CLI-only default
 
-The footprint penalty (~120 extra packages in an isolated `uv tool` venv) is
-acceptable given:
-
-1. `uv tool` and `pipx` fully isolate the install — no pollution of the managed
-   project environment.
-2. Maintenance overhead of two packages outweighs the disk/bandwidth saving.
-3. `task_cli.py` is already cleanly separated and easy to split later if the
-   need becomes concrete.
+The default GitHub install is now the standalone task CLI. The service runtime
+is explicit via the `server` extra.
 
 The install path for managed-project contributors is documented in
 [`docs/cli-install.md`](../docs/cli-install.md).
@@ -90,5 +112,6 @@ Revisit this decision if any of the following become true:
 - The full package install time becomes a meaningful blocker for agent cold-starts.
 - A new server dependency significantly increases the footprint (e.g., numpy/torch).
 - PyPI distribution is added and bandwidth costs matter at scale.
+- The CLI and server need independent versioning.
 
 File a follow-up under epic #312 when that threshold is reached.

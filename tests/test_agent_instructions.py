@@ -136,13 +136,17 @@ def test_rendered_oompah_task_instructions_use_native_markdown_store():
     rendered = render_oompah_task_agent_instructions()
 
     assert "BEGIN OOMPAH TASK INTEGRATION" in rendered
-    assert "native Markdown task files" in rendered
-    assert "under `.oompah/tasks/`" in rendered
-    assert "must not\nhand-edit those files" in rendered
-    assert "GitHub Issues as a task\nreplacement" in rendered
-    assert "OOMPAH_SERVER_URL=http://127.0.0.1:<port>" in rendered
-    assert "oompah task view <task-id>" in rendered
-    assert "oompah task set-status <task-id> Done" in rendered
+    assert "native Markdown task manager" in rendered
+    assert "under\n`.oompah/tasks`" in rendered
+    assert "standalone task CLI only" in rendered
+    assert "does not install the oompah service runtime" in rendered
+    assert "uv tool install" in rendered
+    assert "uv pip install -e '.[server]'" in rendered
+    assert "GitHub Issues are customer-facing intake" in rendered
+    assert "Do not decompose work in GitHub" in rendered
+    assert "OOMPAH_SERVER_URL=\"${OOMPAH_SERVER_URL:-http://127.0.0.1:<port>}\"" in rendered
+    assert "oompah task view <task-id> --project <project-id>" in rendered
+    assert "oompah task set-status <task-id> Done --project <project-id>" in rendered
     assert "Work is not complete until the code is pushed" in rendered
     assert "GitHub Fallback" not in rendered
 
@@ -157,7 +161,7 @@ def test_update_oompah_task_replaces_github_block():
     assert "BEGIN OOMPAH TASK INTEGRATION" in updated
     assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in updated
     assert "GitHub Fallback" not in updated
-    assert "under `.oompah/tasks/`" in updated
+    assert "`.oompah/tasks`" in updated
 
 
 def test_update_oompah_task_replaces_top_level_backlog_quick_reference():
@@ -187,7 +191,7 @@ Use Makefile targets.
     assert "This project uses **Backlog.md**" not in updated
     assert "backlog task list --plain" not in updated
     assert "BEGIN OOMPAH TASK INTEGRATION" in updated
-    assert "oompah task view <task-id>" in updated
+    assert "oompah task view <task-id> --project <project-id>" in updated
     assert "## Other Rules" in updated
     assert updated.count("BEGIN OOMPAH TASK INTEGRATION") == 1
 
