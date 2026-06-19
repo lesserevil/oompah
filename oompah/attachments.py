@@ -271,6 +271,8 @@ class AttachmentStore:
                 f"per-issue cap {MAX_PER_ISSUE_BYTES} (current {existing_total})"
             )
 
+        self.ensure_lfs_configured()
+
         with open(src_path, "rb") as f:
             data = f.read()
         prefix = _sha256_prefix(data)

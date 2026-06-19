@@ -16,7 +16,6 @@ from urllib.parse import urlsplit
 
 import yaml
 
-from oompah.attachments import ATTACHMENTS_SUBDIR, LFS_PATTERNS
 from oompah.backlog_compat import (
     BacklogCompatibilityError,
     ensure_backlog_compatible,
@@ -183,11 +182,16 @@ def _task_file_matches(path: str, issue_identifier: str) -> bool:
 
 
 def _bootstrap_lfs(repo_path: str) -> bool:
-    """Install git LFS and track supported attachment formats for a repo.
+    """Install git LFS locally for a repo.
 
     Returns False when git-lfs is unavailable or fails. The project can
     still operate without LFS; attachments just won't get large-file
     handling until the operator installs it.
+
+    This deliberately does not write ``.oompah/attachments/.gitattributes``.
+    Project registration must not dirty managed checkouts. The attachment
+    store writes that tracked scaffold only when an attachment is actually
+    added.
     """
     if not repo_path or not os.path.isdir(repo_path):
         return False
@@ -203,18 +207,6 @@ def _bootstrap_lfs(repo_path: str) -> bool:
     except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return False
 
-    attributes_dir = os.path.join(repo_path, ATTACHMENTS_SUBDIR)
-    attributes_path = os.path.join(attributes_dir, ".gitattributes")
-    os.makedirs(attributes_dir, exist_ok=True)
-    lines = [
-        f"{pattern} filter=lfs diff=lfs merge=lfs -text"
-        for pattern in LFS_PATTERNS
-    ]
-    try:
-        with open(attributes_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-    except OSError:
-        return False
     return True
 
 

@@ -142,7 +142,7 @@ class TestSanitizeIdentifier:
 
 
 class TestBootstrapLFS:
-    def test_success_path_writes_gitattributes(self, tmp_path):
+    def test_success_path_does_not_dirty_repo(self, tmp_path):
         repo = _make_repo(tmp_path, backlog=False)
 
         def fake_run(args, **kwargs):
@@ -154,7 +154,7 @@ class TestBootstrapLFS:
             ok = _bootstrap_lfs(str(repo))
 
         assert ok is True
-        assert (repo / ".oompah" / "attachments" / ".gitattributes").is_file()
+        assert not (repo / ".oompah").exists()
 
     def test_idempotent(self, tmp_path):
         repo = _make_repo(tmp_path, backlog=False)
@@ -162,11 +162,10 @@ class TestBootstrapLFS:
         with patch("oompah.projects.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess([], 0, "", "")
             assert _bootstrap_lfs(str(repo)) is True
-            first = (repo / ".oompah" / "attachments" / ".gitattributes").read_text()
             assert _bootstrap_lfs(str(repo)) is True
-            second = (repo / ".oompah" / "attachments" / ".gitattributes").read_text()
 
-        assert first == second
+        assert mock_run.call_count == 2
+        assert not (repo / ".oompah").exists()
 
     def test_no_lfs_installed_returns_false(self, tmp_path):
         repo = _make_repo(tmp_path, backlog=False)

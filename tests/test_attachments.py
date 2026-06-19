@@ -152,6 +152,16 @@ class TestAdd:
         # File is on disk where it should be.
         assert os.path.isfile(os.path.join(repo, rec.path))
 
+    def test_add_writes_lfs_gitattributes(self, tmp_path):
+        repo = _make_repo(tmp_path)
+        store = AttachmentStore(repo)
+        src = _png(tmp_path / "shot.png", size=100)
+
+        store.add("oompah-9k1", src)
+
+        ga = os.path.join(repo, ATTACHMENTS_SUBDIR, ".gitattributes")
+        assert os.path.isfile(ga)
+
     def test_canonical_path_is_stable_across_runs(self, tmp_path):
         """Same content → same path (sha-prefixed naming makes adds idempotent)."""
         repo = _make_repo(tmp_path)
