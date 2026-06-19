@@ -82,6 +82,29 @@ def _github_issue(
     )
 
 
+def _native_issue(
+    issue_id: str = "OVA-1",
+    identifier: str = "OVA-1",
+    state: str = "open",
+    project_id: str = "proj-native",
+    priority: int = 2,
+) -> Issue:
+    return Issue(
+        id=issue_id,
+        identifier=identifier,
+        title=f"Native task {identifier}",
+        description="Detailed description that passes the empty-description gate.",
+        state=state,
+        priority=priority,
+        issue_type="task",
+        labels=[],
+        tracker_kind="oompah_md",
+        project_id=project_id,
+        created_at=_dt(),
+        updated_at=_dt(),
+    )
+
+
 def _backlog_issue(
     issue_id: str = "TASK-1",
     state: str = "open",
@@ -465,6 +488,41 @@ class TestGitHubClaimProtocol:
         event_loop.run_until_complete(orch._dispatch(issue, attempt=None))
 
         # Worker should have been started
+        orch._run_worker.assert_awaited_once()
+
+    def test_native_oompah_md_claim_writes_run_id(self, tmp_path, event_loop):
+        """Native Markdown tasks use the same claim protocol as GitHub tasks."""
+        issue = _native_issue("OVA-10", "OVA-10")
+        tracker = _make_tracker([issue])
+        tracker.fetch_issue_states_by_ids.return_value = [issue]
+        written_ids: list[str] = []
+
+        def _capture_set(identifier, key, value):
+            written_ids.append(value)
+
+        def _echo_metadata(identifier):
+            if written_ids:
+                return {"oompah.agent_run_id": written_ids[-1]}
+            return {}
+
+        tracker.set_metadata_field.side_effect = _capture_set
+        tracker.get_metadata.side_effect = _echo_metadata
+
+        proj = _make_project("proj-native", tracker_kind="oompah_md")
+        orch = _make_orch(tmp_path, projects=[proj])
+        orch._project_trackers["proj-native"] = tracker
+
+        mock_profile = AgentProfile(name="default", command="echo test")
+        orch._match_agent_profile = MagicMock(return_value=mock_profile)
+        orch._get_profile_by_name = MagicMock(return_value=mock_profile)
+        orch._run_worker = AsyncMock()
+
+        event_loop.run_until_complete(orch._dispatch(issue, attempt=None))
+
+        assert any(
+            len(c[0]) >= 2 and c[0][1] == "oompah.agent_run_id"
+            for c in tracker.set_metadata_field.call_args_list
+        )
         orch._run_worker.assert_awaited_once()
 
     def test_non_github_issue_skips_claim_protocol(self, tmp_path, event_loop):

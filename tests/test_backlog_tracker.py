@@ -1530,6 +1530,7 @@ def _make_project(
     tracker_owner: str | None = None,
     tracker_repo: str | None = None,
     access_token: str | None = None,
+    default_branch: str = "main",
 ):
     """Helper: build a minimal Project with optional tracker fields."""
     from oompah.models import Project
@@ -1543,6 +1544,7 @@ def _make_project(
         tracker_owner=tracker_owner,
         tracker_repo=tracker_repo,
         access_token=access_token,
+        default_branch=default_branch,
     )
 
 
@@ -1599,6 +1601,38 @@ class TestNewTrackerForProject:
         call = factory_calls[0]
         assert call["owner"] == "myorg"
         assert call["repo"] == "myrepo"
+        assert call["cwd"] == str(tmp_path)
+
+    def test_project_with_oompah_md_passes_default_branch_to_factory(self, tmp_path):
+        """A native Markdown project pins tracker writes to its default branch."""
+        from oompah.tracker import ADAPTER_REGISTRY
+
+        factory_calls: list[dict] = []
+
+        def _fake_oompah_md_factory(**kwargs):
+            factory_calls.append(dict(kwargs))
+            return MagicMock()
+
+        orch = _make_orch(tmp_path, global_tracker_kind="backlog_md")
+        project = _make_project(
+            repo_path=str(tmp_path),
+            tracker_kind="oompah_md",
+            default_branch="trunk",
+        )
+
+        original = ADAPTER_REGISTRY.get("oompah_md")
+        ADAPTER_REGISTRY["oompah_md"] = _fake_oompah_md_factory
+        try:
+            orch._new_tracker_for_project(project)
+        finally:
+            if original is not None:
+                ADAPTER_REGISTRY["oompah_md"] = original
+            else:
+                ADAPTER_REGISTRY.pop("oompah_md", None)
+
+        assert len(factory_calls) == 1
+        call = factory_calls[0]
+        assert call["default_branch"] == "trunk"
         assert call["cwd"] == str(tmp_path)
 
     def test_project_with_github_issues_passes_access_token_to_factory(self, tmp_path):

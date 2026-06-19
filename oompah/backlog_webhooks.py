@@ -331,15 +331,15 @@ def ensure_backlog_webhooks(
         repo_path = getattr(project, "repo_path", None) or ""
         secret = getattr(project, "webhook_secret", None) or ""
 
-        # GitHub-backed projects use GitHub webhooks for task change
-        # notifications — Backlog post-commit hooks are not needed and
-        # must not be installed for them.
-        tracker_kind = getattr(project, "tracker_kind", None)
-        if tracker_kind == "github_issues":
+        # External/native task trackers do not use Backlog post-commit hooks.
+        tracker_kind = str(getattr(project, "tracker_kind", None) or "").strip().lower()
+        if tracker_kind in {"github_issues", "github-issues", "oompah_md", "oompah.md", "oompah"}:
             logger.debug(
-                "ensure_backlog_webhooks: skipping GitHub-backed project %s", pid
+                "ensure_backlog_webhooks: skipping %s project %s",
+                tracker_kind,
+                pid,
             )
-            results[pid] = "skipped: github_issues tracker"
+            results[pid] = f"skipped: {tracker_kind} tracker"
             continue
 
         if not repo_path or not os.path.isdir(os.path.join(repo_path, ".git")):

@@ -422,7 +422,7 @@ class TestTrackerSpecificConditionalRendering:
 
     # Minimal mock of the WORKFLOW.md conditional quick-reference section.
     _TRACKER_SECTION_TEMPLATE = """\
-{% if issue.tracker_kind == "github_issues" %}
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
 ## oompah Task Reference
 view: `oompah task view {{ issue.identifier }}`
 comment: `oompah task comment {{ issue.identifier }} --message "..." --author oompah`
@@ -455,6 +455,20 @@ close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "
         assert "backlog task view" not in out
         assert "backlog task edit" not in out
         assert "backlog task create" not in out
+
+    def test_native_oompah_markdown_shows_oompah_commands(self):
+        issue = _make_issue(
+            identifier="OVA-12",
+            tracker_kind="oompah_md",
+            project_id="proj-ova",
+        )
+        out = render_prompt(self._TRACKER_SECTION_TEMPLATE, issue)
+        assert "oompah task view OVA-12" in out
+        assert "oompah task comment OVA-12" in out
+        assert "oompah task create --project proj-ova" in out
+        assert "oompah task set-status OVA-12" in out
+        assert "backlog task view" not in out
+        assert "backlog task edit" not in out
 
     def test_legacy_backlog_shows_backlog_commands(self):
         issue = _make_issue(
@@ -513,6 +527,35 @@ close: `backlog task edit {{ issue.identifier }} --status Done --final-summary "
         assert "oompah task set-status" in out
         # Must NOT include backlog task create/edit for GitHub tasks
         assert "backlog task edit owner/repo#99" not in out
+        assert "backlog task create" not in out
+
+    def test_workflow_md_renders_for_native_oompah_markdown_issue(self):
+        """End-to-end: native Markdown tracker tasks use oompah task commands."""
+        import os
+        workflow_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "WORKFLOW.md"
+        )
+        if not os.path.isfile(workflow_path):
+            pytest.skip("WORKFLOW.md not found")
+        with open(workflow_path) as f:
+            raw = f.read()
+        parts = raw.split("---", 2)
+        template_source = parts[2].strip() if len(parts) == 3 else raw
+
+        issue = _make_issue(
+            identifier="OVA-12",
+            title="Native Markdown issue",
+            tracker_kind="oompah_md",
+            project_id="proj-ova",
+            branch_name="OVA-12",
+        )
+        out = render_prompt(template_source, issue)
+        assert isinstance(out, str)
+        assert "oompah Task Reference" in out
+        assert "oompah task view OVA-12" in out
+        assert "oompah task set-status OVA-12" in out
+        assert "Backlog.md Quick Reference" not in out
+        assert "backlog task edit OVA-12" not in out
         assert "backlog task create" not in out
 
     def test_workflow_md_renders_for_legacy_issue(self):

@@ -260,13 +260,18 @@ class TestTrackerEditForm:
         load_body = _get_func_body(script, "loadProjects")
         assert 'value="backlog"' in load_body
 
+    def test_tracker_kind_has_oompah_md_option(self, script: str) -> None:
+        """The tracker-kind select offers native oompah Markdown as an option."""
+        load_body = _get_func_body(script, "loadProjects")
+        assert 'value="oompah_md"' in load_body
+
 
 class TestAddProjectTrackerDefaults:
-    """The add form must create safe GitHub-backed paused projects."""
+    """The add form must create paused native-tracker projects."""
 
-    def test_add_project_sends_github_issues_tracker_kind(self, script: str) -> None:
+    def test_add_project_sends_oompah_md_tracker_kind(self, script: str) -> None:
         add_body = _get_func_body(script, "addProject")
-        assert "tracker_kind: 'github_issues'" in add_body
+        assert "tracker_kind: 'oompah_md'" in add_body
 
     def test_add_project_sends_paused_true(self, script: str) -> None:
         add_body = _get_func_body(script, "addProject")

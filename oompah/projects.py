@@ -645,6 +645,15 @@ def _is_github_backed_kind(kind: str) -> bool:
     return kind in ("github_issues", "github-issues")
 
 
+def _is_oompah_md_kind(kind: str) -> bool:
+    """Return True when *kind* is the native oompah Markdown tracker."""
+    return kind in ("oompah_md", "oompah.md", "oompah")
+
+
+def _uses_external_or_native_tracker_kind(kind: str) -> bool:
+    return _is_github_backed_kind(kind) or _is_oompah_md_kind(kind)
+
+
 def _is_github_backed(project: "Project") -> bool:
     """Return True when *project* uses the GitHub Issues tracker backend.
 
@@ -743,7 +752,7 @@ class ProjectStore:
         git_user_name: str | None = None,
         git_user_email: str | None = None,
         access_token: str | None = None,
-        tracker_kind: str | None = None,
+        tracker_kind: str | None = "oompah_md",
         tracker_owner: str | None = None,
         tracker_repo: str | None = None,
         github_project_node_id: str | None = None,
@@ -763,8 +772,9 @@ class ProjectStore:
             branches: List of branch patterns to track (e.g., ["main", "release/*", "hotfix/*"]).
                       Supports glob patterns. Defaults to ["main"].
             default_branch: Default branch for new task branches. Defaults to first entry in branches.
-            tracker_kind: Per-project tracker backend (e.g. "backlog_md", "github_issues"). None
-                          means fall back to global ServiceConfig.tracker_kind.
+            tracker_kind: Per-project tracker backend (e.g. "oompah_md",
+                          "github_issues", "backlog_md"). Defaults to
+                          oompah's native Markdown task store.
             tracker_owner: GitHub org/user owning the task hub repository.
             tracker_repo: GitHub task hub repository name.
             github_project_node_id: GitHub Projects v2 node ID for board views.
@@ -822,10 +832,11 @@ class ProjectStore:
         if not os.path.isdir(os.path.join(repo_path, ".git")):
             raise ProjectError(f"Clone succeeded but no .git/ found in: {repo_path}")
         # Backlog.md compatibility is only relevant for legacy Backlog projects.
-        # GitHub-backed projects (tracker_kind == "github_issues") do not use
-        # Backlog.md files at all, so skip the check for them (TASK-464.7).
-        _resolved_kind = (tracker_kind or "").strip().lower()
-        if not _is_github_backed_kind(_resolved_kind):
+        # GitHub-backed and native oompah-md projects do not use Backlog.md
+        # files as their authoritative task store, so skip the check for them.
+        tracker_kind = tracker_kind or "oompah_md"
+        _resolved_kind = str(tracker_kind).strip().lower()
+        if not _uses_external_or_native_tracker_kind(_resolved_kind):
             try:
                 ensure_backlog_compatible(repo_path)
             except BacklogCompatibilityError as exc:
@@ -1221,10 +1232,11 @@ class ProjectStore:
         * For **legacy Backlog projects** (``tracker_kind`` is ``None`` or
           ``"backlog"``): Backlog.md config compatibility checks and Backlog
           task-file conflict repair/quarantine also run.
-        * For **GitHub-backed projects** (``tracker_kind="github_issues"``):
-          Backlog compatibility and conflict repair are skipped — GitHub is the
-          source of truth.  A ``"tracker": "github_issues"`` key is added to
-          the returned status dict.
+        * For **GitHub-backed projects** (``tracker_kind="github_issues"``)
+          and **native oompah Markdown projects** (``tracker_kind="oompah_md"``):
+          Backlog compatibility and conflict repair are skipped because the
+          configured tracker is the source of truth. A ``"tracker"`` key is
+          added to the returned status dict for explicit project tracker kinds.
 
         After a successful git pull on a legacy project, inspects backlog task
         files for git conflict markers.  For conflicts limited to backlog task
@@ -1237,7 +1249,7 @@ class ProjectStore:
         Returns ``{"git": "ok"|"reset:ok"|"failed: <reason>"|"skipped: <reason>",
                   "backlog": "ok"|"migrated"|"failed: <reason>"|"skipped: <reason>",
                   "conflicts": "none"|"repaired:<n>"|"quarantined:<paths>"|"skipped: <reason>",
-                  "tracker": "github_issues"  # only present for GitHub-backed projects
+                  "tracker": "<tracker_kind>"  # present for explicit project trackers
                   }``.
         """
         from oompah.backlog_conflict import (
@@ -1253,10 +1265,11 @@ class ProjectStore:
                 "conflicts": "skipped: unknown project",
             }
 
+        tracker_kind = (getattr(project, "tracker_kind", None) or "").strip().lower()
         github_backed = _is_github_backed(project)
         status: dict[str, str] = {}
-        if github_backed:
-            status["tracker"] = "github_issues"
+        if tracker_kind:
+            status["tracker"] = tracker_kind
 
         # Paths ensure_repo_sound() could not heal — fed into the quarantine
         # decision below so an un-healable checkout is loud, never silent.
@@ -1298,12 +1311,12 @@ class ProjectStore:
                 )
 
         # Backlog.md compatibility checks and conflict repair are only relevant
-        # for legacy Backlog projects.  GitHub-backed projects skip both steps
-        # because GitHub Issues is the authoritative task store and there are no
-        # Backlog task files to validate or repair.
-        if github_backed:
-            status["backlog"] = "skipped: github_issues"
-            status["conflicts"] = "skipped: github_issues"
+        # for legacy Backlog projects. External/native trackers skip both steps
+        # because Backlog.md is not the authoritative task store.
+        if github_backed or _is_oompah_md_kind(tracker_kind):
+            reason = "github_issues" if github_backed else "oompah_md"
+            status["backlog"] = f"skipped: {reason}"
+            status["conflicts"] = f"skipped: {reason}"
             return status
 
         try:

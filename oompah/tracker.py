@@ -1764,7 +1764,17 @@ def _github_issues_registry_factory(**kwargs) -> "TrackerProtocol":
     return _github_issues_factory(**kwargs)
 
 
+def _oompah_md_registry_factory(**kwargs) -> "TrackerProtocol":
+    """Lazy-import wrapper for the native oompah Markdown tracker."""
+    from oompah.oompah_md_tracker import _oompah_md_factory
+    return _oompah_md_factory(**kwargs)
+
+
 ADAPTER_REGISTRY: dict[str, TrackerFactory] = {
     "backlog_md": _backlog_md_factory,
     "github_issues": _github_issues_registry_factory,
+    "github-issues": _github_issues_registry_factory,
+    "oompah_md": _oompah_md_registry_factory,
+    "oompah.md": _oompah_md_registry_factory,
+    "oompah": _oompah_md_registry_factory,
 }

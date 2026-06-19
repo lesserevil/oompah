@@ -91,7 +91,7 @@ class TestSetupServicesInvalidWorkflow:
     @pytest.mark.asyncio
     async def test_raises_on_broken_workflow(self, tmp_path):
         wf = tmp_path / "WORKFLOW.md"
-        wf.write_text("not: valid: yaml: : :\n")
+        wf.write_text("---\nnot: valid: yaml: : :\n---\n")
         from oompah.bootstrap import StartupError, setup_services
 
         with pytest.raises(StartupError):

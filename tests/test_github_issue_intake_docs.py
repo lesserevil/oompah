@@ -283,6 +283,15 @@ class TestReadmeTrackerGuidance:
             "README.md must document tracker.kind=github_issues"
         )
 
+    def test_tracker_kind_reference_includes_native_markdown(self):
+        """README config reference must include tracker.kind=oompah_md."""
+        assert "oompah_md" in self._content, (
+            "README.md must document tracker.kind=oompah_md"
+        )
+        assert "docs/native-markdown-tracker.md" in self._content, (
+            "README.md must link to the native Markdown tracker guide"
+        )
+
     def test_project_setup_marks_backlog_as_legacy(self):
         """README project setup must mark Backlog.md as legacy, not primary."""
         content = self._content.lower()

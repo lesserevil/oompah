@@ -19,6 +19,7 @@ from oompah.tracker import (
     TrackerFactory,
     TrackerProtocol,
 )
+from oompah.oompah_md_tracker import OompahMarkdownTracker
 from oompah.config import ServiceConfig, validate_dispatch_config
 
 
@@ -126,6 +127,9 @@ class TestAdapterRegistry:
     def test_backlog_md_is_registered(self):
         assert "backlog_md" in ADAPTER_REGISTRY
 
+    def test_oompah_md_is_registered(self):
+        assert "oompah_md" in ADAPTER_REGISTRY
+
     def test_all_values_are_callable(self):
         for kind, factory in ADAPTER_REGISTRY.items():
             assert callable(factory), f"Factory for {kind!r} is not callable"
@@ -160,6 +164,16 @@ class TestAdapterRegistry:
         # The tracker's root path must reflect the supplied cwd.
         assert tracker.root_path == tmp_path.resolve()
 
+    def test_oompah_md_factory_returns_native_tracker(self, tmp_path):
+        factory = ADAPTER_REGISTRY["oompah_md"]
+        tracker = factory(
+            active_states=["Open"],
+            terminal_states=["Done"],
+            cwd=str(tmp_path),
+        )
+        assert isinstance(tracker, OompahMarkdownTracker)
+        assert isinstance(tracker, TrackerProtocol)
+
     def test_factory_type_alias_is_callable_type(self):
         """TrackerFactory is importable and is the Callable type alias."""
         # Just a sanity check that the name is exported correctly.
@@ -188,6 +202,17 @@ class TestValidateDispatchConfigUsesRegistry:
         """'github_issues' must be accepted as a registered tracker kind."""
         cfg = ServiceConfig(tracker_kind="github_issues")
         assert validate_dispatch_config(cfg) == []
+
+    def test_oompah_md_is_valid(self):
+        """'oompah_md' must be accepted as a registered tracker kind."""
+        cfg = ServiceConfig(tracker_kind="oompah_md")
+        assert validate_dispatch_config(cfg) == []
+
+    def test_oompah_md_aliases_are_valid(self):
+        for alias in ("oompah", "oompah.md", "OOMPAH_MD"):
+            cfg = ServiceConfig(tracker_kind=alias)
+            errors = validate_dispatch_config(cfg)
+            assert errors == [], f"Alias {alias!r} should be valid but got: {errors}"
 
     def test_backlog_alias_is_valid(self):
         """'backlog' and 'backlog.md' are normalised to 'backlog_md'."""

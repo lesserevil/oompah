@@ -660,24 +660,23 @@ def verify_completion(
 ) -> VerifierResult:
     """Top-level verification routine.
 
-    Runs the backlog-file guard (for GitHub-backed tasks) first, then
+    Runs the backlog-file guard (for non-Backlog oompah-managed tasks) first, then
     the skip-rules, then Stage 1 (regex check), then Stage 2 (LLM
     check) if Stage 1 found gaps. Fail-open at every boundary.
 
     Backlog-file guard
     ------------------
-    GitHub-backed tasks (``issue.tracker_kind == "github_issues"``)
-    must not add files under ``backlog/tasks/`` or
-    ``backlog/completed/``. If the agent created such files the
-    verifier immediately rejects with a clear diagnostic and a
-    pointer to ``oompah task create``. The guard fires *before* the
-    standard skip rules so that epic/ci-fix labels cannot accidentally
-    bypass the policy check.
+    GitHub-backed and native oompah Markdown tasks must not add files under
+    ``backlog/tasks/`` or ``backlog/completed/``. If the agent created such
+    files the verifier immediately rejects with a clear diagnostic and a
+    pointer to ``oompah task create``. The guard fires *before* the standard
+    skip rules so that epic/ci-fix labels cannot accidentally bypass the policy
+    check.
     """
     # ----------------------------------------------------------------
-    # 0. Backlog-file guard (GitHub-backed tasks only).
+    # 0. Backlog-file guard (non-Backlog oompah-managed tasks only).
     # ----------------------------------------------------------------
-    if (issue.tracker_kind or "").strip().lower() == "github_issues":
+    if (issue.tracker_kind or "").strip().lower() in {"github_issues", "oompah_md"}:
         try:
             added = compute_added_files(workspace_path, base_branch)
             new_backlog = detect_new_backlog_files(added)

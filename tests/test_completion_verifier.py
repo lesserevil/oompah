@@ -748,8 +748,25 @@ def _issue_github(
     )
 
 
+def _issue_native(
+    *,
+    identifier: str = "OVA-42",
+    description: str = "# Acceptance criteria\n\n- Something done.\n",
+) -> Issue:
+    """Return an Issue configured as a native oompah Markdown task."""
+    return Issue(
+        id=identifier,
+        identifier=identifier,
+        title="test native task",
+        description=description,
+        issue_type="task",
+        labels=[],
+        tracker_kind="oompah_md",
+    )
+
+
 class TestNewBacklogFilesGuard:
-    """TASK-460.4: Backlog-file guard for GitHub-backed tasks.
+    """TASK-460.4: Backlog-file guard for non-Backlog oompah-managed tasks.
 
     AC#1 — GitHub-backed tasks fail verification if they add Backlog
     task files.
@@ -765,6 +782,15 @@ class TestNewBacklogFilesGuard:
         repo, base = git_repo
         _commit_files(repo, {"backlog/tasks/task-99.md": "# rogue task\n"})
         issue = _issue_github(identifier="owner/repo#1")
+        result = verify_completion(issue, str(repo), base, provider=None)
+        assert not result.passed
+        assert "backlog/tasks/task-99.md" in result.new_backlog_files
+
+    def test_native_adds_backlog_task_file_rejected(self, git_repo):
+        """Native oompah Markdown tasks also reject new Backlog task files."""
+        repo, base = git_repo
+        _commit_files(repo, {"backlog/tasks/task-99.md": "# rogue task\n"})
+        issue = _issue_native(identifier="OVA-1")
         result = verify_completion(issue, str(repo), base, provider=None)
         assert not result.passed
         assert "backlog/tasks/task-99.md" in result.new_backlog_files

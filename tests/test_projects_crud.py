@@ -450,18 +450,24 @@ class TestProjectCreateAPIDefaults:
         import oompah.server as srv
         from oompah.server import app
 
-        project = Project(
-            id="proj-created",
-            name="created",
-            repo_url="https://github.com/example-org/example-repo.git",
-            repo_path=str(tmp_path / "repos" / "example-repo"),
-            branch="main",
-            tracker_kind="github_issues",
-            paused=True,
-        )
         project_store = MagicMock()
-        project_store.create.return_value = project
-        project_store.list_all.return_value = [project]
+        created_projects: list[Project] = []
+
+        def create_project(**kwargs):
+            project = Project(
+                id="proj-created",
+                name=kwargs.get("name") or "created",
+                repo_url=kwargs["repo_url"],
+                repo_path=str(tmp_path / "repos" / "example-repo"),
+                branch=kwargs.get("branch") or "main",
+                tracker_kind=kwargs.get("tracker_kind"),
+                paused=bool(kwargs.get("paused", False)),
+            )
+            created_projects[:] = [project]
+            return project
+
+        project_store.create.side_effect = create_project
+        project_store.list_all.side_effect = lambda: list(created_projects)
 
         orch = MagicMock()
         orch.project_store = project_store
@@ -474,14 +480,14 @@ class TestProjectCreateAPIDefaults:
         monkeypatch.setattr(srv, "_log_watcher_manager", None)
         monkeypatch.setattr(srv, "_install_backlog_hook_for_project", MagicMock())
         monkeypatch.setattr(
-            srv, "_ensure_github_agent_instructions_for_project", MagicMock()
+            srv, "_ensure_tracker_agent_instructions_for_project", MagicMock()
         )
 
         self.client = TestClient(app)
         self.project_store = project_store
         yield self.client
 
-    def test_create_defaults_to_github_issues_and_paused(self):
+    def test_create_defaults_to_oompah_md_and_paused(self):
         res = self.client.post(
             "/api/v1/projects",
             json={
@@ -493,9 +499,9 @@ class TestProjectCreateAPIDefaults:
 
         assert res.status_code == 201
         kwargs = self.project_store.create.call_args.kwargs
-        assert kwargs["tracker_kind"] == "github_issues"
+        assert kwargs["tracker_kind"] == "oompah_md"
         assert kwargs["paused"] is True
-        assert res.json()["tracker_kind"] == "github_issues"
+        assert res.json()["tracker_kind"] == "oompah_md"
         assert res.json()["paused"] is True
 
     def test_create_preserves_explicit_legacy_tracker_kind_but_still_pauses(self):
@@ -1447,6 +1453,35 @@ Use Backlog.md for ALL task tracking.
         assert "GitHub Fallback" in text
         assert "`parent:<issue-number>`" in text
         assert "`depends-on:<issue-number>`" in text
+
+    def test_patch_oompah_md_tracker_updates_agents_md(self):
+        project = self.store.get("proj-tracker")
+        repo_path = Path(project.repo_path)
+        repo_path.mkdir(parents=True)
+        (repo_path / "AGENTS.md").write_text(
+            """# Project Rules
+
+<!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION v:1 -->
+## Issue Tracking with GitHub Issues
+
+Use GitHub Issues for task tracking.
+<!-- END OOMPAH GITHUB ISSUES INTEGRATION -->
+""",
+            encoding="utf-8",
+        )
+
+        res = self.client.patch(
+            "/api/v1/projects/proj-tracker",
+            json={"tracker_kind": "oompah_md"},
+        )
+
+        assert res.status_code == 200
+        text = (repo_path / "AGENTS.md").read_text(encoding="utf-8")
+        assert "BEGIN OOMPAH TASK INTEGRATION" in text
+        assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in text
+        assert "Use GitHub Issues for task tracking" not in text
+        assert "under `.oompah/tasks/`" in text
+        assert "Do not add new files there for\n  task tracking" in text
 
     def test_patch_tracker_kind_invalidates_cached_tracker(self):
         import oompah.server as srv

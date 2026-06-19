@@ -108,10 +108,96 @@ local commit.
 <!-- END OOMPAH GITHUB ISSUES INTEGRATION -->
 """
 
+OOMPAH_TASK_AGENT_INSTRUCTIONS = """<!-- BEGIN OOMPAH TASK INTEGRATION v:1 -->
+## Issue Tracking with Oompah Tasks
+
+This project is managed by **oompah** using native Markdown task files as the
+canonical task tracker. Oompah stores task files on the repository's default
+branch under `.oompah/tasks/`; feature branches and agent worktrees must not
+hand-edit those files. Do **not** create or edit Backlog.md task files, do not
+use the `backlog` CLI for task tracking, do not use GitHub Issues as a task
+replacement, and do not use `bd`, beads, TodoWrite, markdown TODO lists, or
+another tracker for project work.
+
+Use the `oompah task` CLI when it is installed and configured for the oompah
+server that manages this project. The CLI applies the correct Markdown file
+updates, status mapping, parent/child links, dependencies, and comments on the
+default branch.
+
+### Optional CLI Setup
+
+The CLI is distributed from GitHub, not PyPI. Install it with `uv tool` or
+`pipx` from a release tag or from `main`, then point it at the local oompah
+server:
+
+```bash
+uv tool install "git+https://github.com/lesserevil/oompah@<tag>"
+pipx install "git+https://github.com/lesserevil/oompah@<tag>"
+oompah task --help
+OOMPAH_SERVER_URL=http://127.0.0.1:<port> oompah task view <task-id>
+oompah task --server http://127.0.0.1:<port> view <task-id>
+```
+
+### CLI Quick Reference
+
+Use these commands only after the CLI is installed and configured for the
+correct server:
+
+```bash
+oompah task view <task-id>
+oompah task comment <task-id> --message "Progress update" --author oompah
+oompah task create --project <project-id> --title "Follow-up title" --description "Details" --source <task-id>
+oompah task child-create <task-id> --title "Child task title" --description "Details"
+oompah task set-dependency <task-id> --depends-on <other-task-id>
+oompah task add-label <task-id> needs:frontend
+oompah task set-status <task-id> Open
+oompah task set-status <task-id> Done --summary "Completed"
+```
+
+### Rules
+
+- Always pass `--author oompah` when posting comments through the CLI.
+- Use `oompah task create --project <project-id>` for follow-up work.
+- Use `oompah task child-create <parent>` for epic children.
+- Use `oompah task set-dependency` for dependencies.
+- Do not hand-edit `.oompah/tasks` from an agent worktree. Oompah updates the
+  task store on the default branch so task state does not create feature branch
+  merge conflicts.
+- Epics use `type: epic`; their effective status is derived from child task
+  status by oompah.
+- Existing `backlog/` files are legacy history. Do not add new files there for
+  task tracking.
+
+## Session Completion
+
+When ending a work session, complete all of these steps:
+
+1. File follow-up tasks for remaining work using `oompah task create`.
+2. Run the relevant quality gates for the code you changed.
+3. Update the current task status with `oompah task set-status`.
+4. Push all committed work:
+   ```bash
+   git pull --rebase
+   git push
+   git status
+   ```
+5. Verify `git status` reports the branch is up to date with origin.
+
+Work is not complete until the code is pushed and the oompah task is updated.
+Never leave finished work only in a local commit.
+
+<!-- END OOMPAH TASK INTEGRATION -->
+"""
+
 
 _GITHUB_BLOCK_RE = re.compile(
     r"<!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION(?: [^>]*)? -->.*?"
     r"<!-- END OOMPAH GITHUB ISSUES INTEGRATION -->",
+    re.DOTALL,
+)
+_OOMPAH_TASK_BLOCK_RE = re.compile(
+    r"<!-- BEGIN OOMPAH TASK INTEGRATION(?: [^>]*)? -->.*?"
+    r"<!-- END OOMPAH TASK INTEGRATION -->",
     re.DOTALL,
 )
 _BACKLOG_BLOCK_RE = re.compile(
@@ -135,6 +221,24 @@ def render_github_issues_agent_instructions() -> str:
     return GITHUB_ISSUES_AGENT_INSTRUCTIONS
 
 
+def render_oompah_task_agent_instructions() -> str:
+    """Return the canonical AGENTS.md native oompah task-tracking block."""
+
+    return OOMPAH_TASK_AGENT_INSTRUCTIONS
+
+
+def _replace_managed_task_block(text: str, replacement: str) -> str:
+    """Replace any known oompah-managed task block with ``replacement``."""
+
+    updated = text
+    for regex in (_OOMPAH_TASK_BLOCK_RE, _GITHUB_BLOCK_RE, _BACKLOG_BLOCK_RE):
+        if regex.search(updated):
+            return regex.sub(replacement.strip(), updated, count=1)
+
+    suffix = "" if updated.endswith("\n") else "\n"
+    return updated + suffix + "\n" + replacement.strip() + "\n"
+
+
 def update_agents_text_for_github_issues(text: str) -> tuple[str, bool]:
     """Return AGENTS.md text with oompah GitHub Issues instructions installed.
 
@@ -152,7 +256,9 @@ def update_agents_text_for_github_issues(text: str) -> tuple[str, bool]:
 
     if _TOP_BACKLOG_QUICK_REF_RE.search(updated):
         has_managed_block = bool(
-            _GITHUB_BLOCK_RE.search(updated) or _BACKLOG_BLOCK_RE.search(updated)
+            _OOMPAH_TASK_BLOCK_RE.search(updated)
+            or _GITHUB_BLOCK_RE.search(updated)
+            or _BACKLOG_BLOCK_RE.search(updated)
         )
         replacement = "\n\n"
         if not has_managed_block:
@@ -163,30 +269,36 @@ def update_agents_text_for_github_issues(text: str) -> tuple[str, bool]:
             count=1,
         )
 
-    if _GITHUB_BLOCK_RE.search(updated):
-        updated = _GITHUB_BLOCK_RE.sub(
-            GITHUB_ISSUES_AGENT_INSTRUCTIONS.strip(),
-            updated,
-            count=1,
-        )
-    elif _BACKLOG_BLOCK_RE.search(updated):
-        updated = _BACKLOG_BLOCK_RE.sub(
-            GITHUB_ISSUES_AGENT_INSTRUCTIONS.strip(),
-            updated,
-            count=1,
-        )
-    else:
-        suffix = "" if updated.endswith("\n") else "\n"
-        updated = (
-            updated
-            + suffix
-            + "\n"
-            + GITHUB_ISSUES_AGENT_INSTRUCTIONS.strip()
-            + "\n"
-        )
+    updated = _replace_managed_task_block(updated, GITHUB_ISSUES_AGENT_INSTRUCTIONS)
 
     # Keep a single trailing newline and avoid churn when no semantic change
     # was needed.
+    updated = updated.rstrip() + "\n"
+    return updated, updated != original
+
+
+def update_agents_text_for_oompah_tasks(text: str) -> tuple[str, bool]:
+    """Return AGENTS.md text with native oompah task instructions installed."""
+
+    original = text
+    updated = text
+
+    if _TOP_BACKLOG_QUICK_REF_RE.search(updated):
+        has_managed_block = bool(
+            _OOMPAH_TASK_BLOCK_RE.search(updated)
+            or _GITHUB_BLOCK_RE.search(updated)
+            or _BACKLOG_BLOCK_RE.search(updated)
+        )
+        replacement = "\n\n"
+        if not has_managed_block:
+            replacement = "\n\n" + OOMPAH_TASK_AGENT_INSTRUCTIONS.strip() + "\n\n"
+        updated = _TOP_BACKLOG_QUICK_REF_RE.sub(
+            replacement,
+            updated,
+            count=1,
+        )
+
+    updated = _replace_managed_task_block(updated, OOMPAH_TASK_AGENT_INSTRUCTIONS)
     updated = updated.rstrip() + "\n"
     return updated, updated != original
 
@@ -202,6 +314,17 @@ def ensure_github_issues_agent_instructions(repo_path: str | Path) -> bool:
     agents_path = Path(repo_path) / "AGENTS.md"
     text = agents_path.read_text(encoding="utf-8")
     updated, changed = update_agents_text_for_github_issues(text)
+    if changed:
+        agents_path.write_text(updated, encoding="utf-8")
+    return changed
+
+
+def ensure_oompah_task_agent_instructions(repo_path: str | Path) -> bool:
+    """Install native oompah task instructions into ``repo_path/AGENTS.md``."""
+
+    agents_path = Path(repo_path) / "AGENTS.md"
+    text = agents_path.read_text(encoding="utf-8")
+    updated, changed = update_agents_text_for_oompah_tasks(text)
     if changed:
         agents_path.write_text(updated, encoding="utf-8")
     return changed

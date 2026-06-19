@@ -233,7 +233,7 @@ class RetryEntry:
 
 @dataclass
 class Project:
-    """A git repo with Backlog.md issue tracking."""
+    """A managed git repo with tracker-backed work."""
 
     id: str
     name: str
@@ -365,13 +365,13 @@ class Project:
     status_label_authorized_logins: list[str] = field(default_factory=list)
 
     # ---------------------------------------------------------------------------
-    # Per-project tracker configuration (GitHub Issues migration — TASK-459.3 /
-    # TASK-464.2)
+    # Per-project tracker configuration.
     # ---------------------------------------------------------------------------
     # Which tracker backend this project uses. When None, falls back to the
     # global ServiceConfig.tracker_kind. Recognized values are the keys in
-    # oompah.tracker.ADAPTER_REGISTRY plus aliases like "backlog", "backlog.md".
-    # Use "github_issues" for GitHub-backed projects.
+    # oompah.tracker.ADAPTER_REGISTRY plus aliases like "backlog", "backlog.md",
+    # and "oompah". Use "oompah_md" for native Markdown task files or
+    # "github_issues" for GitHub-backed projects.
     tracker_kind: str | None = None
     # GitHub Issues task hub owner/repo for this project. When set, new tasks
     # are created under <tracker_owner>/<tracker_repo> on GitHub.  Falls back

@@ -183,7 +183,27 @@ class TestBootstrapLFS:
 
 
 class TestCreateProjectBacklogRequirement:
-    def test_existing_clone_without_backlog_config_raises(self, tmp_path):
+    def test_default_create_uses_oompah_md_and_skips_backlog_compat_check(self, tmp_path):
+        store = _store(tmp_path)
+        repo_path = tmp_path / "repos" / "repo"
+        repo_path.mkdir(parents=True)
+        (repo_path / ".git").mkdir()
+
+        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
+            with patch("oompah.projects.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                project = store.create(
+                    str(repo_path),
+                    name="repo",
+                    git_user_name="Test",
+                    git_user_email="t@example.com",
+                )
+
+        mock_compat.assert_not_called()
+        assert project.tracker_kind == "oompah_md"
+        assert project.paused is True
+
+    def test_explicit_legacy_clone_without_backlog_config_raises(self, tmp_path):
         store = _store(tmp_path)
         repo_path = tmp_path / "repos" / "repo"
         repo_path.mkdir(parents=True)
@@ -197,6 +217,7 @@ class TestCreateProjectBacklogRequirement:
                     name="repo",
                     git_user_name="Test",
                     git_user_email="t@example.com",
+                    tracker_kind="backlog_md",
                 )
 
     def test_github_backed_create_skips_backlog_compat_check(self, tmp_path):
@@ -222,6 +243,27 @@ class TestCreateProjectBacklogRequirement:
         assert project.tracker_kind == "github_issues"
         assert project.tracker_owner == "example-org"
         assert project.tracker_repo == "oompah"
+        assert project.paused is True
+
+    def test_oompah_md_create_skips_backlog_compat_check(self, tmp_path):
+        store = _store(tmp_path)
+        repo_path = tmp_path / "repos" / "repo"
+        repo_path.mkdir(parents=True)
+        (repo_path / ".git").mkdir()
+
+        with patch("oompah.projects.ensure_backlog_compatible") as mock_compat:
+            with patch("oompah.projects.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                project = store.create(
+                    str(repo_path),
+                    name="repo",
+                    git_user_name="Test",
+                    git_user_email="t@example.com",
+                    tracker_kind="oompah_md",
+                )
+
+        mock_compat.assert_not_called()
+        assert project.tracker_kind == "oompah_md"
         assert project.paused is True
 
     def test_github_backed_create_infers_tracker_owner_repo_from_github_url(self, tmp_path):
@@ -332,6 +374,25 @@ def _store_with_github_project(tmp_path):
         branch="main",
         default_branch="main",
         tracker_kind="github_issues",
+    )
+    store._projects[project.id] = project
+    return store, repo
+
+
+def _store_with_oompah_md_project(tmp_path):
+    """Return (store, repo_path) for a native oompah Markdown project."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    store = _store(tmp_path)
+    project = Project(
+        id="proj-md1",
+        name="mdrepo",
+        repo_url="https://github.com/org/repo.git",
+        repo_path=str(repo),
+        branch="main",
+        default_branch="main",
+        tracker_kind="oompah_md",
     )
     store._projects[project.id] = project
     return store, repo
@@ -467,6 +528,25 @@ class TestSyncProjectSourcesGitHubBacked:
         assert status["backlog"] == "skipped: github_issues"
         assert status["conflicts"] == "skipped: github_issues"
         assert status["tracker"] == "github_issues"
+
+    def test_oompah_md_skips_backlog_compat_and_conflict_repair(self, tmp_path):
+        store, _repo = _store_with_oompah_md_project(tmp_path)
+        with patch(
+            "oompah.backlog_conflict.ensure_repo_sound", return_value=dict(self._SOUND)
+        ):
+            with (
+                patch("oompah.projects.ensure_backlog_compatible") as mock_compat,
+                patch(
+                    "oompah.backlog_conflict.repair_repo_backlog_conflicts"
+                ) as mock_repair,
+            ):
+                status = store.sync_project_sources("proj-md1")
+
+        mock_compat.assert_not_called()
+        mock_repair.assert_not_called()
+        assert status["tracker"] == "oompah_md"
+        assert status["backlog"] == "skipped: oompah_md"
+        assert status["conflicts"] == "skipped: oompah_md"
 
 
 class TestSyncAllSources:

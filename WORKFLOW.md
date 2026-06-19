@@ -58,7 +58,7 @@ Read these carefully — they preserve context and findings from prior work on t
 {% endfor %}
 {% endif %}
 
-{% if issue.tracker_kind == "github_issues" %}
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
 ## oompah Task Reference
 
 You manage this issue via the `oompah task` CLI. **The entries below are shell commands. Run them via the `run_command` tool — do NOT call them as tool names.**
@@ -150,7 +150,7 @@ mcp__oompah__update_project_by_id project_id='proj-example' fields_json='{"legac
 **Self-reliance:** You are an autonomous agent. Investigate and solve problems yourself by reading code, running commands, checking logs, and testing hypotheses. NEVER ask the human to explain how something works, diagnose a problem, or tell you what approach to take — that is YOUR job. The `ask_question` tool exists ONLY for genuine ambiguity where the issue could reasonably mean two different things that lead to fundamentally different implementations. If a competent engineer would know what to do, DO the work. Restating the issue as a question, asking for confirmation of your plan, or asking "how should I proceed" are all failures.
 
 **Missing capabilities:** If completing the task requires a capability this system lacks (a tool, API access, a vision model, a new integration), file a follow-up task in `Needs Human` and continue with what you *can* do. Do not block on it. Example:
-{% if issue.tracker_kind == "github_issues" %}
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
 ```
 oompah task create --project {{ issue.project_id }} --title "Add vision model support for image analysis tasks" --description "Agent on {{ issue.identifier }} needed to analyze a screenshot but no vision-capable model is configured." --source {{ issue.identifier }}
 ```
@@ -164,7 +164,7 @@ backlog task create "Add vision model support for image analysis tasks" --descri
 
 ## Progress Comments (Required)
 
-{% if issue.tracker_kind == "github_issues" %}
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
 Post a comment at each of these milestones using `oompah task comment {{ issue.identifier }} --message "..." --author oompah`:
 {% else %}
 Post a comment at each of these milestones using `backlog task edit {{ issue.identifier }} --comment "..." --comment-author oompah --plain`:
@@ -182,8 +182,8 @@ Keep each comment concise but informative — write what a project manager needs
 
 Use project documentation to save insights future agents will wish they had at the start. Good entries are **stable truths**: architecture, build/test commands, non-obvious gotchas, key file locations.
 
-{% if issue.tracker_kind == "github_issues" %}
-For GitHub-backed work, use repository docs directly instead of creating Backlog.md documents:
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
+For oompah task work, use repository docs directly instead of creating Backlog.md documents:
 
 ```
 rg -n "<keyword>" docs plans README.md WORKFLOW.md
@@ -253,7 +253,7 @@ A `prepare-commit-msg` hook is installed in this worktree as a safety net: it st
 If you determine that this issue requires a different specialist to complete (e.g., you're a backend agent but the fix needs frontend work, or a bug investigation reveals a security issue), you can **hand off** the issue:
 
 1. **Post a detailed handoff comment** explaining what you've done, what you've found, and what the next agent needs to do:
-{% if issue.tracker_kind == "github_issues" %}
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
    ```
    oompah task comment {{ issue.identifier }} --message "HANDOFF: I investigated the bug and found the root cause is in the React dashboard component (src/components/Dashboard.tsx:42). The data fetching logic is correct but the rendering has a race condition. A frontend agent needs to fix the useEffect cleanup. See my analysis in the previous comments." --author oompah
    ```
@@ -302,7 +302,7 @@ This issue already has a review open but CI tests are failing. Your ONLY job is 
 5. Fix ONLY the failing tests — minimal changes
 6. Run the test suite locally again to confirm the fix
 7. Commit, push, and verify CI passes
-{% if issue.tracker_kind == "github_issues" %}
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
 8. Post a comment with the fix summary and close the issue using `oompah task set-status {{ issue.identifier }} Done --summary "..."`
 {% else %}
 8. Post a comment with the fix summary and close the issue using `backlog task edit {{ issue.identifier }} --status Done --final-summary "..." --plain`
@@ -317,7 +317,7 @@ This issue already has a review open but CI tests are failing. Your ONLY job is 
 7. Run any relevant tests to verify your changes
 8. Post a comment with test results
 9. Commit and push (see Git Workflow above)
-{% if issue.tracker_kind == "github_issues" %}
+{% if issue.tracker_kind == "github_issues" or issue.tracker_kind == "oompah_md" %}
 10. Post a completion summary and close the issue using `oompah task set-status {{ issue.identifier }} Done --summary "..."`
 {% else %}
 10. Post a completion summary and close the issue using `backlog task edit {{ issue.identifier }} --status Done --final-summary "..." --plain`

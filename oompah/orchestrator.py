@@ -1492,6 +1492,10 @@ class Orchestrator:
             if status_actor_login:
                 status_label_logins.append(str(status_actor_login))
             extra["status_label_authorized_logins"] = status_label_logins
+        elif kind in ("oompah_md", "oompah.md", "oompah"):
+            default_branch = (getattr(project, "default_branch", None) or "").strip()
+            if default_branch:
+                extra["default_branch"] = default_branch
         return factory(
             active_states=self.config.tracker_active_states,
             terminal_states=self.config.tracker_terminal_states,
@@ -12983,14 +12987,14 @@ class Orchestrator:
             self.state.claimed.discard(issue.id)
             return
 
-        # GitHub claim-and-verify protocol (TASK-461.2).
-        # For GitHub-backed issues, stamp a unique run ID onto the issue
-        # metadata and re-read it immediately.  The last writer wins: if
-        # another oompah instance claimed the issue after us, our run ID
-        # will have been overwritten and we abort rather than starting a
-        # duplicate agent.  BacklogMd projects rely on the in-process
-        # dispatch lock and skip this protocol entirely.
-        if issue.tracker_kind == "github_issues":
+        # Shared tracker claim-and-verify protocol (TASK-461.2).
+        # For trackers with an external/default-branch source of truth, stamp a
+        # unique run ID onto the issue metadata and re-read it immediately. The
+        # last writer wins: if another oompah instance claimed the issue after
+        # us, our run ID will have been overwritten and we abort rather than
+        # starting a duplicate agent. Legacy Backlog projects rely on the
+        # in-process dispatch lock and skip this protocol.
+        if (issue.tracker_kind or "").strip().lower() in {"github_issues", "oompah_md"}:
             _claim_run_id = str(uuid.uuid4())
             try:
                 await asyncio.get_event_loop().run_in_executor(

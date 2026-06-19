@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from oompah.agent_instructions import (
     ensure_github_issues_agent_instructions,
+    ensure_oompah_task_agent_instructions,
     render_github_issues_agent_instructions,
+    render_oompah_task_agent_instructions,
     update_agents_text_for_github_issues,
+    update_agents_text_for_oompah_tasks,
 )
 
 
@@ -129,6 +132,66 @@ def test_rendered_github_instructions_make_cli_optional_with_fallbacks():
     assert "not sufficient for oompah rollups" in rendered
 
 
+def test_rendered_oompah_task_instructions_use_native_markdown_store():
+    rendered = render_oompah_task_agent_instructions()
+
+    assert "BEGIN OOMPAH TASK INTEGRATION" in rendered
+    assert "native Markdown task files" in rendered
+    assert "under `.oompah/tasks/`" in rendered
+    assert "must not\nhand-edit those files" in rendered
+    assert "GitHub Issues as a task\nreplacement" in rendered
+    assert "OOMPAH_SERVER_URL=http://127.0.0.1:<port>" in rendered
+    assert "oompah task view <task-id>" in rendered
+    assert "oompah task set-status <task-id> Done" in rendered
+    assert "Work is not complete until the code is pushed" in rendered
+    assert "GitHub Fallback" not in rendered
+
+
+def test_update_oompah_task_replaces_github_block():
+    original, changed = update_agents_text_for_github_issues("# Rules\n")
+    assert changed is True
+
+    updated, native_changed = update_agents_text_for_oompah_tasks(original)
+
+    assert native_changed is True
+    assert "BEGIN OOMPAH TASK INTEGRATION" in updated
+    assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" not in updated
+    assert "GitHub Fallback" not in updated
+    assert "under `.oompah/tasks/`" in updated
+
+
+def test_update_oompah_task_replaces_top_level_backlog_quick_reference():
+    original = """# Agent Instructions
+
+This project uses **Backlog.md** for issue tracking. Do **not** use `bd`
+(beads) as the task tracker for this project.
+
+## Quick Reference
+
+```bash
+backlog task list --plain                     # Find available work
+backlog task view TASK-123 --plain            # View task details
+backlog task edit TASK-123 --status "In Progress" --plain
+backlog task edit TASK-123 --status Done --plain
+backlog board --plain                         # Show the task board
+```
+
+## Other Rules
+
+Use Makefile targets.
+"""
+
+    updated, changed = update_agents_text_for_oompah_tasks(original)
+
+    assert changed is True
+    assert "This project uses **Backlog.md**" not in updated
+    assert "backlog task list --plain" not in updated
+    assert "BEGIN OOMPAH TASK INTEGRATION" in updated
+    assert "oompah task view <task-id>" in updated
+    assert "## Other Rules" in updated
+    assert updated.count("BEGIN OOMPAH TASK INTEGRATION") == 1
+
+
 def test_update_existing_github_block_is_idempotent():
     original, changed = update_agents_text_for_github_issues("# Rules\n")
     assert changed is True
@@ -157,3 +220,23 @@ Use Backlog.md.
     text = agents.read_text(encoding="utf-8")
     assert "BEGIN OOMPAH GITHUB ISSUES INTEGRATION" in text
     assert "Use Backlog.md." not in text
+
+
+def test_ensure_updates_agents_file_for_oompah_tasks(tmp_path):
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text(
+        """# Rules
+
+<!-- BEGIN OOMPAH GITHUB ISSUES INTEGRATION -->
+Use GitHub Issues.
+<!-- END OOMPAH GITHUB ISSUES INTEGRATION -->
+""",
+        encoding="utf-8",
+    )
+
+    changed = ensure_oompah_task_agent_instructions(tmp_path)
+
+    assert changed is True
+    text = agents.read_text(encoding="utf-8")
+    assert "BEGIN OOMPAH TASK INTEGRATION" in text
+    assert "Use GitHub Issues." not in text

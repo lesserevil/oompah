@@ -1,13 +1,13 @@
 """Tests for tracker-aware Backlog hook installation guards (TASK-463.4).
 
-Verifies that GitHub-backed projects (tracker_kind == "github_issues") are
-skipped by:
+Verifies that external/native tracker projects (for example
+tracker_kind == "github_issues" or "oompah_md") are skipped by:
   - ensure_backlog_webhooks() (startup bulk install)
   - _install_backlog_hook_for_project() (project create / update)
   - POST /api/v1/webhooks/backlog (webhook receipt handler)
 
-Legacy Backlog projects (tracker_kind is None or any non-github value) must
-continue to install and process hooks idempotently.
+Legacy Backlog projects (tracker_kind is None or any non-external/native value)
+must continue to install and process hooks idempotently.
 """
 
 from __future__ import annotations
@@ -185,6 +185,21 @@ class TestEnsureBacklogWebhooksTrackerGuard:
         assert results["gh-proj"] == "skipped: github_issues tracker"
         mock_install.assert_not_called()
 
+    def test_oompah_md_project_skipped(self, tmp_path):
+        """A project with tracker_kind='oompah_md' must be skipped."""
+        project = _make_project(
+            project_id="native-proj",
+            repo_path=str(tmp_path),
+            tracker_kind="oompah_md",
+        )
+        store = _make_mock_project_store([project])
+
+        with patch("oompah.backlog_webhooks.install_backlog_webhook_hook") as mock_install:
+            results = ensure_backlog_webhooks(store, server_base_url="http://localhost:8080")
+
+        assert results["native-proj"] == "skipped: oompah_md tracker"
+        mock_install.assert_not_called()
+
     def test_legacy_backlog_project_installs_hook(self, tmp_path):
         """A project with tracker_kind=None (legacy) must still attempt installation."""
         repo = _make_git_repo(tmp_path)
@@ -240,6 +255,19 @@ class TestEnsureBacklogWebhooksTrackerGuard:
 
         assert results["gh-proj-no-git"] == "skipped: github_issues tracker"
 
+    def test_oompah_md_project_skipped_before_git_directory_check(self, tmp_path):
+        """Native tracker projects are skipped before the .git directory check."""
+        project = _make_project(
+            project_id="native-proj-no-git",
+            repo_path="/nonexistent/path",
+            tracker_kind="oompah_md",
+        )
+        store = _make_mock_project_store([project])
+
+        results = ensure_backlog_webhooks(store, server_base_url="http://localhost:8080")
+
+        assert results["native-proj-no-git"] == "skipped: oompah_md tracker"
+
     def test_empty_tracker_kind_installs_hook(self, tmp_path):
         """tracker_kind='' (empty string, treated as None) still installs."""
         repo = _make_git_repo(tmp_path)
@@ -273,6 +301,15 @@ class TestInstallBacklogHookForProjectTrackerGuard:
     def test_github_backed_skips_installation(self):
         """No hook install attempt for tracker_kind='github_issues'."""
         project = _make_project(tracker_kind="github_issues")
+
+        with patch("oompah.backlog_webhooks.install_backlog_webhook_hook") as mock_install:
+            self._call_install(project)
+
+        mock_install.assert_not_called()
+
+    def test_oompah_md_skips_installation(self):
+        """No hook install attempt for tracker_kind='oompah_md'."""
+        project = _make_project(tracker_kind="oompah_md")
 
         with patch("oompah.backlog_webhooks.install_backlog_webhook_hook") as mock_install:
             self._call_install(project)
@@ -368,6 +405,29 @@ def client_github_project_with_secret():
         yield TestClient(app), orch
 
 
+@pytest.fixture
+def client_oompah_md_project():
+    """TestClient with a native Markdown project (tracker_kind='oompah_md')."""
+    from oompah.server import app, _api_cache
+
+    project = _make_project(
+        project_id="native-proj",
+        tracker_kind="oompah_md",
+        webhook_secret=None,
+    )
+    orch = MagicMock()
+    orch.request_refresh = MagicMock()
+    orch.project_store = MagicMock()
+    orch.project_store.get = MagicMock(return_value=project)
+    orch.project_store.sync_project_sources = MagicMock(
+        return_value={"git": "ok", "backlog": "skipped: oompah_md"}
+    )
+
+    with patch("oompah.server._orchestrator", orch):
+        _api_cache.invalidate("issues:all")
+        yield TestClient(app), orch
+
+
 class TestBacklogWebhookGitHubBackedIgnored:
     """Backlog webhook receipts for GitHub-backed projects return ignored."""
 
@@ -399,6 +459,21 @@ class TestBacklogWebhookGitHubBackedIgnored:
         with patch("threading.Thread") as mock_thread:
             client.post("/api/v1/webhooks/backlog", json=payload)
         mock_thread.assert_not_called()
+
+    def test_oompah_md_returns_200_ignored(self, client_oompah_md_project):
+        """Backlog webhook receipts for native tracker projects are ignored."""
+        client, orch = client_oompah_md_project
+        payload = _backlog_payload(project_id="native-proj")
+        resp = client.post("/api/v1/webhooks/backlog", json=payload)
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ok"] is True
+        assert body["action"] == "ignored"
+        assert body["reason"] == "oompah_md tracker"
+        assert body["project_id"] == "native-proj"
+        orch.request_refresh.assert_not_called()
+        orch.project_store.sync_project_sources.assert_not_called()
 
     def test_github_backed_does_not_invalidate_cache(self, client_github_project):
         """Cache must NOT be invalidated for GitHub-backed webhook receipts."""

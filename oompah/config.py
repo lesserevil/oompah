@@ -222,6 +222,9 @@ _TRACKER_KIND_ALIASES = {
     "backlog_md": "backlog_md",
     "backlog.md": "backlog_md",
     "backlog": "backlog_md",
+    "oompah_md": "oompah_md",
+    "oompah.md": "oompah_md",
+    "oompah": "oompah_md",
 }
 _STRICT_PROFILE_SOURCE_VALUES = ("warn", "strict")
 

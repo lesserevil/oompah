@@ -21,7 +21,10 @@ from typing import TYPE_CHECKING, Any, Callable
 from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from oompah.agent_instructions import ensure_github_issues_agent_instructions
+from oompah.agent_instructions import (
+    ensure_github_issues_agent_instructions,
+    ensure_oompah_task_agent_instructions,
+)
 from oompah.events import EventType
 from oompah.scm import (
     ReviewRequest,
@@ -6248,9 +6251,10 @@ async def api_create_project(request: Request):
         git_user_name = body.get("git_user_name", "").strip() or None
         git_user_email = body.get("git_user_email", "").strip() or None
         access_token = (body.get("access_token") or "").strip() or None
-        # Per-project tracker configuration. New projects use GitHub Issues by
-        # default; legacy Backlog must be selected explicitly.
-        tracker_kind = (body.get("tracker_kind") or "").strip() or "github_issues"
+        # Per-project tracker configuration. New projects use oompah's native
+        # Markdown task store by default; legacy Backlog and GitHub Issues must
+        # be selected explicitly.
+        tracker_kind = (body.get("tracker_kind") or "").strip() or "oompah_md"
         tracker_owner = (body.get("tracker_owner") or "").strip() or None
         tracker_repo = (body.get("tracker_repo") or "").strip() or None
         github_project_node_id = (body.get("github_project_node_id") or "").strip() or None
@@ -6321,7 +6325,7 @@ async def api_create_project(request: Request):
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         # Install Backlog webhook hook for the new project (best-effort).
         _install_backlog_hook_for_project(project)
-        _ensure_github_agent_instructions_for_project(project)
+        _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict(), status_code=201)
     except ProjectError as exc:
         return JSONResponse(
@@ -6625,7 +6629,7 @@ async def api_update_project(project_id: str, request: Request):
             _log_watcher_manager.sync_watchers(orch.project_store.list_all())
         # Re-install Backlog webhook hook in case webhook_secret or URL changed.
         _install_backlog_hook_for_project(project)
-        _ensure_github_agent_instructions_for_project(project)
+        _ensure_tracker_agent_instructions_for_project(project)
         return JSONResponse(project.to_safe_dict())
     except ProjectError as exc:
         return JSONResponse(
@@ -9123,19 +9127,18 @@ def _sync_project_after_webhook(
 def _install_backlog_hook_for_project(project) -> None:
     """Install or update the Backlog webhook hook for one project.
 
-    GitHub-backed projects (``tracker_kind == "github_issues"``) are skipped
-    — they use GitHub webhooks for task-change notifications and do not need
-    Backlog post-commit hooks.
+    GitHub-backed and native oompah Markdown projects are skipped because they
+    do not use Backlog post-commit hooks for task-change notifications.
 
     Best-effort: any failure is logged at DEBUG level so project
     create/update operations are never blocked by hook installation
     errors.
     """
-    # GitHub-backed projects must not install Backlog hooks (TASK-463.4).
-    tracker_kind = getattr(project, "tracker_kind", None)
-    if tracker_kind == "github_issues":
+    tracker_kind = str(getattr(project, "tracker_kind", None) or "").strip().lower()
+    if tracker_kind in {"github_issues", "github-issues", "oompah_md", "oompah.md", "oompah"}:
         logger.debug(
-            "_install_backlog_hook_for_project: skipping GitHub-backed project %s",
+            "_install_backlog_hook_for_project: skipping %s project %s",
+            tracker_kind,
             getattr(project, "id", "?"),
         )
         return
@@ -9166,28 +9169,48 @@ def _install_backlog_hook_for_project(project) -> None:
         )
 
 
-def _ensure_github_agent_instructions_for_project(project) -> None:
-    """Install GitHub Issues task instructions into a managed repo's AGENTS.md."""
+def _is_oompah_md_tracker_kind(kind: str | None) -> bool:
+    return (kind or "").strip().lower() in {"oompah_md", "oompah.md", "oompah"}
 
-    if not _is_github_tracker_kind(getattr(project, "tracker_kind", None)):
+
+def _ensure_tracker_agent_instructions_for_project(project) -> None:
+    """Install tracker-specific task instructions into a managed repo's AGENTS.md."""
+
+    tracker_kind = getattr(project, "tracker_kind", None)
+    if _is_github_tracker_kind(tracker_kind):
+        ensure_func = ensure_github_issues_agent_instructions
+        label = "GitHub Issues"
+    elif _is_oompah_md_tracker_kind(tracker_kind):
+        ensure_func = ensure_oompah_task_agent_instructions
+        label = "native oompah task"
+    else:
         return
+
     repo_path = getattr(project, "repo_path", None)
     if not repo_path:
         return
     try:
-        changed = ensure_github_issues_agent_instructions(repo_path)
+        changed = ensure_func(repo_path)
     except OSError as exc:
         logger.warning(
-            "GitHub Issues AGENTS.md update failed for project %s: %s",
+            "%s AGENTS.md update failed for project %s: %s",
+            label,
             getattr(project, "id", "?"),
             exc,
         )
         return
     if changed:
         logger.info(
-            "Updated AGENTS.md with GitHub Issues task instructions for project %s",
+            "Updated AGENTS.md with %s task instructions for project %s",
+            label,
             getattr(project, "id", "?"),
         )
+
+
+def _ensure_github_agent_instructions_for_project(project) -> None:
+    """Backward-compatible wrapper for older tests/imports."""
+
+    _ensure_tracker_agent_instructions_for_project(project)
 
 
 @app.post("/api/v1/webhooks/github")
@@ -9396,21 +9419,25 @@ async def api_webhook_backlog(request: Request):
         orch = _get_orchestrator()
         project = orch.project_store.get(project_id) if project_id else None
 
-        # GitHub-backed projects must not process Backlog webhook receipts
-        # (TASK-463.4).  If a stale hook fires for a project that has since
-        # been migrated to GitHub Issues, acknowledge the request but take no
-        # action so the transition is safe and idempotent.
-        if project and getattr(project, "tracker_kind", None) == "github_issues":
+        # External/native tracker projects must not process Backlog webhook
+        # receipts. If a stale hook fires for a project that has moved away
+        # from Backlog, acknowledge it but take no action.
+        tracker_kind = (
+            str(getattr(project, "tracker_kind", None) or "").strip().lower()
+            if project
+            else ""
+        )
+        if tracker_kind in {"github_issues", "github-issues", "oompah_md", "oompah.md", "oompah"}:
             logger.info(
-                "Backlog webhook ignored for GitHub-backed project %s "
-                "(tracker_kind=github_issues); returning ok with no-op action",
+                "Backlog webhook ignored for %s project %s; returning ok with no-op action",
+                tracker_kind,
                 project_id,
             )
             return JSONResponse(
                 {
                     "ok": True,
                     "action": "ignored",
-                    "reason": "github_issues tracker",
+                    "reason": f"{tracker_kind} tracker",
                     "project_id": project_id,
                 }
             )

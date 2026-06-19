@@ -288,7 +288,7 @@ async function loadProjects() {
     return;
   }
   if (projects.length === 0) {
-    container.innerHTML = '<div class="empty-state">No projects configured.<br>Add a git repo with Backlog.md tasks to get started.</div>';
+    container.innerHTML = '<div class="empty-state">No projects configured.<br>Add a git repo to get started.</div>';
     return;
   }
   container.innerHTML = projects.map(p => `
@@ -481,10 +481,11 @@ async function loadProjects() {
           <label style="font-weight:700;color:var(--text);font-size:0.85rem;">Tracker Settings</label>
         </div>
         <div class="form-group">
-          <label>Tracker Kind <span style="font-weight:400;color:var(--text-muted);">(backlog = Backlog.md files; github_issues = GitHub Issues API)</span></label>
+          <label>Tracker Kind <span style="font-weight:400;color:var(--text-muted);">(oompah_md = native Markdown files; backlog = Backlog.md files; github_issues = GitHub Issues API)</span></label>
           <select id="edit-tracker-kind-${esc(p.id)}" style="width:100%;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
             <option value="" ${!p.tracker_kind ? 'selected' : ''}>backlog (legacy)</option>
             <option value="backlog" ${p.tracker_kind === 'backlog' ? 'selected' : ''}>backlog</option>
+            <option value="oompah_md" ${p.tracker_kind === 'oompah_md' ? 'selected' : ''}>oompah_md</option>
             <option value="github_issues" ${p.tracker_kind === 'github_issues' ? 'selected' : ''}>github_issues</option>
           </select>
         </div>
@@ -599,7 +600,7 @@ async function addProject() {
     res = await fetch('/api/v1/projects', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({repo_url: repo, name, branch, branches, default_branch: defaultBranch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken, tracker_kind: 'github_issues', paused: true}),
+      body: JSON.stringify({repo_url: repo, name, branch, branches, default_branch: defaultBranch, git_user_name: gitUserName, git_user_email: gitUserEmail, access_token: accessToken, tracker_kind: 'oompah_md', paused: true}),
     });
   } catch (err) {
     console.error('addProject fetch failed:', err);

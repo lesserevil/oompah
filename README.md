@@ -6,7 +6,7 @@ Oompah polls for open issues, matches each to a specialized agent focus, spins u
 
 ## Features
 
-- **Issue-driven orchestration** — polls supported task trackers such as GitHub Issues, Backlog.md, and [beads](https://github.com/lesserevil/beads), dispatches agents by priority, and tracks progress through comments
+- **Issue-driven orchestration** — polls supported task trackers such as native oompah Markdown files, GitHub Issues, Backlog.md, and [beads](https://github.com/lesserevil/beads), dispatches agents by priority, and tracks progress through comments
 - **Agent focus system** — matches issues to specialized roles (Bug Investigator, Feature Developer, Security Auditor, etc.) using keyword scoring, issue types, and labels
 - **Git worktrees** — each agent works in an isolated worktree on a named branch, preventing interference between concurrent agents
 - **Multi-project support** — manage multiple git repos, each with their own issue tracker and SCM provider
@@ -72,7 +72,7 @@ Oompah is configured through a single `WORKFLOW.md` file that combines YAML fron
 ```markdown
 ---
 tracker:
-  kind: github_issues
+  kind: oompah_md
   active_states: ["To Do", "In Progress"]
   terminal_states: [Done]
 
@@ -116,6 +116,11 @@ You are an autonomous coding agent working on issue **{{ issue.identifier }}**.
 5. Commit, push, and create a PR
 ```
 
+New managed projects default to `oompah_md`, oompah's native Markdown tracker.
+It stores canonical task files under `.oompah/tasks` on each project's default
+branch and keeps them committed and pushed from the managed source checkout.
+See [docs/native-markdown-tracker.md](docs/native-markdown-tracker.md).
+
 When using `tracker.kind: github_issues`, set `OOMPAH_GITHUB_TRACKER_OWNER`
 and `OOMPAH_GITHUB_TRACKER_REPO` in `.env` for the default task hub. Managed
 projects can override those values with per-project tracker settings.
@@ -124,7 +129,7 @@ projects can override those values with per-project tracker settings.
 
 | Section | Key | Description | Default |
 |---|---|---|---|
-| `tracker` | `kind` | Issue tracker type (`github_issues`, `backlog`, `backlog_md`, or `beads`) | `backlog_md` |
+| `tracker` | `kind` | Issue tracker type (`oompah_md`, `github_issues`, `backlog`, `backlog_md`, or `beads`) | `backlog_md` |
 | `tracker` | `active_states` | States that trigger agent dispatch | `["Open", "Needs CI Fix", "Needs Rebase"]` |
 | `tracker` | `terminal_states` | States that mean "done" | `["Done", "Merged", "Archived"]` |
 | `polling` | `interval_ms` | Poll interval in milliseconds | `30000` |
@@ -268,7 +273,7 @@ backends, with `_tool_use_id` ↔ `call_id` preserved. See
 
 Each project needs:
 
-1. A git repository registered as an oompah managed project, with GitHub Issues configured as the task hub for new work. Legacy Backlog.md (`backlog init`) and beads (`bd init`) projects remain supported for existing deployments.
+1. A git repository registered as an oompah managed project. New projects use native oompah Markdown tasks by default; GitHub Issues can be selected explicitly. Legacy Backlog.md (`backlog init`) and beads (`bd init`) projects remain supported for existing deployments.
 2. A `WORKFLOW.md` in the oompah working directory
 3. At least one model provider configured
 
