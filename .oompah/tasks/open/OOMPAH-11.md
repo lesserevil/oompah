@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-11
 type: bug
-status: In Review
+status: Open
 priority: 1
 title: Allow issue template refresh for native GitHub-intake projects
 parent: null
@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:44:39.770105Z'
+updated_at: '2026-06-20T03:44:42.398575Z'
 work_branch: OOMPAH-11
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/337
