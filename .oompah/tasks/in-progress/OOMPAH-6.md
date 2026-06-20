@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T04:02:51.240192Z'
+updated_at: '2026-06-20T04:03:03.945140Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -182,5 +182,18 @@ created: 2026-06-20 04:02
 - TestErrorClassForTrackerExc (5 cases): Confirms 'tracker_auth_failed' dedup class for TrackerAuthError vs 'tracker_failed' for generic TrackerError
 
 Branch OOMPAH-6 pushed to origin.
+---
+author: oompah
+created: 2026-06-20 04:03
+---
+**Completion:** Duplicate investigation confirmed no existing task covers this issue. Implementation delivered:
+
+1. TrackerAuthError(TrackerError) subclass — distinct exception for 401/403 GitHub API failures, backward-compatible with all existing TrackerError catch sites.
+2. github_tracker.py: request() and request_paginated() now raise TrackerAuthError for 401/403 so callers can distinguish auth failures from transient errors.
+3. github_intake_bridge.py: poll_github_issue_intake_project() catches TrackerAuthError specifically, logs WARNING with actionable message (project name, repo slug, instructions for access_token / OOMPAH_GITHUB_TOKEN), re-raises for orchestrator alert surfacing.
+4. orchestrator.py: _sync_github_issue_intake_pass() catches TrackerAuthError and surfaces a level=error dashboard alert with the project name and credential-fix instructions. _error_class_for_tracker_exc() classifies TrackerAuthError as 'tracker_auth_failed' (distinct dedup key).
+5. 8 new regression tests covering all paths.
+
+The OVA project auth failure is now surfaced as an actionable dashboard alert and WARNING log rather than silently dropped at DEBUG level. Operators are directed to set project access_token or configure OOMPAH_GITHUB_TOKEN with read access to NVIDIA-dev/ova.
 ---
 <!-- COMMENTS:END -->
