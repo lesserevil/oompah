@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:44:31.550104Z'
+updated_at: '2026-06-20T03:44:39.770105Z'
 work_branch: OOMPAH-11
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/337
@@ -88,5 +88,15 @@ author: oompah
 created: 2026-06-20 03:44
 ---
 Added _has_github_issue_template_capability() predicate; updated status/preview/apply endpoints to accept oompah_md+github_issue_intake_enabled=True projects; 17 new regression tests (8 predicate unit tests + 9 endpoint integration tests); all 6923 tests pass.
+---
+author: oompah
+created: 2026-06-20 03:44
+---
+Run #1 [attempt=1, profile=default, role=fast -> Claude/default]
+- Turns: 0, Tool calls: 46
+- Tokens: 71 in / 2.1K out [2.2K total]
+- Cost: $0.0000
+- Exit: terminated, Duration: 7m 41s
+- Log: OOMPAH-11__20260620T033635Z.jsonl
 ---
 <!-- COMMENTS:END -->
