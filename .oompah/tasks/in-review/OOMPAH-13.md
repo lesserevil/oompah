@@ -15,11 +15,11 @@ labels:
 - auth
 assignee: null
 created_at: '2026-06-20T03:02:36.629755Z'
-updated_at: '2026-06-20T03:48:17.263780Z'
+updated_at: '2026-06-20T03:48:19.865363Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/338
-review_number: null
+review_number: '338'
 merged_at: null
 oompah.agent_run_id: 415c4b44-baa2-4bbf-92bf-71761f2d9a3d
 oompah.task_costs:
@@ -39,6 +39,7 @@ oompah.task_costs:
     cost_usd: 0.0
     recorded_at: '2026-06-20T03:45:44.091293+00:00'
 oompah.review_url: https://github.com/lesserevil/oompah/pull/338
+oompah.review_number: '338'
 ---
 ## Summary
 
