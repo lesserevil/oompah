@@ -15,7 +15,7 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T03:56:39.717418Z'
+updated_at: '2026-06-20T03:56:42.372122Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -111,5 +111,10 @@ Changes pushed on branch OOMPAH-14:
 - ensure_native_issue_for_github_issue() forwards issue_type, user labels, parent_id to native create
 - New _reconcile_native_type_and_labels() repairs pre-fix tasks: backfills type (if still default 'task') and adds missing labels without removing existing ones
 - 16 new passing tests; full suite: 6923 passed, 28 skipped, 0 failures
+---
+author: oompah
+created: 2026-06-20 03:56
+---
+Fixed webhook label normalization: _github_issue_from_event() now uses _gh_issue_to_issue() to parse type/priority/parent/labels from webhook payload identically to polling path; ensure_native_issue forwards all parsed fields to native create; new _reconcile_native_type_and_labels() backfills missing type/labels on existing tasks. 16 new tests added. All 6923 tests pass.
 ---
 <!-- COMMENTS:END -->
