@@ -11,7 +11,7 @@ labels:
 - external:github
 assignee: null
 created_at: '2026-06-20T02:13:20.696856Z'
-updated_at: '2026-06-20T05:17:59.855021Z'
+updated_at: '2026-06-20T05:18:01.899431Z'
 work_branch: null
 target_branch: null
 review_url: https://github.com/lesserevil/oompah/pull/342
@@ -32,6 +32,7 @@ oompah.external.github:
   external_state: open
   external_created_at: '2026-06-20T01:59:20Z'
   external_updated_at: '2026-06-20T02:13:50Z'
+  last_github_state: closed
 oompah.intake:
   missing_fields: []
   scope: small
