@@ -14,7 +14,7 @@ labels:
 - templates
 assignee: null
 created_at: '2026-06-20T03:02:09.918768Z'
-updated_at: '2026-06-20T03:36:30.462210Z'
+updated_at: '2026-06-20T03:37:25.890434Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -54,5 +54,10 @@ author: oompah
 created: 2026-06-20 03:36
 ---
 Agent dispatched (profile: default)
+---
+author: oompah
+created: 2026-06-20 03:37
+---
+Understanding: Investigating OOMPAH-11. No duplicate found among existing tasks. Issue: the three issue-template endpoints (status, preview, apply) guard with tracker_kind == 'github_issues' only, but native oompah_md projects with github_issue_intake_enabled=true should also be supported. Plan: (1) find the endpoint guards, (2) add a shared predicate, (3) update endpoints, (4) add regression tests, (5) update any UI test references.
 ---
 <!-- COMMENTS:END -->
