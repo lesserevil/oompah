@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-14
 type: bug
-status: Done
+status: In Review
 priority: 1
 title: Preserve GitHub issue labels and type during native intake webhooks
 parent: null
@@ -15,7 +15,7 @@ labels:
 - metadata
 assignee: null
 created_at: '2026-06-20T03:03:06.527980Z'
-updated_at: '2026-06-20T03:56:52.151396Z'
+updated_at: '2026-06-20T03:59:01.335315Z'
 work_branch: null
 target_branch: null
 review_url: null
